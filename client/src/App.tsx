@@ -24,6 +24,7 @@ import { SuppressionPage } from './pages/suppression/SuppressionPage';
 import { VerificationPage } from './pages/verification/VerificationPage';
 import { TeamPage } from './pages/team/TeamPage';
 import { InviteAcceptPage } from './pages/team/InviteAcceptPage';
+import { LandingPageV2 } from './pages/LandingPageV2';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -119,6 +120,9 @@ export default function App() {
         <Route path="/verification" element={<VerificationPage />} />
         <Route path="/team" element={<TeamPage />} />
       </Route>
+
+      {/* New landing page preview */}
+      <Route path="/lp2" element={<LandingPageV2 />} />
 
       {/* Invite accept — public, handles auth redirect internally */}
       <Route path="/invite" element={<InviteAcceptPage />} />

@@ -152,6 +152,21 @@ export function LandingPage() {
             Free 14-day trial · No credit card required · Cancel anytime
           </p>
 
+          <div style={{ marginTop: 14 }}>
+            <Link
+              to="/lp2"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.45)',
+                border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
+                padding: '6px 12px', textDecoration: 'none',
+                background: 'rgba(255,255,255,0.04)',
+              }}
+            >
+              ✦ Preview new design
+            </Link>
+          </div>
+
         </div>
 
         {/* ── App Mockup ── */}
