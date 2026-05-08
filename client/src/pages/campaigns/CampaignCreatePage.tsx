@@ -847,6 +847,24 @@ export function CampaignCreatePage() {
                         placeholder="e.g., Quick question about {{company}}"
                         className={inputCls}
                       />
+                      {(() => {
+                        const len = (steps[editingStep].subject || '').length;
+                        if (len === 0) return null;
+                        const quality =
+                          len >= 30 && len <= 60
+                            ? { label: 'Great length', color: 'text-green-500' }
+                            : len < 30
+                            ? { label: 'Too short', color: 'text-amber-500' }
+                            : len <= 80
+                            ? { label: 'A bit long', color: 'text-amber-500' }
+                            : { label: 'Too long — may truncate', color: 'text-red-400' };
+                        return (
+                          <div className="flex items-center justify-between mt-1.5 px-1">
+                            <span className={`text-[11px] font-medium ${quality.color}`}>{quality.label}</span>
+                            <span className={`text-[11px] tabular-nums ${quality.color}`}>{len} / 80</span>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Body */}

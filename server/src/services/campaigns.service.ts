@@ -28,11 +28,15 @@ export const campaignsService = {
     const { data: campaigns, count, error } = await query;
     if (error) throw new AppError(error.message, 500);
 
-    // Compute stats for each campaign
+    // Compute stats for each campaign; isolate failures so one bad campaign doesn't break the list
     const withStats = await Promise.all(
       (campaigns || []).map(async (campaign: any) => {
-        const stats = await this.getStats(campaign.id);
-        return { ...campaign, ...stats };
+        try {
+          const stats = await this.getStats(campaign.id);
+          return { ...campaign, ...stats };
+        } catch {
+          return campaign;
+        }
       })
     );
 

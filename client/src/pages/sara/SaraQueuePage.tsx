@@ -68,6 +68,7 @@ export function SaraQueuePage() {
       queryClient.invalidateQueries({ queryKey: ['sara-stats'] });
       toast.success('Reply approved');
       setEditingId(null);
+      setEditedReply('');
     },
     onError: () => toast.error('Failed to approve'),
   });

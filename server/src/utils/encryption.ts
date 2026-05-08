@@ -19,7 +19,11 @@ export function encrypt(text: string): string {
 
 export function decrypt(encryptedText: string): string {
   const key = Buffer.from(env.ENCRYPTION_KEY, 'hex');
-  const [ivHex, tagHex, encrypted] = encryptedText.split(':');
+  const parts = encryptedText.split(':');
+  if (parts.length !== 3) {
+    throw new Error('Invalid encrypted string format');
+  }
+  const [ivHex, tagHex, encrypted] = parts;
 
   const iv = Buffer.from(ivHex, 'hex');
   const tag = Buffer.from(tagHex, 'hex');
