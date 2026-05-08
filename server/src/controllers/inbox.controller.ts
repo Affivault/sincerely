@@ -75,6 +75,27 @@ export const inboxController = {
     } catch (err) { next(err); }
   },
 
+  async archiveThread(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      await inboxService.archiveThread(req.userId!, req.params.id);
+      res.status(204).send();
+    } catch (err) { next(err); }
+  },
+
+  async unarchiveThread(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      await inboxService.unarchiveThread(req.userId!, req.params.id);
+      res.status(204).send();
+    } catch (err) { next(err); }
+  },
+
+  async markThreadRead(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      await inboxService.markThreadRead(req.userId!, req.params.id);
+      res.status(204).send();
+    } catch (err) { next(err); }
+  },
+
   async reply(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const { body: replyBody, body_html, smtp_account_id } = req.body;

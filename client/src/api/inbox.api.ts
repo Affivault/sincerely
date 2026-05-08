@@ -56,6 +56,18 @@ export const inboxApi = {
     await apiClient.put(`/inbox/${id}/unarchive`);
   },
 
+  archiveThread: async (id: string) => {
+    await apiClient.put(`/inbox/${id}/archive-thread`);
+  },
+
+  unarchiveThread: async (id: string) => {
+    await apiClient.put(`/inbox/${id}/unarchive-thread`);
+  },
+
+  markThreadRead: async (id: string) => {
+    await apiClient.put(`/inbox/${id}/read-thread`);
+  },
+
   reply: async (id: string, body: string, smtp_account_id?: string, body_html?: string) => {
     const { data } = await apiClient.post<{ success: boolean; message_id: string }>(`/inbox/${id}/reply`, { body, body_html, smtp_account_id });
     return data;

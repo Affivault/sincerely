@@ -5,6 +5,18 @@ import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { decrypt } from '../utils/encryption.js';
 import { sendViaSmtp } from './email-sender.service.js';
 
+async function resolveContactEmail(userId: string, messageId: string): Promise<string | null> {
+  const { data: msg } = await supabaseAdmin
+    .from('inbox_messages')
+    .select('from_email, to_email, direction, contacts(email)')
+    .eq('id', messageId)
+    .eq('user_id', userId)
+    .single();
+  if (!msg) throw new AppError('Message not found', 404);
+  return (msg as any).contacts?.email ||
+    (msg.direction === 'outbound' ? msg.to_email : msg.from_email) || null;
+}
+
 export const inboxService = {
   async list(userId: string, params: {
     page?: number;
@@ -231,6 +243,39 @@ export const inboxService = {
       .update({ is_archived: false })
       .eq('id', id)
       .eq('user_id', userId);
+    if (error) throw new AppError(error.message, 500);
+  },
+
+  async archiveThread(userId: string, messageId: string) {
+    const contactEmail = await resolveContactEmail(userId, messageId);
+    if (!contactEmail) return inboxService.archive(userId, messageId);
+    const { error } = await supabaseAdmin
+      .from('inbox_messages')
+      .update({ is_archived: true })
+      .eq('user_id', userId)
+      .or(`from_email.eq.${contactEmail},to_email.eq.${contactEmail}`);
+    if (error) throw new AppError(error.message, 500);
+  },
+
+  async unarchiveThread(userId: string, messageId: string) {
+    const contactEmail = await resolveContactEmail(userId, messageId);
+    if (!contactEmail) return inboxService.unarchive(userId, messageId);
+    const { error } = await supabaseAdmin
+      .from('inbox_messages')
+      .update({ is_archived: false })
+      .eq('user_id', userId)
+      .or(`from_email.eq.${contactEmail},to_email.eq.${contactEmail}`);
+    if (error) throw new AppError(error.message, 500);
+  },
+
+  async markThreadRead(userId: string, messageId: string) {
+    const contactEmail = await resolveContactEmail(userId, messageId);
+    if (!contactEmail) return inboxService.markRead(userId, messageId);
+    const { error } = await supabaseAdmin
+      .from('inbox_messages')
+      .update({ is_read: true })
+      .eq('user_id', userId)
+      .or(`from_email.eq.${contactEmail},to_email.eq.${contactEmail}`);
     if (error) throw new AppError(error.message, 500);
   },
 

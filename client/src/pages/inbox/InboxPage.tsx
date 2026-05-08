@@ -1186,6 +1186,7 @@ export function InboxPage() {
   const [replySenderId, setReplySenderId] = useState('');
   const [showReplySchedule, setShowReplySchedule] = useState(false);
   const [showTagDropdown, setShowTagDropdown] = useState(false);
+  const replyComposerRef = useRef<HTMLDivElement>(null);
   const replyEditor = useRichTextEditorRef();
 
   /* ── SMTP accounts for sender selection ── */
@@ -1345,7 +1346,7 @@ export function InboxPage() {
   });
 
   const archiveMut = useMutation({
-    mutationFn: inboxApi.archive,
+    mutationFn: inboxApi.archiveThread,
     onSuccess: (_data, id) => {
       selectNextMessage(id);
       invalidate();
@@ -1355,7 +1356,7 @@ export function InboxPage() {
   });
 
   const unarchiveMut = useMutation({
-    mutationFn: inboxApi.unarchive,
+    mutationFn: inboxApi.unarchiveThread,
     onSuccess: (_data, id) => {
       selectNextMessage(id);
       invalidate();
@@ -1421,8 +1422,9 @@ export function InboxPage() {
     setSelectedId(msg.id);
     setReplyMode(null);
     setReplySenderId(msg.smtp_account_id || smtpAccounts[0]?.id || '');
-    if (!msg.is_read) markReadMut.mutate(msg.id);
-  }, [markReadMut, smtpAccounts]);
+    // Mark the whole thread as read (not just this message)
+    inboxApi.markThreadRead(msg.id).then(() => invalidate()).catch(() => {});
+  }, [smtpAccounts, invalidate]);
 
   const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -1438,9 +1440,13 @@ export function InboxPage() {
     }
   }, [folder, archiveMut, unarchiveMut]);
 
-  // Reset forward to field when switching modes
+  // Reset forward to field when switching modes; scroll composer into view when opening
   useEffect(() => {
-    if (!replyMode) setForwardTo('');
+    if (!replyMode) {
+      setForwardTo('');
+    } else {
+      setTimeout(() => replyComposerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
+    }
   }, [replyMode]);
 
   const currentMsg: Message | null = (selectedMsg as Message) || messages.find(m => m.id === selectedId) || null;
@@ -1777,7 +1783,7 @@ export function InboxPage() {
 
                   {/* Reply / Forward composer */}
                   {replyMode && (
-                    <div className="mt-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden" style={{ boxShadow: 'var(--shadow-card)' }}>
+                    <div ref={replyComposerRef} className="mt-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden" style={{ boxShadow: 'var(--shadow-card)' }}>
                       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
                         <div className="flex items-center gap-2">
                           {replyMode === 'reply' ? <Reply className="h-4 w-4 text-[var(--text-tertiary)]" /> : <Forward className="h-4 w-4 text-[var(--text-tertiary)]" />}
