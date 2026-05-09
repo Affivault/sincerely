@@ -96,8 +96,6 @@ async function sendDirect(params: SmtpSendParams): Promise<SmtpSendResult> {
     socketTimeout: 30000,
   });
 
-  await transporter.verify();
-
   const info = await transporter.sendMail({
     from: params.from,
     to: params.to,

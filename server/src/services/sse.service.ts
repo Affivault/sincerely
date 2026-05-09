@@ -51,10 +51,10 @@ export async function selectBestSender(
     };
   }
 
-  // Filter accounts that still have capacity
+  // Filter accounts that still have capacity (limit=0 means unlimited)
   const available = accounts.filter((a: SmtpAccount) => {
     const limit = a.warmup_mode ? a.warmup_daily_target : a.daily_send_limit;
-    return a.sends_today < limit;
+    return limit === 0 || a.sends_today < limit;
   });
 
   if (available.length === 0) {

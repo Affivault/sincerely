@@ -41,6 +41,7 @@ import {
   Sparkles,
   Loader2,
   X,
+  Timer,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type {
@@ -1230,6 +1231,31 @@ export function CampaignCreatePage() {
         (() => {
           const emailSteps = steps.filter((s) => s.step_type === 'email');
           const delaySteps = steps.filter((s) => s.step_type === 'delay');
+
+          // Estimated completion calculation
+          const totalSends = emailSteps.length * selectedContactIds.length;
+          const avgDelaySec = ((campaignForm.delay_between_emails_min ?? 50) + (campaignForm.delay_between_emails_max ?? 200)) / 2;
+          const sendsPerHour = avgDelaySec > 0 ? Math.floor(3600 / avgDelaySec) : 3600;
+          const [startH = 0, startM = 0] = (campaignForm.send_window_start || '00:00').split(':').map(Number);
+          const [endH = 23, endM = 59] = (campaignForm.send_window_end || '23:59').split(':').map(Number);
+          const windowMinutes = Math.max(0, (endH * 60 + endM) - (startH * 60 + startM));
+          const windowHours = windowMinutes / 60;
+          const activeDaysPerWeek = (campaignForm.send_days || []).length || 5;
+          const dailyCapacity = Math.min(
+            campaignForm.daily_limit && campaignForm.daily_limit > 0 ? campaignForm.daily_limit : Infinity,
+            sendsPerHour * windowHours
+          );
+          const effectiveDailyCapacity = isFinite(dailyCapacity) ? dailyCapacity : totalSends;
+          const weeklyCapacity = effectiveDailyCapacity * activeDaysPerWeek;
+          const estDays = totalSends > 0 && weeklyCapacity > 0
+            ? Math.ceil((totalSends / weeklyCapacity) * 7)
+            : 0;
+          const estLabel = estDays === 0 ? '—'
+            : estDays === 1 ? '~1 day'
+            : estDays <= 7 ? `~${estDays} days`
+            : estDays <= 14 ? `~${Math.ceil(estDays / 7)} weeks`
+            : `~${Math.ceil(estDays / 7)} weeks`;
+
           const warnings: string[] = [];
           if (!campaignForm.name) warnings.push('Campaign name is required');
           if (!campaignForm.smtp_account_id) warnings.push('No SMTP account selected');
@@ -1266,24 +1292,27 @@ export function CampaignCreatePage() {
               )}
 
               {/* Stat Cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                 {[
-                  { label: 'Recipients', value: selectedContactIds.length, icon: Users },
-                  { label: 'Email Steps', value: emailSteps.length, icon: Mail },
-                  { label: 'Wait Steps', value: delaySteps.length, icon: Clock },
-                  { label: 'Total Sends', value: emailSteps.length * selectedContactIds.length, icon: Send },
+                  { label: 'Recipients', value: selectedContactIds.length.toLocaleString(), icon: Users },
+                  { label: 'Email Steps', value: emailSteps.length.toLocaleString(), icon: Mail },
+                  { label: 'Wait Steps', value: delaySteps.length.toLocaleString(), icon: Clock },
+                  { label: 'Total Sends', value: totalSends.toLocaleString(), icon: Send },
                 ].map(({ label, value, icon: Icon }) => (
                   <div
                     key={label}
                     className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5"
                   >
                     <Icon className="h-4 w-4 text-[var(--text-tertiary)] mb-3" />
-                    <p className="text-2xl font-bold text-[var(--text-primary)]">
-                      {value.toLocaleString()}
-                    </p>
+                    <p className="text-2xl font-bold text-[var(--text-primary)]">{value}</p>
                     <p className="text-xs text-[var(--text-tertiary)] mt-0.5">{label}</p>
                   </div>
                 ))}
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5">
+                  <Timer className="h-4 w-4 text-[var(--text-tertiary)] mb-3" />
+                  <p className="text-2xl font-bold text-[var(--text-primary)]">{estLabel}</p>
+                  <p className="text-xs text-[var(--text-tertiary)] mt-0.5">Est. Completion</p>
+                </div>
               </div>
 
               {/* Campaign Summary */}

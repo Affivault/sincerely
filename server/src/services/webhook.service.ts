@@ -173,9 +173,11 @@ async function deliverWebhook(
   let statusCode: number | null = null;
   let responseBody = '';
   let success = false;
+  let actualAttempts = 0;
 
   const maxAttempts = 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    actualAttempts = attempt;
     try {
       const response = await fetch(endpoint.url, {
         method: 'POST',
@@ -211,7 +213,7 @@ async function deliverWebhook(
       status_code: statusCode,
       response_body: responseBody.substring(0, 1000),
       success,
-      attempts: maxAttempts,
+      attempts: actualAttempts,
       last_attempt_at: new Date().toISOString(),
     });
 }

@@ -79,15 +79,17 @@ export const contactsService = {
       contact_tags: undefined,
     }));
 
-    // If filtering by tag_ids, do post-filter
+    // If filtering by tag_ids, do post-filter (count must reflect filtered total)
     let filtered = contacts;
+    let filteredCount = count || 0;
     if (params.tag_ids && params.tag_ids.length > 0) {
       filtered = contacts.filter((c: any) =>
         c.tags.some((t: any) => params.tag_ids!.includes(t.id))
       );
+      filteredCount = filtered.length;
     }
 
-    return formatPaginatedResponse(filtered, count || 0, page, limit);
+    return formatPaginatedResponse(filtered, filteredCount, page, limit);
   },
 
   async get(userId: string, id: string) {
