@@ -22,6 +22,8 @@ import {
   AlertTriangle,
   Clock,
   Copy,
+  GitBranch,
+  Webhook,
 } from 'lucide-react';
 import {
   BarChart,
@@ -321,34 +323,7 @@ export function CampaignDetailPage() {
             <p className="py-8 text-center text-sm text-tertiary">No steps in this campaign.</p>
           ) : (
             campaign.steps.map((step: CampaignStep, index: number) => (
-              <div key={step.id} className={`rounded-lg border border-subtle bg-surface p-4 overflow-hidden ${step.step_type === 'email' ? 'border-l-[3px] border-l-[#6366F1]' : 'border-l-[3px] border-l-amber-500'}`}>
-                <div className="flex items-center gap-3">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[rgba(99,102,241,0.1)] text-xs font-semibold text-[#6366F1]">
-                    {index + 1}
-                  </span>
-                  {step.step_type === 'email' ? (
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-[#6366F1]" />
-                        <span className="font-medium text-primary">{step.subject || 'Untitled Email'}</span>
-                      </div>
-                      {step.body_text && (
-                        <p className="mt-1 line-clamp-2 text-sm text-secondary">{step.body_text}</p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-amber-500" />
-                      <span className="font-medium text-primary">
-                        Wait {step.delay_days}d {step.delay_hours}h {step.delay_minutes}m
-                      </span>
-                    </div>
-                  )}
-                  {step.skip_if_replied && (
-                    <Badge variant="info">Skip if replied</Badge>
-                  )}
-                </div>
-              </div>
+              <SequenceStepCard key={step.id} step={step} index={index} />
             ))
           )}
         </div>
@@ -432,6 +407,95 @@ function StatCard({ icon: Icon, label, value, rate, isNegative, colorVariant }: 
         <span className="inline-block mt-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-[rgba(99,102,241,0.08)] text-[#6366F1]">{rate}%</span>
       )}
       {rate !== undefined && rate === 0 && <p className="text-xs text-tertiary mt-1">0%</p>}
+    </div>
+  );
+}
+
+function formatDelay(days: number, hours: number, minutes: number): string {
+  const parts: string[] = [];
+  if (days) parts.push(`${days}d`);
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}m`);
+  return parts.length > 0 ? `Wait ${parts.join(' ')}` : 'Wait (no delay set)';
+}
+
+const STEP_BORDER: Record<string, string> = {
+  email: 'border-l-[#6366F1]',
+  delay: 'border-l-amber-500',
+  condition: 'border-l-blue-500',
+  webhook_wait: 'border-l-emerald-500',
+};
+
+function SequenceStepCard({ step, index }: { step: CampaignStep; index: number }) {
+  const borderColor = STEP_BORDER[step.step_type] || 'border-l-zinc-500';
+
+  return (
+    <div className={`rounded-lg border border-subtle bg-surface p-4 overflow-hidden border-l-[3px] ${borderColor}`}>
+      <div className="flex items-center gap-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[rgba(99,102,241,0.1)] text-xs font-semibold text-[#6366F1]">
+          {index + 1}
+        </span>
+
+        {step.step_type === 'email' && (
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 shrink-0 text-[#6366F1]" />
+              <span className="font-medium text-primary truncate">{step.subject || 'Untitled Email'}</span>
+              {step.subject_b && (
+                <Badge variant="info">A/B</Badge>
+              )}
+            </div>
+            {step.body_text && (
+              <p className="mt-1 line-clamp-2 text-sm text-secondary">{step.body_text}</p>
+            )}
+          </div>
+        )}
+
+        {step.step_type === 'delay' && (
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-amber-500" />
+            <span className="font-medium text-primary">
+              {formatDelay(step.delay_days, step.delay_hours, step.delay_minutes)}
+            </span>
+          </div>
+        )}
+
+        {step.step_type === 'condition' && (
+          <div className="flex items-center gap-2">
+            <GitBranch className="h-4 w-4 text-blue-500" />
+            <span className="font-medium text-primary">
+              Condition: {step.condition_field || 'unknown'}
+              {step.condition_operator && (
+                <span className="ml-1 text-secondary font-normal">
+                  {step.condition_operator.replace(/_/g, ' ')}
+                  {step.condition_value ? ` "${step.condition_value}"` : ''}
+                </span>
+              )}
+            </span>
+          </div>
+        )}
+
+        {step.step_type === 'webhook_wait' && (
+          <div className="flex items-center gap-2">
+            <Webhook className="h-4 w-4 text-emerald-500" />
+            <span className="font-medium text-primary">
+              Wait for webhook
+              {step.webhook_event && (
+                <span className="ml-1 font-mono text-xs bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded text-secondary">
+                  {step.webhook_event}
+                </span>
+              )}
+            </span>
+            {step.webhook_timeout_hours && (
+              <span className="text-xs text-tertiary">(timeout: {step.webhook_timeout_hours}h)</span>
+            )}
+          </div>
+        )}
+
+        {step.skip_if_replied && (
+          <Badge variant="info">Skip if replied</Badge>
+        )}
+      </div>
     </div>
   );
 }

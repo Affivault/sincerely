@@ -141,14 +141,14 @@ function injectTrackingPixel(html: string, trackingId: string): string {
 
 function wrapLinks(html: string, trackingId: string): string {
   return html.replace(
-    /href="(https?:\/\/[^"]+)"/gi,
-    (_match, url) => {
+    /href=(["'])(https?:\/\/[^"']+)\1/gi,
+    (_match, quote, url) => {
       if (url.includes('/api/track/') || url.includes('unsubscribe')) {
-        return `href="${url}"`;
+        return `href=${quote}${url}${quote}`;
       }
       const encoded = Buffer.from(url).toString('base64url');
       const trackUrl = `${env.TRACKING_BASE_URL}/api/track/click/${trackingId}?url=${encoded}`;
-      return `href="${trackUrl}"`;
+      return `href=${quote}${trackUrl}${quote}`;
     }
   );
 }
@@ -268,7 +268,9 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
   console.log(`[EmailSender] Sent to ${to} via ${smtpAccount.label || smtpAccount.smtp_host} — messageId: ${sendResult.messageId}`);
 
   // 7. Record send in SSE
-  await sse.recordSend(smtpAccount.id).catch(() => {});
+  await sse.recordSend(smtpAccount.id).catch((err: any) => {
+    console.warn(`[EmailSender] SSE record failed for account ${smtpAccount.id}:`, err.message);
+  });
 
   // 8. Record campaign activity
   await supabaseAdmin

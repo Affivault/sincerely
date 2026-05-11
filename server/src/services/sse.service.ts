@@ -69,7 +69,8 @@ export async function selectBestSender(
   const scored = available.map((a: SmtpAccount) => {
     const limit = a.warmup_mode ? a.warmup_daily_target : a.daily_send_limit;
     const healthComponent = a.health_score * HEALTH_WEIGHT;
-    const utilizationComponent = ((1 - a.sends_today / limit) * 100) * UTILIZATION_WEIGHT;
+    // limit=0 means unlimited — treat as fully available (100% capacity remaining)
+    const utilizationComponent = (limit === 0 ? 100 : (1 - a.sends_today / limit) * 100) * UTILIZATION_WEIGHT;
     const score = healthComponent + utilizationComponent;
     return { account: a, score };
   });
@@ -189,7 +190,7 @@ export async function getHealthDashboard(
       utilization_pct: limit > 0 ? Math.round((a.sends_today / limit) * 100) : 0,
       bounce_rate_7d: a.bounce_rate_7d,
       warmup_mode: a.warmup_mode,
-      is_available: a.is_active && a.is_verified && a.sends_today < limit,
+      is_available: a.is_active && a.is_verified && (limit === 0 || a.sends_today < limit),
     };
   });
 }
