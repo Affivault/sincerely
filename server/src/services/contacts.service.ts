@@ -162,7 +162,12 @@ export const contactsService = {
   },
 
   async importCsv(userId: string, filePath: string, columnMapping: Record<string, string>) {
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
+    let fileContent: string;
+    try {
+      fileContent = fs.readFileSync(filePath, 'utf-8');
+    } catch (err: any) {
+      throw new Error(`Failed to read upload file: ${err.message}`);
+    }
     const parsed = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
 
     let imported = 0;

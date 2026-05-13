@@ -27,7 +27,7 @@ export function InviteAcceptPage() {
       return;
     }
 
-    let timer: ReturnType<typeof setTimeout>;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     setStatus('accepting');
     teamApi.acceptInvite(token)
       .then(() => {
