@@ -308,36 +308,50 @@ export const campaignsService = {
   },
 
   async getStats(campaignId: string) {
-    const { count: stepsCount } = await supabaseAdmin
-      .from('campaign_steps')
-      .select('*', { count: 'exact', head: true })
-      .eq('campaign_id', campaignId);
+    const base = { count: 'exact' as const, head: true };
+    const act = (type: string) =>
+      supabaseAdmin.from('campaign_activities').select('*', base).eq('campaign_id', campaignId).eq('activity_type', type);
+    const cc = (status: string) =>
+      supabaseAdmin.from('campaign_contacts').select('*', base).eq('campaign_id', campaignId).eq('status', status);
 
-    const { count: contactsCount } = await supabaseAdmin
-      .from('campaign_contacts')
-      .select('*', { count: 'exact', head: true })
-      .eq('campaign_id', campaignId);
-
-    const { data: activities } = await supabaseAdmin
-      .from('campaign_activities')
-      .select('activity_type')
-      .eq('campaign_id', campaignId);
-
-    const counts = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
-    for (const a of activities || []) {
-      if (a.activity_type in counts) {
-        counts[a.activity_type as keyof typeof counts]++;
-      }
-    }
+    const [
+      { count: stepsCount },
+      { count: contactsCount },
+      { count: sentCount },
+      { count: openedCount },
+      { count: clickedCount },
+      { count: repliedCount },
+      { count: bouncedCount },
+      { count: activeContacts },
+      { count: completedContacts },
+      { count: bouncedContacts },
+      { count: unsubscribedContacts },
+    ] = await Promise.all([
+      supabaseAdmin.from('campaign_steps').select('*', base).eq('campaign_id', campaignId),
+      supabaseAdmin.from('campaign_contacts').select('*', base).eq('campaign_id', campaignId),
+      act('sent'),
+      act('opened'),
+      act('clicked'),
+      act('replied'),
+      act('bounced'),
+      cc('active'),
+      cc('completed'),
+      cc('bounced'),
+      cc('unsubscribed'),
+    ]);
 
     return {
       steps_count: stepsCount || 0,
       contacts_count: contactsCount || 0,
-      sent_count: counts.sent,
-      opened_count: counts.opened,
-      clicked_count: counts.clicked,
-      replied_count: counts.replied,
-      bounced_count: counts.bounced,
+      sent_count: sentCount || 0,
+      opened_count: openedCount || 0,
+      clicked_count: clickedCount || 0,
+      replied_count: repliedCount || 0,
+      bounced_count: bouncedCount || 0,
+      active_contacts: activeContacts || 0,
+      completed_contacts: completedContacts || 0,
+      bounced_contacts: bouncedContacts || 0,
+      unsubscribed_contacts: unsubscribedContacts || 0,
     };
   },
 };

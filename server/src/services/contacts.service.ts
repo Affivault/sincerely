@@ -36,6 +36,19 @@ export const contactsService = {
       }
     }
 
+    // If filtering by tag_ids, resolve to contact IDs first (keeps DB count accurate)
+    let tagFilterContactIds: string[] | null = null;
+    if (params.tag_ids && params.tag_ids.length > 0) {
+      const { data: tagContacts } = await supabaseAdmin
+        .from('contact_tags')
+        .select('contact_id')
+        .in('tag_id', params.tag_ids);
+      tagFilterContactIds = [...new Set((tagContacts || []).map((tc: any) => tc.contact_id as string))];
+      if (tagFilterContactIds.length === 0) {
+        return formatPaginatedResponse([], 0, page, limit);
+      }
+    }
+
     let query = supabaseAdmin
       .from('contacts')
       .select('*, contact_tags(tag_id, tags(*))', { count: 'exact' })
@@ -44,6 +57,11 @@ export const contactsService = {
     // Filter by list contacts if specified
     if (listContactIds) {
       query = query.in('id', listContactIds);
+    }
+
+    // Filter by tag contacts if specified
+    if (tagFilterContactIds) {
+      query = query.in('id', tagFilterContactIds);
     }
 
     if (params.search) {
@@ -79,17 +97,7 @@ export const contactsService = {
       contact_tags: undefined,
     }));
 
-    // If filtering by tag_ids, do post-filter (count must reflect filtered total)
-    let filtered = contacts;
-    let filteredCount = count || 0;
-    if (params.tag_ids && params.tag_ids.length > 0) {
-      filtered = contacts.filter((c: any) =>
-        c.tags.some((t: any) => params.tag_ids!.includes(t.id))
-      );
-      filteredCount = filtered.length;
-    }
-
-    return formatPaginatedResponse(filtered, filteredCount, page, limit);
+    return formatPaginatedResponse(contacts, count || 0, page, limit);
   },
 
   async get(userId: string, id: string) {

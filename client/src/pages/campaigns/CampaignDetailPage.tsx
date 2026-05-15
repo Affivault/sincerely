@@ -78,6 +78,7 @@ export function CampaignDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
       toast.success('Campaign paused');
     },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to pause campaign'),
   });
 
   const resumeMutation = useMutation({
@@ -86,6 +87,7 @@ export function CampaignDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
       toast.success('Campaign resumed');
     },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to resume campaign'),
   });
 
   const cancelMutation = useMutation({
@@ -94,6 +96,7 @@ export function CampaignDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
       toast.success('Campaign cancelled');
     },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to cancel campaign'),
   });
 
   const cloneMutation = useMutation({
@@ -263,6 +266,8 @@ export function CampaignDetailPage() {
             </>
           )}
 
+          <ContactProgressCard campaign={campaign} />
+
           <div className="rounded-2xl border border-subtle bg-surface p-5 shadow-[var(--shadow-sm)]">
             <h3 className="mb-4 text-base font-semibold text-primary">Campaign Settings</h3>
             <dl className="grid grid-cols-2 gap-3 text-sm">
@@ -373,6 +378,69 @@ export function CampaignDetailPage() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function ContactProgressCard({ campaign }: { campaign: any }) {
+  const total = campaign.contacts_count || 0;
+  if (total === 0) return null;
+
+  const segments = [
+    { label: 'Completed', count: campaign.completed_contacts || 0, color: 'bg-emerald-500' },
+    { label: 'Active', count: campaign.active_contacts || 0, color: 'bg-[#6366F1]' },
+    { label: 'Bounced', count: campaign.bounced_contacts || 0, color: 'bg-red-500' },
+    { label: 'Unsubscribed', count: campaign.unsubscribed_contacts || 0, color: 'bg-amber-500' },
+  ];
+
+  const accounted = segments.reduce((s, seg) => s + seg.count, 0);
+  const pending = Math.max(0, total - accounted);
+
+  return (
+    <div className="rounded-2xl border border-subtle bg-surface p-5 shadow-[var(--shadow-sm)]">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base font-semibold text-primary">Contact Progress</h3>
+        <span className="text-sm text-secondary">{total} total</span>
+      </div>
+
+      {/* Segmented progress bar */}
+      <div className="flex h-3 w-full rounded-full overflow-hidden gap-px bg-[var(--bg-elevated)] mb-4">
+        {segments.map((seg) =>
+          seg.count > 0 ? (
+            <div
+              key={seg.label}
+              className={`${seg.color} transition-all duration-500`}
+              style={{ width: `${(seg.count / total) * 100}%` }}
+              title={`${seg.label}: ${seg.count}`}
+            />
+          ) : null
+        )}
+        {pending > 0 && (
+          <div
+            className="bg-[var(--bg-hover)]"
+            style={{ width: `${(pending / total) * 100}%` }}
+            title={`Pending: ${pending}`}
+          />
+        )}
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-x-5 gap-y-2">
+        {segments.map((seg) => (
+          <div key={seg.label} className="flex items-center gap-1.5">
+            <span className={`inline-block h-2.5 w-2.5 rounded-full ${seg.color}`} />
+            <span className="text-xs text-secondary">{seg.label}</span>
+            <span className="text-xs font-semibold text-primary">{seg.count}</span>
+          </div>
+        ))}
+        {pending > 0 && (
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--bg-hover)] border border-subtle" />
+            <span className="text-xs text-secondary">Pending</span>
+            <span className="text-xs font-semibold text-primary">{pending}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
