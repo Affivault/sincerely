@@ -11,7 +11,7 @@ import type {
 } from '@lemlist/shared';
 
 export const campaignsApi = {
-  list: async (params?: { page?: number; limit?: number; status?: string }) => {
+  list: async (params?: { page?: number; limit?: number; status?: string; search?: string }) => {
     const { data } = await apiClient.get<PaginatedResponse<CampaignWithStats>>('/campaigns', { params });
     return data;
   },

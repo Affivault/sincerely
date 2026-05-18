@@ -7,7 +7,7 @@ import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { formatDate, cn } from '../../lib/utils';
-import { Megaphone, Plus, Send, Mail, MousePointerClick, MessageSquare, Copy, AlertTriangle } from 'lucide-react';
+import { Megaphone, Plus, Send, Mail, MousePointerClick, MessageSquare, Copy, AlertTriangle, Search, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CampaignWithStats } from '@lemlist/shared';
 import { DEFAULT_PAGE_SIZE } from '../../lib/constants';
@@ -25,14 +25,21 @@ export function CampaignsListPage() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  function handleSearch(value: string) {
+    setSearchQuery(value);
+    setPage(1);
+  }
 
   const { data, isLoading } = useQuery({
-    queryKey: ['campaigns', page, statusFilter],
+    queryKey: ['campaigns', page, statusFilter, searchQuery],
     queryFn: () =>
       campaignsApi.list({
         page,
         limit: DEFAULT_PAGE_SIZE,
         status: statusFilter || undefined,
+        search: searchQuery || undefined,
       }),
   });
 
@@ -104,6 +111,28 @@ export function CampaignsListPage() {
         </button>
       </div>
 
+      {/* Search + Status filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Search input */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            placeholder="Search campaigns…"
+            className="w-56 pl-8 pr-8 py-2 text-sm rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[#6366F1]/40 focus:border-[#6366F1] transition-all"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => handleSearch('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
       {/* Status filter tabs */}
       <div className="flex gap-1 p-1 bg-[var(--bg-elevated)] rounded-2xl w-fit">
         {STATUS_TABS.map((tab) => (
@@ -121,14 +150,15 @@ export function CampaignsListPage() {
           </button>
         ))}
       </div>
+      </div>
 
       {campaigns.length === 0 ? (
         <EmptyState
           icon={Megaphone}
-          title="No campaigns"
-          description="Create your first email campaign to start reaching out."
-          actionLabel="New Campaign"
-          onAction={() => navigate('/campaigns/new')}
+          title={searchQuery ? `No campaigns match "${searchQuery}"` : 'No campaigns'}
+          description={searchQuery ? 'Try a different search term or clear the search.' : 'Create your first email campaign to start reaching out.'}
+          actionLabel={searchQuery ? 'Clear search' : 'New Campaign'}
+          onAction={searchQuery ? () => handleSearch('') : () => navigate('/campaigns/new')}
         />
       ) : (
         <>

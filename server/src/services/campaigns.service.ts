@@ -8,6 +8,7 @@ interface ListParams {
   page?: number;
   limit?: number;
   status?: string;
+  search?: string;
 }
 
 export const campaignsService = {
@@ -21,6 +22,10 @@ export const campaignsService = {
 
     if (params.status) {
       query = query.eq('status', params.status);
+    }
+
+    if (params.search) {
+      query = query.ilike('name', `%${params.search}%`);
     }
 
     query = query.order('created_at', { ascending: false }).range(from, to);

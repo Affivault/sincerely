@@ -5,7 +5,7 @@ import { analyticsService } from '../services/analytics.service.js';
 export const analyticsController = {
   async overview(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const days = req.query.days ? parseInt(req.query.days as string) : undefined;
+      const days = req.query.days ? parseInt(req.query.days as string, 10) : undefined;
       const data = await analyticsService.overview(req.userId!, days);
       res.json(data);
     } catch (err) { next(err); }
@@ -13,7 +13,7 @@ export const analyticsController = {
 
   async trend(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const days = req.query.days ? parseInt(req.query.days as string) : 30;
+      const days = req.query.days ? parseInt(req.query.days as string, 10) : 30;
       const data = await analyticsService.trend(req.userId!, days);
       res.json(data);
     } catch (err) { next(err); }
@@ -44,7 +44,7 @@ export const analyticsController = {
 
   async exportOverviewReport(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const days = req.query.days ? parseInt(req.query.days as string) : undefined;
+      const days = req.query.days ? parseInt(req.query.days as string, 10) : undefined;
       const csv = await analyticsService.exportOverviewReport(req.userId!, days);
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', 'attachment; filename="overview-report.csv"');

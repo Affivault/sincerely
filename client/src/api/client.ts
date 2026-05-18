@@ -27,13 +27,14 @@ apiClient.interceptors.request.use(async (config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !error.config._retry) {
+      error.config._retry = true;
       const { error: refreshError } = await supabase.auth.refreshSession();
       if (refreshError) {
         await supabase.auth.signOut();
         window.location.href = '/login';
       } else {
-        // Refresh succeeded — retry the original request with the new token
+        // Refresh succeeded — retry the original request once with the new token
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.access_token) {
           error.config.headers.Authorization = `Bearer ${session.access_token}`;

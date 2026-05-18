@@ -7,7 +7,7 @@ export interface WebhookEndpoint {
   label: string;
   secret: string | null;
   is_active: boolean;
-  events: string[];
+  events: WebhookEventType[];
   created_at: string;
   updated_at: string;
 }
@@ -16,14 +16,14 @@ export interface CreateWebhookEndpointInput {
   url: string;
   label?: string;
   secret?: string;
-  events: string[];
+  events: WebhookEventType[];
 }
 
 export interface UpdateWebhookEndpointInput {
   url?: string;
   label?: string;
   secret?: string;
-  events?: string[];
+  events?: WebhookEventType[];
   is_active?: boolean;
 }
 
