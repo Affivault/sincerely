@@ -68,7 +68,7 @@ async function checkSmtp(email: string): Promise<{ ok: boolean; reason?: string 
       const mxHost = sorted[0].exchange;
 
       const socket = new net.Socket();
-      let response = '';
+      let lineBuf = '';
       let step = 0;
 
       const timeout = setTimeout(() => {
@@ -82,54 +82,61 @@ async function checkSmtp(email: string): Promise<{ ok: boolean; reason?: string 
       });
 
       socket.on('data', (data) => {
-        response = data.toString();
-        const code = parseInt(response.substring(0, 3), 10);
+        lineBuf += data.toString();
+        // Parse complete lines; a final response line has a space at position 3, not '-'
+        const lines = lineBuf.split('\r\n');
+        lineBuf = lines.pop() ?? '';
+        for (const line of lines) {
+          if (line.length < 4) continue;
+          if (line[3] === '-') continue; // multi-line continuation, skip
+          const code = parseInt(line.substring(0, 3), 10);
 
-        if (step === 0) {
-          // Server greeting
-          if (code === 220) {
-            socket.write('EHLO skysend.io\r\n');
-            step = 1;
-          } else {
+          if (step === 0) {
+            // Server greeting
+            if (code === 220) {
+              socket.write('EHLO skysend.io\r\n');
+              step = 1;
+            } else {
+              clearTimeout(timeout);
+              socket.destroy();
+              resolve({ ok: false, reason: `Bad greeting: ${code}` });
+            }
+          } else if (step === 1) {
+            // EHLO response
+            if (code === 250) {
+              socket.write(`MAIL FROM:<verify@skysend.io>\r\n`);
+              step = 2;
+            } else {
+              clearTimeout(timeout);
+              socket.destroy();
+              resolve({ ok: false, reason: `EHLO rejected: ${code}` });
+            }
+          } else if (step === 2) {
+            // MAIL FROM response
+            if (code === 250) {
+              socket.write(`RCPT TO:<${email}>\r\n`);
+              step = 3;
+            } else {
+              clearTimeout(timeout);
+              socket.destroy();
+              resolve({ ok: false, reason: `MAIL FROM rejected: ${code}` });
+            }
+          } else if (step === 3) {
+            // RCPT TO response - this is the key check
             clearTimeout(timeout);
+            socket.write('QUIT\r\n');
             socket.destroy();
-            resolve({ ok: false, reason: `Bad greeting: ${code}` });
-          }
-        } else if (step === 1) {
-          // EHLO response
-          if (code === 250) {
-            socket.write(`MAIL FROM:<verify@skysend.io>\r\n`);
-            step = 2;
-          } else {
-            clearTimeout(timeout);
-            socket.destroy();
-            resolve({ ok: false, reason: `EHLO rejected: ${code}` });
-          }
-        } else if (step === 2) {
-          // MAIL FROM response
-          if (code === 250) {
-            socket.write(`RCPT TO:<${email}>\r\n`);
-            step = 3;
-          } else {
-            clearTimeout(timeout);
-            socket.destroy();
-            resolve({ ok: false, reason: `MAIL FROM rejected: ${code}` });
-          }
-        } else if (step === 3) {
-          // RCPT TO response - this is the key check
-          clearTimeout(timeout);
-          socket.write('QUIT\r\n');
-          socket.destroy();
 
-          if (code === 250 || code === 251) {
-            resolve({ ok: true });
-          } else if (code === 550 || code === 551 || code === 553) {
-            resolve({ ok: false, reason: `Mailbox does not exist (${code})` });
-          } else if (code === 452 || code === 552) {
-            resolve({ ok: true, reason: 'Mailbox full but exists' });
-          } else {
-            // Catch-all domains or greylisting - assume valid
-            resolve({ ok: true, reason: `Ambiguous response (${code})` });
+            if (code === 250 || code === 251) {
+              resolve({ ok: true });
+            } else if (code === 550 || code === 551 || code === 553) {
+              resolve({ ok: false, reason: `Mailbox does not exist (${code})` });
+            } else if (code === 452 || code === 552) {
+              resolve({ ok: true, reason: 'Mailbox full but exists' });
+            } else {
+              // Catch-all domains or greylisting - assume valid
+              resolve({ ok: true, reason: `Ambiguous response (${code})` });
+            }
           }
         }
       });

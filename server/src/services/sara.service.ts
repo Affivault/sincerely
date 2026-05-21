@@ -524,7 +524,7 @@ Best regards,
 {{sender_name}}`;
   }
 
-  const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.7;color:#1a1a1a;max-width:560px;">${bodyText.replace(/\n\n/g, '</p><p style="margin:0 0 12px;">').replace(/\n/g, '<br/>')}</div>`;
+  const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.7;color:#1a1a1a;max-width:560px;"><p style="margin:0 0 12px;">${bodyText.replace(/\n\n/g, '</p><p style="margin:0 0 12px;">').replace(/\n/g, '<br/>')}</p></div>`;
 
   return {
     subject,

@@ -279,6 +279,19 @@ export const campaignsService = {
         smtp_account_id: original.smtp_account_id,
         status: 'draft',
         settings: original.settings,
+        timezone: original.timezone,
+        send_days: original.send_days,
+        send_window_start: original.send_window_start,
+        send_window_end: original.send_window_end,
+        daily_limit: original.daily_limit,
+        delay_between_emails: original.delay_between_emails,
+        delay_between_emails_min: original.delay_between_emails_min,
+        delay_between_emails_max: original.delay_between_emails_max,
+        track_opens: original.track_opens,
+        track_clicks: original.track_clicks,
+        include_unsubscribe: original.include_unsubscribe,
+        stop_on_reply: original.stop_on_reply,
+        dcs_threshold: original.dcs_threshold,
       })
       .select()
       .single();

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { contactsApi, listsApi } from '../../api/contacts.api';
@@ -98,6 +98,12 @@ export function ContactsListPage() {
   const [editingList, setEditingList] = useState<ContactList | null>(null);
 
   const activeListId = searchParams.get('list') || null;
+
+  // Reset to page 1 whenever the active list changes so stale page numbers
+  // don't cause empty results on smaller lists.
+  useEffect(() => {
+    setPage(1);
+  }, [activeListId]);
 
   const { data: contactsData, isLoading } = useQuery({
     queryKey: ['contacts', page, search, activeListId],
@@ -501,7 +507,7 @@ export function ContactsListPage() {
                     Added
                   </th>
                   <th className="px-4 py-3.5 text-left text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
-                    DCS
+                    Health
                   </th>
                   <th className="px-4 py-3.5 w-20"></th>
                 </tr>
@@ -569,7 +575,17 @@ export function ContactsListPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3.5">
-                        {contact.dcs_score !== null && contact.dcs_score !== undefined ? (
+                        {contact.is_bounced ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border text-red-700 bg-red-50 border-red-200" title="Hard bounce — will not be emailed">
+                            <ShieldX className="h-3 w-3" />
+                            Bounced
+                          </span>
+                        ) : contact.is_unsubscribed ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border text-amber-700 bg-amber-50 border-amber-200" title="Opted out — will not be emailed">
+                            <ShieldX className="h-3 w-3" />
+                            Opted out
+                          </span>
+                        ) : contact.dcs_score !== null && contact.dcs_score !== undefined ? (
                           <span title={`DCS: ${contact.dcs_score}/100`} className={cn(
                             'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border',
                             contact.dcs_score >= 80
