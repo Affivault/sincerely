@@ -175,6 +175,8 @@ export const contactsService = {
       fileContent = fs.readFileSync(filePath, 'utf-8');
     } catch (err: any) {
       throw new Error(`Failed to read upload file: ${err.message}`);
+    } finally {
+      try { fs.unlinkSync(filePath); } catch { /* ignore cleanup errors */ }
     }
     const parsed = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
 
