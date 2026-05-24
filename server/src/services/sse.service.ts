@@ -256,12 +256,11 @@ export async function resetDailySendCounts(): Promise<number> {
 }
 
 /**
- * Recalculate 7-day bounce rates for all accounts.
+ * Recalculate bounce rates for all accounts using total lifetime sent/bounced counters.
+ * The result is stored in bounce_rate_7d as a rolling approximation; for a true 7-day
+ * rate, query campaign_activities directly filtered by occurred_at.
  */
 export async function recalculateBounceRates(): Promise<void> {
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
   const { data: accounts } = await supabaseAdmin
     .from('smtp_accounts')
     .select('id, total_sent, total_bounced');
@@ -269,7 +268,6 @@ export async function recalculateBounceRates(): Promise<void> {
   if (!accounts) return;
 
   for (const account of accounts) {
-    // Simple calculation: total_bounced / total_sent * 100
     const bounceRate = account.total_sent > 0
       ? (account.total_bounced / account.total_sent) * 100
       : 0;

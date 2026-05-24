@@ -126,8 +126,14 @@ app.get('/health', async (_req, res) => {
 });
 
 // Diagnostic: attempt to send a real test email via SMTP
+// Requires X-Debug-Secret header matching TRACKING_SECRET to prevent unauthorized use.
 // Usage: POST /debug/send-email { "to": "you@gmail.com" }
 app.post('/debug/send-email', async (req, res) => {
+  const { env: envConfig } = await import('./config/env.js');
+  const secret = req.headers['x-debug-secret'];
+  if (!secret || secret !== envConfig.TRACKING_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   const steps: string[] = [];
   try {
     const { to } = req.body || {};
@@ -171,9 +177,8 @@ app.post('/debug/send-email', async (req, res) => {
     }
 
     // Check relay config
-    const { env: envCfg } = await import('./config/env.js');
-    if (envCfg.SMTP_RELAY_URL && envCfg.SMTP_RELAY_SECRET) {
-      steps.push(`5. SMTP relay configured: ${envCfg.SMTP_RELAY_URL}`);
+    if (envConfig.SMTP_RELAY_URL && envConfig.SMTP_RELAY_SECRET) {
+      steps.push(`5. SMTP relay configured: ${envConfig.SMTP_RELAY_URL}`);
     } else {
       steps.push('5. WARNING: SMTP relay NOT configured (SMTP_RELAY_URL/SMTP_RELAY_SECRET missing) — using direct SMTP which may be blocked on Render');
     }

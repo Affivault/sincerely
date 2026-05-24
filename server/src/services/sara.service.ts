@@ -294,6 +294,14 @@ export async function processReply(messageId: string): Promise<SaraClassificatio
         })
         .eq('id', message.campaign_contact_id);
     }
+    // Mark as approved so it no longer appears in the pending review queue
+    await supabaseAdmin
+      .from('inbox_messages')
+      .update({
+        sara_status: SaraStatus.Approved,
+        sara_reviewed_at: new Date().toISOString(),
+      })
+      .eq('id', messageId);
   }
 
   return result;

@@ -337,7 +337,7 @@ export const contactsService = {
       unsubscribed: unsubscribed || 0,
       bounced: bounced || 0,
       verified: verified || 0,
-      active: (total || 0) - (unsubscribed || 0) - (bounced || 0),
+      active: Math.max(0, (total || 0) - (unsubscribed || 0) - (bounced || 0)),
     };
   },
 };

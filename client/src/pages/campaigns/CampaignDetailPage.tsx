@@ -7,7 +7,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { StatusBadge } from '../../components/shared/StatusBadge';
-import { formatDate, formatDateTime } from '../../lib/utils';
+import { formatDate, formatDateTime, formatTimeUntil } from '../../lib/utils';
 import {
   ArrowLeft,
   Play,
@@ -346,13 +346,17 @@ export function CampaignDetailPage() {
                   <tr className="border-b border-subtle text-left text-tertiary">
                     <th className="px-4 py-3 font-medium">Contact</th>
                     <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium">Current Step</th>
+                    <th className="px-4 py-3 font-medium">Progress</th>
                     <th className="px-4 py-3 font-medium">Next Send</th>
                     <th className="px-4 py-3 font-medium">Error</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {campaignContacts.data.map((cc: any) => (
+                  {campaignContacts.data.map((cc: any) => {
+                    const totalSteps = campaign.steps?.length || 0;
+                    const currentStep = (cc.current_step_order ?? 0) + 1;
+                    const progressPct = totalSteps > 0 ? Math.round((currentStep / totalSteps) * 100) : 0;
+                    return (
                     <tr key={cc.id} className="border-b border-subtle last:border-0 hover:bg-hover">
                       <td className="px-4 py-3">
                         <span className="font-medium text-primary">
@@ -365,13 +369,33 @@ export function CampaignDetailPage() {
                       <td className="px-4 py-3">
                         <StatusBadge status={cc.status} type="contact" />
                       </td>
-                      <td className="px-4 py-3 text-secondary">Step {cc.current_step_order + 1}</td>
-                      <td className="px-4 py-3 text-secondary">
-                        {cc.next_send_at ? formatDateTime(cc.next_send_at) : '—'}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2 min-w-[120px]">
+                          <div className="flex-1 h-1.5 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-[#6366F1] transition-all duration-300"
+                              style={{ width: `${progressPct}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-secondary whitespace-nowrap">
+                            {totalSteps > 0 ? `${currentStep}/${totalSteps}` : `Step ${currentStep}`}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {cc.next_send_at ? (
+                          <span
+                            className="text-secondary text-sm"
+                            title={formatDateTime(cc.next_send_at)}
+                          >
+                            {formatTimeUntil(cc.next_send_at)}
+                          </span>
+                        ) : '—'}
                       </td>
                       <td className="px-4 py-3 text-[var(--error)]">{cc.error_message || '—'}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
