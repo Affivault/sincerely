@@ -1564,6 +1564,27 @@ export function InboxPage() {
     window.dispatchEvent(event);
   }, []);
 
+  // j/k keyboard navigation between conversations (Gmail-style)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'j' && e.key !== 'k') return;
+      if (showCompose || replyMode) return;
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+      e.preventDefault();
+      const idx = conversations.findIndex(c => c.latestMessage.id === selectedId);
+      const nextIdx = e.key === 'j'
+        ? Math.min(idx + 1, conversations.length - 1)
+        : Math.max(idx - 1, 0);
+      const next = conversations[nextIdx];
+      if (next && next.latestMessage.id !== selectedId) {
+        setSelectedId(next.latestMessage.id);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [conversations, selectedId, showCompose, replyMode]);
+
   return (
     <div className="-mx-8 -my-6" style={{ height: 'calc(100vh - 56px)' }}>
       <div className="h-full flex bg-[var(--bg-app)]">

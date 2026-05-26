@@ -314,10 +314,13 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
   const bodyText = bodyHtml.replace(/<[^>]*>/g, '');
 
   // Nullify next_send_at BEFORE sending to prevent re-processing
-  await supabaseAdmin
+  const { error: nullifyErr } = await supabaseAdmin
     .from('campaign_contacts')
     .update({ current_step_order: step.step_order, next_send_at: null })
     .eq('id', cc.id);
+  if (nullifyErr) {
+    console.error(`[Sequence] Failed to lock contact ${cc.id} for processing:`, nullifyErr.message);
+  }
 
   // Send email DIRECTLY (no BullMQ queue — eliminates Redis dependency)
   // sendCampaignEmail handles: SMTP selection, sending, activity recording, step advancement

@@ -808,7 +808,7 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
 
             // If matched to a campaign, record replied activity + fire webhook + run SARA
             if (matchedActivity && saved?.id) {
-              await supabaseAdmin.from('campaign_activities').insert({
+              const { error: actErr } = await supabaseAdmin.from('campaign_activities').insert({
                 campaign_id: matchedActivity.campaign_id,
                 campaign_contact_id: matchedActivity.campaign_contact_id,
                 contact_id: matchedActivity.contact_id,
@@ -817,6 +817,9 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
                 message_id: messageId || null,
                 metadata: { from: fromEmail, subject, inbox_message_id: saved.id },
               });
+              if (actErr) {
+                console.error('[InboxSync] Failed to record replied activity:', actErr.message);
+              }
 
               fireEvent(userId, 'email.replied', {
                 campaign_id: matchedActivity.campaign_id,

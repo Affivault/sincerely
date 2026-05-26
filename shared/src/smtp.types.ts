@@ -68,9 +68,9 @@ export interface SmtpPreset {
   smtp_host: string;
   smtp_port: number;
   smtp_secure: boolean;
-  imap_host: string;
-  imap_port: number;
-  imap_secure: boolean;
+  imap_host: string | null;
+  imap_port: number | null;
+  imap_secure: boolean | null;
   /** Domains that map to this provider (for auto-detection) */
   domains?: string[];
   /** Default username format hint */
@@ -154,9 +154,9 @@ export const SMTP_PRESETS: SmtpPreset[] = [
     smtp_host: 'smtp.sendgrid.net',
     smtp_port: 587,
     smtp_secure: false,
-    imap_host: '',
-    imap_port: 993,
-    imap_secure: true,
+    imap_host: null,
+    imap_port: null,
+    imap_secure: null,
     domains: [],
     username_hint: 'Always use "apikey"',
     password_hint: 'Your SendGrid API key',
@@ -168,9 +168,9 @@ export const SMTP_PRESETS: SmtpPreset[] = [
     smtp_host: 'smtp.mailgun.org',
     smtp_port: 587,
     smtp_secure: false,
-    imap_host: '',
-    imap_port: 993,
-    imap_secure: true,
+    imap_host: null,
+    imap_port: null,
+    imap_secure: null,
     domains: [],
     username_hint: 'postmaster@your-domain.com',
     password_hint: 'SMTP password from Mailgun dashboard',
@@ -182,9 +182,9 @@ export const SMTP_PRESETS: SmtpPreset[] = [
     smtp_host: 'email-smtp.us-east-1.amazonaws.com',
     smtp_port: 587,
     smtp_secure: false,
-    imap_host: '',
-    imap_port: 993,
-    imap_secure: true,
+    imap_host: null,
+    imap_port: null,
+    imap_secure: null,
     domains: [],
     username_hint: 'SMTP IAM username',
     password_hint: 'SMTP IAM password (not AWS secret key)',
