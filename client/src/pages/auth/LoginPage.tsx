@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { ArrowRight } from 'lucide-react';
@@ -191,9 +191,9 @@ export function LoginPage() {
                   <label htmlFor="password" className="block text-sm font-medium text-[var(--text-primary)]">
                     Password
                   </label>
-                  <a href="#" className="text-xs font-medium transition-colors" style={{ color: '#818CF8' }}>
+                  <Link to="/forgot-password" className="text-xs font-medium transition-colors" style={{ color: '#818CF8' }}>
                     Forgot password?
-                  </a>
+                  </Link>
                 </div>
                 <input
                   id="password"

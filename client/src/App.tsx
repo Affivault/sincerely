@@ -7,6 +7,8 @@ import { AppLayout } from './components/layout/AppLayout';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/auth/LoginPage';
 import { SignupPage } from './pages/auth/SignupPage';
+import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 
 // Lazy-loaded — each becomes its own JS chunk
 const DashboardPage        = lazy(() => import('./pages/dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
@@ -68,8 +70,11 @@ export default function App() {
         <Route path="/" element={<LandingOrDashboard />} />
 
         {/* Auth routes */}
-        <Route path="/login"  element={<PublicRoute><LoginPage /></PublicRoute>} />
-        <Route path="/signup" element={<PublicRoute><SignupPage /></PublicRoute>} />
+        <Route path="/login"           element={<PublicRoute><LoginPage /></PublicRoute>} />
+        <Route path="/signup"          element={<PublicRoute><SignupPage /></PublicRoute>} />
+        <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
+        {/* Reset password must be public — user arrives via email link without a session */}
+        <Route path="/reset-password"  element={<ResetPasswordPage />} />
 
         {/* Protected app routes */}
         <Route
