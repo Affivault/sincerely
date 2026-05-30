@@ -798,6 +798,7 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
             if (matchedActivity) {
               inboxRow.campaign_id = matchedActivity.campaign_id;
               inboxRow.contact_id = matchedActivity.contact_id;
+              inboxRow.campaign_contact_id = matchedActivity.campaign_contact_id;
             }
 
             const { data: saved } = await supabaseAdmin

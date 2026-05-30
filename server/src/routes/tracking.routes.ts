@@ -97,9 +97,21 @@ router.get('/open/:trackingId', async (req: Request, res: Response) => {
           },
         });
 
-      // Update SSE health for the SMTP account
-      if ((cc as any).campaigns?.smtp_account_id) {
-        sse.recordOpen((cc as any).campaigns.smtp_account_id).catch(() => {});
+      // Update SSE health for the account that actually sent this email.
+      // Look up the send activity first so SSE credits the right account when
+      // a different sender was chosen by the Smart-Sharding Engine.
+      const { data: sendActivity } = await supabaseAdmin
+        .from('campaign_activities')
+        .select('metadata')
+        .eq('campaign_contact_id', campaignContactId)
+        .eq('step_id', stepId)
+        .eq('activity_type', 'sent')
+        .single();
+      const openSmtpId =
+        sendActivity?.metadata?.smtp_account_id ||
+        (cc as any).campaigns?.smtp_account_id;
+      if (openSmtpId) {
+        sse.recordOpen(openSmtpId).catch(() => {});
       }
 
       // Fire webhook event

@@ -49,12 +49,17 @@ export function CampaignDetailPage() {
     queryKey: ['campaigns', id],
     queryFn: () => campaignsApi.get(id!),
     enabled: !!id,
+    refetchInterval: (query) =>
+      query.state.data?.status === 'running' ? 30_000 : false,
   });
+
+  const isRunning = campaign?.status === 'running';
 
   const { data: analytics } = useQuery({
     queryKey: ['analytics', 'campaign', id],
     queryFn: () => analyticsApi.campaign(id!),
     enabled: !!id,
+    refetchInterval: isRunning ? 30_000 : false,
   });
 
   const { data: campaignContacts } = useQuery({

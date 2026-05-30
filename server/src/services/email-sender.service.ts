@@ -96,15 +96,20 @@ async function sendDirect(params: SmtpSendParams): Promise<SmtpSendResult> {
     socketTimeout: 30000,
   });
 
-  const info = await transporter.sendMail({
-    from: params.from,
-    to: params.to,
-    subject: params.subject,
-    html: params.html || undefined,
-    text: params.text || undefined,
-    messageId: params.messageId || undefined,
-    headers: params.headers || undefined,
-  });
+  let info;
+  try {
+    info = await transporter.sendMail({
+      from: params.from,
+      to: params.to,
+      subject: params.subject,
+      html: params.html || undefined,
+      text: params.text || undefined,
+      messageId: params.messageId || undefined,
+      headers: params.headers || undefined,
+    });
+  } finally {
+    transporter.close();
+  }
 
   return {
     messageId: info.messageId,
