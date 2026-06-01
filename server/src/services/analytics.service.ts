@@ -41,25 +41,29 @@ export const analyticsService = {
     let totalSent = 0, totalOpened = 0, totalClicked = 0, totalReplied = 0;
 
     if (campaignIds.length > 0) {
-      let query = supabaseAdmin
-        .from('campaign_activities')
-        .select('activity_type')
-        .in('campaign_id', campaignIds);
+      const sinceFilter = days ? daysAgoISO(days) : null;
 
-      if (days) {
-        query = query.gte('occurred_at', daysAgoISO(days));
-      }
+      const makeCountQuery = (type: string) => {
+        let q = supabaseAdmin
+          .from('campaign_activities')
+          .select('*', { count: 'exact', head: true })
+          .in('campaign_id', campaignIds)
+          .eq('activity_type', type);
+        if (sinceFilter) q = q.gte('occurred_at', sinceFilter);
+        return q;
+      };
 
-      const { data: activities } = await query;
+      const [sentRes, openedRes, clickedRes, repliedRes] = await Promise.all([
+        makeCountQuery('sent'),
+        makeCountQuery('opened'),
+        makeCountQuery('clicked'),
+        makeCountQuery('replied'),
+      ]);
 
-      for (const a of activities || []) {
-        switch (a.activity_type) {
-          case 'sent': totalSent++; break;
-          case 'opened': totalOpened++; break;
-          case 'clicked': totalClicked++; break;
-          case 'replied': totalReplied++; break;
-        }
-      }
+      totalSent = sentRes.count || 0;
+      totalOpened = openedRes.count || 0;
+      totalClicked = clickedRes.count || 0;
+      totalReplied = repliedRes.count || 0;
     }
 
     const { count: suppressedCount } = await supabaseAdmin

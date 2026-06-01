@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { SaraIntent, SaraAction, SaraStatus } from '@lemlist/shared';
 import type { SaraClassificationResult, SaraQueueStats } from '@lemlist/shared';
 import { fireEvent } from './webhook.service.js';
+import { suppressionService } from './suppression.service.js';
 
 /**
  * SARA - SkySend Autonomous Reply Agent
@@ -219,7 +220,7 @@ export async function processReply(messageId: string): Promise<SaraClassificatio
   // Fetch the message with context
   const { data: message, error: msgError } = await supabaseAdmin
     .from('inbox_messages')
-    .select('*, contacts(first_name, last_name, company)')
+    .select('*, contacts(first_name, last_name, company, email)')
     .eq('id', messageId)
     .single();
 
@@ -271,7 +272,10 @@ export async function processReply(messageId: string): Promise<SaraClassificatio
         .from('contacts')
         .update({ is_unsubscribed: true })
         .eq('id', message.contact_id);
-      if (message.user_id) {
+      // Add to global suppression list so future campaigns skip this contact
+      const contactEmail = message.contacts?.email;
+      if (message.user_id && contactEmail) {
+        suppressionService.add(message.user_id, contactEmail, 'unsubscribed').catch(() => {});
         fireEvent(message.user_id, 'lead.unsubscribed', { contact_id: message.contact_id, source: 'sara_auto' }).catch(() => {});
       }
     }
@@ -280,7 +284,9 @@ export async function processReply(messageId: string): Promise<SaraClassificatio
         .from('contacts')
         .update({ is_bounced: true })
         .eq('id', message.contact_id);
-      if (message.user_id) {
+      const contactEmail = message.contacts?.email;
+      if (message.user_id && contactEmail) {
+        suppressionService.add(message.user_id, contactEmail, 'bounced').catch(() => {});
         fireEvent(message.user_id, 'email.bounced', { contact_id: message.contact_id, source: 'sara_auto' }).catch(() => {});
       }
     }

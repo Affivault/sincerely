@@ -4,6 +4,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { env } from '../config/env.js';
 import { fireEvent } from '../services/webhook.service.js';
 import * as sse from '../services/sse.service.js';
+import { suppressionService } from '../services/suppression.service.js';
 
 const router = Router();
 
@@ -259,8 +260,19 @@ router.get('/unsubscribe/:trackingId', async (req: Request, res: Response) => {
           metadata: { method: 'link_click' },
         });
 
-      if ((cc as any).campaigns?.user_id) {
-        fireEvent((cc as any).campaigns.user_id, 'lead.unsubscribed', {
+      const userId = (cc as any).campaigns?.user_id;
+      if (userId) {
+        // Add to global suppression list so future campaigns skip this contact
+        const { data: contactRow } = await supabaseAdmin
+          .from('contacts')
+          .select('email')
+          .eq('id', cc.contact_id)
+          .single();
+        if (contactRow?.email) {
+          suppressionService.add(userId, contactRow.email, 'unsubscribed').catch(() => {});
+        }
+
+        fireEvent(userId, 'lead.unsubscribed', {
           campaign_id: cc.campaign_id,
           contact_id: cc.contact_id,
         }).catch(() => {});

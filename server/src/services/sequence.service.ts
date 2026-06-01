@@ -142,6 +142,7 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
         next_send_at: null,
       })
       .eq('id', campaignContactId);
+    checkAndAutoCompleteCampaign(cc.campaign_id).catch(() => {});
     return;
   }
 
@@ -152,6 +153,7 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
       .from('campaign_contacts')
       .update({ status: 'unsubscribed', next_send_at: null })
       .eq('id', campaignContactId);
+    checkAndAutoCompleteCampaign(cc.campaign_id).catch(() => {});
     return;
   }
 
@@ -232,6 +234,7 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
         dcs_score: dcsScore,
         threshold: cc.campaigns.dcs_threshold,
       }).catch(() => {});
+      checkAndAutoCompleteCampaign(cc.campaign_id).catch(() => {});
       return;
     }
   }
@@ -357,6 +360,7 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
       if (bounceAccountId) {
         sse.recordBounce(bounceAccountId).catch(() => {});
       }
+      checkAndAutoCompleteCampaign(cc.campaign_id).catch(() => {});
     }
 
     // Record error activity
@@ -701,13 +705,55 @@ async function advanceToNextStep(
 }
 
 async function markCompleted(campaignContactId: string): Promise<void> {
-  await supabaseAdmin
+  const { data: cc } = await supabaseAdmin
     .from('campaign_contacts')
     .update({
       status: 'completed',
       completed_at: new Date().toISOString(),
     })
-    .eq('id', campaignContactId);
+    .eq('id', campaignContactId)
+    .select('campaign_id')
+    .single();
+
+  if (cc?.campaign_id) {
+    checkAndAutoCompleteCampaign(cc.campaign_id).catch(() => {});
+  }
+}
+
+/**
+ * Auto-complete a campaign when every contact has reached a terminal state.
+ * Terminal states: completed, bounced, unsubscribed, error, suppressed.
+ * Prevents campaigns from staying "running" indefinitely after all work is done.
+ */
+async function checkAndAutoCompleteCampaign(campaignId: string): Promise<void> {
+  const { data: campaign } = await supabaseAdmin
+    .from('campaigns')
+    .select('id, status, user_id')
+    .eq('id', campaignId)
+    .single();
+
+  if (!campaign || campaign.status !== 'running') return;
+
+  // Count contacts still in non-terminal states (pending or active)
+  const { count: nonTerminal } = await supabaseAdmin
+    .from('campaign_contacts')
+    .select('*', { count: 'exact', head: true })
+    .eq('campaign_id', campaignId)
+    .in('status', ['pending', 'active']);
+
+  if (nonTerminal && nonTerminal > 0) return;
+
+  // All contacts are in terminal states — mark campaign as completed
+  const { error } = await supabaseAdmin
+    .from('campaigns')
+    .update({ status: 'completed', completed_at: new Date().toISOString() })
+    .eq('id', campaignId)
+    .eq('status', 'running'); // guard against concurrent updates
+
+  if (!error) {
+    console.log(`[Sequence] Campaign ${campaignId} auto-completed — all contacts finished`);
+    fireEvent(campaign.user_id, 'campaign.completed', { campaign_id: campaignId }).catch(() => {});
+  }
 }
 
 /**
