@@ -152,6 +152,12 @@ export function CampaignCreatePage() {
     enabled: isEdit,
   });
 
+  const { data: existingSenderPool } = useQuery({
+    queryKey: ['sender-pool', id],
+    queryFn: () => campaignsApi.getSenderPool(id!),
+    enabled: isEdit,
+  });
+
   const { data: smtpAccounts } = useQuery({
     queryKey: ['smtp-accounts'],
     queryFn: smtpApi.list,
@@ -244,6 +250,12 @@ export function CampaignCreatePage() {
     }
   }, [campaignContacts]);
 
+  useEffect(() => {
+    if (existingSenderPool && existingSenderPool.length > 0) {
+      setSenderPoolIds(existingSenderPool);
+    }
+  }, [existingSenderPool]);
+
   const [launching, setLaunching] = useState(false);
   const [showLaunchConfirm, setShowLaunchConfirm] = useState(false);
 
@@ -272,6 +284,9 @@ export function CampaignCreatePage() {
           await campaignsApi.addStep(campaignId, stepData);
         }
       }
+
+      // Persist sender rotation pool (previously UI-only, never saved)
+      await campaignsApi.setSenderPool(campaignId, senderPoolIds);
 
       if (selectedContactIds.length > 0) {
         await campaignsApi.addContacts(campaignId, selectedContactIds);
@@ -308,6 +323,9 @@ export function CampaignCreatePage() {
           await campaignsApi.addStep(campaignId, stepData);
         }
       }
+
+      // Persist sender rotation pool
+      await campaignsApi.setSenderPool(campaignId, senderPoolIds);
 
       if (selectedContactIds.length > 0) {
         await campaignsApi.addContacts(campaignId, selectedContactIds);

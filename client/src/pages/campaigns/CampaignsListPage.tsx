@@ -233,6 +233,30 @@ export function CampaignsListPage() {
                   </div>
                 </div>
 
+                {/* Contact progression bar — running/paused/completed campaigns */}
+                {campaign.contacts_count > 0 && ['running', 'paused', 'completed'].includes(campaign.status) && (() => {
+                  const c = campaign as any;
+                  const done = (c.completed_contacts || 0) + (c.bounced_contacts || 0) + (c.unsubscribed_contacts || 0);
+                  const pct = Math.min(100, Math.round((done / campaign.contacts_count) * 100));
+                  return (
+                    <div className="mt-3 flex items-center gap-3">
+                      <div className="flex-1 h-1.5 rounded-full bg-[var(--border-subtle)] overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            campaign.status === 'completed'
+                              ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+                              : 'bg-gradient-to-r from-[#6366F1] to-[#8B5CF6]'
+                          }`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-[var(--text-tertiary)] tabular-nums whitespace-nowrap">
+                        {done}/{campaign.contacts_count} done
+                      </span>
+                    </div>
+                  );
+                })()}
+
                 {/* Stats row */}
                 {(campaign.sent_count > 0 || campaign.status !== 'draft') && (
                   <div className="mt-4 pt-4 border-t border-[var(--border-subtle)] flex gap-6 text-sm text-[var(--text-secondary)]">

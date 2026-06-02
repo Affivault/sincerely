@@ -178,8 +178,11 @@ export function startEmailWorker() {
         const messageId = `<${crypto.randomUUID()}@${domain}>`;
 
         // 6. Send the email
+        const fromAddress = smtpAccount.label
+          ? `"${smtpAccount.label.replace(/"/g, "'")}" <${smtpAccount.email_address}>`
+          : smtpAccount.email_address;
         const mailOptions = {
-          from: smtpAccount.email_address,
+          from: fromAddress,
           to,
           subject,
           html: finalHtml,

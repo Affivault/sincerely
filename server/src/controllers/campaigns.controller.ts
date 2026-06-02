@@ -157,13 +157,16 @@ export const campaignsController = {
       if (!account) return res.status(404).json({ error: 'SMTP account not found' });
 
       const password = decrypt(account.smtp_pass_encrypted);
+      const fromAddress = account.label
+        ? `"${account.label.replace(/"/g, "'")}" <${account.email_address}>`
+        : account.email_address;
       await sendViaSmtp({
         smtpHost: account.smtp_host,
         smtpPort: account.smtp_port,
         smtpSecure: account.smtp_secure,
         smtpUser: account.smtp_user,
         smtpPass: password,
-        from: account.email_address,
+        from: fromAddress,
         to,
         subject: `[TEST] ${subject}`,
         html: body_html,

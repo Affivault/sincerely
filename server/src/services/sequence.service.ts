@@ -180,7 +180,16 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
       .eq('campaign_id', cc.campaign_id)
       .eq('activity_type', 'sent')
       .gte('occurred_at', todayStart.toISOString());
-    if (sentToday && sentToday >= dailyLimit) return;
+    if (sentToday && sentToday >= dailyLimit) {
+      // Reschedule to next send window so the sequence worker doesn't
+      // re-pick this contact every 30 seconds until midnight.
+      const nextWindow = getNextSendWindowStart(cc.campaigns);
+      await supabaseAdmin
+        .from('campaign_contacts')
+        .update({ next_send_at: nextWindow.toISOString() })
+        .eq('id', campaignContactId);
+      return;
+    }
   }
 
   // Check stop_on_reply — if contact already replied, mark completed

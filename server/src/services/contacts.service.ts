@@ -65,7 +65,11 @@ export const contactsService = {
     }
 
     if (params.search) {
-      query = query.or(`email.ilike.%${params.search}%,first_name.ilike.%${params.search}%,last_name.ilike.%${params.search}%,company.ilike.%${params.search}%`);
+      // Strip ILIKE wildcard characters so user input can't match unintended rows
+      const safeSearch = params.search.replace(/[%_]/g, '');
+      if (safeSearch) {
+        query = query.or(`email.ilike.%${safeSearch}%,first_name.ilike.%${safeSearch}%,last_name.ilike.%${safeSearch}%,company.ilike.%${safeSearch}%`);
+      }
     }
 
     if (params.is_unsubscribed !== undefined) {

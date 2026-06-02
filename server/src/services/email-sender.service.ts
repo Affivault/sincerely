@@ -258,6 +258,10 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
     } : {}),
   };
 
+  const fromAddress = smtpAccount.label
+    ? `"${smtpAccount.label.replace(/"/g, "'")}" <${smtpAccount.email_address}>`
+    : smtpAccount.email_address;
+
   let sendResult;
   try {
     sendResult = await sendViaSmtp({
@@ -266,7 +270,7 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
       smtpSecure: smtpAccount.smtp_secure,
       smtpUser: smtpAccount.smtp_user,
       smtpPass: smtpPassword,
-      from: smtpAccount.email_address,
+      from: fromAddress,
       to,
       subject,
       html: finalHtml,
