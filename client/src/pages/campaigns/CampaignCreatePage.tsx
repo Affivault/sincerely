@@ -4,7 +4,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
 import { smtpApi } from '../../api/smtp.api';
 import { contactsApi, listsApi } from '../../api/contacts.api';
+import { sendingSchedulesApi, type SendingSchedule } from '../../api/sending-schedules.api';
+import { templateApi } from '../../api/template.api';
 import { apiClient } from '../../api/client';
+import { Link } from 'react-router-dom';
 import { Spinner } from '../../components/ui/Spinner';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
@@ -165,6 +168,78 @@ export function CampaignCreatePage() {
     queryKey: ['lists'],
     queryFn: listsApi.list,
   });
+
+  // Saved sending schedules
+  const { data: savedSchedules = [] } = useQuery({
+    queryKey: ['sending-schedules'],
+    queryFn: sendingSchedulesApi.list,
+  });
+
+  // Sequence templates (for "Load from template")
+  const { data: sequenceTemplates = [] } = useQuery({
+    queryKey: ['templates', 'sequences'],
+    queryFn: templateApi.listSequences,
+  });
+
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+
+  // Map saved schedule day codes ('mon','tue',…) to full names used here
+  const expandDayCode = (code: string): string => {
+    const map: Record<string, string> = {
+      mon: 'monday', tue: 'tuesday', wed: 'wednesday', thu: 'thursday',
+      fri: 'friday', sat: 'saturday', sun: 'sunday',
+    };
+    return map[code] || code;
+  };
+
+  const applySchedule = (s: SendingSchedule) => {
+    setCampaignForm((prev: any) => ({
+      ...prev,
+      timezone: s.timezone,
+      send_window_start: s.send_window_start,
+      send_window_end: s.send_window_end,
+      send_days: (s.send_days || []).map(expandDayCode),
+    }));
+    toast.success(`Applied schedule "${s.name}"`);
+  };
+
+  // Auto-apply default schedule when creating a new campaign
+  useEffect(() => {
+    if (!isEdit && savedSchedules.length > 0) {
+      const def = savedSchedules.find((s) => s.is_default);
+      if (def) {
+        setCampaignForm((prev: any) => ({
+          ...prev,
+          timezone: prev.timezone === 'UTC' ? def.timezone : prev.timezone,
+          send_window_start: prev.send_window_start === '00:00' ? def.send_window_start : prev.send_window_start,
+          send_window_end:   prev.send_window_end   === '23:59' ? def.send_window_end   : prev.send_window_end,
+          send_days: (def.send_days || []).map(expandDayCode),
+        }));
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedSchedules.length, isEdit]);
+
+  const loadTemplate = (templateId: string) => {
+    const t = sequenceTemplates.find((x) => x.id === templateId);
+    if (!t || !t.steps || !Array.isArray(t.steps)) {
+      toast.error('Template has no steps');
+      return;
+    }
+    const newSteps: FlowStep[] = (t.steps as any[]).map((s: any, i: number) => ({
+      step_type: s.step_type || 'email',
+      step_order: i,
+      delay_days: s.delay_days || 0,
+      delay_hours: s.delay_hours || 0,
+      delay_minutes: s.delay_minutes || 0,
+      subject: s.subject || '',
+      body_html: s.body_html || '',
+      body_text: s.body_text || '',
+    }));
+    setSteps(newSteps);
+    setShowTemplatePicker(false);
+    toast.success(`Loaded "${t.name}" — ${newSteps.length} step${newSteps.length === 1 ? '' : 's'}`);
+  };
 
   const [addingListId, setAddingListId] = useState<string | null>(null);
   const addListContacts = async (listId: string) => {
@@ -619,8 +694,39 @@ export function CampaignCreatePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Sending Schedule */}
             <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden shadow-card">
-              <CardHeader icon={Clock} title="Sending Schedule" subtitle="When emails will be delivered" />
+              <CardHeader
+                icon={Clock}
+                title="Sending Schedule"
+                subtitle="When emails will be delivered"
+                action={
+                  <Link to="/schedules" className="text-[10px] font-medium text-[#6366F1] hover:underline">Manage saved →</Link>
+                }
+              />
               <div className="p-6 space-y-4">
+                {savedSchedules.length > 0 && (
+                  <div className="rounded-lg border border-[#6366F1]/20 bg-[#6366F1]/5 p-3">
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#6366F1] mb-1.5">
+                      Quick apply saved schedule
+                    </label>
+                    <select
+                      onChange={(e) => {
+                        const s = savedSchedules.find((x) => x.id === e.target.value);
+                        if (s) applySchedule(s);
+                        e.target.value = '';
+                      }}
+                      className={inputCls}
+                      defaultValue=""
+                    >
+                      <option value="" disabled>Choose a schedule...</option>
+                      {savedSchedules.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}{s.is_default ? ' (default)' : ''} — {s.send_window_start}–{s.send_window_end} {s.timezone}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
                     Timezone
@@ -814,6 +920,24 @@ export function CampaignCreatePage() {
       ════════════════════════════════════════════════════════ */}
       {wizardStep === 1 && (
         <div className="space-y-6">
+          {/* Quick action bar */}
+          {steps.length === 0 && sequenceTemplates.length > 0 && (
+            <div className="rounded-xl border border-[#6366F1]/20 bg-[#6366F1]/5 p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#6366F1]/10 flex items-center justify-center">
+                  <Sparkles className="h-4 w-4 text-[#6366F1]" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-[var(--text-primary)]">Start from a template</p>
+                  <p className="text-xs text-[var(--text-secondary)]">Apply one of your saved sequences to skip building from scratch.</p>
+                </div>
+              </div>
+              <button onClick={() => setShowTemplatePicker(true)} className="btn-primary text-xs px-4 py-2">
+                <FolderOpen className="h-3.5 w-3.5" /> Browse templates
+              </button>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
             {/* Flow Canvas */}
             <div className="lg:col-span-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden shadow-card flex flex-col">
@@ -823,6 +947,14 @@ export function CampaignCreatePage() {
                 subtitle="Build the email flow your contacts will experience"
                 action={
                   <div className="flex items-center gap-3 text-xs text-[var(--text-tertiary)]">
+                    {sequenceTemplates.length > 0 && (
+                      <button
+                        onClick={() => setShowTemplatePicker(true)}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[#6366F1] transition-colors"
+                      >
+                        <FolderOpen className="h-3 w-3" /> Apply template
+                      </button>
+                    )}
                     <span className="flex items-center gap-1">
                       <Mail className="h-3 w-3" />
                       {steps.filter((s) => s.step_type === 'email').length} emails
@@ -1690,6 +1822,53 @@ export function CampaignCreatePage() {
                 {aiGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 {aiGenerating ? 'Generating...' : 'Generate Email'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Template picker modal */}
+      {showTemplatePicker && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowTemplatePicker(false)}>
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-[var(--text-primary)]">Apply sequence template</h2>
+                <p className="text-xs text-[var(--text-secondary)] mt-0.5">This will replace your current sequence steps.</p>
+              </div>
+              <button onClick={() => setShowTemplatePicker(false)} className="p-1 rounded hover:bg-[var(--bg-hover)]"><X className="h-4 w-4 text-[var(--text-tertiary)]" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              {sequenceTemplates.length === 0 ? (
+                <div className="text-center py-12">
+                  <Layers className="h-10 w-10 mx-auto text-[var(--text-tertiary)] mb-2" />
+                  <p className="text-sm text-[var(--text-secondary)]">No sequence templates yet.</p>
+                  <Link to="/templates" className="text-xs text-[#6366F1] hover:underline mt-2 inline-block">Create one →</Link>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {sequenceTemplates.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => loadTemplate(t.id)}
+                      className="w-full text-left p-4 rounded-lg border border-[var(--border-subtle)] hover:border-[#6366F1]/30 hover:bg-[#6366F1]/5 transition-all group"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[#6366F1] transition-colors">{t.name}</h3>
+                          {t.description && <p className="text-xs text-[var(--text-secondary)] mt-0.5 line-clamp-2">{t.description}</p>}
+                          <div className="flex items-center gap-3 mt-2 text-[10px] text-[var(--text-tertiary)]">
+                            <span>{(t.steps as any[])?.length || 0} steps</span>
+                            {t.category && <span>· {t.category}</span>}
+                            {t.is_preset && <span className="px-1.5 py-0.5 rounded bg-[#6366F1]/10 text-[#6366F1] font-medium">Preset</span>}
+                          </div>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-[var(--text-tertiary)] flex-shrink-0 group-hover:text-[#6366F1] transition-colors" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

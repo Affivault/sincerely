@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { contactsApi, listsApi } from '../../api/contacts.api';
+import { listFoldersApi, type ListFolder } from '../../api/list-folders.api';
 import { Spinner } from '../../components/ui/Spinner';
 import { formatDate, cn } from '../../lib/utils';
 import {
@@ -15,15 +16,21 @@ import {
   X,
   Users,
   FolderOpen,
+  Folder,
+  FolderPlus,
   Pencil,
   ArrowRight,
   ShieldCheck,
   ShieldX,
   Shield,
+  ShieldOff,
+  RotateCcw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CreateContactInput, ContactWithTags, ContactList } from '@lemlist/shared';
 import { DEFAULT_PAGE_SIZE } from '../../lib/constants';
+
+const FOLDER_COLORS = ['#10B981', '#6366F1', '#F59E0B', '#EC4899', '#06B6D4', '#8B5CF6', '#EF4444', '#84CC16'];
 
 const emptyContact: CreateContactInput = {
   email: '',
@@ -113,6 +120,60 @@ export function ContactsListPage() {
     queryKey: ['lists'],
     queryFn: listsApi.list,
   });
+
+  // Folders
+  const { data: folders = [] } = useQuery({
+    queryKey: ['list-folders'],
+    queryFn: listFoldersApi.list,
+  });
+
+  const [folderModalOpen, setFolderModalOpen] = useState(false);
+  const [editingFolder, setEditingFolder] = useState<ListFolder | null>(null);
+  const [listContextMenu, setListContextMenu] = useState<{ listId: string; x: number; y: number } | null>(null);
+  const [renamingListId, setRenamingListId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+
+  const folderMoveMut = useMutation({
+    mutationFn: ({ listId, folderId }: { listId: string; folderId: string | null }) => listFoldersApi.moveList(listId, folderId),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['lists'] }); queryClient.invalidateQueries({ queryKey: ['list-folders'] }); toast.success('Moved'); setListContextMenu(null); },
+  });
+  const trashListMut = useMutation({
+    mutationFn: (listId: string) => listFoldersApi.trashList(listId),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['lists'] }); queryClient.invalidateQueries({ queryKey: ['list-folders'] }); toast.success('List moved to trash'); setListContextMenu(null); },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to trash list'),
+  });
+  const renameListMut = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => listsApi.update(id, { name } as any),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['lists'] }); toast.success('Renamed'); setRenamingListId(null); },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to rename'),
+  });
+
+  // Group lists by folder for sidebar rendering
+  const groupedLists = useMemo(() => {
+    const groups: { folder: ListFolder | null; lists: ContactList[] }[] = [];
+    const byFolder = new Map<string, ContactList[]>();
+    const uncategorised: ContactList[] = [];
+
+    for (const list of (lists || []) as any[]) {
+      if (list.is_trashed) continue;
+      if (list.folder_id) {
+        if (!byFolder.has(list.folder_id)) byFolder.set(list.folder_id, []);
+        byFolder.get(list.folder_id)!.push(list);
+      } else {
+        uncategorised.push(list);
+      }
+    }
+
+    // Folders first
+    for (const f of folders) {
+      groups.push({ folder: f, lists: byFolder.get(f.id) || [] });
+    }
+    // Then uncategorised
+    if (uncategorised.length > 0) {
+      groups.push({ folder: null, lists: uncategorised });
+    }
+    return groups;
+  }, [lists, folders]);
 
   const { data: stats } = useQuery({
     queryKey: ['contact-stats'],
@@ -285,25 +346,14 @@ export function ContactsListPage() {
   return (
     <div className="flex gap-8">
       {/* Sidebar */}
-      <div className="w-56 flex-shrink-0">
-        <div className="sticky top-20 space-y-5">
-          <div className="flex items-center justify-between px-1">
-            <span className="text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-widest">
-              Lists
-            </span>
-            <button
-              onClick={() => setShowListModal(true)}
-              className="p-1.5 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] rounded-lg transition-all duration-200"
-              title="Create new list"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="space-y-1">
+      <div className="w-60 flex-shrink-0" onClick={() => setListContextMenu(null)}>
+        <div className="sticky top-20 space-y-4">
+          {/* All Contacts */}
+          <div>
             <button
               onClick={() => setSearchParams({})}
               className={cn(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200",
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all",
                 !activeListId
                   ? "bg-[rgba(99,102,241,0.08)] text-[#6366F1] border-l-[2px] border-l-[#6366F1]"
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
@@ -313,39 +363,184 @@ export function ContactsListPage() {
               <span className="flex-1 text-left">All Contacts</span>
               <span className={cn(
                 "text-[11px] font-semibold px-2 py-0.5 rounded-full",
-                !activeListId
-                  ? "bg-[rgba(99,102,241,0.12)] text-[#6366F1]"
-                  : "text-[var(--text-tertiary)]"
+                !activeListId ? "bg-[rgba(99,102,241,0.12)] text-[#6366F1]" : "text-[var(--text-tertiary)]"
               )}>
                 {stats?.total || 0}
               </span>
             </button>
-            {lists?.map((list) => (
-              <button
-                key={list.id}
-                onClick={() => setSearchParams({ list: list.id })}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200",
-                  activeListId === list.id
-                    ? "bg-[rgba(99,102,241,0.08)] text-[#6366F1] border-l-[2px] border-l-[#6366F1]"
-                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
-                )}
-              >
-                <FolderOpen className="h-4 w-4 flex-shrink-0" strokeWidth={1.5} />
-                <span className="flex-1 text-left truncate">{list.name}</span>
-                <span className={cn(
-                  "text-[11px] font-semibold px-2 py-0.5 rounded-full",
-                  activeListId === list.id
-                    ? "bg-[rgba(99,102,241,0.12)] text-[#6366F1]"
-                    : "text-[var(--text-tertiary)]"
-                )}>
-                  {list.contact_count || 0}
-                </span>
-              </button>
-            ))}
+          </div>
+
+          {/* Lists section */}
+          <div>
+            <div className="flex items-center justify-between px-1 mb-2">
+              <span className="text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-widest">
+                Lead Lists
+              </span>
+              <div className="flex gap-0.5">
+                <button
+                  onClick={() => { setEditingFolder(null); setFolderModalOpen(true); }}
+                  className="p-1 text-[var(--text-tertiary)] hover:text-[#6366F1] hover:bg-[var(--bg-elevated)] rounded transition-colors"
+                  title="New folder"
+                >
+                  <FolderPlus className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => setShowListModal(true)}
+                  className="p-1 text-[var(--text-tertiary)] hover:text-[#6366F1] hover:bg-[var(--bg-elevated)] rounded transition-colors"
+                  title="New list"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-0.5">
+              {groupedLists.map((group) => (
+                <div key={group.folder?.id || 'uncat'}>
+                  {group.folder ? (
+                    <div className="flex items-center gap-2 px-3 py-1 text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">
+                      <Folder className="h-3 w-3" style={{ color: group.folder.color }} />
+                      <span className="flex-1 truncate" style={{ color: group.folder.color }}>{group.folder.name}</span>
+                      <button
+                        onClick={() => { setEditingFolder(group.folder); setFolderModalOpen(true); }}
+                        className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--bg-hover)]"
+                        title="Edit folder"
+                      >
+                        <Pencil className="h-2.5 w-2.5" />
+                      </button>
+                    </div>
+                  ) : group.lists.length > 0 && groupedLists.length > 1 ? (
+                    <div className="px-3 py-1 text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">
+                      Uncategorised
+                    </div>
+                  ) : null}
+
+                  {group.lists.map((list: any) => (
+                    <div key={list.id} className="relative group">
+                      {renamingListId === list.id ? (
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            if (renameValue.trim()) renameListMut.mutate({ id: list.id, name: renameValue.trim() });
+                          }}
+                          className="px-3 py-1.5"
+                        >
+                          <input
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onBlur={() => setRenamingListId(null)}
+                            onKeyDown={(e) => { if (e.key === 'Escape') setRenamingListId(null); }}
+                            autoFocus
+                            className="w-full px-2 py-1 text-[13px] rounded border border-[#6366F1] bg-[var(--bg-elevated)] outline-none"
+                          />
+                        </form>
+                      ) : (
+                        <button
+                          onClick={() => setSearchParams({ list: list.id })}
+                          onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setListContextMenu({ listId: list.id, x: e.clientX, y: e.clientY }); }}
+                          className={cn(
+                            "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all",
+                            activeListId === list.id
+                              ? "bg-[rgba(99,102,241,0.08)] text-[#6366F1] border-l-[2px] border-l-[#6366F1]"
+                              : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+                          )}
+                        >
+                          <FolderOpen className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={1.5} />
+                          <span className="flex-1 text-left truncate">{list.name}</span>
+                          <span className={cn(
+                            "text-[10px] font-semibold tabular-nums",
+                            activeListId === list.id ? "text-[#6366F1]" : "text-[var(--text-tertiary)]"
+                          )}>
+                            {list.contact_count || 0}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+
+              {/* Empty state */}
+              {(!lists || lists.length === 0) && (
+                <p className="px-3 py-2 text-[11px] text-[var(--text-tertiary)] italic">
+                  No lists yet
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Other section */}
+          <div>
+            <div className="px-1 mb-2">
+              <span className="text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-widest">
+                Other
+              </span>
+            </div>
+            <Link
+              to="/suppression"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-[var(--text-secondary)] hover:text-red-500 hover:bg-red-500/10 transition-all"
+            >
+              <ShieldOff className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={1.5} />
+              <span className="flex-1 text-left">Do not email</span>
+            </Link>
           </div>
         </div>
       </div>
+
+      {/* List right-click context menu */}
+      {listContextMenu && (
+        <div
+          className="fixed z-50 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-lg shadow-xl py-1 min-w-[200px] animate-fade-in"
+          style={{ top: listContextMenu.y, left: listContextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              const list = (lists || []).find((l: any) => l.id === listContextMenu.listId);
+              if (list) { setRenameValue(list.name); setRenamingListId(list.id); setListContextMenu(null); }
+            }}
+            className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
+          >
+            <Pencil className="h-3.5 w-3.5" /> Rename
+          </button>
+
+          <div className="border-t border-[var(--border-subtle)] my-1" />
+          <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">Move to folder</div>
+          <button
+            onClick={() => folderMoveMut.mutate({ listId: listContextMenu.listId, folderId: null })}
+            className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
+          >
+            <Folder className="h-3.5 w-3.5" /> Uncategorised
+          </button>
+          {folders.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => folderMoveMut.mutate({ listId: listContextMenu.listId, folderId: f.id })}
+              className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
+            >
+              <Folder className="h-3.5 w-3.5" style={{ color: f.color }} /> {f.name}
+            </button>
+          ))}
+
+          <div className="border-t border-[var(--border-subtle)] my-1" />
+          <button
+            onClick={() => {
+              if (confirm('Move this list to trash?')) trashListMut.mutate(listContextMenu.listId);
+            }}
+            className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-2"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Move to trash
+          </button>
+        </div>
+      )}
+
+      {/* Folder modal */}
+      {folderModalOpen && (
+        <ListFolderModal
+          initial={editingFolder}
+          onClose={() => { setFolderModalOpen(false); setEditingFolder(null); }}
+        />
+      )}
 
       {/* Main content */}
       <div className="flex-1 min-w-0">
@@ -1012,6 +1207,69 @@ export function ContactsListPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ─── List folder modal ──────────────────────────────────────────── */
+
+function ListFolderModal({ initial, onClose }: { initial: ListFolder | null; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState(initial?.name || '');
+  const [color, setColor] = useState(initial?.color || FOLDER_COLORS[0]);
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      if (initial) return listFoldersApi.update(initial.id, { name: name.trim(), color });
+      return listFoldersApi.create({ name: name.trim(), color });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['list-folders'] }); toast.success(initial ? 'Folder updated' : 'Folder created'); onClose(); },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save'),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: () => listFoldersApi.delete(initial!.id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['list-folders'] }); qc.invalidateQueries({ queryKey: ['lists'] }); toast.success('Folder deleted'); onClose(); },
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">{initial ? 'Edit folder' : 'New folder'}</h2>
+          <button onClick={onClose} className="p-1 rounded hover:bg-[var(--bg-hover)]"><X className="h-4 w-4 text-[var(--text-tertiary)]" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Name</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Q4 Prospects" className="input-field" autoFocus />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-2">Colour</label>
+            <div className="flex gap-2 flex-wrap">
+              {FOLDER_COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setColor(c)}
+                  style={{ background: c }}
+                  className={cn('w-7 h-7 rounded-full transition-all', color === c ? 'ring-2 ring-offset-2 ring-offset-[var(--bg-surface)]' : 'opacity-70 hover:opacity-100')}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="px-5 py-4 border-t border-[var(--border-subtle)] flex items-center justify-between">
+          {initial ? (
+            <button onClick={() => { if (confirm(`Delete folder "${initial.name}"? Lists inside will not be deleted.`)) deleteMut.mutate(); }} className="text-xs text-red-500 hover:underline">Delete folder</button>
+          ) : <div />}
+          <div className="flex gap-2">
+            <button onClick={onClose} className="btn-secondary">Cancel</button>
+            <button onClick={() => saveMut.mutate()} disabled={!name.trim() || saveMut.isPending} className="btn-primary">
+              {saveMut.isPending ? 'Saving...' : (initial ? 'Save' : 'Create')}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
