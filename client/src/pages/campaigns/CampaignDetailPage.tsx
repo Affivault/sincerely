@@ -360,7 +360,7 @@ export function CampaignDetailPage() {
                   {campaignContacts.data.map((cc: any) => {
                     const totalSteps = campaign.steps?.length || 0;
                     const currentStep = (cc.current_step_order ?? 0) + 1;
-                    const progressPct = totalSteps > 0 ? Math.round((currentStep / totalSteps) * 100) : 0;
+                    const progressPct = totalSteps > 0 ? Math.min(100, Math.round((currentStep / totalSteps) * 100)) : 0;
                     return (
                     <tr key={cc.id} className="border-b border-subtle last:border-0 hover:bg-hover">
                       <td className="px-4 py-3">

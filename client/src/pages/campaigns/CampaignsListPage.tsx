@@ -10,7 +10,7 @@ import { formatDate, cn } from '../../lib/utils';
 import {
   Megaphone, Plus, Send, Mail, MousePointerClick, MessageSquare, Copy,
   Folder, FolderPlus, FolderOpen, X, Pencil, Trash2, MoreVertical,
-  BarChart3, Inbox,
+  BarChart3, Inbox, Search,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CampaignWithStats } from '@lemlist/shared';
@@ -21,6 +21,7 @@ const STATUS_TABS = [
   { label: 'Running',   value: 'running' },
   { label: 'Paused',    value: 'paused' },
   { label: 'Completed', value: 'completed' },
+  { label: 'Cancelled', value: 'cancelled' },
 ];
 
 const FOLDER_COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EC4899', '#06B6D4', '#8B5CF6', '#EF4444', '#84CC16'];
@@ -29,6 +30,7 @@ export function CampaignsListPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [activeFolderId, setActiveFolderId] = useState<string | null | 'all'>('all'); // 'all', null = uncategorised, or folder id
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [editingFolder, setEditingFolder] = useState<CampaignFolder | null>(null);
@@ -59,12 +61,20 @@ export function CampaignsListPage() {
 
   const allCampaigns: CampaignWithStats[] = (campaignsResp?.data || []) as any;
 
-  // Filter campaigns by selected folder
+  // Filter campaigns by selected folder and search query
   const visibleCampaigns = useMemo(() => {
-    if (activeFolderId === 'all') return allCampaigns;
-    if (activeFolderId === null) return allCampaigns.filter((c: any) => !c.folder_id);
-    return allCampaigns.filter((c: any) => c.folder_id === activeFolderId);
-  }, [allCampaigns, activeFolderId]);
+    let result = allCampaigns;
+    if (activeFolderId !== 'all') {
+      result = activeFolderId === null
+        ? result.filter((c: any) => !c.folder_id)
+        : result.filter((c: any) => c.folder_id === activeFolderId);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((c: any) => c.name?.toLowerCase().includes(q));
+    }
+    return result;
+  }, [allCampaigns, activeFolderId, searchQuery]);
 
   const activeFolder = folders.find((f) => f.id === activeFolderId);
 
@@ -162,22 +172,42 @@ export function CampaignsListPage() {
           </div>
         )}
 
-        {/* Status tabs */}
-        <div className="flex gap-1 px-6 py-3 border-b border-[var(--border-subtle)] flex-shrink-0">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.value}
-              onClick={() => setStatusFilter(tab.value)}
-              className={cn(
-                'rounded-full px-3 py-1 text-xs font-medium transition-all',
-                statusFilter === tab.value
-                  ? 'bg-[rgba(99,102,241,0.1)] text-[#6366F1]'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
+        {/* Status tabs + search */}
+        <div className="flex items-center gap-2 px-6 py-3 border-b border-[var(--border-subtle)] flex-shrink-0">
+          <div className="flex gap-1 flex-1">
+            {STATUS_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => setStatusFilter(tab.value)}
+                className={cn(
+                  'rounded-full px-3 py-1 text-xs font-medium transition-all',
+                  statusFilter === tab.value
+                    ? 'bg-[rgba(99,102,241,0.1)] text-[#6366F1]'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <div className="relative flex-shrink-0">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search campaigns..."
+              className="h-7 pl-8 pr-3 text-xs rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[#6366F1]/40 focus:bg-[var(--bg-surface)] transition-colors w-44"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* List */}

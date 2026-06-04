@@ -238,9 +238,12 @@ export const inboxService = {
     }
 
     if (params.search) {
-      query = query.or(
-        `subject.ilike.%${params.search}%,from_email.ilike.%${params.search}%,body_text.ilike.%${params.search}%`
-      );
+      const safeSearch = params.search.replace(/[%_]/g, '');
+      if (safeSearch) {
+        query = query.or(
+          `subject.ilike.%${safeSearch}%,from_email.ilike.%${safeSearch}%,body_text.ilike.%${safeSearch}%`
+        );
+      }
     }
 
     query = query.order('received_at', { ascending: false }).range(from, to);

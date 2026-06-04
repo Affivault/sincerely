@@ -383,6 +383,17 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
         activity_type: isBounce ? 'bounced' : 'error',
         metadata: { error: err.message, code: err.code || err.responseCode, to: cc.contacts.email },
       });
+
+    // For non-bounce errors, stamp error_message so users can see why the contact is stuck.
+    // (Bounce path already sets status='bounced'; non-bounce leaves status='active' with
+    //  next_send_at=null — without this update the contact silently stalls with no indication.)
+    if (!isBounce) {
+      await supabaseAdmin
+        .from('campaign_contacts')
+        .update({ error_message: `Send failed: ${err.message}`.slice(0, 500) })
+        .eq('id', cc.id);
+    }
+
     // Don't rethrow — error is handled, contact won't be re-processed
     return;
   }
