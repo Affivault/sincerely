@@ -12,10 +12,8 @@ import { PageTabs } from '../../components/shared/Toolbar';
 import { formatDate, cn } from '../../lib/utils';
 import {
   Megaphone, Plus, Send, Mail, MousePointerClick, MessageSquare, Copy,
-  Folder, FolderPlus, FolderOpen, X, Pencil, Trash2,
-  BarChart3, Layers, Sparkles, Play, Pause, Eye,
   Folder, FolderPlus, FolderOpen, X, Pencil, Trash2, MoreVertical,
-  BarChart3, Inbox, Search,
+  BarChart3, Layers, Play, Pause, Eye, Search,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CampaignWithStats } from '@lemlist/shared';
@@ -229,51 +227,30 @@ export function CampaignsListPage() {
 
         {/* Main column */}
         <main className="min-w-0">
-          {/* Status tabs row */}
-          <div className="border-b border-[var(--border-subtle)] mb-3">
+          {/* Status tabs + search row */}
+          <div className="flex items-center justify-between border-b border-[var(--border-subtle)] mb-3 pb-px">
             <PageTabs tabs={statusTabs} value={statusFilter} onChange={setStatusFilter} />
+            <div className="relative mb-px">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search…"
+                className="h-7 pl-8 pr-7 text-[12.5px] rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[rgba(91,91,245,0.4)] focus:bg-[var(--bg-surface)] transition-colors w-40"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
           </div>
 
-        {/* Status tabs + search */}
-        <div className="flex items-center gap-2 px-6 py-3 border-b border-[var(--border-subtle)] flex-shrink-0">
-          <div className="flex gap-1 flex-1">
-            {STATUS_TABS.map((tab) => (
-              <button
-                key={tab.value}
-                onClick={() => setStatusFilter(tab.value)}
-                className={cn(
-                  'rounded-full px-3 py-1 text-xs font-medium transition-all',
-                  statusFilter === tab.value
-                    ? 'bg-[rgba(99,102,241,0.1)] text-[#6366F1]'
-                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          <div className="relative flex-shrink-0">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search campaigns..."
-              className="h-7 pl-8 pr-3 text-xs rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[#6366F1]/40 focus:bg-[var(--bg-surface)] transition-colors w-44"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* List */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {/* List */}
           {isLoading ? (
             <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>
           ) : visibleCampaigns.length === 0 ? (
@@ -668,10 +645,10 @@ function FolderAnalyticsModal({ folderId, onClose }: { folderId: string; onClose
           ) : (
             <>
               <div className="grid grid-cols-4 gap-3 mb-5">
-                <MiniStat icon={Send}              label="Sent"     value={data.totals.sent}     color="#6366F1" />
-                <MiniStat icon={Mail}              label="Opened"   value={data.totals.opened}   color="#3B82F6" rate={data.totals.sent ? (data.totals.opened/data.totals.sent*100) : 0} />
-                <MiniStat icon={MousePointerClick} label="Clicked"  value={data.totals.clicked}  color="#8B5CF6" rate={data.totals.sent ? (data.totals.clicked/data.totals.sent*100) : 0} />
-                <MiniStat icon={MessageSquare}     label="Replied"  value={data.totals.replied}  color="#10B981" rate={data.totals.sent ? (data.totals.replied/data.totals.sent*100) : 0} />
+                <MetricChip icon={Send}              label="Sent"    value={data.totals.sent}    tone="indigo" />
+                <MetricChip icon={Mail}              label="Opened"  value={data.totals.opened}  tone="violet"  rate={data.totals.sent ? (data.totals.opened/data.totals.sent*100) : 0} />
+                <MetricChip icon={MousePointerClick} label="Clicked" value={data.totals.clicked} tone="cyan"    rate={data.totals.sent ? (data.totals.clicked/data.totals.sent*100) : 0} />
+                <MetricChip icon={MessageSquare}     label="Replied" value={data.totals.replied} tone="emerald" rate={data.totals.sent ? (data.totals.replied/data.totals.sent*100) : 0} />
               </div>
 
               <div className="text-[11px] uppercase tracking-wider text-[var(--text-tertiary)] mb-2">By campaign</div>
