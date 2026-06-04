@@ -4,11 +4,16 @@ import { useNavigate } from 'react-router-dom';
 import { campaignsApi } from '../../api/campaigns.api';
 import { campaignFoldersApi, type CampaignFolder } from '../../api/campaign-folders.api';
 import { Spinner } from '../../components/ui/Spinner';
+import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { StatusBadge } from '../../components/shared/StatusBadge';
+import { PageHeader } from '../../components/shared/PageHeader';
+import { PageTabs } from '../../components/shared/Toolbar';
 import { formatDate, cn } from '../../lib/utils';
 import {
   Megaphone, Plus, Send, Mail, MousePointerClick, MessageSquare, Copy,
+  Folder, FolderPlus, FolderOpen, X, Pencil, Trash2,
+  BarChart3, Layers, Sparkles, Play, Pause, Eye,
   Folder, FolderPlus, FolderOpen, X, Pencil, Trash2, MoreVertical,
   BarChart3, Inbox, Search,
 } from 'lucide-react';
@@ -92,26 +97,111 @@ export function CampaignsListPage() {
 
   const uncategorisedCount = allCampaigns.filter((c: any) => !c.folder_id).length;
 
+  const sentTotal = aggregateStats.sent || 0;
+  const openPctAgg  = sentTotal ? (aggregateStats.opened  / sentTotal) * 100 : 0;
+  const clickPctAgg = sentTotal ? (aggregateStats.clicked / sentTotal) * 100 : 0;
+  const replyPctAgg = sentTotal ? (aggregateStats.replied / sentTotal) * 100 : 0;
+
+  const statusTabs = STATUS_TABS.map((t) => ({
+    value: t.value,
+    label: t.label,
+    count: t.value === ''
+      ? visibleCampaigns.length
+      : visibleCampaigns.filter((c: any) => c.status === t.value).length,
+  }));
+
   return (
-    <div className="flex h-[calc(100vh-3.5rem)]" onClick={() => setContextMenuFor(null)}>
-      {/* ── Left sidebar: folders ───────────────────────────────────── */}
-      <aside className="w-60 flex-shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-surface)] flex flex-col">
-        <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Folders</span>
-          <button onClick={() => { setEditingFolder(null); setFolderModalOpen(true); }} title="New folder" className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[#6366F1]">
-            <FolderPlus className="h-3.5 w-3.5" />
-          </button>
+    <div onClick={() => setContextMenuFor(null)}>
+      {/* ── Page header — full bleed, decorated ── */}
+      <PageHeader
+        decorate
+        leading={
+          activeFolder ? (
+            <span
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-subtle)]"
+              style={{ background: `${activeFolder.color}14` }}
+            >
+              <FolderOpen className="h-4 w-4" style={{ color: activeFolder.color }} />
+            </span>
+          ) : (
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
+              <Megaphone className="h-4 w-4 text-[var(--indigo)]" />
+            </span>
+          )
+        }
+        title={
+          activeFolderId === 'all' ? 'All campaigns'
+            : activeFolderId === null ? 'Uncategorised'
+            : activeFolder?.name || 'Campaigns'
+        }
+        description={
+          activeFolderId === 'all'
+            ? 'Every outbound sequence across your workspace.'
+            : activeFolderId === null
+              ? 'Campaigns not yet assigned to a folder.'
+              : `${visibleCampaigns.length} campaign${visibleCampaigns.length === 1 ? '' : 's'} in this folder.`
+        }
+        meta={
+          sentTotal > 0 ? (
+            <>
+              <span className="tabular">{sentTotal.toLocaleString()} sent</span>
+              <span className="text-[var(--text-muted)]">·</span>
+              <span className="tabular">{aggregateStats.replied.toLocaleString()} replies</span>
+              <span className="text-[var(--text-muted)]">·</span>
+              <span className="tabular">{replyPctAgg.toFixed(1)}% reply rate</span>
+            </>
+          ) : (
+            <span>{visibleCampaigns.length} campaign{visibleCampaigns.length === 1 ? '' : 's'}</span>
+          )
+        }
+        actions={
+          <>
+            {activeFolderId && activeFolderId !== 'all' && activeFolderId !== null && (
+              <Button variant="secondary" size="sm" onClick={() => setFolderAnalyticsId(activeFolderId)}>
+                <BarChart3 className="h-3.5 w-3.5" /> Folder analytics
+              </Button>
+            )}
+            <Button size="sm" onClick={() => navigate('/campaigns/new')}>
+              <Plus className="h-3.5 w-3.5" /> New campaign
+            </Button>
+          </>
+        }
+      />
+
+      {/* ── Aggregate metrics strip ── */}
+      {sentTotal > 0 && (
+        <div className="grid grid-cols-4 gap-2 mb-4">
+          <MetricChip icon={Send}              label="Sent"    value={aggregateStats.sent}    tone="indigo" />
+          <MetricChip icon={Mail}              label="Opens"   value={aggregateStats.opened}  tone="violet"  rate={openPctAgg} />
+          <MetricChip icon={MousePointerClick} label="Clicks"  value={aggregateStats.clicked} tone="cyan"    rate={clickPctAgg} />
+          <MetricChip icon={MessageSquare}     label="Replies" value={aggregateStats.replied} tone="emerald" rate={replyPctAgg} />
         </div>
-        <div className="flex-1 overflow-y-auto py-2">
-          <FolderItem
-            label="All campaigns"
-            icon={Inbox}
+      )}
+
+      {/* ── Two-column body: folder rail + content ── */}
+      <div className="grid grid-cols-[200px,1fr] gap-3">
+        {/* Folder rail */}
+        <aside className="panel-inset p-1.5 self-start sticky top-[60px] max-h-[calc(100vh-80px)] overflow-y-auto">
+          <div className="px-2 pt-1 pb-1.5 flex items-center justify-between">
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[var(--text-tertiary)]">Folders</span>
+            <button
+              onClick={() => { setEditingFolder(null); setFolderModalOpen(true); }}
+              title="New folder"
+              className="icon-btn h-6 w-6"
+            >
+              <FolderPlus className="h-3 w-3" />
+            </button>
+          </div>
+
+          <FolderRow
+            label="All"
+            icon={Layers}
             count={allCampaigns.length}
             active={activeFolderId === 'all'}
             onClick={() => setActiveFolderId('all')}
-            color="#6366F1"
+            color="#5B5BF5"
           />
-          <FolderItem
+          <FolderRow
             label="Uncategorised"
             icon={Folder}
             count={uncategorisedCount}
@@ -119,9 +209,11 @@ export function CampaignsListPage() {
             onClick={() => setActiveFolderId(null)}
             color="#94A3B8"
           />
-          <div className="my-2 mx-3 border-t border-[var(--border-subtle)]" />
+          {folders.length > 0 && (
+            <div className="my-1 mx-2 h-px bg-[var(--border-subtle)]" />
+          )}
           {folders.map((f) => (
-            <FolderItem
+            <FolderRow
               key={f.id}
               label={f.name}
               icon={activeFolderId === f.id ? FolderOpen : Folder}
@@ -133,44 +225,14 @@ export function CampaignsListPage() {
               color={f.color}
             />
           ))}
-        </div>
-      </aside>
+        </aside>
 
-      {/* ── Main: campaigns list ───────────────────────────────────── */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Header */}
-        <div className="px-5 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between">
-          <div>
-            <h1 className="text-[15px] font-semibold text-[var(--text-primary)] flex items-center gap-2">
-              {activeFolder && <span className="w-3 h-3 rounded-sm" style={{ background: activeFolder.color }} />}
-              {activeFolderId === 'all' ? 'All campaigns' : activeFolderId === null ? 'Uncategorised' : activeFolder?.name}
-            </h1>
-            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-              {visibleCampaigns.length} campaign{visibleCampaigns.length === 1 ? '' : 's'}
-              {aggregateStats.sent > 0 && ` · ${aggregateStats.sent.toLocaleString()} sent · ${aggregateStats.replied.toLocaleString()} replies`}
-            </p>
+        {/* Main column */}
+        <main className="min-w-0">
+          {/* Status tabs row */}
+          <div className="border-b border-[var(--border-subtle)] mb-3">
+            <PageTabs tabs={statusTabs} value={statusFilter} onChange={setStatusFilter} />
           </div>
-          <div className="flex items-center gap-2">
-            {activeFolderId && activeFolderId !== 'all' && activeFolderId !== null && (
-              <button onClick={() => setFolderAnalyticsId(activeFolderId)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]">
-                <BarChart3 className="h-3.5 w-3.5" /> Folder analytics
-              </button>
-            )}
-            <button onClick={() => navigate('/campaigns/new')} className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-[var(--indigo)] text-white text-[13px] font-medium hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_1px_2px_rgba(67,56,202,0.35)]">
-              <Plus className="h-4 w-4" /> New Campaign
-            </button>
-          </div>
-        </div>
-
-        {/* Aggregate stat row (folder view) */}
-        {aggregateStats.sent > 0 && (
-          <div className="grid grid-cols-4 gap-3 px-6 py-3 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40">
-            <MiniStat icon={Send}              label="Sent"    value={aggregateStats.sent}     color="#6366F1" />
-            <MiniStat icon={Mail}              label="Opened"  value={aggregateStats.opened}   color="#3B82F6" rate={aggregateStats.sent ? (aggregateStats.opened/aggregateStats.sent*100) : 0} />
-            <MiniStat icon={MousePointerClick} label="Clicked" value={aggregateStats.clicked}  color="#8B5CF6" rate={aggregateStats.sent ? (aggregateStats.clicked/aggregateStats.sent*100) : 0} />
-            <MiniStat icon={MessageSquare}     label="Replied" value={aggregateStats.replied}  color="#10B981" rate={aggregateStats.sent ? (aggregateStats.replied/aggregateStats.sent*100) : 0} />
-          </div>
-        )}
 
         {/* Status tabs + search */}
         <div className="flex items-center gap-2 px-6 py-3 border-b border-[var(--border-subtle)] flex-shrink-0">
@@ -215,15 +277,17 @@ export function CampaignsListPage() {
           {isLoading ? (
             <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>
           ) : visibleCampaigns.length === 0 ? (
-            <EmptyState
-              icon={Megaphone}
-              title={activeFolderId === 'all' ? 'No campaigns' : 'No campaigns in this folder'}
-              description={activeFolderId === 'all' ? 'Create your first email campaign to start reaching out.' : 'Move campaigns into this folder, or create a new one.'}
-              actionLabel="New Campaign"
-              onAction={() => navigate('/campaigns/new')}
-            />
+            <div className="card p-10">
+              <EmptyState
+                icon={Megaphone}
+                title={activeFolderId === 'all' ? 'No campaigns yet' : 'This folder is empty'}
+                description={activeFolderId === 'all' ? 'Build your first outbound sequence and start reaching prospects.' : 'Move campaigns into this folder or create a new one.'}
+                actionLabel="New campaign"
+                onAction={() => navigate('/campaigns/new')}
+              />
+            </div>
           ) : (
-            <div className="space-y-3 max-w-5xl">
+            <div className="space-y-2">
               {visibleCampaigns.map((campaign: any) => (
                 <CampaignCard
                   key={campaign.id}
@@ -240,8 +304,8 @@ export function CampaignsListPage() {
               ))}
             </div>
           )}
-        </div>
-      </main>
+        </main>
+      </div>
 
       {/* Context menu */}
       {contextMenuFor && (
@@ -302,7 +366,7 @@ export function CampaignsListPage() {
 
 /* ─── Sub-components ───────────────────────────────────────────── */
 
-function FolderItem({ label, icon: Icon, count, active, onClick, onEdit, onAnalytics, color }: {
+function FolderRow({ label, icon: Icon, count, active, onClick, onEdit, onAnalytics, color }: {
   label: string;
   icon: any;
   count: number;
@@ -317,26 +381,27 @@ function FolderItem({ label, icon: Icon, count, active, onClick, onEdit, onAnaly
       <button
         onClick={onClick}
         className={cn(
-          'w-full flex items-center gap-2 px-4 py-1.5 text-[13px] text-left transition-colors',
+          'w-full flex items-center gap-2 px-2 h-7 rounded-[6px] text-[12.5px] text-left transition-colors',
           active
-            ? 'bg-[rgba(99,102,241,0.08)] text-[#6366F1] border-r-2 border-r-[#6366F1]'
-            : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
+            ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_0_0_1px_var(--border-subtle),0_1px_2px_rgba(15,15,25,0.04)] font-medium'
+            : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]/60 hover:text-[var(--text-primary)]'
         )}
       >
-        <Icon className="h-3.5 w-3.5 flex-shrink-0" style={{ color: active ? '#6366F1' : color }} />
-        <span className="flex-1 truncate font-medium">{label}</span>
-        <span className="text-[10px] text-[var(--text-tertiary)] tabular-nums">{count}</span>
+        <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: color }} />
+        <Icon className="h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]" strokeWidth={1.75} />
+        <span className="flex-1 truncate">{label}</span>
+        <span className="text-[10.5px] text-[var(--text-tertiary)] tabular">{count}</span>
       </button>
       {(onEdit || onAnalytics) && (
-        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--bg-surface)] rounded px-0.5">
+        <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-px bg-[var(--bg-surface)] rounded shadow-[0_0_0_1px_var(--border-subtle)] px-0.5">
           {onAnalytics && (
-            <button onClick={(e) => { e.stopPropagation(); onAnalytics(); }} title="Analytics" className="p-0.5 rounded hover:bg-[var(--bg-hover)]">
-              <BarChart3 className="h-3 w-3 text-[var(--text-tertiary)]" />
+            <button onClick={(e) => { e.stopPropagation(); onAnalytics(); }} title="Folder analytics" className="p-0.5 rounded hover:bg-[var(--bg-hover)]">
+              <BarChart3 className="h-3 w-3 text-[var(--text-tertiary)] hover:text-[var(--indigo)]" />
             </button>
           )}
           {onEdit && (
-            <button onClick={(e) => { e.stopPropagation(); onEdit(); }} title="Edit" className="p-0.5 rounded hover:bg-[var(--bg-hover)]">
-              <Pencil className="h-3 w-3 text-[var(--text-tertiary)]" />
+            <button onClick={(e) => { e.stopPropagation(); onEdit(); }} title="Edit folder" className="p-0.5 rounded hover:bg-[var(--bg-hover)]">
+              <Pencil className="h-3 w-3 text-[var(--text-tertiary)] hover:text-[var(--indigo)]" />
             </button>
           )}
         </div>
@@ -345,24 +410,43 @@ function FolderItem({ label, icon: Icon, count, active, onClick, onEdit, onAnaly
   );
 }
 
-function MiniStat({ icon: Icon, label, value, color, rate }: { icon: any; label: string; value: number; color: string; rate?: number }) {
+const METRIC_TONES: Record<string, { bg: string; text: string; ring: string }> = {
+  indigo:  { bg: 'bg-[rgba(91,91,245,0.08)]',  text: 'text-[#5B5BF5]',   ring: 'ring-[rgba(91,91,245,0.18)]' },
+  violet:  { bg: 'bg-violet-500/8',             text: 'text-violet-600',  ring: 'ring-violet-500/15' },
+  cyan:    { bg: 'bg-cyan-500/8',               text: 'text-cyan-600',    ring: 'ring-cyan-500/15' },
+  emerald: { bg: 'bg-emerald-500/8',            text: 'text-emerald-600', ring: 'ring-emerald-500/15' },
+};
+
+function MetricChip({ icon: Icon, label, value, rate, tone = 'indigo' }: {
+  icon: any; label: string; value: number; rate?: number; tone?: string;
+}) {
+  const t = METRIC_TONES[tone] || METRIC_TONES.indigo;
   return (
-    <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg px-3 py-2">
-      <div className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ background: `${color}15` }}>
-          <Icon className="h-3.5 w-3.5" style={{ color }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">{label}</div>
-          <div className="text-sm font-bold text-[var(--text-primary)] flex items-baseline gap-1.5">
-            {value.toLocaleString()}
-            {rate !== undefined && <span className="text-[10px] font-medium text-[var(--text-tertiary)]">{rate.toFixed(1)}%</span>}
-          </div>
-        </div>
+    <div className="surface px-3 py-2.5 transition-all hover:shadow-[var(--shadow-md)]">
+      <div className="flex items-center gap-2 mb-1">
+        <span className={cn('flex h-5 w-5 items-center justify-center rounded-[5px] ring-1', t.bg, t.ring)}>
+          <Icon className={cn('h-3 w-3', t.text)} strokeWidth={2.25} />
+        </span>
+        <span className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)] flex-1">{label}</span>
+        {rate !== undefined && (
+          <span className="text-[10.5px] tabular text-[var(--text-tertiary)] font-medium">{rate.toFixed(1)}%</span>
+        )}
+      </div>
+      <div className="text-[18px] font-semibold text-[var(--text-primary)] tabular tracking-[-0.015em] leading-tight">
+        {value.toLocaleString()}
       </div>
     </div>
   );
 }
+
+const STATUS_DOT: Record<string, string> = {
+  draft: 'bg-slate-400',
+  running: 'bg-emerald-500 animate-pulse',
+  paused: 'bg-amber-500',
+  completed: 'bg-indigo-500',
+  cancelled: 'bg-rose-500',
+  scheduled: 'bg-blue-500',
+};
 
 function CampaignCard({ campaign, onOpen, onLaunch, onPause, onResume, onClone, onEdit, onDelete, onContextMenu }: any) {
   const total = campaign.sent_count || 0;
@@ -370,91 +454,119 @@ function CampaignCard({ campaign, onOpen, onLaunch, onPause, onResume, onClone, 
   const clickPct = total ? (campaign.clicked_count / total) * 100 : 0;
   const replyPct = total ? (campaign.replied_count / total) * 100 : 0;
 
+  // Pipeline progress (sent vs total contacts)
+  const totalContacts = campaign.contacts_count || campaign.total_contacts || 0;
+  const pipelinePct = totalContacts ? Math.min((total / totalContacts) * 100, 100) : 0;
+
   return (
     <div
       onClick={onOpen}
       onContextMenu={onContextMenu}
-      className={cn(
-        'cursor-pointer rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 transition-all hover:border-[#6366F1]/30 hover:shadow-md group',
-        campaign.status === 'draft'     && 'border-l-[3px] border-l-slate-400',
-        campaign.status === 'running'   && 'border-l-[3px] border-l-[#6366F1]',
-        campaign.status === 'paused'    && 'border-l-[3px] border-l-amber-500',
-        campaign.status === 'completed' && 'border-l-[3px] border-l-emerald-500',
-        campaign.status === 'cancelled' && 'border-l-[3px] border-l-red-500',
-      )}
+      className="group card card-hover relative overflow-hidden cursor-pointer p-4 transition-all"
     >
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1 min-w-0">
+      {/* Status accent strip on the left edge */}
+      <span className={cn('absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full', STATUS_DOT[campaign.status] || 'bg-slate-400')} />
+
+      <div className="grid grid-cols-[1fr,auto] gap-4 items-start">
+        {/* Identity */}
+        <div className="min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-base font-semibold text-[var(--text-primary)] truncate">{campaign.name}</h3>
+            <h3 className="text-[14px] font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">{campaign.name}</h3>
             <StatusBadge status={campaign.status} type="campaign" />
           </div>
-          <p className="text-xs text-[var(--text-tertiary)]">
-            {campaign.steps_count} steps · {campaign.contacts_count} contacts · Created {formatDate(campaign.created_at)}
+          <p className="text-[11.5px] text-[var(--text-tertiary)] truncate">
+            {campaign.steps_count || 0} steps
+            <span className="mx-1.5 text-[var(--text-muted)]">·</span>
+            {totalContacts.toLocaleString()} contacts
+            <span className="mx-1.5 text-[var(--text-muted)]">·</span>
+            Created {formatDate(campaign.created_at)}
           </p>
         </div>
-        <div className="flex gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           {campaign.status === 'draft' && (
-            <>
-              <button onClick={onLaunch} className="px-3 py-1.5 rounded-lg bg-[#6366F1] text-white text-xs font-medium hover:opacity-90">Launch</button>
-              <IconBtn icon={Pencil} onClick={onEdit} title="Edit" />
-            </>
+            <Button size="sm" onClick={onLaunch}>
+              <Play className="h-3 w-3" /> Launch
+            </Button>
           )}
           {campaign.status === 'running' && (
-            <button onClick={onPause} className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-medium hover:opacity-90">Pause</button>
+            <Button size="sm" variant="secondary" onClick={onPause}>
+              <Pause className="h-3 w-3" /> Pause
+            </Button>
           )}
           {campaign.status === 'paused' && (
-            <button onClick={onResume} className="px-3 py-1.5 rounded-lg bg-[#6366F1] text-white text-xs font-medium hover:opacity-90">Resume</button>
+            <Button size="sm" onClick={onResume}>
+              <Play className="h-3 w-3" /> Resume
+            </Button>
           )}
-          <IconBtn icon={Copy} onClick={onClone} title="Clone" />
+          <button onClick={onEdit} title="Edit" className="icon-btn">
+            <Pencil className="h-3 w-3" />
+          </button>
+          <button onClick={onClone} title="Duplicate" className="icon-btn">
+            <Copy className="h-3 w-3" />
+          </button>
           {(campaign.status === 'draft' || campaign.status === 'completed' || campaign.status === 'cancelled') && (
-            <IconBtn icon={Trash2} onClick={onDelete} title="Delete" danger />
+            <button onClick={onDelete} title="Delete" className="icon-btn hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]">
+              <Trash2 className="h-3 w-3" />
+            </button>
           )}
         </div>
       </div>
 
-      {/* Engagement bars */}
-      {total > 0 && (
-        <div className="space-y-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
-          <ProgressRow icon={Send}              label="Sent"    count={campaign.sent_count}    rate={100}     color="#6366F1" />
-          <ProgressRow icon={Mail}              label="Opened"  count={campaign.opened_count}  rate={openPct}  color="#3B82F6" />
-          <ProgressRow icon={MousePointerClick} label="Clicked" count={campaign.clicked_count} rate={clickPct} color="#8B5CF6" />
-          <ProgressRow icon={MessageSquare}     label="Replied" count={campaign.replied_count} rate={replyPct} color="#10B981" />
+      {/* Body — metrics OR pipeline progress */}
+      {total > 0 ? (
+        <div className="grid grid-cols-4 gap-x-4 gap-y-2 mt-3 pt-3 border-t border-[var(--border-subtle)]">
+          <CardMetric color="#5B5BF5" label="Sent"    value={campaign.sent_count} pct={100} hidePctBar />
+          <CardMetric color="#8B5CF6" label="Open"    value={campaign.opened_count} pct={openPct} />
+          <CardMetric color="#06B6D4" label="Click"   value={campaign.clicked_count} pct={clickPct} />
+          <CardMetric color="#10B981" label="Reply"   value={campaign.replied_count} pct={replyPct} />
         </div>
-      )}
+      ) : totalContacts > 0 ? (
+        <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
+          <div className="flex items-center justify-between text-[11px] text-[var(--text-tertiary)] mb-1.5">
+            <span className="flex items-center gap-1">
+              <Eye className="h-3 w-3" />
+              Pipeline progress
+            </span>
+            <span className="tabular">
+              {total.toLocaleString()} / {totalContacts.toLocaleString()}
+            </span>
+          </div>
+          <div className="h-1 rounded-full overflow-hidden bg-[var(--bg-elevated)]">
+            <div
+              className="h-full bg-gradient-to-r from-[#5B5BF5] to-[#8B5CF6] transition-all duration-500"
+              style={{ width: `${pipelinePct}%` }}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function IconBtn({ icon: Icon, onClick, title, danger }: { icon: any; onClick: () => void; title: string; danger?: boolean }) {
+function CardMetric({ color, label, value, pct, hidePctBar }: {
+  color: string; label: string; value: number; pct: number; hidePctBar?: boolean;
+}) {
   return (
-    <button
-      onClick={onClick}
-      title={title}
-      className={cn(
-        'p-1.5 rounded-lg transition-colors',
-        danger
-          ? 'text-[var(--text-tertiary)] hover:bg-red-500/10 hover:text-red-500'
-          : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
+    <div>
+      <div className="flex items-baseline justify-between gap-2 mb-1">
+        <span className="text-[10.5px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)]">{label}</span>
+        {!hidePctBar && (
+          <span className="text-[10.5px] tabular text-[var(--text-tertiary)]">{pct.toFixed(1)}%</span>
+        )}
+      </div>
+      <div className="text-[14px] font-semibold text-[var(--text-primary)] tabular leading-tight">
+        {value.toLocaleString()}
+      </div>
+      {!hidePctBar && (
+        <div className="mt-1.5 h-[3px] rounded-full overflow-hidden bg-[var(--bg-elevated)]">
+          <div
+            className="h-full transition-all duration-500"
+            style={{ width: `${Math.min(pct, 100)}%`, background: color }}
+          />
+        </div>
       )}
-    >
-      <Icon className="h-3.5 w-3.5" />
-    </button>
-  );
-}
-
-function ProgressRow({ icon: Icon, label, count, rate, color }: { icon: any; label: string; count: number; rate: number; color: string }) {
-  return (
-    <div className="flex items-center gap-2 text-xs">
-      <div className="w-5 h-5 rounded flex items-center justify-center" style={{ background: `${color}15` }}>
-        <Icon className="h-3 w-3" style={{ color }} />
-      </div>
-      <span className="text-[var(--text-secondary)] w-16">{label}</span>
-      <div className="flex-1 h-1.5 rounded-full overflow-hidden bg-[var(--bg-elevated)]">
-        <div className="h-full transition-all duration-500" style={{ width: `${Math.min(rate, 100)}%`, background: color }} />
-      </div>
-      <span className="font-medium text-[var(--text-primary)] tabular-nums w-12 text-right">{count.toLocaleString()}</span>
-      <span className="text-[var(--text-tertiary)] tabular-nums w-12 text-right">{rate.toFixed(1)}%</span>
     </div>
   );
 }

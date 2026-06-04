@@ -18,7 +18,7 @@ function AppContent() {
   }, [unreadCount]);
 
   return (
-    <div className="min-h-screen bg-[var(--bg-app)]">
+    <div className="min-h-screen bg-[var(--bg-app)]" style={{ backgroundImage: 'var(--gradient-page)' }}>
       <Sidebar />
       <div className={cn(
         'transition-[padding] duration-200',

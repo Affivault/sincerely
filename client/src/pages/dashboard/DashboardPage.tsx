@@ -4,45 +4,25 @@ import { campaignsApi } from '../../api/campaigns.api';
 import { inboxApi } from '../../api/inbox.api';
 import { templateApi } from '../../api/template.api';
 import { useUnreadCount } from '../../hooks/useUnreadCount';
+import { useAuth } from '../../context/AuthContext';
 import { Spinner } from '../../components/ui/Spinner';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
+import { PageHeader } from '../../components/shared/PageHeader';
+import { StatCard } from '../../components/shared/StatCard';
+import { Card, CardHeader, CardTitle, CardDescription } from '../../components/shared/Card';
+import { Avatar } from '../../components/shared/Avatar';
+import { Badge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button';
 import {
-  Plus,
-  ArrowUpRight,
-  Megaphone,
-  Users,
-  Mail,
-  MousePointer,
-  ArrowRight,
-  Send,
-  Inbox,
-  FileText,
-  BarChart3,
-  Sparkles,
-  Tag,
-  Play,
-  Pause,
-  CircleDot,
-  CheckCircle2,
-  Clock,
-  Eye,
-  MessageSquare,
-  Globe,
-  ChevronRight,
-  ShieldCheck,
-  ShieldOff,
-  UserPlus,
+  Plus, Megaphone, Users, Mail, MousePointer,
+  Send, Inbox, FileText, BarChart3, Sparkles, Tag,
+  CircleDot, MessageSquare, ChevronRight, ShieldCheck, ShieldOff, UserPlus,
+  TrendingUp,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
 } from 'recharts';
 
 /* ─── Helpers ─────────────────────────────────────── */
@@ -77,55 +57,75 @@ function timeAgo(date: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function stripHtml(str: string): string {
-  return str.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/\s+/g, ' ').trim();
-}
-
-const STATUS_CONFIG: Record<string, { bg: string; text: string; icon: React.ElementType }> = {
-  running: { bg: 'bg-emerald-500/10', text: 'text-emerald-600', icon: Play },
-  active: { bg: 'bg-emerald-500/10', text: 'text-emerald-600', icon: Play },
-  paused: { bg: 'bg-amber-500/10', text: 'text-amber-600', icon: Pause },
-  draft: { bg: 'bg-slate-500/10', text: 'text-slate-500', icon: CircleDot },
-  scheduled: { bg: 'bg-blue-500/10', text: 'text-blue-600', icon: Clock },
-  completed: { bg: 'bg-blue-500/10', text: 'text-blue-600', icon: CheckCircle2 },
-  cancelled: { bg: 'bg-red-500/10', text: 'text-red-500', icon: CircleDot },
-};
-
-/* ─── Mini Trend Chart ────────────────────────────── */
-function MiniTrendChart({ data }: { data: TrendDataPoint[] }) {
-  if (!Array.isArray(data) || data.length === 0) return null;
-
-  // Show last 14 days
+/* ─── Trend chart ────────────────────────────── */
+function TrendChart({ data }: { data: TrendDataPoint[] }) {
+  if (!Array.isArray(data) || data.length === 0) {
+    return (
+      <div className="h-[180px] flex items-center justify-center text-[12px] text-[var(--text-tertiary)]">
+        No sending data yet
+      </div>
+    );
+  }
   const recent = data.slice(-14);
 
   return (
-    <ResponsiveContainer width="100%" height={120}>
-      <AreaChart data={recent} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+    <ResponsiveContainer width="100%" height={180}>
+      <AreaChart data={recent} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
         <defs>
           <linearGradient id="sentGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#6366F1" stopOpacity={0.18} />
-            <stop offset="100%" stopColor="#6366F1" stopOpacity={0} />
+            <stop offset="0%" stopColor="#5B5BF5" stopOpacity={0.22} />
+            <stop offset="100%" stopColor="#5B5BF5" stopOpacity={0} />
+          </linearGradient>
+          <linearGradient id="openGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#10B981" stopOpacity={0.15} />
+            <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
-        <XAxis dataKey="date" hide />
+        <CartesianGrid strokeDasharray="2 4" stroke="var(--border-subtle)" vertical={false} />
+        <XAxis
+          dataKey="date"
+          tick={{ fontSize: 10, fill: 'var(--text-tertiary)' }}
+          axisLine={false}
+          tickLine={false}
+          tickFormatter={(d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        />
         <YAxis hide />
         <Tooltip
           contentStyle={{
             background: 'var(--bg-surface)',
             border: '1px solid var(--border-subtle)',
-            borderRadius: '8px',
-            fontSize: '11px',
+            borderRadius: 10,
+            fontSize: 11,
             padding: '6px 10px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            boxShadow: 'var(--shadow-md)',
           }}
-          labelStyle={{ color: 'var(--text-tertiary)', fontSize: '10px' }}
+          labelStyle={{ color: 'var(--text-tertiary)', fontSize: 10, marginBottom: 4 }}
           formatter={(value: number, name: string) => [fmtNum(value), name.charAt(0).toUpperCase() + name.slice(1)]}
         />
-        <Area type="monotone" dataKey="sent" stroke="#6366F1" strokeWidth={1.5} fill="url(#sentGrad)" />
-        <Area type="monotone" dataKey="opened" stroke="#818CF8" strokeWidth={1.5} fill="none" strokeDasharray="4 2" />
+        <Area type="monotone" dataKey="sent" stroke="#5B5BF5" strokeWidth={2} fill="url(#sentGrad)" />
+        <Area type="monotone" dataKey="opened" stroke="#10B981" strokeWidth={1.5} fill="url(#openGrad)" />
       </AreaChart>
     </ResponsiveContainer>
+  );
+}
+
+/* ─── Status chip ─────────────────────────────── */
+const STATUS_PILL: Record<string, { cls: string; dot: string }> = {
+  running:   { cls: 'bg-emerald-500/10 text-emerald-700', dot: 'bg-emerald-500' },
+  active:    { cls: 'bg-emerald-500/10 text-emerald-700', dot: 'bg-emerald-500' },
+  paused:    { cls: 'bg-amber-500/10 text-amber-700',     dot: 'bg-amber-500' },
+  draft:     { cls: 'bg-slate-500/10 text-slate-600',     dot: 'bg-slate-400' },
+  scheduled: { cls: 'bg-blue-500/10 text-blue-700',       dot: 'bg-blue-500' },
+  completed: { cls: 'bg-indigo-500/10 text-indigo-700',   dot: 'bg-indigo-500' },
+  cancelled: { cls: 'bg-rose-500/10 text-rose-700',       dot: 'bg-rose-500' },
+};
+function StatusPill({ status }: { status: string }) {
+  const s = STATUS_PILL[status] || STATUS_PILL.draft;
+  return (
+    <span className={cn('inline-flex items-center gap-1 h-[18px] px-1.5 rounded-[4px] text-[10.5px] font-medium leading-none', s.cls)}>
+      <span className={cn('w-1.5 h-1.5 rounded-full', s.dot)} />
+      <span className="capitalize">{status}</span>
+    </span>
   );
 }
 
@@ -133,36 +133,30 @@ function MiniTrendChart({ data }: { data: TrendDataPoint[] }) {
 export function DashboardPage() {
   const navigate = useNavigate();
   const unreadCount = useUnreadCount();
+  const { user } = useAuth();
 
-  /* ── Data Queries ── */
   const { data: analytics, isLoading: analyticsLoading } = useQuery({
     queryKey: ['analytics', 'overview'],
     queryFn: () => analyticsApi.overview(),
   });
-
   const { data: trendData } = useQuery({
     queryKey: ['analytics', 'trend', 14],
     queryFn: () => analyticsApi.trend(14),
   });
-
   const { data: campaigns, isLoading: campaignsLoading } = useQuery({
     queryKey: ['campaigns'],
     queryFn: () => campaignsApi.list({ limit: 10 }),
   });
-
   const { data: inboxData } = useQuery({
     queryKey: ['inbox', 'dashboard'],
     queryFn: () => inboxApi.list({ limit: 6, folder: 'inbox' }),
   });
-
   const { data: emailTemplates } = useQuery({
     queryKey: ['templates', 'emails', 'dashboard'],
     queryFn: () => templateApi.listEmails(),
   });
 
-  const isLoading = analyticsLoading || campaignsLoading;
-
-  if (isLoading) {
+  if (analyticsLoading || campaignsLoading) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
         <Spinner size="lg" />
@@ -183,315 +177,297 @@ export function DashboardPage() {
   const recentMessages = Array.isArray(inboxData?.data) ? inboxData.data : [];
   const templates = Array.isArray(emailTemplates) ? emailTemplates : [];
   const trend = Array.isArray(trendData) ? trendData : [];
+  const sparkSent = trend.slice(-12).map((d: any) => Number(d.sent || 0));
+  const sparkOpened = trend.slice(-12).map((d: any) => Number(d.opened || 0));
+  const sparkClicked = trend.slice(-12).map((d: any) => Number(d.clicked || 0));
+  const sparkReplied = trend.slice(-12).map((d: any) => Number(d.replied || 0));
+
+  const workspaceName = user?.email?.split('@')[0] || 'there';
+
   return (
-    <div className="space-y-4 animate-fade-in">
-      {/* ── Header ── */}
-      <div className="flex items-end justify-between">
-        <div>
-          <p className="text-sm text-[var(--text-tertiary)] mb-0.5">{getGreeting()}</p>
-          <h1 className="text-2xl font-semibold text-[var(--text-primary)] tracking-tight">Dashboard</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link to="/analytics" className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-colors">
-            <BarChart3 className="h-3.5 w-3.5" />
-            Analytics
-          </Link>
-          <button onClick={() => navigate('/campaigns/new')} className="btn-primary">
-            <Plus className="h-4 w-4" />
-            New Campaign
-          </button>
-        </div>
+    <div className="animate-fade-in pb-4">
+      {/* ── PageHeader with hero decoration ── */}
+      <PageHeader
+        decorate
+        title={
+          <span>
+            {getGreeting()},{' '}
+            <span className="bg-gradient-to-r from-[#5B5BF5] to-[#8B5CF6] bg-clip-text text-transparent">
+              {workspaceName}
+            </span>
+          </span>
+        }
+        description="Here's how your outreach is performing right now."
+        actions={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => navigate('/analytics')}>
+              <BarChart3 className="h-3.5 w-3.5" />
+              Analytics
+            </Button>
+            <Button size="sm" onClick={() => navigate('/campaigns/new')}>
+              <Plus className="h-3.5 w-3.5" />
+              New campaign
+            </Button>
+          </>
+        }
+      />
+
+      {/* ── KPI strip ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <StatCard
+          label="Emails sent"
+          value={fmtNum(stats.total_sent)}
+          icon={Send}
+          accent="indigo"
+          sparkline={sparkSent}
+          hint={`${fmtNum(stats.total_campaigns)} total campaigns`}
+          onClick={() => navigate('/campaigns')}
+        />
+        <StatCard
+          label="Open rate"
+          value={fmtPct(stats.avg_open_rate)}
+          icon={Mail}
+          accent="violet"
+          sparkline={sparkOpened}
+          hint={`${fmtNum(stats.total_opened)} opens`}
+          onClick={() => navigate('/analytics')}
+        />
+        <StatCard
+          label="Click rate"
+          value={fmtPct(stats.avg_click_rate)}
+          icon={MousePointer}
+          accent="emerald"
+          sparkline={sparkClicked}
+          hint={`${fmtNum(stats.total_clicked)} clicks`}
+          onClick={() => navigate('/analytics')}
+        />
+        <StatCard
+          label="Reply rate"
+          value={fmtPct(stats.avg_reply_rate)}
+          icon={MessageSquare}
+          accent="amber"
+          sparkline={sparkReplied}
+          hint={`${fmtNum(stats.total_replied)} replies`}
+          onClick={() => navigate('/inbox')}
+        />
       </div>
 
-      {/* ── KPI Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Link to="/campaigns" className="group p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl hover:border-[var(--border-default)] transition-all">
-          <div className="flex items-center justify-between mb-2">
-            <div className="p-2 rounded-lg bg-[var(--bg-elevated)]">
-              <Mail className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors" strokeWidth={1.5} />
+      {/* ── Activity + active campaigns ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 mb-4">
+        <Card className="lg:col-span-3" padding="md">
+          <CardHeader
+            action={
+              <Link to="/analytics" className="text-[11.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] inline-flex items-center gap-0.5 transition-colors">
+                Details <ChevronRight className="h-3 w-3" />
+              </Link>
+            }
+          >
+            <div className="flex items-center gap-2">
+              <CardTitle>Sending activity</CardTitle>
+              <Badge variant="default" size="sm">14d</Badge>
             </div>
-            <ArrowRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
-          <span className="block text-[18px] font-semibold text-[var(--text-primary)] tracking-tight">{fmtNum(stats.total_sent)}</span>
-          <span className="block text-xs text-[var(--text-tertiary)] mt-1">Emails Sent</span>
-        </Link>
+            <CardDescription>Sent vs. opened across the last two weeks.</CardDescription>
+          </CardHeader>
 
-        <Link to="/analytics" className="group p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl hover:border-[var(--border-default)] transition-all">
-          <div className="flex items-center justify-between mb-2">
-            <div className="p-2 rounded-lg bg-[var(--bg-elevated)]">
-              <Eye className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors" strokeWidth={1.5} />
-            </div>
-            <span className={cn('text-xs font-semibold', stats.avg_open_rate > 0 ? 'text-emerald-600' : 'text-[var(--text-tertiary)]')}>
-              {stats.avg_open_rate > 0 && <ArrowUpRight className="inline h-3 w-3 mr-0.5" />}
-              {fmtPct(stats.avg_open_rate)}
-            </span>
-          </div>
-          <span className="block text-[18px] font-semibold text-[var(--text-primary)] tracking-tight">{fmtNum(stats.total_opened)}</span>
-          <span className="block text-xs text-[var(--text-tertiary)] mt-1">Opens</span>
-        </Link>
-
-        <Link to="/analytics" className="group p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl hover:border-[var(--border-default)] transition-all">
-          <div className="flex items-center justify-between mb-2">
-            <div className="p-2 rounded-lg bg-[var(--bg-elevated)]">
-              <MousePointer className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors" strokeWidth={1.5} />
-            </div>
-            <span className={cn('text-xs font-semibold', stats.avg_click_rate > 0 ? 'text-emerald-600' : 'text-[var(--text-tertiary)]')}>
-              {stats.avg_click_rate > 0 && <ArrowUpRight className="inline h-3 w-3 mr-0.5" />}
-              {fmtPct(stats.avg_click_rate)}
-            </span>
-          </div>
-          <span className="block text-[18px] font-semibold text-[var(--text-primary)] tracking-tight">{fmtNum(stats.total_clicked)}</span>
-          <span className="block text-xs text-[var(--text-tertiary)] mt-1">Clicks</span>
-        </Link>
-
-        <Link to="/inbox" className="group p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl hover:border-[var(--border-default)] transition-all">
-          <div className="flex items-center justify-between mb-2">
-            <div className="p-2 rounded-lg bg-[var(--bg-elevated)]">
-              <MessageSquare className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors" strokeWidth={1.5} />
-            </div>
-            <span className={cn('text-xs font-semibold', stats.avg_reply_rate > 0 ? 'text-emerald-600' : 'text-[var(--text-tertiary)]')}>
-              {stats.avg_reply_rate > 0 && <ArrowUpRight className="inline h-3 w-3 mr-0.5" />}
-              {fmtPct(stats.avg_reply_rate)}
-            </span>
-          </div>
-          <span className="block text-[18px] font-semibold text-[var(--text-primary)] tracking-tight">{fmtNum(stats.total_replied)}</span>
-          <span className="block text-xs text-[var(--text-tertiary)] mt-1">Replies</span>
-        </Link>
-      </div>
-
-      {/* ── Sending Trend + Active Campaigns ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        {/* Trend chart */}
-        <div className="lg:col-span-3 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-sm font-semibold text-[var(--text-primary)]">Sending Activity</h2>
-              <p className="text-xs text-[var(--text-tertiary)] mt-0.5">Last 14 days</p>
-            </div>
-            <Link to="/analytics" className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1 transition-colors">
-              View details <ChevronRight className="h-3 w-3" />
-            </Link>
-          </div>
-          <ErrorBoundary fallback={<div className="h-[120px] flex items-center justify-center text-xs text-[var(--text-tertiary)]">Chart unavailable</div>}>
-            {trend.length > 0 ? (
-              <MiniTrendChart data={trend} />
-            ) : (
-              <div className="h-[120px] flex items-center justify-center">
-                <p className="text-xs text-[var(--text-tertiary)]">No sending data yet. Launch a campaign to see trends.</p>
-              </div>
-            )}
+          <ErrorBoundary fallback={<div className="h-[180px] flex items-center justify-center text-[12px] text-[var(--text-tertiary)]">Chart unavailable</div>}>
+            <TrendChart data={trend} />
           </ErrorBoundary>
-          <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[var(--border-subtle)]">
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-[2px] rounded-full bg-[#6366F1]" />
-              <span className="text-[10px] text-[var(--text-tertiary)]">Sent</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-[2px] rounded-full" style={{ backgroundImage: 'repeating-linear-gradient(90deg, #818CF8 0 4px, transparent 4px 6px)' }} />
-              <span className="text-[10px] text-[var(--text-tertiary)]">Opened</span>
-            </div>
-          </div>
-        </div>
 
-        {/* Active campaigns */}
-        <div className="lg:col-span-2 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between px-5 py-4">
+          <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[var(--border-subtle)]">
+            <span className="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)]">
+              <span className="w-2 h-2 rounded-full bg-[#5B5BF5]" /> Sent
+            </span>
+            <span className="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)]">
+              <span className="w-2 h-2 rounded-full bg-[#10B981]" /> Opened
+            </span>
+          </div>
+        </Card>
+
+        <Card className="lg:col-span-2" padding="none">
+          <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border-subtle)]">
             <div>
-              <h2 className="text-sm font-semibold text-[var(--text-primary)]">Active Campaigns</h2>
-              <p className="text-xs text-[var(--text-tertiary)] mt-0.5">{activeCampaigns.length} running</p>
+              <CardTitle>Running now</CardTitle>
+              <CardDescription>{activeCampaigns.length} campaign{activeCampaigns.length === 1 ? '' : 's'} live</CardDescription>
             </div>
-            <Link to="/campaigns" className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1 transition-colors">
+            <Link to="/campaigns" className="text-[11.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] inline-flex items-center gap-0.5 transition-colors">
               All <ChevronRight className="h-3 w-3" />
             </Link>
           </div>
-          <div className="flex-1 overflow-y-auto">
-            {activeCampaigns.length > 0 ? (
-              activeCampaigns.slice(0, 4).map((campaign: any) => (
-                <button
-                  key={campaign.id}
-                  onClick={() => navigate(`/campaigns/${campaign.id}`)}
-                  className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left border-t border-[var(--border-subtle)] group"
-                >
-                  <div className="p-1.5 rounded-md bg-emerald-500/10">
-                    <Play className="h-3 w-3 text-emerald-600" fill="currentColor" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[var(--text-primary)] truncate">{campaign.name}</p>
-                    <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5">
-                      {fmtNum(campaign.sent_count || 0)} sent &middot; {fmtPct(campaign.open_rate || 0)} opens
-                    </p>
-                  </div>
-                  <ChevronRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
-              ))
-            ) : (
-              <div className="flex flex-col items-center justify-center py-8 px-4 border-t border-[var(--border-subtle)]">
-                <Megaphone className="h-5 w-5 text-[var(--text-tertiary)] mb-2" strokeWidth={1.5} />
-                <p className="text-xs text-[var(--text-tertiary)] text-center mb-3">No active campaigns</p>
-                <button onClick={() => navigate('/campaigns/new')} className="text-xs font-medium text-[var(--text-primary)] hover:underline">
-                  Create one &rarr;
-                </button>
+
+          <div className="divide-y divide-[var(--border-subtle)]">
+            {activeCampaigns.length > 0 ? activeCampaigns.slice(0, 4).map((c: any) => (
+              <button
+                key={c.id}
+                onClick={() => navigate(`/campaigns/${c.id}`)}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left group"
+              >
+                <span className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-500/10 flex-shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{c.name}</p>
+                  <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5 tabular">
+                    {fmtNum(c.sent_count || 0)} sent · {fmtPct(c.open_rate || 0)} opens · {fmtPct(c.reply_rate || 0)} replies
+                  </p>
+                </div>
+                <ChevronRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity" />
+              </button>
+            )) : (
+              <div className="px-4 py-8 text-center">
+                <div className="inline-flex items-center justify-center h-9 w-9 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] mb-2">
+                  <Megaphone className="h-4 w-4 text-[var(--text-tertiary)]" strokeWidth={1.75} />
+                </div>
+                <p className="text-[12px] text-[var(--text-secondary)] mb-2">No campaigns running</p>
+                <Button size="sm" variant="secondary" onClick={() => navigate('/campaigns/new')}>
+                  Launch one
+                </Button>
               </div>
             )}
           </div>
-        </div>
+        </Card>
       </div>
 
-      {/* ── Campaigns Overview + Inbox ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* All campaigns */}
-        <div className="lg:col-span-2 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-subtle)]">
-            <h2 className="text-sm font-semibold text-[var(--text-primary)]">Recent Campaigns</h2>
-            <div className="flex items-center gap-2">
-              <button onClick={() => navigate('/campaigns/new')} className="flex items-center gap-1 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-1 rounded-md hover:bg-[var(--bg-hover)] transition-colors">
+      {/* ── Recent campaigns + inbox + AI ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+        <Card className="lg:col-span-2" padding="none">
+          <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border-subtle)]">
+            <CardTitle>Recent campaigns</CardTitle>
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="ghost" onClick={() => navigate('/campaigns/new')}>
                 <Plus className="h-3 w-3" />New
-              </button>
-              <Link to="/campaigns" className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1 transition-colors">
-                View all <ChevronRight className="h-3 w-3" />
+              </Button>
+              <Link to="/campaigns" className="text-[11.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] inline-flex items-center gap-0.5 px-2 transition-colors">
+                All <ChevronRight className="h-3 w-3" />
               </Link>
             </div>
           </div>
+
           {recentCampaigns.length > 0 ? (
-            <div>
-              {recentCampaigns.map((campaign: any) => {
-                const sc = STATUS_CONFIG[campaign.status] || STATUS_CONFIG.draft;
-                const StatusIcon = sc.icon;
-                return (
-                  <button
-                    key={campaign.id}
-                    onClick={() => navigate(`/campaigns/${campaign.id}`)}
-                    className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-[var(--bg-hover)] transition-colors text-left border-b border-[var(--border-subtle)] last:border-b-0 group"
-                  >
-                    <div className={cn('p-1.5 rounded-md', sc.bg)}>
-                      <StatusIcon className={cn('h-3.5 w-3.5', sc.text)} strokeWidth={2} />
+            <div className="divide-y divide-[var(--border-subtle)]">
+              {recentCampaigns.map((c: any) => (
+                <button
+                  key={c.id}
+                  onClick={() => navigate(`/campaigns/${c.id}`)}
+                  className="w-full grid grid-cols-[1fr,auto,auto] items-center gap-4 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left group"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-medium text-[var(--text-primary)] truncate leading-tight">{c.name}</p>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-[11px] text-[var(--text-tertiary)] tabular">{fmtNum(c.sent_count || 0)} sent</span>
+                      <span className="text-[11px] text-[var(--text-tertiary)] tabular">{fmtPct(c.open_rate || 0)} opens</span>
+                      <span className="text-[11px] text-[var(--text-tertiary)] tabular">{fmtPct(c.reply_rate || 0)} replies</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[var(--text-primary)] truncate">{campaign.name}</p>
-                      <div className="flex items-center gap-3 mt-0.5">
-                        <span className="text-[11px] text-[var(--text-tertiary)]">{fmtNum(campaign.sent_count || 0)} sent</span>
-                        <span className="text-[11px] text-[var(--text-tertiary)]">{fmtPct(campaign.open_rate || 0)} opens</span>
-                        <span className="text-[11px] text-[var(--text-tertiary)]">{fmtPct(campaign.reply_rate || 0)} replies</span>
-                      </div>
-                    </div>
-                    <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize', sc.bg, sc.text)}>
-                      {campaign.status}
-                    </span>
-                    <ChevronRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
-                );
-              })}
+                  </div>
+                  <StatusPill status={c.status} />
+                  <ChevronRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+              ))}
             </div>
           ) : (
-            <div className="py-12 text-center">
-              <Megaphone className="h-6 w-6 text-[var(--text-tertiary)] mx-auto mb-3" strokeWidth={1.5} />
-              <p className="text-sm font-medium text-[var(--text-primary)] mb-1">No campaigns yet</p>
-              <p className="text-xs text-[var(--text-tertiary)] mb-4">Create your first email campaign</p>
-              <button onClick={() => navigate('/campaigns/new')} className="btn-primary text-xs px-4 py-2">
-                <Plus className="h-3.5 w-3.5" />
-                Create Campaign
-              </button>
+            <div className="py-10 text-center">
+              <div className="inline-flex items-center justify-center h-10 w-10 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] mb-3">
+                <Megaphone className="h-4 w-4 text-[var(--text-tertiary)]" strokeWidth={1.75} />
+              </div>
+              <p className="text-[13px] font-semibold text-[var(--text-primary)] mb-1">No campaigns yet</p>
+              <p className="text-[12px] text-[var(--text-tertiary)] mb-3">Create your first email campaign</p>
+              <Button size="sm" onClick={() => navigate('/campaigns/new')}>
+                <Plus className="h-3.5 w-3.5" />Create campaign
+              </Button>
             </div>
           )}
-        </div>
+        </Card>
 
-        {/* Inbox + AI */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           {/* Inbox preview */}
-          <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
+          <Card padding="none">
+            <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border-subtle)]">
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-[var(--text-primary)]">Inbox</h2>
+                <CardTitle>Unibox</CardTitle>
                 {unreadCount > 0 && (
-                  <span className="text-[10px] font-bold bg-[#6366F1] text-white rounded-full px-1.5 py-px">{unreadCount}</span>
+                  <Badge variant="brand" size="sm">{unreadCount > 99 ? '99+' : unreadCount} new</Badge>
                 )}
               </div>
-              <Link to="/inbox" className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1 transition-colors">
+              <Link to="/inbox" className="text-[11.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] inline-flex items-center gap-0.5 transition-colors">
                 Open <ChevronRight className="h-3 w-3" />
               </Link>
             </div>
+
             {recentMessages.length > 0 ? (
-              recentMessages.slice(0, 4).map((msg: any) => (
-                <Link
-                  key={msg.id}
-                  to="/inbox"
-                  className="flex items-start gap-2.5 py-2.5 px-4 hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-subtle)] last:border-b-0"
-                >
-                  <div className="relative flex-shrink-0 mt-0.5">
-                    <div className="w-7 h-7 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex items-center justify-center">
-                      <span className="text-[10px] font-semibold text-[var(--text-primary)]">
-                        {(msg.contact_name || msg.from_email || '?')[0].toUpperCase()}
-                      </span>
+              <div className="divide-y divide-[var(--border-subtle)]">
+                {recentMessages.slice(0, 4).map((msg: any) => (
+                  <Link key={msg.id} to="/inbox" className="flex items-start gap-2.5 px-4 py-2.5 hover:bg-[var(--bg-hover)] transition-colors">
+                    <div className="relative flex-shrink-0 mt-0.5">
+                      <Avatar name={msg.contact_name} email={msg.from_email} size="sm" />
+                      {!msg.is_read && (
+                        <span className="absolute -top-0.5 -left-0.5 w-2 h-2 rounded-full bg-[var(--indigo)] ring-2 ring-[var(--bg-surface)]" />
+                      )}
                     </div>
-                    {!msg.is_read && (
-                      <div className="absolute -top-0.5 -left-0.5 w-2 h-2 rounded-full bg-[#6366F1] border-[1.5px] border-[var(--bg-surface)]" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className={`text-[11px] truncate ${msg.is_read ? 'text-[var(--text-secondary)]' : 'font-semibold text-[var(--text-primary)]'}`}>
-                        {msg.contact_name || msg.from_email?.split('@')[0] || 'Unknown'}
-                      </span>
-                      <span className="text-[9px] text-[var(--text-tertiary)] flex-shrink-0">{timeAgo(msg.received_at)}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={cn('text-[12px] truncate', msg.is_read ? 'text-[var(--text-secondary)]' : 'font-semibold text-[var(--text-primary)]')}>
+                          {msg.contact_name || msg.from_email?.split('@')[0] || 'Unknown'}
+                        </span>
+                        <span className="text-[10px] text-[var(--text-tertiary)] flex-shrink-0 tabular">{timeAgo(msg.received_at)}</span>
+                      </div>
+                      <p className="text-[11px] text-[var(--text-tertiary)] truncate leading-tight mt-0.5">
+                        {msg.subject || '(no subject)'}
+                      </p>
                     </div>
-                    <p className="text-[10px] text-[var(--text-tertiary)] truncate mt-0.5">
-                      {msg.subject || '(no subject)'}
-                    </p>
-                  </div>
-                </Link>
-              ))
+                  </Link>
+                ))}
+              </div>
             ) : (
-              <div className="py-8 text-center">
-                <Inbox className="h-4 w-4 text-[var(--text-tertiary)] mx-auto mb-1.5" strokeWidth={1.5} />
-                <p className="text-[11px] text-[var(--text-tertiary)]">No messages</p>
+              <div className="py-6 text-center">
+                <Inbox className="h-4 w-4 text-[var(--text-tertiary)] mx-auto mb-1.5" strokeWidth={1.75} />
+                <p className="text-[11.5px] text-[var(--text-tertiary)]">No messages yet</p>
               </div>
             )}
-          </div>
+          </Card>
 
-          {/* AI Features */}
-          <Link to="/inbox" className="group bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl p-4 hover:border-[rgba(99,102,241,0.3)] transition-all">
+          {/* AI assist */}
+          <Link to="/inbox" className="card-premium block p-4 group">
             <div className="flex items-center gap-2.5 mb-3">
-              <div className="p-2 rounded-lg bg-[rgba(99,102,241,0.1)]">
-                <Sparkles className="h-4 w-4 text-[#6366F1]" />
+              <span className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-gradient-to-br from-[#5B5BF5] to-[#8B5CF6] shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]">
+                <Sparkles className="h-4 w-4 text-white" />
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-semibold text-[var(--text-primary)]">AI Assist</p>
+                <p className="text-[11px] text-[var(--text-tertiary)]">Auto-tagging + reply drafting</p>
               </div>
-              <div>
-                <p className="text-sm font-semibold text-[var(--text-primary)]">AI Assist</p>
-                <p className="text-[10px] text-[var(--text-tertiary)]">Smart tagging & reply assist</p>
-              </div>
-              <ChevronRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+              <ChevronRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--bg-elevated)]">
-                <Tag className="h-3.5 w-3.5 text-[#818CF8]" />
-                <p className="text-xs text-[var(--text-secondary)]">Auto-tags emails by intent</p>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-[var(--bg-elevated)]/70">
+                <Tag className="h-3 w-3 text-[var(--indigo)]" />
+                <p className="text-[11.5px] text-[var(--text-secondary)]">Tags emails by intent automatically</p>
               </div>
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--bg-elevated)]">
-                <Sparkles className="h-3.5 w-3.5 text-[#818CF8]" />
-                <p className="text-xs text-[var(--text-secondary)]">AI reply assist in composer</p>
+              <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-[var(--bg-elevated)]/70">
+                <Sparkles className="h-3 w-3 text-[var(--indigo)]" />
+                <p className="text-[11.5px] text-[var(--text-secondary)]">Drafts personalised replies for you</p>
               </div>
             </div>
           </Link>
         </div>
       </div>
 
-      {/* ── Quick Navigation Grid ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      {/* ── Quick nav grid ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         {[
-          { to: '/campaigns/new', icon: Megaphone, label: 'New Campaign', desc: 'Create sequence' },
-          { to: '/contacts', icon: Users, label: 'Contacts', desc: fmtNum(stats.total_contacts) + ' total' },
-          { to: '/templates', icon: FileText, label: 'Templates', desc: `${templates.length} saved` },
-          { to: '/verification', icon: ShieldCheck, label: 'Verification', desc: 'DCS scoring' },
-          { to: '/suppression', icon: ShieldOff, label: 'Suppression', desc: 'Block list' },
-          { to: '/team', icon: UserPlus, label: 'Team', desc: 'Members & invites' },
+          { to: '/campaigns/new', icon: Megaphone,   label: 'New campaign', desc: 'Build a sequence' },
+          { to: '/contacts',      icon: Users,       label: 'Lead lists',   desc: `${fmtNum(stats.total_contacts)} contacts` },
+          { to: '/templates',     icon: FileText,    label: 'Templates',    desc: `${templates.length} saved` },
+          { to: '/verification',  icon: ShieldCheck, label: 'Verification', desc: 'DCS scoring' },
+          { to: '/suppression',   icon: ShieldOff,   label: 'Suppression',  desc: `${fmtNum(stats.suppressed_count)} blocked` },
+          { to: '/team',          icon: UserPlus,    label: 'Team',         desc: 'Invite teammates' },
         ].map(item => (
           <Link
             key={item.to}
             to={item.to}
-            className="group p-3.5 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl hover:border-[var(--border-default)] transition-all"
+            className="group card hover:card-hover transition-all px-3 py-3 hover:border-[var(--border-default)] hover:shadow-[var(--shadow-md)]"
           >
-            <item.icon className="h-4 w-4 text-[var(--text-tertiary)] mb-2 group-hover:text-[var(--text-primary)] transition-colors" strokeWidth={1.5} />
-            <p className="text-sm font-medium text-[var(--text-primary)]">{item.label}</p>
-            <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5">{item.desc}</p>
+            <item.icon className="h-3.5 w-3.5 text-[var(--text-tertiary)] mb-1.5 group-hover:text-[var(--indigo)] transition-colors" strokeWidth={1.75} />
+            <p className="text-[12.5px] font-semibold text-[var(--text-primary)] leading-tight">{item.label}</p>
+            <p className="text-[10.5px] text-[var(--text-tertiary)] mt-0.5 truncate">{item.desc}</p>
           </Link>
         ))}
       </div>

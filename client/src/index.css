@@ -6,56 +6,57 @@
 
 @layer base {
   :root {
-    --bg-app: #FFFFFF;
+    --bg-app: #FAFAFB;
     --bg-surface: #FFFFFF;
-    --bg-elevated: #F7F7F8;
-    --bg-hover: #F2F2F3;
-    --bg-active: #EBEBEC;
-    --bg-muted: #F9F9FA;
-    --bg-inset: #F4F4F5;
+    --bg-elevated: #F4F4F6;
+    --bg-hover: #F0F0F3;
+    --bg-active: #E8E8EC;
+    --bg-muted: #F7F7F9;
+    --bg-inset: #F4F4F6;
 
-    --border-subtle: #EBEBEC;
-    --border-default: #E0E0E2;
-    --border-strong: #C8C8CC;
+    --border-subtle: #ECECEF;
+    --border-default: #DFDFE3;
+    --border-strong: #C6C6CB;
 
-    --text-primary: #0A0A0B;
-    --text-secondary: #6B6B76;
-    --text-tertiary: #9B9BA5;
-    --text-muted: #C8C8CC;
+    --text-primary: #08080B;
+    --text-secondary: #5A5A66;
+    --text-tertiary: #8E8E98;
+    --text-muted: #B8B8C0;
 
-    --accent: #0A0A0B;
-    --accent-hover: #1A1A1E;
-    --accent-muted: #6B6B76;
-    --accent-subtle: #F7F7F8;
+    --accent: #08080B;
+    --accent-hover: #18181B;
+    --accent-muted: #5A5A66;
+    --accent-subtle: #F4F4F6;
 
-    --indigo: #6366F1;
-    --indigo-hover: #4F46E5;
-    --indigo-subtle: rgba(99, 102, 241, 0.08);
+    --indigo: #5B5BF5;
+    --indigo-hover: #4646E5;
+    --indigo-subtle: rgba(91, 91, 245, 0.08);
 
-    /* Status - muted, enterprise-appropriate */
-    --success: #22C55E;
-    --success-bg: #F0FDF4;
-    --success-border: #DCFCE7;
-    --warning: #EAB308;
-    --warning-bg: #FEFCE8;
-    --warning-border: #FEF9C3;
+    /* Status — refined */
+    --success: #10B981;
+    --success-bg: #ECFDF5;
+    --success-border: #D1FAE5;
+    --warning: #F59E0B;
+    --warning-bg: #FFFBEB;
+    --warning-border: #FDE68A;
     --error: #EF4444;
     --error-bg: #FEF2F2;
     --error-border: #FEE2E2;
-    --info: #6B6B76;
-    --info-bg: #F7F7F8;
-    --info-border: #EBEBEC;
+    --info: #5A5A66;
+    --info-bg: #F4F4F6;
+    --info-border: #ECECEF;
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-    --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.03), 0 4px 8px rgba(0, 0, 0, 0.04);
-    --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
-    --shadow-xl: 0 8px 16px rgba(0, 0, 0, 0.06), 0 20px 48px rgba(0, 0, 0, 0.08);
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
-    --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.06);
-    --shadow-glow: 0 0 0 1px rgba(99, 102, 241, 0.15), 0 4px 16px rgba(99, 102, 241, 0.12);
-    --shadow-glow-sm: 0 0 0 1px rgba(99, 102, 241, 0.1), 0 2px 8px rgba(99, 102, 241, 0.08);
+    --shadow-sm: 0 1px 1px rgba(15, 15, 25, 0.04);
+    --shadow-md: 0 1px 2px rgba(15, 15, 25, 0.04), 0 4px 12px rgba(15, 15, 25, 0.05);
+    --shadow-lg: 0 4px 12px rgba(15, 15, 25, 0.06), 0 16px 32px rgba(15, 15, 25, 0.08);
+    --shadow-xl: 0 8px 20px rgba(15, 15, 25, 0.08), 0 24px 56px rgba(15, 15, 25, 0.12);
+    --shadow-card: 0 0 0 1px rgba(15, 15, 25, 0.04), 0 1px 2px rgba(15, 15, 25, 0.04);
+    --shadow-card-hover: 0 0 0 1px rgba(15, 15, 25, 0.06), 0 4px 14px rgba(15, 15, 25, 0.06);
+    --shadow-glow: 0 0 0 1px rgba(91, 91, 245, 0.18), 0 4px 16px rgba(91, 91, 245, 0.14);
+    --shadow-glow-sm: 0 0 0 1px rgba(91, 91, 245, 0.12), 0 2px 8px rgba(91, 91, 245, 0.1);
 
-    --gradient-brand: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+    --gradient-brand: linear-gradient(135deg, #5B5BF5 0%, #8B5CF6 100%);
+    --gradient-brand-soft: linear-gradient(135deg, rgba(91,91,245,0.12) 0%, rgba(139,92,246,0.08) 100%);
     --gradient-success: linear-gradient(135deg, #10B981 0%, #059669 100%);
     --gradient-warning: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
     --gradient-danger: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
@@ -63,10 +64,15 @@
     --gradient-amber: linear-gradient(135deg, #F59E0B 0%, #EF4444 100%);
     --gradient-violet: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
 
+    --gradient-page: radial-gradient(1200px 600px at 100% -10%, rgba(91, 91, 245, 0.06), transparent 60%),
+                     radial-gradient(800px 400px at 0% 0%, rgba(139, 92, 246, 0.04), transparent 60%);
+
+    --radius-xs: 4px;
     --radius-sm: 6px;
     --radius-md: 8px;
-    --radius-lg: 12px;
-    --radius-xl: 16px;
+    --radius-lg: 10px;
+    --radius-xl: 14px;
+    --radius-2xl: 18px;
 
     color-scheme: light;
   }
@@ -207,10 +213,38 @@
 
   /* Status left border utilities */
   .border-l-status-draft { border-left: 3px solid #94A3B8; }
-  .border-l-status-running { border-left: 3px solid #6366F1; }
+  .border-l-status-running { border-left: 3px solid #5B5BF5; }
   .border-l-status-paused { border-left: 3px solid #F59E0B; }
   .border-l-status-completed { border-left: 3px solid #10B981; }
   .border-l-status-cancelled { border-left: 3px solid #EF4444; }
+
+  /* ── Signature background pattern — a soft dot grid that sits behind page hero areas.
+     Keep opacity very low (4–6%) so it never competes with content. */
+  .pattern-dots {
+    background-image: radial-gradient(circle at center, rgba(15, 15, 25, 0.07) 1px, transparent 1.5px);
+    background-size: 18px 18px;
+  }
+  .pattern-grid {
+    background-image:
+      linear-gradient(to right, rgba(15, 15, 25, 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(15, 15, 25, 0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  /* ── Soft radial brand glow — drop behind hero areas for warmth. */
+  .glow-brand {
+    background: radial-gradient(800px 240px at 50% -10%, rgba(91, 91, 245, 0.12), transparent 70%);
+  }
+
+  /* Tabular numerals — for stats, metrics, money */
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  /* Vertical separator dot for breadcrumbs etc. */
+  .sep-dot::after {
+    content: '·';
+    margin: 0 6px;
+    color: var(--text-tertiary);
+  }
 }
 
 @layer components {
@@ -298,24 +332,51 @@
       0 2px 6px rgba(220, 38, 38, 0.4);
   }
 
+  /* ── Card primitives ──
+     Soft white surface with hairline border + nano-shadow.
+     Hover lifts very subtly via shadow only (no transform — keeps text crisp). */
   .card {
     background: var(--bg-surface);
     border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg);
-    transition: border-color 0.15s ease;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+    transition: border-color 0.15s ease, box-shadow 0.2s ease;
   }
-  .card:hover {
+  .card-hover:hover,
+  a.card:hover,
+  button.card:hover {
     border-color: var(--border-default);
+    box-shadow: var(--shadow-md);
   }
 
+  /* Card with a thin gradient border — for "featured" or primary cards.
+     Uses background-clip trick so it looks like the border itself is gradient. */
   .card-premium {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg);
-    transition: border-color 0.15s ease;
+    background:
+      linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
+      linear-gradient(135deg, rgba(91, 91, 245, 0.35), rgba(139, 92, 246, 0.18) 35%, var(--border-subtle) 65%) border-box;
+    border: 1px solid transparent;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card);
+    transition: box-shadow 0.2s ease;
   }
   .card-premium:hover {
-    border-color: var(--border-strong);
+    box-shadow: var(--shadow-card-hover);
+  }
+
+  /* Signature "raised" surface — for KPI cards, dashboard tiles */
+  .surface {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 0 0 1px rgba(15,15,25,0.02), 0 1px 2px rgba(15,15,25,0.04);
+  }
+
+  /* Inset / muted panel — for sub-sections inside a card */
+  .panel-inset {
+    background: var(--bg-elevated);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
   }
 
   .input-field {
