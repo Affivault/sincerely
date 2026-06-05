@@ -15,6 +15,8 @@ import {
   Server,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { PageHeader } from '../../components/shared/PageHeader';
+import { StatCard } from '../../components/shared/StatCard';
 
 function getHealthColor(score: number): string {
   if (score >= 80) return 'text-emerald-400';
@@ -46,60 +48,32 @@ export function SseDashboardPage() {
   const warmupCount = accounts?.filter(a => a.warmup_mode).length || 0;
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
-            <Shield className="h-5 w-5 text-[var(--text-primary)]" />
-          </div>
-          <div>
-            <h1 className="text-[18px] font-semibold text-[var(--text-primary)]">Smart-Sharding Engine</h1>
-            <p className="text-sm text-[var(--text-secondary)]">Sender reputation health and rotation management</p>
-          </div>
-        </div>
-        <button
-          onClick={() => refetch()}
-          className="btn-primary flex items-center gap-2 rounded-lg px-4 py-2 text-sm bg-[var(--accent)] text-[var(--bg-app)] hover:bg-[var(--accent-hover)] transition-colors"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        icon={<Shield className="h-4 w-4 text-white" />}
+        iconBg="bg-gradient-to-br from-slate-600 to-slate-800"
+        title="Smart-Sharding Engine"
+        description="Sender reputation health and rotation management"
+        meta={[
+          { label: `${availableAccounts}/${totalAccounts} available`, dot: availableAccounts === totalAccounts ? 'bg-emerald-500' : 'bg-amber-400' },
+        ]}
+        actions={
+          <button
+            onClick={() => refetch()}
+            className="icon-btn"
+            title="Refresh"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </button>
+        }
+      />
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-4">
-          <div className="flex items-center gap-2 text-[var(--text-secondary)] mb-1">
-            <Server className="h-4 w-4" />
-            <span className="text-xs font-medium uppercase tracking-wider">Total Senders</span>
-          </div>
-          <p className="text-[18px] font-semibold text-[var(--text-primary)]">{totalAccounts}</p>
-        </div>
-        <div className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-4">
-          <div className="flex items-center gap-2 text-emerald-400 mb-1">
-            <CheckCircle2 className="h-4 w-4" />
-            <span className="text-xs font-medium uppercase tracking-wider">Available</span>
-          </div>
-          <p className="text-[18px] font-semibold text-[var(--text-primary)]">
-            {availableAccounts}
-            <span className="text-sm font-normal text-[var(--text-secondary)] ml-1">/ {totalAccounts}</span>
-          </p>
-        </div>
-        <div className={cn('rounded-xl border p-4', getHealthBg(avgHealth))}>
-          <div className={cn('flex items-center gap-2 mb-1', getHealthColor(avgHealth))}>
-            <Activity className="h-4 w-4" />
-            <span className="text-xs font-medium uppercase tracking-wider">Avg Health</span>
-          </div>
-          <p className="text-[18px] font-semibold text-[var(--text-primary)]">{avgHealth}</p>
-        </div>
-        <div className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-4">
-          <div className="flex items-center gap-2 text-amber-400 mb-1">
-            <Flame className="h-4 w-4" />
-            <span className="text-xs font-medium uppercase tracking-wider">Warming Up</span>
-          </div>
-          <p className="text-[18px] font-semibold text-[var(--text-primary)]">{warmupCount}</p>
-        </div>
+      {/* KPI strip */}
+      <div className="grid grid-cols-4 gap-3">
+        <StatCard label="Total Senders" value={totalAccounts} icon={<Server className="h-3.5 w-3.5" />} accent="text-[var(--text-primary)]" />
+        <StatCard label="Available" value={availableAccounts} icon={<CheckCircle2 className="h-3.5 w-3.5" />} accent="text-emerald-600" sub={`${totalAccounts > 0 ? Math.round((availableAccounts/totalAccounts)*100) : 0}% of total`} />
+        <StatCard label="Avg Health" value={avgHealth} icon={<Activity className="h-3.5 w-3.5" />} accent={avgHealth >= 80 ? 'text-emerald-600' : avgHealth >= 60 ? 'text-amber-600' : 'text-rose-600'} />
+        <StatCard label="Warming Up" value={warmupCount} icon={<Flame className="h-3.5 w-3.5" />} accent="text-amber-600" />
       </div>
 
       {/* Account Cards */}
@@ -139,23 +113,23 @@ export function SseDashboardPage() {
                   <p className="text-xs text-[var(--text-secondary)] truncate">{account.email_address}</p>
                 </div>
                 {account.warmup_mode && (
-                  <span className="flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 text-xs text-amber-400">
+                  <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold bg-amber-500/10 text-amber-600">
                     <Flame className="h-3 w-3" />
                     Warmup
                   </span>
                 )}
-                <div className={cn(
-                  'flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium',
+                <span className={cn(
+                  'inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold',
                   account.is_available
-                    ? 'bg-emerald-500/10 text-emerald-400'
-                    : 'bg-red-500/10 text-red-400'
+                    ? 'bg-emerald-500/10 text-emerald-700'
+                    : 'bg-rose-500/10 text-rose-700'
                 )}>
                   {account.is_available ? (
                     <><CheckCircle2 className="h-3 w-3" /> Available</>
                   ) : (
                     <><AlertTriangle className="h-3 w-3" /> Exhausted</>
                   )}
-                </div>
+                </span>
               </div>
 
               {/* Metrics */}
