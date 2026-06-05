@@ -6,6 +6,8 @@ import { Spinner } from '../../components/ui/Spinner';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
+import { PageHeader } from '../../components/shared/PageHeader';
+import { Card } from '../../components/shared/Card';
 import {
   Mail,
   Plus,
@@ -37,6 +39,7 @@ import type {
   CreateSequenceTemplateInput,
 } from '@lemlist/shared';
 import { TEMPLATE_CATEGORIES } from '@lemlist/shared';
+import { cn } from '../../lib/utils';
 
 // ─── Email Preview Component ────────────────────────────────────────
 
@@ -879,76 +882,88 @@ export function TemplatesPage() {
   const isEmpty = tab === 'emails' ? (!emailTemplates || emailTemplates.length === 0) : (!sequenceTemplates || sequenceTemplates.length === 0);
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-primary">Templates</h1>
-          <p className="text-sm text-secondary mt-1">Build, preview, and reuse email templates and campaign sequences</p>
-        </div>
-        <div className="flex items-center gap-3">
-          {tab === 'emails' ? (
-            <Button variant="primary" onClick={() => { setEditEmailData(null); setShowEmailEditor(true); }}>
-              <Plus className="h-4 w-4" />
-              New Email Template
+    <div>
+      {/* Page header */}
+      <PageHeader
+        decorate
+        leading={
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
+            <FileText className="h-4 w-4 text-[var(--indigo)]" />
+          </span>
+        }
+        title="Templates library"
+        description="Build, preview and reuse email templates and full campaign sequences."
+        meta={
+          <>
+            {emailTemplates && <span className="tabular">{emailTemplates.length} emails</span>}
+            <span className="sep-dot" />
+            {sequenceTemplates && <span className="tabular">{sequenceTemplates.length} sequences</span>}
+          </>
+        }
+        actions={
+          tab === 'emails' ? (
+            <Button size="sm" onClick={() => { setEditEmailData(null); setShowEmailEditor(true); }}>
+              <Plus className="h-3.5 w-3.5" /> New email template
             </Button>
           ) : (
-            <Button variant="primary" onClick={() => { setEditSequenceData(null); setShowSequenceEditor(true); }}>
-              <Plus className="h-4 w-4" />
-              New Sequence
+            <Button size="sm" onClick={() => { setEditSequenceData(null); setShowSequenceEditor(true); }}>
+              <Plus className="h-3.5 w-3.5" /> New sequence
             </Button>
-          )}
+          )
+        }
+      />
+
+      {/* Tab segmented control + search + category chips */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="inline-flex items-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-0.5">
+          <button
+            onClick={() => setTab('emails')}
+            className={cn(
+              'inline-flex items-center gap-1.5 px-3 h-7 rounded-md text-[12px] font-medium transition-all',
+              tab === 'emails'
+                ? 'bg-[var(--bg-surface)] text-[var(--indigo)] shadow-[var(--shadow-sm)]'
+                : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
+            )}
+          >
+            <Mail className="h-3.5 w-3.5" />
+            Emails
+            {emailTemplates && <span className="ml-0.5 text-[10.5px] tabular text-[var(--text-tertiary)]">{emailTemplates.length}</span>}
+          </button>
+          <button
+            onClick={() => setTab('sequences')}
+            className={cn(
+              'inline-flex items-center gap-1.5 px-3 h-7 rounded-md text-[12px] font-medium transition-all',
+              tab === 'sequences'
+                ? 'bg-[var(--bg-surface)] text-[var(--indigo)] shadow-[var(--shadow-sm)]'
+                : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
+            )}
+          >
+            <Layers className="h-3.5 w-3.5" />
+            Sequences
+            {sequenceTemplates && <span className="ml-0.5 text-[10.5px] tabular text-[var(--text-tertiary)]">{sequenceTemplates.length}</span>}
+          </button>
         </div>
-      </div>
 
-      {/* Tab bar */}
-      <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] w-fit">
-        <button
-          onClick={() => setTab('emails')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            tab === 'emails'
-              ? 'bg-[rgba(99,102,241,0.08)] text-[#6366F1] shadow-sm'
-              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-          }`}
-        >
-          <Mail className="h-4 w-4" />
-          Email Templates
-          {emailTemplates && <span className="ml-1 text-xs text-[var(--text-tertiary)]">({emailTemplates.length})</span>}
-        </button>
-        <button
-          onClick={() => setTab('sequences')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            tab === 'sequences'
-              ? 'bg-[rgba(99,102,241,0.08)] text-[#6366F1] shadow-sm'
-              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-          }`}
-        >
-          <Layers className="h-4 w-4" />
-          Campaign Sequences
-          {sequenceTemplates && <span className="ml-1 text-xs text-[var(--text-tertiary)]">({sequenceTemplates.length})</span>}
-        </button>
-      </div>
-
-      {/* Filters bar */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-tertiary)]" />
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder={tab === 'emails' ? 'Search email templates...' : 'Search sequences...'}
-            className="w-full pl-9 pr-3 py-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-1 focus:ring-[#6366F1]"
+            placeholder={tab === 'emails' ? 'Search emails…' : 'Search sequences…'}
+            className="h-7 pl-8 pr-3 text-[12.5px] rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[rgba(91,91,245,0.4)] focus:shadow-[0_0_0_3px_rgba(91,91,245,0.12)] focus:bg-[var(--bg-surface)] transition w-48"
           />
         </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
+
+        <div className="flex items-center gap-1 flex-wrap ml-auto">
           <button
             onClick={() => setActiveCategory('all')}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+            className={cn(
+              'px-2.5 h-7 rounded-md text-[11.5px] font-medium transition-all',
               activeCategory === 'all'
-                ? 'bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)]'
-                : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-            }`}
+                ? 'bg-[var(--indigo)] text-white shadow-[0_1px_3px_rgba(91,91,245,0.3)]'
+                : 'bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+            )}
           >
             All
           </button>
@@ -956,11 +971,12 @@ export function TemplatesPage() {
             <button
               key={cat.value}
               onClick={() => setActiveCategory(cat.value)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+              className={cn(
+                'px-2.5 h-7 rounded-md text-[11.5px] font-medium transition-all',
                 activeCategory === cat.value
-                  ? 'bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)]'
-                  : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
+                  ? 'bg-[var(--indigo)] text-white shadow-[0_1px_3px_rgba(91,91,245,0.3)]'
+                  : 'bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              )}
             >
               {cat.label}
             </button>
@@ -977,23 +993,22 @@ export function TemplatesPage() {
         <>
           {/* Preset banner for empty state */}
           {isEmpty && hasPresets && (
-            <div className="rounded-xl border border-[var(--border-subtle)] bg-gradient-to-br from-[var(--bg-surface)] to-[var(--bg-elevated)] p-4">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[rgba(99,102,241,0.1)] to-[rgba(139,92,246,0.1)] flex items-center justify-center shrink-0 border border-[rgba(99,102,241,0.15)]">
-                  <Sparkles className="h-6 w-6 text-[#6366F1]" />
+            <Card variant="premium" padding="md" className="mb-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[rgba(91,91,245,0.15)] to-[rgba(139,92,246,0.15)] flex items-center justify-center shrink-0 border border-[rgba(91,91,245,0.18)]">
+                  <Sparkles className="h-4 w-4 text-[var(--indigo)]" />
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-[var(--text-primary)]">Get started with preset templates</h3>
-                  <p className="text-sm text-[var(--text-secondary)] mt-1 mb-4">
-                    We've crafted {tab === 'emails' ? presets!.emails.length : presets!.sequences.length} proven {tab === 'emails' ? 'email templates' : 'campaign sequences'} to help you get started.
-                    These are battle-tested {tab === 'emails' ? 'emails' : 'sequences'} used by top performers.
-                  </p>
-                  <p className="text-xs text-[var(--text-tertiary)]">
-                    Save any preset to your library and customize it to match your style. Templates will appear here once saved from the database.
+                <div className="min-w-0">
+                  <h3 className="text-[14px] font-semibold text-[var(--text-primary)] tracking-[-0.005em]">
+                    Get started with preset {tab === 'emails' ? 'emails' : 'sequences'}
+                  </h3>
+                  <p className="text-[12.5px] text-[var(--text-secondary)] mt-1">
+                    We've crafted {tab === 'emails' ? presets!.emails.length : presets!.sequences.length} battle-tested
+                    {' '}{tab === 'emails' ? 'email templates' : 'campaign sequences'} used by top performers. Save any preset and customise it.
                   </p>
                 </div>
               </div>
-            </div>
+            </Card>
           )}
 
           {/* Email templates grid */}
@@ -1016,14 +1031,14 @@ export function TemplatesPage() {
               {/* Create new card */}
               <button
                 onClick={() => { setEditEmailData(null); setShowEmailEditor(true); }}
-                className="rounded-xl border-2 border-dashed border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 flex flex-col items-center justify-center gap-3 hover:border-[#6366F1]/40 hover:bg-[rgba(99,102,241,0.03)] transition-all group min-h-[280px]"
+                className="rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 p-6 flex flex-col items-center justify-center gap-2 hover:border-[rgba(91,91,245,0.35)] hover:bg-[rgba(91,91,245,0.03)] transition-all group min-h-[240px]"
               >
-                <div className="w-12 h-12 rounded-xl bg-[var(--bg-elevated)] flex items-center justify-center group-hover:bg-gradient-to-br group-hover:from-[rgba(99,102,241,0.1)] group-hover:to-[rgba(139,92,246,0.1)] transition-colors border border-transparent group-hover:border-[rgba(99,102,241,0.15)]">
-                  <Plus className="h-6 w-6 text-[var(--text-tertiary)] group-hover:text-[#6366F1] transition-colors" />
+                <div className="w-9 h-9 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center justify-center group-hover:border-[rgba(91,91,245,0.18)] group-hover:bg-[var(--indigo-subtle)] transition-colors">
+                  <Plus className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[var(--indigo)] transition-colors" />
                 </div>
                 <div className="text-center">
-                  <p className="text-sm font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">Create Template</p>
-                  <p className="text-xs text-[var(--text-tertiary)] mt-0.5">Start from scratch</p>
+                  <p className="text-[12.5px] font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">Create template</p>
+                  <p className="text-[11.5px] text-[var(--text-tertiary)] mt-0.5">Start from scratch</p>
                 </div>
               </button>
             </div>
@@ -1057,14 +1072,14 @@ export function TemplatesPage() {
               {/* Create new card */}
               <button
                 onClick={() => { setEditSequenceData(null); setShowSequenceEditor(true); }}
-                className="rounded-xl border-2 border-dashed border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 flex flex-col items-center justify-center gap-3 hover:border-[#6366F1]/40 hover:bg-[rgba(99,102,241,0.03)] transition-all group min-h-[300px]"
+                className="rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 p-6 flex flex-col items-center justify-center gap-2 hover:border-[rgba(91,91,245,0.35)] hover:bg-[rgba(91,91,245,0.03)] transition-all group min-h-[280px]"
               >
-                <div className="w-12 h-12 rounded-xl bg-[var(--bg-elevated)] flex items-center justify-center group-hover:bg-gradient-to-br group-hover:from-[rgba(99,102,241,0.1)] group-hover:to-[rgba(139,92,246,0.1)] transition-colors border border-transparent group-hover:border-[rgba(99,102,241,0.15)]">
-                  <Plus className="h-6 w-6 text-[var(--text-tertiary)] group-hover:text-[#6366F1] transition-colors" />
+                <div className="w-9 h-9 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center justify-center group-hover:border-[rgba(91,91,245,0.18)] group-hover:bg-[var(--indigo-subtle)] transition-colors">
+                  <Plus className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[var(--indigo)] transition-colors" />
                 </div>
                 <div className="text-center">
-                  <p className="text-sm font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">Create Sequence</p>
-                  <p className="text-xs text-[var(--text-tertiary)] mt-0.5">Build a multi-step campaign</p>
+                  <p className="text-[12.5px] font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">Create sequence</p>
+                  <p className="text-[11.5px] text-[var(--text-tertiary)] mt-0.5">Build a multi-step campaign</p>
                 </div>
               </button>
             </div>
@@ -1072,13 +1087,15 @@ export function TemplatesPage() {
 
           {/* No results */}
           {!isEmpty && ((tab === 'emails' && filteredEmails.length === 0) || (tab === 'sequences' && filteredSequences.length === 0)) && (
-            <div className="text-center py-12">
-              <Search className="h-8 w-8 text-[var(--text-tertiary)] mx-auto mb-3" />
-              <p className="text-sm text-[var(--text-secondary)]">No templates match your filters</p>
-              <button onClick={() => { setSearch(''); setActiveCategory('all'); }} className="text-xs text-[var(--text-primary)] hover:underline mt-1">
+            <Card padding="lg" className="text-center">
+              <div className="mx-auto w-10 h-10 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex items-center justify-center mb-2">
+                <Search className="h-4 w-4 text-[var(--text-tertiary)]" />
+              </div>
+              <p className="text-[13px] text-[var(--text-secondary)]">No templates match your filters</p>
+              <button onClick={() => { setSearch(''); setActiveCategory('all'); }} className="text-[12px] text-[var(--indigo)] hover:underline mt-1">
                 Clear filters
               </button>
-            </div>
+            </Card>
           )}
         </>
       )}

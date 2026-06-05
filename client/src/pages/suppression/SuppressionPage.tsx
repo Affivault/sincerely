@@ -4,16 +4,18 @@ import { suppressionApi } from '../../api/suppression.api';
 import { Spinner } from '../../components/ui/Spinner';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/shared/EmptyState';
-import { formatDate } from '../../lib/utils';
-import { ShieldOff, Plus, Trash2, Upload, Search, X } from 'lucide-react';
+import { PageHeader } from '../../components/shared/PageHeader';
+import { Card } from '../../components/shared/Card';
+import { formatDate, cn } from '../../lib/utils';
+import { ShieldOff, Plus, Trash2, Upload, Search, X, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { DEFAULT_PAGE_SIZE } from '../../lib/constants';
 
-const REASON_LABELS: Record<string, { label: string; color: string }> = {
-  unsubscribed: { label: 'Unsubscribed', color: 'text-amber-600 bg-amber-50 border-amber-200' },
-  bounced: { label: 'Bounced', color: 'text-red-600 bg-red-50 border-red-200' },
-  complained: { label: 'Complained', color: 'text-orange-600 bg-orange-50 border-orange-200' },
-  manual: { label: 'Manual', color: 'text-slate-600 bg-slate-50 border-slate-200' },
+const REASON_LABELS: Record<string, { label: string; color: string; dot: string }> = {
+  unsubscribed: { label: 'Unsubscribed', color: 'text-amber-700 bg-amber-500/10',  dot: 'bg-amber-500'  },
+  bounced:      { label: 'Bounced',      color: 'text-rose-700 bg-rose-500/10',    dot: 'bg-rose-500'   },
+  complained:   { label: 'Complained',   color: 'text-orange-700 bg-orange-500/10',dot: 'bg-orange-500' },
+  manual:       { label: 'Manual',       color: 'text-slate-700 bg-slate-500/10',  dot: 'bg-slate-500'  },
 };
 
 export function SuppressionPage() {
@@ -73,56 +75,61 @@ export function SuppressionPage() {
   const totalPages = data?.total_pages || 1;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[18px] font-semibold text-[var(--text-primary)]">Suppression List</h1>
-          <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Emails on this list will never receive campaign emails{data?.total !== undefined ? ` · ${data.total} total` : ''}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => setShowBulkModal(true)}>
-            <Upload className="h-4 w-4" /> Import
-          </Button>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white text-sm font-semibold hover:opacity-90 transition-all shadow-[0_2px_8px_rgba(99,102,241,0.35)]"
-          >
-            <Plus className="h-4 w-4" /> Add Email
-          </button>
-        </div>
-      </div>
+    <div>
+      <PageHeader
+        decorate
+        leading={
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/8 border border-rose-500/15">
+            <ShieldOff className="h-4 w-4 text-rose-600" />
+          </span>
+        }
+        title="Suppression list"
+        description="Emails on this list will never receive campaign messages — bounces, unsubscribes and complaints are added automatically."
+        meta={data?.total !== undefined ? <span className="tabular">{data.total.toLocaleString()} suppressed</span> : undefined}
+        actions={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setShowBulkModal(true)}>
+              <Upload className="h-3.5 w-3.5" /> Import
+            </Button>
+            <Button size="sm" onClick={() => setShowAddModal(true)}>
+              <Plus className="h-3.5 w-3.5" /> Add email
+            </Button>
+          </>
+        }
+      />
 
       {/* Filters */}
-      <div className="flex gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-tertiary)]" />
+      <div className="flex flex-wrap gap-2 mb-3">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />
           <input
             type="text"
-            placeholder="Search emails..."
+            placeholder="Search emails…"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { setSearch(searchInput); setPage(1); } }}
-            className="w-full h-9 pl-9 pr-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-sm focus:border-[#6366F1] focus:ring-2 focus:ring-[#6366F1]/20 outline-none"
+            className="w-full h-8 pl-8 pr-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[12.5px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[rgba(91,91,245,0.4)] focus:bg-[var(--bg-surface)] focus:shadow-[0_0_0_3px_rgba(91,91,245,0.12)] outline-none transition"
           />
           {searchInput && (
             <button onClick={() => { setSearchInput(''); setSearch(''); }} className="absolute right-2 top-1/2 -translate-y-1/2">
-              <X className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+              <X className="h-3 w-3 text-[var(--text-tertiary)]" />
             </button>
           )}
         </div>
-        <select
-          value={reasonFilter}
-          onChange={(e) => { setReasonFilter(e.target.value); setPage(1); }}
-          className="h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-sm focus:border-[#6366F1] focus:ring-2 focus:ring-[#6366F1]/20 outline-none"
-        >
-          <option value="">All reasons</option>
-          <option value="unsubscribed">Unsubscribed</option>
-          <option value="bounced">Bounced</option>
-          <option value="complained">Complained</option>
-          <option value="manual">Manual</option>
-        </select>
+        <div className="relative">
+          <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />
+          <select
+            value={reasonFilter}
+            onChange={(e) => { setReasonFilter(e.target.value); setPage(1); }}
+            className="h-8 pl-8 pr-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[12.5px] text-[var(--text-primary)] focus:border-[rgba(91,91,245,0.4)] focus:shadow-[0_0_0_3px_rgba(91,91,245,0.12)] outline-none transition appearance-none cursor-pointer"
+          >
+            <option value="">All reasons</option>
+            <option value="unsubscribed">Unsubscribed</option>
+            <option value="bounced">Bounced</option>
+            <option value="complained">Complained</option>
+            <option value="manual">Manual</option>
+          </select>
+        </div>
       </div>
 
       {isLoading ? (
@@ -137,36 +144,37 @@ export function SuppressionPage() {
         />
       ) : (
         <>
-          <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] overflow-hidden">
+          <Card padding="none" className="overflow-hidden">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Email</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Reason</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Notes</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Added</th>
-                  <th className="px-4 py-3" />
+                <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60">
+                  <th className="text-left px-4 py-2.5 text-[10.5px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em]">Email</th>
+                  <th className="text-left px-4 py-2.5 text-[10.5px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em]">Reason</th>
+                  <th className="text-left px-4 py-2.5 text-[10.5px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em]">Notes</th>
+                  <th className="text-left px-4 py-2.5 text-[10.5px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em]">Added</th>
+                  <th className="px-4 py-2.5" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-subtle)]">
                 {entries.map((entry) => {
                   const meta = REASON_LABELS[entry.reason] || REASON_LABELS.manual;
                   return (
-                    <tr key={entry.id} className="hover:bg-[var(--bg-elevated)] transition-colors">
-                      <td className="px-4 py-3 text-sm font-medium text-[var(--text-primary)]">{entry.email}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${meta.color}`}>
+                    <tr key={entry.id} className="hover:bg-[var(--bg-hover)] transition-colors group">
+                      <td className="px-4 py-2.5 text-[12.5px] font-medium text-[var(--text-primary)] tabular">{entry.email}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={cn('inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-medium', meta.color)}>
+                          <span className={cn('w-1.5 h-1.5 rounded-full', meta.dot)} />
                           {meta.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{entry.notes || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{formatDate(entry.created_at)}</td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-2.5 text-[12px] text-[var(--text-secondary)] truncate max-w-xs">{entry.notes || <span className="text-[var(--text-muted)]">—</span>}</td>
+                      <td className="px-4 py-2.5 text-[12px] text-[var(--text-secondary)] tabular">{formatDate(entry.created_at)}</td>
+                      <td className="px-4 py-2.5 text-right">
                         <button
                           onClick={() => { if (confirm(`Remove ${entry.email} from suppression list?`)) removeMut.mutate(entry.email); }}
-                          className="p-1.5 rounded-lg text-[var(--text-tertiary)] hover:text-red-500 hover:bg-red-50 transition-colors"
+                          className="icon-btn opacity-0 group-hover:opacity-100 hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3 w-3" />
                         </button>
                       </td>
                     </tr>
@@ -174,12 +182,12 @@ export function SuppressionPage() {
                 })}
               </tbody>
             </table>
-          </div>
+          </Card>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2">
-              <p className="text-sm text-[var(--text-secondary)]">Page {page} of {totalPages}</p>
-              <div className="flex gap-2">
+            <div className="flex items-center justify-between pt-3">
+              <p className="text-[12px] text-[var(--text-secondary)] tabular">Page {page} of {totalPages}</p>
+              <div className="flex gap-1.5">
                 <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
                 <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</Button>
               </div>

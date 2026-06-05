@@ -11,9 +11,12 @@ import { Link } from 'react-router-dom';
 import { Spinner } from '../../components/ui/Spinner';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
+import { StatCard } from '../../components/shared/StatCard';
+import { Avatar } from '../../components/shared/Avatar';
 import { FlowBuilder } from '../../components/campaigns/FlowBuilder';
 import { PersonalizationDropdown } from '../../components/campaigns/PersonalizationDropdown';
 import type { FlowStep } from '../../components/campaigns/FlowBuilder';
+import { cn } from '../../lib/utils';
 import {
   ArrowLeft,
   Mail,
@@ -551,26 +554,29 @@ export function CampaignCreatePage() {
   return (
     <div className="pb-16">
       {/* ── Page Header ── */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-8 gap-4">
         <button
           onClick={() => navigate('/campaigns')}
-          className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group"
+          className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group flex-shrink-0"
         >
-          <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
+          <ArrowLeft className="h-3.5 w-3.5 group-hover:-translate-x-0.5 transition-transform" />
           Campaigns
         </button>
-        <div className="flex items-center gap-2.5">
-          <h1 className="text-base font-semibold text-[var(--text-primary)]">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex-shrink-0">
+            <Rocket className="h-3.5 w-3.5 text-white" />
+          </span>
+          <h1 className="text-[15px] font-semibold text-[var(--text-primary)] truncate">
             {isEdit ? 'Edit Campaign' : 'New Campaign'}
           </h1>
           {campaignForm.name && (
-            <span className="hidden sm:inline px-2.5 py-0.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-secondary)] text-xs font-medium truncate max-w-[200px] border border-[var(--border-subtle)]">
+            <span className="hidden sm:inline px-2 py-0.5 h-[18px] rounded-[4px] bg-[var(--bg-elevated)] text-[var(--text-secondary)] text-[10.5px] font-medium truncate max-w-[180px] border border-[var(--border-subtle)]">
               {campaignForm.name}
             </span>
           )}
         </div>
         <Button variant="secondary" size="sm" onClick={handleSave} disabled={createCampaignMutation.isPending}>
-          <Save className="h-4 w-4" />
+          <Save className="h-3.5 w-3.5" />
           {createCampaignMutation.isPending ? 'Saving…' : 'Save Draft'}
         </Button>
       </div>
@@ -707,15 +713,14 @@ export function CampaignCreatePage() {
                               {a.email_address} · {a.daily_send_limit}/day
                             </p>
                           </div>
-                          <span
-                            className={`text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
-                              a.health_score >= 80
-                                ? 'bg-green-500/10 text-green-600'
-                                : a.health_score >= 50
-                                ? 'bg-yellow-500/10 text-yellow-600'
-                                : 'bg-red-500/10 text-red-600'
-                            }`}
-                          >
+                          <span className={cn(
+                            'inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold flex-shrink-0',
+                            a.health_score >= 80
+                              ? 'bg-emerald-500/10 text-emerald-700'
+                              : a.health_score >= 50
+                              ? 'bg-amber-500/10 text-amber-700'
+                              : 'bg-rose-500/10 text-rose-700'
+                          )}>
                             {a.health_score}%
                           </span>
                         </label>
@@ -1490,27 +1495,12 @@ export function CampaignCreatePage() {
               )}
 
               {/* Stat Cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                {[
-                  { label: 'Recipients', value: selectedContactIds.length.toLocaleString(), icon: Users },
-                  { label: 'Email Steps', value: emailSteps.length.toLocaleString(), icon: Mail },
-                  { label: 'Wait Steps', value: delaySteps.length.toLocaleString(), icon: Clock },
-                  { label: 'Total Sends', value: totalSends.toLocaleString(), icon: Send },
-                ].map(({ label, value, icon: Icon }) => (
-                  <div
-                    key={label}
-                    className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4"
-                  >
-                    <Icon className="h-4 w-4 text-[var(--text-tertiary)] mb-3" />
-                    <p className="text-[18px] font-semibold text-[var(--text-primary)]">{value}</p>
-                    <p className="text-xs text-[var(--text-tertiary)] mt-0.5">{label}</p>
-                  </div>
-                ))}
-                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-                  <Timer className="h-4 w-4 text-[var(--text-tertiary)] mb-3" />
-                  <p className="text-[18px] font-semibold text-[var(--text-primary)]">{estLabel}</p>
-                  <p className="text-xs text-[var(--text-tertiary)] mt-0.5">Est. Completion</p>
-                </div>
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                <StatCard label="Recipients" value={selectedContactIds.length} icon={<Users className="h-3.5 w-3.5" />} accent="text-[#6366F1]" />
+                <StatCard label="Email Steps" value={emailSteps.length} icon={<Mail className="h-3.5 w-3.5" />} accent="text-[var(--text-primary)]" />
+                <StatCard label="Wait Steps" value={delaySteps.length} icon={<Clock className="h-3.5 w-3.5" />} accent="text-[var(--text-secondary)]" />
+                <StatCard label="Total Sends" value={totalSends} icon={<Send className="h-3.5 w-3.5" />} accent="text-emerald-600" />
+                <StatCard label="Est. Completion" value={estLabel} icon={<Timer className="h-3.5 w-3.5" />} accent="text-amber-600" />
               </div>
 
               {/* Campaign Summary */}
@@ -1770,35 +1760,35 @@ export function CampaignCreatePage() {
                 />
               </div>
               <div className="max-h-[350px] overflow-y-auto rounded-xl border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">
-                {contacts.map((contact: ContactWithTags) => (
-                  <label
-                    key={contact.id}
-                    className="flex cursor-pointer items-center gap-3 p-3 hover:bg-[var(--bg-hover)] transition-colors"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedContactIds.includes(contact.id)}
-                      onChange={() => toggleContact(contact.id)}
-                      className="h-4 w-4 rounded border-[var(--border-default)] accent-[#6366F1]"
-                    />
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-elevated)] text-[var(--text-secondary)] text-xs font-semibold flex-shrink-0 border border-[var(--border-subtle)]">
-                      {(contact.first_name?.[0] || contact.email?.[0] || '?').toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[var(--text-primary)]">
-                        {[contact.first_name, contact.last_name].filter(Boolean).join(' ') ||
-                          contact.email}
-                      </p>
-                      <p className="text-xs text-[var(--text-tertiary)]">{contact.email}</p>
-                    </div>
-                    {contact.company && (
-                      <span className="flex items-center gap-1 text-xs text-[var(--text-tertiary)] flex-shrink-0">
-                        <Building2 className="h-3 w-3" />
-                        {contact.company}
-                      </span>
-                    )}
-                  </label>
-                ))}
+                {contacts.map((contact: ContactWithTags) => {
+                  const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
+                  return (
+                    <label
+                      key={contact.id}
+                      className="flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-[var(--bg-hover)] transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedContactIds.includes(contact.id)}
+                        onChange={() => toggleContact(contact.id)}
+                        className="h-4 w-4 rounded border-[var(--border-default)] accent-[#6366F1]"
+                      />
+                      <Avatar name={fullName || contact.email} email={contact.email} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-medium text-[var(--text-primary)]">
+                          {fullName || contact.email}
+                        </p>
+                        <p className="text-[11px] text-[var(--text-tertiary)]">{contact.email}</p>
+                      </div>
+                      {contact.company && (
+                        <span className="flex items-center gap-1 text-[11px] text-[var(--text-tertiary)] flex-shrink-0">
+                          <Building2 className="h-3 w-3" />
+                          {contact.company}
+                        </span>
+                      )}
+                    </label>
+                  );
+                })}
                 {contacts.length === 0 && (
                   <p className="p-6 text-center text-sm text-[var(--text-tertiary)]">
                     No contacts found
@@ -1983,55 +1973,42 @@ function RecipientPreview({ subject, bodyHtml, fromName, fromEmail }: {
   fromName: string;
   fromEmail: string;
 }) {
-  const initials = (fromName || fromEmail)
-    .split(/[\s@]/)[0]
-    .slice(0, 2)
-    .toUpperCase();
-
-  // Strip {{vars}} from preview so the user sees a realistic-looking email
   const previewHtml = (bodyHtml || '').replace(/\{\{(\w+)\}\}/g, (_, k) => {
     const fillers: Record<string, string> = {
-      first_name: 'Sarah',
-      last_name: 'Chen',
-      company: 'Acme Inc',
-      job_title: 'Head of Sales',
-      industry: 'SaaS',
+      first_name: 'Sarah', last_name: 'Chen', company: 'Acme Inc',
+      job_title: 'Head of Sales', industry: 'SaaS',
     };
     return fillers[k] || `[${k}]`;
   });
 
   const previewSubject = subject.replace(/\{\{(\w+)\}\}/g, (_, k) => {
-    const fillers: Record<string, string> = {
-      first_name: 'Sarah', last_name: 'Chen', company: 'Acme Inc',
-    };
+    const fillers: Record<string, string> = { first_name: 'Sarah', last_name: 'Chen', company: 'Acme Inc' };
     return fillers[k] || `[${k}]`;
   });
 
   return (
     <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-2.5 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)]">
+      <div className="flex items-center gap-2 px-3.5 py-2 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)]">
         <Eye className="h-3.5 w-3.5 text-[#6366F1]" />
-        <span className="text-xs font-semibold text-[var(--text-primary)]">Recipient inbox preview</span>
+        <span className="text-[11px] font-semibold text-[var(--text-primary)]">Inbox preview</span>
         <span className="ml-auto text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
-          merged with sample data
+          sample data
         </span>
       </div>
 
       {/* Email header — mimics Gmail/Outlook */}
       <div className="bg-white text-gray-900 px-4 py-3 border-b border-gray-200">
-        <h3 className="text-[15px] font-semibold text-gray-900 mb-2 leading-snug">
+        <h3 className="text-[14px] font-semibold text-gray-900 mb-2 leading-snug">
           {previewSubject}
         </h3>
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex items-center justify-center text-white text-[11px] font-semibold flex-shrink-0">
-            {initials}
-          </div>
+          <Avatar name={fromName || fromEmail} email={fromEmail} size="sm" />
           <div className="flex-1 min-w-0">
-            <div className="text-[13px] text-gray-900 truncate">
+            <div className="text-[12px] text-gray-900 truncate">
               <span className="font-semibold">{fromName}</span>{' '}
               <span className="text-gray-500">&lt;{fromEmail}&gt;</span>
             </div>
-            <div className="text-[11px] text-gray-500">to Sarah Chen — now</div>
+            <div className="text-[10px] text-gray-500">to Sarah Chen — now</div>
           </div>
         </div>
       </div>

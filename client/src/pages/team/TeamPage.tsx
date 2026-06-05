@@ -3,6 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { teamApi } from '../../api/team.api';
 import { Spinner } from '../../components/ui/Spinner';
 import { Button } from '../../components/ui/Button';
+import { PageHeader } from '../../components/shared/PageHeader';
+import { Card } from '../../components/shared/Card';
+import { Avatar } from '../../components/shared/Avatar';
 import { formatDate, cn } from '../../lib/utils';
 import {
   Users,
@@ -22,24 +25,20 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 
 const ROLE_CONFIG: Record<string, { label: string; icon: any; color: string }> = {
-  owner: { label: 'Owner', icon: Crown, color: 'text-amber-700 bg-amber-50 border-amber-200' },
-  admin: { label: 'Admin', icon: Shield, color: 'text-indigo-700 bg-indigo-50 border-indigo-200' },
-  member: { label: 'Member', icon: User, color: 'text-slate-700 bg-slate-50 border-slate-200' },
+  owner:  { label: 'Owner',  icon: Crown,  color: 'text-amber-700 bg-amber-500/10' },
+  admin:  { label: 'Admin',  icon: Shield, color: 'text-[var(--indigo)] bg-[var(--indigo-subtle)]' },
+  member: { label: 'Member', icon: User,   color: 'text-slate-700 bg-slate-500/10' },
 };
 
 function RoleBadge({ role }: { role: string }) {
   const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.member;
   const Icon = cfg.icon;
   return (
-    <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border', cfg.color)}>
-      <Icon className="h-3 w-3" />
+    <span className={cn('inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-medium', cfg.color)}>
+      <Icon className="h-2.5 w-2.5" />
       {cfg.label}
     </span>
   );
-}
-
-function getInitials(email: string) {
-  return email.charAt(0)?.toUpperCase() || '?';
 }
 
 export function TeamPage() {
@@ -133,90 +132,100 @@ export function TeamPage() {
   if (orgLoading) return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>;
 
   return (
-    <div className="space-y-8 max-w-3xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[18px] font-semibold text-[var(--text-primary)]">Team</h1>
-          <p className="text-sm text-[var(--text-secondary)] mt-1">Manage your organisation members and invite collaborators</p>
-        </div>
-        {isOwner && (
-          <button
-            onClick={() => setShowInviteModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white text-sm font-semibold hover:opacity-90 transition-all shadow-[0_2px_8px_rgba(99,102,241,0.35)]"
-          >
-            <UserPlus className="h-4 w-4" />
-            Invite Member
-          </button>
-        )}
-      </div>
+    <div className="max-w-3xl">
+      <PageHeader
+        decorate
+        leading={
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
+            <Users className="h-4 w-4 text-[var(--indigo)]" />
+          </span>
+        }
+        title="Team"
+        description="Manage your organisation members and invite collaborators."
+        meta={
+          <>
+            <span className="tabular">{members.length} member{members.length === 1 ? '' : 's'}</span>
+            {invites.length > 0 && (
+              <>
+                <span className="sep-dot" />
+                <span className="tabular">{invites.length} pending invite{invites.length === 1 ? '' : 's'}</span>
+              </>
+            )}
+          </>
+        }
+        actions={
+          isOwner && (
+            <Button size="sm" onClick={() => setShowInviteModal(true)}>
+              <UserPlus className="h-3.5 w-3.5" /> Invite member
+            </Button>
+          )
+        }
+      />
 
       {/* Org Name */}
-      <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
+      <Card padding="md" className="mb-3">
         <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider mb-1">Organisation</p>
+          <div className="min-w-0">
+            <p className="text-[10.5px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em] mb-1">Organisation</p>
             {editingOrgName ? (
               <div className="flex items-center gap-2">
                 <input
                   type="text"
                   value={editOrgName}
                   onChange={(e) => setEditOrgName(e.target.value)}
-                  className="h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 text-sm focus:border-[#6366F1] focus:ring-2 focus:ring-[#6366F1]/20 outline-none"
+                  className="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-[13px] focus:border-[rgba(91,91,245,0.4)] focus:shadow-[0_0_0_3px_rgba(91,91,245,0.12)] outline-none"
                   autoFocus
                 />
                 <button
                   onClick={() => updateOrgMut.mutate(editOrgName)}
                   disabled={!editOrgName || updateOrgMut.isPending}
-                  className="p-2 rounded-lg bg-[#6366F1] text-white hover:bg-[#4F46E5] disabled:opacity-50 transition-colors"
+                  className="flex items-center justify-center h-8 w-8 rounded-lg bg-[var(--indigo)] text-white hover:opacity-90 disabled:opacity-50 transition"
                 >
-                  <Check className="h-4 w-4" />
+                  <Check className="h-3.5 w-3.5" />
                 </button>
-                <button onClick={() => setEditingOrgName(false)} className="p-2 rounded-lg hover:bg-[var(--bg-hover)] transition-colors">
-                  <X className="h-4 w-4 text-[var(--text-tertiary)]" />
+                <button onClick={() => setEditingOrgName(false)} className="icon-btn">
+                  <X className="h-3 w-3" />
                 </button>
               </div>
             ) : (
-              <p className="text-lg font-semibold text-[var(--text-primary)]">{org?.name || 'My Workspace'}</p>
+              <p className="text-[16px] font-semibold text-[var(--text-primary)] tracking-[-0.01em]">{org?.name || 'My Workspace'}</p>
             )}
           </div>
           {isOwner && !editingOrgName && (
             <button
               onClick={() => { setEditOrgName(org?.name || ''); setEditingOrgName(true); }}
-              className="p-2 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+              className="icon-btn"
             >
-              <Pencil className="h-4 w-4" />
+              <Pencil className="h-3 w-3" />
             </button>
           )}
         </div>
-        <p className="text-sm text-[var(--text-secondary)] mt-1">{members.length} member{members.length !== 1 ? 's' : ''}</p>
-      </div>
+      </Card>
 
       {/* Members */}
-      <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] overflow-hidden">
-        <div className="px-5 py-2.5 border-b border-[var(--border-subtle)] flex items-center gap-2">
-          <Users className="h-4 w-4 text-[var(--text-tertiary)]" />
-          <h2 className="text-sm font-semibold text-[var(--text-primary)]">Members</h2>
-          <span className="ml-auto text-xs text-[var(--text-tertiary)]">{members.length}</span>
+      <Card padding="none" className="mb-3 overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-[var(--border-subtle)] flex items-center gap-2">
+          <Users className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+          <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">Members</h2>
+          <span className="ml-auto text-[11.5px] text-[var(--text-tertiary)] tabular">{members.length}</span>
         </div>
         {membersLoading ? (
           <div className="flex justify-center py-8"><Spinner /></div>
         ) : (
           <div className="divide-y divide-[var(--border-subtle)]">
             {members.map((member) => (
-              <div key={member.id} className="flex items-center gap-4 px-5 py-2.5 hover:bg-[var(--bg-elevated)] transition-colors">
-                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-bold text-white">{getInitials(member.email)}</span>
-                </div>
+              <div key={member.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--bg-hover)] transition-colors">
+                <Avatar email={member.email} size="lg" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[var(--text-primary)] truncate">{member.email}</p>
-                  <p className="text-xs text-[var(--text-tertiary)]">Joined {formatDate(member.created_at)}</p>
+                  <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">{member.email}</p>
+                  <p className="text-[11.5px] text-[var(--text-tertiary)]">Joined {formatDate(member.created_at)}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   {isOwner && member.role !== 'owner' ? (
                     <select
                       value={member.role}
                       onChange={(e) => updateRoleMut.mutate({ memberId: member.id, role: e.target.value })}
-                      className="h-7 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-xs focus:border-[#6366F1] outline-none"
+                      className="h-7 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-[11.5px] focus:border-[rgba(91,91,245,0.4)] outline-none cursor-pointer"
                     >
                       <option value="member">Member</option>
                       <option value="admin">Admin</option>
@@ -227,9 +236,9 @@ export function TeamPage() {
                   {isOwner && member.user_id !== user?.id && member.role !== 'owner' && (
                     <button
                       onClick={() => { if (confirm(`Remove ${member.email}?`)) removeMemberMut.mutate(member.id); }}
-                      className="p-1.5 rounded-lg text-[var(--text-tertiary)] hover:text-red-500 hover:bg-red-50 transition-colors"
+                      className="icon-btn hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3 w-3" />
                     </button>
                   )}
                 </div>
@@ -237,47 +246,47 @@ export function TeamPage() {
             ))}
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Pending Invites */}
       {(invites.length > 0 || isOwner) && (
-        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] overflow-hidden">
-          <div className="px-5 py-2.5 border-b border-[var(--border-subtle)] flex items-center gap-2">
-            <Mail className="h-4 w-4 text-[var(--text-tertiary)]" />
-            <h2 className="text-sm font-semibold text-[var(--text-primary)]">Pending Invites</h2>
-            <span className="ml-auto text-xs text-[var(--text-tertiary)]">{invites.length}</span>
+        <Card padding="none" className="overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-[var(--border-subtle)] flex items-center gap-2">
+            <Mail className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+            <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">Pending invites</h2>
+            <span className="ml-auto text-[11.5px] text-[var(--text-tertiary)] tabular">{invites.length}</span>
           </div>
           {invitesLoading ? (
             <div className="flex justify-center py-8"><Spinner /></div>
           ) : invites.length === 0 ? (
-            <div className="px-5 py-6 text-center text-sm text-[var(--text-secondary)]">No pending invites</div>
+            <div className="px-4 py-6 text-center text-[12.5px] text-[var(--text-secondary)]">No pending invites</div>
           ) : (
             <div className="divide-y divide-[var(--border-subtle)]">
               {invites.map((invite) => (
-                <div key={invite.id} className="flex items-center gap-4 px-5 py-2.5 hover:bg-[var(--bg-elevated)] transition-colors">
-                  <div className="h-9 w-9 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-default)] flex items-center justify-center flex-shrink-0">
-                    <Mail className="h-4 w-4 text-[var(--text-tertiary)]" />
-                  </div>
+                <div key={invite.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--bg-hover)] transition-colors">
+                  <span className="h-8 w-8 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex items-center justify-center flex-shrink-0">
+                    <Mail className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+                  </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[var(--text-primary)] truncate">{invite.email}</p>
-                    <p className="text-xs text-[var(--text-tertiary)]">Expires {formatDate(invite.expires_at)}</p>
+                    <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">{invite.email}</p>
+                    <p className="text-[11.5px] text-[var(--text-tertiary)]">Expires {formatDate(invite.expires_at)}</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <RoleBadge role={invite.role} />
                     <button
                       onClick={() => copyInviteLink(invite.token)}
                       title="Copy invite link"
-                      className="p-1.5 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                      className="icon-btn"
                     >
-                      {copiedToken === invite.token ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                      {copiedToken === invite.token ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
                     </button>
                     {isOwner && (
                       <button
                         onClick={() => revokeInviteMut.mutate(invite.id)}
                         title="Revoke invite"
-                        className="p-1.5 rounded-lg text-[var(--text-tertiary)] hover:text-red-500 hover:bg-red-50 transition-colors"
+                        className="icon-btn hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3" />
                       </button>
                     )}
                   </div>
@@ -285,7 +294,7 @@ export function TeamPage() {
               ))}
             </div>
           )}
-        </div>
+        </Card>
       )}
 
       {/* Invite Modal */}

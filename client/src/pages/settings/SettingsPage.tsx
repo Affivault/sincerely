@@ -4,6 +4,9 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { settingsApi, type UserSettings } from '../../api/settings.api';
 import { Button } from '../../components/ui/Button';
+import { PageHeader } from '../../components/shared/PageHeader';
+import { Avatar } from '../../components/shared/Avatar';
+import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import {
   User,
@@ -24,6 +27,7 @@ import {
   Zap,
   Info,
   Loader2,
+  Settings as SettingsIcon,
   Trash2,
   Eye,
   EyeOff,
@@ -218,15 +222,22 @@ export function SettingsPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-heading-lg text-[var(--text-primary)]">Settings</h1>
-        <p className="text-sm text-[var(--text-secondary)] mt-1">Manage your account and preferences</p>
-      </div>
+      <PageHeader
+        decorate
+        leading={
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
+            <SettingsIcon className="h-4 w-4 text-[var(--indigo)]" />
+          </span>
+        }
+        title="Settings"
+        description="Manage your profile, account, notifications and AI preferences."
+        meta={user?.email ? <><Mail className="h-3 w-3" /> <span>{user.email}</span></> : undefined}
+      />
 
-      <div className="flex gap-8">
+      <div className="grid grid-cols-[200px,1fr] gap-3">
         {/* Sidebar */}
-        <div className="w-52 flex-shrink-0">
-          <nav className="space-y-1">
+        <aside className="panel-inset p-1.5 self-start sticky top-[60px]">
+          <nav className="space-y-px">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -234,33 +245,34 @@ export function SettingsPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-left transition-all duration-200 ${
+                  className={cn(
+                    'w-full flex items-center gap-2 px-2 h-8 rounded-[6px] text-[12.5px] text-left transition-colors',
                     isActive
-                      ? 'bg-[rgba(99,102,241,0.08)] text-[#6366F1] border-l-[2px] border-l-[#6366F1]'
-                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
-                  }`}
+                      ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_0_0_1px_var(--border-subtle),0_1px_2px_rgba(15,15,25,0.04)] font-medium'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]/60 hover:text-[var(--text-primary)]'
+                  )}
                 >
-                  <Icon className={`h-[18px] w-[18px] ${isActive ? 'text-[#6366F1]' : 'text-[var(--text-tertiary)]'}`} strokeWidth={1.5} />
-                  {tab.label}
+                  <Icon className={cn('h-3.5 w-3.5 flex-shrink-0', isActive ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} strokeWidth={1.75} />
+                  <span className="flex-1">{tab.label}</span>
                 </button>
               );
             })}
           </nav>
 
-          <div className="mt-6 pt-6 border-t border-[var(--border-subtle)]">
+          <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
             <button
               onClick={handleSignOut}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-left text-[var(--error)] hover:bg-[var(--error-bg)] transition-all duration-200"
+              className="w-full flex items-center gap-2 px-2 h-8 rounded-[6px] text-[12.5px] text-left text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors"
             >
-              <LogOut className="h-[18px] w-[18px]" strokeWidth={1.5} />
-              Sign out
+              <LogOut className="h-3.5 w-3.5" strokeWidth={1.75} />
+              <span className="flex-1">Sign out</span>
             </button>
           </div>
-        </div>
+        </aside>
 
         {/* Content */}
-        <div className="flex-1">
-          <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 shadow-lg">
+        <div className="min-w-0">
+          <div className="card p-5">
             {/* ═══ Profile Tab ═══ */}
             {activeTab === 'profile' && (
               <div className="space-y-4">
@@ -269,15 +281,17 @@ export function SettingsPage() {
                   <p className="text-sm text-[var(--text-secondary)] mt-1">Update your personal details</p>
                 </div>
 
-                <div className="flex items-center gap-4 p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex items-center justify-center text-white text-lg font-semibold">
-                    {(firstName || user?.email || 'U').charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-[var(--text-primary)]">
-                      {firstName && lastName ? `${firstName} ${lastName}` : 'Profile Photo'}
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
+                  <Avatar
+                    name={firstName && lastName ? `${firstName} ${lastName}` : undefined}
+                    email={user?.email}
+                    size="xl"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-medium text-[var(--text-primary)]">
+                      {firstName && lastName ? `${firstName} ${lastName}` : 'Profile photo'}
                     </p>
-                    <p className="text-xs text-[var(--text-tertiary)] mt-0.5">{user?.email}</p>
+                    <p className="text-[12px] text-[var(--text-tertiary)] mt-0.5">{user?.email}</p>
                   </div>
                 </div>
 

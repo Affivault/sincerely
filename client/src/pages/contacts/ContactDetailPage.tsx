@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contactsApi, listsApi } from '../../api/contacts.api';
 import { analyticsApi } from '../../api/analytics.api';
 import { Spinner } from '../../components/ui/Spinner';
-import { formatDate, formatDateTime, getInitials } from '../../lib/utils';
+import { Avatar } from '../../components/shared/Avatar';
+import { formatDate, formatDateTime, cn } from '../../lib/utils';
 import {
   ArrowLeft,
   Trash2,
@@ -137,61 +138,57 @@ export function ContactDetailPage() {
   const nonMemberLists = (contactLists || []).filter((l: any) => !l.is_member);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Back link */}
       <button
         onClick={() => navigate('/contacts')}
-        className="inline-flex items-center gap-1.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+        className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group"
       >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Contacts
+        <ArrowLeft className="h-3.5 w-3.5 group-hover:-translate-x-0.5 transition-transform" />
+        Contacts
       </button>
 
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center text-[var(--text-primary)] font-medium">
-            {getInitials(contact.first_name, contact.last_name, contact.email)}
-          </div>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <Avatar name={fullName || contact.email} email={contact.email} size="xl" />
           <div>
-            <h1 className="text-xl font-semibold text-[var(--text-primary)]">{fullName || contact.email}</h1>
-            {fullName && <p className="text-sm text-[var(--text-secondary)]">{contact.email}</p>}
-            <div className="flex items-center gap-2 mt-1">
+            <h1 className="text-[18px] font-semibold text-[var(--text-primary)]">{fullName || contact.email}</h1>
+            {fullName && <p className="text-[12px] text-[var(--text-secondary)]">{contact.email}</p>}
+            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
               {contact.tags?.map((tag: any) => (
                 <span
                   key={tag.id}
-                  className="inline-flex px-1.5 py-0.5 text-xs rounded"
+                  className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold"
                   style={{ backgroundColor: tag.color + '20', color: tag.color }}
                 >
                   {tag.name}
                 </span>
               ))}
               {contact.is_unsubscribed && (
-                <span className="text-xs text-[var(--warning)]">Unsubscribed</span>
+                <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold text-amber-700 bg-amber-500/10">Unsubscribed</span>
               )}
               {contact.is_bounced && (
-                <span className="text-xs text-[var(--error)]">Bounced</span>
+                <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold text-rose-700 bg-rose-500/10">Bounced</span>
               )}
             </div>
           </div>
         </div>
         <button
-          onClick={() => {
-            if (confirm('Delete this contact?')) deleteMutation.mutate();
-          }}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--error)] hover:text-[var(--error)] border border-[var(--error)]/30 rounded-md hover:bg-[var(--error)]/10 transition-colors"
+          onClick={() => { if (confirm('Delete this contact?')) deleteMutation.mutate(); }}
+          className="icon-btn hover:text-rose-500 hover:bg-rose-500/10 flex-shrink-0"
+          title="Delete contact"
         >
-          <Trash2 className="h-4 w-4" />
-          Delete
+          <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Contact Info */}
-        <div className="space-y-4">
-          <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-md p-4">
-            <h2 className="text-sm font-medium text-[var(--text-primary)] mb-4">Contact Info</h2>
-            <div className="space-y-3">
+        <div className="space-y-3">
+          <div className="card p-4">
+            <h2 className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-3">Contact Info</h2>
+            <div className="space-y-2.5">
               <InfoRow icon={Mail} label="Email" value={contact.email} />
               {contact.company && <InfoRow icon={Building2} label="Company" value={contact.company} />}
               {contact.job_title && <InfoRow icon={Briefcase} label="Job Title" value={contact.job_title} />}
@@ -199,7 +196,7 @@ export function ContactDetailPage() {
               {contact.linkedin_url && <InfoRow icon={Linkedin} label="LinkedIn" value={contact.linkedin_url} isLink />}
               {contact.website && <InfoRow icon={Globe} label="Website" value={contact.website} isLink />}
             </div>
-            <div className="mt-4 pt-4 border-t border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] space-y-1">
+            <div className="mt-3 pt-3 border-t border-[var(--border-subtle)] text-[11px] text-[var(--text-tertiary)] space-y-1">
               <p>Source: {contact.source}</p>
               <p>Created: {formatDate(contact.created_at)}</p>
               <p>Updated: {formatDate(contact.updated_at)}</p>
@@ -207,16 +204,16 @@ export function ContactDetailPage() {
           </div>
 
           {/* Lists Section */}
-          <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-md p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-medium text-[var(--text-primary)]">Lists</h2>
+          <div className="card p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider">Lists</h2>
               <div className="relative">
                 <button
                   onClick={() => setShowAddToListDropdown(!showAddToListDropdown)}
-                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
+                  className="inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] rounded-md transition-colors"
                 >
                   <Plus className="h-3 w-3" />
-                  Add to list
+                  Add
                 </button>
                 {showAddToListDropdown && (
                   <>
@@ -245,39 +242,35 @@ export function ContactDetailPage() {
               </div>
             </div>
             {memberLists.length === 0 ? (
-              <p className="text-sm text-[var(--text-tertiary)]">Not on any lists yet</p>
+              <p className="text-[12px] text-[var(--text-tertiary)]">Not on any lists yet</p>
             ) : (
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 {memberLists.map((list: any) => (
                   <div
                     key={list.id}
-                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[var(--bg-elevated)] group"
+                    className="flex items-center gap-2 h-8 px-2.5 rounded-[6px] bg-[var(--bg-elevated)] group"
                   >
-                    <FolderOpen className="h-4 w-4 text-[var(--text-tertiary)] flex-shrink-0" />
-                    <span className="flex-1 text-sm font-medium text-[var(--text-primary)] truncate">
+                    <FolderOpen className="h-3 w-3 text-[var(--text-tertiary)] flex-shrink-0" />
+                    <span className="flex-1 text-[12px] font-medium text-[var(--text-primary)] truncate">
                       {list.name}
                     </span>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       {!list.is_default && (
                         <button
-                          onClick={() => {
-                            setMoveFromListId(list.id);
-                            setMoveToListId(null);
-                            setShowMoveModal(true);
-                          }}
-                          className="p-1 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded transition-colors"
+                          onClick={() => { setMoveFromListId(list.id); setMoveToListId(null); setShowMoveModal(true); }}
+                          className="icon-btn h-5 w-5"
                           title="Move to another list"
                         >
-                          <ArrowRightLeft className="h-3.5 w-3.5" />
+                          <ArrowRightLeft className="h-3 w-3" />
                         </button>
                       )}
                       {!list.is_default && (
                         <button
                           onClick={() => removeFromListMutation.mutate(list.id)}
-                          className="p-1 text-[var(--text-tertiary)] hover:text-[var(--error)] hover:bg-[var(--error)]/10 rounded transition-colors"
+                          className="icon-btn h-5 w-5 hover:text-rose-500 hover:bg-rose-500/10"
                           title="Remove from list"
                         >
-                          <X className="h-3.5 w-3.5" />
+                          <X className="h-3 w-3" />
                         </button>
                       )}
                     </div>
@@ -289,28 +282,33 @@ export function ContactDetailPage() {
         </div>
 
         {/* Activity Timeline */}
-        <div className="lg:col-span-2 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-md p-4">
-          <h2 className="text-sm font-medium text-[var(--text-primary)] mb-4">Activity</h2>
+        <div className="lg:col-span-2 card p-4">
+          <h2 className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-3">Activity Timeline</h2>
           {!timeline || timeline.length === 0 ? (
-            <p className="text-sm text-[var(--text-secondary)]">No activity yet</p>
+            <div className="flex flex-col items-center justify-center py-10">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elevated)] mb-2">
+                <Send className="h-4 w-4 text-[var(--text-tertiary)]" />
+              </span>
+              <p className="text-[12px] text-[var(--text-secondary)]">No activity yet</p>
+            </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {timeline.map((item: any) => {
                 const Icon = activityIcons[item.activity_type] || Send;
                 const color = activityColors[item.activity_type] || 'text-[var(--text-secondary)]';
                 return (
-                  <div key={item.id} className="flex items-start gap-3">
-                    <div className={`mt-0.5 ${color}`}>
-                      <Icon className="h-4 w-4" />
-                    </div>
+                  <div key={item.id} className="flex items-start gap-3 py-2 border-b border-[var(--border-subtle)] last:border-0">
+                    <span className={cn('flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--bg-elevated)] flex-shrink-0 mt-0.5', color)}>
+                      <Icon className="h-3.5 w-3.5" />
+                    </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-[var(--text-primary)]">
-                        <span className="capitalize">{item.activity_type}</span>
+                      <p className="text-[13px] text-[var(--text-primary)]">
+                        <span className="font-medium capitalize">{item.activity_type}</span>
                         {item.step_subject && (
-                          <span className="text-[var(--text-secondary)]"> - {item.step_subject}</span>
+                          <span className="text-[var(--text-secondary)]"> — {item.step_subject}</span>
                         )}
                       </p>
-                      <p className="text-xs text-[var(--text-secondary)]">
+                      <p className="text-[11px] text-[var(--text-tertiary)]">
                         {item.campaign_name} · {formatDateTime(item.occurred_at)}
                       </p>
                     </div>

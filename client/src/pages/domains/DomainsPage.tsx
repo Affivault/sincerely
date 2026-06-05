@@ -7,6 +7,10 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { EmptyState } from '../../components/shared/EmptyState';
+import { PageHeader } from '../../components/shared/PageHeader';
+import { Card } from '../../components/shared/Card';
+import { StatCard } from '../../components/shared/StatCard';
+import { cn } from '../../lib/utils';
 import {
   Globe,
   Plus,
@@ -273,47 +277,70 @@ export function DomainsPage() {
     );
   }
 
+  const verifiedDomains = (domains || []).filter((d: SendingDomain) => d.is_verified).length;
+  const totalDomains = (domains || []).length;
+  const verifiedPct = totalDomains > 0 ? Math.round((verifiedDomains / totalDomains) * 100) : 0;
+
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-primary">Sending Domains</h1>
-          <p className="text-sm text-secondary mt-1">Verify your domains to improve email deliverability</p>
+    <div>
+      <PageHeader
+        decorate
+        leading={
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
+            <Globe className="h-4 w-4 text-[var(--indigo)]" />
+          </span>
+        }
+        title="Sending domains"
+        description="Verify SPF, DKIM and DMARC records to improve deliverability and protect your brand."
+        meta={
+          totalDomains > 0 ? (
+            <>
+              <span className="tabular">{totalDomains} domain{totalDomains === 1 ? '' : 's'}</span>
+              <span className="sep-dot" />
+              <span className="tabular">{verifiedDomains} verified · {verifiedPct}%</span>
+            </>
+          ) : undefined
+        }
+        actions={
+          <>
+            <Link to="/smtp-accounts/guide" className="icon-btn h-8 px-2.5 text-[12.5px]">
+              <HelpCircle className="h-3.5 w-3.5" /> Setup guide
+            </Link>
+            <Button size="sm" onClick={() => setShowAddModal(true)}>
+              <Plus className="h-3.5 w-3.5" /> Add domain
+            </Button>
+          </>
+        }
+      />
+
+      {/* KPI strip */}
+      {totalDomains > 0 && (
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <StatCard icon={Globe} accent="indigo" label="Total domains" value={totalDomains} />
+          <StatCard icon={CheckCircle2} accent="emerald" label="Verified" value={verifiedDomains} hint={`${verifiedPct}% verified`} />
+          <StatCard icon={AlertTriangle} accent="amber" label="Needs attention" value={totalDomains - verifiedDomains} />
         </div>
-        <div className="flex items-center gap-3">
-          <Link
-            to="/smtp-accounts/guide"
-            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-secondary border border-default rounded-md hover:bg-hover hover:text-primary transition-colors"
-          >
-            <HelpCircle className="h-4 w-4" />
-            Setup Guide
-          </Link>
-          <Button variant="primary" onClick={() => setShowAddModal(true)}>
-            <Plus className="h-4 w-4" />
-            Add Domain
-          </Button>
-        </div>
-      </div>
+      )}
 
       {/* Info banner */}
-      <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
+      <Card variant="premium" padding="md" className="mb-3">
         <div className="flex items-start gap-3">
-          <Shield className="h-5 w-5 text-[#6366F1] mt-0.5 shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-[var(--text-primary)]">Why verify your domain?</p>
-            <p className="text-sm text-[var(--text-secondary)] mt-1">
-              Domain verification (SPF, DKIM, DMARC) tells email providers that you've authorized SkySend to send emails from your domain.
-              This dramatically improves deliverability and prevents your emails from landing in spam.
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)] flex-shrink-0">
+            <Shield className="h-4 w-4 text-[var(--indigo)]" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[13px] font-medium text-[var(--text-primary)]">Why verify your domain?</p>
+            <p className="text-[12.5px] text-[var(--text-secondary)] mt-1">
+              SPF, DKIM and DMARC tell email providers that SkySend is authorised to send from your domain — dramatically improving inbox placement.
             </p>
-            <div className="flex items-center gap-4 mt-3 text-xs text-[var(--text-tertiary)]">
-              <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-green-500" /> Better inbox placement</span>
-              <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-green-500" /> Prevent spoofing</span>
-              <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-green-500" /> Build sender reputation</span>
+            <div className="flex flex-wrap items-center gap-3 mt-2 text-[11.5px] text-[var(--text-tertiary)]">
+              <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald-500" /> Better inbox placement</span>
+              <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald-500" /> Prevent spoofing</span>
+              <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald-500" /> Build sender reputation</span>
             </div>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Domain list or empty state */}
       {(!domains || domains.length === 0) ? (
@@ -325,43 +352,45 @@ export function DomainsPage() {
           onAction={() => setShowAddModal(true)}
         />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {domains.map((domain: SendingDomain) => (
-            <div key={domain.id} className="rounded-lg border border-subtle bg-surface overflow-hidden">
+            <div key={domain.id} className="card overflow-hidden relative">
+              <span className={cn('absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full', domain.is_verified ? 'bg-emerald-500' : 'bg-amber-500')} />
               {/* Domain row */}
               <button
                 onClick={() => setExpandedId(expandedId === domain.id ? null : domain.id)}
-                className="w-full flex items-center justify-between p-4 hover:bg-hover transition-colors text-left"
+                className="w-full flex items-center justify-between p-3.5 hover:bg-[var(--bg-hover)] transition-colors text-left"
               >
-                <div className="flex items-center gap-4">
-                  <div className={`flex items-center justify-center w-10 h-10 rounded-md ${
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className={cn(
+                    'flex items-center justify-center w-9 h-9 rounded-xl flex-shrink-0',
                     domain.is_verified
-                      ? 'bg-green-500/10'
-                      : 'bg-[rgba(99,102,241,0.08)] border border-[rgba(99,102,241,0.12)]'
-                  }`}>
+                      ? 'bg-emerald-500/10 border border-emerald-500/20'
+                      : 'bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]'
+                  )}>
                     {domain.is_verified ? (
-                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                     ) : (
-                      <Globe className="h-5 w-5 text-[#6366F1]" />
+                      <Globe className="h-4 w-4 text-[var(--indigo)]" />
                     )}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-medium text-primary">{domain.domain}</h3>
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h3 className="text-[14px] font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">{domain.domain}</h3>
                       {domain.is_verified ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium bg-green-500/10 text-green-500 rounded">
+                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-[10.5px] font-medium bg-emerald-500/10 text-emerald-700 rounded-[4px]">
                           Verified
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium bg-amber-500/10 text-amber-500 rounded">
-                          Pending verification
+                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-[10.5px] font-medium bg-amber-500/10 text-amber-700 rounded-[4px]">
+                          Pending
                         </span>
                       )}
                       {domain.detected_provider && (
-                        <span className="text-xs text-tertiary">{domain.detected_provider}</span>
+                        <span className="text-[10.5px] text-[var(--text-tertiary)]">via {domain.detected_provider}</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <StatusBadge ok={domain.txt_verified} label="TXT" />
                       <StatusBadge ok={domain.spf_ok} label="SPF" />
                       <StatusBadge ok={domain.dkim_ok} label="DKIM" />
@@ -369,27 +398,27 @@ export function DomainsPage() {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 flex-shrink-0">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       if (confirm(`Remove ${domain.domain}?`)) deleteMutation.mutate(domain.id);
                     }}
-                    className="p-2 text-secondary hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
+                    className="icon-btn hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3 w-3" />
                   </button>
                   {expandedId === domain.id ? (
-                    <ChevronDown className="h-4 w-4 text-tertiary" />
+                    <ChevronDown className="h-4 w-4 text-[var(--text-tertiary)]" />
                   ) : (
-                    <ChevronRight className="h-4 w-4 text-tertiary" />
+                    <ChevronRight className="h-4 w-4 text-[var(--text-tertiary)]" />
                   )}
                 </div>
               </button>
 
               {/* Expanded detail */}
               {expandedId === domain.id && (
-                <div className="border-t border-subtle p-4 bg-[var(--bg-primary)]">
+                <div className="border-t border-[var(--border-subtle)] p-4 bg-[var(--bg-elevated)]/40">
                   <DomainDetailPanel domain={domain} onClose={() => setExpandedId(null)} />
                 </div>
               )}

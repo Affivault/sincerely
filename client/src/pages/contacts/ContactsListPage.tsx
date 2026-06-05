@@ -4,6 +4,9 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { contactsApi, listsApi } from '../../api/contacts.api';
 import { listFoldersApi, type ListFolder } from '../../api/list-folders.api';
 import { Spinner } from '../../components/ui/Spinner';
+import { PageHeader } from '../../components/shared/PageHeader';
+import { StatCard } from '../../components/shared/StatCard';
+import { Avatar } from '../../components/shared/Avatar';
 import { formatDate, cn } from '../../lib/utils';
 import {
   Plus,
@@ -25,6 +28,7 @@ import {
   Shield,
   ShieldOff,
   RotateCcw,
+  Filter,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CreateContactInput, ContactWithTags, ContactList } from '@lemlist/shared';
@@ -43,46 +47,6 @@ const emptyContact: CreateContactInput = {
   website: '',
 };
 
-function getInitials(first?: string | null, last?: string | null, email?: string): string {
-  if (first && last) return `${first[0]}${last[0]}`.toUpperCase();
-  if (first) return first[0].toUpperCase();
-  if (last) return last[0].toUpperCase();
-  if (email) return email[0].toUpperCase();
-  return '?';
-}
-
-const getAvatarGradient = (initials: string): string => {
-  const char = initials.charAt(0).toUpperCase();
-  const gradients: Record<string, string> = {
-    'A': 'from-[#6366F1] to-[#8B5CF6]',
-    'B': 'from-[#8B5CF6] to-[#EC4899]',
-    'C': 'from-[#06B6D4] to-[#6366F1]',
-    'D': 'from-[#10B981] to-[#06B6D4]',
-    'E': 'from-[#F59E0B] to-[#EF4444]',
-    'F': 'from-[#EF4444] to-[#EC4899]',
-    'G': 'from-[#6366F1] to-[#06B6D4]',
-    'H': 'from-[#8B5CF6] to-[#6366F1]',
-    'I': 'from-[#10B981] to-[#059669]',
-    'J': 'from-[#F59E0B] to-[#D97706]',
-    'K': 'from-[#EC4899] to-[#8B5CF6]',
-    'L': 'from-[#06B6D4] to-[#0284C7]',
-    'M': 'from-[#6366F1] to-[#4F46E5]',
-    'N': 'from-[#10B981] to-[#6366F1]',
-    'O': 'from-[#F59E0B] to-[#6366F1]',
-    'P': 'from-[#8B5CF6] to-[#EC4899]',
-    'Q': 'from-[#EF4444] to-[#F59E0B]',
-    'R': 'from-[#06B6D4] to-[#10B981]',
-    'S': 'from-[#6366F1] to-[#8B5CF6]',
-    'T': 'from-[#EC4899] to-[#EF4444]',
-    'U': 'from-[#F59E0B] to-[#10B981]',
-    'V': 'from-[#8B5CF6] to-[#06B6D4]',
-    'W': 'from-[#10B981] to-[#F59E0B]',
-    'X': 'from-[#EF4444] to-[#8B5CF6]',
-    'Y': 'from-[#6366F1] to-[#EC4899]',
-    'Z': 'from-[#06B6D4] to-[#6366F1]',
-  };
-  return gradients[char] || 'from-[#6366F1] to-[#8B5CF6]';
-};
 
 export function ContactsListPage() {
   const navigate = useNavigate();
@@ -351,52 +315,50 @@ export function ContactsListPage() {
     : 'All Contacts';
 
   return (
-    <div className="flex gap-8">
+    <div className="flex gap-5">
       {/* Sidebar */}
-      <div className="w-60 flex-shrink-0" onClick={() => setListContextMenu(null)}>
-        <div className="sticky top-20 space-y-4">
+      <div className="w-52 flex-shrink-0" onClick={() => setListContextMenu(null)}>
+        <div className="sticky top-20 panel-inset p-1.5 space-y-0.5">
           {/* All Contacts */}
-          <div>
-            <button
-              onClick={() => setSearchParams({})}
-              className={cn(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all",
-                !activeListId
-                  ? "bg-[rgba(99,102,241,0.08)] text-[#6366F1] border-l-[2px] border-l-[#6366F1]"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
-              )}
-            >
-              <Users className="h-4 w-4 flex-shrink-0" strokeWidth={1.5} />
-              <span className="flex-1 text-left">All Contacts</span>
-              <span className={cn(
-                "text-[11px] font-semibold px-2 py-0.5 rounded-full",
-                !activeListId ? "bg-[rgba(99,102,241,0.12)] text-[#6366F1]" : "text-[var(--text-tertiary)]"
-              )}>
-                {stats?.total || 0}
-              </span>
-            </button>
-          </div>
+          <button
+            onClick={() => setSearchParams({})}
+            className={cn(
+              "w-full flex items-center gap-2.5 h-8 px-2.5 rounded-[6px] text-[13px] font-medium transition-all",
+              !activeListId
+                ? "bg-[rgba(99,102,241,0.1)] text-[#6366F1]"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+            )}
+          >
+            <Users className="h-3.5 w-3.5 flex-shrink-0" />
+            <span className="flex-1 text-left">All Contacts</span>
+            <span className={cn(
+              "text-[10px] font-semibold tabular px-1.5 rounded",
+              !activeListId ? "text-[#6366F1]" : "text-[var(--text-tertiary)]"
+            )}>
+              {stats?.total || 0}
+            </span>
+          </button>
 
           {/* Lists section */}
-          <div>
-            <div className="flex items-center justify-between px-1 mb-2">
-              <span className="text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-widest">
+          <div className="pt-2">
+            <div className="flex items-center justify-between px-2 mb-1">
+              <span className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-widest">
                 Lead Lists
               </span>
               <div className="flex gap-0.5">
                 <button
                   onClick={() => { setEditingFolder(null); setFolderModalOpen(true); }}
-                  className="p-1 text-[var(--text-tertiary)] hover:text-[#6366F1] hover:bg-[var(--bg-elevated)] rounded transition-colors"
+                  className="icon-btn h-5 w-5"
                   title="New folder"
                 >
-                  <FolderPlus className="h-3.5 w-3.5" />
+                  <FolderPlus className="h-3 w-3" />
                 </button>
                 <button
                   onClick={() => setShowListModal(true)}
-                  className="p-1 text-[var(--text-tertiary)] hover:text-[#6366F1] hover:bg-[var(--bg-elevated)] rounded transition-colors"
+                  className="icon-btn h-5 w-5"
                   title="New list"
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  <Plus className="h-3 w-3" />
                 </button>
               </div>
             </div>
@@ -405,19 +367,19 @@ export function ContactsListPage() {
               {groupedLists.map((group) => (
                 <div key={group.folder?.id || 'uncat'}>
                   {group.folder ? (
-                    <div className="flex items-center gap-2 px-3 py-1 text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">
+                    <div className="flex items-center gap-2 px-2 py-1 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">
                       <Folder className="h-3 w-3" style={{ color: group.folder.color }} />
                       <span className="flex-1 truncate" style={{ color: group.folder.color }}>{group.folder.name}</span>
                       <button
                         onClick={() => { setEditingFolder(group.folder); setFolderModalOpen(true); }}
-                        className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--bg-hover)]"
+                        className="p-0.5 rounded hover:bg-[var(--bg-hover)] opacity-0 group-hover:opacity-100"
                         title="Edit folder"
                       >
                         <Pencil className="h-2.5 w-2.5" />
                       </button>
                     </div>
                   ) : group.lists.length > 0 && groupedLists.length > 1 ? (
-                    <div className="px-3 py-1 text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">
+                    <div className="px-2 py-1 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">
                       Uncategorised
                     </div>
                   ) : null}
@@ -430,7 +392,7 @@ export function ContactsListPage() {
                             e.preventDefault();
                             if (renameValue.trim()) renameListMut.mutate({ id: list.id, name: renameValue.trim() });
                           }}
-                          className="px-3 py-1.5"
+                          className="px-2 py-1"
                         >
                           <input
                             value={renameValue}
@@ -438,7 +400,7 @@ export function ContactsListPage() {
                             onBlur={() => setRenamingListId(null)}
                             onKeyDown={(e) => { if (e.key === 'Escape') setRenamingListId(null); }}
                             autoFocus
-                            className="w-full px-2 py-1 text-[13px] rounded border border-[#6366F1] bg-[var(--bg-elevated)] outline-none"
+                            className="w-full px-2 py-1 text-[12px] rounded border border-[#6366F1] bg-[var(--bg-elevated)] outline-none"
                           />
                         </form>
                       ) : (
@@ -446,16 +408,16 @@ export function ContactsListPage() {
                           onClick={() => setSearchParams({ list: list.id })}
                           onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setListContextMenu({ listId: list.id, x: e.clientX, y: e.clientY }); }}
                           className={cn(
-                            "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all",
+                            "w-full flex items-center gap-2 h-8 px-2.5 rounded-[6px] text-[12px] font-medium transition-all",
                             activeListId === list.id
-                              ? "bg-[rgba(99,102,241,0.08)] text-[#6366F1] border-l-[2px] border-l-[#6366F1]"
+                              ? "bg-[rgba(99,102,241,0.1)] text-[#6366F1]"
                               : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
                           )}
                         >
-                          <FolderOpen className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={1.5} />
+                          <FolderOpen className="h-3 w-3 flex-shrink-0" />
                           <span className="flex-1 text-left truncate">{list.name}</span>
                           <span className={cn(
-                            "text-[10px] font-semibold tabular-nums",
+                            "text-[10px] font-semibold tabular",
                             activeListId === list.id ? "text-[#6366F1]" : "text-[var(--text-tertiary)]"
                           )}>
                             {list.contact_count || 0}
@@ -467,9 +429,8 @@ export function ContactsListPage() {
                 </div>
               ))}
 
-              {/* Empty state */}
               {(!lists || lists.length === 0) && (
-                <p className="px-3 py-2 text-[11px] text-[var(--text-tertiary)] italic">
+                <p className="px-2 py-2 text-[11px] text-[var(--text-tertiary)] italic">
                   No lists yet
                 </p>
               )}
@@ -477,17 +438,17 @@ export function ContactsListPage() {
           </div>
 
           {/* Other section */}
-          <div>
-            <div className="px-1 mb-2">
-              <span className="text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-widest">
+          <div className="pt-2">
+            <div className="px-2 mb-1">
+              <span className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-widest">
                 Other
               </span>
             </div>
             <Link
               to="/suppression"
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-[var(--text-secondary)] hover:text-red-500 hover:bg-red-500/10 transition-all"
+              className="w-full flex items-center gap-2 h-8 px-2.5 rounded-[6px] text-[12px] font-medium text-[var(--text-secondary)] hover:text-rose-500 hover:bg-rose-500/10 transition-all"
             >
-              <ShieldOff className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={1.5} />
+              <ShieldOff className="h-3 w-3 flex-shrink-0" />
               <span className="flex-1 text-left">Do not email</span>
             </Link>
           </div>
@@ -550,65 +511,68 @@ export function ContactsListPage() {
       )}
 
       {/* Main content */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 space-y-5">
         {/* Header */}
-        <div className="flex items-start justify-between mb-8">
-          <div>
-            <h1 className="text-[18px] font-semibold text-[var(--text-primary)]">{currentListName}</h1>
-            <p className="text-sm text-[var(--text-secondary)] mt-1.5">
-              {totalContacts === 0
-                ? 'No contacts yet -- start building your audience'
-                : `${totalContacts.toLocaleString()} contact${totalContacts !== 1 ? 's' : ''} in your database`
-              }
-            </p>
+        <PageHeader
+          icon={<Users className="h-4 w-4 text-white" />}
+          iconBg="bg-gradient-to-br from-[#6366F1] to-[#8B5CF6]"
+          title={currentListName}
+          description={totalContacts === 0
+            ? 'No contacts yet — start building your audience'
+            : `${totalContacts.toLocaleString()} contact${totalContacts !== 1 ? 's' : ''} in your database`
+          }
+          actions={
+            <div className="flex items-center gap-2">
+              <button onClick={() => setShowImportModal(true)} className="btn-secondary rounded-lg text-[12px] h-8 px-3 gap-1.5">
+                <Upload className="h-3.5 w-3.5" />
+                Import CSV
+              </button>
+              <button onClick={handleExport} className="btn-secondary rounded-lg text-[12px] h-8 px-3 gap-1.5">
+                <Download className="h-3.5 w-3.5" />
+                Export
+              </button>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white text-[12px] font-semibold hover:opacity-90 transition-all shadow-[0_1px_3px_rgba(99,102,241,0.4)]"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Contact
+              </button>
+            </div>
+          }
+        />
+
+        {/* KPI strip */}
+        {stats && (
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard label="Total contacts" value={stats.total} icon={<Users className="h-3.5 w-3.5" />} accent="text-[var(--text-primary)]" />
+            <StatCard label="Verified" value={stats.verified ?? 0} icon={<ShieldCheck className="h-3.5 w-3.5" />} accent="text-emerald-600" />
+            <StatCard label="Lists" value={(lists?.length ?? 0)} icon={<FolderOpen className="h-3.5 w-3.5" />} accent="text-[#6366F1]" />
           </div>
-          <div className="flex items-center gap-2.5 pt-1">
-            <button
-              onClick={() => setShowImportModal(true)}
-              className="btn-secondary rounded-lg"
-            >
-              <Upload className="h-4 w-4" />
-              Import CSV
-            </button>
-            <button
-              onClick={handleExport}
-              className="btn-secondary rounded-lg"
-            >
-              <Download className="h-4 w-4" />
-              Export
-            </button>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white text-sm font-semibold hover:opacity-90 transition-all shadow-[0_2px_8px_rgba(99,102,241,0.35)]"
-            >
-              <Plus className="h-4 w-4" />
-              Add Contact
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* Search and filters bar */}
-        <div className="flex items-center gap-3 mb-5">
+        <div className="flex items-center gap-2.5">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-tertiary)]" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
             <input
               type="text"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Search by name, email, or company..."
-              className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] shadow-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--border-default)] focus:shadow-[0_0_0_3px_var(--bg-elevated)] transition-all duration-200"
+              placeholder="Search by name, email, or company…"
+              className="w-full h-8 pl-8 pr-4 text-[12px] rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[#6366F1] focus:ring-2 focus:ring-[#6366F1]/20 transition-all"
             />
             {search && (
               <button
                 onClick={() => { setSearch(''); setPage(1); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] rounded transition-colors"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 icon-btn h-4 w-4"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="h-3 w-3" />
               </button>
             )}
           </div>
           {search && (
-            <span className="text-[12px] font-medium text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-3 py-1.5 rounded-full">
+            <span className="text-[11px] font-medium text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-2.5 py-1 rounded-md">
               {totalContacts} result{totalContacts !== 1 ? 's' : ''}
             </span>
           )}
@@ -711,7 +675,6 @@ export function ContactsListPage() {
               <tbody>
                 {contacts.map((contact: any, index: number) => {
                   const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
-                  const initials = getInitials(contact.first_name, contact.last_name, contact.email);
                   return (
                     <tr
                       key={contact.id}
@@ -723,7 +686,7 @@ export function ContactsListPage() {
                           : "hover:bg-[var(--bg-hover)]"
                       )}
                     >
-                      <td className="px-5 py-2.5">
+                      <td className="px-4 py-2.5">
                         <input
                           type="checkbox"
                           checked={selectedContacts.has(contact.id)}
@@ -734,19 +697,19 @@ export function ContactsListPage() {
                       <td className="px-4 py-2.5">
                         <button
                           onClick={() => navigate(`/contacts/${contact.id}`)}
-                          className="flex items-center gap-3 group/name"
+                          className="flex items-center gap-2.5"
                         >
-                          <div className={`flex-shrink-0 h-9 w-9 rounded-full bg-gradient-to-br ${getAvatarGradient(initials)} flex items-center justify-center shadow-sm`}>
-                            <span className="text-white text-xs font-bold leading-none">
-                              {initials}
-                            </span>
-                          </div>
-                          <div className="min-w-0">
-                            <span className="text-sm font-medium text-[var(--text-primary)] group-hover/name:text-[var(--text-primary)] transition-colors">
+                          <Avatar
+                            name={fullName || contact.email}
+                            email={contact.email}
+                            size="sm"
+                          />
+                          <div className="min-w-0 text-left">
+                            <span className="text-[13px] font-medium text-[var(--text-primary)]">
                               {fullName || '---'}
                             </span>
                             {contact.job_title && (
-                              <p className="text-[12px] text-[var(--text-tertiary)] truncate mt-0.5">
+                              <p className="text-[11px] text-[var(--text-tertiary)] truncate">
                                 {contact.job_title}
                               </p>
                             )}
@@ -754,41 +717,38 @@ export function ContactsListPage() {
                         </button>
                       </td>
                       <td className="px-4 py-2.5">
-                        <span className="text-sm text-[var(--text-secondary)]">{contact.email}</span>
+                        <span className="text-[12px] text-[var(--text-secondary)]">{contact.email}</span>
                       </td>
                       <td className="px-4 py-2.5">
-                        {contact.company ? (
-                          <span className="inline-flex items-center text-sm text-[var(--text-secondary)]">
-                            {contact.company}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-[var(--text-muted)]">---</span>
-                        )}
+                        {contact.company
+                          ? <span className="text-[12px] text-[var(--text-secondary)]">{contact.company}</span>
+                          : <span className="text-[12px] text-[var(--text-tertiary)]">—</span>
+                        }
                       </td>
                       <td className="px-4 py-2.5">
-                        <span className="text-[12px] text-[var(--text-tertiary)]">
+                        <span className="text-[11px] text-[var(--text-tertiary)]">
                           {formatDate(contact.created_at)}
                         </span>
                       </td>
                       <td className="px-4 py-2.5">
                         {contact.is_bounced ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border text-red-700 bg-red-50 border-red-200" title="Hard bounce — will not be emailed">
+                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold text-rose-700 bg-rose-500/10">
                             <ShieldX className="h-3 w-3" />
                             Bounced
                           </span>
                         ) : contact.is_unsubscribed ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border text-amber-700 bg-amber-50 border-amber-200" title="Opted out — will not be emailed">
+                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold text-amber-700 bg-amber-500/10">
                             <ShieldX className="h-3 w-3" />
                             Opted out
                           </span>
                         ) : contact.dcs_score !== null && contact.dcs_score !== undefined ? (
                           <span title={`DCS: ${contact.dcs_score}/100`} className={cn(
-                            'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border',
+                            'inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold',
                             contact.dcs_score >= 80
-                              ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                              ? 'text-emerald-700 bg-emerald-500/10'
                               : contact.dcs_score >= 50
-                              ? 'text-amber-700 bg-amber-50 border-amber-200'
-                              : 'text-red-700 bg-red-50 border-red-200'
+                              ? 'text-amber-700 bg-amber-500/10'
+                              : 'text-rose-700 bg-rose-500/10'
                           )}>
                             {contact.dcs_score >= 80
                               ? <ShieldCheck className="h-3 w-3" />
@@ -799,24 +759,18 @@ export function ContactsListPage() {
                             {contact.dcs_score}
                           </span>
                         ) : (
-                          <span className="text-[11px] text-[var(--text-muted)]">—</span>
+                          <span className="text-[11px] text-[var(--text-tertiary)]">—</span>
                         )}
                       </td>
                       <td className="px-4 py-2.5">
-                        <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                          <button
-                            onClick={() => openEdit(contact)}
-                            className="p-2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] rounded-lg transition-all duration-200"
-                            title="Edit contact"
-                          >
+                        <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => openEdit(contact)} className="icon-btn" title="Edit">
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
                           <button
-                            onClick={() => {
-                              if (confirm('Delete this contact?')) deleteMutation.mutate(contact.id);
-                            }}
-                            className="p-2 text-[var(--text-tertiary)] hover:text-[var(--error)] hover:bg-[var(--error-bg)] rounded-lg transition-all duration-200"
-                            title="Delete contact"
+                            onClick={() => { if (confirm('Delete this contact?')) deleteMutation.mutate(contact.id); }}
+                            className="icon-btn hover:text-rose-500 hover:bg-rose-500/10"
+                            title="Delete"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>

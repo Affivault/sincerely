@@ -8,7 +8,10 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
 import { EmptyState } from '../../components/shared/EmptyState';
-import { formatDate } from '../../lib/utils';
+import { PageHeader } from '../../components/shared/PageHeader';
+import { Card, CardHeader, CardTitle, CardDescription } from '../../components/shared/Card';
+import { StatCard } from '../../components/shared/StatCard';
+import { formatDate, cn } from '../../lib/utils';
 import {
   Mail,
   Plus,
@@ -277,118 +280,108 @@ export function SmtpAccountsPage() {
   const passwordLabel = activePreset?.password_hint || 'Password';
   const passwordPlaceholder = activePreset?.password_hint || (editId ? 'Leave blank to keep current' : 'Enter password or app key');
 
+  const verifiedCount = (accounts || []).filter((a: SmtpAccount) => a.is_verified).length;
+  const sentTodayTotal = (accounts || []).reduce((sum: number, a: SmtpAccount) => sum + a.sends_today, 0);
+
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-primary">SMTP Accounts</h1>
-          <p className="text-sm text-secondary mt-1">Manage your email sending accounts</p>
+    <div>
+      <PageHeader
+        decorate
+        leading={
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
+            <Server className="h-4 w-4 text-[var(--indigo)]" />
+          </span>
+        }
+        title="Sending accounts"
+        description="Connect SMTP / IMAP credentials so SkySend can send and read replies on your behalf."
+        meta={
+          accounts && accounts.length > 0 ? (
+            <>
+              <span className="tabular">{accounts.length} connected</span>
+              <span className="sep-dot" />
+              <span className="tabular">{verifiedCount} verified</span>
+              <span className="sep-dot" />
+              <span className="tabular">{sentTodayTotal.toLocaleString()} sent today</span>
+            </>
+          ) : undefined
+        }
+        actions={
+          <>
+            <Link to="/smtp-accounts/guide" className="icon-btn h-8 px-2.5 text-[12.5px]">
+              <HelpCircle className="h-3.5 w-3.5" /> Setup guide
+            </Link>
+            <Button size="sm" onClick={handleAddCustom}>
+              <Plus className="h-3.5 w-3.5" /> Add account
+            </Button>
+          </>
+        }
+      />
+
+      {/* KPI strip */}
+      {accounts && accounts.length > 0 && (
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <StatCard icon={Server} accent="indigo"   label="Total accounts" value={accounts.length} />
+          <StatCard icon={CheckCircle2} accent="emerald" label="Verified"     value={verifiedCount} hint={accounts.length > 0 ? `${Math.round((verifiedCount / accounts.length) * 100)}% verified` : undefined} />
+          <StatCard icon={Mail} accent="violet"     label="Sent today"    value={sentTodayTotal.toLocaleString()} />
         </div>
-        <div className="flex items-center gap-3">
-          <Link
-            to="/smtp-accounts/guide"
-            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-secondary border border-default rounded-md hover:bg-hover hover:text-primary transition-colors"
-          >
-            <HelpCircle className="h-4 w-4" />
-            Setup Guide
-          </Link>
-          <Button variant="primary" onClick={handleAddCustom}>
-            <Plus className="h-4 w-4" />
-            Add Account
-          </Button>
-        </div>
-      </div>
+      )}
 
       {/* Quick Connect */}
-      <div className="rounded-lg border border-subtle bg-surface p-4">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-sm font-medium text-primary flex items-center gap-2">
-              <Zap className="h-4 w-4 text-[#818CF8]" />
-              Quick Connect
-            </h2>
-            <p className="text-sm text-secondary mt-0.5">Pre-configured settings for popular providers</p>
-          </div>
-        </div>
+      <Card padding="md" className="mb-3">
+        <CardHeader>
+          <CardTitle>
+            <span className="inline-flex items-center gap-1.5">
+              <Zap className="h-3.5 w-3.5 text-[var(--indigo)]" />
+              Quick connect
+            </span>
+          </CardTitle>
+          <CardDescription>Pre-configured settings for popular providers. Just enter email and password.</CardDescription>
+        </CardHeader>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2">
           {QUICK_PROVIDERS.map((provider) => (
             <button
               key={provider.preset.name}
               onClick={() => handleQuickConnect(provider)}
-              className="group flex items-center gap-3 p-3 rounded-md border border-default hover:bg-hover transition-colors text-left"
+              className="group surface flex items-center gap-2.5 p-2.5 hover:shadow-[var(--shadow-md)] hover:border-[rgba(91,91,245,0.25)] transition-all text-left"
             >
-              <div className="flex items-center justify-center w-10 h-10 rounded-md bg-surface border border-subtle shrink-0">
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] shrink-0">
                 {provider.icon}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-primary truncate">{provider.preset.name}</p>
-                <p className="text-xs text-secondary truncate">{provider.description}</p>
+                <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{provider.preset.name}</p>
+                <p className="text-[11.5px] text-[var(--text-tertiary)] truncate">{provider.description}</p>
               </div>
-              <ArrowRight className="h-4 w-4 text-tertiary group-hover:text-secondary transition-colors shrink-0" />
+              <ArrowRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] group-hover:text-[var(--indigo)] transition-colors shrink-0" />
             </button>
           ))}
         </div>
 
-        <p className="text-xs text-tertiary mt-3 flex items-center gap-1">
+        <p className="text-[11.5px] text-[var(--text-tertiary)] mt-2.5 flex items-center gap-1">
           <Globe className="h-3 w-3" />
-          {SMTP_PRESETS.length} providers supported &mdash; or type any email to auto-detect
+          {SMTP_PRESETS.length} providers supported — or type any email to auto-detect.
         </p>
-      </div>
+      </Card>
 
       {/* Domain verification prompt */}
-      <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-start gap-3">
-            <Globe className="h-5 w-5 text-[var(--text-secondary)] mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-[var(--text-primary)]">Sending from your own domain?</p>
-              <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                Set up SPF, DKIM &amp; DMARC records to improve deliverability and prevent emails from going to spam.
+      <Card padding="md" className="mb-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-[8px] bg-emerald-500/8 flex-shrink-0">
+              <Globe className="h-3.5 w-3.5 text-emerald-600" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[13px] font-medium text-[var(--text-primary)]">Sending from your own domain?</p>
+              <p className="text-[12px] text-[var(--text-secondary)] mt-0.5">
+                Set up SPF, DKIM &amp; DMARC records to improve deliverability and stay out of spam folders.
               </p>
             </div>
           </div>
-          <Link
-            to="/domains"
-            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] border border-[var(--border-default)] rounded-md hover:bg-[var(--bg-hover)] transition-colors"
-          >
-            Verify Domain
-            <ArrowRight className="h-3.5 w-3.5" />
+          <Link to="/domains" className="icon-btn h-8 px-3 text-[12.5px] flex-shrink-0">
+            Verify domain <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
-      </div>
-
-      {/* Stats */}
-      {accounts && accounts.length > 0 && (
-        <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-lg border border-subtle bg-surface p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Server className="h-4 w-4 text-secondary" />
-              <span className="text-sm text-secondary">Total Accounts</span>
-            </div>
-            <p className="text-2xl font-semibold text-primary">{accounts.length}</p>
-          </div>
-          <div className="rounded-lg border border-subtle bg-surface p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <CheckCircle2 className="h-4 w-4 text-secondary" />
-              <span className="text-sm text-secondary">Verified</span>
-            </div>
-            <p className="text-2xl font-semibold text-primary">
-              {accounts.filter((a: SmtpAccount) => a.is_verified).length}
-            </p>
-          </div>
-          <div className="rounded-lg border border-subtle bg-surface p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Mail className="h-4 w-4 text-secondary" />
-              <span className="text-sm text-secondary">Sent Today</span>
-            </div>
-            <p className="text-2xl font-semibold text-primary">
-              {accounts.reduce((sum: number, a: SmtpAccount) => sum + a.sends_today, 0)}
-            </p>
-          </div>
-        </div>
-      )}
+      </Card>
 
       {/* Empty State or List */}
       {(!accounts || accounts.length === 0) ? (
@@ -400,94 +393,97 @@ export function SmtpAccountsPage() {
           onAction={handleAddCustom}
         />
       ) : (
-        <div className="space-y-3">
-          {accounts.map((account: SmtpAccount) => (
-            <div
-              key={account.id}
-              className="group rounded-lg border border-subtle bg-surface p-4 transition-colors hover:bg-hover"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-4">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-md bg-[rgba(99,102,241,0.08)] border border-[rgba(99,102,241,0.12)]">
-                    <Mail className="h-5 w-5 text-[#6366F1]" />
+        <div className="space-y-2">
+          {accounts.map((account: SmtpAccount) => {
+            const limit = account.warmup_mode ? account.warmup_daily_target : account.daily_send_limit;
+            const pct = limit > 0 ? Math.round((account.sends_today / limit) * 100) : 0;
+            const healthColor = account.health_score >= 80 ? 'text-emerald-600' : account.health_score >= 50 ? 'text-amber-600' : 'text-rose-600';
+            return (
+              <div
+                key={account.id}
+                className="group card card-hover p-4 relative overflow-hidden"
+              >
+                <span className={cn('absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full', account.is_verified ? 'bg-emerald-500' : 'bg-slate-400')} />
+
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)] flex-shrink-0">
+                      <Mail className="h-4 w-4 text-[var(--indigo)]" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <h3 className="text-[14px] font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">{account.label}</h3>
+                        {account.is_verified ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-[10.5px] font-medium text-emerald-700 bg-emerald-500/10 rounded-[4px]">
+                            <CheckCircle2 className="h-2.5 w-2.5" /> Verified
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-[10.5px] font-medium text-[var(--text-secondary)] bg-[var(--bg-elevated)] rounded-[4px]">
+                            <XCircle className="h-2.5 w-2.5" /> Unverified
+                          </span>
+                        )}
+                        {account.warmup_mode && (
+                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-[10.5px] font-medium text-amber-700 bg-amber-500/10 rounded-[4px]">
+                            Warming up
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[12.5px] text-[var(--text-secondary)] truncate">{account.email_address}</p>
+                      <div className="flex items-center gap-1.5 text-[11.5px] text-[var(--text-tertiary)] mt-1 tabular">
+                        <span>{account.smtp_host}:{account.smtp_port}</span>
+                        <span className="sep-dot" />
+                        <span>{account.sends_today}/{limit} today</span>
+                        <span className="sep-dot" />
+                        <span className={healthColor}>Health {account.health_score}%</span>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-medium text-primary">{account.label}</h3>
-                      {account.is_verified ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium text-primary bg-elevated rounded">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Verified
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium text-secondary bg-elevated rounded">
-                          <XCircle className="h-3 w-3" />
-                          Unverified
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-secondary">{account.email_address}</p>
-                    <div className="flex items-center gap-2 text-sm text-tertiary mt-1">
-                      <span>{account.smtp_host}:{account.smtp_port}</span>
-                      <span>·</span>
-                      <span>{account.sends_today}/{account.warmup_mode ? account.warmup_daily_target : account.daily_send_limit} today</span>
-                      {account.warmup_mode && (
-                        <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-amber-500/10 text-amber-600">Warming up</span>
-                      )}
-                      <span>·</span>
-                      <span>Health: {account.health_score}%</span>
-                    </div>
+
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                    <button
+                      onClick={() => testMutation.mutate(account.id)}
+                      disabled={testMutation.isPending}
+                      className="icon-btn h-7 px-2 text-[11.5px]"
+                      title="Test connection"
+                    >
+                      <TestTube className="h-3 w-3" /> Test
+                    </button>
+                    <button
+                      onClick={() => openEdit(account)}
+                      className="icon-btn h-7 px-2 text-[11.5px]"
+                      title="Edit"
+                    >
+                      <Settings className="h-3 w-3" /> Edit
+                    </button>
+                    <button
+                      onClick={() => { if (confirm('Delete this SMTP account?')) deleteMutation.mutate(account.id); }}
+                      className="icon-btn hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => testMutation.mutate(account.id)}
-                    disabled={testMutation.isPending}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-secondary hover:text-primary hover:bg-elevated rounded-md transition-colors"
-                  >
-                    <TestTube className="h-3.5 w-3.5" />
-                    Test
-                  </button>
-                  <button
-                    onClick={() => openEdit(account)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-secondary hover:text-primary hover:bg-elevated rounded-md transition-colors"
-                  >
-                    <Settings className="h-3.5 w-3.5" />
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (confirm('Delete this SMTP account?')) deleteMutation.mutate(account.id);
-                    }}
-                    className="flex items-center justify-center w-8 h-8 text-secondary hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                {/* Usage Bar */}
+                <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                  <div className="flex items-center justify-between text-[11px] text-[var(--text-tertiary)] mb-1">
+                    <span>{account.warmup_mode ? 'Warmup progress' : 'Daily usage'}</span>
+                    <span className="tabular">{pct}%</span>
+                  </div>
+                  <div className="h-1 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        'h-full transition-all duration-500',
+                        account.warmup_mode ? 'bg-gradient-to-r from-amber-400 to-amber-500' : 'bg-gradient-to-r from-[#5B5BF5] to-[#8B5CF6]'
+                      )}
+                      style={{ width: `${Math.min(pct, 100)}%` }}
+                    />
+                  </div>
                 </div>
               </div>
-
-              {/* Usage Bar */}
-              {(() => {
-                const limit = account.warmup_mode ? account.warmup_daily_target : account.daily_send_limit;
-                const pct = limit > 0 ? Math.round((account.sends_today / limit) * 100) : 0;
-                return (
-                  <div className="mt-4">
-                    <div className="flex items-center justify-between text-xs text-tertiary mb-1">
-                      <span>{account.warmup_mode ? 'Warmup progress' : 'Daily usage'}</span>
-                      <span>{pct}%</span>
-                    </div>
-                    <div className="h-1.5 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${account.warmup_mode ? 'bg-amber-500' : 'bg-[#6366F1]'}`}
-                        style={{ width: `${Math.min(pct, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

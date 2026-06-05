@@ -7,7 +7,8 @@ import { Spinner } from '../../components/ui/Spinner';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { StatusBadge } from '../../components/shared/StatusBadge';
-import { formatDate, formatDateTime, formatTimeUntil } from '../../lib/utils';
+import { Avatar } from '../../components/shared/Avatar';
+import { formatDate, formatDateTime, formatTimeUntil, cn } from '../../lib/utils';
 import {
   ArrowLeft,
   Play,
@@ -151,85 +152,86 @@ export function CampaignDetailPage() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      {/* Top nav */}
       <button
         onClick={() => navigate('/campaigns')}
-        className="flex items-center gap-1 text-sm text-secondary hover:text-primary transition-colors"
+        className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group"
       >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Campaigns
+        <ArrowLeft className="h-3.5 w-3.5 group-hover:-translate-x-0.5 transition-transform" />
+        Campaigns
       </button>
 
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold text-primary">{campaign.name}</h1>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-[18px] font-semibold text-[var(--text-primary)] truncate">{campaign.name}</h1>
             <StatusBadge status={campaign.status} type="campaign" />
           </div>
-          <p className="mt-1 text-sm text-secondary">
+          <p className="mt-0.5 text-[12px] text-[var(--text-secondary)]">
             Created {formatDate(campaign.created_at)}
             {campaign.started_at && ` · Started ${formatDate(campaign.started_at)}`}
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" title="Clone campaign" onClick={() => cloneMutation.mutate()}>
-            <Copy className="h-4 w-4" /> Clone
-          </Button>
+        <div className="flex gap-2 flex-shrink-0">
+          <button title="Clone campaign" onClick={() => cloneMutation.mutate()} className="icon-btn">
+            <Copy className="h-3.5 w-3.5" />
+          </button>
           {campaign.status === 'draft' && (
             <>
-              <Button variant="secondary" onClick={() => navigate(`/campaigns/${id}/edit`)}>
-                <Pencil className="h-4 w-4" /> Edit
-              </Button>
-              <Button onClick={() => launchMutation.mutate()}>
-                <Play className="h-4 w-4" /> Launch
-              </Button>
+              <button onClick={() => navigate(`/campaigns/${id}/edit`)} className="btn-secondary text-[12px] h-8 px-3 rounded-lg gap-1.5">
+                <Pencil className="h-3.5 w-3.5" /> Edit
+              </button>
+              <button onClick={() => launchMutation.mutate()} className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white text-[12px] font-semibold hover:opacity-90 transition-all shadow-[0_1px_3px_rgba(99,102,241,0.4)]">
+                <Play className="h-3.5 w-3.5" /> Launch
+              </button>
             </>
           )}
           {campaign.status === 'running' && (
             <>
-              <Button variant="secondary" onClick={() => pauseMutation.mutate()}>
-                <Pause className="h-4 w-4" /> Pause
-              </Button>
-              <Button variant="danger" onClick={() => cancelMutation.mutate()}>
-                <Square className="h-4 w-4" /> Cancel
-              </Button>
+              <button onClick={() => pauseMutation.mutate()} className="btn-secondary text-[12px] h-8 px-3 rounded-lg gap-1.5">
+                <Pause className="h-3.5 w-3.5" /> Pause
+              </button>
+              <button onClick={() => cancelMutation.mutate()} className="btn-secondary text-[12px] h-8 px-3 rounded-lg gap-1.5 hover:text-rose-500 hover:border-rose-500/30">
+                <Square className="h-3.5 w-3.5" /> Cancel
+              </button>
             </>
           )}
           {campaign.status === 'paused' && (
             <>
-              <Button onClick={() => resumeMutation.mutate()}>
-                <Play className="h-4 w-4" /> Resume
-              </Button>
-              <Button variant="danger" onClick={() => cancelMutation.mutate()}>
-                <Square className="h-4 w-4" /> Cancel
-              </Button>
+              <button onClick={() => resumeMutation.mutate()} className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white text-[12px] font-semibold hover:opacity-90 transition-all">
+                <Play className="h-3.5 w-3.5" /> Resume
+              </button>
+              <button onClick={() => cancelMutation.mutate()} className="btn-secondary text-[12px] h-8 px-3 rounded-lg gap-1.5 hover:text-rose-500 hover:border-rose-500/30">
+                <Square className="h-3.5 w-3.5" /> Cancel
+              </button>
             </>
           )}
           {(campaign.status === 'draft' || campaign.status === 'completed' || campaign.status === 'cancelled') && (
-            <Button
-              variant="danger"
-              onClick={() => {
-                if (confirm('Delete this campaign permanently?')) deleteMutation.mutate();
-              }}
+            <button
+              onClick={() => { if (confirm('Delete this campaign permanently?')) deleteMutation.mutate(); }}
+              className="icon-btn hover:text-rose-500 hover:bg-rose-500/10"
+              title="Delete"
             >
-              <Trash2 className="h-4 w-4" /> Delete
-            </Button>
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
           )}
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-[var(--bg-elevated)] rounded-2xl w-fit">
+      {/* Tabs — segmented control */}
+      <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 ${
+            className={cn(
+              'px-3.5 h-7 rounded-md text-[12px] font-medium transition-all',
               activeTab === tab.id
-                ? 'bg-[rgba(99,102,241,0.1)] text-[#6366F1]'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-            }`}
+                ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+            )}
           >
             {tab.label}
           </button>
@@ -343,62 +345,66 @@ export function CampaignDetailPage() {
       {activeTab === 'contacts' && (
         <div>
           {!campaignContacts?.data?.length ? (
-            <p className="py-8 text-center text-sm text-tertiary">No contacts in this campaign.</p>
+            <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bg-elevated)] mb-3">
+                <MessageSquare className="h-5 w-5 text-[var(--text-tertiary)]" />
+              </span>
+              <p className="text-[13px] text-[var(--text-secondary)]">No contacts in this campaign.</p>
+            </div>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-subtle bg-surface">
-              <table className="w-full text-sm">
+            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
+              <table className="w-full">
                 <thead>
-                  <tr className="border-b border-subtle text-left text-tertiary">
-                    <th className="px-4 py-3 font-medium">Contact</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium">Progress</th>
-                    <th className="px-4 py-3 font-medium">Next Send</th>
-                    <th className="px-4 py-3 font-medium">Error</th>
+                  <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+                    <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Contact</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Status</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Progress</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Next Send</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Error</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {campaignContacts.data.map((cc: any) => {
+                  {campaignContacts.data.map((cc: any, i: number) => {
                     const totalSteps = campaign.steps?.length || 0;
                     const currentStep = (cc.current_step_order ?? 0) + 1;
                     const progressPct = totalSteps > 0 ? Math.min(100, Math.round((currentStep / totalSteps) * 100)) : 0;
+                    const fullName = [cc.contact?.first_name, cc.contact?.last_name].filter(Boolean).join(' ');
                     return (
-                    <tr key={cc.id} className="border-b border-subtle last:border-0 hover:bg-hover">
-                      <td className="px-4 py-3">
-                        <span className="font-medium text-primary">
-                          {[cc.contact?.first_name, cc.contact?.last_name].filter(Boolean).join(' ') || cc.contact?.email || '—'}
-                        </span>
-                        {cc.contact?.email && (
-                          <span className="ml-2 text-tertiary">{cc.contact.email}</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={cc.status} type="contact" />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2 min-w-[120px]">
-                          <div className="flex-1 h-1.5 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-[#6366F1] transition-all duration-300"
-                              style={{ width: `${progressPct}%` }}
-                            />
+                      <tr key={cc.id} className={cn("hover:bg-[var(--bg-hover)] transition-colors", i < campaignContacts.data.length - 1 && "border-b border-[var(--border-subtle)]")}>
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <Avatar name={fullName || cc.contact?.email || '?'} email={cc.contact?.email} size="sm" />
+                            <div className="min-w-0">
+                              <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">{fullName || '—'}</p>
+                              {cc.contact?.email && <p className="text-[11px] text-[var(--text-tertiary)] truncate">{cc.contact.email}</p>}
+                            </div>
                           </div>
-                          <span className="text-xs text-secondary whitespace-nowrap">
-                            {totalSteps > 0 ? `${currentStep}/${totalSteps}` : `Step ${currentStep}`}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        {cc.next_send_at ? (
-                          <span
-                            className="text-secondary text-sm"
-                            title={formatDateTime(cc.next_send_at)}
-                          >
-                            {formatTimeUntil(cc.next_send_at)}
-                          </span>
-                        ) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-[var(--error)]">{cc.error_message || '—'}</td>
-                    </tr>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <StatusBadge status={cc.status} type="contact" />
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-2 min-w-[120px]">
+                            <div className="flex-1 h-1 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] transition-all duration-300"
+                                style={{ width: `${progressPct}%` }}
+                              />
+                            </div>
+                            <span className="text-[11px] tabular text-[var(--text-secondary)] whitespace-nowrap">
+                              {totalSteps > 0 ? `${currentStep}/${totalSteps}` : `Step ${currentStep}`}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {cc.next_send_at ? (
+                            <span className="text-[12px] text-[var(--text-secondary)]" title={formatDateTime(cc.next_send_at)}>
+                              {formatTimeUntil(cc.next_send_at)}
+                            </span>
+                          ) : <span className="text-[12px] text-[var(--text-tertiary)]">—</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-[11px] text-rose-500">{cc.error_message || '—'}</td>
+                      </tr>
                     );
                   })}
                 </tbody>
@@ -474,12 +480,12 @@ function ContactProgressCard({ campaign }: { campaign: any }) {
   );
 }
 
-const STAT_CARD_ICON_BG: Record<string, string> = {
-  sent: 'bg-gradient-to-br from-[#6366F1] to-[#8B5CF6]',
-  opened: 'bg-gradient-to-br from-blue-500 to-cyan-500',
-  clicked: 'bg-gradient-to-br from-violet-500 to-purple-600',
-  replied: 'bg-gradient-to-br from-emerald-500 to-teal-500',
-  bounced: 'bg-gradient-to-br from-red-500 to-rose-600',
+const STAT_CARD_CFG: Record<string, { iconBg: string; accent: string }> = {
+  sent:    { iconBg: 'bg-gradient-to-br from-[#6366F1] to-[#8B5CF6]', accent: 'text-[#6366F1]' },
+  opened:  { iconBg: 'bg-gradient-to-br from-blue-500 to-cyan-500',   accent: 'text-blue-600'   },
+  clicked: { iconBg: 'bg-gradient-to-br from-violet-500 to-purple-600', accent: 'text-violet-600' },
+  replied: { iconBg: 'bg-gradient-to-br from-emerald-500 to-teal-500', accent: 'text-emerald-600' },
+  bounced: { iconBg: 'bg-gradient-to-br from-red-500 to-rose-600',    accent: 'text-rose-600'   },
 };
 
 function StatCard({ icon: Icon, label, value, rate, isNegative, colorVariant }: {
@@ -490,20 +496,20 @@ function StatCard({ icon: Icon, label, value, rate, isNegative, colorVariant }: 
   isNegative?: boolean;
   colorVariant?: string;
 }) {
-  const iconBg = colorVariant ? (STAT_CARD_ICON_BG[colorVariant] || STAT_CARD_ICON_BG.sent) : (isNegative ? STAT_CARD_ICON_BG.bounced : STAT_CARD_ICON_BG.sent);
+  const cfg = colorVariant ? (STAT_CARD_CFG[colorVariant] || STAT_CARD_CFG.sent) : (isNegative ? STAT_CARD_CFG.bounced : STAT_CARD_CFG.sent);
   return (
-    <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
+    <div className="card p-4">
       <div className="flex items-center gap-2 mb-3">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconBg}`}>
-          <Icon className="h-5 w-5 text-white" />
-        </div>
-        <span className="text-sm text-secondary">{label}</span>
+        <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0', cfg.iconBg)}>
+          <Icon className="h-3.5 w-3.5 text-white" />
+        </span>
+        <span className="text-[11px] font-medium text-[var(--text-secondary)] uppercase tracking-wider">{label}</span>
       </div>
-      <p className="text-[22px] font-bold text-primary">{value}</p>
+      <p className={cn('text-[20px] font-bold', cfg.accent)}>{value}</p>
       {rate !== undefined && rate > 0 && (
-        <span className="inline-block mt-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-[rgba(99,102,241,0.08)] text-[#6366F1]">{rate}%</span>
+        <span className="inline-flex items-center mt-1.5 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold bg-[rgba(99,102,241,0.08)] text-[#6366F1]">{rate}%</span>
       )}
-      {rate !== undefined && rate === 0 && <p className="text-xs text-tertiary mt-1">0%</p>}
+      {rate !== undefined && rate === 0 && <p className="text-[10px] text-[var(--text-tertiary)] mt-1 tabular">0%</p>}
     </div>
   );
 }
@@ -516,42 +522,43 @@ function formatDelay(days: number, hours: number, minutes: number): string {
   return parts.length > 0 ? `Wait ${parts.join(' ')}` : 'Wait (no delay set)';
 }
 
-const STEP_BORDER: Record<string, string> = {
-  email: 'border-l-[#6366F1]',
-  delay: 'border-l-amber-500',
-  condition: 'border-l-blue-500',
-  webhook_wait: 'border-l-emerald-500',
+const STEP_CFG: Record<string, { accent: string; iconColor: string; iconBg: string }> = {
+  email:       { accent: 'bg-[#6366F1]',   iconColor: 'text-[#6366F1]',   iconBg: 'bg-[rgba(99,102,241,0.1)]'  },
+  delay:       { accent: 'bg-amber-500',    iconColor: 'text-amber-500',   iconBg: 'bg-amber-500/10'            },
+  condition:   { accent: 'bg-blue-500',     iconColor: 'text-blue-500',    iconBg: 'bg-blue-500/10'             },
+  webhook_wait:{ accent: 'bg-emerald-500',  iconColor: 'text-emerald-500', iconBg: 'bg-emerald-500/10'          },
 };
 
 function SequenceStepCard({ step, index }: { step: CampaignStep; index: number }) {
-  const borderColor = STEP_BORDER[step.step_type] || 'border-l-zinc-500';
+  const cfg = STEP_CFG[step.step_type] || STEP_CFG.email;
 
   return (
-    <div className={`rounded-lg border border-subtle bg-surface p-4 overflow-hidden border-l-[3px] ${borderColor}`}>
-      <div className="flex items-center gap-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[rgba(99,102,241,0.1)] text-xs font-semibold text-[#6366F1]">
+    <div className="card card-hover relative overflow-hidden">
+      <div className={cn('absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full', cfg.accent)} />
+      <div className="flex items-center gap-3 pl-3">
+        <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold', cfg.iconBg, cfg.iconColor)}>
           {index + 1}
         </span>
 
         {step.step_type === 'email' && (
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 shrink-0 text-[#6366F1]" />
-              <span className="font-medium text-primary truncate">{step.subject || 'Untitled Email'}</span>
+              <Mail className={cn('h-3.5 w-3.5 shrink-0', cfg.iconColor)} />
+              <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">{step.subject || 'Untitled Email'}</span>
               {step.subject_b && (
-                <Badge variant="info">A/B</Badge>
+                <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold bg-[rgba(99,102,241,0.08)] text-[#6366F1]">A/B</span>
               )}
             </div>
             {step.body_text && (
-              <p className="mt-1 line-clamp-2 text-sm text-secondary">{step.body_text}</p>
+              <p className="mt-0.5 line-clamp-2 text-[11px] text-[var(--text-secondary)]">{step.body_text}</p>
             )}
           </div>
         )}
 
         {step.step_type === 'delay' && (
           <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-amber-500" />
-            <span className="font-medium text-primary">
+            <Clock className={cn('h-3.5 w-3.5', cfg.iconColor)} />
+            <span className="text-[13px] font-medium text-[var(--text-primary)]">
               {formatDelay(step.delay_days, step.delay_hours, step.delay_minutes)}
             </span>
           </div>
@@ -559,11 +566,11 @@ function SequenceStepCard({ step, index }: { step: CampaignStep; index: number }
 
         {step.step_type === 'condition' && (
           <div className="flex items-center gap-2">
-            <GitBranch className="h-4 w-4 text-blue-500" />
-            <span className="font-medium text-primary">
+            <GitBranch className={cn('h-3.5 w-3.5', cfg.iconColor)} />
+            <span className="text-[13px] font-medium text-[var(--text-primary)]">
               Condition: {step.condition_field || 'unknown'}
               {step.condition_operator && (
-                <span className="ml-1 text-secondary font-normal">
+                <span className="ml-1 text-[var(--text-secondary)] font-normal">
                   {step.condition_operator.replace(/_/g, ' ')}
                   {step.condition_value ? ` "${step.condition_value}"` : ''}
                 </span>
@@ -574,23 +581,23 @@ function SequenceStepCard({ step, index }: { step: CampaignStep; index: number }
 
         {step.step_type === 'webhook_wait' && (
           <div className="flex items-center gap-2">
-            <Webhook className="h-4 w-4 text-emerald-500" />
-            <span className="font-medium text-primary">
+            <Webhook className={cn('h-3.5 w-3.5', cfg.iconColor)} />
+            <span className="text-[13px] font-medium text-[var(--text-primary)]">
               Wait for webhook
               {step.webhook_event && (
-                <span className="ml-1 font-mono text-xs bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded text-secondary">
+                <span className="ml-1 font-mono text-[11px] bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded text-[var(--text-secondary)]">
                   {step.webhook_event}
                 </span>
               )}
             </span>
             {step.webhook_timeout_hours && (
-              <span className="text-xs text-tertiary">(timeout: {step.webhook_timeout_hours}h)</span>
+              <span className="text-[11px] text-[var(--text-tertiary)]">(timeout: {step.webhook_timeout_hours}h)</span>
             )}
           </div>
         )}
 
         {step.skip_if_replied && (
-          <Badge variant="info">Skip if replied</Badge>
+          <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold bg-[var(--bg-elevated)] text-[var(--text-secondary)] ml-auto flex-shrink-0">Skip if replied</span>
         )}
       </div>
     </div>

@@ -19,6 +19,8 @@ import {
   Mail,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { PageHeader } from '../../components/shared/PageHeader';
+import { StatCard } from '../../components/shared/StatCard';
 import toast from 'react-hot-toast';
 
 const INTENT_CONFIG: Record<string, { label: string; icon: typeof Bot }> = {
@@ -86,81 +88,60 @@ export function SaraQueuePage() {
   const messages = queue?.messages || [];
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-[var(--text-primary)]">SARA</h1>
-          <p className="text-sm text-[var(--text-secondary)] mt-0.5">
-            Smart Autonomous Reply Agent - AI-powered email responses
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            queryClient.invalidateQueries({ queryKey: ['sara-queue'] });
-            queryClient.invalidateQueries({ queryKey: ['sara-stats'] });
-          }}
-          className="btn-secondary"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        icon={<Bot className="h-4 w-4 text-white" />}
+        iconBg="bg-gradient-to-br from-violet-500 to-purple-700"
+        title="SARA"
+        description="Smart Autonomous Reply Agent — AI-powered email responses"
+        meta={stats?.pending_review ? [
+          { label: `${stats.pending_review} pending review`, dot: 'bg-amber-400' },
+        ] : undefined}
+        actions={
+          <button
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ['sara-queue'] });
+              queryClient.invalidateQueries({ queryKey: ['sara-stats'] });
+            }}
+            className="icon-btn"
+            title="Refresh"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </button>
+        }
+      />
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="p-4 border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-surface)]">
-          <div className="flex items-center gap-2 text-[var(--text-secondary)] mb-2">
-            <Inbox className="h-4 w-4" />
-            <span className="text-xs font-medium uppercase tracking-wider">Pending</span>
-          </div>
-          <p className="text-2xl font-semibold text-[var(--text-primary)]">{stats?.pending_review ?? 0}</p>
-        </div>
-        <div className="p-4 border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-surface)]">
-          <div className="flex items-center gap-2 text-[var(--text-secondary)] mb-2">
-            <CheckCircle2 className="h-4 w-4" />
-            <span className="text-xs font-medium uppercase tracking-wider">Approved Today</span>
-          </div>
-          <p className="text-2xl font-semibold text-[var(--text-primary)]">{stats?.approved_today ?? 0}</p>
-        </div>
-        <div className="p-4 border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-surface)]">
-          <div className="flex items-center gap-2 text-[var(--text-secondary)] mb-2">
-            <Send className="h-4 w-4" />
-            <span className="text-xs font-medium uppercase tracking-wider">Sent Today</span>
-          </div>
-          <p className="text-2xl font-semibold text-[var(--text-primary)]">{stats?.sent_today ?? 0}</p>
-        </div>
-        <div className="p-4 border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-surface)]">
-          <div className="flex items-center gap-2 text-[var(--text-secondary)] mb-2">
-            <XCircle className="h-4 w-4" />
-            <span className="text-xs font-medium uppercase tracking-wider">Dismissed Today</span>
-          </div>
-          <p className="text-2xl font-semibold text-[var(--text-primary)]">{stats?.dismissed_today ?? 0}</p>
-        </div>
+      {/* KPI strip */}
+      <div className="grid grid-cols-4 gap-3">
+        <StatCard label="Pending Review" value={stats?.pending_review ?? 0} icon={<Inbox className="h-3.5 w-3.5" />} accent="text-amber-600" />
+        <StatCard label="Approved Today" value={stats?.approved_today ?? 0} icon={<CheckCircle2 className="h-3.5 w-3.5" />} accent="text-emerald-600" />
+        <StatCard label="Sent Today" value={stats?.sent_today ?? 0} icon={<Send className="h-3.5 w-3.5" />} accent="text-[#6366F1]" />
+        <StatCard label="Dismissed Today" value={stats?.dismissed_today ?? 0} icon={<XCircle className="h-3.5 w-3.5" />} accent="text-[var(--text-secondary)]" />
       </div>
 
       {/* Intent Distribution */}
       {stats?.top_intents && stats.top_intents.length > 0 && (
-        <div className="p-4 border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-surface)]">
-          <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">Intent Distribution</h3>
-          <div className="flex gap-2 flex-wrap">
+        <div className="card p-4">
+          <h3 className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-3">Intent Distribution</h3>
+          <div className="flex gap-1.5 flex-wrap">
             {stats.top_intents.map((item: any) => {
               const config = INTENT_CONFIG[item.intent] || INTENT_CONFIG.other;
               const IntentIcon = config.icon;
+              const isActive = intentFilter === item.intent;
               return (
                 <button
                   key={item.intent}
-                  onClick={() => setIntentFilter(intentFilter === item.intent ? undefined : item.intent)}
+                  onClick={() => setIntentFilter(isActive ? undefined : item.intent)}
                   className={cn(
-                    'flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition-colors',
-                    intentFilter === item.intent
-                      ? 'bg-[var(--bg-elevated)] border-[var(--border-strong)] text-[var(--text-primary)]'
+                    'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium border transition-all',
+                    isActive
+                      ? 'bg-[rgba(99,102,241,0.1)] border-[rgba(99,102,241,0.3)] text-[#6366F1]'
                       : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]'
                   )}
                 >
-                  <IntentIcon className="h-3.5 w-3.5" />
+                  <IntentIcon className="h-3 w-3" />
                   {config.label}
-                  <span className="font-medium">{item.count}</span>
+                  <span className={cn('tabular', isActive ? 'text-[#6366F1]' : 'text-[var(--text-tertiary)]')}>{item.count}</span>
                 </button>
               );
             })}
@@ -168,34 +149,36 @@ export function SaraQueuePage() {
         </div>
       )}
 
-      {/* Status Tabs */}
-      <div className="flex items-center gap-1 border-b border-[var(--border-subtle)]">
-        {STATUS_TABS.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => setStatusFilter(tab.value)}
-            className={cn(
-              'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px',
-              statusFilter === tab.value
-                ? 'border-[var(--text-primary)] text-[var(--text-primary)]'
-                : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-            )}
-          >
-            {tab.label}
-            {tab.value === 'pending_review' && stats?.pending_review ? (
-              <span className="ml-2 rounded-full bg-[var(--bg-elevated)] px-2 py-0.5 text-xs">
-                {stats.pending_review}
-              </span>
-            ) : null}
-          </button>
-        ))}
+      {/* Status Tabs — segmented control */}
+      <div className="flex items-center gap-3">
+        <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+          {STATUS_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setStatusFilter(tab.value)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 h-7 rounded-md text-[12px] font-medium transition-all',
+                statusFilter === tab.value
+                  ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              )}
+            >
+              {tab.label}
+              {tab.value === 'pending_review' && stats?.pending_review ? (
+                <span className="inline-flex items-center justify-center h-[16px] min-w-[16px] px-1 rounded-[4px] bg-amber-500/20 text-amber-700 text-[10px] font-bold">
+                  {stats.pending_review}
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
         {intentFilter && (
           <button
             onClick={() => setIntentFilter(undefined)}
-            className="ml-auto flex items-center gap-1 rounded-md bg-[var(--bg-elevated)] px-3 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
           >
             {INTENT_CONFIG[intentFilter]?.label || intentFilter}
-            <XCircle className="h-3 w-3 ml-1" />
+            <XCircle className="h-3 w-3 ml-0.5" />
           </button>
         )}
       </div>

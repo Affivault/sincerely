@@ -6,7 +6,12 @@ import { campaignsApi } from '../../api/campaigns.api';
 import { apiClient } from '../../api/client';
 import { Spinner } from '../../components/ui/Spinner';
 import { Badge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
+import { PageHeader } from '../../components/shared/PageHeader';
+import { Card, CardHeader, CardTitle, CardDescription } from '../../components/shared/Card';
+import { StatCard as SharedStatCard } from '../../components/shared/StatCard';
+import { Avatar } from '../../components/shared/Avatar';
 import { useTheme } from '../../context/ThemeContext';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -81,63 +86,16 @@ const tooltipItemStyle = {
 
 const DATE_RANGE_MAP = { '7d': 7, '30d': 30, '90d': 90 } as const;
 
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  rate,
-  suffix,
-  color,
-  to,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: number;
-  rate?: number;
-  suffix?: string;
-  color?: string;
-  to?: string;
-}) {
-  const inner = (
-    <div
-      className="relative overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 transition-all duration-300 hover:border-[var(--border-default)] hover:translate-y-[-2px] group h-full"
-      style={{ boxShadow: 'var(--shadow-card)' }}
-    >
-      <div className="relative flex items-center justify-between mb-4">
-        <div
-          className="flex items-center justify-center h-10 w-10 rounded-xl transition-transform duration-300 group-hover:scale-110"
-          style={{ background: color ? `${color}15` : 'rgba(99,102,241,0.08)' }}
-        >
-          <Icon className="h-5 w-5" style={{ color: color || '#6366F1' }} strokeWidth={1.5} />
-        </div>
-      </div>
-      <div className="relative">
-        <p className="stat-value">{fmtNum(value)}{suffix}</p>
-        <div className="flex items-center justify-between mt-1">
-          <p className="stat-label">{label}</p>
-          {rate !== undefined && rate !== null && (
-            <span className="text-xs font-medium px-1.5 py-0.5 rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">
-              {fmtRate(rate)}%
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-  if (to) {
-    return <Link to={to} className="block">{inner}</Link>;
-  }
-  return inner;
-}
+/* StatCard removed — use SharedStatCard from components/shared/StatCard */
 
 function EngagementRing({ data, colors }: { data: { name: string; value: number }[]; colors: string[] }) {
   const total = data.reduce((sum, item) => sum + safeNum(item.value), 0);
   return (
-    <div
-      className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 transition-all duration-300 hover:border-[var(--border-default)]"
-      style={{ boxShadow: 'var(--shadow-card)' }}
-    >
-      <h3 className="text-heading-sm text-[var(--text-primary)] mb-5">Engagement Breakdown</h3>
+    <Card padding="md">
+      <CardHeader>
+        <CardTitle>Engagement breakdown</CardTitle>
+        <CardDescription>Where your audience is engaging.</CardDescription>
+      </CardHeader>
       <div className="flex items-center gap-4">
         <div className="w-44 h-44 flex-shrink-0">
           <ErrorBoundary fallback={<div className="flex items-center justify-center h-full text-xs text-[var(--text-tertiary)]">Chart unavailable</div>}>
@@ -195,7 +153,7 @@ function EngagementRing({ data, colors }: { data: { name: string; value: number 
           ))}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -336,22 +294,26 @@ export function AnalyticsDashboardPage() {
 
   if (overviewError) {
     return (
-      <div className="space-y-8 animate-fade-in">
-        <div>
-          <h1 className="text-heading-lg text-[var(--text-primary)]">Analytics</h1>
-          <p className="text-sm text-[var(--text-secondary)] mt-1.5">
-            Monitor performance, engagement, and delivery metrics across all your campaigns.
-          </p>
-        </div>
-        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-12 text-center" style={{ boxShadow: 'var(--shadow-card)' }}>
-          <div className="mx-auto w-14 h-14 rounded-2xl bg-[var(--bg-elevated)] flex items-center justify-center mb-4 border border-[var(--border-subtle)]">
-            <AlertTriangle className="h-6 w-6 text-[var(--text-tertiary)]" />
+      <div className="animate-fade-in">
+        <PageHeader
+          decorate
+          leading={
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
+              <BarChart3 className="h-4 w-4 text-[var(--indigo)]" />
+            </span>
+          }
+          title="Analytics"
+          description="Monitor performance, engagement and delivery metrics across all your campaigns."
+        />
+        <Card padding="lg" className="text-center">
+          <div className="mx-auto w-12 h-12 rounded-xl bg-[var(--bg-elevated)] flex items-center justify-center mb-3 border border-[var(--border-subtle)]">
+            <AlertTriangle className="h-5 w-5 text-[var(--text-tertiary)]" />
           </div>
-          <h3 className="font-semibold text-[var(--text-primary)] mb-1.5">Unable to load analytics</h3>
-          <p className="text-sm text-[var(--text-secondary)] max-w-md mx-auto">
+          <h3 className="text-[14px] font-semibold text-[var(--text-primary)] mb-1">Unable to load analytics</h3>
+          <p className="text-[12.5px] text-[var(--text-secondary)] max-w-md mx-auto">
             There was a problem loading your analytics data. Please try refreshing the page.
           </p>
-        </div>
+        </Card>
       </div>
     );
   }
@@ -362,95 +324,139 @@ export function AnalyticsDashboardPage() {
     { value: '90d', label: '90 days' },
   ];
 
+  // Sparklines derived from trend data for each KPI
+  const sentSpark    = formattedTrend.slice(-14).map((d: any) => safeNum(d.sent));
+  const openedSpark  = formattedTrend.slice(-14).map((d: any) => safeNum(d.opened));
+  const clickedSpark = formattedTrend.slice(-14).map((d: any) => safeNum(d.clicked));
+  const repliedSpark = formattedTrend.slice(-14).map((d: any) => safeNum(d.replied));
+
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-heading-lg text-[var(--text-primary)]">Analytics</h1>
-          <p className="text-sm text-[var(--text-secondary)] mt-1.5">
-            Monitor performance, engagement, deliverability, and suppression across all campaigns.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => downloadReport(`/analytics/export/overview?days=${days}`, `overview-report-${dateRange}.csv`)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Export
-          </button>
-          <div className="flex items-center">
-            <div className="tab-bar border-b-0 gap-0">
+    <div className="animate-fade-in">
+      {/* Page header — decorated hero */}
+      <PageHeader
+        decorate
+        leading={
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
+            <BarChart3 className="h-4 w-4 text-[var(--indigo)]" />
+          </span>
+        }
+        title="Analytics"
+        description="Monitor performance, engagement, deliverability and suppression across every campaign."
+        meta={
+          <>
+            <Calendar className="h-3 w-3" />
+            <span className="tabular">Last {days} days</span>
+            {overview && (
+              <>
+                <span className="sep-dot" />
+                <span className="tabular">{fmtNum(overview.total_sent)} sent</span>
+                <span className="sep-dot" />
+                <span className="tabular">{fmtRate(overview.avg_open_rate)}% open · {fmtRate(overview.avg_reply_rate)}% reply</span>
+              </>
+            )}
+          </>
+        }
+        actions={
+          <>
+            <div className="inline-flex items-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-0.5">
               {dateRangeOptions.map((opt) => (
                 <button
                   key={opt.value}
                   onClick={() => setDateRange(opt.value)}
-                  className={`tab-item text-xs px-3 py-2 ${dateRange === opt.value ? 'active' : ''}`}
+                  className={cn(
+                    'px-2.5 h-7 text-[12px] font-medium rounded-md transition-all',
+                    dateRange === opt.value
+                      ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
+                      : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
+                  )}
                 >
                   {opt.label}
                 </button>
               ))}
             </div>
-            <div className="ml-3 pl-3 border-l border-[var(--border-subtle)]">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)]">
-                <Calendar className="h-3.5 w-3.5" />
-                <span className="text-xs font-medium">Last {days} days</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => downloadReport(`/analytics/export/overview?days=${days}`, `overview-report-${dateRange}.csv`)}
+            >
+              <Download className="h-3.5 w-3.5" /> Export
+            </Button>
+          </>
+        }
+      />
 
-      {/* Overview Stats — 7 KPI cards */}
+      {/* Overview Stats — 7 KPI cards using SharedStatCard with sparklines */}
       {overview && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
-          <StatCard icon={Send} label="Total Sent" value={safeNum(overview.total_sent)} />
-          <StatCard icon={Mail} label="Opened" value={safeNum(overview.total_opened)} rate={safeNum(overview.avg_open_rate)} />
-          <StatCard icon={MousePointerClick} label="Clicked" value={safeNum(overview.total_clicked)} rate={safeNum(overview.avg_click_rate)} />
-          <StatCard icon={MessageSquare} label="Replied" value={safeNum(overview.total_replied)} rate={safeNum(overview.avg_reply_rate)} />
-          <StatCard icon={Target} label="Campaigns" value={safeNum(overview.total_campaigns)} />
-          <StatCard
-            icon={ShieldOff}
-            label="Suppressed"
-            value={safeNum(overview.suppressed_count)}
-            color="#EF4444"
-            to="/suppression"
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-4">
+          <SharedStatCard
+            icon={Send} accent="indigo"
+            label="Sent"
+            value={fmtNum(overview.total_sent)}
+            sparkline={sentSpark.length >= 2 ? sentSpark : undefined}
           />
-          <StatCard
+          <SharedStatCard
+            icon={Mail} accent="violet"
+            label="Opened"
+            value={fmtNum(overview.total_opened)}
+            hint={`${fmtRate(overview.avg_open_rate)}% open rate`}
+            sparkline={openedSpark.length >= 2 ? openedSpark : undefined}
+          />
+          <SharedStatCard
+            icon={MousePointerClick} accent="indigo"
+            label="Clicked"
+            value={fmtNum(overview.total_clicked)}
+            hint={`${fmtRate(overview.avg_click_rate)}% click rate`}
+            sparkline={clickedSpark.length >= 2 ? clickedSpark : undefined}
+          />
+          <SharedStatCard
+            icon={MessageSquare} accent="emerald"
+            label="Replied"
+            value={fmtNum(overview.total_replied)}
+            hint={`${fmtRate(overview.avg_reply_rate)}% reply rate`}
+            sparkline={repliedSpark.length >= 2 ? repliedSpark : undefined}
+          />
+          <SharedStatCard
+            icon={Target} accent="violet"
+            label="Campaigns"
+            value={fmtNum(overview.total_campaigns)}
+          />
+          <SharedStatCard
+            icon={ShieldOff} accent="rose"
+            label="Suppressed"
+            value={fmtNum(overview.suppressed_count)}
+            onClick={() => (window.location.href = '/suppression')}
+          />
+          <SharedStatCard
             icon={ShieldCheck}
-            label="Avg DCS Score"
-            value={safeNum(overview.avg_dcs_score)}
-            color={safeNum(overview.avg_dcs_score) >= 80 ? '#10B981' : safeNum(overview.avg_dcs_score) >= 50 ? '#F59E0B' : '#EF4444'}
-            to="/verification"
+            accent={safeNum(overview.avg_dcs_score) >= 80 ? 'emerald' : safeNum(overview.avg_dcs_score) >= 50 ? 'amber' : 'rose'}
+            label="Avg DCS"
+            value={fmtNum(overview.avg_dcs_score)}
+            hint="Deliverability score"
+            onClick={() => (window.location.href = '/verification')}
           />
         </div>
       )}
 
       {/* Performance Trend + Engagement Ring */}
-      <div className="grid grid-cols-3 gap-4">
-        <div
-          className="col-span-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 transition-all duration-300 hover:border-[var(--border-default)]"
-          style={{ boxShadow: 'var(--shadow-card)' }}
-        >
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-heading-sm text-[var(--text-primary)]">Performance Trend</h3>
-              <p className="text-xs text-[var(--text-tertiary)] mt-0.5">
-                Email activity over the last {days} days
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: primaryChartColor }} />
-                <span className="text-xs text-[var(--text-tertiary)]">Sent</span>
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <Card padding="md" className="col-span-2">
+          <CardHeader
+            action={
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)]">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: primaryChartColor }} />
+                  Sent
+                </span>
+                <span className="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)]">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: secondaryChartColor }} />
+                  Opened
+                </span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: secondaryChartColor }} />
-                <span className="text-xs text-[var(--text-tertiary)]">Opened</span>
-              </div>
-            </div>
-          </div>
+            }
+          >
+            <CardTitle>Performance trend</CardTitle>
+            <CardDescription>Email activity over the last {days} days.</CardDescription>
+          </CardHeader>
           <div className="h-60">
             {formattedTrend.length > 0 ? (
               <ErrorBoundary fallback={<div className="flex items-center justify-center h-full text-sm text-[var(--text-tertiary)]">Chart unavailable</div>}>
@@ -506,44 +512,36 @@ export function AnalyticsDashboardPage() {
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
         {pieData.length > 0 ? (
           <EngagementRing data={pieData} colors={COLORS} />
         ) : (
-          <div
-            className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 flex items-center justify-center"
-            style={{ boxShadow: 'var(--shadow-card)' }}
-          >
-            <p className="text-sm text-[var(--text-tertiary)]">No engagement data yet</p>
-          </div>
+          <Card padding="md" className="flex items-center justify-center">
+            <p className="text-[12.5px] text-[var(--text-tertiary)]">No engagement data yet</p>
+          </Card>
         )}
       </div>
 
       {/* Deliverability Health */}
-      <div
-        className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden"
-        style={{ boxShadow: 'var(--shadow-card)' }}
-      >
-        <div className="px-6 py-5 border-b border-[var(--border-subtle)] flex items-center justify-between">
-          <div>
-            <h2 className="text-heading-sm text-[var(--text-primary)] flex items-center gap-2">
-              <Activity className="h-4 w-4 text-[#6366F1]" />
-              Deliverability Health
+      <Card padding="none" className="mb-4 overflow-hidden">
+        <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-[13px] font-semibold text-[var(--text-primary)] tracking-[-0.005em] flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-[5px] bg-[var(--indigo-subtle)]">
+                <Activity className="h-3 w-3 text-[var(--indigo)]" />
+              </span>
+              Deliverability health
             </h2>
-            <p className="text-xs text-[var(--text-tertiary)] mt-0.5">DCS scores, suppression breakdown, and contact quality</p>
+            <p className="text-[12px] text-[var(--text-secondary)] mt-0.5">DCS scores, suppression breakdown and contact quality.</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Link to="/verification" className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-colors">
-              Verify Contacts
-            </Link>
-            <Link to="/suppression" className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-colors">
-              Suppression List
-            </Link>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <Link to="/verification" className="icon-btn h-7 px-2 text-[12px]">Verify contacts</Link>
+            <Link to="/suppression" className="icon-btn h-7 px-2 text-[12px]">Suppression list</Link>
           </div>
         </div>
 
-        <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* DCS Gauge + summary */}
           <div className="flex flex-col items-center justify-center gap-4 py-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-subtle)]">
             <DcsScoreGauge score={safeNum(overview?.avg_dcs_score)} />
@@ -664,43 +662,40 @@ export function AnalyticsDashboardPage() {
             )}
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Campaign Deep Dive */}
-      <div
-        className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden transition-all duration-300"
-        style={{ boxShadow: 'var(--shadow-card)' }}
-      >
-        <div className="p-6 border-b border-[var(--border-subtle)]">
+      <Card padding="none" className="mb-4 overflow-hidden">
+        <div className="p-4 border-b border-[var(--border-subtle)]">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-heading-sm text-[var(--text-primary)]">Campaign Deep Dive</h2>
-              <p className="text-sm text-[var(--text-secondary)] mt-0.5">
-                Select a campaign to view detailed analytics
+              <h2 className="text-[13px] font-semibold text-[var(--text-primary)] tracking-[-0.005em]">Campaign deep dive</h2>
+              <p className="text-[12px] text-[var(--text-secondary)] mt-0.5">
+                Select a campaign to view detailed analytics.
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {selectedCampaignId && (
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => downloadReport(`/analytics/export/campaigns/${selectedCampaignId}`, `campaign-report.csv`)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
                 >
-                  <Download className="h-3.5 w-3.5" />
-                  Export Report
-                </button>
+                  <Download className="h-3.5 w-3.5" /> Export report
+                </Button>
               )}
               <div className="relative">
                 <select
                   value={selectedCampaignId}
                   onChange={(e) => setSelectedCampaignId(e.target.value)}
-                  className="appearance-none pl-4 pr-10 py-2.5 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#6366F1] min-w-[220px] transition-all duration-200 cursor-pointer"
+                  className="appearance-none pl-3 pr-9 h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[12.5px] text-[var(--text-primary)] focus:outline-none focus:border-[rgba(91,91,245,0.4)] focus:shadow-[0_0_0_3px_rgba(91,91,245,0.12)] min-w-[200px] transition cursor-pointer"
                 >
-                  <option value="">Choose a campaign...</option>
+                  <option value="">Choose a campaign…</option>
                   {campaigns.map((c: any) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-tertiary)] pointer-events-none" />
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />
               </div>
             </div>
           </div>
@@ -766,12 +761,12 @@ export function AnalyticsDashboardPage() {
             )}
           </div>
         ) : (
-          <div className="p-16 text-center">
-            <div className="mx-auto w-14 h-14 rounded-2xl bg-[var(--bg-elevated)] flex items-center justify-center mb-4 border border-[var(--border-subtle)]">
-              <Target className="h-6 w-6 text-[var(--text-tertiary)]" />
+          <div className="p-12 text-center">
+            <div className="mx-auto w-10 h-10 rounded-xl bg-[var(--bg-elevated)] flex items-center justify-center mb-3 border border-[var(--border-subtle)]">
+              <Target className="h-4 w-4 text-[var(--text-tertiary)]" />
             </div>
-            <h3 className="font-semibold text-[var(--text-primary)] mb-1.5">No Campaign Selected</h3>
-            <p className="text-sm text-[var(--text-secondary)] max-w-xs mx-auto">
+            <h3 className="text-[13px] font-semibold text-[var(--text-primary)] mb-1">No campaign selected</h3>
+            <p className="text-[12.5px] text-[var(--text-secondary)] max-w-xs mx-auto">
               Choose a campaign from the dropdown above to explore detailed performance analytics.
             </p>
           </div>
@@ -779,12 +774,12 @@ export function AnalyticsDashboardPage() {
 
         {/* Contact breakdown table */}
         {campaignContacts && Array.isArray(campaignContacts.contacts) && campaignContacts.contacts.length > 0 && (
-          <div className="p-6 border-t border-[var(--border-subtle)]">
-            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-5 flex items-center gap-2.5">
-              <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-[var(--bg-elevated)]">
-                <Users className="h-3.5 w-3.5 text-[var(--text-primary)]" />
-              </div>
-              Contact Breakdown
+          <div className="p-4 border-t border-[var(--border-subtle)]">
+            <h3 className="text-[13px] font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
+              <span className="flex items-center justify-center h-5 w-5 rounded-[5px] bg-[var(--bg-elevated)]">
+                <Users className="h-3 w-3 text-[var(--text-primary)]" />
+              </span>
+              Contact breakdown
             </h3>
             <div className="overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
               <table className="w-full text-sm">
@@ -805,16 +800,18 @@ export function AnalyticsDashboardPage() {
                       className="border-t border-[var(--border-subtle)] transition-colors duration-150 hover:bg-[var(--bg-hover)]"
                     >
                       <td className="py-2.5 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-[var(--bg-elevated)] flex items-center justify-center text-[var(--text-primary)] text-xs font-semibold border border-[var(--border-subtle)]">
-                            {(c.first_name?.[0] || c.email?.[0] || '?').toUpperCase()}
-                          </div>
-                          <div>
-                            <span className="font-medium text-[var(--text-primary)]">
+                        <div className="flex items-center gap-2.5">
+                          <Avatar
+                            name={[c.first_name, c.last_name].filter(Boolean).join(' ') || undefined}
+                            email={c.email}
+                            size="md"
+                          />
+                          <div className="min-w-0">
+                            <span className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">
                               {[c.first_name, c.last_name].filter(Boolean).join(' ') || c.email || 'Unknown'}
                             </span>
                             {(c.first_name || c.last_name) && (
-                              <p className="text-xs text-[var(--text-tertiary)]">{c.email}</p>
+                              <p className="text-[11px] text-[var(--text-tertiary)] truncate">{c.email}</p>
                             )}
                           </div>
                         </div>
@@ -850,8 +847,8 @@ export function AnalyticsDashboardPage() {
                 </tbody>
               </table>
               {campaignContacts.contacts.length > 10 && (
-                <div className="py-3 px-4 text-center bg-[var(--bg-elevated)] border-t border-[var(--border-subtle)]">
-                  <p className="text-xs font-medium text-[var(--text-tertiary)]">
+                <div className="py-2.5 px-4 text-center bg-[var(--bg-elevated)] border-t border-[var(--border-subtle)]">
+                  <p className="text-[11.5px] font-medium text-[var(--text-tertiary)]">
                     Showing 10 of {campaignContacts.contacts.length} contacts
                   </p>
                 </div>
@@ -859,7 +856,7 @@ export function AnalyticsDashboardPage() {
             </div>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Campaign Comparison */}
       <CampaignComparison campaigns={campaigns} />
@@ -895,19 +892,19 @@ function CampaignComparison({ campaigns }: { campaigns: any[] }) {
   const colors = ['#6366F1', '#10B981', '#F59E0B', '#EC4899'];
 
   return (
-    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden" style={{ boxShadow: 'var(--shadow-card)' }}>
-      <div className="p-6 border-b border-[var(--border-subtle)]">
-        <div className="flex items-center justify-between mb-4">
+    <Card padding="none" className="mt-4 overflow-hidden">
+      <div className="p-4 border-b border-[var(--border-subtle)]">
+        <div className="flex items-center justify-between mb-3">
           <div>
-            <h2 className="text-heading-sm text-[var(--text-primary)]">Compare Campaigns</h2>
-            <p className="text-sm text-[var(--text-secondary)] mt-0.5">
+            <h2 className="text-[13px] font-semibold text-[var(--text-primary)] tracking-[-0.005em]">Compare campaigns</h2>
+            <p className="text-[12px] text-[var(--text-secondary)] mt-0.5">
               Select up to 4 campaigns to see their performance side by side.
             </p>
           </div>
           {selectedIds.length > 0 && (
             <button
               onClick={() => setSelectedIds([])}
-              className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1"
+              className="text-[11.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1"
             >
               Clear ({selectedIds.length})
             </button>
@@ -923,14 +920,14 @@ function CampaignComparison({ campaigns }: { campaigns: any[] }) {
                 key={c.id}
                 onClick={() => toggleId(c.id)}
                 className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
+                  'inline-flex items-center gap-1.5 px-2.5 h-7 rounded-md text-[11.5px] font-medium border transition-all',
                   active
-                    ? 'border-transparent text-white'
-                    : 'border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
+                    ? 'border-transparent text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]'
+                    : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
                 )}
                 style={active ? { background: colors[idx] } : undefined}
               >
-                {active && <span className="mr-1.5 text-[10px] opacity-80">#{idx + 1}</span>}
+                {active && <span className="text-[10px] opacity-80 tabular">#{idx + 1}</span>}
                 {c.name}
               </button>
             );
@@ -939,14 +936,16 @@ function CampaignComparison({ campaigns }: { campaigns: any[] }) {
       </div>
 
       {selectedIds.length === 0 ? (
-        <div className="p-12 text-center text-[var(--text-tertiary)]">
-          <BarChart3 className="h-10 w-10 mx-auto mb-2" />
-          <p className="text-sm">Pick at least 2 campaigns above to start comparing.</p>
+        <div className="p-10 text-center text-[var(--text-tertiary)]">
+          <div className="mx-auto w-10 h-10 rounded-xl bg-[var(--bg-elevated)] flex items-center justify-center mb-2 border border-[var(--border-subtle)]">
+            <BarChart3 className="h-4 w-4" />
+          </div>
+          <p className="text-[12.5px]">Pick at least 2 campaigns above to start comparing.</p>
         </div>
       ) : isLoading ? (
-        <div className="p-12 text-center"><Spinner size="md" /></div>
+        <div className="p-10 text-center"><Spinner size="md" /></div>
       ) : (
-        <div className="p-6 space-y-4">
+        <div className="p-4 space-y-4">
           {/* Stat comparison table */}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -1025,6 +1024,6 @@ function CampaignComparison({ campaigns }: { campaigns: any[] }) {
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }

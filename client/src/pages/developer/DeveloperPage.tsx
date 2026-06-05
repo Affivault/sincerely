@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { cn, formatDateTime } from '../../lib/utils';
+import { PageHeader } from '../../components/shared/PageHeader';
 import toast from 'react-hot-toast';
 
 const ALL_EVENTS = Object.values(WebhookEventType);
@@ -129,31 +130,36 @@ export function DeveloperPage() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Developer</h1>
-        <p className="text-sm text-[var(--text-secondary)] mt-0.5">Webhooks, API keys, and integrations</p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        icon={<Code2 className="h-4 w-4 text-white" />}
+        iconBg="bg-gradient-to-br from-slate-600 to-slate-800"
+        title="Developer"
+        description="Webhooks, API keys, and integrations"
+        meta={[
+          { label: `${(endpoints || []).length} webhooks` },
+          { label: `${(apiKeys || []).length} keys` },
+        ]}
+      />
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-[var(--border-subtle)]">
+      {/* Tabs — segmented control */}
+      <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
         <button
           onClick={() => setTab('webhooks')}
-          className={cn('flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-all',
-            tab === 'webhooks' ? 'border-[#6366F1] text-[#6366F1]' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          className={cn('flex items-center gap-1.5 px-3.5 h-7 rounded-md text-[12px] font-medium transition-all',
+            tab === 'webhooks' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
           )}
         >
-          <Webhook className="h-4 w-4" />
+          <Webhook className="h-3.5 w-3.5" />
           Webhooks
         </button>
         <button
           onClick={() => setTab('api-keys')}
-          className={cn('flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-all',
-            tab === 'api-keys' ? 'border-[#6366F1] text-[#6366F1]' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          className={cn('flex items-center gap-1.5 px-3.5 h-7 rounded-md text-[12px] font-medium transition-all',
+            tab === 'api-keys' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
           )}
         >
-          <Key className="h-4 w-4" />
+          <Key className="h-3.5 w-3.5" />
           API Keys
         </button>
       </div>
@@ -162,12 +168,12 @@ export function DeveloperPage() {
       {tab === 'webhooks' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-[var(--text-secondary)]">Receive real-time notifications when events happen.</p>
+            <p className="text-[12px] text-[var(--text-secondary)]">Receive real-time notifications when events happen in SkySend.</p>
             <button
               onClick={() => setShowCreateWebhook(true)}
-              className="flex items-center gap-2 rounded-md bg-[#6366F1] px-4 py-2 text-sm font-medium text-white hover:bg-[#4F46E5] transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white text-[12px] font-semibold hover:opacity-90 transition-all shadow-[0_1px_3px_rgba(99,102,241,0.4)]"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5" />
               Add Webhook
             </button>
           </div>
@@ -246,13 +252,13 @@ export function DeveloperPage() {
                       <p className="text-xs text-[var(--text-tertiary)] truncate font-mono">{ep.url}</p>
                     </div>
                     <span className="text-xs text-[var(--text-tertiary)]">{ep.events.length} events</span>
-                    <button onClick={() => testEndpointMutation.mutate(ep.id)} className="p-1.5 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-xs flex items-center gap-1">
+                    <button onClick={() => testEndpointMutation.mutate(ep.id)} className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[11px] font-medium bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
                       <Zap className="h-3 w-3" /> Test
                     </button>
-                    <button onClick={() => setShowDeliveries(showDeliveries === ep.id ? null : ep.id)} className="p-1.5 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-xs flex items-center gap-1">
+                    <button onClick={() => setShowDeliveries(showDeliveries === ep.id ? null : ep.id)} className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[11px] font-medium bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
                       <Clock className="h-3 w-3" /> Logs
                     </button>
-                    <button onClick={() => deleteEndpointMutation.mutate(ep.id)} className="p-1.5 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                    <button onClick={() => deleteEndpointMutation.mutate(ep.id)} className="icon-btn hover:text-rose-500 hover:bg-rose-500/10">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
