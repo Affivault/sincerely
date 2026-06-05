@@ -25,6 +25,13 @@ export interface ContactStats {
   active: number;
 }
 
+export interface BulkImportResult {
+  total: number;
+  imported: number;
+  errors: number;
+  error_details: { email: string; reason: string }[];
+}
+
 export const contactsApi = {
   list: async (params?: ContactsListParams) => {
     const { data } = await apiClient.get<PaginatedResponse<ContactWithTags>>('/contacts', { params });
@@ -54,10 +61,24 @@ export const contactsApi = {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('columnMapping', JSON.stringify(columnMapping));
+    // Do NOT set Content-Type here — axios will set it to
+    // 'multipart/form-data; boundary=...' automatically when it
+    // detects FormData. Setting it manually drops the boundary and
+    // makes multer reject the request as malformed.
     const { data } = await apiClient.post<{ imported: number; errors: number }>(
       '/contacts/import',
-      formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
+      formData
+    );
+    return data;
+  },
+
+  bulkCreate: async (
+    contacts: Array<Record<string, any>>,
+    listId?: string
+  ) => {
+    const { data } = await apiClient.post<BulkImportResult>(
+      '/contacts/bulk',
+      { contacts, list_id: listId }
     );
     return data;
   },

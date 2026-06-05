@@ -526,7 +526,7 @@ export function ContactsListPage() {
           }
           actions={
             <div className="flex items-center gap-2">
-              <button onClick={() => setShowImportModal(true)} className="btn-secondary rounded-lg text-[12px] h-8 px-3 gap-1.5">
+              <button onClick={() => navigate('/contacts/import')} className="btn-secondary rounded-lg text-[12px] h-8 px-3 gap-1.5">
                 <Upload className="h-3.5 w-3.5" />
                 Import CSV
               </button>
@@ -638,7 +638,7 @@ export function ContactsListPage() {
                 <Plus className="h-4 w-4" />
                 Add Contact
               </button>
-              <button onClick={() => setShowImportModal(true)} className="btn-secondary rounded-lg">
+              <button onClick={() => navigate('/contacts/import')} className="btn-secondary rounded-lg">
                 <Upload className="h-4 w-4" />
                 Import CSV
               </button>

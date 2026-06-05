@@ -45,8 +45,34 @@ export const contactsController = {
         res.status(400).json({ error: 'No file uploaded' });
         return;
       }
-      const columnMapping = JSON.parse(req.body.columnMapping || '{}');
+      let columnMapping: Record<string, string> = {};
+      try {
+        columnMapping = JSON.parse(req.body.columnMapping || '{}');
+      } catch {
+        res.status(400).json({ error: 'columnMapping must be valid JSON' });
+        return;
+      }
       const result = await contactsService.importCsv(req.userId!, file.path, columnMapping);
+      res.json(result);
+    } catch (err) { next(err); }
+  },
+
+  async bulkCreate(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { contacts, list_id } = req.body || {};
+      if (!Array.isArray(contacts)) {
+        res.status(400).json({ error: 'Request body must include a contacts array' });
+        return;
+      }
+      if (contacts.length === 0) {
+        res.json({ total: 0, imported: 0, errors: 0, error_details: [] });
+        return;
+      }
+      if (contacts.length > 1000) {
+        res.status(413).json({ error: 'Batch too large — send at most 1000 contacts per request' });
+        return;
+      }
+      const result = await contactsService.bulkCreate(req.userId!, contacts, list_id || undefined);
       res.json(result);
     } catch (err) { next(err); }
   },

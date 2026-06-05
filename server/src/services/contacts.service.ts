@@ -183,6 +183,104 @@ export const contactsService = {
     fireEvent(userId, 'contact.deleted', { contact_id: id }).catch(() => {});
   },
 
+  async bulkCreate(
+    userId: string,
+    contacts: Array<Record<string, any>>,
+    listId?: string
+  ): Promise<{
+    total: number;
+    imported: number;
+    errors: number;
+    error_details: { email: string; reason: string }[];
+  }> {
+    const total = contacts.length;
+    const errorDetails: { email: string; reason: string }[] = [];
+    const valid: any[] = [];
+    const ALLOWED_FIELDS = new Set([
+      'email', 'first_name', 'last_name', 'company',
+      'job_title', 'phone', 'linkedin_url', 'website',
+    ]);
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    for (const c of contacts) {
+      const rawEmail = typeof c.email === 'string' ? c.email.trim() : '';
+      if (!rawEmail) {
+        errorDetails.push({ email: '(missing)', reason: 'Email is required' });
+        continue;
+      }
+      const email = rawEmail.toLowerCase();
+      if (!EMAIL_RE.test(email)) {
+        errorDetails.push({ email: rawEmail, reason: 'Invalid email format' });
+        continue;
+      }
+
+      const row: Record<string, any> = {
+        user_id: userId,
+        source: 'csv_import',
+        email,
+      };
+      for (const [k, v] of Object.entries(c)) {
+        if (!ALLOWED_FIELDS.has(k) || k === 'email') continue;
+        if (v == null) continue;
+        const trimmed = typeof v === 'string' ? v.trim() : v;
+        if (trimmed === '') continue;
+        row[k] = trimmed;
+      }
+      valid.push(row);
+    }
+
+    if (valid.length === 0) {
+      return { total, imported: 0, errors: errorDetails.length, error_details: errorDetails.slice(0, 50) };
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('contacts')
+      .upsert(valid, { onConflict: 'user_id,email' })
+      .select('id, email');
+
+    if (error) {
+      return {
+        total,
+        imported: 0,
+        errors: total,
+        error_details: [{ email: '(batch)', reason: error.message }],
+      };
+    }
+
+    const importedRows = data || [];
+
+    if (listId && importedRows.length > 0) {
+      // Verify the list belongs to this user before attaching members
+      const { data: list } = await supabaseAdmin
+        .from('contact_lists')
+        .select('id')
+        .eq('id', listId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (list) {
+        const memberships = importedRows.map((r: any) => ({
+          list_id: listId,
+          contact_id: r.id,
+        }));
+        const { error: memErr } = await supabaseAdmin
+          .from('list_contacts')
+          .upsert(memberships, { onConflict: 'list_id,contact_id' });
+        if (memErr) {
+          // Don't fail the whole import — record as soft error
+          errorDetails.push({ email: '(list assignment)', reason: memErr.message });
+        }
+      }
+    }
+
+    return {
+      total,
+      imported: importedRows.length,
+      errors: errorDetails.length,
+      error_details: errorDetails.slice(0, 50),
+    };
+  },
+
   async importCsv(userId: string, filePath: string, columnMapping: Record<string, string>) {
     let fileContent: string;
     try {

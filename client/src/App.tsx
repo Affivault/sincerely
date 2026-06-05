@@ -14,6 +14,7 @@ import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 const DashboardPage        = lazy(() => import('./pages/dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const ContactsListPage     = lazy(() => import('./pages/contacts/ContactsListPage').then(m => ({ default: m.ContactsListPage })));
 const ContactDetailPage    = lazy(() => import('./pages/contacts/ContactDetailPage').then(m => ({ default: m.ContactDetailPage })));
+const BulkImportPage       = lazy(() => import('./pages/contacts/BulkImportPage').then(m => ({ default: m.BulkImportPage })));
 const CampaignsListPage    = lazy(() => import('./pages/campaigns/CampaignsListPage').then(m => ({ default: m.CampaignsListPage })));
 const CampaignCreatePage   = lazy(() => import('./pages/campaigns/CampaignCreatePage').then(m => ({ default: m.CampaignCreatePage })));
 const CampaignDetailPage   = lazy(() => import('./pages/campaigns/CampaignDetailPage').then(m => ({ default: m.CampaignDetailPage })));
@@ -87,6 +88,7 @@ export default function App() {
         >
           <Route path="/dashboard"          element={<DashboardPage />} />
           <Route path="/contacts"           element={<ContactsListPage />} />
+          <Route path="/contacts/import"    element={<BulkImportPage />} />
           <Route path="/contacts/:id"       element={<ContactDetailPage />} />
           <Route path="/campaigns"          element={<CampaignsListPage />} />
           <Route path="/campaigns/new"      element={<CampaignCreatePage />} />

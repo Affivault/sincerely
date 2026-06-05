@@ -13,6 +13,7 @@ contactRoutes.post('/', contactsController.create);
 contactRoutes.put('/:id', contactsController.update);
 contactRoutes.delete('/:id', contactsController.delete);
 contactRoutes.post('/import', upload.single('file'), contactsController.importCsv);
+contactRoutes.post('/bulk', contactsController.bulkCreate);
 contactRoutes.post('/export', contactsController.export);
 contactRoutes.post('/bulk-tag', contactsController.bulkTag);
 contactRoutes.delete('/bulk-tag', contactsController.bulkUntag);
