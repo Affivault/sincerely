@@ -1496,11 +1496,11 @@ export function CampaignCreatePage() {
 
               {/* Stat Cards */}
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                <StatCard label="Recipients" value={selectedContactIds.length} icon={<Users className="h-3.5 w-3.5" />} accent="text-[#6366F1]" />
-                <StatCard label="Email Steps" value={emailSteps.length} icon={<Mail className="h-3.5 w-3.5" />} accent="text-[var(--text-primary)]" />
-                <StatCard label="Wait Steps" value={delaySteps.length} icon={<Clock className="h-3.5 w-3.5" />} accent="text-[var(--text-secondary)]" />
-                <StatCard label="Total Sends" value={totalSends} icon={<Send className="h-3.5 w-3.5" />} accent="text-emerald-600" />
-                <StatCard label="Est. Completion" value={estLabel} icon={<Timer className="h-3.5 w-3.5" />} accent="text-amber-600" />
+                <StatCard label="Recipients" value={selectedContactIds.length.toLocaleString()} icon={Users} accent="indigo" />
+                <StatCard label="Email Steps" value={emailSteps.length} icon={Mail} accent="violet" />
+                <StatCard label="Wait Steps" value={delaySteps.length} icon={Clock} accent="slate" />
+                <StatCard label="Total Sends" value={totalSends.toLocaleString()} icon={Send} accent="emerald" />
+                <StatCard label="Est. Completion" value={estLabel} icon={Timer} accent="amber" />
               </div>
 
               {/* Campaign Summary */}

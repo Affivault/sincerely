@@ -132,14 +132,20 @@ export function DeveloperPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<Code2 className="h-4 w-4 text-white" />}
-        iconBg="bg-gradient-to-br from-slate-600 to-slate-800"
+        leading={
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-slate-600 to-slate-800">
+            <Code2 className="h-4 w-4 text-white" />
+          </span>
+        }
         title="Developer"
         description="Webhooks, API keys, and integrations"
-        meta={[
-          { label: `${(endpoints || []).length} webhooks` },
-          { label: `${(apiKeys || []).length} keys` },
-        ]}
+        meta={
+          <>
+            <span>{(endpoints || []).length} webhooks</span>
+            <span className="text-[var(--text-tertiary)]">·</span>
+            <span>{(apiKeys || []).length} keys</span>
+          </>
+        }
       />
 
       {/* Tabs — segmented control */}

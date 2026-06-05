@@ -50,19 +50,21 @@ export function SseDashboardPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<Shield className="h-4 w-4 text-white" />}
-        iconBg="bg-gradient-to-br from-slate-600 to-slate-800"
+        leading={
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-slate-600 to-slate-800">
+            <Shield className="h-4 w-4 text-white" />
+          </span>
+        }
         title="Smart-Sharding Engine"
         description="Sender reputation health and rotation management"
-        meta={[
-          { label: `${availableAccounts}/${totalAccounts} available`, dot: availableAccounts === totalAccounts ? 'bg-emerald-500' : 'bg-amber-400' },
-        ]}
+        meta={
+          <>
+            <span className={cn('h-1.5 w-1.5 rounded-full', availableAccounts === totalAccounts ? 'bg-emerald-500' : 'bg-amber-400')} />
+            <span>{availableAccounts}/{totalAccounts} available</span>
+          </>
+        }
         actions={
-          <button
-            onClick={() => refetch()}
-            className="icon-btn"
-            title="Refresh"
-          >
+          <button onClick={() => refetch()} className="icon-btn" title="Refresh">
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
         }
@@ -70,10 +72,10 @@ export function SseDashboardPage() {
 
       {/* KPI strip */}
       <div className="grid grid-cols-4 gap-3">
-        <StatCard label="Total Senders" value={totalAccounts} icon={<Server className="h-3.5 w-3.5" />} accent="text-[var(--text-primary)]" />
-        <StatCard label="Available" value={availableAccounts} icon={<CheckCircle2 className="h-3.5 w-3.5" />} accent="text-emerald-600" sub={`${totalAccounts > 0 ? Math.round((availableAccounts/totalAccounts)*100) : 0}% of total`} />
-        <StatCard label="Avg Health" value={avgHealth} icon={<Activity className="h-3.5 w-3.5" />} accent={avgHealth >= 80 ? 'text-emerald-600' : avgHealth >= 60 ? 'text-amber-600' : 'text-rose-600'} />
-        <StatCard label="Warming Up" value={warmupCount} icon={<Flame className="h-3.5 w-3.5" />} accent="text-amber-600" />
+        <StatCard label="Total Senders" value={totalAccounts} icon={Server} accent="slate" />
+        <StatCard label="Available" value={availableAccounts} icon={CheckCircle2} accent="emerald" hint={`${totalAccounts > 0 ? Math.round((availableAccounts/totalAccounts)*100) : 0}% of total`} />
+        <StatCard label="Avg Health" value={avgHealth} icon={Activity} accent={avgHealth >= 80 ? 'emerald' : avgHealth >= 60 ? 'amber' : 'rose'} />
+        <StatCard label="Warming Up" value={warmupCount} icon={Flame} accent="amber" />
       </div>
 
       {/* Account Cards */}

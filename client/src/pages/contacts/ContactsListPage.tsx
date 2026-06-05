@@ -514,8 +514,11 @@ export function ContactsListPage() {
       <div className="flex-1 min-w-0 space-y-5">
         {/* Header */}
         <PageHeader
-          icon={<Users className="h-4 w-4 text-white" />}
-          iconBg="bg-gradient-to-br from-[#6366F1] to-[#8B5CF6]"
+          leading={
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#5B5BF5] to-[#8B5CF6] shadow-[0_1px_3px_rgba(91,91,245,0.4)]">
+              <Users className="h-4 w-4 text-white" />
+            </span>
+          }
           title={currentListName}
           description={totalContacts === 0
             ? 'No contacts yet — start building your audience'
@@ -533,7 +536,7 @@ export function ContactsListPage() {
               </button>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white text-[12px] font-semibold hover:opacity-90 transition-all shadow-[0_1px_3px_rgba(99,102,241,0.4)]"
+                className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[#5B5BF5] text-white text-[12px] font-semibold hover:bg-[#4F46E5] transition-all shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Add Contact
@@ -545,9 +548,9 @@ export function ContactsListPage() {
         {/* KPI strip */}
         {stats && (
           <div className="grid grid-cols-3 gap-3">
-            <StatCard label="Total contacts" value={stats.total} icon={<Users className="h-3.5 w-3.5" />} accent="text-[var(--text-primary)]" />
-            <StatCard label="Verified" value={stats.verified ?? 0} icon={<ShieldCheck className="h-3.5 w-3.5" />} accent="text-emerald-600" />
-            <StatCard label="Lists" value={(lists?.length ?? 0)} icon={<FolderOpen className="h-3.5 w-3.5" />} accent="text-[#6366F1]" />
+            <StatCard label="Total contacts" value={stats.total.toLocaleString()} icon={Users} accent="indigo" />
+            <StatCard label="Verified" value={(stats.verified ?? 0).toLocaleString()} icon={ShieldCheck} accent="emerald" hint={stats.total > 0 ? `${Math.round((stats.verified / stats.total) * 100)}% of total` : undefined} />
+            <StatCard label="Lists" value={lists?.length ?? 0} icon={FolderOpen} accent="violet" />
           </div>
         )}
 
