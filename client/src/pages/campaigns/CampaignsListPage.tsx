@@ -43,6 +43,12 @@ export function CampaignsListPage() {
   const { data: campaignsResp, isLoading } = useQuery({
     queryKey: ['campaigns', 'all', statusFilter],
     queryFn: () => campaignsApi.list({ page: 1, limit: 500, status: statusFilter || undefined }),
+    // Auto-refresh every 30 s when viewing running campaigns so stats stay live
+    refetchInterval: (query) => {
+      const campaigns = (query.state.data as any)?.data ?? [];
+      const hasRunning = campaigns.some((c: any) => c.status === 'running');
+      return hasRunning ? 30_000 : false;
+    },
   });
 
   const { data: folders = [] } = useQuery({

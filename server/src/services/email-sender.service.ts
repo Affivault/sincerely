@@ -71,7 +71,13 @@ async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
     }),
   });
 
-  const data = await response.json() as any;
+  // Relay may return non-JSON (e.g. HTML 502 from a reverse proxy) — parse safely
+  let data: any = {};
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error(`SMTP relay returned non-JSON response (HTTP ${response.status} ${response.statusText})`);
+  }
 
   if (!response.ok || !data.success) {
     throw new Error(`SMTP relay error: ${data.error || response.statusText}`);

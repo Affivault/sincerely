@@ -92,6 +92,18 @@ export const settingsService = {
     // Delete user settings
     await supabaseAdmin.from('user_settings').delete().eq('user_id', userId);
 
+    // webhook_deliveries has no user_id column — must delete by endpoint_id first
+    const { data: userEndpoints } = await supabaseAdmin
+      .from('webhook_endpoints')
+      .select('id')
+      .eq('user_id', userId);
+    if (userEndpoints && userEndpoints.length > 0) {
+      await supabaseAdmin
+        .from('webhook_deliveries')
+        .delete()
+        .in('endpoint_id', userEndpoints.map((e: any) => e.id));
+    }
+
     // Delete user data from all tables (order matters for foreign keys)
     const tables = [
       'campaign_activities',
@@ -111,7 +123,7 @@ export const settingsService = {
       'email_templates',
       'sequence_templates',
       'asset_templates',
-      'webhook_deliveries',
+      'suppression_list',
       'webhook_endpoints',
       'api_keys',
     ];

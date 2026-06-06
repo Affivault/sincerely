@@ -162,9 +162,14 @@ async function syncArchiveToImap(
                 const mapped = map.get(Number(m.imap_uid)) ?? map.get(m.imap_uid);
                 if (typeof mapped === 'number') newUid = mapped;
               }
+              // Only update imap_uid if the server returned a new UID.
+              // Setting it to null would break future archive/unarchive since
+              // the sync query filters .not('imap_uid', 'is', null).
+              const updatePayload: Record<string, any> = { imap_folder: target };
+              if (newUid !== null) updatePayload.imap_uid = newUid;
               await supabaseAdmin
                 .from('inbox_messages')
-                .update({ imap_folder: target, imap_uid: newUid })
+                .update(updatePayload)
                 .eq('id', m.id);
               moved = true;
               break;

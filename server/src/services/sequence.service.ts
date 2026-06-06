@@ -169,11 +169,22 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
     return;
   }
 
-  // Check daily limit
+  // Check daily limit — use the campaign's timezone so "today" matches the sender's business day
   const dailyLimit = cc.campaigns.daily_limit || 0;
   if (dailyLimit > 0) {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const tz = cc.campaigns.timezone || 'UTC';
+    let localNow: Date;
+    try {
+      localNow = new Date(new Date().toLocaleString('en-US', { timeZone: tz }));
+    } catch {
+      localNow = new Date();
+    }
+    const localMidnight = new Date(localNow);
+    localMidnight.setHours(0, 0, 0, 0);
+    // Convert local midnight back to UTC for the Supabase gte filter
+    const realNow = new Date();
+    const offsetMs = localNow.getTime() - realNow.getTime();
+    const todayStart = new Date(localMidnight.getTime() - offsetMs);
     const { count: sentToday, error: countErr } = await supabaseAdmin
       .from('campaign_activities')
       .select('*', { count: 'exact', head: true })
