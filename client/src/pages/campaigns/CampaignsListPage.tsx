@@ -13,7 +13,7 @@ import { formatDate, cn } from '../../lib/utils';
 import {
   Megaphone, Plus, Send, Mail, MousePointerClick, MessageSquare, Copy,
   Folder, FolderPlus, FolderOpen, X, Pencil, Trash2, MoreVertical,
-  BarChart3, Layers, Play, Pause, Eye, Search,
+  BarChart3, Layers, Play, Pause, Eye, Search, AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CampaignWithStats } from '@lemlist/shared';
@@ -51,9 +51,9 @@ export function CampaignsListPage() {
   });
 
   const launchMut  = useMutation({ mutationFn: campaignsApi.launch, onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Launched'); }, onError: (e: any) => toast.error(e.response?.data?.error || 'Failed') });
-  const pauseMut   = useMutation({ mutationFn: campaignsApi.pause,  onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Paused'); } });
-  const resumeMut  = useMutation({ mutationFn: campaignsApi.resume, onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Resumed'); } });
-  const deleteMut  = useMutation({ mutationFn: campaignsApi.delete, onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Deleted'); } });
+  const pauseMut   = useMutation({ mutationFn: campaignsApi.pause,  onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Paused'); }, onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to pause') });
+  const resumeMut  = useMutation({ mutationFn: campaignsApi.resume, onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Resumed'); }, onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to resume') });
+  const deleteMut  = useMutation({ mutationFn: campaignsApi.delete, onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Deleted'); }, onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to delete') });
   const cloneMut   = useMutation({ mutationFn: campaignsApi.clone,  onSuccess: (c) => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Cloned'); navigate(`/campaigns/${c.id}`); } });
 
   const moveMut = useMutation({
@@ -493,11 +493,21 @@ function CampaignCard({ campaign, onOpen, onLaunch, onPause, onResume, onClone, 
 
       {/* Body — metrics OR pipeline progress */}
       {total > 0 ? (
-        <div className="grid grid-cols-4 gap-x-4 gap-y-2 mt-3 pt-3 border-t border-[var(--border-subtle)]">
-          <CardMetric color="#5B5BF5" label="Sent"    value={campaign.sent_count} pct={100} hidePctBar />
-          <CardMetric color="#8B5CF6" label="Open"    value={campaign.opened_count} pct={openPct} />
-          <CardMetric color="#06B6D4" label="Click"   value={campaign.clicked_count} pct={clickPct} />
-          <CardMetric color="#10B981" label="Reply"   value={campaign.replied_count} pct={replyPct} />
+        <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
+          <div className="grid grid-cols-4 gap-x-4 gap-y-2">
+            <CardMetric color="#5B5BF5" label="Sent"    value={campaign.sent_count} pct={100} hidePctBar />
+            <CardMetric color="#8B5CF6" label="Open"    value={campaign.opened_count} pct={openPct} />
+            <CardMetric color="#06B6D4" label="Click"   value={campaign.clicked_count} pct={clickPct} />
+            <CardMetric color="#10B981" label="Reply"   value={campaign.replied_count} pct={replyPct} />
+          </div>
+          {campaign.bounced_count > 0 && (
+            <div className="mt-2 flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-500/8 border border-red-500/15 w-fit">
+              <AlertTriangle className="h-3 w-3 text-red-500 flex-shrink-0" />
+              <span className="text-[11px] font-medium text-red-600">
+                {campaign.bounced_count} bounce{campaign.bounced_count !== 1 ? 's' : ''} — check deliverability
+              </span>
+            </div>
+          )}
         </div>
       ) : totalContacts > 0 ? (
         <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">

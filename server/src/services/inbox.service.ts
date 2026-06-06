@@ -83,7 +83,13 @@ async function syncArchiveToImap(
       .single();
     if (!account) continue;
 
-    const password = decrypt(account.smtp_pass_encrypted);
+    let password: string;
+    try {
+      password = decrypt(account.smtp_pass_encrypted);
+    } catch (decryptErr: any) {
+      console.warn('[IMAP archive] failed to decrypt password for account', accountId, decryptErr?.message);
+      continue;
+    }
     const host = account.smtp_host || '';
     const isGmail = host.includes('gmail') || (account.email_address || '').endsWith('@gmail.com');
     const isOutlook = host.includes('outlook') || host.includes('office365');
@@ -92,7 +98,14 @@ async function syncArchiveToImap(
     if (isGmail) imapHost = 'imap.gmail.com';
     else if (isOutlook) imapHost = 'outlook.office365.com';
     else if (host.startsWith('smtp.')) imapHost = host.replace('smtp.', 'imap.');
-    else imapHost = `imap.${(account.email_address || '').split('@')[1] || ''}`;
+    else {
+      const emailDomain = (account.email_address || '').split('@')[1];
+      if (!emailDomain) {
+        console.warn('[IMAP archive] cannot determine IMAP host for account', accountId, '— skipping');
+        continue;
+      }
+      imapHost = `imap.${emailDomain}`;
+    }
 
     const client = new ImapFlow({
       host: imapHost,

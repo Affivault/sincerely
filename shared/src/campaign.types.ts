@@ -74,6 +74,14 @@ export interface CampaignWithStats extends Campaign {
   clicked_count: number;
   replied_count: number;
   bounced_count: number;
+  active_contacts: number;
+  completed_contacts: number;
+  bounced_contacts: number;
+  unsubscribed_contacts: number;
+  open_rate: number;
+  click_rate: number;
+  reply_rate: number;
+  bounce_rate: number;
 }
 
 export interface CreateCampaignInput {

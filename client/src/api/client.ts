@@ -40,6 +40,9 @@ apiClient.interceptors.response.use(
           error.config.headers.Authorization = `Bearer ${session.access_token}`;
           return apiClient(error.config);
         }
+        // Refresh reported success but produced no usable token — force sign-out
+        await supabase.auth.signOut();
+        window.location.href = '/login';
       }
     }
     return Promise.reject(error);

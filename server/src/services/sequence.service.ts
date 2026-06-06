@@ -174,13 +174,14 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
   if (dailyLimit > 0) {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const { count: sentToday } = await supabaseAdmin
+    const { count: sentToday, error: countErr } = await supabaseAdmin
       .from('campaign_activities')
       .select('*', { count: 'exact', head: true })
       .eq('campaign_id', cc.campaign_id)
       .eq('activity_type', 'sent')
       .gte('occurred_at', todayStart.toISOString());
-    if (sentToday && sentToday >= dailyLimit) {
+    if (countErr) throw new Error(`Failed to fetch daily send count: ${countErr.message}`);
+    if (sentToday !== null && sentToday >= dailyLimit) {
       // Reschedule to next send window so the sequence worker doesn't
       // re-pick this contact every 30 seconds until midnight.
       const nextWindow = getNextSendWindowStart(cc.campaigns);
