@@ -485,11 +485,12 @@ export const analyticsService = {
       .from('campaigns').select('id').eq('id', campaignId).eq('user_id', userId).single();
     if (!campaign) throw new AppError('Campaign not found', 404);
 
+    // A step is A/B-tested if it has EITHER a subject variant or a body variant
     const { data: steps } = await supabaseAdmin
       .from('campaign_steps')
-      .select('id, step_order, subject, subject_b')
+      .select('id, step_order, subject, subject_b, body_html_b')
       .eq('campaign_id', campaignId)
-      .not('subject_b', 'is', null)
+      .or('subject_b.not.is.null,body_html_b.not.is.null')
       .order('step_order');
 
     if (!steps?.length) return [];
@@ -503,6 +504,17 @@ export const analyticsService = {
       .in('step_id', stepIds)
       .in('activity_type', ['sent', 'opened', 'clicked', 'replied']);
 
+    // Only 'sent' activities carry ab_variant in metadata. Build a lookup
+    // so opens/clicks/replies can be attributed to the right variant by
+    // (contact_id, step_id). Without this, every non-send event defaults
+    // to 'a' and the report is meaningless.
+    const variantByContactStep = new Map<string, 'a' | 'b'>();
+    for (const a of activities || []) {
+      if (a.activity_type !== 'sent') continue;
+      const v: 'a' | 'b' = a.metadata?.ab_variant === 'b' ? 'b' : 'a';
+      variantByContactStep.set(`${a.contact_id}:${a.step_id}`, v);
+    }
+
     type VBucket = { sent: Set<string>; opened: Set<string>; clicked: Set<string>; replied: Set<string> };
     const byStep = new Map<string, { a: VBucket; b: VBucket }>();
     for (const s of steps) {
@@ -515,7 +527,8 @@ export const analyticsService = {
     for (const a of activities || []) {
       const step = byStep.get(a.step_id);
       if (!step) continue;
-      const v = (a.metadata?.ab_variant === 'b') ? 'b' : 'a';
+      const v = variantByContactStep.get(`${a.contact_id}:${a.step_id}`);
+      if (!v) continue; // No send recorded for this contact+step — skip orphaned events
       const bucket = step[v];
       switch (a.activity_type) {
         case 'sent': bucket.sent.add(a.contact_id); break;
@@ -525,18 +538,29 @@ export const analyticsService = {
       }
     }
 
+    // Sample-size guard: require ≥30 sends per variant AND ≥2pp gap in open
+    // rate before naming a winner — otherwise users will chase noise.
+    const MIN_SAMPLE = 30;
+    const MIN_GAP = 2;
+
     return steps.map((s: any) => {
       const d = byStep.get(s.id)!;
       const aSent = d.a.sent.size, bSent = d.b.sent.size;
       const aOpen = calcRate(d.a.opened.size, aSent);
       const bOpen = calcRate(d.b.opened.size, bSent);
-      const winner = aSent === 0 && bSent === 0 ? null : aOpen > bOpen ? 'a' : bOpen > aOpen ? 'b' : null;
+      const enoughData = aSent >= MIN_SAMPLE && bSent >= MIN_SAMPLE;
+      const gap = Math.abs(aOpen - bOpen);
+      const winner: 'a' | 'b' | null = !enoughData || gap < MIN_GAP
+        ? null
+        : aOpen > bOpen ? 'a' : 'b';
       return {
         step_id: s.id,
         step_order: s.step_order,
         subject_a: s.subject || '',
         subject_b: s.subject_b || '',
         winner,
+        significant: enoughData,
+        min_sample: MIN_SAMPLE,
         variant_a: {
           sent: aSent,
           opened: d.a.opened.size,

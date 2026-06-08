@@ -598,7 +598,12 @@ export function AnalyticsDashboardPage() {
                       Variant {step.winner.toUpperCase()} winning
                     </span>
                   )}
-                  {!step.winner && step.variant_a.sent + step.variant_b.sent > 0 && (
+                  {!step.winner && !step.significant && step.variant_a.sent + step.variant_b.sent > 0 && (
+                    <span className="text-[10.5px] text-[var(--text-tertiary)]">
+                      Need {step.min_sample}+ sends per variant for a reliable result
+                    </span>
+                  )}
+                  {!step.winner && step.significant && (
                     <span className="text-[10.5px] text-[var(--text-tertiary)]">Too close to call</span>
                   )}
                 </div>

@@ -51,6 +51,8 @@ export interface AbTestStep {
   subject_a: string;
   subject_b: string;
   winner: 'a' | 'b' | null;
+  significant: boolean;
+  min_sample: number;
   variant_a: AbVariantStats;
   variant_b: AbVariantStats;
 }
