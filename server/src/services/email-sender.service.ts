@@ -133,6 +133,7 @@ interface SendEmailParams {
   subject: string;
   bodyHtml: string;
   bodyText: string;
+  ab_variant?: 'a' | 'b';
 }
 
 function generateTrackingId(campaignContactId: string, stepId: string): string {
@@ -315,6 +316,7 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
         smtp_account_id: smtpAccount.id,
         smtp_label: smtpAccount.label,
         tracking_id: trackingId,
+        ...(params.ab_variant ? { ab_variant: params.ab_variant } : {}),
       },
     });
   if (activityError) {

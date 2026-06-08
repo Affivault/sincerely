@@ -9,6 +9,67 @@ export interface TrendDataPoint {
   replied: number;
 }
 
+export interface CampaignListItem {
+  id: string;
+  name: string;
+  status: string;
+  created_at: string;
+  sent: number;
+  open_rate: number;
+  reply_rate: number;
+}
+
+export interface FunnelStep {
+  step_id: string;
+  step_order: number;
+  subject: string;
+  has_ab: boolean;
+  sent: number;
+  opened: number;
+  clicked: number;
+  replied: number;
+  bounced: number;
+  open_rate: number;
+  click_rate: number;
+  reply_rate: number;
+  bounce_rate: number;
+}
+
+export interface AbVariantStats {
+  sent: number;
+  opened: number;
+  clicked: number;
+  replied: number;
+  open_rate: number;
+  click_rate: number;
+  reply_rate: number;
+}
+
+export interface AbTestStep {
+  step_id: string;
+  step_order: number;
+  subject_a: string;
+  subject_b: string;
+  winner: 'a' | 'b' | null;
+  variant_a: AbVariantStats;
+  variant_b: AbVariantStats;
+}
+
+export interface CampaignContact {
+  contact_id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  status: string;
+  dcs_score: number | null;
+  is_bounced: boolean;
+  is_unsubscribed: boolean;
+  sent: number;
+  opened: number;
+  clicked: number;
+  replied: boolean;
+}
+
 export const analyticsApi = {
   overview: async (days?: number) => {
     const { data } = await apiClient.get<OverviewAnalytics>('/analytics/overview', {
@@ -18,9 +79,7 @@ export const analyticsApi = {
   },
 
   trend: async (days: number = 30) => {
-    const { data } = await apiClient.get<TrendDataPoint[]>('/analytics/trend', {
-      params: { days },
-    });
+    const { data } = await apiClient.get<TrendDataPoint[]>('/analytics/trend', { params: { days } });
     return data;
   },
 
@@ -29,18 +88,28 @@ export const analyticsApi = {
     return data;
   },
 
+  campaignList: async () => {
+    const { data } = await apiClient.get<CampaignListItem[]>('/analytics/campaigns');
+    return data;
+  },
+
+  campaignFunnel: async (campaignId: string) => {
+    const { data } = await apiClient.get<FunnelStep[]>(`/analytics/campaigns/${campaignId}/funnel`);
+    return data;
+  },
+
+  campaignAbTest: async (campaignId: string) => {
+    const { data } = await apiClient.get<AbTestStep[]>(`/analytics/campaigns/${campaignId}/ab-test`);
+    return data;
+  },
+
+  campaignTrend: async (campaignId: string, days: number = 30) => {
+    const { data } = await apiClient.get<TrendDataPoint[]>(`/analytics/campaigns/${campaignId}/trend`, { params: { days } });
+    return data;
+  },
+
   campaignContacts: async (campaignId: string) => {
-    const { data } = await apiClient.get<{ contacts: Array<{
-      contact_id: string;
-      email: string;
-      first_name: string | null;
-      last_name: string | null;
-      status: string;
-      sent: number;
-      opened: number;
-      clicked: number;
-      replied: boolean;
-    }> }>(`/analytics/campaigns/${campaignId}/contacts`);
+    const { data } = await apiClient.get<{ contacts: CampaignContact[] }>(`/analytics/campaigns/${campaignId}/contacts`);
     return data;
   },
 

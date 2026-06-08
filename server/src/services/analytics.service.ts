@@ -243,7 +243,7 @@ export const analyticsService = {
 
     const { data: campaignContacts } = await supabaseAdmin
       .from('campaign_contacts')
-      .select('contact_id, status, contacts(email, first_name, last_name)')
+      .select('contact_id, status, contacts(email, first_name, last_name, dcs_score, is_bounced, is_unsubscribed)')
       .eq('campaign_id', campaignId);
 
     // Fetch all activities for this campaign in one query, then group by contact_id
@@ -274,6 +274,9 @@ export const analyticsService = {
         first_name: cc.contacts?.first_name || null,
         last_name: cc.contacts?.last_name || null,
         status: cc.status,
+        dcs_score: cc.contacts?.dcs_score ?? null,
+        is_bounced: cc.contacts?.is_bounced ?? false,
+        is_unsubscribed: cc.contacts?.is_unsubscribed ?? false,
         ...counts,
       };
     });
@@ -377,5 +380,212 @@ export const analyticsService = {
       metadata: a.metadata,
       occurred_at: a.occurred_at,
     }));
+  },
+
+  async campaignList(userId: string) {
+    const { data: campaigns } = await supabaseAdmin
+      .from('campaigns')
+      .select('id, name, status, created_at, started_at, completed_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (!campaigns?.length) return [];
+
+    const ids = campaigns.map((c: any) => c.id);
+
+    const [sentRes, openedRes, repliedRes] = await Promise.all([
+      supabaseAdmin.from('campaign_activities').select('campaign_id').in('campaign_id', ids).eq('activity_type', 'sent'),
+      supabaseAdmin.from('campaign_activities').select('campaign_id').in('campaign_id', ids).eq('activity_type', 'opened'),
+      supabaseAdmin.from('campaign_activities').select('campaign_id').in('campaign_id', ids).eq('activity_type', 'replied'),
+    ]);
+
+    const sentByCampaign = new Map<string, number>();
+    const openedByCampaign = new Map<string, number>();
+    const repliedByCampaign = new Map<string, number>();
+    for (const a of sentRes.data || []) sentByCampaign.set(a.campaign_id, (sentByCampaign.get(a.campaign_id) || 0) + 1);
+    for (const a of openedRes.data || []) openedByCampaign.set(a.campaign_id, (openedByCampaign.get(a.campaign_id) || 0) + 1);
+    for (const a of repliedRes.data || []) repliedByCampaign.set(a.campaign_id, (repliedByCampaign.get(a.campaign_id) || 0) + 1);
+
+    return campaigns.map((c: any) => {
+      const sent = sentByCampaign.get(c.id) || 0;
+      const opened = openedByCampaign.get(c.id) || 0;
+      const replied = repliedByCampaign.get(c.id) || 0;
+      return {
+        id: c.id,
+        name: c.name,
+        status: c.status,
+        created_at: c.created_at,
+        sent,
+        open_rate: calcRate(opened, sent),
+        reply_rate: calcRate(replied, sent),
+      };
+    });
+  },
+
+  async campaignFunnel(userId: string, campaignId: string) {
+    const { data: campaign } = await supabaseAdmin
+      .from('campaigns').select('id').eq('id', campaignId).eq('user_id', userId).single();
+    if (!campaign) throw new AppError('Campaign not found', 404);
+
+    const { data: steps } = await supabaseAdmin
+      .from('campaign_steps')
+      .select('id, step_order, subject, step_type, subject_b')
+      .eq('campaign_id', campaignId)
+      .eq('step_type', 'email')
+      .order('step_order');
+
+    if (!steps?.length) return [];
+
+    const { data: activities } = await supabaseAdmin
+      .from('campaign_activities')
+      .select('step_id, activity_type, contact_id')
+      .eq('campaign_id', campaignId)
+      .in('activity_type', ['sent', 'opened', 'clicked', 'replied', 'bounced']);
+
+    const byStep = new Map<string, { sent: Set<string>; opened: Set<string>; clicked: Set<string>; replied: Set<string>; bounced: Set<string> }>();
+    for (const s of steps) {
+      byStep.set(s.id, { sent: new Set(), opened: new Set(), clicked: new Set(), replied: new Set(), bounced: new Set() });
+    }
+
+    for (const a of activities || []) {
+      const d = byStep.get(a.step_id);
+      if (!d) continue;
+      switch (a.activity_type) {
+        case 'sent': d.sent.add(a.contact_id); break;
+        case 'opened': d.opened.add(a.contact_id); break;
+        case 'clicked': d.clicked.add(a.contact_id); break;
+        case 'replied': d.replied.add(a.contact_id); break;
+        case 'bounced': d.bounced.add(a.contact_id); break;
+      }
+    }
+
+    return steps.map((s: any) => {
+      const d = byStep.get(s.id) || { sent: new Set(), opened: new Set(), clicked: new Set(), replied: new Set(), bounced: new Set() };
+      const sent = d.sent.size;
+      return {
+        step_id: s.id,
+        step_order: s.step_order,
+        subject: s.subject || `Step ${s.step_order}`,
+        has_ab: !!(s.subject_b),
+        sent,
+        opened: d.opened.size,
+        clicked: d.clicked.size,
+        replied: d.replied.size,
+        bounced: d.bounced.size,
+        open_rate: calcRate(d.opened.size, sent),
+        click_rate: calcRate(d.clicked.size, sent),
+        reply_rate: calcRate(d.replied.size, sent),
+        bounce_rate: calcRate(d.bounced.size, sent),
+      };
+    });
+  },
+
+  async campaignAbTest(userId: string, campaignId: string) {
+    const { data: campaign } = await supabaseAdmin
+      .from('campaigns').select('id').eq('id', campaignId).eq('user_id', userId).single();
+    if (!campaign) throw new AppError('Campaign not found', 404);
+
+    const { data: steps } = await supabaseAdmin
+      .from('campaign_steps')
+      .select('id, step_order, subject, subject_b')
+      .eq('campaign_id', campaignId)
+      .not('subject_b', 'is', null)
+      .order('step_order');
+
+    if (!steps?.length) return [];
+
+    const stepIds = steps.map((s: any) => s.id);
+
+    const { data: activities } = await supabaseAdmin
+      .from('campaign_activities')
+      .select('step_id, activity_type, contact_id, metadata')
+      .eq('campaign_id', campaignId)
+      .in('step_id', stepIds)
+      .in('activity_type', ['sent', 'opened', 'clicked', 'replied']);
+
+    type VBucket = { sent: Set<string>; opened: Set<string>; clicked: Set<string>; replied: Set<string> };
+    const byStep = new Map<string, { a: VBucket; b: VBucket }>();
+    for (const s of steps) {
+      byStep.set(s.id, {
+        a: { sent: new Set(), opened: new Set(), clicked: new Set(), replied: new Set() },
+        b: { sent: new Set(), opened: new Set(), clicked: new Set(), replied: new Set() },
+      });
+    }
+
+    for (const a of activities || []) {
+      const step = byStep.get(a.step_id);
+      if (!step) continue;
+      const v = (a.metadata?.ab_variant === 'b') ? 'b' : 'a';
+      const bucket = step[v];
+      switch (a.activity_type) {
+        case 'sent': bucket.sent.add(a.contact_id); break;
+        case 'opened': bucket.opened.add(a.contact_id); break;
+        case 'clicked': bucket.clicked.add(a.contact_id); break;
+        case 'replied': bucket.replied.add(a.contact_id); break;
+      }
+    }
+
+    return steps.map((s: any) => {
+      const d = byStep.get(s.id)!;
+      const aSent = d.a.sent.size, bSent = d.b.sent.size;
+      const aOpen = calcRate(d.a.opened.size, aSent);
+      const bOpen = calcRate(d.b.opened.size, bSent);
+      const winner = aSent === 0 && bSent === 0 ? null : aOpen > bOpen ? 'a' : bOpen > aOpen ? 'b' : null;
+      return {
+        step_id: s.id,
+        step_order: s.step_order,
+        subject_a: s.subject || '',
+        subject_b: s.subject_b || '',
+        winner,
+        variant_a: {
+          sent: aSent,
+          opened: d.a.opened.size,
+          clicked: d.a.clicked.size,
+          replied: d.a.replied.size,
+          open_rate: aOpen,
+          click_rate: calcRate(d.a.clicked.size, aSent),
+          reply_rate: calcRate(d.a.replied.size, aSent),
+        },
+        variant_b: {
+          sent: bSent,
+          opened: d.b.opened.size,
+          clicked: d.b.clicked.size,
+          replied: d.b.replied.size,
+          open_rate: bOpen,
+          click_rate: calcRate(d.b.clicked.size, bSent),
+          reply_rate: calcRate(d.b.replied.size, bSent),
+        },
+      };
+    });
+  },
+
+  async campaignTrend(userId: string, campaignId: string, days: number = 30) {
+    const { data: campaign } = await supabaseAdmin
+      .from('campaigns').select('id').eq('id', campaignId).eq('user_id', userId).single();
+    if (!campaign) throw new AppError('Campaign not found', 404);
+
+    const { data: activities } = await supabaseAdmin
+      .from('campaign_activities')
+      .select('activity_type, occurred_at')
+      .eq('campaign_id', campaignId)
+      .gte('occurred_at', daysAgoISO(days))
+      .order('occurred_at');
+
+    const byDate: Record<string, { sent: number; opened: number; clicked: number; replied: number }> = {};
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      byDate[d.toISOString().slice(0, 10)] = { sent: 0, opened: 0, clicked: 0, replied: 0 };
+    }
+    for (const a of activities || []) {
+      const key = a.occurred_at?.slice(0, 10);
+      if (!key || !byDate[key]) continue;
+      switch (a.activity_type) {
+        case 'sent': byDate[key].sent++; break;
+        case 'opened': byDate[key].opened++; break;
+        case 'clicked': byDate[key].clicked++; break;
+        case 'replied': byDate[key].replied++; break;
+      }
+    }
+    return Object.entries(byDate).map(([date, counts]) => ({ date, ...counts }));
   },
 };

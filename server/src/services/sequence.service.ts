@@ -359,6 +359,7 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
       subject,
       bodyHtml,
       bodyText,
+      ab_variant: step.subject_b ? (useVariantB ? 'b' : 'a') : undefined,
     });
   } catch (err: any) {
     console.error(`[Sequence] Email send failed for ${cc.contacts.email}:`, err.message);
