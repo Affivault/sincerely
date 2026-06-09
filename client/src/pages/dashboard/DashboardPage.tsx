@@ -297,7 +297,7 @@ export function DashboardPage() {
           label="Click rate"
           value={fmtPct(stats.avg_click_rate)}
           icon={MousePointer}
-          accent="emerald"
+          accent="cyan"
           sparkline={sparkClicked}
           hint={`${fmtNum(stats.total_clicked)} clicks`}
           onClick={() => navigate('/analytics')}
@@ -306,7 +306,7 @@ export function DashboardPage() {
           label="Reply rate"
           value={fmtPct(stats.avg_reply_rate)}
           icon={MessageSquare}
-          accent="amber"
+          accent="emerald"
           sparkline={sparkReplied}
           hint={`${fmtNum(stats.total_replied)} replies`}
           onClick={() => navigate('/inbox')}
@@ -324,6 +324,7 @@ export function DashboardPage() {
             }
           >
             <div className="flex items-center gap-2">
+              <span className="tile tile-cyan h-7 w-7"><TrendingUp className="h-[15px] w-[15px]" strokeWidth={2.2} /></span>
               <CardTitle>Sending activity</CardTitle>
               <Badge variant="default" size="sm">14d</Badge>
             </div>
@@ -346,9 +347,12 @@ export function DashboardPage() {
 
         <Card className="lg:col-span-2" padding="none">
           <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border-subtle)]">
-            <div>
-              <CardTitle>Running now</CardTitle>
-              <CardDescription>{activeCampaigns.length} campaign{activeCampaigns.length === 1 ? '' : 's'} live</CardDescription>
+            <div className="flex items-center gap-2.5">
+              <span className="tile tile-emerald h-7 w-7"><span className="live-dot !bg-white" /></span>
+              <div>
+                <CardTitle>Running now</CardTitle>
+                <CardDescription>{activeCampaigns.length} campaign{activeCampaigns.length === 1 ? '' : 's'} live</CardDescription>
+              </div>
             </div>
             <Link to="/campaigns" className="text-[11.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] inline-flex items-center gap-0.5 transition-colors">
               All <ChevronRight className="h-3 w-3" />
@@ -392,7 +396,10 @@ export function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
         <Card className="lg:col-span-2" padding="none">
           <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border-subtle)]">
-            <CardTitle>Recent campaigns</CardTitle>
+            <div className="flex items-center gap-2.5">
+              <span className="tile tile-violet h-7 w-7"><Megaphone className="h-[15px] w-[15px]" strokeWidth={2} /></span>
+              <CardTitle>Recent campaigns</CardTitle>
+            </div>
             <div className="flex items-center gap-1">
               <Button size="sm" variant="ghost" onClick={() => navigate('/campaigns/new')}>
                 <Plus className="h-3 w-3" />New
@@ -442,7 +449,8 @@ export function DashboardPage() {
           {/* Inbox preview */}
           <Card padding="none">
             <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border-subtle)]">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
+                <span className="tile tile-cyan h-7 w-7"><Inbox className="h-[15px] w-[15px]" strokeWidth={2} /></span>
                 <CardTitle>Unibox</CardTitle>
                 {unreadCount > 0 && (
                   <Badge variant="brand" size="sm">{unreadCount > 99 ? '99+' : unreadCount} new</Badge>
@@ -512,21 +520,27 @@ export function DashboardPage() {
       </div>
 
       {/* ── Quick nav grid ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="eyebrow">Jump back in</span>
+        <div className="flex-1 h-px bg-[var(--border-subtle)]" />
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
         {[
-          { to: '/campaigns/new', icon: Megaphone,   label: 'New campaign', desc: 'Build a sequence' },
-          { to: '/contacts',      icon: Users,       label: 'Lead lists',   desc: `${fmtNum(stats.total_contacts)} contacts` },
-          { to: '/templates',     icon: FileText,    label: 'Templates',    desc: `${templates.length} saved` },
-          { to: '/verification',  icon: ShieldCheck, label: 'Verification', desc: 'DCS scoring' },
-          { to: '/suppression',   icon: ShieldOff,   label: 'Suppression',  desc: `${fmtNum(stats.suppressed_count)} blocked` },
-          { to: '/team',          icon: UserPlus,    label: 'Team',         desc: 'Invite teammates' },
+          { to: '/campaigns/new', icon: Megaphone,   label: 'New campaign', desc: 'Build a sequence',                       tile: 'tile-violet' },
+          { to: '/contacts',      icon: Users,       label: 'Lead lists',   desc: `${fmtNum(stats.total_contacts)} contacts`, tile: 'tile-emerald' },
+          { to: '/templates',     icon: FileText,    label: 'Templates',    desc: `${templates.length} saved`,              tile: 'tile-amber' },
+          { to: '/verification',  icon: ShieldCheck, label: 'Verification', desc: 'DCS scoring',                            tile: 'tile-cyan' },
+          { to: '/suppression',   icon: ShieldOff,   label: 'Suppression',  desc: `${fmtNum(stats.suppressed_count)} blocked`, tile: 'tile-rose' },
+          { to: '/team',          icon: UserPlus,    label: 'Team',         desc: 'Invite teammates',                       tile: 'tile-blue' },
         ].map(item => (
           <Link
             key={item.to}
             to={item.to}
-            className="group card hover:card-hover transition-all px-3 py-3 hover:border-[var(--border-default)] hover:shadow-[var(--shadow-md)]"
+            className="group card card-hover px-3.5 py-3.5"
           >
-            <item.icon className="h-3.5 w-3.5 text-[var(--text-tertiary)] mb-1.5 group-hover:text-[var(--indigo)] transition-colors" strokeWidth={1.75} />
+            <span className={cn('tile h-9 w-9 mb-2.5 transition-transform duration-200 group-hover:scale-110', item.tile)}>
+              <item.icon className="h-[18px] w-[18px]" strokeWidth={2} />
+            </span>
             <p className="text-[12.5px] font-semibold text-[var(--text-primary)] leading-tight">{item.label}</p>
             <p className="text-[10.5px] text-[var(--text-tertiary)] mt-0.5 truncate">{item.desc}</p>
           </Link>

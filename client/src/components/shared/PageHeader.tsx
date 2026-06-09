@@ -39,17 +39,23 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        'relative -mx-6 -mt-5 mb-5 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]',
+        'relative -mx-6 -mt-5 mb-5 border-b border-[var(--border-subtle)] overflow-hidden',
+        decorate ? 'hero-gradient' : 'bg-[var(--bg-surface)]',
         className
       )}
     >
       {/* Decorative layers */}
       {decorate && (
         <>
-          <div className="absolute inset-0 pattern-dots opacity-50 pointer-events-none" />
-          <div className="absolute inset-0 glow-brand pointer-events-none" />
+          <div className="absolute inset-0 pattern-dots opacity-40 pointer-events-none" />
+          <div
+            className="absolute -top-24 right-10 h-48 w-72 rounded-full blur-3xl opacity-60 pointer-events-none"
+            style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.22), transparent 70%)' }}
+          />
         </>
       )}
+      {/* Gradient accent line along the bottom edge */}
+      <div className="absolute bottom-0 left-0 right-0 h-px pointer-events-none" style={{ background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.4) 30%, rgba(139,92,246,0.35) 60%, transparent)' }} />
 
       <div className="relative px-6 pt-5 pb-4">
         {/* Breadcrumbs */}
