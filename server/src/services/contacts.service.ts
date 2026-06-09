@@ -191,6 +191,7 @@ export const contactsService = {
     total: number;
     imported: number;
     errors: number;
+    duplicates_collapsed?: number;
     error_details: { email: string; reason: string }[];
   }> {
     const total = contacts.length;
@@ -233,9 +234,17 @@ export const contactsService = {
       return { total, imported: 0, errors: errorDetails.length, error_details: errorDetails.slice(0, 200) };
     }
 
+    // Deduplicate within the batch — PostgreSQL upsert errors on multiple rows
+    // matching the same conflict key. Last occurrence wins so later CSV rows
+    // can fill missing fields from earlier ones.
+    const uniqueByEmail = new Map<string, any>();
+    for (const row of valid) uniqueByEmail.set(row.email, row);
+    const uniqueValid = Array.from(uniqueByEmail.values());
+    const duplicatesCollapsed = valid.length - uniqueValid.length;
+
     const { data, error } = await supabaseAdmin
       .from('contacts')
-      .upsert(valid, { onConflict: 'user_id,email' })
+      .upsert(uniqueValid, { onConflict: 'user_id,email' })
       .select('id, email');
 
     if (error) {
@@ -273,11 +282,15 @@ export const contactsService = {
       }
     }
 
-    const upsertFailures = valid.length - importedRows.length;
+    // Failures = rows we tried to upsert (after collapsing duplicates) but
+    // didn't get back. Duplicates collapsed in-batch are not failures —
+    // they're legitimate consolidations the user expects.
+    const upsertFailures = Math.max(0, uniqueValid.length - importedRows.length);
     return {
       total,
       imported: importedRows.length,
       errors: errorDetails.length + upsertFailures,
+      duplicates_collapsed: duplicatesCollapsed,
       error_details: errorDetails.slice(0, 200),
     };
   },

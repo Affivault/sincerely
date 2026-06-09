@@ -52,7 +52,7 @@ const settingsNav: NavItem[] = [
   { name: 'Domains',     href: '/domains',        icon: Globe },
   { name: 'Suppression', href: '/suppression',    icon: ShieldOff },
   { name: 'Team',        href: '/team',            icon: UserPlus },
-  { name: 'Settings',   href: '/settings',        icon: Settings },
+  { name: 'Settings',    href: '/settings',        icon: Settings },
 ];
 
 /* Routes that belong inside the Campaigns group */
@@ -71,34 +71,43 @@ function NavLeafItem({ item, collapsed, badge, nested }: {
       to={item.href}
       title={collapsed ? item.name : undefined}
       className={cn(
-        'group relative flex items-center gap-2.5 rounded-[6px] transition-colors duration-100',
-        collapsed ? 'justify-center h-8 w-8 mx-auto' : nested ? 'h-[28px] pl-7 pr-2.5' : 'h-[30px] px-2.5',
+        'group relative flex items-center gap-2.5 rounded-[7px] transition-colors duration-100',
+        collapsed ? 'justify-center h-9 w-9 mx-auto' : nested ? 'h-[30px] pl-7 pr-2.5' : 'h-8 px-2.5',
         isActive
-          ? 'bg-[rgba(99,102,241,0.1)] text-[#6366F1]'
+          ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
           : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
       )}
     >
-      {/* Active pill */}
       {isActive && !collapsed && !nested && (
-        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full bg-[var(--indigo)]" />
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[18px] rounded-r-full bg-[var(--indigo)]" />
       )}
       {nested && !collapsed && (
-        <span className={cn('absolute left-3 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full', isActive ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]')} />
+        <span className={cn(
+          'absolute left-3 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full',
+          isActive ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]'
+        )} />
       )}
 
-      {!nested && <Icon className="h-[15px] w-[15px] flex-shrink-0" strokeWidth={isActive ? 2 : 1.75} />}
+      {!nested && (
+        <Icon className="h-[15px] w-[15px] flex-shrink-0" strokeWidth={isActive ? 2.1 : 1.75} />
+      )}
 
       {!collapsed && (
-        <span className={cn('flex-1 truncate', nested ? 'text-[12.5px]' : 'text-[13px] font-medium')}>{item.name}</span>
+        <span className={cn(
+          'flex-1 truncate leading-none',
+          nested ? 'text-[12.5px]' : 'text-[13px] font-medium'
+        )}>
+          {item.name}
+        </span>
       )}
 
       {badge != null && badge > 0 && (
         collapsed ? (
-          <span className="absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[var(--indigo)] text-white text-[9px] font-bold px-0.5 leading-none">
+          <span className="absolute -top-0.5 -right-0.5 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-[var(--indigo)] text-white text-[9px] font-bold px-0.5 leading-none">
             {badge > 99 ? '99+' : badge}
           </span>
         ) : (
-          <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--indigo)] text-white text-[9px] font-bold px-1 leading-none">
+          <span className="ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--indigo)] text-white text-[9px] font-bold px-1 leading-none">
             {badge > 99 ? '99+' : badge}
           </span>
         )
@@ -128,37 +137,38 @@ function NavGroupItem({ item, collapsed, expanded, onToggle }: {
 
   return (
     <div>
-      {/* Parent row */}
       <div
         onClick={handleClick}
         title={collapsed ? item.name : undefined}
         className={cn(
-          'group relative flex items-center gap-2.5 rounded-[6px] transition-colors duration-100 cursor-pointer select-none',
-          collapsed ? 'justify-center h-8 w-8 mx-auto' : 'h-[30px] px-2.5',
+          'group relative flex items-center gap-2.5 rounded-[7px] transition-colors duration-100 cursor-pointer select-none',
+          collapsed ? 'justify-center h-9 w-9 mx-auto' : 'h-8 px-2.5',
           isParentActive
-            ? 'bg-[rgba(99,102,241,0.1)] text-[#6366F1]'
+            ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
             : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
         )}
       >
         {isParentActive && !collapsed && (
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full bg-[var(--indigo)]" />
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[18px] rounded-r-full bg-[var(--indigo)]" />
         )}
 
-        <Icon className="h-[15px] w-[15px] flex-shrink-0" strokeWidth={isParentActive ? 2 : 1.75} />
+        <Icon className="h-[15px] w-[15px] flex-shrink-0" strokeWidth={isParentActive ? 2.1 : 1.75} />
 
         {!collapsed && (
           <>
-            <span className="flex-1 text-[13px] font-medium truncate">{item.name}</span>
+            <span className="flex-1 text-[13px] font-medium truncate leading-none">{item.name}</span>
             <ChevronRight
-              className={cn('h-3 w-3 flex-shrink-0 transition-transform duration-150 text-[var(--text-tertiary)]', expanded && 'rotate-90')}
+              className={cn(
+                'h-3 w-3 flex-shrink-0 transition-transform duration-150 text-[var(--text-tertiary)]',
+                expanded && 'rotate-90'
+              )}
             />
           </>
         )}
       </div>
 
-      {/* Children */}
       {!collapsed && expanded && (
-        <div className="mt-0.5 space-y-px">
+        <div className="mt-0.5 space-y-0.5">
           {item.children.map((child) => (
             <NavLeafItem key={child.href} item={child} collapsed={false} nested />
           ))}
@@ -178,16 +188,16 @@ function NavSection({ title, items, collapsed, badges, expandedGroups, onToggleG
   onToggleGroup: (id: string) => void;
 }) {
   return (
-    <div className="mb-4">
+    <div className="mb-0">
       {title && !collapsed && (
-        <div className="px-2.5 mb-1">
-          <span className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.08em]">{title}</span>
+        <div className="px-2.5 mt-5 mb-1">
+          <span className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.1em]">{title}</span>
         </div>
       )}
       {title && collapsed && (
-        <div className="mb-1.5 mx-auto w-5 h-px bg-[var(--border-subtle)]" />
+        <div className="my-3 mx-auto w-4 h-px bg-[var(--border-default)]" />
       )}
-      <div className="space-y-px">
+      <div className="space-y-0.5">
         {items.map((item) =>
           isGroup(item) ? (
             <NavGroupItem
@@ -228,7 +238,6 @@ export function Sidebar() {
     }
   });
 
-  // Auto-expand campaigns group when on a campaigns-related route
   useEffect(() => {
     const inCampaigns = CAMPAIGN_ROUTES.some((r) =>
       location.pathname === r || location.pathname.startsWith(r + '/')
@@ -258,24 +267,28 @@ export function Sidebar() {
     <aside
       className={cn(
         'fixed inset-y-0 left-0 z-40 flex flex-col bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] transition-[width] duration-200 ease-out',
-        collapsed ? 'w-[52px]' : 'w-[220px]'
+        collapsed ? 'w-[56px]' : 'w-[232px]'
       )}
     >
       {/* Logo */}
       <div className={cn(
-        'flex items-center h-[48px] border-b border-[var(--border-subtle)] flex-shrink-0',
-        collapsed ? 'justify-center px-2' : 'px-3 gap-2'
+        'flex items-center h-[52px] border-b border-[var(--border-subtle)] flex-shrink-0',
+        collapsed ? 'justify-center px-2' : 'px-3.5 gap-2'
       )}>
         {collapsed ? (
-          <button onClick={toggle} className="flex items-center justify-center" title="Expand sidebar">
-            <SkySendLogoMark className="h-6 w-6 flex-shrink-0" />
+          <button
+            onClick={toggle}
+            className="flex items-center justify-center p-1.5 rounded-md hover:bg-[var(--bg-hover)] transition-colors"
+            title="Expand sidebar"
+          >
+            <SkySendLogoMark className="h-5 w-5 flex-shrink-0" />
           </button>
         ) : (
           <>
             <span className="flex-1 overflow-hidden"><SkySendLogo /></span>
             <button
               onClick={toggle}
-              className="flex-shrink-0 p-1 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+              className="flex-shrink-0 p-1.5 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
               title="Collapse sidebar"
             >
               <PanelLeftClose className="h-3.5 w-3.5" />
@@ -285,32 +298,42 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className={cn('flex-1 py-2.5 overflow-y-auto overflow-x-hidden', collapsed ? 'px-1.5' : 'px-2')}>
-        <NavSection items={workspaceNav}   badges={{ '/inbox': unreadCount }} {...sectionProps} />
-        <NavSection items={campaignsNav}   {...sectionProps} />
-        <NavSection items={leadsNav}       {...sectionProps} />
-        <NavSection title="Tools"   items={toolsNav}    {...sectionProps} />
-        <NavSection title="Config"  items={settingsNav} {...sectionProps} />
+      <nav className={cn(
+        'flex-1 py-3 overflow-y-auto overflow-x-hidden',
+        collapsed ? 'px-2' : 'px-2.5'
+      )}>
+        <NavSection items={workspaceNav}  badges={{ '/inbox': unreadCount }} {...sectionProps} />
+        <div className="mt-3">
+          <NavSection items={campaignsNav} {...sectionProps} />
+        </div>
+        <div className="mt-1">
+          <NavSection items={leadsNav}    {...sectionProps} />
+        </div>
+        <NavSection title="Tools"  items={toolsNav}    {...sectionProps} />
+        <NavSection title="Config" items={settingsNav} {...sectionProps} />
       </nav>
 
-      {/* User section */}
-      <div className={cn('border-t border-[var(--border-subtle)] flex-shrink-0', collapsed ? 'p-1.5' : 'p-2')}>
+      {/* User */}
+      <div className={cn(
+        'border-t border-[var(--border-subtle)] flex-shrink-0',
+        collapsed ? 'p-2' : 'p-2.5'
+      )}>
         <div className={cn(
-          'flex items-center rounded-[6px] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer group',
-          collapsed ? 'justify-center h-8 w-8 mx-auto' : 'gap-2 px-2 h-9'
+          'flex items-center rounded-[7px] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer group',
+          collapsed ? 'justify-center h-9 w-9 mx-auto' : 'gap-2.5 px-2 h-10'
         )}>
-          <div className="h-6 w-6 rounded-full bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex items-center justify-center flex-shrink-0 shadow-sm">
-            <span className="text-[9px] font-bold text-white">{workspaceName[0].toUpperCase()}</span>
+          <div className="h-6 w-6 rounded-md bg-gradient-to-br from-[var(--indigo)] to-[#8B5CF6] flex items-center justify-center flex-shrink-0 shadow-[0_1px_3px_rgba(99,102,241,0.3)]">
+            <span className="text-[10px] font-bold text-white">{workspaceName[0].toUpperCase()}</span>
           </div>
           {!collapsed && (
             <>
               <div className="flex-1 min-w-0">
-                <div className="text-[12.5px] font-medium text-[var(--text-primary)] truncate leading-tight">{workspaceName}</div>
+                <div className="text-[12.5px] font-semibold text-[var(--text-primary)] truncate leading-tight">{workspaceName}</div>
                 <div className="text-[10.5px] text-[var(--text-tertiary)] truncate leading-tight">{user?.email}</div>
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); logout(); }}
-                className="flex-shrink-0 p-1 rounded-md text-[var(--text-tertiary)] hover:text-[var(--error)] hover:bg-[var(--bg-elevated)] opacity-0 group-hover:opacity-100 transition-all duration-150"
+                className="flex-shrink-0 p-1 rounded-md text-[var(--text-tertiary)] hover:text-[var(--error)] hover:bg-[var(--error-bg)] opacity-0 group-hover:opacity-100 transition-all duration-150"
                 title="Sign out"
               >
                 <LogOut className="h-3.5 w-3.5" />

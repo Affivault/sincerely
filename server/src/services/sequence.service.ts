@@ -4,6 +4,7 @@ import { classifyReply } from './sara.service.js';
 import { sendCampaignEmail } from './email-sender.service.js';
 import { suppressionService } from './suppression.service.js';
 import * as sse from './sse.service.js';
+import { nowInTimezone, partsInTimezone, startOfDayInTimezone, tzWallTimeToUtc } from '../utils/timezone.js';
 
 /**
  * Sequence Engine Service
@@ -24,23 +25,16 @@ import * as sse from './sse.service.js';
  */
 function isWithinSendWindow(campaign: any): boolean {
   const tz = campaign.timezone || 'UTC';
-  let now: Date;
-  try {
-    now = new Date(new Date().toLocaleString('en-US', { timeZone: tz }));
-  } catch {
-    now = new Date();
-  }
+  const now = nowInTimezone(tz);
 
-  // Check active days
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const todayName = dayNames[now.getDay()];
+  const todayName = dayNames[now.weekday];
   const sendDays: string[] = campaign.send_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
   if (!sendDays.includes(todayName)) return false;
 
-  // Check time window
   const windowStart = campaign.send_window_start || '00:00';
   const windowEnd = campaign.send_window_end || '23:59';
-  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const currentTime = `${String(now.hour).padStart(2, '0')}:${String(now.minute).padStart(2, '0')}`;
   if (currentTime < windowStart || currentTime > windowEnd) return false;
 
   return true;
@@ -52,40 +46,28 @@ function isWithinSendWindow(campaign: any): boolean {
  */
 function getNextSendWindowStart(campaign: any): Date {
   const tz = campaign.timezone || 'UTC';
-  let localNow: Date;
-  try {
-    localNow = new Date(new Date().toLocaleString('en-US', { timeZone: tz }));
-  } catch {
-    localNow = new Date();
-  }
+  const now = nowInTimezone(tz);
 
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   const sendDays: string[] = campaign.send_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
   const windowStart = campaign.send_window_start || '00:00';
   const [startH, startM] = windowStart.split(':').map(Number);
-  const currentTime = `${String(localNow.getHours()).padStart(2, '0')}:${String(localNow.getMinutes()).padStart(2, '0')}`;
+  const currentTime = `${String(now.hour).padStart(2, '0')}:${String(now.minute).padStart(2, '0')}`;
 
   // If today is an active day and we're before the window start, schedule for today
-  const todayName = dayNames[localNow.getDay()];
+  const todayName = dayNames[now.weekday];
   if (sendDays.includes(todayName) && currentTime < windowStart) {
-    const target = new Date(localNow);
-    target.setHours(startH, startM, 0, 0);
-    // Convert back to real time: offset = localNow - real now
-    const realNow = new Date();
-    const offsetMs = localNow.getTime() - realNow.getTime();
-    return new Date(target.getTime() - offsetMs);
+    return tzWallTimeToUtc(now.year, now.month, now.day, startH, startM, tz);
   }
 
-  // Otherwise find the next active day
+  // Otherwise find the next active day. Probe noon UTC of each future day,
+  // then ask for its calendar parts in `tz` — this dodges DST edges since
+  // noon is always far from any transition boundary.
   for (let daysAhead = 1; daysAhead <= 7; daysAhead++) {
-    const future = new Date(localNow);
-    future.setDate(future.getDate() + daysAhead);
-    const futureDayName = dayNames[future.getDay()];
-    if (sendDays.includes(futureDayName)) {
-      future.setHours(startH, startM, 0, 0);
-      const realNow = new Date();
-      const offsetMs = localNow.getTime() - realNow.getTime();
-      return new Date(future.getTime() - offsetMs);
+    const probe = new Date(Date.UTC(now.year, now.month - 1, now.day + daysAhead, 12, 0, 0));
+    const future = partsInTimezone(probe, tz);
+    if (sendDays.includes(dayNames[future.weekday])) {
+      return tzWallTimeToUtc(future.year, future.month, future.day, startH, startM, tz);
     }
   }
 
@@ -173,18 +155,7 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
   const dailyLimit = cc.campaigns.daily_limit || 0;
   if (dailyLimit > 0) {
     const tz = cc.campaigns.timezone || 'UTC';
-    let localNow: Date;
-    try {
-      localNow = new Date(new Date().toLocaleString('en-US', { timeZone: tz }));
-    } catch {
-      localNow = new Date();
-    }
-    const localMidnight = new Date(localNow);
-    localMidnight.setHours(0, 0, 0, 0);
-    // Convert local midnight back to UTC for the Supabase gte filter
-    const realNow = new Date();
-    const offsetMs = localNow.getTime() - realNow.getTime();
-    const todayStart = new Date(localMidnight.getTime() - offsetMs);
+    const todayStart = startOfDayInTimezone(tz);
     const { count: sentToday, error: countErr } = await supabaseAdmin
       .from('campaign_activities')
       .select('*', { count: 'exact', head: true })

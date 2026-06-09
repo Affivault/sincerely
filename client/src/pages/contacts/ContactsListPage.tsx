@@ -318,7 +318,7 @@ export function ContactsListPage() {
     <div className="flex gap-5">
       {/* Sidebar */}
       <div className="w-52 flex-shrink-0" onClick={() => setListContextMenu(null)}>
-        <div className="sticky top-20 panel-inset p-1.5 space-y-0.5">
+        <div className="sticky top-14 panel-inset p-1.5 space-y-0.5">
           {/* All Contacts */}
           <button
             onClick={() => setSearchParams({})}
