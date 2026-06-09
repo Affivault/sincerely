@@ -34,6 +34,7 @@ const TeamPage             = lazy(() => import('./pages/team/TeamPage').then(m =
 const SchedulesPage        = lazy(() => import('./pages/schedules/SchedulesPage').then(m => ({ default: m.SchedulesPage })));
 const InviteAcceptPage     = lazy(() => import('./pages/team/InviteAcceptPage').then(m => ({ default: m.InviteAcceptPage })));
 const LandingPageV2        = lazy(() => import('./pages/LandingPageV2').then(m => ({ default: m.LandingPageV2 })));
+const ToolkitPage          = lazy(() => import('./pages/toolkit/ToolkitPage').then(m => ({ default: m.ToolkitPage })));
 
 function PageSpinner() {
   return (
@@ -107,6 +108,7 @@ export default function App() {
           <Route path="/settings"           element={<SettingsPage />} />
           <Route path="/suppression"        element={<SuppressionPage />} />
           <Route path="/verification"       element={<VerificationPage />} />
+          <Route path="/toolkit"            element={<ToolkitPage />} />
           <Route path="/team"               element={<TeamPage />} />
           <Route path="/schedules"          element={<SchedulesPage />} />
         </Route>

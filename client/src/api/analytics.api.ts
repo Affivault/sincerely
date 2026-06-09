@@ -120,6 +120,13 @@ export const analyticsApi = {
     return data;
   },
 
+  campaignTrend: async (campaignId: string, days: number = 14) => {
+    const { data } = await apiClient.get<TrendDataPoint[]>(`/analytics/campaigns/${campaignId}/trend`, {
+      params: { days },
+    });
+    return data;
+  },
+
   campaignContacts: async (campaignId: string) => {
     const { data } = await apiClient.get<{ contacts: CampaignContact[] }>(`/analytics/campaigns/${campaignId}/contacts`);
     return data;
@@ -132,13 +139,6 @@ export const analyticsApi = {
 
   campaignAbTest: async (campaignId: string) => {
     const { data } = await apiClient.get<CampaignAbTestResult>(`/analytics/campaigns/${campaignId}/ab-test`);
-    return data;
-  },
-
-  campaignTrend: async (campaignId: string, days: number = 30) => {
-    const { data } = await apiClient.get<TrendDataPoint[]>(`/analytics/campaigns/${campaignId}/trend`, {
-      params: { days },
-    });
     return data;
   },
 
@@ -159,5 +159,15 @@ export const analyticsApi = {
       suppression_by_reason: { label: string; value: number; color: string }[];
     }>('/analytics/deliverability');
     return data;
+  },
+
+  exportOverviewReport: (days?: number) => {
+    const params = new URLSearchParams();
+    if (days) params.set('days', String(days));
+    return `${apiClient.defaults.baseURL}/analytics/export/overview${params.toString() ? '?' + params.toString() : ''}`;
+  },
+
+  exportCampaignReport: (campaignId: string) => {
+    return `${apiClient.defaults.baseURL}/analytics/export/campaigns/${campaignId}`;
   },
 };

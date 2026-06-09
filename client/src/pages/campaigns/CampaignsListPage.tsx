@@ -497,19 +497,43 @@ function CampaignCard({ campaign, onOpen, onLaunch, onPause, onResume, onClone, 
         </div>
       </div>
 
-      {/* Body — metrics OR pipeline progress */}
+      {/* Body — rich metrics grid */}
       {total > 0 ? (
         <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
-          <div className="grid grid-cols-4 gap-x-4 gap-y-2">
-            <CardMetric color="#5B5BF5" label="Sent"    value={campaign.sent_count} pct={100} hidePctBar />
-            <CardMetric color="#8B5CF6" label="Open"    value={campaign.opened_count} pct={openPct} />
-            <CardMetric color="#06B6D4" label="Click"   value={campaign.clicked_count} pct={clickPct} />
-            <CardMetric color="#10B981" label="Reply"   value={campaign.replied_count} pct={replyPct} />
+          {/* Primary metrics row */}
+          <div className="grid grid-cols-8 gap-x-3 gap-y-1.5 mb-2">
+            <CardMetric color="#5B5BF5" label="Sent"    value={campaign.sent_count}    pct={100}      hidePctBar />
+            <CardMetric color="#3B82F6" label="Open %"  value={campaign.opened_count}  pct={openPct} />
+            <CardMetric color="#06B6D4" label="Click %"  value={campaign.clicked_count} pct={clickPct} />
+            <CardMetric color="#10B981" label="Reply %"  value={campaign.replied_count} pct={replyPct} />
+            <CardMetric color="#EF4444" label="Bounce %"  value={campaign.bounced_count || 0} pct={total ? ((campaign.bounced_count || 0) / total) * 100 : 0} negative />
+            <CardMetric color="#94A3B8" label="Contacts" value={totalContacts}          pct={pipelinePct} hidePctBar />
+            <CardMetric color="#8B5CF6" label="Steps"   value={campaign.steps_count || 0} pct={100} hidePctBar />
+            <div>
+              <div className="text-[9.5px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)] mb-1">Delivered</div>
+              <div className="text-[12.5px] font-semibold text-emerald-600 tabular-nums leading-tight">
+                {((total - (campaign.bounced_count || 0)) / Math.max(total, 1) * 100).toFixed(0)}%
+              </div>
+            </div>
           </div>
+
+          {/* Pipeline progress bar */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1 rounded-full overflow-hidden bg-[var(--bg-elevated)]">
+              <div
+                className="h-full bg-gradient-to-r from-[#5B5BF5] to-[#8B5CF6] transition-all duration-500"
+                style={{ width: `${Math.min(pipelinePct, 100)}%` }}
+              />
+            </div>
+            <span className="text-[10px] tabular text-[var(--text-tertiary)] flex-shrink-0">
+              {total.toLocaleString()} / {totalContacts.toLocaleString()} sent
+            </span>
+          </div>
+
           {campaign.bounced_count > 0 && (
             <div className="mt-2 flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-500/8 border border-red-500/15 w-fit">
               <AlertTriangle className="h-3 w-3 text-red-500 flex-shrink-0" />
-              <span className="text-[11px] font-medium text-red-600">
+              <span className="text-[10.5px] font-medium text-red-600">
                 {campaign.bounced_count} bounce{campaign.bounced_count !== 1 ? 's' : ''} — check deliverability
               </span>
             </div>
@@ -520,17 +544,12 @@ function CampaignCard({ campaign, onOpen, onLaunch, onPause, onResume, onClone, 
           <div className="flex items-center justify-between text-[11px] text-[var(--text-tertiary)] mb-1.5">
             <span className="flex items-center gap-1">
               <Eye className="h-3 w-3" />
-              Pipeline progress
+              {totalContacts.toLocaleString()} contacts ready · {campaign.steps_count || 0} steps
             </span>
-            <span className="tabular">
-              {total.toLocaleString()} / {totalContacts.toLocaleString()}
-            </span>
+            <span className="tabular">0% sent</span>
           </div>
           <div className="h-1 rounded-full overflow-hidden bg-[var(--bg-elevated)]">
-            <div
-              className="h-full bg-gradient-to-r from-[#5B5BF5] to-[#8B5CF6] transition-all duration-500"
-              style={{ width: `${pipelinePct}%` }}
-            />
+            <div className="h-full w-0 bg-gradient-to-r from-[#5B5BF5] to-[#8B5CF6]" />
           </div>
         </div>
       ) : null}
@@ -538,25 +557,21 @@ function CampaignCard({ campaign, onOpen, onLaunch, onPause, onResume, onClone, 
   );
 }
 
-function CardMetric({ color, label, value, pct, hidePctBar }: {
-  color: string; label: string; value: number; pct: number; hidePctBar?: boolean;
+function CardMetric({ color, label, value, pct, hidePctBar, negative }: {
+  color: string; label: string; value: number; pct: number; hidePctBar?: boolean; negative?: boolean;
 }) {
+  const displayColor = negative && value > 0 ? '#EF4444' : color;
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-2 mb-1">
-        <span className="text-[10.5px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)]">{label}</span>
-        {!hidePctBar && (
-          <span className="text-[10.5px] tabular text-[var(--text-tertiary)]">{pct.toFixed(1)}%</span>
-        )}
-      </div>
-      <div className="text-[14px] font-semibold text-[var(--text-primary)] tabular leading-tight">
-        {value.toLocaleString()}
+      <div className="text-[9.5px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)] mb-1">{label}</div>
+      <div className="text-[12.5px] font-semibold tabular-nums leading-tight" style={{ color: displayColor }}>
+        {hidePctBar ? value.toLocaleString() : `${pct.toFixed(1)}%`}
       </div>
       {!hidePctBar && (
-        <div className="mt-1.5 h-[3px] rounded-full overflow-hidden bg-[var(--bg-elevated)]">
+        <div className="mt-1 h-[3px] rounded-full overflow-hidden bg-[var(--bg-elevated)]">
           <div
             className="h-full transition-all duration-500"
-            style={{ width: `${Math.min(pct, 100)}%`, background: color }}
+            style={{ width: `${Math.min(pct, 100)}%`, background: displayColor }}
           />
         </div>
       )}

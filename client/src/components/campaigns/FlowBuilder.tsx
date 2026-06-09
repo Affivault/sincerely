@@ -94,74 +94,60 @@ function AddStepMenu({ onAdd, showAbove }: AddStepMenuProps) {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="group relative z-10 flex h-9 w-9 items-center justify-center rounded-full bg-[var(--bg-surface)] border-2 border-dashed border-[#6366F1]/30 hover:border-[#6366F1] hover:bg-[rgba(99,102,241,0.08)] transition-all duration-200 my-2"
+        className="group relative z-10 flex h-7 w-7 items-center justify-center rounded-full bg-[var(--bg-surface)] border border-dashed border-[var(--indigo)]/30 hover:border-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-all my-2"
       >
-        <Plus className="h-4 w-4 text-[#6366F1]/40 group-hover:text-[#6366F1]" />
+        <Plus className="h-3 w-3 text-[var(--indigo)]/50 group-hover:text-[var(--indigo)]" />
       </button>
 
       {isOpen && (
         <>
           <div className="fixed inset-0 z-20" onClick={() => setIsOpen(false)} />
           <div className={cn(
-            "absolute z-30 w-56 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-subtle)] shadow-2xl py-2 animate-fade-in",
+            "absolute z-30 w-52 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)] shadow-xl py-1 animate-fade-in",
             showAbove ? "bottom-full mb-2" : "top-full mt-2"
           )}>
-            <p className="px-3 pb-2 pt-1 text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">
+            <p className="px-3 pb-1.5 pt-1.5 text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.08em]">
               Add Step
             </p>
-            <button
-              type="button"
-              onClick={() => { onAdd(StepType.Email); setIsOpen(false); }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--bg-hover)] transition-colors"
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] text-white">
-                <Mail className="h-4 w-4" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-medium text-[var(--text-primary)]">Email Step</p>
-                <p className="text-xs text-[var(--text-tertiary)]">Send a personalized email</p>
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => { onAdd(StepType.Delay); setIsOpen(false); }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--bg-hover)] transition-colors"
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 text-white">
-                <Clock className="h-4 w-4" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-medium text-[var(--text-primary)]">Wait / Delay</p>
-                <p className="text-xs text-[var(--text-tertiary)]">Wait before the next step</p>
-              </div>
-            </button>
+            {[
+              { type: StepType.Email, icon: Mail, label: 'Email Step', desc: 'Send a personalised email', accent: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[rgba(91,91,245,0.18)]' },
+              { type: StepType.Delay, icon: Clock, label: 'Wait / Delay', desc: 'Wait before the next step', accent: 'bg-amber-500/10 text-amber-600 border-amber-500/20' },
+            ].map(({ type, icon: Icon, label, desc, accent }) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => { onAdd(type); setIsOpen(false); }}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 hover:bg-[var(--bg-hover)] transition-colors text-left"
+              >
+                <div className={cn('flex h-7 w-7 items-center justify-center rounded-md border flex-shrink-0', accent)}>
+                  <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[12px] font-semibold text-[var(--text-primary)]">{label}</p>
+                  <p className="text-[10.5px] text-[var(--text-tertiary)] leading-tight">{desc}</p>
+                </div>
+              </button>
+            ))}
             <div className="border-t border-[var(--border-subtle)] my-1" />
-            <button
-              type="button"
-              onClick={() => { onAdd(StepType.Condition); setIsOpen(false); }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--bg-hover)] transition-colors"
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 text-white">
-                <GitBranch className="h-4 w-4" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-medium text-[var(--text-primary)]">Condition</p>
-                <p className="text-xs text-[var(--text-tertiary)]">If/else branch logic</p>
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => { onAdd(StepType.WebhookWait); setIsOpen(false); }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--bg-hover)] transition-colors"
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 text-white">
-                <Webhook className="h-4 w-4" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-medium text-[var(--text-primary)]">Webhook Wait</p>
-                <p className="text-xs text-[var(--text-tertiary)]">Wait for external event</p>
-              </div>
-            </button>
+            {[
+              { type: StepType.Condition, icon: GitBranch, label: 'Condition', desc: 'If/else branch logic', accent: 'bg-violet-500/10 text-violet-600 border-violet-500/20' },
+              { type: StepType.WebhookWait, icon: Webhook, label: 'Webhook Wait', desc: 'Wait for external event', accent: 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20' },
+            ].map(({ type, icon: Icon, label, desc, accent }) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => { onAdd(type); setIsOpen(false); }}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 hover:bg-[var(--bg-hover)] transition-colors text-left"
+              >
+                <div className={cn('flex h-7 w-7 items-center justify-center rounded-md border flex-shrink-0', accent)}>
+                  <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[12px] font-semibold text-[var(--text-primary)]">{label}</p>
+                  <p className="text-[10.5px] text-[var(--text-tertiary)] leading-tight">{desc}</p>
+                </div>
+              </button>
+            ))}
           </div>
         </>
       )}
@@ -173,33 +159,33 @@ const getStepColors = (stepType: string) => {
   switch (stepType) {
     case 'email':
       return {
-        iconBg: 'bg-gradient-to-br from-[#6366F1] to-[#8B5CF6]',
-        borderColor: 'border-l-[3px] border-l-[#6366F1]',
-        badgeBg: 'bg-[#6366F1] text-white border-none',
+        iconBg: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(91,91,245,0.18)]',
+        borderColor: 'border-l-[3px] border-l-[var(--indigo)]',
+        badgeBg: 'bg-[var(--indigo)] text-white',
       };
     case 'delay':
       return {
-        iconBg: 'bg-gradient-to-br from-amber-400 to-orange-500',
-        borderColor: 'border-l-[3px] border-l-amber-400',
-        badgeBg: 'bg-amber-400 text-white border-none',
+        iconBg: 'bg-amber-500/10 text-amber-600 border border-amber-500/20',
+        borderColor: 'border-l-[3px] border-l-amber-500',
+        badgeBg: 'bg-amber-500 text-white',
       };
     case 'condition':
       return {
-        iconBg: 'bg-gradient-to-br from-violet-500 to-purple-600',
+        iconBg: 'bg-violet-500/10 text-violet-600 border border-violet-500/20',
         borderColor: 'border-l-[3px] border-l-violet-500',
-        badgeBg: 'bg-violet-500 text-white border-none',
+        badgeBg: 'bg-violet-500 text-white',
       };
     case 'webhook_wait':
       return {
-        iconBg: 'bg-gradient-to-br from-cyan-500 to-blue-500',
+        iconBg: 'bg-cyan-500/10 text-cyan-600 border border-cyan-500/20',
         borderColor: 'border-l-[3px] border-l-cyan-500',
-        badgeBg: 'bg-cyan-500 text-white border-none',
+        badgeBg: 'bg-cyan-500 text-white',
       };
     default:
       return {
-        iconBg: 'bg-gradient-to-br from-slate-400 to-slate-500',
+        iconBg: 'bg-slate-500/10 text-slate-600 border border-slate-500/20',
         borderColor: 'border-l-[3px] border-l-slate-400',
-        badgeBg: 'bg-slate-500 text-white border-none',
+        badgeBg: 'bg-slate-500 text-white',
       };
   }
 };
@@ -263,52 +249,52 @@ function FlowNode({
       {/* Node Card */}
       <div
         className={cn(
-          'group relative mx-auto max-w-xl rounded-2xl border-2 bg-[var(--bg-surface)] shadow-card transition-all duration-300 overflow-hidden',
+          'group relative mx-auto max-w-xl rounded-xl border bg-[var(--bg-surface)] transition-all duration-200 overflow-hidden',
           stepColors.borderColor,
           isEditing
-            ? 'border-[var(--text-primary)] shadow-lg ring-4 ring-[var(--text-primary)]/20'
-            : 'border-[var(--border-subtle)] hover:border-[var(--border-default)] hover:shadow-card-hover'
+            ? 'border-[var(--indigo)]/40 shadow-[0_0_0_2px_var(--indigo-subtle),0_4px_12px_rgba(91,91,245,0.12)]'
+            : 'border-[var(--border-subtle)] hover:border-[var(--border-default)] hover:shadow-[0_2px_8px_rgba(15,15,25,0.06)]'
         )}
       >
         {/* Step Number Badge */}
         <div className={cn(
-          'absolute -top-3 left-6 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold',
+          'absolute -top-2.5 left-5 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold shadow-sm',
           stepColors.badgeBg
         )}>
           <span>Step {index + 1}</span>
           <span className="opacity-70">/ {totalSteps}</span>
         </div>
 
-        <div className="p-5 pt-6">
-          <div className="flex items-start gap-4">
+        <div className="p-4 pt-5">
+          <div className="flex items-start gap-3">
             {/* Drag Handle & Icon */}
             <div className="flex flex-col items-center gap-1">
               <button type="button" className="text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] cursor-grab active:cursor-grabbing">
-                <GripVertical className="h-4 w-4" />
+                <GripVertical className="h-3.5 w-3.5" />
               </button>
-              <div className={cn('flex h-11 w-11 items-center justify-center rounded-xl text-white', stepColors.iconBg)}>
-                <Icon className="h-6 w-6" />
+              <div className={cn('flex h-9 w-9 items-center justify-center rounded-lg', stepColors.iconBg)}>
+                <Icon className="h-4 w-4" strokeWidth={1.75} />
               </div>
             </div>
 
             {/* Content */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="font-semibold text-[var(--text-primary)]">{config.label}</h3>
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">{config.label}</h3>
                 {step.step_type === 'email' && step.skip_if_replied !== false && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-subtle)]">
-                    <SkipForward className="h-3 w-3" />
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-[10px] font-semibold bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
+                    <SkipForward className="h-2.5 w-2.5" />
                     Skip if replied
                   </span>
                 )}
                 {step.step_type === 'condition' && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-subtle)]">
-                    <GitBranch className="h-3 w-3" />
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-[10px] font-semibold bg-violet-500/10 text-violet-600 border border-violet-500/20">
+                    <GitBranch className="h-2.5 w-2.5" />
                     If/Else
                   </span>
                 )}
               </div>
-              <p className="text-sm text-[var(--text-secondary)] truncate">{getStepSummary()}</p>
+              <p className="text-[12px] text-[var(--text-secondary)] truncate">{getStepSummary()}</p>
 
               {/* Email preview */}
               {step.step_type === 'email' && step.body_html && (
@@ -428,31 +414,31 @@ function FlowNode({
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-px opacity-0 group-hover:opacity-100 transition-opacity">
               <button
                 type="button"
                 onClick={onMoveUp}
                 disabled={index === 0}
-                className="p-1.5 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
-                <ChevronUp className="h-4 w-4" />
+                <ChevronUp className="h-3.5 w-3.5" />
               </button>
               <button
                 type="button"
                 onClick={onMoveDown}
                 disabled={index === totalSteps - 1}
-                className="p-1.5 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
-                <ChevronDown className="h-4 w-4" />
+                <ChevronDown className="h-3.5 w-3.5" />
               </button>
               {(step.step_type === 'email' || step.step_type === 'condition' || step.step_type === 'webhook_wait') && (
                 <button
                   type="button"
                   onClick={onEdit}
                   className={cn(
-                    'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+                    'px-2 py-1 rounded text-[11.5px] font-semibold transition-colors',
                     isEditing
-                      ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
+                      ? 'bg-[var(--indigo)] text-white'
                       : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                   )}
                 >
@@ -462,9 +448,9 @@ function FlowNode({
               <button
                 type="button"
                 onClick={onRemove}
-                className="p-1.5 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--error)] hover:bg-[var(--bg-hover)] transition-colors"
+                className="p-1 rounded text-[var(--text-tertiary)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
@@ -523,67 +509,46 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep }: F
 
   if (steps.length === 0) {
     return (
-      <div className="flex flex-col items-center py-12">
+      <div className="flex flex-col items-center py-10">
         {/* Start node */}
-        <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-[rgba(99,102,241,0.1)] to-[rgba(139,92,246,0.1)] border border-[rgba(99,102,241,0.15)] mb-4">
-          <Sparkles className="h-8 w-8 text-[#6366F1]" />
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)] mb-3">
+          <Sparkles className="h-6 w-6 text-[var(--indigo)]" strokeWidth={1.5} />
         </div>
-        <p className="text-lg font-semibold text-[var(--text-primary)] mb-1">Campaign Start</p>
-        <p className="text-sm text-[var(--text-tertiary)] mb-6">Add your first step to begin building the sequence</p>
+        <p className="text-[14px] font-semibold text-[var(--text-primary)] mb-1">Campaign Start</p>
+        <p className="text-[12px] text-[var(--text-tertiary)] mb-5">Add your first step to begin building the sequence</p>
 
-        <div className="flex flex-wrap gap-4 justify-center">
-          <button
-            type="button"
-            onClick={() => addStep(StepType.Email)}
-            className="flex items-center gap-3 px-6 py-4 bg-[var(--bg-surface)] rounded-2xl border-2 border-dashed border-[var(--border-default)] hover:border-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all duration-200 group"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] text-white group-hover:shadow-lg transition-shadow">
-              <Mail className="h-5 w-5" />
-            </div>
-            <div className="text-left">
-              <p className="font-medium text-[var(--text-primary)]">Add Email</p>
-              <p className="text-xs text-[var(--text-tertiary)]">Send a personalized message</p>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => addStep(StepType.Delay)}
-            className="flex items-center gap-3 px-6 py-4 bg-[var(--bg-surface)] rounded-2xl border-2 border-dashed border-[var(--border-default)] hover:border-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all duration-200 group"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white group-hover:shadow-lg transition-shadow">
-              <Clock className="h-5 w-5" />
-            </div>
-            <div className="text-left">
-              <p className="font-medium text-[var(--text-primary)]">Add Delay</p>
-              <p className="text-xs text-[var(--text-tertiary)]">Wait before next step</p>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => addStep(StepType.Condition)}
-            className="flex items-center gap-3 px-6 py-4 bg-[var(--bg-surface)] rounded-2xl border-2 border-dashed border-[var(--border-default)] hover:border-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all duration-200 group"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white group-hover:shadow-lg transition-shadow">
-              <GitBranch className="h-5 w-5" />
-            </div>
-            <div className="text-left">
-              <p className="font-medium text-[var(--text-primary)]">Add Condition</p>
-              <p className="text-xs text-[var(--text-tertiary)]">If/else branching</p>
-            </div>
-          </button>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-w-2xl">
+          {[
+            { type: StepType.Email, icon: Mail, label: 'Add Email', desc: 'Send a personalised message', accent: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[rgba(91,91,245,0.18)]' },
+            { type: StepType.Delay, icon: Clock, label: 'Add Delay', desc: 'Wait before next step', accent: 'bg-amber-500/10 text-amber-600 border-amber-500/20' },
+            { type: StepType.Condition, icon: GitBranch, label: 'Add Condition', desc: 'If / else branching', accent: 'bg-violet-500/10 text-violet-600 border-violet-500/20' },
+          ].map(({ type, icon: Icon, label, desc, accent }) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => addStep(type)}
+              className="flex items-center gap-2.5 px-3.5 py-3 bg-[var(--bg-surface)] rounded-xl border border-dashed border-[var(--border-default)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)] transition-all group text-left"
+            >
+              <div className={cn('flex h-9 w-9 items-center justify-center rounded-lg flex-shrink-0 border', accent)}>
+                <Icon className="h-4 w-4" strokeWidth={1.75} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">{label}</p>
+                <p className="text-[10.5px] text-[var(--text-tertiary)] leading-tight">{desc}</p>
+              </div>
+            </button>
+          ))}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="relative py-6">
+    <div className="relative py-4">
       {/* Start Node */}
-      <div className="flex justify-center mb-2">
-        <div className="flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white text-sm font-semibold shadow-[0_2px_8px_rgba(99,102,241,0.35)]">
-          <Sparkles className="h-4 w-4" />
+      <div className="flex justify-center mb-1">
+        <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--indigo)] text-white text-[11.5px] font-bold shadow-[0_2px_6px_rgba(91,91,245,0.3)]">
+          <Sparkles className="h-3 w-3" />
           Campaign Start
         </div>
       </div>
@@ -613,9 +578,9 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep }: F
       <AddStepMenu onAdd={(type) => addStep(type)} showAbove />
 
       {/* End Node */}
-      <div className="flex justify-center mt-2">
-        <div className="flex items-center gap-2 px-5 py-2 rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)] text-sm font-semibold border border-[var(--border-default)] shadow-sm">
-          <Settings className="h-4 w-4" />
+      <div className="flex justify-center mt-1">
+        <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)] text-[11.5px] font-bold border border-[var(--border-subtle)]">
+          <Settings className="h-3 w-3" />
           Campaign End
         </div>
       </div>

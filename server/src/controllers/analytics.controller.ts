@@ -56,7 +56,7 @@ export const analyticsController = {
 
   async campaignTrend(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const days = req.query.days ? parseInt(req.query.days as string, 10) : 30;
+      const days = req.query.days ? parseInt(req.query.days as string, 10) : 14;
       const data = await analyticsService.campaignTrend(req.userId!, req.params.campaignId, days);
       res.json(data);
     } catch (err) { next(err); }
@@ -98,35 +98,6 @@ export const analyticsController = {
   async deliverability(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const data = await analyticsService.deliverability(req.userId!);
-      res.json(data);
-    } catch (err) { next(err); }
-  },
-
-  async campaignList(req: AuthRequest, res: Response, next: NextFunction) {
-    try {
-      const data = await analyticsService.campaignList(req.userId!);
-      res.json(data);
-    } catch (err) { next(err); }
-  },
-
-  async campaignFunnel(req: AuthRequest, res: Response, next: NextFunction) {
-    try {
-      const data = await analyticsService.campaignFunnel(req.userId!, req.params.campaignId);
-      res.json(data);
-    } catch (err) { next(err); }
-  },
-
-  async campaignAbTest(req: AuthRequest, res: Response, next: NextFunction) {
-    try {
-      const data = await analyticsService.campaignAbTest(req.userId!, req.params.campaignId);
-      res.json(data);
-    } catch (err) { next(err); }
-  },
-
-  async campaignTrend(req: AuthRequest, res: Response, next: NextFunction) {
-    try {
-      const days = req.query.days ? parseInt(req.query.days as string, 10) : 30;
-      const data = await analyticsService.campaignTrend(req.userId!, req.params.campaignId, days);
       res.json(data);
     } catch (err) { next(err); }
   },
