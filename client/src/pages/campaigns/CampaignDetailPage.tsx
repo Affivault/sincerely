@@ -121,6 +121,7 @@ export function CampaignDetailPage() {
       toast.success('Campaign deleted');
       navigate('/campaigns');
     },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to delete campaign'),
   });
 
   if (isLoading) {

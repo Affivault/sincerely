@@ -1268,6 +1268,20 @@ export function InboxPage() {
     setIsRefreshing(false);
   }, [syncMut, qc]);
 
+  /* ── Keyboard shortcuts ── */
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Skip when typing in a form element or editable content
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === 'c' && !showCompose && !replyMode) {
+        setShowCompose(true);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [showCompose, replyMode]);
 
   /* ── Mutations ── */
   const markReadMut = useMutation({

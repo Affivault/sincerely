@@ -196,7 +196,12 @@ export function startEmailWorker() {
           },
         };
 
-        const info = await transporter.sendMail(mailOptions);
+        let info;
+        try {
+          info = await transporter.sendMail(mailOptions);
+        } finally {
+          transporter.close();
+        }
         console.log(`Email sent to ${to} via ${smtpAccount.label || smtpAccount.smtp_host} - messageId: ${info.messageId}`);
 
         // 7. Record send in SSE (update account stats)

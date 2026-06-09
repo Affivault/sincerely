@@ -466,9 +466,9 @@ export const analyticsService = {
 
     const { data: steps } = await supabaseAdmin
       .from('campaign_steps')
-      .select('id, step_number, subject, delay_days')
+      .select('id, step_order, subject, delay_days')
       .eq('campaign_id', campaignId)
-      .order('step_number', { ascending: true });
+      .order('step_order', { ascending: true });
 
     const { data: activities } = await supabaseAdmin
       .from('campaign_activities')
@@ -524,9 +524,9 @@ export const analyticsService = {
       const s = stepStats.get(step.id);
       const sent = s?.sent.size || 0;
       return {
-        step_number: step.step_number,
+        step_number: step.step_order,
         step_id: step.id,
-        subject: step.subject || `Step ${step.step_number}`,
+        subject: step.subject || `Step ${step.step_order}`,
         delay_days: step.delay_days || 0,
         sent,
         opened: s?.opened.size || 0,

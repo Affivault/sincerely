@@ -323,6 +323,9 @@ export const contactsService = {
         continue;
       }
 
+      // Normalize email consistently with bulkCreate to ensure deduplication works
+      contact.email = String(contact.email).trim().toLowerCase();
+
       const { error } = await supabaseAdmin.from('contacts').upsert(
         contact,
         { onConflict: 'user_id,email' }
