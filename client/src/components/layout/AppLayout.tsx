@@ -37,7 +37,7 @@ function AppContent() {
       <Sidebar />
       <div className={cn(
         'transition-[padding] duration-200',
-        collapsed ? 'pl-[56px]' : 'pl-[232px]'
+        collapsed ? 'pl-[60px]' : 'pl-[244px]'
       )}>
         <Header />
         <main className="px-8 py-7 max-w-[1440px] mx-auto">

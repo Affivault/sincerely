@@ -12,37 +12,41 @@ interface StatCardProps {
   /** Inverted means "negative is good" eg bounce rate */
   deltaInverted?: boolean;
   icon?: LucideIcon;
-  /** Accent colour for the icon chip */
-  accent?: 'indigo' | 'emerald' | 'amber' | 'rose' | 'violet' | 'slate';
+  /** Accent colour for the card */
+  accent?: 'indigo' | 'emerald' | 'amber' | 'rose' | 'violet' | 'cyan' | 'blue' | 'slate';
   /** Optional sparkline as inline SVG path (0..100 normalised) */
   sparkline?: number[];
   className?: string;
   onClick?: () => void;
 }
 
-const accentClasses = {
-  indigo:  { bg: 'bg-[rgba(91,91,245,0.08)]',  text: 'text-[#5B5BF5]', stroke: '#5B5BF5' },
-  emerald: { bg: 'bg-emerald-500/8',           text: 'text-emerald-600', stroke: '#10B981' },
-  amber:   { bg: 'bg-amber-500/8',             text: 'text-amber-600',   stroke: '#F59E0B' },
-  rose:    { bg: 'bg-rose-500/8',              text: 'text-rose-600',    stroke: '#F43F5E' },
-  violet:  { bg: 'bg-violet-500/8',            text: 'text-violet-600',  stroke: '#8B5CF6' },
-  slate:   { bg: 'bg-slate-500/8',             text: 'text-slate-600',   stroke: '#64748B' },
+/* Vivid gradient pairings + tint backgrounds for each accent */
+const ACCENTS: Record<string, { from: string; to: string; tint: string; border: string }> = {
+  indigo:  { from: '#6366F1', to: '#8B5CF6', tint: 'rgba(99,102,241,0.08)',  border: 'rgba(99,102,241,0.18)' },
+  violet:  { from: '#8B5CF6', to: '#D946EF', tint: 'rgba(139,92,246,0.08)',  border: 'rgba(139,92,246,0.18)' },
+  cyan:    { from: '#06B6D4', to: '#3B82F6', tint: 'rgba(6,182,212,0.08)',   border: 'rgba(6,182,212,0.18)' },
+  blue:    { from: '#3B82F6', to: '#6366F1', tint: 'rgba(59,130,246,0.08)',  border: 'rgba(59,130,246,0.18)' },
+  emerald: { from: '#10B981', to: '#06B6D4', tint: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.18)' },
+  amber:   { from: '#F59E0B', to: '#F43F5E', tint: 'rgba(245,158,11,0.09)',  border: 'rgba(245,158,11,0.20)' },
+  rose:    { from: '#F43F5E', to: '#EC4899', tint: 'rgba(244,63,94,0.08)',   border: 'rgba(244,63,94,0.18)' },
+  slate:   { from: '#64748B', to: '#94A3B8', tint: 'rgba(100,116,139,0.07)', border: 'rgba(100,116,139,0.16)' },
 };
 
-function Sparkline({ data, stroke }: { data: number[]; stroke: string }) {
+function Sparkline({ data, from, to }: { data: number[]; from: string; to: string }) {
   if (!data || data.length < 2) return null;
 
-  const w = 80;
-  const h = 28;
+  const w = 84;
+  const h = 30;
   const max = Math.max(...data, 1);
   const min = Math.min(...data, 0);
   const range = max - min || 1;
   const step = w / (data.length - 1);
+  const uid = `${from}${to}`.replace(/[#,]/g, '');
 
   const points = data
     .map((v, i) => {
       const x = i * step;
-      const y = h - ((v - min) / range) * (h - 4) - 2;
+      const y = h - ((v - min) / range) * (h - 5) - 2.5;
       return `${x},${y}`;
     })
     .join(' ');
@@ -52,17 +56,21 @@ function Sparkline({ data, stroke }: { data: number[]; stroke: string }) {
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="overflow-visible">
       <defs>
-        <linearGradient id={`spark-${stroke.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={stroke} stopOpacity="0.2" />
-          <stop offset="100%" stopColor={stroke} stopOpacity="0" />
+        <linearGradient id={`sl-${uid}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={from} stopOpacity="0.28" />
+          <stop offset="100%" stopColor={from} stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id={`sk-${uid}`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={from} />
+          <stop offset="100%" stopColor={to} />
         </linearGradient>
       </defs>
-      <path d={areaPath} fill={`url(#spark-${stroke.replace('#', '')})`} />
+      <path d={areaPath} fill={`url(#sl-${uid})`} />
       <polyline
         points={points}
         fill="none"
-        stroke={stroke}
-        strokeWidth="1.5"
+        stroke={`url(#sk-${uid})`}
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -82,61 +90,73 @@ export function StatCard({
   className,
   onClick,
 }: StatCardProps) {
-  const acc = accentClasses[accent];
+  const acc = ACCENTS[accent] ?? ACCENTS.indigo;
   const deltaGood = delta != null ? (deltaInverted ? delta < 0 : delta > 0) : null;
-  const deltaColour =
-    deltaGood == null
-      ? 'text-[var(--text-tertiary)]'
-      : deltaGood
-      ? 'text-emerald-600'
-      : 'text-rose-600';
 
   return (
     <div
       onClick={onClick}
       className={cn(
-        'group surface p-4 transition-all duration-[var(--dur-base)] ease-[var(--ease-out)]',
-        onClick && 'cursor-pointer hover:shadow-[var(--shadow-card-hover)] hover:border-[var(--border-default)] hover:-translate-y-0.5 active:translate-y-0',
+        'group relative overflow-hidden rounded-[16px] border p-4 transition-all duration-[var(--dur-base)] ease-[var(--ease-out)]',
+        onClick && 'cursor-pointer hover:-translate-y-1 hover:shadow-[var(--shadow-lg)] active:translate-y-0',
         className
       )}
+      style={{
+        background: `linear-gradient(150deg, ${acc.tint}, transparent 70%), var(--bg-surface)`,
+        borderColor: acc.border,
+      }}
     >
-      <div className="flex items-start justify-between gap-3 mb-3">
-        {/* Label + icon chip */}
-        <div className="flex items-center gap-2 min-w-0">
+      {/* Decorative corner glow */}
+      <div
+        className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-50 blur-2xl transition-opacity duration-300 group-hover:opacity-80"
+        style={{ background: `radial-gradient(circle, ${acc.from}55, transparent 70%)` }}
+      />
+
+      <div className="relative flex items-start justify-between gap-3 mb-3.5">
+        <div className="flex items-center gap-2.5 min-w-0">
           {Icon && (
-            <span className={cn('flex h-7 w-7 items-center justify-center rounded-[8px] flex-shrink-0', acc.bg)}>
-              <Icon className={cn('h-3.5 w-3.5', acc.text)} strokeWidth={2} />
+            <span
+              className="flex h-9 w-9 items-center justify-center rounded-[10px] flex-shrink-0"
+              style={{ backgroundImage: `linear-gradient(135deg, ${acc.from}, ${acc.to})`, boxShadow: `0 6px 14px -3px ${acc.from}80, inset 0 1px 0 rgba(255,255,255,0.3)` }}
+            >
+              <Icon className="h-[17px] w-[17px] text-white" strokeWidth={2.1} />
             </span>
           )}
-          <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)] truncate">
+          <span className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)] truncate">
             {label}
           </span>
         </div>
 
-        {/* Trend delta */}
         {delta != null && (
-          <span className={cn('flex items-center gap-0.5 text-[11px] font-semibold tabular flex-shrink-0', deltaColour)}>
+          <span
+            className={cn(
+              'flex items-center gap-0.5 text-[11px] font-bold tabular flex-shrink-0 px-1.5 h-[20px] rounded-full',
+              deltaGood == null ? 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
+                : deltaGood ? 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400'
+                : 'bg-rose-500/12 text-rose-600 dark:text-rose-400'
+            )}
+          >
             {delta > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
             {Math.abs(delta).toFixed(1)}%
           </span>
         )}
       </div>
 
-      <div className="flex items-end justify-between gap-3">
+      <div className="relative flex items-end justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[24px] font-semibold text-[var(--text-primary)] tabular leading-[1.1] tracking-[-0.02em]">
+          <div className="text-[28px] font-bold text-[var(--text-primary)] tabular leading-[1.05] tracking-[-0.03em]">
             {value}
           </div>
           {hint && (
-            <div className="text-[11.5px] text-[var(--text-tertiary)] mt-0.5 truncate">
+            <div className="text-[11.5px] text-[var(--text-tertiary)] mt-1 truncate">
               {hint}
             </div>
           )}
         </div>
 
         {sparkline && sparkline.length >= 2 && (
-          <div className="flex-shrink-0 opacity-90">
-            <Sparkline data={sparkline} stroke={acc.stroke} />
+          <div className="flex-shrink-0">
+            <Sparkline data={sparkline} from={acc.from} to={acc.to} />
           </div>
         )}
       </div>

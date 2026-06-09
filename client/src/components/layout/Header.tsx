@@ -42,35 +42,35 @@ export function Header() {
       </button>
 
       {/* Right controls */}
-      <div className="flex items-center gap-0.5 ml-auto">
+      <div className="flex items-center gap-1 ml-auto">
         {/* Notifications */}
-        <button className="relative flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
-          <Bell className="h-3.5 w-3.5" strokeWidth={1.75} />
-          <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[var(--indigo)]" />
+        <button className="relative flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
+          <Bell className="h-[15px] w-[15px]" strokeWidth={1.9} />
+          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full ring-2 ring-[var(--bg-surface)] shadow-[0_0_6px_rgba(244,63,94,0.7)]" style={{ backgroundImage: 'linear-gradient(135deg,#F43F5E,#EC4899)' }} />
         </button>
 
         {/* Theme */}
         <button
           onClick={toggleTheme}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
           title={theme === 'light' ? 'Switch to dark' : 'Switch to light'}
         >
           {theme === 'light' ? (
-            <Moon className="h-3.5 w-3.5" strokeWidth={1.75} />
+            <Moon className="h-[15px] w-[15px]" strokeWidth={1.9} />
           ) : (
-            <Sun className="h-3.5 w-3.5" strokeWidth={1.75} />
+            <Sun className="h-[15px] w-[15px]" strokeWidth={1.9} />
           )}
         </button>
 
-        <div className="h-4 w-px bg-[var(--border-subtle)] mx-1" />
+        <div className="h-5 w-px bg-[var(--border-subtle)] mx-1.5" />
 
         {/* User menu */}
         <div className="relative">
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="flex items-center gap-1.5 h-7 pl-1 pr-1.5 rounded-md hover:bg-[var(--bg-hover)] transition-colors"
+            className="flex items-center gap-1.5 h-8 pl-1 pr-1.5 rounded-lg hover:bg-[var(--bg-hover)] transition-colors"
           >
-            <div className="h-5 w-5 rounded-full bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex items-center justify-center text-[9px] font-bold text-white">
+            <div className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-[0_2px_6px_-1px_rgba(99,102,241,0.5),inset_0_1px_0_rgba(255,255,255,0.3)]" style={{ backgroundImage: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}>
               {user?.email?.charAt(0)?.toUpperCase() || 'U'}
             </div>
             <ChevronDown className={cn(
