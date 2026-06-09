@@ -22,7 +22,7 @@ export function Header() {
   const navigate = useNavigate();
 
   return (
-    <header className="sticky top-0 z-30 flex h-11 items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/90 backdrop-blur-xl px-5 gap-4">
+    <header className="sticky top-0 z-30 flex h-[52px] items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/90 backdrop-blur-xl px-6 gap-4">
       {/* Search */}
       <div className="relative flex items-center h-7 w-64 rounded-md border border-[var(--border-default)] bg-[var(--bg-inset)] hover:border-[var(--border-strong)] transition-colors focus-within:border-[var(--indigo)] focus-within:shadow-[0_0_0_3px_rgba(99,102,241,0.12)]">
         <Search className="h-3.5 w-3.5 text-[var(--text-tertiary)] ml-2.5 flex-shrink-0" />

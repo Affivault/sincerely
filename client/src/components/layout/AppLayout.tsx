@@ -22,10 +22,10 @@ function AppContent() {
       <Sidebar />
       <div className={cn(
         'transition-[padding] duration-200',
-        collapsed ? 'pl-[52px]' : 'pl-[220px]'
+        collapsed ? 'pl-[56px]' : 'pl-[232px]'
       )}>
         <Header />
-        <main className="px-6 py-5">
+        <main className="px-8 py-7 max-w-[1440px] mx-auto">
           <ErrorBoundary>
             <Outlet />
           </ErrorBoundary>

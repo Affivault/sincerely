@@ -236,7 +236,7 @@ export function SettingsPage() {
 
       <div className="grid grid-cols-[200px,1fr] gap-3">
         {/* Sidebar */}
-        <aside className="panel-inset p-1.5 self-start sticky top-[60px]">
+        <aside className="panel-inset p-1.5 self-start sticky top-[56px]">
           <nav className="space-y-px">
             {tabs.map((tab) => {
               const Icon = tab.icon;

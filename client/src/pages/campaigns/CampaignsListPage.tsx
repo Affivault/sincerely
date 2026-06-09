@@ -12,7 +12,7 @@ import { PageTabs } from '../../components/shared/Toolbar';
 import { formatDate, cn } from '../../lib/utils';
 import {
   Megaphone, Plus, Send, Mail, MousePointerClick, MessageSquare, Copy,
-  Folder, FolderPlus, FolderOpen, X, Pencil, Trash2, MoreVertical,
+  Folder, FolderPlus, FolderOpen, X, Pencil, Trash2,
   BarChart3, Layers, Play, Pause, Eye, Search, AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -185,7 +185,7 @@ export function CampaignsListPage() {
       {/* ── Two-column body: folder rail + content ── */}
       <div className="grid grid-cols-[200px,1fr] gap-3">
         {/* Folder rail */}
-        <aside className="panel-inset p-1.5 self-start sticky top-[60px] max-h-[calc(100vh-80px)] overflow-y-auto">
+        <aside className="panel-inset p-1.5 self-start sticky top-[56px] max-h-[calc(100vh-72px)] overflow-y-auto">
           <div className="px-2 pt-1 pb-1.5 flex items-center justify-between">
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[var(--text-tertiary)]">Folders</span>
             <button
