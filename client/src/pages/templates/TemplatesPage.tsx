@@ -97,7 +97,7 @@ function EmailPreview({ subject, bodyHtml, compact }: { subject: string; bodyHtm
         dangerouslySetInnerHTML={{ __html: interpolate(bodyHtml) }}
       />
       {compact && (
-        <div className="h-8 bg-gradient-to-t from-white to-transparent -mt-8 relative z-10" />
+        <div className="h-8 bg-gradient-to-t from-[var(--bg-surface)] to-transparent -mt-8 relative z-10" />
       )}
     </div>
   );
@@ -995,7 +995,7 @@ export function TemplatesPage() {
           {isEmpty && hasPresets && (
             <Card variant="premium" padding="md" className="mb-4">
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[rgba(91,91,245,0.15)] to-[rgba(139,92,246,0.15)] flex items-center justify-center shrink-0 border border-[rgba(91,91,245,0.18)]">
+                <div className="w-10 h-10 rounded-xl bg-[var(--indigo-subtle)] flex items-center justify-center shrink-0 border border-[rgba(91,91,245,0.18)]">
                   <Sparkles className="h-4 w-4 text-[var(--indigo)]" />
                 </div>
                 <div className="min-w-0">

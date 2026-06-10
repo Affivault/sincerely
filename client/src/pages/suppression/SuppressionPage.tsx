@@ -241,7 +241,7 @@ export function SuppressionPage() {
               <button
                 disabled={!addEmail || addMut.isPending}
                 onClick={() => addMut.mutate()}
-                className="flex-1 py-2 rounded-xl bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-all"
+                className="flex-1 py-2 rounded-xl bg-[var(--indigo)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-all"
               >
                 {addMut.isPending ? 'Adding...' : 'Add to list'}
               </button>
@@ -287,7 +287,7 @@ export function SuppressionPage() {
               <button
                 disabled={!bulkText.trim() || bulkMut.isPending}
                 onClick={() => bulkMut.mutate()}
-                className="flex-1 py-2 rounded-xl bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-all"
+                className="flex-1 py-2 rounded-xl bg-[var(--indigo)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-all"
               >
                 {bulkMut.isPending ? 'Importing...' : 'Import'}
               </button>

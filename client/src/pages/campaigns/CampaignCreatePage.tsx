@@ -1701,7 +1701,7 @@ export function CampaignCreatePage() {
                 </SectionCard>
 
                 {/* Launch area */}
-                <div className="rounded-xl border border-[var(--border-subtle)] bg-gradient-to-r from-[var(--indigo-subtle)]/30 to-violet-500/5 p-5">
+                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--indigo-subtle)] p-5">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-start gap-3">
                       <div className={cn(
@@ -2177,7 +2177,7 @@ function CapacityChart({ totalSends, dailyCapacity, sendDays, estDays }: {
                   className={cn(
                     'w-full rounded-t transition-all duration-700',
                     d.active && d.sends > 0
-                      ? 'bg-gradient-to-t from-[var(--indigo)] to-violet-500'
+                      ? 'bg-[var(--indigo)]'
                       : d.active
                       ? 'bg-[var(--bg-elevated)] border border-[var(--border-subtle)]'
                       : 'bg-[var(--bg-elevated)]/50 border border-dashed border-[var(--border-subtle)]'
@@ -2199,7 +2199,7 @@ function CapacityChart({ totalSends, dailyCapacity, sendDays, estDays }: {
       <div className="flex items-center justify-between text-[10.5px] text-[var(--text-tertiary)] pt-2 border-t border-[var(--border-subtle)]">
         <span className="flex items-center gap-3">
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-sm bg-gradient-to-t from-[var(--indigo)] to-violet-500" />
+            <span className="w-2 h-2 rounded-sm bg-[var(--indigo)]" />
             Active send
           </span>
           <span className="flex items-center gap-1">

@@ -133,7 +133,7 @@ export function DeveloperPage() {
     <div className="space-y-5">
       <PageHeader
         leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-slate-600 to-slate-800">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo)]">
             <Code2 className="h-4 w-4 text-white" />
           </span>
         }
@@ -177,7 +177,7 @@ export function DeveloperPage() {
             <p className="text-[12px] text-[var(--text-secondary)]">Receive real-time notifications when events happen in SkySend.</p>
             <button
               onClick={() => setShowCreateWebhook(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white text-[12px] font-semibold hover:opacity-90 transition-all shadow-[0_1px_3px_rgba(99,102,241,0.4)]"
+              className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-[12px] font-semibold hover:opacity-90 transition-all shadow-[0_1px_3px_rgba(99,102,241,0.4)]"
             >
               <Plus className="h-3.5 w-3.5" />
               Add Webhook

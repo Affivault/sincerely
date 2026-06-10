@@ -475,7 +475,7 @@ export function SmtpAccountsPage() {
                     <div
                       className={cn(
                         'h-full transition-all duration-500',
-                        account.warmup_mode ? 'bg-gradient-to-r from-amber-400 to-amber-500' : 'bg-gradient-to-r from-[#5B5BF5] to-[#8B5CF6]'
+                        account.warmup_mode ? 'bg-amber-500' : 'bg-[var(--indigo)]'
                       )}
                       style={{ width: `${Math.min(pct, 100)}%` }}
                     />

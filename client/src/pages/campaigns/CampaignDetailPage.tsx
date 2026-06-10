@@ -7,6 +7,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { StatusBadge } from '../../components/shared/StatusBadge';
+import { StatCard } from '../../components/shared/StatCard';
 import { Avatar } from '../../components/shared/Avatar';
 import { formatDate, formatDateTime, formatTimeUntil, cn } from '../../lib/utils';
 import {
@@ -181,10 +182,10 @@ export function CampaignDetailPage() {
           </button>
           {campaign.status === 'draft' && (
             <>
-              <button onClick={() => navigate(`/campaigns/${id}/edit`)} className="btn-secondary text-[12px] h-8 px-3 rounded-lg gap-1.5">
+              <button onClick={() => navigate(`/campaigns/${id}/edit`)} className="btn-secondary">
                 <Pencil className="h-3.5 w-3.5" /> Edit
               </button>
-              <button onClick={() => launchMutation.mutate()} className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white text-[12px] font-semibold hover:opacity-90 transition-all shadow-[0_1px_3px_rgba(99,102,241,0.4)]">
+              <button onClick={() => launchMutation.mutate()} className="btn-primary">
                 <Play className="h-3.5 w-3.5" /> Launch
               </button>
             </>
@@ -201,10 +202,10 @@ export function CampaignDetailPage() {
           )}
           {campaign.status === 'paused' && (
             <>
-              <button onClick={() => resumeMutation.mutate()} className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white text-[12px] font-semibold hover:opacity-90 transition-all">
+              <button onClick={() => resumeMutation.mutate()} className="btn-primary">
                 <Play className="h-3.5 w-3.5" /> Resume
               </button>
-              <button onClick={() => cancelMutation.mutate()} className="btn-secondary text-[12px] h-8 px-3 rounded-lg gap-1.5 hover:text-rose-500 hover:border-rose-500/30">
+              <button onClick={() => cancelMutation.mutate()} className="btn-secondary hover:text-rose-500 hover:border-rose-500/30">
                 <Square className="h-3.5 w-3.5" /> Cancel
               </button>
             </>
@@ -244,28 +245,28 @@ export function CampaignDetailPage() {
         <div className="space-y-4">
           {analytics && (
             <>
-              <div className="grid grid-cols-5 gap-4">
-                <StatCard icon={Send} label="Sent" value={analytics.sent} colorVariant="sent" />
-                <StatCard icon={Mail} label="Opened" value={analytics.opened} rate={analytics.open_rate} colorVariant="opened" />
-                <StatCard icon={MousePointerClick} label="Clicked" value={analytics.clicked} rate={analytics.click_rate} colorVariant="clicked" />
-                <StatCard icon={MessageSquare} label="Replied" value={analytics.replied} rate={analytics.reply_rate} colorVariant="replied" />
-                <StatCard icon={AlertTriangle} label="Bounced" value={analytics.bounced} rate={analytics.bounce_rate} isNegative colorVariant="bounced" />
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                <StatCard icon={Send} label="Sent" value={analytics.sent} accent="indigo" />
+                <StatCard icon={Mail} label="Opened" value={analytics.opened} hint={`${analytics.open_rate}% open rate`} accent="violet" />
+                <StatCard icon={MousePointerClick} label="Clicked" value={analytics.clicked} hint={`${analytics.click_rate}% click rate`} accent="cyan" />
+                <StatCard icon={MessageSquare} label="Replied" value={analytics.replied} hint={`${analytics.reply_rate}% reply rate`} accent="emerald" />
+                <StatCard icon={AlertTriangle} label="Bounced" value={analytics.bounced} hint={`${analytics.bounce_rate}% bounce rate`} accent="rose" />
               </div>
 
               {chartData.some((d) => d.value > 0) && (
-                <div className="rounded-2xl border border-subtle bg-gradient-to-br from-[var(--bg-surface)] to-[var(--bg-elevated)] p-4">
-                  <h3 className="mb-4 text-base font-semibold text-primary">Performance</h3>
+                <div className="panel p-4">
+                  <h3 className="mb-4 text-[13px] font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Performance</h3>
                   <div className="h-56">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                        <XAxis dataKey="name" tick={{ fill: '#a1a1a1', fontSize: 12 }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} tickLine={false} />
-                        <YAxis tick={{ fill: '#a1a1a1', fontSize: 12 }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} tickLine={false} />
+                        <CartesianGrid strokeDasharray="2 6" stroke="var(--border-subtle)" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} dy={4} />
+                        <YAxis tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
                         <Tooltip
-                          contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '12px' }}
+                          contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: '10px', color: 'var(--text-primary)', fontSize: '12px', boxShadow: 'var(--shadow-lg)' }}
                           cursor={{ fill: 'var(--bg-hover)' }}
                         />
-                        <Bar dataKey="value" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="value" radius={[5, 5, 0, 0]} maxBarSize={64} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -276,7 +277,7 @@ export function CampaignDetailPage() {
 
           <ContactProgressCard campaign={campaign} />
 
-          <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden shadow-[var(--shadow-sm)]">
+          <div className="panel overflow-hidden">
             <div className="px-5 py-3.5 border-b border-[var(--border-subtle)]">
               <h3 className="text-[13px] font-semibold text-[var(--text-primary)] tracking-[-0.005em]">Campaign Settings</h3>
             </div>
@@ -361,7 +362,7 @@ export function CampaignDetailPage() {
                           <div className="flex items-center gap-2 min-w-[120px]">
                             <div className="flex-1 h-1 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
                               <div
-                                className="h-full rounded-full bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] transition-all duration-300"
+                                className="h-full rounded-full bg-[var(--indigo)] transition-all duration-300"
                                 style={{ width: `${progressPct}%` }}
                               />
                             </div>
@@ -406,10 +407,10 @@ function ContactProgressCard({ campaign }: { campaign: any }) {
   const pending = Math.max(0, total - accounted);
 
   return (
-    <div className="rounded-2xl border border-subtle bg-surface p-4 shadow-[var(--shadow-sm)]">
+    <div className="panel p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-base font-semibold text-primary">Contact Progress</h3>
-        <span className="text-sm text-secondary">{total} total</span>
+        <h3 className="text-[13px] font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Contact Progress</h3>
+        <span className="text-[12px] text-[var(--text-secondary)]">{total} total</span>
       </div>
 
       {/* Segmented progress bar */}
@@ -450,40 +451,6 @@ function ContactProgressCard({ campaign }: { campaign: any }) {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-const STAT_CARD_CFG: Record<string, { iconBg: string; accent: string }> = {
-  sent:    { iconBg: 'bg-gradient-to-br from-[#6366F1] to-[#8B5CF6]', accent: 'text-[#6366F1]' },
-  opened:  { iconBg: 'bg-gradient-to-br from-blue-500 to-cyan-500',   accent: 'text-blue-600'   },
-  clicked: { iconBg: 'bg-gradient-to-br from-violet-500 to-purple-600', accent: 'text-violet-600' },
-  replied: { iconBg: 'bg-gradient-to-br from-emerald-500 to-teal-500', accent: 'text-emerald-600' },
-  bounced: { iconBg: 'bg-gradient-to-br from-red-500 to-rose-600',    accent: 'text-rose-600'   },
-};
-
-function StatCard({ icon: Icon, label, value, rate, isNegative, colorVariant }: {
-  icon: React.ElementType;
-  label: string;
-  value: number;
-  rate?: number;
-  isNegative?: boolean;
-  colorVariant?: string;
-}) {
-  const cfg = colorVariant ? (STAT_CARD_CFG[colorVariant] || STAT_CARD_CFG.sent) : (isNegative ? STAT_CARD_CFG.bounced : STAT_CARD_CFG.sent);
-  return (
-    <div className="card p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0', cfg.iconBg)}>
-          <Icon className="h-3.5 w-3.5 text-white" />
-        </span>
-        <span className="text-[11px] font-medium text-[var(--text-secondary)] uppercase tracking-wider">{label}</span>
-      </div>
-      <p className={cn('text-[20px] font-bold', cfg.accent)}>{value}</p>
-      {rate !== undefined && rate > 0 && (
-        <span className="inline-flex items-center mt-1.5 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold bg-[rgba(99,102,241,0.08)] text-[#6366F1]">{rate}%</span>
-      )}
-      {rate !== undefined && rate === 0 && <p className="text-[10px] text-[var(--text-tertiary)] mt-1 tabular">0%</p>}
     </div>
   );
 }

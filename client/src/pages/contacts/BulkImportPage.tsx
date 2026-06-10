@@ -347,7 +347,7 @@ export function BulkImportPage() {
 
       {/* ── Hero ────────────────────────────────────────────────── */}
       <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#5B5BF5] to-[#8B5CF6] shadow-[0_1px_3px_rgba(91,91,245,0.4)]">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo)] shadow-[0_1px_3px_rgba(91,91,245,0.4)]">
           <Upload className="h-4 w-4 text-white" />
         </span>
         <div>
@@ -615,7 +615,7 @@ export function BulkImportPage() {
             </div>
             <div className="h-2.5 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-[#5B5BF5] to-[#8B5CF6] rounded-full transition-all duration-300"
+                className="h-full bg-[var(--indigo)] rounded-full transition-all duration-300"
                 style={{ width: `${progress.total > 0 ? (progress.processed / progress.total) * 100 : 0}%` }}
               />
             </div>
@@ -703,10 +703,10 @@ export function BulkImportPage() {
           <div className={cn(
             'rounded-2xl border p-5 flex items-start gap-4',
             completedResult.errors === 0
-              ? 'border-emerald-500/30 bg-gradient-to-br from-emerald-500/8 to-teal-500/4'
+              ? 'border-emerald-500/30 bg-emerald-500/[0.06]'
               : completedResult.imported > 0
-                ? 'border-amber-500/30 bg-gradient-to-br from-amber-500/8 to-orange-500/4'
-                : 'border-rose-500/30 bg-gradient-to-br from-rose-500/8 to-pink-500/4'
+                ? 'border-amber-500/30 bg-amber-500/[0.06]'
+                : 'border-rose-500/30 bg-rose-500/[0.06]'
           )}>
             <span className={cn(
               'flex h-12 w-12 items-center justify-center rounded-2xl flex-shrink-0',

@@ -72,7 +72,7 @@ export function InviteAcceptPage() {
         <p className="text-sm text-[var(--text-secondary)]">{error}</p>
         <button
           onClick={() => navigate('/dashboard')}
-          className="mt-4 px-4 py-2 rounded-xl bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white text-sm font-semibold hover:opacity-90"
+          className="mt-4 px-4 py-2 rounded-xl bg-[var(--indigo)] text-white text-sm font-semibold hover:opacity-90"
         >
           Go to Dashboard
         </button>

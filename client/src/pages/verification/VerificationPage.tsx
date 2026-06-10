@@ -57,7 +57,7 @@ function PipelineConnector({ active }: { active: boolean }) {
     <div className="flex-1 h-px relative overflow-hidden">
       <div className="absolute inset-0 bg-[var(--border-subtle)]" />
       {active && (
-        <div className="absolute inset-y-0 left-0 right-0 bg-gradient-to-r from-[#5B5BF5] to-[#8B5CF6] animate-pulse" />
+        <div className="absolute inset-y-0 left-0 right-0 bg-[var(--indigo)] animate-pulse" />
       )}
     </div>
   );
@@ -135,7 +135,7 @@ export function VerificationPage() {
     <div className="space-y-5">
       {/* ── Hero command bar with live pipeline ──────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)]">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#5B5BF5]/4 via-transparent to-emerald-500/4 pointer-events-none" />
+        <div className="absolute inset-0 bg-[var(--indigo-subtle)] opacity-40 pointer-events-none" />
         <div className="relative p-5">
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="h-3.5 w-3.5 text-[#5B5BF5]" />
@@ -256,9 +256,9 @@ export function VerificationPage() {
                         key={bucket.range}
                         className={cn(
                           'group relative h-full transition-all hover:opacity-90 cursor-help',
-                          isGood ? 'bg-gradient-to-b from-emerald-400 to-emerald-500'
-                            : isMid ? 'bg-gradient-to-b from-amber-400 to-amber-500'
-                            : 'bg-gradient-to-b from-rose-400 to-rose-500'
+                          isGood ? 'bg-emerald-500'
+                            : isMid ? 'bg-amber-500'
+                            : 'bg-rose-500'
                         )}
                         style={{ width: `${pct}%` }}
                         title={`${bucket.range}: ${bucket.count} (${Math.round(pct)}%)`}

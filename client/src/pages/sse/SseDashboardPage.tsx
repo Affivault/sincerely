@@ -51,7 +51,7 @@ export function SseDashboardPage() {
     <div className="space-y-5">
       <PageHeader
         leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-slate-600 to-slate-800">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo)]">
             <Shield className="h-4 w-4 text-white" />
           </span>
         }

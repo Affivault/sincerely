@@ -785,7 +785,7 @@ function ToggleSetting({
       <button
         onClick={() => onChange(!checked)}
         className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
-          checked ? 'bg-gradient-to-r from-[#6366F1] to-[#8B5CF6]' : 'bg-[var(--border-default)]'
+          checked ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]'
         }`}
       >
         <span

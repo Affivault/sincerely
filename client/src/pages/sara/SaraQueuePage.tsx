@@ -171,7 +171,7 @@ export function SaraQueuePage() {
     <div className="space-y-5">
       <PageHeader
         leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-700">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo)]">
             <Bot className="h-4 w-4 text-white" />
           </span>
         }
@@ -277,7 +277,7 @@ export function SaraQueuePage() {
       ) : messages.length === 0 ? (
         <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-20 px-8 flex flex-col items-center justify-center text-center">
           <div className="relative mb-5">
-            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/15 to-teal-500/10 border border-emerald-500/20">
+            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
               <CheckCircle2 className="h-7 w-7 text-emerald-600" strokeWidth={1.5} />
             </span>
             <Sparkles className="h-4 w-4 text-amber-400 absolute -top-1 -right-1" />
@@ -433,10 +433,10 @@ export function SaraQueuePage() {
 
                       {/* SARA draft */}
                       {msg.sara_draft_reply && (
-                        <div className="rounded-xl border border-[#5B5BF5]/20 bg-gradient-to-br from-[#5B5BF5]/4 to-violet-500/4 p-3.5">
+                        <div className="rounded-xl border border-[#5B5BF5]/20 bg-[var(--indigo-subtle)] p-3.5">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-1.5">
-                              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-gradient-to-br from-violet-500 to-purple-700">
+                              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--indigo)]">
                                 <Bot className="h-3 w-3 text-white" />
                               </span>
                               <h4 className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#5B5BF5]">
