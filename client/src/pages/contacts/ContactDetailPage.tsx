@@ -166,10 +166,10 @@ export function ContactDetailPage() {
                 </span>
               ))}
               {contact.is_unsubscribed && (
-                <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold text-amber-700 bg-amber-500/10">Unsubscribed</span>
+                <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10">Unsubscribed</span>
               )}
               {contact.is_bounced && (
-                <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold text-rose-700 bg-rose-500/10">Bounced</span>
+                <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold text-rose-700 dark:text-rose-400 bg-rose-500/10">Bounced</span>
               )}
             </div>
           </div>

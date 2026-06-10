@@ -251,7 +251,7 @@ export function SaraQueuePage() {
             >
               {tab.label}
               {tab.value === 'pending_review' && stats?.pending_review ? (
-                <span className="inline-flex items-center justify-center h-[16px] min-w-[16px] px-1 rounded-[4px] bg-amber-500/20 text-amber-700 text-[10px] font-bold">
+                <span className="inline-flex items-center justify-center h-[16px] min-w-[16px] px-1 rounded-[4px] bg-amber-500/20 text-amber-700 dark:text-amber-400 text-[10px] font-bold">
                   {stats.pending_review}
                 </span>
               ) : null}

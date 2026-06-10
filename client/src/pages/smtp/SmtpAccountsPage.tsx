@@ -414,7 +414,7 @@ export function SmtpAccountsPage() {
                       <div className="flex items-center gap-2 mb-0.5">
                         <h3 className="text-[14px] font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">{account.label}</h3>
                         {account.is_verified ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-[10.5px] font-medium text-emerald-700 bg-emerald-500/10 rounded-[4px]">
+                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-[10.5px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 rounded-[4px]">
                             <CheckCircle2 className="h-2.5 w-2.5" /> Verified
                           </span>
                         ) : (
@@ -423,7 +423,7 @@ export function SmtpAccountsPage() {
                           </span>
                         )}
                         {account.warmup_mode && (
-                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-[10.5px] font-medium text-amber-700 bg-amber-500/10 rounded-[4px]">
+                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-[10.5px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 rounded-[4px]">
                             Warming up
                           </span>
                         )}

@@ -196,9 +196,9 @@ export function VerificationPage() {
               </span>
               <span className={cn(
                 'ml-auto inline-flex items-center px-1.5 h-[20px] rounded-[5px] text-[11px] font-bold tabular flex-shrink-0',
-                lastResult.score >= 80 ? 'bg-emerald-500/10 text-emerald-700'
-                  : lastResult.score >= 50 ? 'bg-amber-500/10 text-amber-700'
-                  : 'bg-rose-500/10 text-rose-700'
+                lastResult.score >= 80 ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                  : lastResult.score >= 50 ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                  : 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
               )}>
                 {lastResult.score}/100
               </span>
@@ -334,9 +334,9 @@ export function VerificationPage() {
                   </div>
                   <span className={cn(
                     'inline-flex items-center px-1.5 h-[20px] rounded-[5px] text-[11px] font-bold tabular flex-shrink-0',
-                    r.score >= 80 ? 'bg-emerald-500/10 text-emerald-700'
-                      : r.score >= 50 ? 'bg-amber-500/10 text-amber-700'
-                      : 'bg-rose-500/10 text-rose-700'
+                    r.score >= 80 ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                      : r.score >= 50 ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                      : 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
                   )}>
                     {r.score}
                   </span>

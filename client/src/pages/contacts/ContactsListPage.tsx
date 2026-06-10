@@ -743,12 +743,12 @@ export function ContactsListPage() {
                       </td>
                       <td className="px-4 py-2.5">
                         {contact.is_bounced ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold text-rose-700 bg-rose-500/10">
+                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold text-rose-700 dark:text-rose-400 bg-rose-500/10">
                             <ShieldX className="h-3 w-3" />
                             Bounced
                           </span>
                         ) : contact.is_unsubscribed ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold text-amber-700 bg-amber-500/10">
+                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10">
                             <ShieldX className="h-3 w-3" />
                             Opted out
                           </span>
@@ -756,10 +756,10 @@ export function ContactsListPage() {
                           <span title={`DCS: ${contact.dcs_score}/100`} className={cn(
                             'inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold',
                             contact.dcs_score >= 80
-                              ? 'text-emerald-700 bg-emerald-500/10'
+                              ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10'
                               : contact.dcs_score >= 50
-                              ? 'text-amber-700 bg-amber-500/10'
-                              : 'text-rose-700 bg-rose-500/10'
+                              ? 'text-amber-700 dark:text-amber-400 bg-amber-500/10'
+                              : 'text-rose-700 dark:text-rose-400 bg-rose-500/10'
                           )}>
                             {contact.dcs_score >= 80
                               ? <ShieldCheck className="h-3 w-3" />

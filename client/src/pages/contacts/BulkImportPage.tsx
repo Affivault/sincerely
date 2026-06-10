@@ -405,7 +405,7 @@ export function BulkImportPage() {
             <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-lg bg-rose-500/10 border border-rose-500/25">
               <AlertCircle className="h-4 w-4 text-rose-500 flex-shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
-                <p className="text-[12.5px] font-semibold text-rose-700">Couldn't read this file</p>
+                <p className="text-[12.5px] font-semibold text-rose-700 dark:text-rose-400">Couldn't read this file</p>
                 <p className="text-[11.5px] text-rose-600 mt-0.5">{parseError}</p>
               </div>
               <button onClick={() => { setFile(null); setParseError(null); }} className="p-1 rounded hover:bg-rose-500/10">
@@ -509,13 +509,13 @@ export function BulkImportPage() {
                         ))}
                       </select>
                       {isEmail && (
-                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] bg-emerald-500/10 text-emerald-700 text-[10px] font-bold flex-shrink-0">
+                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold flex-shrink-0">
                           <MailCheck className="h-2.5 w-2.5" />
                           KEY
                         </span>
                       )}
                       {isDuplicate && (
-                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] bg-rose-500/10 text-rose-700 text-[10px] font-bold flex-shrink-0">
+                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] bg-rose-500/10 text-rose-700 dark:text-rose-400 text-[10px] font-bold flex-shrink-0">
                           DUP
                         </span>
                       )}
@@ -563,13 +563,13 @@ export function BulkImportPage() {
               )} />
               <div className="flex-1 min-w-0">
                 {!hasEmail && (
-                  <p className="text-[12.5px] font-semibold text-rose-700">Map at least one column to "Email" — it's required for every contact.</p>
+                  <p className="text-[12.5px] font-semibold text-rose-700 dark:text-rose-400">Map at least one column to "Email" — it's required for every contact.</p>
                 )}
                 {dupes.length > 0 && (
-                  <p className="text-[12.5px] font-semibold text-rose-700">Multiple columns are mapped to the same field. Pick a different field for each.</p>
+                  <p className="text-[12.5px] font-semibold text-rose-700 dark:text-rose-400">Multiple columns are mapped to the same field. Pick a different field for each.</p>
                 )}
                 {mappingValid && importableCount < allRows.length && (
-                  <p className="text-[12.5px] text-amber-700">
+                  <p className="text-[12.5px] text-amber-700 dark:text-amber-400">
                     <span className="font-semibold">{(allRows.length - importableCount).toLocaleString()} rows</span> will be skipped because they have no email value.
                   </p>
                 )}

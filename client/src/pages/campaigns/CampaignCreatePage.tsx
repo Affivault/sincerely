@@ -623,12 +623,12 @@ export function CampaignCreatePage() {
         <div className="flex-1" />
 
         {totalIssues > 0 ? (
-          <span className="inline-flex items-center gap-1.5 px-2 h-7 rounded-md text-[11.5px] font-semibold bg-amber-500/10 text-amber-700 border border-amber-500/20">
+          <span className="inline-flex items-center gap-1.5 px-2 h-7 rounded-md text-[11.5px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
             <AlertTriangle className="h-3 w-3" />
             {totalIssues} {totalIssues === 1 ? 'issue' : 'issues'}
           </span>
         ) : isReady ? (
-          <span className="inline-flex items-center gap-1.5 px-2 h-7 rounded-md text-[11.5px] font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/20">
+          <span className="inline-flex items-center gap-1.5 px-2 h-7 rounded-md text-[11.5px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
             <CheckCircle2 className="h-3 w-3" />
             Ready to launch
           </span>
@@ -727,7 +727,7 @@ export function CampaignCreatePage() {
                 Pre-flight
               </p>
               {totalIssues > 0 && (
-                <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 tabular">
+                <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 tabular">
                   {totalIssues}
                 </span>
               )}
@@ -828,7 +828,7 @@ export function CampaignCreatePage() {
                     {(smtpAccounts || []).length === 0 && (
                       <div className="mt-2 p-2.5 rounded-lg bg-amber-500/8 border border-amber-500/15 flex items-start gap-2">
                         <AlertTriangle className="h-3.5 w-3.5 text-amber-600 flex-shrink-0 mt-px" />
-                        <p className="text-[11.5px] text-amber-700">
+                        <p className="text-[11.5px] text-amber-700 dark:text-amber-400">
                           No sending accounts yet.{' '}
                           <Link to="/settings/smtp" className="font-semibold underline">Add one to continue</Link>.
                         </p>
@@ -875,9 +875,9 @@ export function CampaignCreatePage() {
                               </div>
                               <span className={cn(
                                 'inline-flex items-center px-1.5 h-[18px] rounded text-[10px] font-bold flex-shrink-0',
-                                a.health_score >= 80 ? 'bg-emerald-500/10 text-emerald-700'
-                                  : a.health_score >= 50 ? 'bg-amber-500/10 text-amber-700'
-                                  : 'bg-rose-500/10 text-rose-700'
+                                a.health_score >= 80 ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                  : a.health_score >= 50 ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                                  : 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
                               )}>
                                 {a.health_score}%
                               </span>
@@ -1415,7 +1415,7 @@ export function CampaignCreatePage() {
                 description="Who will receive this campaign"
                 accent="emerald"
                 action={selectedContactIds.length > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2 h-6 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 text-[11px] font-semibold">
+                  <span className="inline-flex items-center gap-1.5 px-2 h-6 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[11px] font-semibold">
                     <CheckCircle2 className="h-3 w-3" />
                     {selectedContactIds.length.toLocaleString()} selected
                   </span>
@@ -1955,7 +1955,7 @@ export function CampaignCreatePage() {
                       <div className="text-lg mb-1">{t.icon}</div>
                       <p className={cn(
                         'text-[12px] font-semibold',
-                        aiTone === t.value ? 'text-violet-700' : 'text-[var(--text-primary)]'
+                        aiTone === t.value ? 'text-violet-700 dark:text-violet-400' : 'text-[var(--text-primary)]'
                       )}>{t.label}</p>
                       <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5 leading-tight">{t.description}</p>
                     </button>

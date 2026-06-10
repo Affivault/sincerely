@@ -25,9 +25,9 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 
 const ROLE_CONFIG: Record<string, { label: string; icon: any; color: string }> = {
-  owner:  { label: 'Owner',  icon: Crown,  color: 'text-amber-700 bg-amber-500/10' },
+  owner:  { label: 'Owner',  icon: Crown,  color: 'text-amber-700 dark:text-amber-400 bg-amber-500/10' },
   admin:  { label: 'Admin',  icon: Shield, color: 'text-[var(--indigo)] bg-[var(--indigo-subtle)]' },
-  member: { label: 'Member', icon: User,   color: 'text-slate-700 bg-slate-500/10' },
+  member: { label: 'Member', icon: User,   color: 'text-slate-700 dark:text-slate-400 bg-slate-500/10' },
 };
 
 function RoleBadge({ role }: { role: string }) {

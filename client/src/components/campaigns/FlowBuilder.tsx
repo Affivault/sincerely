@@ -183,7 +183,7 @@ const getStepColors = (stepType: string) => {
       };
     default:
       return {
-        iconBg: 'bg-slate-500/10 text-slate-600 border border-slate-500/20',
+        iconBg: 'bg-slate-500/10 text-slate-600 dark:text-slate-300 border border-slate-500/20',
         borderColor: 'border-l-[3px] border-l-slate-400',
         badgeBg: 'bg-slate-500 text-white',
       };
@@ -364,7 +364,7 @@ function FlowNode({
                   </div>
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
-                      <p className="text-xs font-semibold text-emerald-700">✓ True Branch</p>
+                      <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ True Branch</p>
                       <p className="text-xs text-emerald-600 mt-0.5">Continues to next step</p>
                     </div>
                     <div className="p-2.5 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)] space-y-1.5">

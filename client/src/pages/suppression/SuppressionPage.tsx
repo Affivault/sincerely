@@ -12,10 +12,10 @@ import toast from 'react-hot-toast';
 import { DEFAULT_PAGE_SIZE } from '../../lib/constants';
 
 const REASON_LABELS: Record<string, { label: string; color: string; dot: string }> = {
-  unsubscribed: { label: 'Unsubscribed', color: 'text-amber-700 bg-amber-500/10',  dot: 'bg-amber-500'  },
-  bounced:      { label: 'Bounced',      color: 'text-rose-700 bg-rose-500/10',    dot: 'bg-rose-500'   },
-  complained:   { label: 'Complained',   color: 'text-orange-700 bg-orange-500/10',dot: 'bg-orange-500' },
-  manual:       { label: 'Manual',       color: 'text-slate-700 bg-slate-500/10',  dot: 'bg-slate-500'  },
+  unsubscribed: { label: 'Unsubscribed', color: 'text-amber-700 dark:text-amber-400 bg-amber-500/10',  dot: 'bg-amber-500'  },
+  bounced:      { label: 'Bounced',      color: 'text-rose-700 dark:text-rose-400 bg-rose-500/10',    dot: 'bg-rose-500'   },
+  complained:   { label: 'Complained',   color: 'text-orange-700 dark:text-orange-400 bg-orange-500/10',dot: 'bg-orange-500' },
+  manual:       { label: 'Manual',       color: 'text-slate-700 dark:text-slate-400 bg-slate-500/10',  dot: 'bg-slate-500'  },
 };
 
 export function SuppressionPage() {

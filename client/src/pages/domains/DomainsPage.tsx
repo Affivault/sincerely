@@ -378,11 +378,11 @@ export function DomainsPage() {
                     <div className="flex items-center gap-2 mb-0.5">
                       <h3 className="text-[14px] font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">{domain.domain}</h3>
                       {domain.is_verified ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-[10.5px] font-medium bg-emerald-500/10 text-emerald-700 rounded-[4px]">
+                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-[10.5px] font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-[4px]">
                           Verified
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-[10.5px] font-medium bg-amber-500/10 text-amber-700 rounded-[4px]">
+                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-[10.5px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-[4px]">
                           Pending
                         </span>
                       )}

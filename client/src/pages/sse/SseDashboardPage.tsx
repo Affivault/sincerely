@@ -123,8 +123,8 @@ export function SseDashboardPage() {
                 <span className={cn(
                   'inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold',
                   account.is_available
-                    ? 'bg-emerald-500/10 text-emerald-700'
-                    : 'bg-rose-500/10 text-rose-700'
+                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                    : 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
                 )}>
                   {account.is_available ? (
                     <><CheckCircle2 className="h-3 w-3" /> Available</>
