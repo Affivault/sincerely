@@ -516,8 +516,8 @@ export function ContactsListPage() {
         {/* Header */}
         <PageHeader
           leading={
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#5B5BF5] to-[#8B5CF6] shadow-[0_1px_3px_rgba(91,91,245,0.4)]">
-              <Users className="h-4 w-4 text-white" />
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(99,102,241,0.18)]">
+              <Users className="h-4 w-4 text-[var(--indigo)]" />
             </span>
           }
           title={currentListName}
@@ -527,20 +527,17 @@ export function ContactsListPage() {
           }
           actions={
             <div className="flex items-center gap-2">
-              <button onClick={() => navigate('/contacts/import')} className="btn-secondary rounded-lg text-[12px] h-8 px-3 gap-1.5">
+              <button onClick={() => navigate('/contacts/import')} className="btn-secondary">
                 <Upload className="h-3.5 w-3.5" />
                 Import CSV
               </button>
-              <button onClick={handleExport} className="btn-secondary rounded-lg text-[12px] h-8 px-3 gap-1.5">
+              <button onClick={handleExport} className="btn-secondary">
                 <Download className="h-3.5 w-3.5" />
                 Export
               </button>
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[#5B5BF5] text-white text-[12px] font-semibold hover:bg-[#4F46E5] transition-all shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
-              >
+              <button onClick={() => setShowCreateModal(true)} className="btn-primary">
                 <Plus className="h-3.5 w-3.5" />
-                Add Contact
+                Add contact
               </button>
             </div>
           }
@@ -636,9 +633,9 @@ export function ContactsListPage() {
           </div>
         ) : contacts.length === 0 ? (
           /* Empty state */
-          <div className="flex flex-col items-center justify-center py-20 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-            <div className="flex items-center justify-center h-20 w-20 rounded-3xl bg-gradient-to-br from-[rgba(99,102,241,0.08)] to-[rgba(139,92,246,0.08)] mb-5 border border-[rgba(99,102,241,0.15)]">
-              <Users className="h-9 w-9 text-[#6366F1]" strokeWidth={1.5} />
+          <div className="flex flex-col items-center justify-center py-20 panel">
+            <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] mb-5">
+              <Users className="h-7 w-7 text-[var(--text-tertiary)]" strokeWidth={1.5} />
             </div>
             <h3 className="text-heading-sm text-[var(--text-primary)] mb-2">No contacts yet</h3>
             <p className="text-sm text-[var(--text-secondary)] mb-6 max-w-sm text-center">
@@ -656,10 +653,10 @@ export function ContactsListPage() {
             </div>
           </div>
         ) : (
-          <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl shadow-md overflow-hidden">
+          <div className="panel overflow-hidden">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+                <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-muted)]/40">
                   <th className="px-5 py-2.5 w-12">
                     <input
                       type="checkbox"
