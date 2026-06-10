@@ -612,7 +612,7 @@ export function SettingsPage() {
                         onClick={() => handleThemeChange(value)}
                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-200 border ${
                           themeMode === value
-                            ? 'bg-[rgba(99,102,241,0.08)] text-[#6366F1] border-[#6366F1]'
+                            ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[var(--indigo)]'
                             : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[var(--border-default)]'
                         }`}
                       >
@@ -653,7 +653,7 @@ export function SettingsPage() {
 
                 <div className="p-4 rounded-xl border" style={{ background: 'rgba(99,102,241,0.05)', borderColor: 'rgba(99,102,241,0.2)' }}>
                   <div className="flex items-start gap-3">
-                    <Sparkles className="h-5 w-5 text-[#6366F1] mt-0.5 flex-shrink-0" />
+                    <Sparkles className="h-5 w-5 text-[var(--indigo)] mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-sm font-medium text-[var(--text-primary)]">Smart Email Tagging</p>
                       <p className="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed">

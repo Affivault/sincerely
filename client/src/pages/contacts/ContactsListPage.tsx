@@ -7,6 +7,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { StatCard } from '../../components/shared/StatCard';
+import { EmptyState } from '../../components/shared/EmptyState';
 import { Avatar } from '../../components/shared/Avatar';
 import { formatDate, cn } from '../../lib/utils';
 import {
@@ -633,24 +634,16 @@ export function ContactsListPage() {
           </div>
         ) : contacts.length === 0 ? (
           /* Empty state */
-          <div className="flex flex-col items-center justify-center py-20 panel">
-            <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] mb-5">
-              <Users className="h-7 w-7 text-[var(--text-tertiary)]" strokeWidth={1.5} />
-            </div>
-            <h3 className="text-heading-sm text-[var(--text-primary)] mb-2">No contacts yet</h3>
-            <p className="text-sm text-[var(--text-secondary)] mb-6 max-w-sm text-center">
-              Get started by adding your first contact manually or importing a CSV file with your existing data.
-            </p>
-            <div className="flex items-center gap-3">
-              <button onClick={() => setShowCreateModal(true)} className="btn-primary rounded-lg">
-                <Plus className="h-4 w-4" />
-                Add Contact
-              </button>
-              <button onClick={() => navigate('/contacts/import')} className="btn-secondary rounded-lg">
-                <Upload className="h-4 w-4" />
-                Import CSV
-              </button>
-            </div>
+          <div className="panel">
+            <EmptyState
+              icon={Users}
+              title="No contacts yet"
+              description="Get started by adding your first contact manually or importing a CSV file with your existing data."
+              actionLabel="Add contact"
+              onAction={() => setShowCreateModal(true)}
+              secondaryActionLabel="Import CSV"
+              onSecondaryAction={() => navigate('/contacts/import')}
+            />
           </div>
         ) : (
           <div className="panel overflow-hidden">
