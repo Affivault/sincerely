@@ -205,7 +205,7 @@ function DomainDetailPanel({
       ) : recordsData ? (
         <div className="space-y-3">
           <h4 className="text-sm font-medium text-[var(--text-primary)] flex items-center gap-2">
-            <Shield className="h-4 w-4 text-[#6366F1]" />
+            <Shield className="h-4 w-4 text-[var(--indigo)]" />
             DNS Records to Configure
           </h4>
           {recordsData.records.map((record, idx) => (

@@ -372,7 +372,7 @@ function FlowNode({
                       <select
                         value={step.false_branch_step ?? ''}
                         onChange={(e) => onUpdate({ false_branch_step: e.target.value === '' ? undefined : Number(e.target.value) })}
-                        className="w-full h-7 rounded border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-xs focus:border-[#6366F1] outline-none"
+                        className="w-full h-7 rounded border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-xs focus:border-[var(--indigo)] outline-none"
                       >
                         <option value="">Skip to end</option>
                         {Array.from({ length: totalSteps }, (_, i) => i).filter((i) => i !== index).map((i) => (

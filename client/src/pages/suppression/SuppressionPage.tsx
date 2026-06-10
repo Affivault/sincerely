@@ -209,7 +209,7 @@ export function SuppressionPage() {
                   value={addEmail}
                   onChange={(e) => setAddEmail(e.target.value)}
                   placeholder="user@example.com"
-                  className="w-full h-10 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 text-sm focus:border-[#6366F1] focus:ring-2 focus:ring-[#6366F1]/20 outline-none"
+                  className="w-full h-10 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 text-sm focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#6366F1]/20 outline-none"
                 />
               </div>
               <div>
@@ -217,7 +217,7 @@ export function SuppressionPage() {
                 <select
                   value={addReason}
                   onChange={(e) => setAddReason(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 text-sm focus:border-[#6366F1] focus:ring-2 focus:ring-[#6366F1]/20 outline-none"
+                  className="w-full h-10 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 text-sm focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#6366F1]/20 outline-none"
                 >
                   <option value="manual">Manual</option>
                   <option value="unsubscribed">Unsubscribed</option>
@@ -232,7 +232,7 @@ export function SuppressionPage() {
                   value={addNotes}
                   onChange={(e) => setAddNotes(e.target.value)}
                   placeholder="Optional note..."
-                  className="w-full h-10 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 text-sm focus:border-[#6366F1] focus:ring-2 focus:ring-[#6366F1]/20 outline-none"
+                  className="w-full h-10 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 text-sm focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#6366F1]/20 outline-none"
                 />
               </div>
             </div>
@@ -265,7 +265,7 @@ export function SuppressionPage() {
                   onChange={(e) => setBulkText(e.target.value)}
                   rows={8}
                   placeholder={"user1@example.com\nuser2@example.com\nuser3@example.com"}
-                  className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-sm focus:border-[#6366F1] focus:ring-2 focus:ring-[#6366F1]/20 outline-none resize-none font-mono"
+                  className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-sm focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#6366F1]/20 outline-none resize-none font-mono"
                 />
               </div>
               <div>
@@ -273,7 +273,7 @@ export function SuppressionPage() {
                 <select
                   value={addReason}
                   onChange={(e) => setAddReason(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 text-sm focus:border-[#6366F1] focus:ring-2 focus:ring-[#6366F1]/20 outline-none"
+                  className="w-full h-10 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 text-sm focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#6366F1]/20 outline-none"
                 >
                   <option value="manual">Manual</option>
                   <option value="unsubscribed">Unsubscribed</option>

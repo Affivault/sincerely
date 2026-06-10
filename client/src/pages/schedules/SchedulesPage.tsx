@@ -257,7 +257,7 @@ function ScheduleEditor({ initial, onCancel, onSave, loading }: {
                 onClick={() => toggleDay(d.key)}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   days.includes(d.key)
-                    ? 'bg-[#6366F1] text-white'
+                    ? 'bg-[var(--indigo)] text-white'
                     : 'bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
                 }`}
               >

@@ -610,7 +610,7 @@ function FolderAnalyticsModal({ folderId, onClose }: { folderId: string; onClose
       <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
           <h2 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-[#6366F1]" />
+            <BarChart3 className="h-4 w-4 text-[var(--indigo)]" />
             {data?.folder.name || 'Folder analytics'}
           </h2>
           <button onClick={onClose} className="p-1 rounded hover:bg-[var(--bg-hover)]"><X className="h-4 w-4 text-[var(--text-tertiary)]" /></button>

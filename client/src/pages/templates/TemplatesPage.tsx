@@ -407,7 +407,7 @@ function EmailEditorModal({
               <select
                 value={category}
                 onChange={e => setCategory(e.target.value as TemplateCategory)}
-                className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#6366F1]"
+                className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo)]"
               >
                 {TEMPLATE_CATEGORIES.map(c => (
                   <option key={c.value} value={c.value}>{c.label}</option>
@@ -529,7 +529,7 @@ function SequenceEditorModal({
             <select
               value={category}
               onChange={e => setCategory(e.target.value as TemplateCategory)}
-              className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#6366F1]"
+              className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo)]"
             >
               {TEMPLATE_CATEGORIES.map(c => (
                 <option key={c.value} value={c.value}>{c.label}</option>
@@ -551,7 +551,7 @@ function SequenceEditorModal({
                   onClick={() => setActiveStep(idx)}
                   className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-xs transition-colors ${
                     activeStep === idx
-                      ? 'bg-[rgba(99,102,241,0.08)] text-[#6366F1] font-medium'
+                      ? 'bg-[rgba(99,102,241,0.08)] text-[var(--indigo)] font-medium'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                   }`}
                 >
@@ -595,7 +595,7 @@ function SequenceEditorModal({
                     min={0}
                     value={current.delay_days}
                     onChange={e => updateStep(activeStep, { delay_days: parseInt(e.target.value) || 0 })}
-                    className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#6366F1]"
+                    className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo)]"
                   />
                 </div>
                 <div>
@@ -605,7 +605,7 @@ function SequenceEditorModal({
                     min={0}
                     value={current.delay_hours}
                     onChange={e => updateStep(activeStep, { delay_hours: parseInt(e.target.value) || 0 })}
-                    className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#6366F1]"
+                    className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo)]"
                   />
                 </div>
               </div>
@@ -717,7 +717,7 @@ function PreviewModal({
                   >
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
                       activeStep === idx
-                        ? 'bg-[#6366F1] text-white'
+                        ? 'bg-[var(--indigo)] text-white'
                         : 'bg-[var(--bg-elevated)] border border-[var(--border-subtle)]'
                     }`}>
                       <span className="text-[10px] font-bold">{idx + 1}</span>

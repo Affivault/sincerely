@@ -19,7 +19,7 @@ function StageCell({ icon: Icon, label, state }: { icon: any; label: string; sta
         className={cn(
           'relative flex h-7 w-7 items-center justify-center rounded-lg border transition-all',
           state === 'idle' && 'bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-tertiary)]',
-          state === 'pending' && 'bg-[#5B5BF5]/10 border-[#5B5BF5]/40 text-[#5B5BF5]',
+          state === 'pending' && 'bg-[#5B5BF5]/10 border-[#5B5BF5]/40 text-[var(--indigo)]',
           state === 'pass' && 'bg-emerald-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400',
           state === 'fail' && 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400',
         )}
@@ -41,7 +41,7 @@ function StageCell({ icon: Icon, label, state }: { icon: any; label: string; sta
         className={cn(
           'text-[11px] font-medium uppercase tracking-wider',
           state === 'idle' && 'text-[var(--text-tertiary)]',
-          state === 'pending' && 'text-[#5B5BF5]',
+          state === 'pending' && 'text-[var(--indigo)]',
           state === 'pass' && 'text-emerald-600 dark:text-emerald-400',
           state === 'fail' && 'text-rose-600 dark:text-rose-400',
         )}
@@ -138,7 +138,7 @@ export function VerificationPage() {
         <div className="absolute inset-0 bg-[var(--indigo-subtle)] opacity-40 pointer-events-none" />
         <div className="relative p-5">
           <div className="flex items-center gap-2 mb-3">
-            <Sparkles className="h-3.5 w-3.5 text-[#5B5BF5]" />
+            <Sparkles className="h-3.5 w-3.5 text-[var(--indigo)]" />
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
               Live deliverability pipeline
             </span>
@@ -157,13 +157,13 @@ export function VerificationPage() {
                   placeholder="Type an email address to verify it instantly…"
                   value={emailInput}
                   onChange={(e) => setEmailInput(e.target.value)}
-                  className="w-full h-11 pl-10 pr-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[14px] text-[var(--text-primary)] focus:border-[#5B5BF5] focus:ring-2 focus:ring-[#5B5BF5]/15 outline-none transition-all"
+                  className="w-full h-11 pl-10 pr-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[14px] text-[var(--text-primary)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 outline-none transition-all"
                 />
               </div>
               <button
                 type="submit"
                 disabled={!emailInput || isPending}
-                className="inline-flex items-center gap-1.5 px-4 h-11 rounded-xl bg-[#5B5BF5] text-white text-[13px] font-semibold hover:bg-[#4F46E5] disabled:opacity-40 transition-all shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
+                className="inline-flex items-center gap-1.5 px-4 h-11 rounded-xl bg-[var(--indigo)] text-white text-[13px] font-semibold hover:bg-[#4F46E5] disabled:opacity-40 transition-all shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
               >
                 {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
                 Verify

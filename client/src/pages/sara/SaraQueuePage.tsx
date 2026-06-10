@@ -221,13 +221,13 @@ export function SaraQueuePage() {
                   className={cn(
                     'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium border transition-all',
                     isActive
-                      ? 'bg-[rgba(99,102,241,0.1)] border-[rgba(99,102,241,0.3)] text-[#6366F1]'
+                      ? 'bg-[rgba(99,102,241,0.1)] border-[rgba(99,102,241,0.3)] text-[var(--indigo)]'
                       : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]'
                   )}
                 >
                   <IntentIcon className="h-3 w-3" />
                   {config.label}
-                  <span className={cn('tabular', isActive ? 'text-[#6366F1]' : 'text-[var(--text-tertiary)]')}>{item.count}</span>
+                  <span className={cn('tabular', isActive ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')}>{item.count}</span>
                 </button>
               );
             })}
@@ -272,7 +272,7 @@ export function SaraQueuePage() {
       {/* Queue — two-pane triage */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#5B5BF5] border-t-transparent" />
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--indigo)] border-t-transparent" />
         </div>
       ) : messages.length === 0 ? (
         <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-20 px-8 flex flex-col items-center justify-center text-center">
@@ -320,7 +320,7 @@ export function SaraQueuePage() {
                     )}
                   >
                     {isSelected && (
-                      <span className="absolute left-0 top-2 bottom-2 w-[2px] rounded-r-full bg-[#5B5BF5]" />
+                      <span className="absolute left-0 top-2 bottom-2 w-[2px] rounded-r-full bg-[var(--indigo)]" />
                     )}
                     <div className="flex items-start gap-2.5">
                       <Avatar name={name} email={msg.from_email} size="md" />
@@ -405,7 +405,7 @@ export function SaraQueuePage() {
                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
                       <span className={cn(
                         'inline-flex items-center gap-1 px-1.5 h-[20px] rounded-[5px] text-[10.5px] font-semibold',
-                        'bg-[#5B5BF5]/8 text-[#5B5BF5]'
+                        'bg-[#5B5BF5]/8 text-[var(--indigo)]'
                       )}>
                         <IntentIcon className="h-2.5 w-2.5" />
                         {intentConfig.label}
@@ -439,7 +439,7 @@ export function SaraQueuePage() {
                               <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--indigo)]">
                                 <Bot className="h-3 w-3 text-white" />
                               </span>
-                              <h4 className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#5B5BF5]">
+                              <h4 className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--indigo)]">
                                 SARA's draft reply
                               </h4>
                             </div>
@@ -455,7 +455,7 @@ export function SaraQueuePage() {
                               onChange={(e) => setEditedReply(e.target.value)}
                               rows={8}
                               autoFocus
-                              className="w-full rounded-lg border border-[#5B5BF5]/30 bg-[var(--bg-surface)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] focus:border-[#5B5BF5] focus:ring-2 focus:ring-[#5B5BF5]/15 outline-none resize-y"
+                              className="w-full rounded-lg border border-[#5B5BF5]/30 bg-[var(--bg-surface)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 outline-none resize-y"
                             />
                           ) : (
                             <div className="text-[13px] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">

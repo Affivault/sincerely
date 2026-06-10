@@ -398,7 +398,7 @@ function ContactProgressCard({ campaign }: { campaign: any }) {
 
   const segments = [
     { label: 'Completed', count: campaign.completed_contacts || 0, color: 'bg-emerald-500' },
-    { label: 'Active', count: campaign.active_contacts || 0, color: 'bg-[#6366F1]' },
+    { label: 'Active', count: campaign.active_contacts || 0, color: 'bg-[var(--indigo)]' },
     { label: 'Bounced', count: campaign.bounced_contacts || 0, color: 'bg-red-500' },
     { label: 'Unsubscribed', count: campaign.unsubscribed_contacts || 0, color: 'bg-amber-500' },
   ];
@@ -464,7 +464,7 @@ function formatDelay(days: number, hours: number, minutes: number): string {
 }
 
 const STEP_CFG: Record<string, { accent: string; iconColor: string; iconBg: string }> = {
-  email:       { accent: 'bg-[#6366F1]',   iconColor: 'text-[#6366F1]',   iconBg: 'bg-[rgba(99,102,241,0.1)]'  },
+  email:       { accent: 'bg-[var(--indigo)]',   iconColor: 'text-[var(--indigo)]',   iconBg: 'bg-[rgba(99,102,241,0.1)]'  },
   delay:       { accent: 'bg-amber-500',    iconColor: 'text-amber-500',   iconBg: 'bg-amber-500/10'            },
   condition:   { accent: 'bg-blue-500',     iconColor: 'text-blue-500',    iconBg: 'bg-blue-500/10'             },
   webhook_wait:{ accent: 'bg-emerald-500',  iconColor: 'text-emerald-500', iconBg: 'bg-emerald-500/10'          },
@@ -487,7 +487,7 @@ function SequenceStepCard({ step, index }: { step: CampaignStep; index: number }
               <Mail className={cn('h-3.5 w-3.5 shrink-0', cfg.iconColor)} />
               <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">{step.subject || 'Untitled Email'}</span>
               {step.subject_b && (
-                <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold bg-[rgba(99,102,241,0.08)] text-[#6366F1]">A/B</span>
+                <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold bg-[rgba(99,102,241,0.08)] text-[var(--indigo)]">A/B</span>
               )}
             </div>
             {step.body_text && (

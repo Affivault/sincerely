@@ -382,7 +382,7 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
                 disabled={!canSend}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40 ${
                   showSchedule
-                    ? 'bg-[#6366F1]/10 text-[#6366F1] border border-[#6366F1]/20'
+                    ? 'bg-[#6366F1]/10 text-[var(--indigo)] border border-[#6366F1]/20'
                     : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)]'
                 }`}
                 title="Schedule send"
@@ -423,7 +423,7 @@ function AiAssistBar({ messageId, onInsert }: { messageId: string; onInsert: (ht
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--text-tertiary)] hover:text-[#6366F1] hover:bg-[#6366F1]/5 transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] hover:bg-[#6366F1]/5 transition-colors"
       >
         <Wand2 className="h-3.5 w-3.5" />
         AI Assist
@@ -548,9 +548,9 @@ function CustomCalendar({ selected, onSelect }: { selected: Date | null; onSelec
               onClick={() => onSelect(cell.date)}
               className={`relative w-full aspect-square flex items-center justify-center text-[12px] rounded-lg transition-all ${
                 isSelected
-                  ? 'bg-[#6366F1] text-[var(--bg-app)] font-semibold shadow-sm'
+                  ? 'bg-[var(--indigo)] text-[var(--bg-app)] font-semibold shadow-sm'
                   : isToday
-                    ? 'font-semibold text-[#6366F1] hover:bg-[#6366F1]/10'
+                    ? 'font-semibold text-[var(--indigo)] hover:bg-[#6366F1]/10'
                     : !cell.current
                       ? 'text-[var(--text-muted)]'
                       : disabled
@@ -560,7 +560,7 @@ function CustomCalendar({ selected, onSelect }: { selected: Date | null; onSelec
             >
               {cell.day}
               {isToday && !isSelected && (
-                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#6366F1]" />
+                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--indigo)]" />
               )}
             </button>
           );
@@ -603,13 +603,13 @@ function CustomTimePicker({ value, onChange }: { value: { hour: number; minute: 
           <button
             onClick={() => { if (isPM) togglePeriod(); }}
             className={`px-2.5 py-1 text-[11px] font-semibold transition-all ${
-              !isPM ? 'bg-[#6366F1] text-[var(--bg-app)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)]'
+              !isPM ? 'bg-[var(--indigo)] text-[var(--bg-app)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)]'
             }`}
           >AM</button>
           <button
             onClick={() => { if (!isPM) togglePeriod(); }}
             className={`px-2.5 py-1 text-[11px] font-semibold transition-all border-l border-[var(--border-subtle)] ${
-              isPM ? 'bg-[#6366F1] text-[var(--bg-app)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)]'
+              isPM ? 'bg-[var(--indigo)] text-[var(--bg-app)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)]'
             }`}
           >PM</button>
         </div>
@@ -625,7 +625,7 @@ function CustomTimePicker({ value, onChange }: { value: { hour: number; minute: 
               onClick={() => setHour12(h)}
               className={`py-1.5 rounded-lg text-[12px] font-medium transition-all ${
                 display12 === h
-                  ? 'bg-[#6366F1] text-[var(--bg-app)] shadow-sm'
+                  ? 'bg-[var(--indigo)] text-[var(--bg-app)] shadow-sm'
                   : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -645,7 +645,7 @@ function CustomTimePicker({ value, onChange }: { value: { hour: number; minute: 
               onClick={() => onChange({ ...value, minute: m })}
               className={`py-1.5 rounded-lg text-[12px] font-medium transition-all ${
                 value.minute === m
-                  ? 'bg-[#6366F1] text-[var(--bg-app)] shadow-sm'
+                  ? 'bg-[var(--indigo)] text-[var(--bg-app)] shadow-sm'
                   : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -748,7 +748,7 @@ function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string
           )}
           {view === 'presets' && (
             <div className="w-7 h-7 rounded-lg bg-[#6366F1]/10 flex items-center justify-center">
-              <CalendarClock className="h-3.5 w-3.5 text-[#6366F1]" />
+              <CalendarClock className="h-3.5 w-3.5 text-[var(--indigo)]" />
             </div>
           )}
           <div className="flex-1">
@@ -775,7 +775,7 @@ function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string
                   className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--bg-hover)] active:bg-[var(--bg-active)] transition-colors flex items-center gap-3 group"
                 >
                   <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)] group-hover:bg-[#6366F1]/10 flex items-center justify-center transition-colors border border-[var(--border-subtle)] group-hover:border-[#6366F1]/20">
-                    <Icon className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[#6366F1] transition-colors" />
+                    <Icon className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[var(--indigo)] transition-colors" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-[13px] font-medium text-[var(--text-primary)] block">{p.label}</span>
@@ -793,7 +793,7 @@ function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string
               className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--bg-hover)] active:bg-[var(--bg-active)] transition-colors flex items-center gap-3 group"
             >
               <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)] group-hover:bg-[#6366F1]/10 flex items-center justify-center transition-colors border border-[var(--border-subtle)] group-hover:border-[#6366F1]/20">
-                <Calendar className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[#6366F1] transition-colors" />
+                <Calendar className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[var(--indigo)] transition-colors" />
               </div>
               <div className="flex-1">
                 <span className="text-[13px] font-medium text-[var(--text-primary)]">Custom date & time</span>
@@ -864,7 +864,7 @@ function FolderSelector({ folders, active, onChange }: {
         <CurrentIcon className="h-3.5 w-3.5" />
         {current.label}
         {current.count ? (
-          <span className="text-[9px] bg-[#6366F1] text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 font-bold">{current.count}</span>
+          <span className="text-[9px] bg-[var(--indigo)] text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 font-bold">{current.count}</span>
         ) : null}
         <ChevronDown className={`h-3 w-3 text-[var(--text-tertiary)] transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
@@ -878,16 +878,16 @@ function FolderSelector({ folders, active, onChange }: {
                 key={f.id}
                 onClick={() => { onChange(f.id); setOpen(false); }}
                 className={`w-full text-left px-3 py-2.5 text-xs font-medium transition-colors flex items-center gap-2.5 ${
-                  isActive ? 'bg-[rgba(99,102,241,0.08)] text-[#6366F1]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                  isActive ? 'bg-[rgba(99,102,241,0.08)] text-[var(--indigo)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                 }`}
               >
-                <FolderIcon className={`h-3.5 w-3.5 ${isActive ? 'text-[#6366F1]' : 'text-[var(--text-tertiary)]'}`} />
+                <FolderIcon className={`h-3.5 w-3.5 ${isActive ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]'}`} />
                 <span className="flex-1">{f.label}</span>
                 {f.count ? (
-                  <span className="text-[9px] bg-[#6366F1] text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 font-bold">{f.count}</span>
+                  <span className="text-[9px] bg-[var(--indigo)] text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 font-bold">{f.count}</span>
                 ) : null}
                 {isActive && (
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#6366F1]" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--indigo)]" />
                 )}
               </button>
             );
@@ -1098,9 +1098,9 @@ function ScheduledEmailsPanel({ onCancel }: { onCancel: (id: string) => void }) 
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-3xl mx-auto px-6 py-6 space-y-3">
         <div className="flex items-center gap-2 mb-4">
-          <Clock className="h-5 w-5 text-[#6366F1]" />
+          <Clock className="h-5 w-5 text-[var(--indigo)]" />
           <h2 className="text-lg font-semibold text-[var(--text-primary)]">Scheduled Emails</h2>
-          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#6366F1]/10 text-[#6366F1]">{emails.length}</span>
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#6366F1]/10 text-[var(--indigo)]">{emails.length}</span>
         </div>
         {emails.map((email: any) => {
           const scheduledDate = new Date(email.scheduled_at);
@@ -1113,13 +1113,13 @@ function ScheduledEmailsPanel({ onCancel }: { onCancel: (id: string) => void }) 
             >
               <div className="flex items-start gap-3 p-4">
                 <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-[#6366F1]/10 border border-[#6366F1]/20">
-                  <Clock className="h-4 w-4 text-[#6366F1]" />
+                  <Clock className="h-4 w-4 text-[var(--indigo)]" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-[var(--text-primary)]">To: {email.to_email}</span>
                     <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${
-                      isPast ? 'bg-amber-500/10 text-amber-500' : 'bg-[#6366F1]/10 text-[#6366F1]'
+                      isPast ? 'bg-amber-500/10 text-amber-500' : 'bg-[#6366F1]/10 text-[var(--indigo)]'
                     }`}>
                       {isPast ? 'Sending soon...' : 'Scheduled'}
                     </span>
@@ -1626,22 +1626,22 @@ export function InboxPage() {
                 className={cn(
                   'relative group flex flex-col items-center justify-center gap-0.5 w-12 h-12 rounded-xl transition-all',
                   active
-                    ? 'bg-[#5B5BF5]/10 text-[#5B5BF5]'
+                    ? 'bg-[#5B5BF5]/10 text-[var(--indigo)]'
                     : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                 )}
               >
                 {active && (
-                  <span className="absolute -left-2 top-2 bottom-2 w-[3px] rounded-r-full bg-[#5B5BF5]" />
+                  <span className="absolute -left-2 top-2 bottom-2 w-[3px] rounded-r-full bg-[var(--indigo)]" />
                 )}
                 <FIcon className="h-[18px] w-[18px]" strokeWidth={active ? 2.2 : 1.7} />
                 <span className={cn(
                   'text-[9px] font-semibold uppercase tracking-wider leading-none',
-                  active ? 'text-[#5B5BF5]' : 'text-[var(--text-tertiary)]'
+                  active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]'
                 )}>
                   {f.label.slice(0, 5)}
                 </span>
                 {f.count && f.count > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full bg-[#5B5BF5] text-white text-[9px] font-bold tabular shadow-[0_1px_3px_rgba(91,91,245,0.4)]">
+                  <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full bg-[var(--indigo)] text-white text-[9px] font-bold tabular shadow-[0_1px_3px_rgba(91,91,245,0.4)]">
                     {f.count > 99 ? '99+' : f.count}
                   </span>
                 )}
@@ -1664,14 +1664,14 @@ export function InboxPage() {
           {/* Header: Compose + Search */}
           <div className="px-3 py-2.5 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]">
             <div className="flex items-center gap-2">
-              <button onClick={() => setShowCompose(true)} className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-[#5B5BF5] text-white text-[12px] font-semibold hover:bg-[#4F46E5] transition-all flex-shrink-0 shadow-[0_1px_3px_rgba(91,91,245,0.4)]">
+              <button onClick={() => setShowCompose(true)} className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-[var(--indigo)] text-white text-[12px] font-semibold hover:bg-[#4F46E5] transition-all flex-shrink-0 shadow-[0_1px_3px_rgba(91,91,245,0.4)]">
                 <Pencil className="h-3.5 w-3.5" />
                 Compose
               </button>
               <form onSubmit={handleSearch} className="flex-1 min-w-0">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-                  <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="Search…" className="w-full pl-8 pr-3 h-8 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[#5B5BF5] focus:ring-2 focus:ring-[#5B5BF5]/15 transition-all" />
+                  <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="Search…" className="w-full pl-8 pr-3 h-8 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 transition-all" />
                   {search && (
                     <button type="button" onClick={() => { setSearch(''); setSearchInput(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-[var(--bg-hover)]">
                       <X className="h-3 w-3 text-[var(--text-tertiary)]" />
@@ -1714,7 +1714,7 @@ export function InboxPage() {
                     className={cn(
                       'flex-shrink-0 inline-flex items-center h-6 px-2 rounded-md text-[11px] font-semibold transition-all',
                       active
-                        ? 'bg-[#5B5BF5]/10 text-[#5B5BF5]'
+                        ? 'bg-[#5B5BF5]/10 text-[var(--indigo)]'
                         : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                     )}
                   >
@@ -1750,7 +1750,7 @@ export function InboxPage() {
               /* Scheduled folder: empty sidebar, detail panel shows scheduled list */
               <div className="flex flex-col items-center justify-center py-10 text-center px-6">
                 <div className="w-12 h-12 rounded-2xl bg-[#6366F1]/10 flex items-center justify-center mb-3 border border-[#6366F1]/20">
-                  <Clock className="h-5 w-5 text-[#6366F1]" />
+                  <Clock className="h-5 w-5 text-[var(--indigo)]" />
                 </div>
                 <p className="text-sm font-medium text-[var(--text-primary)]">Scheduled Emails</p>
                 <p className="text-xs text-[var(--text-tertiary)] mt-1">View and manage your scheduled emails in the panel</p>
@@ -1785,7 +1785,7 @@ export function InboxPage() {
                     )}
                   >
                     {isSelected && (
-                      <span className="absolute left-0 top-2 bottom-2 w-[2px] rounded-r-full bg-[#5B5BF5]" />
+                      <span className="absolute left-0 top-2 bottom-2 w-[2px] rounded-r-full bg-[var(--indigo)]" />
                     )}
                     <div className="flex items-start gap-2.5">
                       <div className="relative flex-shrink-0 mt-0.5">
@@ -1797,7 +1797,7 @@ export function InboxPage() {
                           <Avatar name={avatarSeed} email={msg.from_email} size="lg" />
                         )}
                         {conv.hasUnread && !isOutbound && (
-                          <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#5B5BF5] ring-2 ring-[var(--bg-surface)]" />
+                          <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[var(--indigo)] ring-2 ring-[var(--bg-surface)]" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -2035,7 +2035,7 @@ export function InboxPage() {
                                 disabled={replyEditor.isEmpty || replyMut.isPending}
                                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40 ${
                                   showReplySchedule
-                                    ? 'bg-[#6366F1]/10 text-[#6366F1] border border-[#6366F1]/20'
+                                    ? 'bg-[#6366F1]/10 text-[var(--indigo)] border border-[#6366F1]/20'
                                     : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)]'
                                 }`}
                                 title="Schedule send"

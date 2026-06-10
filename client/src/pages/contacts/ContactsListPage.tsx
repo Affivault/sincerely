@@ -327,7 +327,7 @@ export function ContactsListPage() {
             className={cn(
               "w-full flex items-center gap-2.5 h-8 px-2.5 rounded-[6px] text-[13px] font-medium transition-all",
               !activeListId
-                ? "bg-[rgba(99,102,241,0.1)] text-[#6366F1]"
+                ? "bg-[rgba(99,102,241,0.1)] text-[var(--indigo)]"
                 : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
             )}
           >
@@ -335,7 +335,7 @@ export function ContactsListPage() {
             <span className="flex-1 text-left">All Contacts</span>
             <span className={cn(
               "text-[10px] font-semibold tabular px-1.5 rounded",
-              !activeListId ? "text-[#6366F1]" : "text-[var(--text-tertiary)]"
+              !activeListId ? "text-[var(--indigo)]" : "text-[var(--text-tertiary)]"
             )}>
               {stats?.total || 0}
             </span>
@@ -402,7 +402,7 @@ export function ContactsListPage() {
                             onBlur={() => setRenamingListId(null)}
                             onKeyDown={(e) => { if (e.key === 'Escape') setRenamingListId(null); }}
                             autoFocus
-                            className="w-full px-2 py-1 text-[12px] rounded border border-[#6366F1] bg-[var(--bg-elevated)] outline-none"
+                            className="w-full px-2 py-1 text-[12px] rounded border border-[var(--indigo)] bg-[var(--bg-elevated)] outline-none"
                           />
                         </form>
                       ) : (
@@ -412,7 +412,7 @@ export function ContactsListPage() {
                           className={cn(
                             "w-full flex items-center gap-2 h-8 px-2.5 rounded-[6px] text-[12px] font-medium transition-all",
                             activeListId === list.id
-                              ? "bg-[rgba(99,102,241,0.1)] text-[#6366F1]"
+                              ? "bg-[rgba(99,102,241,0.1)] text-[var(--indigo)]"
                               : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
                           )}
                         >
@@ -420,7 +420,7 @@ export function ContactsListPage() {
                           <span className="flex-1 text-left truncate">{list.name}</span>
                           <span className={cn(
                             "text-[10px] font-semibold tabular",
-                            activeListId === list.id ? "text-[#6366F1]" : "text-[var(--text-tertiary)]"
+                            activeListId === list.id ? "text-[var(--indigo)]" : "text-[var(--text-tertiary)]"
                           )}>
                             {list.contact_count || 0}
                           </span>
@@ -562,7 +562,7 @@ export function ContactsListPage() {
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search by name, email, or company…"
-              className="w-full h-8 pl-8 pr-4 text-[12px] rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[#6366F1] focus:ring-2 focus:ring-[#6366F1]/20 transition-all"
+              className="w-full h-8 pl-8 pr-4 text-[12px] rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#6366F1]/20 transition-all"
             />
             {search && (
               <button
@@ -584,7 +584,7 @@ export function ContactsListPage() {
         {someSelected && (
           <div className="flex items-center gap-4 mb-5 px-4 py-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] animate-fade-in">
             <div className="flex items-center gap-2.5">
-              <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-[#6366F1] text-white text-[11px] font-bold">
+              <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-[var(--indigo)] text-white text-[11px] font-bold">
                 {selectedContacts.size}
               </span>
               <span className="text-sm font-medium text-[var(--text-primary)]">
