@@ -80,7 +80,7 @@ export function SuppressionPage() {
         decorate
         leading={
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/8 border border-rose-500/15">
-            <ShieldOff className="h-4 w-4 text-rose-600" />
+            <ShieldOff className="h-4 w-4 text-rose-600 dark:text-rose-400" />
           </span>
         }
         title="Suppression list"

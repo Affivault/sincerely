@@ -20,8 +20,8 @@ function StageCell({ icon: Icon, label, state }: { icon: any; label: string; sta
           'relative flex h-7 w-7 items-center justify-center rounded-lg border transition-all',
           state === 'idle' && 'bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-tertiary)]',
           state === 'pending' && 'bg-[#5B5BF5]/10 border-[#5B5BF5]/40 text-[#5B5BF5]',
-          state === 'pass' && 'bg-emerald-500/10 border-emerald-500/40 text-emerald-600',
-          state === 'fail' && 'bg-rose-500/10 border-rose-500/40 text-rose-600',
+          state === 'pass' && 'bg-emerald-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400',
+          state === 'fail' && 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400',
         )}
       >
         {state === 'pending' ? (
@@ -42,8 +42,8 @@ function StageCell({ icon: Icon, label, state }: { icon: any; label: string; sta
           'text-[11px] font-medium uppercase tracking-wider',
           state === 'idle' && 'text-[var(--text-tertiary)]',
           state === 'pending' && 'text-[#5B5BF5]',
-          state === 'pass' && 'text-emerald-600',
-          state === 'fail' && 'text-rose-600',
+          state === 'pass' && 'text-emerald-600 dark:text-emerald-400',
+          state === 'fail' && 'text-rose-600 dark:text-rose-400',
         )}
       >
         {label}
@@ -184,7 +184,7 @@ export function VerificationPage() {
           {lastResult && !isPending && (
             <div className="mt-4 flex items-center gap-3 px-3.5 py-2.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] animate-fade-in">
               {lastResult.score >= 60 ? (
-                <ShieldCheck className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
               ) : (
                 <ShieldX className="h-4 w-4 text-rose-500 flex-shrink-0" />
               )}
@@ -312,22 +312,22 @@ export function VerificationPage() {
                 <div key={i} className="flex items-center gap-3 py-2">
                   <span className={cn(
                     'flex h-7 w-7 items-center justify-center rounded-lg flex-shrink-0',
-                    passed ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-500'
+                    passed ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-500'
                   )}>
                     {passed ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldX className="h-3.5 w-3.5" />}
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">{r.email}</p>
                     <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)]">
-                      <span className={cn('flex items-center gap-0.5', r.syntax_ok ? 'text-emerald-600' : 'text-rose-500')}>
+                      <span className={cn('flex items-center gap-0.5', r.syntax_ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500')}>
                         {r.syntax_ok ? <CheckCircle2 className="h-2.5 w-2.5" /> : <XCircle className="h-2.5 w-2.5" />} Syntax
                       </span>
                       <ArrowRight className="h-2.5 w-2.5" />
-                      <span className={cn('flex items-center gap-0.5', r.domain_ok ? 'text-emerald-600' : 'text-rose-500')}>
+                      <span className={cn('flex items-center gap-0.5', r.domain_ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500')}>
                         {r.domain_ok ? <CheckCircle2 className="h-2.5 w-2.5" /> : <XCircle className="h-2.5 w-2.5" />} DNS
                       </span>
                       <ArrowRight className="h-2.5 w-2.5" />
-                      <span className={cn('flex items-center gap-0.5', r.smtp_ok ? 'text-emerald-600' : 'text-rose-500')}>
+                      <span className={cn('flex items-center gap-0.5', r.smtp_ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500')}>
                         {r.smtp_ok ? <CheckCircle2 className="h-2.5 w-2.5" /> : <XCircle className="h-2.5 w-2.5" />} SMTP
                       </span>
                     </div>

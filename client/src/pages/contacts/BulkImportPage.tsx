@@ -316,7 +316,7 @@ export function BulkImportPage() {
                 <span
                   className={cn(
                     'flex h-6 w-6 items-center justify-center rounded-full transition-all',
-                    done && 'bg-emerald-500/15 text-emerald-600',
+                    done && 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
                     current && 'bg-[#5B5BF5] text-white shadow-[0_1px_3px_rgba(91,91,245,0.5)]',
                     !done && !current && 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
                   )}
@@ -406,7 +406,7 @@ export function BulkImportPage() {
               <AlertCircle className="h-4 w-4 text-rose-500 flex-shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
                 <p className="text-[12.5px] font-semibold text-rose-700 dark:text-rose-400">Couldn't read this file</p>
-                <p className="text-[11.5px] text-rose-600 mt-0.5">{parseError}</p>
+                <p className="text-[11.5px] text-rose-600 dark:text-rose-400 mt-0.5">{parseError}</p>
               </div>
               <button onClick={() => { setFile(null); setParseError(null); }} className="p-1 rounded hover:bg-rose-500/10">
                 <X className="h-3 w-3 text-rose-500" />
@@ -632,10 +632,10 @@ export function BulkImportPage() {
           <div className="grid grid-cols-3 gap-3 mb-5">
             <div className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3">
               <div className="flex items-center gap-1.5 mb-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span className="text-[10.5px] font-bold uppercase tracking-wider text-[var(--text-tertiary)]">Imported</span>
               </div>
-              <p className="text-[22px] font-semibold tabular text-emerald-600 tracking-[-0.02em] leading-none">
+              <p className="text-[22px] font-semibold tabular text-emerald-600 dark:text-emerald-400 tracking-[-0.02em] leading-none">
                 {progress.imported.toLocaleString()}
               </p>
             </div>
@@ -653,7 +653,7 @@ export function BulkImportPage() {
                 <XCircle className="h-3.5 w-3.5 text-rose-500" />
                 <span className="text-[10.5px] font-bold uppercase tracking-wider text-[var(--text-tertiary)]">Skipped</span>
               </div>
-              <p className="text-[22px] font-semibold tabular text-rose-600 tracking-[-0.02em] leading-none">
+              <p className="text-[22px] font-semibold tabular text-rose-600 dark:text-rose-400 tracking-[-0.02em] leading-none">
                 {progress.errors.toLocaleString()}
               </p>
             </div>
@@ -670,7 +670,7 @@ export function BulkImportPage() {
                 {progress.errorDetails.slice(-5).reverse().map((e, i) => (
                   <div key={i} className="flex items-center gap-2 text-[11px]">
                     <span className="font-mono text-[var(--text-secondary)] truncate flex-1">{e.email}</span>
-                    <span className="text-rose-600 text-[10.5px] flex-shrink-0">{e.reason}</span>
+                    <span className="text-rose-600 dark:text-rose-400 text-[10.5px] flex-shrink-0">{e.reason}</span>
                   </div>
                 ))}
               </div>
@@ -685,7 +685,7 @@ export function BulkImportPage() {
             <button
               onClick={cancel}
               disabled={cancelRef.current}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-rose-500/30 text-[12px] font-medium text-rose-600 hover:bg-rose-500/10 disabled:opacity-40 transition-all"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-rose-500/30 text-[12px] font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 disabled:opacity-40 transition-all"
             >
               <X className="h-3.5 w-3.5" />
               Cancel import
@@ -711,10 +711,10 @@ export function BulkImportPage() {
             <span className={cn(
               'flex h-12 w-12 items-center justify-center rounded-2xl flex-shrink-0',
               completedResult.errors === 0
-                ? 'bg-emerald-500/15 text-emerald-600'
+                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
                 : completedResult.imported > 0
-                  ? 'bg-amber-500/15 text-amber-600'
-                  : 'bg-rose-500/15 text-rose-600'
+                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                  : 'bg-rose-500/15 text-rose-600 dark:text-rose-400'
             )}>
               {completedResult.errors === 0
                 ? <CheckCircle2 className="h-6 w-6" />
@@ -744,10 +744,10 @@ export function BulkImportPage() {
           <div className="grid grid-cols-3 gap-3">
             <div className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-4">
               <div className="flex items-center gap-1.5 mb-2">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span className="text-[10.5px] font-bold uppercase tracking-wider text-[var(--text-tertiary)]">Imported</span>
               </div>
-              <p className="text-[26px] font-semibold tabular text-emerald-600 tracking-[-0.02em] leading-none">
+              <p className="text-[26px] font-semibold tabular text-emerald-600 dark:text-emerald-400 tracking-[-0.02em] leading-none">
                 {completedResult.imported.toLocaleString()}
               </p>
             </div>
@@ -756,7 +756,7 @@ export function BulkImportPage() {
                 <XCircle className="h-3.5 w-3.5 text-rose-500" />
                 <span className="text-[10.5px] font-bold uppercase tracking-wider text-[var(--text-tertiary)]">Skipped</span>
               </div>
-              <p className="text-[26px] font-semibold tabular text-rose-600 tracking-[-0.02em] leading-none">
+              <p className="text-[26px] font-semibold tabular text-rose-600 dark:text-rose-400 tracking-[-0.02em] leading-none">
                 {completedResult.errors.toLocaleString()}
               </p>
             </div>
@@ -793,7 +793,7 @@ export function BulkImportPage() {
                 {completedResult.errorDetails.map((e, i) => (
                   <div key={i} className="flex items-center gap-3 px-4 py-2 border-b border-[var(--border-subtle)] last:border-0 text-[11.5px]">
                     <span className="font-mono text-[var(--text-secondary)] truncate flex-1">{e.email}</span>
-                    <span className="text-rose-600 flex-shrink-0">{e.reason}</span>
+                    <span className="text-rose-600 dark:text-rose-400 flex-shrink-0">{e.reason}</span>
                   </div>
                 ))}
               </div>

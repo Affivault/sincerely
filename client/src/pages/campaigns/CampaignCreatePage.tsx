@@ -112,9 +112,9 @@ function SectionCard({
 }) {
   const accentMap = {
     indigo: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[rgba(91,91,245,0.18)]',
-    emerald: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
-    amber: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
-    violet: 'bg-violet-500/10 text-violet-600 border-violet-500/20',
+    emerald: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+    amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    violet: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20',
   };
   return (
     <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
@@ -678,7 +678,7 @@ export function CampaignCreatePage() {
                     active
                       ? 'bg-[var(--indigo)] text-white shadow-[0_2px_6px_rgba(91,91,245,0.3)] ring-4 ring-[var(--indigo-subtle)]'
                       : completed
-                      ? 'bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/20'
+                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20'
                       : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)] ring-1 ring-[var(--border-subtle)]'
                   )}>
                     {completed ? <Check className="h-4 w-4" strokeWidth={2.5} /> : <Icon className="h-4 w-4" strokeWidth={2} />}
@@ -733,7 +733,7 @@ export function CampaignCreatePage() {
               )}
             </div>
             {totalIssues === 0 ? (
-              <p className="text-[11px] text-emerald-600 font-medium">All checks passed ✓</p>
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">All checks passed ✓</p>
             ) : (
               <ul className="space-y-1">
                 {Object.entries(sectionIssues).flatMap(([sectionIdx, issues]) =>
@@ -827,7 +827,7 @@ export function CampaignCreatePage() {
                     </select>
                     {(smtpAccounts || []).length === 0 && (
                       <div className="mt-2 p-2.5 rounded-lg bg-amber-500/8 border border-amber-500/15 flex items-start gap-2">
-                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600 flex-shrink-0 mt-px" />
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-px" />
                         <p className="text-[11.5px] text-amber-700 dark:text-amber-400">
                           No sending accounts yet.{' '}
                           <Link to="/settings/smtp" className="font-semibold underline">Add one to continue</Link>.
@@ -1341,7 +1341,7 @@ export function CampaignCreatePage() {
                     <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] sticky top-4 overflow-hidden">
                       <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center gap-2">
                         <span className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/10 border border-amber-500/20">
-                          <Clock className="h-3 w-3 text-amber-600" />
+                          <Clock className="h-3 w-3 text-amber-600 dark:text-amber-400" />
                         </span>
                         <div>
                           <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">Wait / Delay</p>
@@ -1599,7 +1599,7 @@ export function CampaignCreatePage() {
                         <li key={i} className="flex items-center gap-2 text-[12px]">
                           <span className={cn(
                             'flex h-4 w-4 items-center justify-center rounded-full flex-shrink-0',
-                            c.ok ? 'bg-emerald-500/15 text-emerald-600' : 'bg-amber-500/15 text-amber-600'
+                            c.ok ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
                           )}>
                             {c.ok ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : <X className="h-2.5 w-2.5" strokeWidth={3} />}
                           </span>
@@ -1909,7 +1909,7 @@ export function CampaignCreatePage() {
             <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/15 border border-violet-500/20">
-                  <Wand2 className="h-3.5 w-3.5 text-violet-600" />
+                  <Wand2 className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
                 </span>
                 <div>
                   <h2 className="text-[13.5px] font-semibold text-[var(--text-primary)]">Generate email with AI</h2>
@@ -2078,7 +2078,7 @@ function ABSection({
     <div className="rounded-lg border border-[var(--border-subtle)] p-3.5">
       <div className="flex items-center justify-between mb-2.5">
         <p className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-1.5">
-          <Brain className="h-3 w-3 text-violet-600" />
+          <Brain className="h-3 w-3 text-violet-600 dark:text-violet-400" />
           {title}
         </p>
         {variantB && (

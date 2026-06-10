@@ -1430,7 +1430,7 @@ export function AnalyticsDashboardPage() {
                           </div>
                           {step.winner && (
                             <div className="px-5 pb-4">
-                              <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/8 border border-emerald-500/20 text-[12px] text-emerald-600">
+                              <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/8 border border-emerald-500/20 text-[12px] text-emerald-600 dark:text-emerald-400">
                                 <Trophy className="h-4 w-4 flex-shrink-0" />
                                 <span>
                                   Variant {step.winner.toUpperCase()} outperforms by{' '}

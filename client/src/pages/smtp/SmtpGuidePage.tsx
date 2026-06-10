@@ -258,7 +258,7 @@ function DnsCheckResult({ result }: { result: any }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-primary">{label}</span>
-          <span className={`text-xs px-1.5 py-0.5 rounded ${found ? 'bg-green-500/10 text-green-600' : 'bg-amber-500/10 text-amber-600'}`}>
+          <span className={`text-xs px-1.5 py-0.5 rounded ${found ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
             {found ? 'Found' : 'Missing'}
           </span>
         </div>
@@ -418,7 +418,7 @@ export function SmtpGuidePage() {
                 <p className="text-sm text-secondary mt-1">{selectedProvider.notes}</p>
               </div>
               {selectedProvider.requires_domain_setup && (
-                <span className="px-2 py-1 text-xs font-medium rounded bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                <span className="px-2 py-1 text-xs font-medium rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                   Domain Setup Required
                 </span>
               )}

@@ -369,7 +369,7 @@ export function DomainsPage() {
                       : 'bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]'
                   )}>
                     {domain.is_verified ? (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                     ) : (
                       <Globe className="h-4 w-4 text-[var(--indigo)]" />
                     )}

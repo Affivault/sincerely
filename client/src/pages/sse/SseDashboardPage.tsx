@@ -115,7 +115,7 @@ export function SseDashboardPage() {
                   <p className="text-xs text-[var(--text-secondary)] truncate">{account.email_address}</p>
                 </div>
                 {account.warmup_mode && (
-                  <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold bg-amber-500/10 text-amber-600">
+                  <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400">
                     <Flame className="h-3 w-3" />
                     Warmup
                   </span>

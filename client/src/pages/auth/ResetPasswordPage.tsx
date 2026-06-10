@@ -66,7 +66,7 @@ export function ResetPasswordPage() {
       <div className="flex min-h-screen items-center justify-center bg-[var(--bg-app)] px-6 py-12">
         <div className="w-full max-w-[420px] rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center shadow-sm">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-            <AlertTriangle className="h-6 w-6 text-red-600" />
+            <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
           </div>
           <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Link expired or invalid</h2>
           <p className="mt-2 text-sm text-[var(--text-secondary)]">

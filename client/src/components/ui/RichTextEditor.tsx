@@ -217,7 +217,7 @@ export function RichTextEditor({
       Underline as any,
       Link.configure({
         openOnClick: false,
-        HTMLAttributes: { class: 'text-blue-600 underline cursor-pointer' },
+        HTMLAttributes: { class: 'text-blue-600 dark:text-blue-400 underline cursor-pointer' },
       }) as any,
       Placeholder.configure({ placeholder }),
     ],

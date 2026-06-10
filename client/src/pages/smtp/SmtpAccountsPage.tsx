@@ -368,7 +368,7 @@ export function SmtpAccountsPage() {
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-start gap-2.5">
             <span className="flex h-7 w-7 items-center justify-center rounded-[8px] bg-emerald-500/8 flex-shrink-0">
-              <Globe className="h-3.5 w-3.5 text-emerald-600" />
+              <Globe className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
             </span>
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-[var(--text-primary)]">Sending from your own domain?</p>
@@ -397,7 +397,7 @@ export function SmtpAccountsPage() {
           {accounts.map((account: SmtpAccount) => {
             const limit = account.warmup_mode ? account.warmup_daily_target : account.daily_send_limit;
             const pct = limit > 0 ? Math.round((account.sends_today / limit) * 100) : 0;
-            const healthColor = account.health_score >= 80 ? 'text-emerald-600' : account.health_score >= 50 ? 'text-amber-600' : 'text-rose-600';
+            const healthColor = account.health_score >= 80 ? 'text-emerald-600 dark:text-emerald-400' : account.health_score >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400';
             return (
               <div
                 key={account.id}

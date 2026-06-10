@@ -153,9 +153,9 @@ function msgSnippet(msg: Message): string {
 }
 
 const INTENT_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  interested: { bg: 'bg-emerald-500/10', text: 'text-emerald-600', label: 'Interested' },
-  meeting: { bg: 'bg-blue-500/10', text: 'text-blue-600', label: 'Meeting Booked' },
-  objection: { bg: 'bg-amber-500/10', text: 'text-amber-600', label: 'Objection' },
+  interested: { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', label: 'Interested' },
+  meeting: { bg: 'bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400', label: 'Meeting Booked' },
+  objection: { bg: 'bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400', label: 'Objection' },
   not_now: { bg: 'bg-slate-500/10', text: 'text-slate-500', label: 'Not Interested' },
   unsubscribe: { bg: 'bg-red-500/10', text: 'text-red-500', label: 'Unsubscribe' },
   out_of_office: { bg: 'bg-purple-500/10', text: 'text-purple-500', label: 'Out of Office' },
@@ -1737,7 +1737,7 @@ export function InboxPage() {
                 </p>
               </div>
               <button onClick={() => setSyncErrors([])} className="p-0.5 hover:bg-amber-500/10 rounded flex-shrink-0" title="Dismiss">
-                <X className="h-3 w-3 text-amber-600" />
+                <X className="h-3 w-3 text-amber-600 dark:text-amber-400" />
               </button>
             </div>
           )}

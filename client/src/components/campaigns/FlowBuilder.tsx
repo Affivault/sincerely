@@ -111,7 +111,7 @@ function AddStepMenu({ onAdd, showAbove }: AddStepMenuProps) {
             </p>
             {[
               { type: StepType.Email, icon: Mail, label: 'Email Step', desc: 'Send a personalised email', accent: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[rgba(91,91,245,0.18)]' },
-              { type: StepType.Delay, icon: Clock, label: 'Wait / Delay', desc: 'Wait before the next step', accent: 'bg-amber-500/10 text-amber-600 border-amber-500/20' },
+              { type: StepType.Delay, icon: Clock, label: 'Wait / Delay', desc: 'Wait before the next step', accent: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
             ].map(({ type, icon: Icon, label, desc, accent }) => (
               <button
                 key={type}
@@ -130,8 +130,8 @@ function AddStepMenu({ onAdd, showAbove }: AddStepMenuProps) {
             ))}
             <div className="border-t border-[var(--border-subtle)] my-1" />
             {[
-              { type: StepType.Condition, icon: GitBranch, label: 'Condition', desc: 'If/else branch logic', accent: 'bg-violet-500/10 text-violet-600 border-violet-500/20' },
-              { type: StepType.WebhookWait, icon: Webhook, label: 'Webhook Wait', desc: 'Wait for external event', accent: 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20' },
+              { type: StepType.Condition, icon: GitBranch, label: 'Condition', desc: 'If/else branch logic', accent: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20' },
+              { type: StepType.WebhookWait, icon: Webhook, label: 'Webhook Wait', desc: 'Wait for external event', accent: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20' },
             ].map(({ type, icon: Icon, label, desc, accent }) => (
               <button
                 key={type}
@@ -165,19 +165,19 @@ const getStepColors = (stepType: string) => {
       };
     case 'delay':
       return {
-        iconBg: 'bg-amber-500/10 text-amber-600 border border-amber-500/20',
+        iconBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20',
         borderColor: 'border-l-[3px] border-l-amber-500',
         badgeBg: 'bg-amber-500 text-white',
       };
     case 'condition':
       return {
-        iconBg: 'bg-violet-500/10 text-violet-600 border border-violet-500/20',
+        iconBg: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20',
         borderColor: 'border-l-[3px] border-l-violet-500',
         badgeBg: 'bg-violet-500 text-white',
       };
     case 'webhook_wait':
       return {
-        iconBg: 'bg-cyan-500/10 text-cyan-600 border border-cyan-500/20',
+        iconBg: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20',
         borderColor: 'border-l-[3px] border-l-cyan-500',
         badgeBg: 'bg-cyan-500 text-white',
       };
@@ -288,7 +288,7 @@ function FlowNode({
                   </span>
                 )}
                 {step.step_type === 'condition' && (
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-[10px] font-semibold bg-violet-500/10 text-violet-600 border border-violet-500/20">
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-[10px] font-semibold bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
                     <GitBranch className="h-2.5 w-2.5" />
                     If/Else
                   </span>
@@ -365,7 +365,7 @@ function FlowNode({
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
                       <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ True Branch</p>
-                      <p className="text-xs text-emerald-600 mt-0.5">Continues to next step</p>
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Continues to next step</p>
                     </div>
                     <div className="p-2.5 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)] space-y-1.5">
                       <p className="text-xs font-semibold text-[var(--text-primary)]">✗ False Branch</p>
@@ -520,8 +520,8 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep }: F
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-w-2xl">
           {[
             { type: StepType.Email, icon: Mail, label: 'Add Email', desc: 'Send a personalised message', accent: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[rgba(91,91,245,0.18)]' },
-            { type: StepType.Delay, icon: Clock, label: 'Add Delay', desc: 'Wait before next step', accent: 'bg-amber-500/10 text-amber-600 border-amber-500/20' },
-            { type: StepType.Condition, icon: GitBranch, label: 'Add Condition', desc: 'If / else branching', accent: 'bg-violet-500/10 text-violet-600 border-violet-500/20' },
+            { type: StepType.Delay, icon: Clock, label: 'Add Delay', desc: 'Wait before next step', accent: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
+            { type: StepType.Condition, icon: GitBranch, label: 'Add Condition', desc: 'If / else branching', accent: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20' },
           ].map(({ type, icon: Icon, label, desc, accent }) => (
             <button
               key={type}

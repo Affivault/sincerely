@@ -278,7 +278,7 @@ export function SaraQueuePage() {
         <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-20 px-8 flex flex-col items-center justify-center text-center">
           <div className="relative mb-5">
             <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-              <CheckCircle2 className="h-7 w-7 text-emerald-600" strokeWidth={1.5} />
+              <CheckCircle2 className="h-7 w-7 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />
             </span>
             <Sparkles className="h-4 w-4 text-amber-400 absolute -top-1 -right-1" />
           </div>
@@ -347,7 +347,7 @@ export function SaraQueuePage() {
                           {conf > 0 && (
                             <span className={cn(
                               'text-[10px] tabular font-semibold',
-                              conf >= 80 ? 'text-emerald-600' : conf >= 50 ? 'text-amber-600' : 'text-[var(--text-tertiary)]'
+                              conf >= 80 ? 'text-emerald-600 dark:text-emerald-400' : conf >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-tertiary)]'
                             )}>
                               {conf}%
                             </span>
@@ -501,7 +501,7 @@ export function SaraQueuePage() {
                       <button
                         onClick={() => dismissMutation.mutate(msg.id)}
                         disabled={dismissMutation.isPending}
-                        className="ml-auto inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-[12px] font-medium text-rose-600 hover:bg-rose-500/10 transition-all"
+                        className="ml-auto inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-[12px] font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-all"
                       >
                         <XCircle className="h-3.5 w-3.5" />
                         Dismiss
