@@ -14,8 +14,11 @@ import { formatDate, cn } from '../../lib/utils';
 import {
   Megaphone, Plus, Send, Mail, MousePointerClick, MessageSquare, Copy,
   Folder, FolderPlus, FolderOpen, X, Pencil, Trash2,
-  BarChart3, Layers, Play, Pause, Eye, Search, AlertTriangle,
+  BarChart3, Layers, Play, Pause, Search, AlertTriangle, MoreVertical,
 } from 'lucide-react';
+
+/* Shared column template so the header and every row stay perfectly aligned */
+const ROW_GRID = 'grid grid-cols-[minmax(200px,1fr)_72px_72px_72px_72px_150px_96px] items-center gap-x-3';
 import toast from 'react-hot-toast';
 import type { CampaignWithStats } from '@lemlist/shared';
 
@@ -259,21 +262,23 @@ export function CampaignsListPage() {
 
           {/* List */}
           {isLoading ? (
-            <div className="card divide-y divide-[var(--border-subtle)] overflow-hidden">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-4 px-4 py-3.5">
-                  <Skeleton className="h-8 w-8 rounded-md" />
+            <div className="panel overflow-hidden">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 px-4 py-[15px] border-b border-[var(--border-subtle)] last:border-0">
+                  <Skeleton className="h-2 w-2 rounded-full" />
                   <div className="flex-1 space-y-1.5">
                     <Skeleton className="h-3.5 w-1/3" />
                     <Skeleton className="h-2.5 w-1/2" />
                   </div>
-                  <Skeleton className="h-5 w-16 rounded-full" />
                   <Skeleton className="h-3 w-10" />
+                  <Skeleton className="h-3 w-10" />
+                  <Skeleton className="h-3 w-10" />
+                  <Skeleton className="h-1.5 w-28 rounded-full" />
                 </div>
               ))}
             </div>
           ) : visibleCampaigns.length === 0 ? (
-            <div className="card p-10">
+            <div className="panel p-10">
               <EmptyState
                 icon={Megaphone}
                 title={activeFolderId === 'all' ? 'No campaigns yet' : 'This folder is empty'}
@@ -283,21 +288,35 @@ export function CampaignsListPage() {
               />
             </div>
           ) : (
-            <div className="space-y-2">
-              {visibleCampaigns.map((campaign: any) => (
-                <CampaignCard
-                  key={campaign.id}
-                  campaign={campaign}
-                  onOpen={() => navigate(`/campaigns/${campaign.id}`)}
-                  onLaunch={() => launchMut.mutate(campaign.id)}
-                  onPause={()  => pauseMut.mutate(campaign.id)}
-                  onResume={() => resumeMut.mutate(campaign.id)}
-                  onClone={()  => cloneMut.mutate(campaign.id)}
-                  onEdit={()   => navigate(`/campaigns/${campaign.id}/edit`)}
-                  onDelete={() => { if (confirm('Delete this campaign?')) deleteMut.mutate(campaign.id); }}
-                  onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setContextMenuFor({ id: campaign.id, x: e.clientX, y: e.clientY }); }}
-                />
-              ))}
+            <div className="panel overflow-hidden">
+              <div className="overflow-x-auto">
+                <div className="min-w-[760px]">
+                  {/* Column header */}
+                  <div className={cn(ROW_GRID, 'px-4 h-9 border-b border-[var(--border-subtle)] bg-[var(--bg-muted)]/40')}>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--text-tertiary)]">Campaign</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--text-tertiary)] text-right">Sent</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--text-tertiary)] text-right">Open</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--text-tertiary)] text-right">Click</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--text-tertiary)] text-right">Reply</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--text-tertiary)]">Pipeline</span>
+                    <span />
+                  </div>
+                  <div className="divide-y divide-[var(--border-subtle)]">
+                    {visibleCampaigns.map((campaign: any) => (
+                      <CampaignRow
+                        key={campaign.id}
+                        campaign={campaign}
+                        onOpen={() => navigate(`/campaigns/${campaign.id}`)}
+                        onLaunch={() => launchMut.mutate(campaign.id)}
+                        onPause={()  => pauseMut.mutate(campaign.id)}
+                        onResume={() => resumeMut.mutate(campaign.id)}
+                        onEdit={()   => navigate(`/campaigns/${campaign.id}/edit`)}
+                        onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setContextMenuFor({ id: campaign.id, x: e.clientX, y: e.clientY }); }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </main>
@@ -406,29 +425,19 @@ function FolderRow({ label, icon: Icon, count, active, onClick, onEdit, onAnalyt
   );
 }
 
-const METRIC_TONES: Record<string, { bg: string; text: string; ring: string }> = {
-  indigo:  { bg: 'bg-[rgba(91,91,245,0.08)]',  text: 'text-[#5B5BF5]',   ring: 'ring-[rgba(91,91,245,0.18)]' },
-  violet:  { bg: 'bg-violet-500/8',             text: 'text-violet-600',  ring: 'ring-violet-500/15' },
-  cyan:    { bg: 'bg-cyan-500/8',               text: 'text-cyan-600',    ring: 'ring-cyan-500/15' },
-  emerald: { bg: 'bg-emerald-500/8',            text: 'text-emerald-600', ring: 'ring-emerald-500/15' },
-};
-
-function MetricChip({ icon: Icon, label, value, rate, tone = 'indigo' }: {
+function MetricChip({ icon: Icon, label, value, rate }: {
   icon: any; label: string; value: number; rate?: number; tone?: string;
 }) {
-  const t = METRIC_TONES[tone] || METRIC_TONES.indigo;
   return (
-    <div className="surface px-3 py-2.5 transition-all hover:shadow-[var(--shadow-md)]">
-      <div className="flex items-center gap-2 mb-1">
-        <span className={cn('flex h-5 w-5 items-center justify-center rounded-[5px] ring-1', t.bg, t.ring)}>
-          <Icon className={cn('h-3 w-3', t.text)} strokeWidth={2.25} />
-        </span>
-        <span className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)] flex-1">{label}</span>
+    <div className="panel panel-hover px-3.5 py-3">
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <Icon className="h-3.5 w-3.5 text-[var(--text-tertiary)]" strokeWidth={2} />
+        <span className="text-[10.5px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)] flex-1">{label}</span>
         {rate !== undefined && (
           <span className="text-[10.5px] tabular text-[var(--text-tertiary)] font-medium">{rate.toFixed(1)}%</span>
         )}
       </div>
-      <div className="text-[18px] font-semibold text-[var(--text-primary)] tabular tracking-[-0.015em] leading-tight">
+      <div className="text-[19px] font-semibold text-[var(--text-primary)] tabular tracking-[-0.02em] leading-none">
         {value.toLocaleString()}
       </div>
     </div>
@@ -444,150 +453,77 @@ const STATUS_DOT: Record<string, string> = {
   scheduled: 'bg-blue-500',
 };
 
-function CampaignCard({ campaign, onOpen, onLaunch, onPause, onResume, onClone, onEdit, onDelete, onContextMenu }: any) {
+function CampaignRow({ campaign, onOpen, onLaunch, onPause, onResume, onEdit, onContextMenu }: any) {
   const total = campaign.sent_count || 0;
   const openPct  = total ? (campaign.opened_count  / total) * 100 : 0;
   const clickPct = total ? (campaign.clicked_count / total) * 100 : 0;
   const replyPct = total ? (campaign.replied_count / total) * 100 : 0;
-
-  // Pipeline progress (sent vs total contacts)
   const totalContacts = campaign.contacts_count || campaign.total_contacts || 0;
   const pipelinePct = totalContacts ? Math.min((total / totalContacts) * 100, 100) : 0;
+  const bounced = campaign.bounced_count || 0;
+
+  const metric = (v: string, strong = false) => (
+    <span className={cn(
+      'text-[12.5px] tabular text-right',
+      strong ? 'font-semibold text-[var(--text-primary)]' : 'font-medium text-[var(--text-secondary)]'
+    )}>{v}</span>
+  );
 
   return (
     <div
       onClick={onOpen}
       onContextMenu={onContextMenu}
-      className="group card card-hover relative overflow-hidden cursor-pointer p-4 transition-all"
+      className={cn(ROW_GRID, 'group px-4 py-[13px] cursor-pointer hover:bg-[var(--bg-hover)] transition-colors')}
     >
-      {/* Status accent strip on the left edge */}
-      <span className={cn('absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full', STATUS_DOT[campaign.status] || 'bg-slate-400')} />
-
-      <div className="grid grid-cols-[1fr,auto] gap-4 items-start">
-        {/* Identity */}
+      {/* Identity */}
+      <div className="min-w-0 flex items-center gap-2.5">
+        <span className={cn('h-1.5 w-1.5 rounded-full flex-shrink-0', STATUS_DOT[campaign.status] || 'bg-slate-400')} />
         <div className="min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-[14px] font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">{campaign.name}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-[13px] font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">{campaign.name}</h3>
             <StatusBadge status={campaign.status} type="campaign" />
+            {bounced > 0 && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-rose-500 flex-shrink-0" title={`${bounced} bounces — check deliverability`}>
+                <AlertTriangle className="h-3 w-3" />{bounced}
+              </span>
+            )}
           </div>
-          <p className="text-[11.5px] text-[var(--text-tertiary)] truncate">
-            {campaign.steps_count || 0} steps
-            <span className="mx-1.5 text-[var(--text-muted)]">·</span>
-            {totalContacts.toLocaleString()} contacts
-            <span className="mx-1.5 text-[var(--text-muted)]">·</span>
-            Created {formatDate(campaign.created_at)}
+          <p className="text-[11px] text-[var(--text-tertiary)] truncate mt-0.5">
+            {campaign.steps_count || 0} steps · {totalContacts.toLocaleString()} contacts · {formatDate(campaign.created_at)}
           </p>
         </div>
+      </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-          {campaign.status === 'draft' && (
-            <Button size="sm" onClick={onLaunch}>
-              <Play className="h-3 w-3" /> Launch
-            </Button>
-          )}
-          {campaign.status === 'running' && (
-            <Button size="sm" variant="secondary" onClick={onPause}>
-              <Pause className="h-3 w-3" /> Pause
-            </Button>
-          )}
-          {campaign.status === 'paused' && (
-            <Button size="sm" onClick={onResume}>
-              <Play className="h-3 w-3" /> Resume
-            </Button>
-          )}
-          <button onClick={onEdit} title="Edit" className="icon-btn">
-            <Pencil className="h-3 w-3" />
-          </button>
-          <button onClick={onClone} title="Duplicate" className="icon-btn">
-            <Copy className="h-3 w-3" />
-          </button>
-          {(campaign.status === 'draft' || campaign.status === 'completed' || campaign.status === 'cancelled') && (
-            <button onClick={onDelete} title="Delete" className="icon-btn hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]">
-              <Trash2 className="h-3 w-3" />
-            </button>
-          )}
+      {/* Metrics */}
+      {metric(total ? total.toLocaleString() : '—', true)}
+      {metric(total ? `${openPct.toFixed(1)}%` : '—')}
+      {metric(total ? `${clickPct.toFixed(1)}%` : '—')}
+      {metric(total ? `${replyPct.toFixed(1)}%` : '—', true)}
+
+      {/* Pipeline */}
+      <div className="min-w-0">
+        <div className="h-1.5 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
+          <div className="h-full rounded-full bg-[var(--indigo)] transition-all duration-500" style={{ width: `${pipelinePct}%` }} />
+        </div>
+        <div className="text-[9.5px] tabular text-[var(--text-tertiary)] mt-1 truncate">
+          {total.toLocaleString()} / {totalContacts.toLocaleString()} sent
         </div>
       </div>
 
-      {/* Body — rich metrics grid */}
-      {total > 0 ? (
-        <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
-          {/* Primary metrics row */}
-          <div className="grid grid-cols-8 gap-x-3 gap-y-1.5 mb-2">
-            <CardMetric color="#5B5BF5" label="Sent"    value={campaign.sent_count}    pct={100}      hidePctBar />
-            <CardMetric color="#3B82F6" label="Open %"  value={campaign.opened_count}  pct={openPct} />
-            <CardMetric color="#06B6D4" label="Click %"  value={campaign.clicked_count} pct={clickPct} />
-            <CardMetric color="#10B981" label="Reply %"  value={campaign.replied_count} pct={replyPct} />
-            <CardMetric color="#EF4444" label="Bounce %"  value={campaign.bounced_count || 0} pct={total ? ((campaign.bounced_count || 0) / total) * 100 : 0} negative />
-            <CardMetric color="#94A3B8" label="Contacts" value={totalContacts}          pct={pipelinePct} hidePctBar />
-            <CardMetric color="#8B5CF6" label="Steps"   value={campaign.steps_count || 0} pct={100} hidePctBar />
-            <div>
-              <div className="text-[9.5px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)] mb-1">Delivered</div>
-              <div className="text-[12.5px] font-semibold text-emerald-600 tabular-nums leading-tight">
-                {((total - (campaign.bounced_count || 0)) / Math.max(total, 1) * 100).toFixed(0)}%
-              </div>
-            </div>
-          </div>
-
-          {/* Pipeline progress bar */}
-          <div className="flex items-center gap-2">
-            <div className="flex-1 h-1 rounded-full overflow-hidden bg-[var(--bg-elevated)]">
-              <div
-                className="h-full bg-gradient-to-r from-[#5B5BF5] to-[#8B5CF6] transition-all duration-500"
-                style={{ width: `${Math.min(pipelinePct, 100)}%` }}
-              />
-            </div>
-            <span className="text-[10px] tabular text-[var(--text-tertiary)] flex-shrink-0">
-              {total.toLocaleString()} / {totalContacts.toLocaleString()} sent
-            </span>
-          </div>
-
-          {campaign.bounced_count > 0 && (
-            <div className="mt-2 flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-500/8 border border-red-500/15 w-fit">
-              <AlertTriangle className="h-3 w-3 text-red-500 flex-shrink-0" />
-              <span className="text-[10.5px] font-medium text-red-600">
-                {campaign.bounced_count} bounce{campaign.bounced_count !== 1 ? 's' : ''} — check deliverability
-              </span>
-            </div>
-          )}
-        </div>
-      ) : totalContacts > 0 ? (
-        <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
-          <div className="flex items-center justify-between text-[11px] text-[var(--text-tertiary)] mb-1.5">
-            <span className="flex items-center gap-1">
-              <Eye className="h-3 w-3" />
-              {totalContacts.toLocaleString()} contacts ready · {campaign.steps_count || 0} steps
-            </span>
-            <span className="tabular">0% sent</span>
-          </div>
-          <div className="h-1 rounded-full overflow-hidden bg-[var(--bg-elevated)]">
-            <div className="h-full w-0 bg-gradient-to-r from-[#5B5BF5] to-[#8B5CF6]" />
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function CardMetric({ color, label, value, pct, hidePctBar, negative }: {
-  color: string; label: string; value: number; pct: number; hidePctBar?: boolean; negative?: boolean;
-}) {
-  const displayColor = negative && value > 0 ? '#EF4444' : color;
-  return (
-    <div>
-      <div className="text-[9.5px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)] mb-1">{label}</div>
-      <div className="text-[12.5px] font-semibold tabular-nums leading-tight" style={{ color: displayColor }}>
-        {hidePctBar ? value.toLocaleString() : `${pct.toFixed(1)}%`}
+      {/* Actions */}
+      <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
+        {campaign.status === 'draft' && (
+          <button onClick={onLaunch} title="Launch" className="icon-btn !text-[var(--indigo)] hover:!bg-[var(--indigo-subtle)]"><Play className="h-3.5 w-3.5" /></button>
+        )}
+        {campaign.status === 'running' && (
+          <button onClick={onPause} title="Pause" className="icon-btn"><Pause className="h-3.5 w-3.5" /></button>
+        )}
+        {campaign.status === 'paused' && (
+          <button onClick={onResume} title="Resume" className="icon-btn !text-[var(--indigo)] hover:!bg-[var(--indigo-subtle)]"><Play className="h-3.5 w-3.5" /></button>
+        )}
+        <button onClick={onEdit} title="Edit" className="icon-btn opacity-0 group-hover:opacity-100 transition-opacity"><Pencil className="h-3.5 w-3.5" /></button>
+        <button onClick={(e) => { e.stopPropagation(); onContextMenu(e); }} title="More" className="icon-btn"><MoreVertical className="h-3.5 w-3.5" /></button>
       </div>
-      {!hidePctBar && (
-        <div className="mt-1 h-[3px] rounded-full overflow-hidden bg-[var(--bg-elevated)]">
-          <div
-            className="h-full transition-all duration-500"
-            style={{ width: `${Math.min(pct, 100)}%`, background: displayColor }}
-          />
-        </div>
-      )}
     </div>
   );
 }
