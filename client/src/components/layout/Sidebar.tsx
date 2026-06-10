@@ -13,83 +13,50 @@ import { SkySendLogo, SkySendLogoMark } from '../SkySendLogo';
 import { useUnreadCount } from '../../hooks/useUnreadCount';
 
 /* ─── Nav shape ─────────────────────────────────────────────────── */
-type Color = [from: string, to: string];
-type NavLeaf = { kind?: 'leaf'; name: string; href: string; icon: React.ElementType; color: Color };
-type NavGroup = { kind: 'group'; name: string; href: string; icon: React.ElementType; id: string; color: Color; children: NavLeaf[] };
+type NavLeaf = { kind?: 'leaf'; name: string; href: string; icon: React.ElementType };
+type NavGroup = { kind: 'group'; name: string; href: string; icon: React.ElementType; id: string; children: NavLeaf[] };
 type NavItem = NavLeaf | NavGroup;
 
 const isGroup = (item: NavItem): item is NavGroup => (item as NavGroup).kind === 'group';
 
-/* Vivid per-section colour pairings */
-const INDIGO: Color = ['#6366F1', '#8B5CF6'];
-const VIOLET: Color = ['#8B5CF6', '#D946EF'];
-const CYAN: Color = ['#06B6D4', '#3B82F6'];
-const EMERALD: Color = ['#10B981', '#06B6D4'];
-const AMBER: Color = ['#F59E0B', '#F43F5E'];
-const BLUE: Color = ['#3B82F6', '#6366F1'];
-const ROSE: Color = ['#F43F5E', '#EC4899'];
-
 /* ─── Nav definitions ───────────────────────────────────────────── */
 const workspaceNav: NavItem[] = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, color: INDIGO },
-  { name: 'Unibox',    href: '/inbox',     icon: Inbox,           color: CYAN },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Unibox',    href: '/inbox',     icon: Inbox },
 ];
 
 const campaignsNav: NavItem[] = [
   {
     kind: 'group', id: 'campaigns',
-    name: 'Campaigns', href: '/campaigns', icon: Megaphone, color: VIOLET,
+    name: 'Campaigns', href: '/campaigns', icon: Megaphone,
     children: [
-      { name: 'All campaigns', href: '/campaigns',  icon: Layers,        color: VIOLET },
-      { name: 'Analytics',     href: '/analytics',  icon: BarChart3,     color: CYAN },
-      { name: 'Templates',     href: '/templates',  icon: FileText,      color: AMBER },
-      { name: 'Schedules',     href: '/schedules',  icon: CalendarClock, color: BLUE },
+      { name: 'All campaigns', href: '/campaigns',  icon: Layers },
+      { name: 'Analytics',     href: '/analytics',  icon: BarChart3 },
+      { name: 'Templates',     href: '/templates',  icon: FileText },
+      { name: 'Schedules',     href: '/schedules',  icon: CalendarClock },
     ],
   },
 ];
 
 const leadsNav: NavItem[] = [
-  { name: 'Lead Lists', href: '/contacts', icon: Users, color: EMERALD },
+  { name: 'Lead Lists', href: '/contacts', icon: Users },
 ];
 
 const toolsNav: NavItem[] = [
-  { name: 'Webhooks', href: '/developer', icon: Webhook, color: BLUE },
-  { name: 'Toolkit',  href: '/toolkit',   icon: Wrench,  color: VIOLET },
+  { name: 'Webhooks', href: '/developer', icon: Webhook },
+  { name: 'Toolkit',  href: '/toolkit',   icon: Wrench },
 ];
 
 const settingsNav: NavItem[] = [
-  { name: 'SMTP',        href: '/smtp-accounts', icon: Send,     color: INDIGO },
-  { name: 'Domains',     href: '/domains',       icon: Globe,    color: CYAN },
-  { name: 'Suppression', href: '/suppression',   icon: ShieldOff, color: ROSE },
-  { name: 'Team',        href: '/team',          icon: UserPlus, color: EMERALD },
-  { name: 'Settings',    href: '/settings',      icon: Settings, color: VIOLET },
+  { name: 'SMTP',        href: '/smtp-accounts', icon: Send },
+  { name: 'Domains',     href: '/domains',       icon: Globe },
+  { name: 'Suppression', href: '/suppression',   icon: ShieldOff },
+  { name: 'Team',        href: '/team',          icon: UserPlus },
+  { name: 'Settings',    href: '/settings',      icon: Settings },
 ];
 
 /* Routes that belong inside the Campaigns group */
 const CAMPAIGN_ROUTES = ['/campaigns', '/analytics', '/templates', '/schedules'];
-
-/* ─── Coloured icon tile ────────────────────────────────────────── */
-function IconTile({ icon: Icon, color, active, size = 26 }: {
-  icon: React.ElementType; color: Color; active: boolean; size?: number;
-}) {
-  const [from, to] = color;
-  return (
-    <span
-      className="flex items-center justify-center rounded-[8px] flex-shrink-0 transition-all duration-150"
-      style={
-        active
-          ? { width: size, height: size, backgroundImage: `linear-gradient(135deg, ${from}, ${to})`, boxShadow: `0 4px 10px -2px ${from}66, inset 0 1px 0 rgba(255,255,255,0.3)` }
-          : { width: size, height: size, background: `${from}1A` }
-      }
-    >
-      <Icon
-        className="h-[14px] w-[14px]"
-        strokeWidth={active ? 2.2 : 2}
-        style={{ color: active ? '#fff' : from }}
-      />
-    </span>
-  );
-}
 
 /* ─── NavLeafItem ───────────────────────────────────────────────── */
 function NavLeafItem({ item, collapsed, badge, nested }: {
@@ -97,52 +64,53 @@ function NavLeafItem({ item, collapsed, badge, nested }: {
 }) {
   const location = useLocation();
   const isActive = location.pathname === item.href || location.pathname.startsWith(item.href + '/');
-  const [from, to] = item.color;
+  const Icon = item.icon;
 
   return (
     <NavLink
       to={item.href}
       title={collapsed ? item.name : undefined}
       className={cn(
-        'group relative flex items-center rounded-[9px] transition-all duration-150',
-        collapsed ? 'justify-center h-9 w-9 mx-auto' : nested ? 'h-[34px] gap-2.5 pl-3 pr-2.5' : 'h-[38px] gap-2.5 px-2',
-        isActive ? 'font-semibold' : 'hover:bg-[var(--bg-hover)]'
+        'group relative flex items-center gap-2.5 rounded-[8px] transition-colors duration-100',
+        collapsed ? 'justify-center h-9 w-9 mx-auto' : nested ? 'h-[32px] pl-[34px] pr-2.5' : 'h-[34px] px-2.5',
+        isActive
+          ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
       )}
-      style={isActive && !collapsed ? { background: `${from}14` } : undefined}
     >
-      {/* Gradient accent bar */}
-      {isActive && !collapsed && (
-        <span
-          className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[20px] rounded-r-full"
-          style={{ backgroundImage: `linear-gradient(to bottom, ${from}, ${to})` }}
-        />
+      {isActive && !collapsed && !nested && (
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[18px] rounded-r-full bg-[var(--indigo)]" />
+      )}
+      {nested && !collapsed && (
+        <span className={cn(
+          'absolute left-[18px] top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full transition-colors',
+          isActive ? 'bg-[var(--indigo)]' : 'bg-[var(--border-strong)]'
+        )} />
       )}
 
-      {nested ? (
-        <span
-          className="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-colors"
-          style={{ background: isActive ? from : 'var(--border-strong)' }}
-        />
-      ) : (
-        <IconTile icon={item.icon} color={item.color} active={isActive} />
+      {!nested && (
+        <Icon className="h-[16px] w-[16px] flex-shrink-0" strokeWidth={isActive ? 2.1 : 1.85} />
       )}
 
       {!collapsed && (
-        <span
-          className={cn('flex-1 truncate leading-none', nested ? 'text-[12.5px]' : 'text-[13px]')}
-          style={{ color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)' }}
-        >
+        <span className={cn(
+          'flex-1 truncate leading-none',
+          nested ? 'text-[12.5px]' : 'text-[13px] font-medium'
+        )}>
           {item.name}
         </span>
       )}
 
       {badge != null && badge > 0 && (
         collapsed ? (
-          <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full text-white text-[9px] font-bold px-0.5 leading-none shadow-[0_2px_6px_rgba(99,102,241,0.5)]" style={{ backgroundImage: 'linear-gradient(135deg,#06B6D4,#3B82F6)' }}>
+          <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[var(--indigo)] text-white text-[9px] font-bold px-0.5 leading-none">
             {badge > 99 ? '99+' : badge}
           </span>
         ) : (
-          <span className="ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full text-white text-[9.5px] font-bold px-1.5 leading-none shadow-[0_2px_6px_rgba(6,182,212,0.45)]" style={{ backgroundImage: 'linear-gradient(135deg,#06B6D4,#3B82F6)' }}>
+          <span className={cn(
+            'ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full text-[9.5px] font-bold px-1.5 leading-none',
+            isActive ? 'bg-[var(--indigo)] text-white' : 'bg-[var(--bg-active)] text-[var(--text-secondary)]'
+          )}>
             {badge > 99 ? '99+' : badge}
           </span>
         )
@@ -160,7 +128,7 @@ function NavGroupItem({ item, collapsed, expanded, onToggle }: {
   const isParentActive = CAMPAIGN_ROUTES.some((r) =>
     location.pathname === r || location.pathname.startsWith(r + '/')
   );
-  const [from, to] = item.color;
+  const Icon = item.icon;
 
   const handleClick = () => {
     if (collapsed) navigate(item.href);
@@ -173,26 +141,22 @@ function NavGroupItem({ item, collapsed, expanded, onToggle }: {
         onClick={handleClick}
         title={collapsed ? item.name : undefined}
         className={cn(
-          'group relative flex items-center rounded-[9px] transition-all duration-150 cursor-pointer select-none',
-          collapsed ? 'justify-center h-9 w-9 mx-auto' : 'h-[38px] gap-2.5 px-2',
-          isParentActive ? 'font-semibold' : 'hover:bg-[var(--bg-hover)]'
+          'group relative flex items-center gap-2.5 rounded-[8px] transition-colors duration-100 cursor-pointer select-none',
+          collapsed ? 'justify-center h-9 w-9 mx-auto' : 'h-[34px] px-2.5',
+          isParentActive
+            ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
         )}
-        style={isParentActive && !collapsed ? { background: `${from}14` } : undefined}
       >
         {isParentActive && !collapsed && (
-          <span
-            className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[20px] rounded-r-full"
-            style={{ backgroundImage: `linear-gradient(to bottom, ${from}, ${to})` }}
-          />
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[18px] rounded-r-full bg-[var(--indigo)]" />
         )}
 
-        <IconTile icon={item.icon} color={item.color} active={isParentActive} />
+        <Icon className="h-[16px] w-[16px] flex-shrink-0" strokeWidth={isParentActive ? 2.1 : 1.85} />
 
         {!collapsed && (
           <>
-            <span className="flex-1 text-[13px] truncate leading-none" style={{ color: isParentActive ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
-              {item.name}
-            </span>
+            <span className="flex-1 text-[13px] font-medium truncate leading-none">{item.name}</span>
             <ChevronRight
               className={cn(
                 'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-200 text-[var(--text-tertiary)]',
@@ -204,7 +168,7 @@ function NavGroupItem({ item, collapsed, expanded, onToggle }: {
       </div>
 
       {!collapsed && expanded && (
-        <div className="mt-1 ml-3 pl-2 border-l border-[var(--border-subtle)] space-y-0.5">
+        <div className="mt-0.5 space-y-0.5">
           {item.children.map((child) => (
             <NavLeafItem key={child.href} item={child} collapsed={false} nested />
           ))}
@@ -226,8 +190,8 @@ function NavSection({ title, items, collapsed, badges, expandedGroups, onToggleG
   return (
     <div className="mb-0">
       {title && !collapsed && (
-        <div className="px-2 mt-5 mb-1.5">
-          <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.12em]">{title}</span>
+        <div className="px-2.5 mt-5 mb-1.5">
+          <span className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.1em]">{title}</span>
         </div>
       )}
       {title && collapsed && (
@@ -292,7 +256,7 @@ export function Sidebar() {
     setExpandedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
-      try { localStorage.setItem('sidebar.expandedGroups', JSON.stringify([...next])); } catch {}
+      try { localStorage.setItem('sidebar.expandedGroups', JSON.stringify([...next])); } catch { /* ignore */ }
       return next;
     });
   };
@@ -302,13 +266,9 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'fixed inset-y-0 left-0 z-40 flex flex-col border-r border-[var(--border-subtle)] transition-[width] duration-200 ease-out',
+        'fixed inset-y-0 left-0 z-40 flex flex-col bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] transition-[width] duration-200 ease-out',
         collapsed ? 'w-[60px]' : 'w-[244px]'
       )}
-      style={{
-        backgroundImage:
-          'radial-gradient(420px 280px at 0% 0%, rgba(99,102,241,0.07), transparent 70%), linear-gradient(180deg, var(--bg-surface), var(--bg-surface))',
-      }}
     >
       {/* Logo */}
       <div className={cn(
@@ -359,10 +319,10 @@ export function Sidebar() {
         collapsed ? 'p-2' : 'p-2.5'
       )}>
         <div className={cn(
-          'flex items-center rounded-[10px] transition-colors cursor-pointer group',
-          collapsed ? 'justify-center h-10 w-10 mx-auto hover:bg-[var(--bg-hover)]' : 'gap-2.5 px-2 h-12 tint tint-indigo'
+          'flex items-center rounded-[8px] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer group',
+          collapsed ? 'justify-center h-9 w-9 mx-auto' : 'gap-2.5 px-2 h-11'
         )}>
-          <div className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0 shadow-[0_3px_8px_-1px_rgba(99,102,241,0.5),inset_0_1px_0_rgba(255,255,255,0.3)]" style={{ backgroundImage: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}>
+          <div className="h-7 w-7 rounded-lg bg-[var(--indigo)] flex items-center justify-center flex-shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]">
             <span className="text-[11px] font-bold text-white">{workspaceName[0].toUpperCase()}</span>
           </div>
           {!collapsed && (

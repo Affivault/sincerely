@@ -46,7 +46,7 @@ export function Header() {
         {/* Notifications */}
         <button className="relative flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
           <Bell className="h-[15px] w-[15px]" strokeWidth={1.9} />
-          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full ring-2 ring-[var(--bg-surface)] shadow-[0_0_6px_rgba(244,63,94,0.7)]" style={{ backgroundImage: 'linear-gradient(135deg,#F43F5E,#EC4899)' }} />
+          <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-[var(--indigo)] ring-2 ring-[var(--bg-surface)]" />
         </button>
 
         {/* Theme */}
@@ -70,7 +70,7 @@ export function Header() {
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-1.5 h-8 pl-1 pr-1.5 rounded-lg hover:bg-[var(--bg-hover)] transition-colors"
           >
-            <div className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-[0_2px_6px_-1px_rgba(99,102,241,0.5),inset_0_1px_0_rgba(255,255,255,0.3)]" style={{ backgroundImage: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}>
+            <div className="h-6 w-6 rounded-full bg-[var(--indigo)] flex items-center justify-center text-[10px] font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]">
               {user?.email?.charAt(0)?.toUpperCase() || 'U'}
             </div>
             <ChevronDown className={cn(
