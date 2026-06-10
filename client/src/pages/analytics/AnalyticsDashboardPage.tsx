@@ -17,6 +17,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { PageHeader } from '../../components/shared/PageHeader';
+import { StatCard } from '../../components/shared/StatCard';
 import { Avatar } from '../../components/shared/Avatar';
 import { useTheme } from '../../context/ThemeContext';
 import { Link } from 'react-router-dom';
@@ -82,20 +83,22 @@ async function downloadCsv(url: string, filename: string) {
   }
 }
 
+/* Cohesive, analogous palette — indigo→violet→cyan for the engagement
+   series, emerald for the success outcome, rose reserved for bounces. */
 const CHART_COLORS = {
   sent: '#6366F1',
-  opened: '#10B981',
-  clicked: '#F59E0B',
-  replied: '#EC4899',
-  bounced: '#EF4444',
+  opened: '#8B5CF6',
+  clicked: '#06B6D4',
+  replied: '#10B981',
+  bounced: '#F43F5E',
 };
 
 const tooltipStyle = {
-  backgroundColor: 'var(--bg-elevated)',
+  backgroundColor: 'var(--bg-surface)',
   border: '1px solid var(--border-subtle)',
   borderRadius: '10px',
-  boxShadow: '0 4px 24px rgba(0,0,0,0.15)',
-  padding: '10px 14px',
+  boxShadow: 'var(--shadow-lg)',
+  padding: '8px 12px',
   fontSize: '12px',
 };
 
@@ -849,6 +852,9 @@ export function AnalyticsDashboardPage() {
     }));
   }, [campaignTrend]);
 
+  const trendSpark = (k: 'sent' | 'opened' | 'clicked' | 'replied') =>
+    formattedTrend.map((d: any) => Number(d[k] || 0));
+
   const pieData = useMemo(() => {
     if (!overview) return [];
     return [
@@ -859,7 +865,8 @@ export function AnalyticsDashboardPage() {
     ].filter((d) => d.value > 0);
   }, [overview]);
 
-  const PIE_COLORS = ['#10B981', '#F59E0B', '#EC4899', theme === 'dark' ? '#1e1e2e' : '#E4E4E7'];
+  // Indigo tonal scale + a neutral for "no engagement" — matches the dashboard donuts
+  const PIE_COLORS = ['#6366F1', '#8B5CF6', '#06B6D4', theme === 'dark' ? '#2A2A33' : '#E4E4E7'];
 
   const filteredCampaigns = useMemo(() => {
     const list = campaignList || [];
@@ -1006,32 +1013,20 @@ export function AnalyticsDashboardPage() {
           {/* KPI row */}
           {overview && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { label: 'Emails Sent', value: overview.total_sent, change: overview.sent_change, icon: Send, color: '#6366F1' },
-                { label: 'Open Rate', value: fmtPct(overview.avg_open_rate), change: overview.opened_change, icon: Mail, color: '#10B981', sub: fmtNum(overview.total_opened) + ' opens' },
-                { label: 'Click Rate', value: fmtPct(overview.avg_click_rate), change: overview.clicked_change, icon: MousePointerClick, color: '#F59E0B', sub: fmtNum(overview.total_clicked) + ' clicks' },
-                { label: 'Reply Rate', value: fmtPct(overview.avg_reply_rate), change: overview.replied_change, icon: MessageSquare, color: '#EC4899', sub: fmtNum(overview.total_replied) + ' replies' },
-              ].map(({ label, value, change, icon: Icon, color, sub }) => (
-                <div key={label} className="p-5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] relative overflow-hidden hover:border-[var(--border-default)] transition-all group">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center justify-center h-8 w-8 rounded-lg" style={{ backgroundColor: `${color}18` }}>
-                      <Icon className="h-4 w-4" style={{ color }} strokeWidth={1.75} />
-                    </div>
-                    <ChangeChip change={change} />
-                  </div>
-                  <p className="text-2xl font-bold text-[var(--text-primary)] tabular-nums leading-none mb-1">
-                    {typeof value === 'number' ? fmtNum(value) : value}
-                  </p>
-                  <p className="text-[11.5px] text-[var(--text-tertiary)]">{label}</p>
-                  {sub && <p className="text-[10.5px] text-[var(--text-tertiary)] mt-0.5">{sub}</p>}
-                </div>
-              ))}
+              <StatCard label="Emails sent" value={fmtNum(overview.total_sent)} icon={Send} accent="indigo"
+                delta={overview.sent_change ?? undefined} sparkline={trendSpark('sent')} hint={`${fmtNum(overview.total_sent)} total`} />
+              <StatCard label="Open rate" value={fmtPct(overview.avg_open_rate)} icon={Mail} accent="violet"
+                delta={overview.opened_change ?? undefined} sparkline={trendSpark('opened')} hint={`${fmtNum(overview.total_opened)} opens`} />
+              <StatCard label="Click rate" value={fmtPct(overview.avg_click_rate)} icon={MousePointerClick} accent="cyan"
+                delta={overview.clicked_change ?? undefined} sparkline={trendSpark('clicked')} hint={`${fmtNum(overview.total_clicked)} clicks`} />
+              <StatCard label="Reply rate" value={fmtPct(overview.avg_reply_rate)} icon={MessageSquare} accent="emerald"
+                delta={overview.replied_change ?? undefined} sparkline={trendSpark('replied')} hint={`${fmtNum(overview.total_replied)} replies`} />
             </div>
           )}
 
           {/* Trend + Donut */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-2 p-5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
+            <div className="col-span-2 p-5 panel">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Performance Trend</h3>
@@ -1067,7 +1062,7 @@ export function AnalyticsDashboardPage() {
               </div>
             </div>
 
-            <div className="p-5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
+            <div className="p-5 panel">
               <h3 className="text-[13px] font-semibold text-[var(--text-primary)] mb-1">Engagement Mix</h3>
               <p className="text-[11.5px] text-[var(--text-secondary)] mb-3">Distribution across activities</p>
               {pieData.length > 0 ? (
@@ -1111,7 +1106,7 @@ export function AnalyticsDashboardPage() {
 
           {/* Campaign Leaderboard */}
           {(campaignList?.length ?? 0) > 0 && (
-            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
+            <div className="panel overflow-hidden">
               <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
                 <div>
                   <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Campaign Leaderboard</h3>
@@ -1126,7 +1121,7 @@ export function AnalyticsDashboardPage() {
           )}
 
           {/* Deliverability */}
-          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
+          <div className="panel overflow-hidden">
             <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
               <div>
                 <h3 className="text-[13px] font-semibold text-[var(--text-primary)] flex items-center gap-2">
@@ -1149,7 +1144,7 @@ export function AnalyticsDashboardPage() {
       {mode === 'campaign' && (
         <>
           {/* Campaign selector */}
-          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
+          <div className="panel overflow-hidden">
             <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center gap-3">
               <Search className="h-4 w-4 text-[var(--text-tertiary)] flex-shrink-0" />
               <input
@@ -1205,7 +1200,7 @@ export function AnalyticsDashboardPage() {
             <>
               {/* Campaign header */}
               {selectedCampaign && (
-                <div className="flex items-center justify-between px-5 py-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
+                <div className="flex items-center justify-between px-5 py-4 panel">
                   <div className="flex items-center gap-3">
                     <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
                       <Target className="h-5 w-5 text-[var(--indigo)]" strokeWidth={1.5} />
@@ -1270,7 +1265,7 @@ export function AnalyticsDashboardPage() {
                       { label: 'Reply Rate', value: fmtPct(campaignStats.reply_rate), sub: fmtNum(campaignStats.replied) + ' replies', color: '#EC4899', icon: MessageSquare },
                       { label: 'Bounce Rate', value: fmtPct(campaignStats.bounce_rate), sub: fmtNum(campaignStats.bounced) + ' bounced', color: '#EF4444', icon: AlertTriangle },
                     ].map(({ label, value, sub, color, icon: Icon }) => (
-                      <div key={label} className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-[var(--border-default)] transition-all">
+                      <div key={label} className="p-4 panel hover:border-[var(--border-default)] transition-all">
                         <div className="flex items-center justify-center h-7 w-7 rounded-lg mb-3" style={{ backgroundColor: `${color}18` }}>
                           <Icon className="h-3.5 w-3.5" style={{ color }} strokeWidth={1.75} />
                         </div>
@@ -1283,7 +1278,7 @@ export function AnalyticsDashboardPage() {
                     ))}
                   </div>
 
-                  <div className="p-5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
+                  <div className="p-5 panel">
                     <h3 className="text-[13px] font-semibold text-[var(--text-primary)] mb-4">Daily Activity — Last {days} days</h3>
                     <div className="h-56">
                       {formattedCampaignTrend.length > 0 ? (
@@ -1320,7 +1315,7 @@ export function AnalyticsDashboardPage() {
               {campaignTab === 'funnel' && (
                 <div className="space-y-4">
                   {campaignStats && (
-                    <div className="p-6 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
+                    <div className="p-6 panel">
                       <h3 className="text-[13px] font-semibold text-[var(--text-primary)] mb-1">Overall Engagement Funnel</h3>
                       <p className="text-[11.5px] text-[var(--text-secondary)] mb-5">Contact journey from send to reply across all steps</p>
                       <FunnelViz
@@ -1334,7 +1329,7 @@ export function AnalyticsDashboardPage() {
                   )}
 
                   {funnelData && funnelData.length > 0 && (
-                    <div className="p-5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
+                    <div className="p-5 panel">
                       <h3 className="text-[13px] font-semibold text-[var(--text-primary)] mb-4">Step-by-Step Breakdown</h3>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
@@ -1396,7 +1391,7 @@ export function AnalyticsDashboardPage() {
                   ) : (
                     <div className="space-y-6">
                       {abTestData.steps.map((step: AbTestStep) => (
-                        <div key={step.step_id} className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] overflow-hidden">
+                        <div key={step.step_id} className="panel overflow-hidden">
                           <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center gap-3">
                             <span className="flex items-center justify-center h-6 w-6 rounded-full bg-[var(--indigo-subtle)] text-[11px] font-bold text-[var(--indigo)]">
                               {step.step_number}
@@ -1460,7 +1455,7 @@ export function AnalyticsDashboardPage() {
                   ) : campaignContacts.contacts.length === 0 ? (
                     <EmptyDeepDive icon={Users} title="No contacts in this campaign" description="Add contacts to this campaign to see their individual performance here." />
                   ) : (
-                    <div className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] overflow-hidden">
+                    <div className="panel overflow-hidden">
                       <div className="px-5 py-3.5 border-b border-[var(--border-subtle)]">
                         <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Contact Performance</h3>
                         <p className="text-[11.5px] text-[var(--text-secondary)] mt-0.5">
@@ -1487,7 +1482,7 @@ export function AnalyticsDashboardPage() {
                       description="Once contacts open, click, or reply, this heatmap will show you which hours and days drive the most engagement."
                     />
                   ) : (
-                    <div className="p-5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
+                    <div className="p-5 panel">
                       <div className="mb-4">
                         <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Engagement Heatmap</h3>
                         <p className="text-[11.5px] text-[var(--text-secondary)] mt-0.5">
