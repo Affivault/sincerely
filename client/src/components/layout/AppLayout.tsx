@@ -117,9 +117,12 @@ function AppContent() {
         {/* Generous workspace width — effectively full-bleed on laptops so data
             tables breathe, while capping ultrawide so forms stay readable. */}
         <main className="px-8 py-7 max-w-[1760px] mx-auto">
-          <ErrorBoundary>
-            <Outlet />
-          </ErrorBoundary>
+          {/* key on pathname so the fade-up replays on every route change */}
+          <div key={location.pathname} className="route-fade">
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
+          </div>
         </main>
       </div>
       <CommandPalette open={open} onClose={closePalette} />

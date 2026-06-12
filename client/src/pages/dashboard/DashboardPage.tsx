@@ -511,6 +511,47 @@ export function DashboardPage() {
         </div>
       </header>
 
+      {/* ── Editorial hero — the headline-number moment ── */}
+      <section className="panel relative overflow-hidden">
+        {/* Living trend backdrop */}
+        <div className="absolute inset-y-0 right-0 w-[62%] opacity-[0.5] pointer-events-none" aria-hidden>
+          {trend.length > 1 && (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trend} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="hero-area" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={ACCENT} stopOpacity={0.22} />
+                    <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Area type="monotone" dataKey="sent" stroke={ACCENT} strokeWidth={2} fill="url(#hero-area)" dot={false} isAnimationActive />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(90deg, var(--bg-surface) 30%, transparent 78%)' }} aria-hidden />
+
+        <div className="relative px-6 py-6">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="eyebrow">Emails sent</span>
+            <span className="font-data text-[10px] text-[var(--text-muted)] uppercase tracking-[0.1em]">last {period} days</span>
+          </div>
+          <div className="flex items-end gap-3 flex-wrap">
+            <span className="text-[clamp(40px,6vw,60px)] font-semibold text-[var(--text-primary)] tabular leading-[0.95] tracking-[-0.04em]">
+              {fmtFull(s.total_sent)}
+            </span>
+            <div className="mb-2.5"><Delta value={s.sent_change} /></div>
+          </div>
+          <p className="mt-2.5 text-[13px] text-[var(--text-secondary)]">
+            <span className="font-medium text-[var(--text-primary)]">{fmtFull(s.total_opened)}</span> opens
+            <span className="mx-2 text-[var(--border-strong)]">·</span>
+            <span className="font-medium text-[var(--text-primary)]">{fmtFull(s.total_clicked)}</span> clicks
+            <span className="mx-2 text-[var(--border-strong)]">·</span>
+            <span className="font-medium text-emerald-600 dark:text-emerald-400">{fmtFull(s.total_replied)}</span> replies
+          </p>
+        </div>
+      </section>
+
       {/* ── KPI row ── */}
       <div className={cn('grid grid-cols-2 lg:grid-cols-4 gap-3 transition-opacity duration-300', refreshing && 'opacity-60')}>
         <Kpi label="Emails sent" icon={Send} value={fmtNum(s.total_sent)} hint={`${fmtFull(s.total_sent)} in ${period} days`}
