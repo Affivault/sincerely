@@ -19,7 +19,7 @@ export interface ApiKeyRequest extends Request {
  * If the request has an API key, it handles auth. Otherwise, it passes through
  * to the next middleware (JWT auth).
  */
-export function apiKeyMiddleware(req: ApiKeyRequest, res: Response, next: NextFunction): void {
+export async function apiKeyMiddleware(req: ApiKeyRequest, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
 
   // Only handle API key tokens (sk_live_ prefix)
@@ -31,22 +31,20 @@ export function apiKeyMiddleware(req: ApiKeyRequest, res: Response, next: NextFu
 
   const rawKey = authHeader.split(' ')[1];
 
-  validateKey(rawKey)
-    .then((result) => {
-      if (!result) {
-        res.status(401).json({ error: 'Invalid or expired API key' });
-        return;
-      }
-
-      req.userId = result.userId;
-      req.authMethod = 'apikey';
-      req.apiKeyScopes = result.scopes;
-      req.apiKeyRateLimit = result.rateLimit;
-      next();
-    })
-    .catch(() => {
-      res.status(500).json({ error: 'API key validation error' });
-    });
+  try {
+    const result = await validateKey(rawKey);
+    if (!result) {
+      res.status(401).json({ error: 'Invalid or expired API key' });
+      return;
+    }
+    req.userId = result.userId;
+    req.authMethod = 'apikey';
+    req.apiKeyScopes = result.scopes;
+    req.apiKeyRateLimit = result.rateLimit;
+    next();
+  } catch {
+    res.status(500).json({ error: 'API key validation error' });
+  }
 }
 
 /**

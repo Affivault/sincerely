@@ -31,22 +31,32 @@ function checkSyntax(email: string): boolean {
 // ============================================
 // Layer 2: Domain DNS Check
 // ============================================
+const DNS_TIMEOUT_MS = 8000;
+
 async function checkDomain(email: string): Promise<boolean> {
   const domain = email.split('@')[1];
   if (!domain) return false;
 
-  return new Promise((resolve) => {
-    dns.resolveMx(domain, (err, addresses) => {
-      if (err || !addresses || addresses.length === 0) {
-        // Fallback: check for A record
-        dns.resolve4(domain, (err2, addrs) => {
-          resolve(!err2 && !!addrs && addrs.length > 0);
-        });
-        return;
-      }
-      resolve(true);
-    });
-  });
+  const withTimeout = <T>(promise: Promise<T>): Promise<T> =>
+    Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error('DNS timeout')), DNS_TIMEOUT_MS)
+      ),
+    ]);
+
+  try {
+    const mxRecords = await withTimeout(dns.promises.resolveMx(domain));
+    return mxRecords.length > 0;
+  } catch {
+    // MX failed — fall back to A record
+    try {
+      const aRecords = await withTimeout(dns.promises.resolve4(domain));
+      return aRecords.length > 0;
+    } catch {
+      return false;
+    }
+  }
 }
 
 // ============================================

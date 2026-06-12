@@ -88,7 +88,8 @@ export const contactsService = {
       query = query.lte('dcs_score', params.dcs_max);
     }
 
-    const sortBy = params.sort_by || 'created_at';
+    const ALLOWED_SORT = new Set(['email', 'first_name', 'last_name', 'company', 'dcs_score', 'created_at']);
+    const sortBy = ALLOWED_SORT.has(params.sort_by || '') ? params.sort_by! : 'created_at';
     const sortOrder = params.sort_order === 'asc';
     query = query.order(sortBy, { ascending: sortOrder }).range(from, to);
 

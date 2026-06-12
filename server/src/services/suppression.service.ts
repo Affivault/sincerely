@@ -39,6 +39,7 @@ export const suppressionService = {
       .select()
       .single();
     if (error) throw new AppError(error.message, 500);
+    if (!data) throw new AppError('Suppression entry not returned after upsert', 500);
     return data;
   },
 

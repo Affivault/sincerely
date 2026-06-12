@@ -17,6 +17,9 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
   Search,
   X,
   Users,
@@ -32,6 +35,37 @@ import {
   RotateCcw,
   Filter,
 } from 'lucide-react';
+
+type ContactSortKey = 'first_name' | 'email' | 'company' | 'dcs_score' | 'created_at';
+
+function SortableHeader({
+  label,
+  colKey,
+  sortBy,
+  sortDir,
+  onSort,
+}: {
+  label: string;
+  colKey: ContactSortKey;
+  sortBy: ContactSortKey;
+  sortDir: 'asc' | 'desc';
+  onSort: (k: ContactSortKey) => void;
+}) {
+  const active = sortBy === colKey;
+  return (
+    <button
+      onClick={() => onSort(colKey)}
+      className={`flex items-center gap-1 group/sort transition-colors ${active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
+    >
+      <span className="text-[10px] font-bold uppercase tracking-widest">{label}</span>
+      {active
+        ? (sortDir === 'asc'
+            ? <ChevronUp className="h-3 w-3 flex-shrink-0" />
+            : <ChevronDown className="h-3 w-3 flex-shrink-0" />)
+        : <ChevronsUpDown className="h-3 w-3 flex-shrink-0 opacity-0 group-hover/sort:opacity-60" />}
+    </button>
+  );
+}
 import toast from 'react-hot-toast';
 import type { CreateContactInput, ContactWithTags, ContactList } from '@lemlist/shared';
 import { DEFAULT_PAGE_SIZE } from '../../lib/constants';
@@ -69,6 +103,18 @@ export function ContactsListPage() {
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
   const [listForm, setListForm] = useState({ name: '', description: '' });
   const [editingList, setEditingList] = useState<ContactList | null>(null);
+  const [sortBy, setSortBy] = useState<ContactSortKey>('created_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (key: ContactSortKey) => {
+    if (key === sortBy) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(key);
+      setSortDir(key === 'first_name' || key === 'email' || key === 'company' ? 'asc' : 'desc');
+    }
+    setPage(1);
+  };
 
   const activeListId = searchParams.get('list') || null;
 
@@ -79,12 +125,14 @@ export function ContactsListPage() {
   }, [activeListId]);
 
   const { data: contactsData, isLoading } = useQuery({
-    queryKey: ['contacts', page, search, activeListId],
+    queryKey: ['contacts', page, search, activeListId, sortBy, sortDir],
     queryFn: () => contactsApi.list({
       page,
       limit: DEFAULT_PAGE_SIZE,
       search: search || undefined,
       list_id: activeListId || undefined,
+      sort_by: sortBy,
+      sort_order: sortDir,
     }),
   });
 
@@ -658,20 +706,20 @@ export function ContactsListPage() {
                       className="rounded border-[var(--border-default)] cursor-pointer"
                     />
                   </th>
-                  <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
-                    Contact
+                  <th className="px-4 py-2.5 text-left">
+                    <SortableHeader label="Contact" colKey="first_name" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                   </th>
-                  <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
-                    Email
+                  <th className="px-4 py-2.5 text-left">
+                    <SortableHeader label="Email" colKey="email" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                   </th>
-                  <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
-                    Company
+                  <th className="px-4 py-2.5 text-left">
+                    <SortableHeader label="Company" colKey="company" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                   </th>
-                  <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
-                    Added
+                  <th className="px-4 py-2.5 text-left">
+                    <SortableHeader label="Added" colKey="created_at" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                   </th>
-                  <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
-                    Health
+                  <th className="px-4 py-2.5 text-left">
+                    <SortableHeader label="Health" colKey="dcs_score" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                   </th>
                   <th className="px-4 py-2.5 w-20"></th>
                 </tr>
