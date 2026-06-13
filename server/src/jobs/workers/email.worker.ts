@@ -192,7 +192,10 @@ export function startEmailWorker() {
             'X-SkySend-Campaign': campaignId,
             'X-SkySend-Contact': contactId,
             'X-SkySend-Step': stepId,
-            ...(campaign.include_unsubscribe ? { 'List-Unsubscribe': `<${unsubUrl}>` } : {}),
+            ...(campaign.include_unsubscribe === true ? {
+              'List-Unsubscribe': `<${unsubUrl}>`,
+              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            } : {}),
           },
         };
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
@@ -26,6 +26,8 @@ import {
   Copy,
   GitBranch,
   Webhook,
+  Search,
+  X,
 } from 'lucide-react';
 import {
   BarChart,
@@ -46,6 +48,8 @@ export function CampaignDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [contactSearch, setContactSearch] = useState('');
+  const [contactStatusFilter, setContactStatusFilter] = useState('');
 
   const { data: campaign, isLoading } = useQuery({
     queryKey: ['campaigns', id],
@@ -124,6 +128,20 @@ export function CampaignDetailPage() {
     },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to delete campaign'),
   });
+
+  const filteredContacts = useMemo(() => {
+    const all = campaignContacts?.data ?? [];
+    return all.filter((cc: any) => {
+      if (contactStatusFilter && cc.status !== contactStatusFilter) return false;
+      if (contactSearch) {
+        const q = contactSearch.toLowerCase();
+        const name = [cc.contact?.first_name, cc.contact?.last_name].filter(Boolean).join(' ').toLowerCase();
+        const email = (cc.contact?.email || '').toLowerCase();
+        if (!name.includes(q) && !email.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [campaignContacts?.data, contactSearch, contactStatusFilter]);
 
   if (isLoading) {
     return (
@@ -318,13 +336,57 @@ export function CampaignDetailPage() {
 
       {/* Contacts Tab */}
       {activeTab === 'contacts' && (
-        <div>
+        <div className="space-y-3">
+          {campaignContacts?.data?.length ? (
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+                <input
+                  type="text"
+                  value={contactSearch}
+                  onChange={(e) => setContactSearch(e.target.value)}
+                  placeholder="Search by name or email…"
+                  className="w-full h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] pl-8 pr-8 text-[12.5px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
+                />
+                {contactSearch && (
+                  <button onClick={() => setContactSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              <select
+                value={contactStatusFilter}
+                onChange={(e) => setContactStatusFilter(e.target.value)}
+                className="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 text-[12.5px] text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
+              >
+                <option value="">All statuses</option>
+                <option value="active">Active</option>
+                <option value="pending">Pending</option>
+                <option value="completed">Completed</option>
+                <option value="bounced">Bounced</option>
+                <option value="unsubscribed">Unsubscribed</option>
+                <option value="error">Error</option>
+              </select>
+              <span className="text-[11.5px] text-[var(--text-tertiary)] whitespace-nowrap tabular">
+                {filteredContacts.length} / {campaignContacts.data.length}
+              </span>
+            </div>
+          ) : null}
+
           {!campaignContacts?.data?.length ? (
             <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
               <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bg-elevated)] mb-3">
                 <MessageSquare className="h-5 w-5 text-[var(--text-tertiary)]" />
               </span>
               <p className="text-[13px] text-[var(--text-secondary)]">No contacts in this campaign.</p>
+            </div>
+          ) : filteredContacts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+              <Search className="h-8 w-8 text-[var(--text-tertiary)] mb-3" />
+              <p className="text-[13px] text-[var(--text-secondary)]">No contacts match your filter.</p>
+              <button onClick={() => { setContactSearch(''); setContactStatusFilter(''); }} className="mt-2 text-[12px] text-[var(--indigo)] hover:underline">
+                Clear filters
+              </button>
             </div>
           ) : (
             <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
@@ -339,13 +401,13 @@ export function CampaignDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {campaignContacts.data.map((cc: any, i: number) => {
+                  {filteredContacts.map((cc: any, i: number) => {
                     const totalSteps = campaign.steps?.length || 0;
                     const currentStep = (cc.current_step_order ?? 0) + 1;
                     const progressPct = totalSteps > 0 ? Math.min(100, Math.round((currentStep / totalSteps) * 100)) : 0;
                     const fullName = [cc.contact?.first_name, cc.contact?.last_name].filter(Boolean).join(' ');
                     return (
-                      <tr key={cc.id} className={cn("hover:bg-[var(--bg-hover)] transition-colors", i < campaignContacts.data.length - 1 && "border-b border-[var(--border-subtle)]")}>
+                      <tr key={cc.id} className={cn("hover:bg-[var(--bg-hover)] transition-colors", i < filteredContacts.length - 1 && "border-b border-[var(--border-subtle)]")}>
                         <td className="px-4 py-2.5">
                           <div className="flex items-center gap-2.5">
                             <Avatar name={fullName || cc.contact?.email || '?'} email={cc.contact?.email} size="sm" />

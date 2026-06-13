@@ -399,9 +399,7 @@ export const contactsService = {
 
     if (error) throw new AppError(error.message, 500);
 
-    for (const id of validIds) {
-      fireEvent(userId, 'contact.deleted', { contact_id: id }).catch(() => {});
-    }
+    fireEvent(userId, 'contacts.bulk_deleted', { contact_ids: validIds, count: validIds.length }).catch(() => {});
 
     return { deleted: validIds.length };
   },

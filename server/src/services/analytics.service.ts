@@ -553,7 +553,7 @@ export const analyticsService = {
 
     const { data: steps } = await supabaseAdmin
       .from('campaign_steps')
-      .select('id, step_number, subject, subject_b, body_html_b, delay_days')
+      .select('id, step_order, subject, subject_b, body_html_b, delay_days')
       .eq('campaign_id', campaignId)
       .or('subject_b.not.is.null,body_html_b.not.is.null');
 
@@ -608,10 +608,10 @@ export const analyticsService = {
       const winner: 'a' | 'b' | null = significant ? (bOpenRate > aOpenRate ? 'b' : 'a') : null;
 
       return {
-        step_number: step.step_number,
+        step_number: step.step_order,
         step_id: step.id,
-        subject_a: step.subject || `Step ${step.step_number}`,
-        subject_b: step.subject_b || `Step ${step.step_number} – Variant B`,
+        subject_a: step.subject || `Step ${step.step_order}`,
+        subject_b: step.subject_b || `Step ${step.step_order} – Variant B`,
         variant_a: { ...stats.a, open_rate: aOpenRate, click_rate: aClickRate, reply_rate: aReplyRate },
         variant_b: { ...stats.b, open_rate: bOpenRate, click_rate: bClickRate, reply_rate: bReplyRate },
         winner,

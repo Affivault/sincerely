@@ -130,7 +130,8 @@ app.get('/health', async (_req, res) => {
 // Usage: POST /debug/send-email { "to": "you@gmail.com" }
 app.post('/debug/send-email', async (req, res) => {
   const { env: envConfig } = await import('./config/env.js');
-  const secret = req.headers['x-debug-secret'];
+  const rawSecret = req.headers['x-debug-secret'];
+  const secret = Array.isArray(rawSecret) ? rawSecret[0] : rawSecret;
   if (!secret || secret !== envConfig.TRACKING_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
