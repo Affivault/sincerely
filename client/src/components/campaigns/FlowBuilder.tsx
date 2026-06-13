@@ -3,7 +3,6 @@ import {
   Mail,
   Clock,
   Trash2,
-  GripVertical,
   Plus,
   ChevronDown,
   ChevronUp,
@@ -11,9 +10,8 @@ import {
   EyeOff,
   MousePointerClick,
   MessageSquare,
-  ArrowDown,
   Sparkles,
-  Settings,
+  Flag,
   SkipForward,
   GitBranch,
   Webhook,
@@ -88,15 +86,16 @@ function AddStepMenu({ onAdd, showAbove }: AddStepMenuProps) {
 
   return (
     <div className="relative flex justify-center">
-      {/* Connector line */}
-      <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-gradient-to-b from-[var(--border-default)] to-[var(--border-subtle)]" />
+      {/* Connector spine */}
+      <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-px bg-[var(--border-default)]" />
 
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="group relative z-10 flex h-7 w-7 items-center justify-center rounded-full bg-[var(--bg-surface)] border border-dashed border-[var(--indigo-subtle)] hover:border-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-all my-2"
+        title="Add a step here"
+        className="group relative z-10 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--bg-surface)] border border-dashed border-[var(--border-strong)] text-[var(--text-tertiary)] hover:border-[var(--indigo)] hover:text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] hover:scale-110 transition-all my-2.5"
       >
-        <Plus className="h-3 w-3 text-[var(--indigo-subtle)] group-hover:text-[var(--indigo)]" />
+        <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
       </button>
 
       {isOpen && (
@@ -267,14 +266,9 @@ function FlowNode({
 
         <div className="p-4 pt-5">
           <div className="flex items-start gap-3">
-            {/* Drag Handle & Icon */}
-            <div className="flex flex-col items-center gap-1">
-              <button type="button" className="text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] cursor-grab active:cursor-grabbing">
-                <GripVertical className="h-3.5 w-3.5" />
-              </button>
-              <div className={cn('flex h-9 w-9 items-center justify-center rounded-lg', stepColors.iconBg)}>
-                <Icon className="h-4 w-4" strokeWidth={1.75} />
-              </div>
+            {/* Icon */}
+            <div className={cn('flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg', stepColors.iconBg)}>
+              <Icon className="h-4 w-4" strokeWidth={1.75} />
             </div>
 
             {/* Content */}
@@ -363,9 +357,9 @@ function FlowNode({
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3 pt-1">
-                    <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
-                      <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ True Branch</p>
-                      <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Continues to next step</p>
+                    <div className="p-2.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                      <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ True branch</p>
+                      <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">Continues to next step</p>
                     </div>
                     <div className="p-2.5 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)] space-y-1.5">
                       <p className="text-xs font-semibold text-[var(--text-primary)]">✗ False Branch</p>
@@ -454,6 +448,68 @@ function FlowNode({
               </button>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Inline delay unit input ───────────────────────────────────── */
+function DelayUnit({ value, unit, onChange }: { value: number; unit: string; onChange: (v: number) => void }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <input
+        type="number"
+        min={0}
+        max={999}
+        value={value || 0}
+        onChange={(e) => onChange(Math.max(0, Math.min(999, parseInt(e.target.value) || 0)))}
+        onClick={(e) => e.stopPropagation()}
+        className="font-data w-10 h-7 text-center rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] text-[12.5px] font-medium text-[var(--text-primary)] tabular focus:border-amber-500 focus:ring-2 focus:ring-amber-500/15 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+      />
+      <span className="text-[11px] font-medium text-[var(--text-tertiary)]">{unit}</span>
+    </span>
+  );
+}
+
+/* ─── Delay chip — compact, inline-editable wait between steps ───── */
+function DelayChip({ step, onUpdate, onRemove, onMoveUp, onMoveDown, isFirst, isLast }: {
+  step: FlowStep;
+  onUpdate: (u: Partial<FlowStep>) => void;
+  onRemove: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  isFirst: boolean;
+  isLast: boolean;
+}) {
+  const empty = !step.delay_days && !step.delay_hours && !step.delay_minutes;
+  return (
+    <div className="relative flex justify-center">
+      {/* spine passes through */}
+      <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-px bg-[var(--border-default)]" />
+      <div className={cn(
+        'group/chip relative z-10 my-1 inline-flex items-center gap-2.5 rounded-full border bg-[var(--bg-surface)] pl-3 pr-1.5 h-9 shadow-[var(--shadow-sm)] transition-colors',
+        empty ? 'border-amber-500/40' : 'border-amber-500/25'
+      )}>
+        <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0" strokeWidth={2} />
+        <span className="text-[12px] font-medium text-[var(--text-secondary)]">Wait</span>
+        <DelayUnit value={step.delay_days || 0} unit="d" onChange={(v) => onUpdate({ delay_days: v })} />
+        <DelayUnit value={step.delay_hours || 0} unit="h" onChange={(v) => onUpdate({ delay_hours: v })} />
+        <DelayUnit value={step.delay_minutes || 0} unit="m" onChange={(v) => onUpdate({ delay_minutes: v })} />
+
+        <div className="flex items-center gap-px ml-1 opacity-0 group-hover/chip:opacity-100 transition-opacity">
+          <button type="button" onClick={onMoveUp} disabled={isFirst} title="Move up"
+            className="p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={onMoveDown} disabled={isLast} title="Move down"
+            className="p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={onRemove} title="Remove delay"
+            className="p-1 rounded text-[var(--text-tertiary)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
     </div>
@@ -559,18 +615,30 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep }: F
           {/* Add step between nodes */}
           <AddStepMenu onAdd={(type) => addStep(type, index)} />
 
-          {/* Flow Node */}
-          <FlowNode
-            step={step}
-            index={index}
-            totalSteps={steps.length}
-            isEditing={editingStep === index}
-            onEdit={() => onEditStep(editingStep === index ? -1 : index)}
-            onRemove={() => removeStep(index)}
-            onMoveUp={() => moveStep(index, index - 1)}
-            onMoveDown={() => moveStep(index, index + 1)}
-            onUpdate={(updates) => updateStep(index, updates)}
-          />
+          {/* Delays render as compact inline chips; everything else is a card */}
+          {step.step_type === 'delay' ? (
+            <DelayChip
+              step={step}
+              isFirst={index === 0}
+              isLast={index === steps.length - 1}
+              onRemove={() => removeStep(index)}
+              onMoveUp={() => moveStep(index, index - 1)}
+              onMoveDown={() => moveStep(index, index + 1)}
+              onUpdate={(updates) => updateStep(index, updates)}
+            />
+          ) : (
+            <FlowNode
+              step={step}
+              index={index}
+              totalSteps={steps.length}
+              isEditing={editingStep === index}
+              onEdit={() => onEditStep(editingStep === index ? -1 : index)}
+              onRemove={() => removeStep(index)}
+              onMoveUp={() => moveStep(index, index - 1)}
+              onMoveDown={() => moveStep(index, index + 1)}
+              onUpdate={(updates) => updateStep(index, updates)}
+            />
+          )}
         </div>
       ))}
 
@@ -580,7 +648,7 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep }: F
       {/* End Node */}
       <div className="flex justify-center mt-1">
         <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)] text-[11.5px] font-bold border border-[var(--border-subtle)]">
-          <Settings className="h-3 w-3" />
+          <Flag className="h-3 w-3" />
           Campaign End
         </div>
       </div>
