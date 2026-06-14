@@ -264,6 +264,19 @@ export function RichTextEditor({
     return () => window.removeEventListener('ai-reply-insert', handler);
   }, [editor, onChange]);
 
+  // Insert text (e.g. personalization tokens) at the cursor
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.text && editor) {
+        editor.chain().focus().insertContent(detail.text).run();
+        onChange?.(editor.getHTML(), editor.getText());
+      }
+    };
+    window.addEventListener('rte-insert-text', handler);
+    return () => window.removeEventListener('rte-insert-text', handler);
+  }, [editor, onChange]);
+
   if (!editor) return null;
 
   const insertTemplate = (template: Template) => {

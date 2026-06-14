@@ -244,11 +244,11 @@ function FlowNode({
   };
 
   return (
-    <div className="relative">
+    <div className="relative pt-2.5">
       {/* Node Card */}
       <div
         className={cn(
-          'group relative mx-auto max-w-xl rounded-xl border bg-[var(--bg-surface)] transition-all duration-200 overflow-hidden',
+          'group relative mx-auto max-w-xl rounded-xl border bg-[var(--bg-surface)] transition-all duration-200',
           stepColors.borderColor,
           isEditing
             ? 'border-[var(--indigo-subtle)] shadow-[0_0_0_2px_var(--indigo-subtle),0_4px_12px_rgba(91,91,245,0.12)]'

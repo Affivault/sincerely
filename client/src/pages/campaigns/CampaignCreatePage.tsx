@@ -15,6 +15,7 @@ import { StatCard } from '../../components/shared/StatCard';
 import { Avatar } from '../../components/shared/Avatar';
 import { FlowBuilder } from '../../components/campaigns/FlowBuilder';
 import { PersonalizationDropdown } from '../../components/campaigns/PersonalizationDropdown';
+import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import type { FlowStep } from '../../components/campaigns/FlowBuilder';
 import { cn } from '../../lib/utils';
 import {
@@ -494,6 +495,8 @@ export function CampaignCreatePage() {
         goal: aiGoal, tone: aiTone, product: aiProduct,
       });
       updateStep(editingStep, { subject: data.subject, body_html: data.body_html });
+      // Push generated body into the live WYSIWYG editor (it won't reload from state)
+      window.dispatchEvent(new CustomEvent('ai-reply-insert', { detail: { html: data.body_html } }));
       setShowAiModal(false);
       setAiGoal('');
       toast.success('Email generated');
@@ -538,18 +541,8 @@ export function CampaignCreatePage() {
         }, 0);
       }
     } else {
-      const textarea = bodyRef.current;
-      if (textarea) {
-        const start = textarea.selectionStart || 0;
-        const end = textarea.selectionEnd || 0;
-        const current = step.body_html || '';
-        const newValue = current.slice(0, start) + tag + current.slice(end);
-        updateStep(editingStep, { body_html: newValue });
-        setTimeout(() => {
-          textarea.selectionStart = textarea.selectionEnd = start + tag.length;
-          textarea.focus();
-        }, 0);
-      }
+      // Body is a WYSIWYG editor — insert the token at the cursor via event
+      window.dispatchEvent(new CustomEvent('rte-insert-text', { detail: { text: tag } }));
     }
   };
 
@@ -1226,16 +1219,17 @@ export function CampaignCreatePage() {
                           })()}
                         </Field>
 
-                        {/* Body */}
+                        {/* Body — WYSIWYG */}
                         <Field label="Email body">
-                          <textarea
-                            ref={bodyRef}
-                            value={steps[editingStep].body_html || ''}
-                            onChange={(e) => updateStep(editingStep, { body_html: e.target.value })}
-                            onFocus={() => setActiveField('body')}
-                            placeholder={`<p>Hi {{first_name}},</p>\n\n<p>I noticed that {{company}} is…</p>`}
-                            className="w-full min-h-[180px] rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12.5px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all font-mono resize-y"
-                          />
+                          <div onFocusCapture={() => setActiveField('body')}>
+                            <RichTextEditor
+                              key={editingStep}
+                              initialContent={steps[editingStep].body_html || ''}
+                              onChange={(html) => updateStep(editingStep, { body_html: html })}
+                              placeholder="Hi {{first_name}}, I noticed that {{company}} is…"
+                              minHeight="200px"
+                            />
+                          </div>
                           {(() => {
                             const rawText = (steps[editingStep].body_html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
                             const words = rawText ? rawText.split(/\s+/).filter(Boolean).length : 0;
