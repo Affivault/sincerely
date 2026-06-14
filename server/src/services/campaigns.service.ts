@@ -345,6 +345,7 @@ export const campaignsService = {
       { count: completedContacts },
       { count: bouncedContacts },
       { count: unsubscribedContacts },
+      { count: suppressedContacts },
     ] = await Promise.all([
       supabaseAdmin.from('campaign_steps').select('*', base).eq('campaign_id', campaignId),
       supabaseAdmin.from('campaign_contacts').select('*', base).eq('campaign_id', campaignId),
@@ -357,6 +358,7 @@ export const campaignsService = {
       cc('completed'),
       cc('bounced'),
       cc('unsubscribed'),
+      cc('suppressed'),
     ]);
 
     const sent = sentCount || 0;
@@ -378,6 +380,7 @@ export const campaignsService = {
       completed_contacts: completedContacts || 0,
       bounced_contacts: bouncedContacts || 0,
       unsubscribed_contacts: unsubscribedContacts || 0,
+      suppressed_contacts: suppressedContacts || 0,
       open_rate: calcRate(opened, sent),
       click_rate: calcRate(clicked, sent),
       reply_rate: calcRate(replied, sent),

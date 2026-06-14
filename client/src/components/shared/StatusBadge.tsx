@@ -20,6 +20,7 @@ const contactConfig: Record<string, { pill: string; dot: string }> = {
   bounced:      { pill: 'bg-[var(--error-bg)] text-[var(--error)] border border-[var(--error-border)]',             dot: 'bg-[var(--error)]' },
   unsubscribed: { pill: 'bg-amber-500/8 text-amber-600 dark:text-amber-400 border border-amber-500/15',                                 dot: 'bg-amber-500' },
   error:        { pill: 'bg-[var(--error-bg)] text-[var(--error)] border border-[var(--error-border)]',             dot: 'bg-[var(--error)]' },
+  suppressed:   { pill: 'bg-purple-500/8 text-purple-600 dark:text-purple-400 border border-purple-500/15',          dot: 'bg-purple-500' },
 };
 
 const fallback = { pill: 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border-subtle)]', dot: 'bg-[var(--text-tertiary)]' };

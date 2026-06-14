@@ -365,6 +365,7 @@ export function CampaignDetailPage() {
                 <option value="completed">Completed</option>
                 <option value="bounced">Bounced</option>
                 <option value="unsubscribed">Unsubscribed</option>
+                <option value="suppressed">Suppressed</option>
                 <option value="error">Error</option>
               </select>
               <span className="text-[11.5px] text-[var(--text-tertiary)] whitespace-nowrap tabular">
@@ -463,6 +464,7 @@ function ContactProgressCard({ campaign }: { campaign: any }) {
     { label: 'Active', count: campaign.active_contacts || 0, color: 'bg-[var(--indigo)]' },
     { label: 'Bounced', count: campaign.bounced_contacts || 0, color: 'bg-red-500' },
     { label: 'Unsubscribed', count: campaign.unsubscribed_contacts || 0, color: 'bg-amber-500' },
+    { label: 'Suppressed', count: campaign.suppressed_contacts || 0, color: 'bg-purple-500' },
   ];
 
   const accounted = segments.reduce((s, seg) => s + seg.count, 0);

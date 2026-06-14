@@ -318,7 +318,7 @@ export const analyticsService = {
     const campaignName = campaignData?.name || 'Unknown';
 
     const lines: string[] = [];
-    lines.push(`Campaign Report: ${campaignName}`);
+    lines.push(`Campaign Report: ${campaignName.replace(/[\n\r]/g, ' ')}`);
     lines.push(`Generated: ${new Date().toISOString()}`);
     lines.push('');
     lines.push('Summary');
@@ -334,7 +334,9 @@ export const analyticsService = {
     lines.push('Email,Name,Status,DCS,Sent,Opened,Clicked,Replied,Bounced');
     for (const c of contacts) {
       const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || '';
-      lines.push(`"${c.email}","${name}",${c.status},${c.dcs_score ?? ''},${c.sent},${c.opened},${c.clicked},${c.replied ? 'Yes' : 'No'},${c.is_bounced ? 'Yes' : 'No'}`);
+      const csvEmail = `"${c.email.replace(/"/g, '""')}"`;
+      const csvName = `"${name.replace(/"/g, '""')}"`;
+      lines.push(`${csvEmail},${csvName},${c.status},${c.dcs_score ?? ''},${c.sent},${c.opened},${c.clicked},${c.replied ? 'Yes' : 'No'},${c.is_bounced ? 'Yes' : 'No'}`);
     }
 
     return lines.join('\n');
@@ -683,7 +685,7 @@ export const analyticsService = {
     for (const a of activities || []) {
       if (!a.occurred_at) continue;
       const d = new Date(a.occurred_at);
-      grid[d.getDay()][d.getHours()]++;
+      grid[d.getUTCDay()][d.getUTCHours()]++;
     }
 
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

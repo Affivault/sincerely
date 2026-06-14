@@ -62,6 +62,7 @@ export enum ContactCampaignStatus {
   Replied = 'replied',
   Bounced = 'bounced',
   Unsubscribed = 'unsubscribed',
+  Suppressed = 'suppressed',
   Error = 'error',
 }
 

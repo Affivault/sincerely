@@ -78,6 +78,7 @@ export interface CampaignWithStats extends Campaign {
   completed_contacts: number;
   bounced_contacts: number;
   unsubscribed_contacts: number;
+  suppressed_contacts: number;
   open_rate: number;
   click_rate: number;
   reply_rate: number;

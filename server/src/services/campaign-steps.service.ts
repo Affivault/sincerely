@@ -75,11 +75,12 @@ export const campaignStepsService = {
 
   async reorder(campaignId: string, stepIds: string[]) {
     for (let i = 0; i < stepIds.length; i++) {
-      await supabaseAdmin
+      const { error } = await supabaseAdmin
         .from('campaign_steps')
         .update({ step_order: i })
         .eq('id', stepIds[i])
         .eq('campaign_id', campaignId);
+      if (error) throw new AppError(`Failed to reorder step ${stepIds[i]}: ${error.message}`, 500);
     }
   },
 };
