@@ -4,6 +4,8 @@ import { inboxApi } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
 import { templateApi } from '../../api/template.api';
 import { Spinner } from '../../components/ui/Spinner';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { EmptyState } from '../../components/shared/EmptyState';
 import { Avatar } from '../../components/shared/Avatar';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { RichTextEditor, useRichTextEditorRef } from '../../components/ui/RichTextEditor';
@@ -1745,28 +1747,36 @@ export function InboxPage() {
           {/* Message List — grouped as conversation threads */}
           <div className="flex-1 overflow-y-auto">
             {isLoading ? (
-              <div className="flex items-center justify-center py-10"><Spinner size="md" /></div>
+              <div>
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="flex items-start gap-2.5 px-3 py-2.5 border-b border-[var(--border-subtle)]">
+                    <Skeleton className="h-8 w-8 rounded-full flex-shrink-0" />
+                    <div className="flex-1 space-y-1.5 py-0.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <Skeleton className="h-3 w-24" />
+                        <Skeleton className="h-2.5 w-8" />
+                      </div>
+                      <Skeleton className="h-2.5 w-2/3" />
+                      <Skeleton className="h-2.5 w-1/2" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : folder === 'scheduled' ? (
               /* Scheduled folder: empty sidebar, detail panel shows scheduled list */
               <div className="flex flex-col items-center justify-center py-10 text-center px-6">
-                <div className="w-12 h-12 rounded-2xl bg-[#6366F1]/10 flex items-center justify-center mb-3 border border-[#6366F1]/20">
+                <div className="w-12 h-12 rounded-2xl bg-[var(--indigo-subtle)] flex items-center justify-center mb-3 border border-[rgba(99,102,241,0.18)]">
                   <Clock className="h-5 w-5 text-[var(--indigo)]" />
                 </div>
                 <p className="text-sm font-medium text-[var(--text-primary)]">Scheduled Emails</p>
                 <p className="text-xs text-[var(--text-tertiary)] mt-1">View and manage your scheduled emails in the panel</p>
               </div>
             ) : filteredConversations.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center px-6">
-                <div className="w-12 h-12 rounded-2xl bg-[var(--bg-elevated)] flex items-center justify-center mb-3 border border-[var(--border-subtle)]">
-                  <MailOpen className="h-5 w-5 text-[var(--text-tertiary)]" />
-                </div>
-                <p className="text-sm font-medium text-[var(--text-secondary)]">
-                  {quickFilter !== 'all' ? `No ${QUICK_FILTERS.find(f => f.id === quickFilter)?.label.toLowerCase()} messages` : 'No conversations'}
-                </p>
-                <p className="text-xs text-[var(--text-tertiary)] mt-1">
-                  {search ? 'Try a different search term' : tagFilter !== 'all' ? `No messages tagged as "${TAG_OPTIONS.find(t => t.value === tagFilter)?.label}"` : quickFilter !== 'all' ? 'Try a different filter' : `Your ${folder} is empty`}
-                </p>
-              </div>
+              <EmptyState
+                icon={MailOpen}
+                title={quickFilter !== 'all' ? `No ${QUICK_FILTERS.find(f => f.id === quickFilter)?.label.toLowerCase()} messages` : 'No conversations'}
+                description={search ? 'Try a different search term.' : tagFilter !== 'all' ? `No messages tagged as "${TAG_OPTIONS.find(t => t.value === tagFilter)?.label}".` : quickFilter !== 'all' ? 'Try a different filter.' : `Your ${folder} is empty — replies will land here.`}
+              />
             ) : (
               filteredConversations.map(conv => {
                 const msg = conv.latestMessage;
@@ -1781,11 +1791,11 @@ export function InboxPage() {
                     onClick={() => selectMessage(msg)}
                     className={cn(
                       'w-full text-left relative px-3 py-2.5 border-b border-[var(--border-subtle)] transition-all',
-                      isSelected ? 'bg-[#5B5BF5]/6' : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)]'
+                      isSelected ? 'bg-[var(--indigo-subtle)]' : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)]'
                     )}
                   >
                     {isSelected && (
-                      <span className="absolute left-0 top-2 bottom-2 w-[2px] rounded-r-full bg-[var(--indigo)]" />
+                      <span className="absolute left-0 top-2 bottom-2 w-[2.5px] rounded-r-full bg-[var(--indigo)]" />
                     )}
                     <div className="flex items-start gap-2.5">
                       <div className="relative flex-shrink-0 mt-0.5">
@@ -1812,7 +1822,7 @@ export function InboxPage() {
                           </div>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
                             {conv.isStarred && <Star className="h-3 w-3 text-amber-400 fill-amber-400" />}
-                            <span className="text-[10px] text-[var(--text-tertiary)]">{timeAgo(msg.received_at)}</span>
+                            <span className="text-[10px] text-[var(--text-tertiary)] font-data">{timeAgo(msg.received_at)}</span>
                           </div>
                         </div>
                         <p className={`text-[12px] truncate ${conv.hasUnread ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]'}`}>
