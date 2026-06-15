@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { suppressionApi } from '../../api/suppression.api';
-import { Spinner } from '../../components/ui/Spinner';
+import { SkeletonList } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { PageHeader } from '../../components/shared/PageHeader';
@@ -133,7 +133,7 @@ export function SuppressionPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>
+        <SkeletonList rows={6} />
       ) : entries.length === 0 ? (
         <EmptyState
           icon={ShieldOff}
