@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { templateApi } from '../../api/template.api';
@@ -6,6 +6,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
+import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { Card } from '../../components/shared/Card';
 import {
@@ -377,20 +378,9 @@ function EmailEditorModal({
   const [bodyHtml, setBodyHtml] = useState(initial?.body_html || '');
   const [category, setCategory] = useState<TemplateCategory>((initial?.category as TemplateCategory) || 'custom');
   const [showPreview, setShowPreview] = useState(true);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   const insertMergeTag = (tag: string) => {
-    const el = bodyRef.current;
-    if (!el) return;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const newVal = bodyHtml.substring(0, start) + `{{${tag}}}` + bodyHtml.substring(end);
-    setBodyHtml(newVal);
-    setTimeout(() => {
-      el.focus();
-      const pos = start + tag.length + 4;
-      el.setSelectionRange(pos, pos);
-    }, 0);
+    window.dispatchEvent(new CustomEvent('rte-insert-text', { detail: { text: `{{${tag}}}` } }));
   };
 
   const mergeTags = ['first_name', 'last_name', 'company', 'email', 'industry', 'title', 'sender_name'];
@@ -419,28 +409,31 @@ function EmailEditorModal({
           <Input label="Subject Line" value={subject} onChange={e => setSubject(e.target.value)} placeholder="e.g., Quick question about {{company}}" required />
 
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center justify-between mb-1.5 gap-2">
               <label className="text-sm font-medium text-[var(--text-primary)]">Email Body</label>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap justify-end">
                 {mergeTags.map(tag => (
                   <button
                     key={tag}
+                    type="button"
                     onClick={() => insertMergeTag(tag)}
-                    className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                    title={`Insert {{${tag}}}`}
+                    className="px-1.5 py-0.5 text-[10px] font-data rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
                   >
                     {`{{${tag}}}`}
                   </button>
                 ))}
               </div>
             </div>
-            <textarea
-              ref={bodyRef}
-              value={bodyHtml}
-              onChange={e => setBodyHtml(e.target.value)}
-              placeholder="<p>Hi {{first_name}},</p>\n\n<p>Your message here...</p>"
-              rows={14}
-              className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] font-mono placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-1 focus:ring-[var(--text-primary)] resize-none"
+            <RichTextEditor
+              initialContent={bodyHtml}
+              onChange={(html) => setBodyHtml(html)}
+              placeholder="Hi {{first_name}}, I noticed that {{company}} is…"
+              minHeight="300px"
             />
+            <p className="mt-1.5 text-[11px] text-[var(--text-tertiary)]">
+              Use the toolbar to format — no HTML needed. Insert merge tags above to personalise.
+            </p>
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
@@ -614,13 +607,28 @@ function SequenceEditorModal({
             <Input label="Subject" value={current.subject} onChange={e => updateStep(activeStep, { subject: e.target.value })} placeholder="Email subject line" />
 
             <div>
-              <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Body (HTML)</label>
-              <textarea
-                value={current.body_html}
-                onChange={e => updateStep(activeStep, { body_html: e.target.value })}
-                placeholder="<p>Hi {{first_name}},</p>"
-                rows={8}
-                className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] font-mono placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-1 focus:ring-[var(--text-primary)] resize-none"
+              <div className="flex items-center justify-between mb-1.5 gap-2">
+                <label className="text-sm font-medium text-[var(--text-primary)]">Email Body</label>
+                <div className="flex items-center gap-1 flex-wrap justify-end">
+                  {['first_name', 'company', 'sender_name'].map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => window.dispatchEvent(new CustomEvent('rte-insert-text', { detail: { text: `{{${tag}}}` } }))}
+                      title={`Insert {{${tag}}}`}
+                      className="px-1.5 py-0.5 text-[10px] font-data rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
+                    >
+                      {`{{${tag}}}`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <RichTextEditor
+                key={activeStep}
+                initialContent={current.body_html}
+                onChange={(html) => updateStep(activeStep, { body_html: html })}
+                placeholder="Hi {{first_name}}, …"
+                minHeight="200px"
               />
             </div>
 

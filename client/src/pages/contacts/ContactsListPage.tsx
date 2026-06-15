@@ -6,6 +6,9 @@ import { listFoldersApi, type ListFolder } from '../../api/list-folders.api';
 import { Spinner } from '../../components/ui/Spinner';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Checkbox } from '../../components/ui/Checkbox';
+import { Modal } from '../../components/ui/Modal';
+import { Input } from '../../components/ui/Input';
+import { Button } from '../../components/ui/Button';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { StatCard } from '../../components/shared/StatCard';
 import { EmptyState } from '../../components/shared/EmptyState';
@@ -924,93 +927,74 @@ export function ContactsListPage() {
       </div>
 
       {/* Create/Edit Contact Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={closeCreateModal} />
-          <div className="relative bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl w-full max-w-md shadow-xl animate-slide-up">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--border-subtle)]">
-              <div>
-                <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-                  {editId ? 'Edit Contact' : 'Add Contact'}
-                </h2>
-                <p className="text-[13px] text-[var(--text-tertiary)] mt-0.5">
-                  {editId ? 'Update contact information' : 'Create a new contact in your database'}
-                </p>
-              </div>
-              <button
-                onClick={closeCreateModal}
-                className="p-2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-all duration-200"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      {showCreateModal && (() => {
+        const previewName = [form.first_name, form.last_name].filter(Boolean).join(' ');
+        const previewSub = [form.job_title, form.company].filter(Boolean).join(' · ');
+        return (
+          <Modal
+            isOpen={showCreateModal}
+            onClose={closeCreateModal}
+            title={editId ? 'Edit contact' : 'Add contact'}
+            description={editId ? 'Update this contact’s details.' : 'Create a new contact in your database.'}
+            size="lg"
+            footer={
+              <>
+                <Button variant="secondary" size="md" onClick={closeCreateModal}>Cancel</Button>
+                <Button
+                  type="submit"
+                  form="contact-form"
+                  size="md"
+                  disabled={createMutation.isPending || !form.email.trim()}
+                >
+                  {createMutation.isPending ? 'Saving…' : editId ? 'Save changes' : 'Add contact'}
+                </Button>
+              </>
+            }
+          >
             <form
+              id="contact-form"
               onSubmit={(e) => { e.preventDefault(); createMutation.mutate(form); }}
-              className="px-6 py-5 space-y-5"
+              className="space-y-4"
             >
-              <div>
-                <label className="block text-[13px] font-medium text-[var(--text-primary)] mb-1.5">
-                  Email <span className="text-[var(--error)]">*</span>
-                </label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  placeholder="contact@company.com"
-                  required
-                  className="input-field rounded-lg"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[13px] font-medium text-[var(--text-primary)] mb-1.5">
-                    First Name
-                  </label>
-                  <input
-                    type="text"
-                    value={form.first_name || ''}
-                    onChange={(e) => setForm({ ...form, first_name: e.target.value })}
-                    placeholder="John"
-                    className="input-field rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[13px] font-medium text-[var(--text-primary)] mb-1.5">
-                    Last Name
-                  </label>
-                  <input
-                    type="text"
-                    value={form.last_name || ''}
-                    onChange={(e) => setForm({ ...form, last_name: e.target.value })}
-                    placeholder="Doe"
-                    className="input-field rounded-lg"
-                  />
+              {/* Live identity preview */}
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
+                <Avatar name={previewName || form.email || 'New'} email={form.email} size="lg" />
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
+                    {previewName || 'New contact'}
+                  </p>
+                  <p className="text-[12px] text-[var(--text-tertiary)] truncate">
+                    {previewSub || form.email || 'Fill in the details below'}
+                  </p>
                 </div>
               </div>
-              <div>
-                <label className="block text-[13px] font-medium text-[var(--text-primary)] mb-1.5">
-                  Company
-                </label>
-                <input
-                  type="text"
-                  value={form.company || ''}
-                  onChange={(e) => setForm({ ...form, company: e.target.value })}
-                  placeholder="Acme Inc."
-                  className="input-field rounded-lg"
-                />
+
+              <Input
+                label="Email address"
+                type="email"
+                required
+                autoFocus
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="contact@company.com"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="First name" value={form.first_name || ''} onChange={(e) => setForm({ ...form, first_name: e.target.value })} placeholder="John" />
+                <Input label="Last name" value={form.last_name || ''} onChange={(e) => setForm({ ...form, last_name: e.target.value })} placeholder="Doe" />
               </div>
-              <div className="flex justify-end gap-3 pt-3 border-t border-[var(--border-subtle)]">
-                <button type="button" onClick={closeCreateModal} className="btn-secondary rounded-lg">
-                  Cancel
-                </button>
-                <button type="submit" disabled={createMutation.isPending} className="btn-primary rounded-lg">
-                  {createMutation.isPending ? 'Saving...' : editId ? 'Update Contact' : 'Add Contact'}
-                </button>
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Company" value={form.company || ''} onChange={(e) => setForm({ ...form, company: e.target.value })} placeholder="Acme Inc." />
+                <Input label="Job title" value={form.job_title || ''} onChange={(e) => setForm({ ...form, job_title: e.target.value })} placeholder="Head of Growth" />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Phone" value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+1 555 000 1234" />
+                <Input label="Website" value={form.website || ''} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="company.com" />
+              </div>
+              <Input label="LinkedIn URL" value={form.linkedin_url || ''} onChange={(e) => setForm({ ...form, linkedin_url: e.target.value })} placeholder="linkedin.com/in/…" />
             </form>
-          </div>
-        </div>
-      )}
+          </Modal>
+        );
+      })()}
 
       {/* Import Modal */}
       {showImportModal && (
