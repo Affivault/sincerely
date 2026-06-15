@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { templateApi } from '../../api/template.api';
-import { Spinner } from '../../components/ui/Spinner';
+import { Skeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
@@ -986,8 +986,32 @@ export function TemplatesPage() {
 
       {/* Content */}
       {isLoading ? (
-        <div className="flex h-[40vh] items-center justify-center">
-          <Spinner size="lg" />
+        <div className={cn(
+          'grid gap-4',
+          tab === 'emails' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 lg:grid-cols-2'
+        )}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 space-y-3"
+              style={{ minHeight: tab === 'emails' ? 240 : 280 }}
+            >
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-4 w-2/5" />
+                <Skeleton className="h-4 w-14 rounded-full" />
+              </div>
+              <Skeleton className="h-2.5 w-3/4" />
+              <div className="pt-2 space-y-2">
+                <Skeleton className="h-2.5 w-full" />
+                <Skeleton className="h-2.5 w-5/6" />
+                <Skeleton className="h-2.5 w-2/3" />
+              </div>
+              <div className="flex items-center gap-2 pt-3">
+                <Skeleton className="h-7 w-20 rounded-lg" />
+                <Skeleton className="h-7 w-7 rounded-lg" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <>
