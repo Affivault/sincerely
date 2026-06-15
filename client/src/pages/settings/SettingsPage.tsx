@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { settingsApi, type UserSettings } from '../../api/settings.api';
 import { Button } from '../../components/ui/Button';
+import { Toggle } from '../../components/ui/Toggle';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { Avatar } from '../../components/shared/Avatar';
 import { cn } from '../../lib/utils';
@@ -782,18 +783,7 @@ function ToggleSetting({
         <p className="text-sm font-medium text-[var(--text-primary)]">{label}</p>
         <p className="text-xs text-[var(--text-tertiary)] mt-0.5">{description}</p>
       </div>
-      <button
-        onClick={() => onChange(!checked)}
-        className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
-          checked ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]'
-        }`}
-      >
-        <span
-          className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${
-            checked ? 'translate-x-5' : 'translate-x-0'
-          }`}
-        />
-      </button>
+      <Toggle checked={checked} onChange={onChange} aria-label={label} />
     </div>
   );
 }

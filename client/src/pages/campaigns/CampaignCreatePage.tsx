@@ -84,15 +84,16 @@ function ToggleSwitch({
       </div>
       <div
         className={cn(
-          'relative inline-flex h-[18px] w-[30px] flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out mt-0.5',
-          checked ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]'
+          'relative inline-flex h-[18px] w-[30px] flex-shrink-0 items-center rounded-full p-[2px] transition-colors duration-200 ease-out mt-0.5 shadow-[inset_0_1px_2px_rgba(15,15,25,0.18)]',
+          checked ? 'bg-[var(--indigo)]' : 'bg-[var(--border-strong)]'
         )}
       >
         <span
           className={cn(
-            'pointer-events-none inline-block h-[14px] w-[14px] transform rounded-full bg-white shadow transition duration-200 ease-in-out',
-            checked ? 'translate-x-3' : 'translate-x-0'
+            'pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-[0_1px_2px_rgba(15,15,25,0.3),0_1px_1px_rgba(15,15,25,0.15)] transition-transform duration-200',
+            checked ? 'translate-x-[12px]' : 'translate-x-0'
           )}
+          style={{ transitionTimingFunction: 'var(--ease-spring)' }}
         />
       </div>
     </button>
