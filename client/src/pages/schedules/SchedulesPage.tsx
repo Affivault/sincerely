@@ -6,6 +6,7 @@ import { sendingSchedulesApi, type SendingSchedule, type SendingScheduleInput } 
 import { PageHeader } from '../../components/shared/PageHeader';
 import { Card } from '../../components/shared/Card';
 import { Button } from '../../components/ui/Button';
+import { SkeletonList } from '../../components/ui/Skeleton';
 import { cn } from '../../lib/utils';
 
 const DAYS = [
@@ -71,7 +72,7 @@ export function SchedulesPage() {
 
       {/* List */}
       {isLoading ? (
-        <div className="text-center py-10 text-[var(--text-secondary)]">Loading schedules…</div>
+        <SkeletonList rows={4} />
       ) : schedules.length === 0 && !creating ? (
         <Card padding="lg" className="text-center">
           <div className="mx-auto w-10 h-10 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex items-center justify-center mb-2">
