@@ -40,6 +40,8 @@ import {
   Filter,
   Copy,
   Check,
+  ExternalLink,
+  Columns3,
 } from 'lucide-react';
 
 type ContactSortKey = 'first_name' | 'email' | 'company' | 'dcs_score' | 'created_at';
@@ -141,6 +143,70 @@ function CopyableEmail({ email }: { email: string }) {
     </span>
   );
 }
+
+function HealthCell({ c }: { c: any }) {
+  if (c.is_bounced) return (
+    <span className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-[10.5px] font-semibold text-rose-700 dark:text-rose-400 bg-rose-500/10">
+      <ShieldX className="h-3 w-3" />Bounced
+    </span>
+  );
+  if (c.is_unsubscribed) return (
+    <span className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-[10.5px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10">
+      <ShieldX className="h-3 w-3" />Opted out
+    </span>
+  );
+  if (c.dcs_score !== null && c.dcs_score !== undefined) return (
+    <span title={`Deliverability confidence: ${c.dcs_score}/100`} className={cn(
+      'inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-[10.5px] font-semibold tabular',
+      c.dcs_score >= 80 ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10'
+        : c.dcs_score >= 50 ? 'text-amber-700 dark:text-amber-400 bg-amber-500/10'
+        : 'text-rose-700 dark:text-rose-400 bg-rose-500/10'
+    )}>
+      {c.dcs_score >= 80 ? <ShieldCheck className="h-3 w-3" /> : c.dcs_score >= 50 ? <Shield className="h-3 w-3" /> : <ShieldX className="h-3 w-3" />}
+      {c.dcs_score}
+    </span>
+  );
+  return <span className="text-[11px] text-[var(--text-muted)]">—</span>;
+}
+
+const TextCell = ({ v, mono }: { v?: string | null; mono?: boolean }) =>
+  v ? <span className={cn('text-[12.5px] text-[var(--text-secondary)] truncate', mono && 'font-data')}>{v}</span>
+    : <span className="text-[12px] text-[var(--text-muted)]">—</span>;
+
+const LinkCell = ({ href, label }: { href?: string | null; label?: string | null }) => {
+  if (!href) return <span className="text-[12px] text-[var(--text-muted)]">—</span>;
+  const url = href.startsWith('http') ? href : `https://${href}`;
+  return (
+    <a href={url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+      className="inline-flex items-center gap-1 text-[12.5px] text-[var(--indigo)] hover:underline truncate font-data">
+      {(label || href).replace(/^https?:\/\//, '')}
+      <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
+    </a>
+  );
+};
+
+/* Configurable table columns, mapped to our contact fields (the same set
+   surfaced during CSV import). The Contact identity column is always shown;
+   these are the optional middle columns the user can toggle + reorder-by-default. */
+type ColumnId = 'email' | 'company' | 'job_title' | 'phone' | 'website' | 'linkedin_url' | 'added' | 'health';
+interface ColumnDef {
+  id: ColumnId;
+  label: string;
+  sortKey?: ContactSortKey;
+  tdClass?: string;
+  render: (c: any) => React.ReactNode;
+}
+const ALL_COLUMNS: ColumnDef[] = [
+  { id: 'email',       label: 'Email',     sortKey: 'email',      tdClass: 'max-w-[260px]', render: (c) => <CopyableEmail email={c.email} /> },
+  { id: 'company',     label: 'Company',   sortKey: 'company',    tdClass: 'max-w-[200px]', render: (c) => <CompanyCell company={c.company} /> },
+  { id: 'job_title',   label: 'Job title',                        tdClass: 'max-w-[180px]', render: (c) => <TextCell v={c.job_title} /> },
+  { id: 'phone',       label: 'Phone',                            render: (c) => <TextCell v={c.phone} mono /> },
+  { id: 'website',     label: 'Website',                          tdClass: 'max-w-[180px]', render: (c) => <LinkCell href={c.website} /> },
+  { id: 'linkedin_url',label: 'LinkedIn',                         tdClass: 'max-w-[180px]', render: (c) => <LinkCell href={c.linkedin_url} label={c.linkedin_url ? 'Profile' : null} /> },
+  { id: 'added',       label: 'Added',     sortKey: 'created_at', render: (c) => <span className="text-[11.5px] text-[var(--text-tertiary)] font-data" title={formatDate(c.created_at)}>{formatRelativeTime(c.created_at)}</span> },
+  { id: 'health',      label: 'Health',    sortKey: 'dcs_score',  render: (c) => <HealthCell c={c} /> },
+];
+const DEFAULT_COLUMNS: ColumnId[] = ['email', 'company', 'added', 'health'];
 
 
 export function ContactsListPage() {
@@ -446,6 +512,19 @@ export function ContactsListPage() {
   });
   const [draggingListId, setDraggingListId] = useState<string | null>(null);
   const [dropFolderKey, setDropFolderKey] = useState<string | null>(null);
+
+  // Configurable table columns (persisted), mapped to our contact fields
+  const [visibleColumns, setVisibleColumns] = useState<ColumnId[]>(() => {
+    try { const s = localStorage.getItem('contacts.columns'); if (s) return JSON.parse(s); } catch { /* ignore */ }
+    return DEFAULT_COLUMNS;
+  });
+  const [columnMenuOpen, setColumnMenuOpen] = useState(false);
+  const toggleColumn = (id: ColumnId) => setVisibleColumns((prev) => {
+    const next = prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id];
+    try { localStorage.setItem('contacts.columns', JSON.stringify(next)); } catch { /* ignore */ }
+    return next;
+  });
+  const orderedColumns = ALL_COLUMNS.filter((c) => visibleColumns.includes(c.id));
 
   return (
     <div className="flex gap-5">
@@ -782,6 +861,56 @@ export function ContactsListPage() {
               {totalContacts} result{totalContacts !== 1 ? 's' : ''}
             </span>
           )}
+
+          {/* Column picker — choose which contact fields show in the table */}
+          <div className="relative ml-auto">
+            <button
+              onClick={() => setColumnMenuOpen((o) => !o)}
+              className={cn(
+                'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-[12px] font-medium transition-colors',
+                columnMenuOpen
+                  ? 'border-[var(--indigo)] text-[var(--indigo)] bg-[var(--indigo-subtle)]'
+                  : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+              )}
+              title="Choose columns"
+            >
+              <Columns3 className="h-3.5 w-3.5" />
+              Columns
+              <span className="text-[10px] tabular text-[var(--text-tertiary)]">{orderedColumns.length}</span>
+            </button>
+            {columnMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setColumnMenuOpen(false)} />
+                <div className="absolute right-0 top-full mt-1.5 z-50 w-56 rounded-xl glass p-1.5 shadow-[var(--shadow-xl)] animate-slide-in">
+                  <p className="px-2 pt-1 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-tertiary)]">
+                    Visible columns
+                  </p>
+                  {ALL_COLUMNS.map((col) => {
+                    const on = visibleColumns.includes(col.id);
+                    return (
+                      <button
+                        key={col.id}
+                        onClick={() => toggleColumn(col.id)}
+                        className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Checkbox checked={on} onChange={() => toggleColumn(col.id)} aria-label={col.label} />
+                        <span className="flex-1 text-[12.5px] text-[var(--text-primary)]">{col.label}</span>
+                      </button>
+                    );
+                  })}
+                  <div className="border-t border-[var(--border-subtle)] mt-1 pt-1">
+                    <button
+                      onClick={() => { setVisibleColumns(DEFAULT_COLUMNS); try { localStorage.setItem('contacts.columns', JSON.stringify(DEFAULT_COLUMNS)); } catch { /* ignore */ } }}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[12px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      Reset to default
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Bulk actions bar */}
@@ -865,18 +994,13 @@ export function ContactsListPage() {
                   <th className="px-4 py-2.5 text-left">
                     <SortableHeader label="Contact" colKey="first_name" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                   </th>
-                  <th className="px-4 py-2.5 text-left">
-                    <SortableHeader label="Email" colKey="email" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
-                  </th>
-                  <th className="px-4 py-2.5 text-left">
-                    <SortableHeader label="Company" colKey="company" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
-                  </th>
-                  <th className="px-4 py-2.5 text-left">
-                    <SortableHeader label="Added" colKey="created_at" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
-                  </th>
-                  <th className="px-4 py-2.5 text-left">
-                    <SortableHeader label="Health" colKey="dcs_score" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
-                  </th>
+                  {orderedColumns.map((col) => (
+                    <th key={col.id} className="px-4 py-2.5 text-left">
+                      {col.sortKey
+                        ? <SortableHeader label={col.label} colKey={col.sortKey} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                        : <span className="font-data text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-tertiary)]">{col.label}</span>}
+                    </th>
+                  ))}
                   <th className="px-4 py-2.5 w-20"></th>
                 </tr>
               </thead>
@@ -917,49 +1041,11 @@ export function ContactsListPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 max-w-[260px]">
-                        <CopyableEmail email={contact.email} />
-                      </td>
-                      <td className="px-4 py-3 max-w-[200px]">
-                        <CompanyCell company={contact.company} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-[11.5px] text-[var(--text-tertiary)] font-data" title={formatDate(contact.created_at)}>
-                          {formatRelativeTime(contact.created_at)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {contact.is_bounced ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-[10.5px] font-semibold text-rose-700 dark:text-rose-400 bg-rose-500/10">
-                            <ShieldX className="h-3 w-3" />
-                            Bounced
-                          </span>
-                        ) : contact.is_unsubscribed ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-[10.5px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10">
-                            <ShieldX className="h-3 w-3" />
-                            Opted out
-                          </span>
-                        ) : contact.dcs_score !== null && contact.dcs_score !== undefined ? (
-                          <span title={`Deliverability confidence: ${contact.dcs_score}/100`} className={cn(
-                            'inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-[10.5px] font-semibold tabular',
-                            contact.dcs_score >= 80
-                              ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10'
-                              : contact.dcs_score >= 50
-                              ? 'text-amber-700 dark:text-amber-400 bg-amber-500/10'
-                              : 'text-rose-700 dark:text-rose-400 bg-rose-500/10'
-                          )}>
-                            {contact.dcs_score >= 80
-                              ? <ShieldCheck className="h-3 w-3" />
-                              : contact.dcs_score >= 50
-                              ? <Shield className="h-3 w-3" />
-                              : <ShieldX className="h-3 w-3" />
-                            }
-                            {contact.dcs_score}
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-[var(--text-muted)]">—</span>
-                        )}
-                      </td>
+                      {orderedColumns.map((col) => (
+                        <td key={col.id} className={cn('px-4 py-3', col.tdClass)}>
+                          {col.render(contact)}
+                        </td>
+                      ))}
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                           <button onClick={() => openEdit(contact)} className="icon-btn" title="Edit">
