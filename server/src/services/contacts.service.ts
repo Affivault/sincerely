@@ -229,6 +229,18 @@ export const contactsService = {
         if (trimmed === '') continue;
         row[k] = trimmed;
       }
+
+      // Arbitrary custom attributes (from custom-mapped CSV columns / API)
+      if (c.custom_fields && typeof c.custom_fields === 'object' && !Array.isArray(c.custom_fields)) {
+        const cf: Record<string, string> = {};
+        for (const [k, v] of Object.entries(c.custom_fields as Record<string, any>)) {
+          if (v == null) continue;
+          const tv = typeof v === 'string' ? v.trim() : String(v);
+          if (tv === '') continue;
+          cf[k] = tv;
+        }
+        if (Object.keys(cf).length > 0) row.custom_fields = cf;
+      }
       valid.push(row);
     }
 
@@ -408,7 +420,7 @@ export const contactsService = {
   async export(userId: string, contactIds?: string[], format: 'csv' | 'json' = 'csv') {
     let query = supabaseAdmin
       .from('contacts')
-      .select('email, first_name, last_name, company, job_title, phone, linkedin_url, website, source, is_unsubscribed, is_bounced, dcs_score, created_at')
+      .select('email, first_name, last_name, company, job_title, phone, linkedin_url, website, source, is_unsubscribed, is_bounced, dcs_score, custom_fields, created_at')
       .eq('user_id', userId);
 
     if (contactIds && contactIds.length > 0) {
@@ -422,8 +434,14 @@ export const contactsService = {
       return { data, format: 'json' };
     }
 
-    // CSV format
-    const csv = Papa.unparse(data || []);
+    // CSV format — flatten custom_fields JSON into top-level columns
+    const flat = (data || []).map((r: any) => {
+      const { custom_fields, ...rest } = r;
+      return (custom_fields && typeof custom_fields === 'object' && !Array.isArray(custom_fields))
+        ? { ...rest, ...custom_fields }
+        : rest;
+    });
+    const csv = Papa.unparse(flat);
     return { data: csv, format: 'csv' };
   },
 

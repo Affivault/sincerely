@@ -33,6 +33,7 @@ const DB_FIELDS = [
   { value: 'phone',       label: 'Phone' },
   { value: 'linkedin_url',label: 'LinkedIn URL' },
   { value: 'website',     label: 'Website' },
+  { value: '__custom__',  label: 'Custom field (keep column name)' },
 ];
 
 const BATCH_SIZE = 100;
@@ -156,10 +157,12 @@ export function BulkImportPage() {
     if (f) handleFile(f);
   };
 
-  // Validation for the mapping step
+  // Validation for the mapping step. Multiple columns may map to a custom
+  // field, so only standard targets are checked for duplicates.
   const mappedFields = Object.values(mapping).filter(Boolean);
-  const hasEmail = mappedFields.includes('email');
-  const dupes = mappedFields.filter((f, i) => mappedFields.indexOf(f) !== i);
+  const standardMapped = mappedFields.filter((f) => f !== '__custom__');
+  const hasEmail = standardMapped.includes('email');
+  const dupes = standardMapped.filter((f, i) => standardMapped.indexOf(f) !== i);
   const mappingValid = hasEmail && dupes.length === 0;
 
   // Compute rows that will be imported (skip ones with no mapped email)
@@ -186,7 +189,11 @@ export function BulkImportPage() {
       for (const [csvCol, dbField] of Object.entries(mapping)) {
         if (!dbField) continue;
         const v = row[csvCol];
-        if (v != null && String(v).trim() !== '') {
+        if (v == null || String(v).trim() === '') continue;
+        if (dbField === '__custom__') {
+          // Use the CSV header as the custom-field key
+          (c.custom_fields ||= {})[csvCol] = String(v).trim();
+        } else {
           c[dbField] = String(v).trim();
         }
       }

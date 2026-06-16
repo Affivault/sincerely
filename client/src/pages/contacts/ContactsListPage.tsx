@@ -513,18 +513,31 @@ export function ContactsListPage() {
   const [draggingListId, setDraggingListId] = useState<string | null>(null);
   const [dropFolderKey, setDropFolderKey] = useState<string | null>(null);
 
-  // Configurable table columns (persisted), mapped to our contact fields
-  const [visibleColumns, setVisibleColumns] = useState<ColumnId[]>(() => {
+  // Configurable table columns (persisted), mapped to our contact fields.
+  // Standard column ids come from ALL_COLUMNS; custom fields use a `cf:<key>` id.
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     try { const s = localStorage.getItem('contacts.columns'); if (s) return JSON.parse(s); } catch { /* ignore */ }
     return DEFAULT_COLUMNS;
   });
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
-  const toggleColumn = (id: ColumnId) => setVisibleColumns((prev) => {
+  const toggleColumn = (id: string) => setVisibleColumns((prev) => {
     const next = prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id];
     try { localStorage.setItem('contacts.columns', JSON.stringify(next)); } catch { /* ignore */ }
     return next;
   });
   const orderedColumns = ALL_COLUMNS.filter((c) => visibleColumns.includes(c.id));
+
+  // Discover custom-field keys present on the loaded contacts so they can be
+  // surfaced as optional columns (parity with our import field mapping).
+  const customFieldKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of (contactsData?.data || []) as any[]) {
+      const cf = c?.custom_fields;
+      if (cf && typeof cf === 'object') for (const k of Object.keys(cf)) set.add(k);
+    }
+    return [...set].sort();
+  }, [contactsData]);
+  const activeCustomKeys = customFieldKeys.filter((k) => visibleColumns.includes(`cf:${k}`));
 
   return (
     <div className="flex gap-5">
@@ -898,6 +911,29 @@ export function ContactsListPage() {
                       </button>
                     );
                   })}
+
+                  {customFieldKeys.length > 0 && (
+                    <>
+                      <p className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-tertiary)]">
+                        Custom fields
+                      </p>
+                      {customFieldKeys.map((key) => {
+                        const id = `cf:${key}`;
+                        const on = visibleColumns.includes(id);
+                        return (
+                          <button
+                            key={id}
+                            onClick={() => toggleColumn(id)}
+                            className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left hover:bg-[var(--bg-hover)] transition-colors"
+                          >
+                            <Checkbox checked={on} onChange={() => toggleColumn(id)} aria-label={key} />
+                            <span className="flex-1 text-[12.5px] text-[var(--text-primary)] truncate">{key}</span>
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
+
                   <div className="border-t border-[var(--border-subtle)] mt-1 pt-1">
                     <button
                       onClick={() => { setVisibleColumns(DEFAULT_COLUMNS); try { localStorage.setItem('contacts.columns', JSON.stringify(DEFAULT_COLUMNS)); } catch { /* ignore */ } }}
@@ -1001,6 +1037,11 @@ export function ContactsListPage() {
                         : <span className="font-data text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-tertiary)]">{col.label}</span>}
                     </th>
                   ))}
+                  {activeCustomKeys.map((key) => (
+                    <th key={`cf:${key}`} className="px-4 py-2.5 text-left">
+                      <span className="font-data text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-tertiary)] truncate">{key}</span>
+                    </th>
+                  ))}
                   <th className="px-4 py-2.5 w-20"></th>
                 </tr>
               </thead>
@@ -1044,6 +1085,13 @@ export function ContactsListPage() {
                       {orderedColumns.map((col) => (
                         <td key={col.id} className={cn('px-4 py-3', col.tdClass)}>
                           {col.render(contact)}
+                        </td>
+                      ))}
+                      {activeCustomKeys.map((key) => (
+                        <td key={`cf:${key}`} className="px-4 py-3 max-w-[200px]">
+                          {contact.custom_fields?.[key]
+                            ? <span className="text-[12.5px] text-[var(--text-secondary)] truncate">{contact.custom_fields[key]}</span>
+                            : <span className="text-[12px] text-[var(--text-muted)]">—</span>}
                         </td>
                       ))}
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
