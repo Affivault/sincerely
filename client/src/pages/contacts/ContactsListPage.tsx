@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { contactsApi, listsApi } from '../../api/contacts.api';
 import { listFoldersApi, type ListFolder } from '../../api/list-folders.api';
 import { verificationApi } from '../../api/verification.api';
+import { settingsApi } from '../../api/settings.api';
 import { Spinner } from '../../components/ui/Spinner';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Checkbox } from '../../components/ui/Checkbox';
@@ -326,6 +327,10 @@ export function ContactsListPage() {
     return {};
   }, [healthFilter]);
 
+  // Auto-verify preference — drives the live "verifying…" affordance
+  const { data: userSettings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get });
+  const autoVerifyOn = userSettings?.auto_verify_contacts ?? true;
+
   const { data: contactsData, isLoading } = useQuery({
     queryKey: ['contacts', page, search, activeListId, sortBy, sortDir, healthFilter],
     queryFn: () => contactsApi.list({
@@ -337,6 +342,13 @@ export function ContactsListPage() {
       sort_order: sortDir,
       ...healthParams,
     }),
+    // While auto-verify is on and some visible contacts are still pending,
+    // poll so their status flips live as the background worker processes them.
+    refetchInterval: (query) => {
+      if (!autoVerifyOn) return false;
+      const rows = ((query.state.data as any)?.data || []) as any[];
+      return rows.some((r) => !r.dcs_verified_at && !r.is_bounced) ? 12000 : false;
+    },
   });
 
   const { data: lists } = useQuery({
@@ -585,6 +597,7 @@ export function ContactsListPage() {
   const totalContacts = contactsData?.total || 0;
   const allSelected = contacts.length > 0 && selectedContacts.size === contacts.length;
   const someSelected = selectedContacts.size > 0;
+  const pendingOnPage = (contacts as any[]).filter((c) => !c.dcs_verified_at && !c.is_bounced).length;
 
   const currentListName = activeListId && lists
     ? lists.find((l) => l.id === activeListId)?.name || 'List'
@@ -963,6 +976,14 @@ export function ContactsListPage() {
           {search && (
             <span className="text-[11px] font-medium text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-2.5 py-1 rounded-md">
               {totalContacts} result{totalContacts !== 1 ? 's' : ''}
+            </span>
+          )}
+
+          {/* Live auto-verification indicator */}
+          {autoVerifyOn && pendingOnPage > 0 && (
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--indigo)] bg-[var(--indigo-subtle)] px-2.5 h-7 rounded-lg" title="Contacts are being verified in the background">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Verifying {pendingOnPage} on this page…
             </span>
           )}
 

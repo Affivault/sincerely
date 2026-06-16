@@ -3,6 +3,7 @@ import { env } from './config/env.js';
 import { startEmailWorker } from './jobs/workers/email.worker.js';
 import { startSequenceWorker } from './jobs/workers/sequence.worker.js';
 import { startInboxWorker } from './jobs/workers/inbox.worker.js';
+import { startVerificationWorker } from './jobs/workers/verification.worker.js';
 import { scheduleInboxSync } from './jobs/schedulers/inbox.scheduler.js';
 
 const port = parseInt(env.PORT, 10);
@@ -47,6 +48,15 @@ const server = app.listen(port, () => {
     console.log('Inbox sync scheduler started');
   } catch (err: any) {
     console.warn('Inbox scheduler failed to start:', err.message);
+  }
+
+  // Auto-verify contacts in the background (throttled)
+  try {
+    const verifyWorker = startVerificationWorker();
+    if (verifyWorker) disposers.push(() => verifyWorker.stop());
+    console.log('Verification worker started');
+  } catch (err: any) {
+    console.warn('Verification worker failed to start:', err.message);
   }
 });
 

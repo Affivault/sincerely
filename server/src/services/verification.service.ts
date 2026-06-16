@@ -310,6 +310,51 @@ export async function batchVerify(
 }
 
 /**
+ * Background auto-verification: drain a small, throttled batch of unverified
+ * contacts belonging to users who opted in (user_settings.auto_verify_contacts).
+ * Keeps the verification status column populated — including freshly imported
+ * contacts — without hammering remote mail servers. Returns count processed.
+ */
+export async function autoVerifyPending(maxContacts = 10): Promise<number> {
+  const { data: optedIn } = await supabaseAdmin
+    .from('user_settings')
+    .select('user_id')
+    .eq('auto_verify_contacts', true);
+
+  const userIds = (optedIn || []).map((r: any) => r.user_id).filter(Boolean);
+  if (userIds.length === 0) return 0;
+
+  const { data: contacts } = await supabaseAdmin
+    .from('contacts')
+    .select('id, email')
+    .is('dcs_verified_at', null)
+    .in('user_id', userIds)
+    .limit(maxContacts);
+
+  if (!contacts || contacts.length === 0) return 0;
+
+  let processed = 0;
+  for (const contact of contacts) {
+    // verifyEmail handles its own errors and always resolves to a result,
+    // so dcs_verified_at always gets stamped — no infinite retry loop.
+    const result = await verifyEmail(contact.email);
+    await supabaseAdmin
+      .from('contacts')
+      .update({
+        dcs_score: result.score,
+        dcs_syntax_ok: result.syntax_ok,
+        dcs_domain_ok: result.domain_ok,
+        dcs_smtp_ok: result.smtp_ok,
+        dcs_verified_at: new Date().toISOString(),
+        dcs_fail_reason: result.fail_reason,
+      })
+      .eq('id', contact.id);
+    processed++;
+  }
+  return processed;
+}
+
+/**
  * Get DCS stats for a user's contacts.
  */
 export async function getDcsStats(userId: string): Promise<{

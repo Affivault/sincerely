@@ -22,6 +22,7 @@ export interface UserSettings {
   sara_auto_bounce: boolean;
   sara_draft_replies: boolean;
   ai_tagging_enabled: boolean;
+  auto_verify_contacts: boolean;
   created_at: string;
   updated_at: string;
 }

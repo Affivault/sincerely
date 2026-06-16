@@ -75,6 +75,7 @@ export function SettingsPage() {
   const [aiAutoClassify, setAiAutoClassify] = useState(true);
   const [aiAutoUnsubscribe, setAiAutoUnsubscribe] = useState(true);
   const [aiAutoBounce, setAiAutoBounce] = useState(true);
+  const [autoVerifyContacts, setAutoVerifyContacts] = useState(true);
 
   // Password change
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -112,6 +113,7 @@ export function SettingsPage() {
       setAiAutoClassify(settings.sara_auto_classify ?? true);
       setAiAutoUnsubscribe(settings.sara_auto_unsubscribe ?? true);
       setAiAutoBounce(settings.sara_auto_bounce ?? true);
+      setAutoVerifyContacts((settings as any).auto_verify_contacts ?? true);
       setHasChanges(false);
     }
   }, [settings]);
@@ -153,6 +155,7 @@ export function SettingsPage() {
       sara_auto_bounce: aiAutoBounce,
       sara_draft_replies: false,
       ai_tagging_enabled: aiTaggingEnabled,
+      auto_verify_contacts: autoVerifyContacts,
     });
   };
 
@@ -638,6 +641,16 @@ export function SettingsPage() {
                   <p className="mt-2 text-xs text-[var(--text-tertiary)]">
                     Use {'{{signature}}'} in emails to insert this
                   </p>
+                </div>
+
+                <div className="pt-2">
+                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">Deliverability</label>
+                  <ToggleSetting
+                    label="Auto-verify contacts"
+                    description="Automatically check new and imported contacts in the background (syntax, mail server & mailbox) so the verification status stays up to date."
+                    checked={autoVerifyContacts}
+                    onChange={(v) => { setAutoVerifyContacts(v); markChanged(); }}
+                  />
                 </div>
               </div>
             )}
