@@ -5,6 +5,7 @@ import { useSpotlight } from '../../hooks/useSpotlight';
 import { CountUp } from '../../components/ui/CountUp';
 import { analyticsApi, type TrendDataPoint } from '../../api/analytics.api';
 import { inboxApi } from '../../api/inbox.api';
+import { smtpApi } from '../../api/smtp.api';
 import { useUnreadCount } from '../../hooks/useUnreadCount';
 import { useAuth } from '../../context/AuthContext';
 import { Skeleton } from '../../components/ui/Skeleton';
@@ -13,7 +14,7 @@ import { Avatar } from '../../components/shared/Avatar';
 import {
   Plus, Send, MailOpen, MousePointerClick, MessageSquare, Inbox,
   ChevronRight, ArrowUp, ArrowDown, Download, ShieldCheck, Megaphone,
-  Users, Activity, Filter, BarChart3, Trophy, AlertTriangle, Zap,
+  Users, Activity, Filter, BarChart3, Trophy, AlertTriangle, Zap, X,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { cn } from '../../lib/utils';
@@ -380,6 +381,44 @@ const STATUS_DOT: Record<string, string> = {
   scheduled: '#6366F1', completed: 'var(--text-tertiary)', cancelled: '#F43F5E',
 };
 
+/* ─── SMTP health warning banner ────────────────────── */
+const SMTP_HEALTH_THRESHOLD = 50;
+
+function SmtpHealthBanner({ accounts, onDismiss }: {
+  accounts: Array<{ id: string; label: string; email_address: string; health_score: number }>;
+  onDismiss: () => void;
+}) {
+  const single = accounts.length === 1;
+  return (
+    <div className="flex items-start gap-3 rounded-[10px] border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
+      <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" strokeWidth={2} />
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-semibold text-amber-900 dark:text-amber-200 leading-snug">
+          {single
+            ? `Sending account "${accounts[0].label}" has a low health score (${accounts[0].health_score}/100)`
+            : `${accounts.length} sending accounts have low health scores`}
+        </p>
+        <p className="mt-0.5 text-[12px] text-amber-700 dark:text-amber-400">
+          {single
+            ? 'High bounce rates can hurt deliverability. Review this account's sending activity.'
+            : `Accounts affected: ${accounts.map((a) => a.label || a.email_address).join(', ')}.`}
+          {' '}
+          <Link to="/smtp" className="font-semibold underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-200 transition-colors">
+            Manage SMTP accounts →
+          </Link>
+        </p>
+      </div>
+      <button
+        onClick={onDismiss}
+        aria-label="Dismiss warning"
+        className="flex-shrink-0 p-0.5 rounded text-amber-600 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 transition-colors"
+      >
+        <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+      </button>
+    </div>
+  );
+}
+
 /* ─── Loading skeleton ──────────────────────────────── */
 function DashboardSkeleton() {
   return (
@@ -411,6 +450,7 @@ export function DashboardPage() {
     return [7, 30, 90].includes(saved) ? saved : 30;
   });
   const [metric, setMetric] = useState<MetricKey>('sent');
+  const [smtpBannerDismissed, setSmtpBannerDismissed] = useState(false);
 
   const setPeriodPersist = (p: number) => { setPeriod(p); try { localStorage.setItem('dashboard.period', String(p)); } catch { /* ignore */ } };
 
@@ -434,8 +474,16 @@ export function DashboardPage() {
     queryKey: ['inbox', 'dashboard'],
     queryFn: () => inboxApi.list({ limit: 5, folder: 'inbox' }),
   });
+  const { data: smtpAccounts } = useQuery({
+    queryKey: ['smtp', 'accounts'],
+    queryFn: () => smtpApi.list(),
+    staleTime: 5 * 60 * 1000,
+  });
 
   if (analyticsLoading && trendLoading) return <DashboardSkeleton />;
+
+  const unhealthySmtpAccounts = (smtpAccounts || [])
+    .filter((a) => a.is_active && a.health_score < SMTP_HEALTH_THRESHOLD);
 
   const s = analytics || {
     total_campaigns: 0, active_campaigns: 0, total_contacts: 0,
@@ -516,6 +564,14 @@ export function DashboardPage() {
           </button>
         </div>
       </header>
+
+      {/* ── SMTP health warning banner ── */}
+      {!smtpBannerDismissed && unhealthySmtpAccounts.length > 0 && (
+        <SmtpHealthBanner
+          accounts={unhealthySmtpAccounts}
+          onDismiss={() => setSmtpBannerDismissed(true)}
+        />
+      )}
 
       {/* ── Editorial hero — the headline-number moment ── */}
       <section className="panel relative overflow-hidden">

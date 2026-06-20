@@ -314,6 +314,7 @@ export const campaignsService = {
         condition_field: s.condition_field,
         condition_operator: s.condition_operator,
         condition_value: s.condition_value,
+        true_branch_step: s.true_branch_step,
         false_branch_step: s.false_branch_step,
         webhook_event: s.webhook_event,
         webhook_timeout_hours: s.webhook_timeout_hours,

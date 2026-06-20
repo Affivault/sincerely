@@ -552,6 +552,7 @@ export const inboxService = {
     await supabaseAdmin.from('inbox_messages').insert({
       user_id: userId,
       campaign_id: original.campaign_id,
+      campaign_contact_id: original.campaign_contact_id,
       contact_id: original.contact_id,
       smtp_account_id: smtpAccount.id,
       from_email: smtpAccount.email_address,

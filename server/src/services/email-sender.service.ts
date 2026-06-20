@@ -311,6 +311,7 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
       step_id: stepId,
       activity_type: 'sent',
       message_id: messageId,
+      occurred_at: new Date().toISOString(),
       metadata: {
         subject, to,
         smtp_account_id: smtpAccount.id,

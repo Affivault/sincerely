@@ -123,6 +123,21 @@ export async function recordSend(accountId: string): Promise<void> {
  * Record a bounce - decrement health score.
  */
 export async function recordBounce(accountId: string): Promise<void> {
+  // Atomically increment the bounce counter (mirrors recordSend's RPC approach)
+  let rpcSucceeded = false;
+  try {
+    await supabaseAdmin.rpc('increment_field', {
+      table_name: 'smtp_accounts',
+      field_name: 'total_bounced',
+      row_id: accountId,
+    });
+    rpcSucceeded = true;
+  } catch {
+    // RPC not available — fall back to manual update below
+  }
+
+  // Health score requires a clamped decrement (GREATEST(0, score-5)) which
+  // can't be expressed atomically via the generic RPC, so we do read-modify-write here.
   const { data, error } = await supabaseAdmin
     .from('smtp_accounts')
     .select('health_score, total_bounced')
@@ -140,8 +155,9 @@ export async function recordBounce(accountId: string): Promise<void> {
       .from('smtp_accounts')
       .update({
         health_score: newHealth,
-        total_bounced: data.total_bounced + 1,
         last_bounce_at: new Date().toISOString(),
+        // Only include total_bounced in fallback — RPC already incremented it atomically
+        ...(!rpcSucceeded ? { total_bounced: data.total_bounced + 1 } : {}),
       })
       .eq('id', accountId);
   }
