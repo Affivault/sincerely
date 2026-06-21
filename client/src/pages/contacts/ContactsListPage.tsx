@@ -476,6 +476,7 @@ export function ContactsListPage() {
 
   // Bulk tag + move state
   const [showTagModal, setShowTagModal] = useState(false);
+  const [tagMode, setTagMode] = useState<'add' | 'remove'>('add');
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [tagSel, setTagSel] = useState<Set<string>>(new Set());
   const [moveTargetId, setMoveTargetId] = useState<string | null>(null);
@@ -492,6 +493,26 @@ export function ContactsListPage() {
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to add tags'),
   });
+
+  const bulkUntagMutation = useMutation({
+    mutationFn: (tagIds: string[]) => contactsApi.bulkUntag(Array.from(selectedContacts), tagIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      toast.success('Tags removed');
+      setShowTagModal(false); setTagSel(new Set()); setSelectedContacts(new Set());
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to remove tags'),
+  });
+
+  // Tags actually present on the current selection — used for the remove view
+  const selectionTags = useMemo(() => {
+    const map = new Map<string, Tag>();
+    for (const c of (contactsData?.data || []) as any[]) {
+      if (!selectedContacts.has(c.id)) continue;
+      for (const t of (c.tags || []) as Tag[]) map.set(t.id, t);
+    }
+    return [...map.values()];
+  }, [contactsData, selectedContacts]);
 
   const createTagMutation = useMutation({
     mutationFn: (name: string) => tagsApi.create({ name }),
@@ -1136,9 +1157,13 @@ export function ContactsListPage() {
                 {batchVerifyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
                 Verify emails
               </button>
-              <button onClick={() => { setTagSel(new Set()); setShowTagModal(true); }} className="btn-secondary text-sm h-8 rounded-lg">
+              <button onClick={() => { setTagMode('add'); setTagSel(new Set()); setShowTagModal(true); }} className="btn-secondary text-sm h-8 rounded-lg">
                 <TagIcon className="h-3.5 w-3.5" />
                 Add tags
+              </button>
+              <button onClick={() => { setTagMode('remove'); setTagSel(new Set()); setShowTagModal(true); }} className="btn-secondary text-sm h-8 rounded-lg">
+                <TagIcon className="h-3.5 w-3.5" />
+                Remove tags
               </button>
               <button onClick={() => setShowAddToListModal(true)} className="btn-secondary text-sm h-8 rounded-lg">
                 <FolderOpen className="h-3.5 w-3.5" />
@@ -1662,54 +1687,74 @@ export function ContactsListPage() {
         </Modal>
       )}
 
-      {/* Add Tags Modal */}
-      {showTagModal && (
-        <Modal
-          isOpen={showTagModal}
-          onClose={() => setShowTagModal(false)}
-          title="Add tags"
-          description={`Tag ${selectedContacts.size} contact${selectedContacts.size !== 1 ? 's' : ''}.`}
-          size="sm"
-          footer={
-            <>
-              <Button variant="secondary" size="md" onClick={() => setShowTagModal(false)}>Cancel</Button>
-              <Button size="md" disabled={tagSel.size === 0 || bulkTagMutation.isPending} onClick={() => bulkTagMutation.mutate(Array.from(tagSel))}>
-                {bulkTagMutation.isPending ? 'Applying…' : `Apply ${tagSel.size || ''} tag${tagSel.size !== 1 ? 's' : ''}`.trim()}
-              </Button>
-            </>
-          }
-        >
-          <form
-            onSubmit={(e) => { e.preventDefault(); if (newTagName.trim()) createTagMutation.mutate(newTagName.trim()); }}
-            className="flex gap-2 mb-3"
-          >
-            <Input value={newTagName} onChange={(e) => setNewTagName(e.target.value)} placeholder="Create a new tag…" className="flex-1" />
-            <Button type="submit" variant="secondary" size="md" disabled={!newTagName.trim() || createTagMutation.isPending}>Add</Button>
-          </form>
-          <div className="flex flex-wrap gap-1.5 max-h-56 overflow-y-auto">
-            {tags.length === 0 && <p className="text-[12.5px] text-[var(--text-tertiary)] py-2">No tags yet — create one above.</p>}
-            {tags.map((tag) => {
-              const on = tagSel.has(tag.id);
-              return (
-                <button
-                  key={tag.id}
-                  type="button"
-                  onClick={() => setTagSel((prev) => { const n = new Set(prev); n.has(tag.id) ? n.delete(tag.id) : n.add(tag.id); return n; })}
-                  className={cn(
-                    'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium border transition-colors',
-                    on ? 'bg-[var(--indigo-subtle)] border-[var(--indigo)] text-[var(--indigo)]'
-                       : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)]'
-                  )}
+      {/* Add / Remove Tags Modal */}
+      {showTagModal && (() => {
+        const removing = tagMode === 'remove';
+        const choices = removing ? selectionTags : tags;
+        return (
+          <Modal
+            isOpen={showTagModal}
+            onClose={() => setShowTagModal(false)}
+            title={removing ? 'Remove tags' : 'Add tags'}
+            description={`${removing ? 'Remove tags from' : 'Tag'} ${selectedContacts.size} contact${selectedContacts.size !== 1 ? 's' : ''}.`}
+            size="sm"
+            footer={
+              <>
+                <Button variant="secondary" size="md" onClick={() => setShowTagModal(false)}>Cancel</Button>
+                <Button
+                  size="md"
+                  variant={removing ? 'danger' : 'primary'}
+                  disabled={tagSel.size === 0 || bulkTagMutation.isPending || bulkUntagMutation.isPending}
+                  onClick={() => (removing ? bulkUntagMutation : bulkTagMutation).mutate(Array.from(tagSel))}
                 >
-                  <span className="h-2 w-2 rounded-full" style={{ background: (tag as any).color || 'var(--text-tertiary)' }} />
-                  {tag.name}
-                  {on && <Check className="h-3 w-3" />}
-                </button>
-              );
-            })}
-          </div>
-        </Modal>
-      )}
+                  {(removing ? bulkUntagMutation.isPending : bulkTagMutation.isPending)
+                    ? (removing ? 'Removing…' : 'Applying…')
+                    : `${removing ? 'Remove' : 'Apply'} ${tagSel.size || ''} tag${tagSel.size !== 1 ? 's' : ''}`.replace('  ', ' ').trim()}
+                </Button>
+              </>
+            }
+          >
+            {!removing && (
+              <form
+                onSubmit={(e) => { e.preventDefault(); if (newTagName.trim()) createTagMutation.mutate(newTagName.trim()); }}
+                className="flex gap-2 mb-3"
+              >
+                <Input value={newTagName} onChange={(e) => setNewTagName(e.target.value)} placeholder="Create a new tag…" className="flex-1" />
+                <Button type="submit" variant="secondary" size="md" disabled={!newTagName.trim() || createTagMutation.isPending}>Add</Button>
+              </form>
+            )}
+            <div className="flex flex-wrap gap-1.5 max-h-56 overflow-y-auto">
+              {choices.length === 0 && (
+                <p className="text-[12.5px] text-[var(--text-tertiary)] py-2">
+                  {removing ? 'The selected contacts have no tags to remove.' : 'No tags yet — create one above.'}
+                </p>
+              )}
+              {choices.map((tag) => {
+                const on = tagSel.has(tag.id);
+                return (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    onClick={() => setTagSel((prev) => { const n = new Set(prev); n.has(tag.id) ? n.delete(tag.id) : n.add(tag.id); return n; })}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium border transition-colors',
+                      on
+                        ? (removing
+                            ? 'bg-rose-500/10 border-rose-500 text-rose-600 dark:text-rose-400'
+                            : 'bg-[var(--indigo-subtle)] border-[var(--indigo)] text-[var(--indigo)]')
+                        : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)]'
+                    )}
+                  >
+                    <span className="h-2 w-2 rounded-full" style={{ background: (tag as any).color || 'var(--text-tertiary)' }} />
+                    {tag.name}
+                    {on && <Check className="h-3 w-3" />}
+                  </button>
+                );
+              })}
+            </div>
+          </Modal>
+        );
+      })()}
 
       {/* Move to List Modal (moves selected out of the current list into another) */}
       {showMoveModal && (
