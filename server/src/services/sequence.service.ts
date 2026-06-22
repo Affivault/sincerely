@@ -335,8 +335,11 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
   } catch (err: any) {
     console.error(`[Sequence] Email send failed for ${cc.contacts.email}:`, err.message);
 
-    // Check for bounce — use Number() to safely handle string/undefined responseCode
-    const isBounce = Number(err.responseCode) >= 500 || err.code === 'EENVELOPE';
+    // Check for bounce: Number(undefined) = NaN which fails >= 500, so also check the string form
+    const responseCode = Number(err.responseCode);
+    const isBounce = (!isNaN(responseCode) && responseCode >= 500)
+      || String(err.responseCode || '').startsWith('5')
+      || err.code === 'EENVELOPE';
     if (isBounce) {
       await supabaseAdmin
         .from('campaign_contacts')
@@ -709,7 +712,7 @@ async function advanceToNextStep(
 }
 
 async function markCompleted(campaignContactId: string): Promise<void> {
-  const { data: cc } = await supabaseAdmin
+  const { data: cc, error: updateErr } = await supabaseAdmin
     .from('campaign_contacts')
     .update({
       status: 'completed',
@@ -718,6 +721,11 @@ async function markCompleted(campaignContactId: string): Promise<void> {
     .eq('id', campaignContactId)
     .select('campaign_id')
     .single();
+
+  if (updateErr) {
+    console.error(`[Sequence] Failed to mark contact ${campaignContactId} completed:`, updateErr.message);
+    return;
+  }
 
   if (cc?.campaign_id) {
     checkAndAutoCompleteCampaign(cc.campaign_id).catch(() => {});

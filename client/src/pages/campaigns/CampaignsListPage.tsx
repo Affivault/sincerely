@@ -565,8 +565,17 @@ function CampaignRow({ campaign, expanded, onToggleSnapshot, onOpen, onLaunch, o
         <div className="h-1.5 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
           <div className="h-full rounded-full bg-[var(--indigo)] transition-all duration-500" style={{ width: `${pipelinePct}%` }} />
         </div>
-        <div className="text-[9.5px] tabular text-[var(--text-tertiary)] mt-1 truncate">
+        <div className="text-[9.5px] tabular text-[var(--text-tertiary)] mt-1 truncate flex items-center gap-1">
           {total.toLocaleString()} / {totalContacts.toLocaleString()} sent
+          {campaign.status === 'running' && (campaign.active_contacts ?? 0) > 0 && (
+            <span
+              className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-500 flex-shrink-0"
+              title={`${campaign.active_contacts} contact${campaign.active_contacts === 1 ? '' : 's'} still in sequence`}
+            >
+              <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse inline-block" />
+              {campaign.active_contacts}
+            </span>
+          )}
         </div>
       </div>
 

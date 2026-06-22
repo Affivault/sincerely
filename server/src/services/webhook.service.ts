@@ -195,6 +195,8 @@ async function deliverWebhook(
       success = response.ok;
 
       if (success) break;
+      // 4xx = permanent client error (bad URL, auth, payload) — no point retrying
+      if (statusCode >= 400 && statusCode < 500) break;
     } catch (err: any) {
       console.error(`[Webhook] Delivery attempt ${attempt} to ${endpoint.url} failed:`, err.message);
       statusCode = 0;
