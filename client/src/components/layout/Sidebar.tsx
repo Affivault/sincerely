@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, Send, Globe, LogOut, PanelLeftClose,
   ShieldOff, UserPlus, CalendarClock, Layers,
-  ChevronRight, Wrench,
+  ChevronRight, Wrench, PanelLeftOpen,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
@@ -270,32 +270,30 @@ export function Sidebar() {
         collapsed ? 'w-[60px]' : 'w-[244px]'
       )}
     >
-      {/* Logo */}
-      <div className={cn(
-        'flex items-center h-[56px] border-b border-[var(--border-subtle)] flex-shrink-0',
-        collapsed ? 'justify-center px-2' : 'px-4 gap-2'
-      )}>
-        {collapsed ? (
+      {/* Logo — always the brand, never a toggle */}
+      {collapsed ? (
+        <div className="flex flex-col items-center gap-1.5 py-2.5 px-2 border-b border-[var(--border-subtle)] flex-shrink-0">
+          <SkySendLogoMark className="h-6 w-6 flex-shrink-0" />
           <button
             onClick={toggle}
-            className="flex items-center justify-center p-1.5 rounded-md hover:bg-[var(--bg-hover)] transition-colors"
             title="Expand sidebar"
+            className="flex items-center justify-center h-7 w-7 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
           >
-            <SkySendLogoMark className="h-5 w-5 flex-shrink-0" />
+            <PanelLeftOpen className="h-4 w-4" />
           </button>
-        ) : (
-          <>
-            <span className="flex-1 overflow-hidden"><SkySendLogo /></span>
-            <button
-              onClick={toggle}
-              className="flex-shrink-0 p-1.5 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-              title="Collapse sidebar"
-            >
-              <PanelLeftClose className="h-3.5 w-3.5" />
-            </button>
-          </>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="flex items-center h-[56px] px-4 gap-2 border-b border-[var(--border-subtle)] flex-shrink-0">
+          <span className="flex-1 overflow-hidden"><SkySendLogo /></span>
+          <button
+            onClick={toggle}
+            title="Collapse sidebar"
+            className="flex-shrink-0 p-1.5 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+          >
+            <PanelLeftClose className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className={cn(
