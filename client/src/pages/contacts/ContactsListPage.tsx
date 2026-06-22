@@ -772,10 +772,42 @@ export function ContactsListPage() {
   const hiddenColumns = availableColumns.filter((c) => !visibleColumns.includes(c.id));
 
   return (
-    <div className="flex gap-5">
-      {/* Sidebar */}
-      <div className="w-52 flex-shrink-0" onClick={() => setListContextMenu(null)}>
-        <div className="sticky top-14 panel-inset p-1.5 space-y-0.5">
+    <div>
+      {/* Full-width page header */}
+      <PageHeader
+        leading={
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(99,102,241,0.18)]">
+            <Users className="h-4 w-4 text-[var(--indigo)]" />
+          </span>
+        }
+        title={currentListName}
+        description={totalContacts === 0
+          ? 'No contacts yet — start building your audience'
+          : `${totalContacts.toLocaleString()} contact${totalContacts !== 1 ? 's' : ''} in your database`
+        }
+        actions={
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate('/contacts/import')} className="btn-secondary">
+              <Upload className="h-3.5 w-3.5" />
+              Import CSV
+            </button>
+            <button onClick={handleExport} className="btn-secondary">
+              <Download className="h-3.5 w-3.5" />
+              Export
+            </button>
+            <button onClick={() => setShowCreateModal(true)} className="btn-primary">
+              <Plus className="h-3.5 w-3.5" />
+              Add contact
+            </button>
+          </div>
+        }
+      />
+
+      {/* Lead-lists rail + contacts table */}
+      <div className="flex gap-4 items-start" onClick={() => setListContextMenu(null)}>
+        {/* Lead lists rail */}
+        <aside className="w-56 flex-shrink-0">
+          <div className="sticky top-[60px] panel-inset p-1.5 space-y-0.5">
           {/* All Contacts */}
           <button
             onClick={() => setSearchParams({})}
@@ -950,7 +982,7 @@ export function ContactsListPage() {
             </Link>
           </div>
         </div>
-      </div>
+      </aside>
 
       {/* List right-click context menu */}
       {listContextMenu && (
@@ -1008,37 +1040,7 @@ export function ContactsListPage() {
       )}
 
       {/* Main content */}
-      <div className="flex-1 min-w-0 space-y-5">
-        {/* Header */}
-        <PageHeader
-          leading={
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(99,102,241,0.18)]">
-              <Users className="h-4 w-4 text-[var(--indigo)]" />
-            </span>
-          }
-          title={currentListName}
-          description={totalContacts === 0
-            ? 'No contacts yet — start building your audience'
-            : `${totalContacts.toLocaleString()} contact${totalContacts !== 1 ? 's' : ''} in your database`
-          }
-          actions={
-            <div className="flex items-center gap-2">
-              <button onClick={() => navigate('/contacts/import')} className="btn-secondary">
-                <Upload className="h-3.5 w-3.5" />
-                Import CSV
-              </button>
-              <button onClick={handleExport} className="btn-secondary">
-                <Download className="h-3.5 w-3.5" />
-                Export
-              </button>
-              <button onClick={() => setShowCreateModal(true)} className="btn-primary">
-                <Plus className="h-3.5 w-3.5" />
-                Add contact
-              </button>
-            </div>
-          }
-        />
-
+      <div className="flex-1 min-w-0 space-y-4">
         {/* KPI strip */}
         {stats && (
           <div className="grid grid-cols-3 gap-3">
@@ -1431,6 +1433,7 @@ export function ContactsListPage() {
             </div>
           </div>
         )}
+      </div>
       </div>
 
       {/* Create/Edit Contact Modal */}
