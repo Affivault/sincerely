@@ -17,7 +17,7 @@ import {
   Megaphone, Plus, Send, Mail, MousePointerClick, MessageSquare, Copy,
   Folder, FolderPlus, FolderOpen, X, Pencil, Trash2,
   BarChart3, Layers, Play, Pause, Search, AlertTriangle, MoreVertical,
-  ChevronUp, ChevronDown, ChevronsUpDown,
+  ChevronUp, ChevronDown, ChevronsUpDown, ChevronRight,
   Clock, Gauge, Calendar, ArrowUpRight, Ban, Users, CheckCircle2,
 } from 'lucide-react';
 
@@ -65,6 +65,15 @@ export function CampaignsListPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [draggingCampaignId, setDraggingCampaignId] = useState<string | null>(null);
   const [dropFolderKey, setDropFolderKey] = useState<string | null>(null);
+  const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => {
+    try { const sv = localStorage.getItem('campaigns.collapsedFolders'); return new Set(sv ? JSON.parse(sv) : []); } catch { return new Set(); }
+  });
+  const toggleFolderCollapse = (id: string) => setCollapsedFolders((prev) => {
+    const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id);
+    try { localStorage.setItem('campaigns.collapsedFolders', JSON.stringify([...n])); } catch { /* ignore */ }
+    return n;
+  });
 
   const { data: campaignsResp, isLoading } = useQuery({
     queryKey: ['campaigns', 'all', statusFilter],
@@ -242,7 +251,7 @@ export function CampaignsListPage() {
           <div className="px-2 pt-1 pb-1.5 flex items-center justify-between">
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[var(--text-tertiary)]">Folders</span>
             <button
-              onClick={() => { setEditingFolder(null); setFolderModalOpen(true); }}
+              onClick={() => { setEditingFolder(null); setNewFolderParent(null); setFolderModalOpen(true); }}
               title="New folder"
               className="icon-btn h-6 w-6"
             >
@@ -270,20 +279,44 @@ export function CampaignsListPage() {
           {folders.length > 0 && (
             <div className="my-1 mx-2 h-px bg-[var(--border-subtle)]" />
           )}
-          {folders.map((f) => (
-            <FolderRow
-              key={f.id}
-              label={f.name}
-              icon={activeFolderId === f.id ? FolderOpen : Folder}
-              count={f.campaign_count}
-              active={activeFolderId === f.id}
-              onClick={() => setActiveFolderId(f.id)}
-              onEdit={() => { setEditingFolder(f); setFolderModalOpen(true); }}
-              onAnalytics={() => setFolderAnalyticsId(f.id)}
-              color={f.color}
-              {...folderDropProps(f.id, f.id)}
-            />
-          ))}
+          {folders.filter((f) => !f.parent_id).map((f) => {
+            const children = folders.filter((c) => c.parent_id === f.id);
+            const isOpen = !collapsedFolders.has(f.id);
+            return (
+              <div key={f.id}>
+                <FolderRow
+                  label={f.name}
+                  icon={activeFolderId === f.id ? FolderOpen : Folder}
+                  count={f.campaign_count}
+                  active={activeFolderId === f.id}
+                  onClick={() => setActiveFolderId(f.id)}
+                  onEdit={() => { setNewFolderParent(null); setEditingFolder(f); setFolderModalOpen(true); }}
+                  onAnalytics={() => setFolderAnalyticsId(f.id)}
+                  onAddSub={() => { setEditingFolder(null); setNewFolderParent(f.id); setFolderModalOpen(true); }}
+                  color={f.color}
+                  collapsible={children.length > 0}
+                  collapsed={!isOpen}
+                  onToggleCollapse={() => toggleFolderCollapse(f.id)}
+                  {...folderDropProps(f.id, f.id)}
+                />
+                {isOpen && children.map((c) => (
+                  <FolderRow
+                    key={c.id}
+                    indent
+                    label={c.name}
+                    icon={activeFolderId === c.id ? FolderOpen : Folder}
+                    count={c.campaign_count}
+                    active={activeFolderId === c.id}
+                    onClick={() => setActiveFolderId(c.id)}
+                    onEdit={() => { setNewFolderParent(null); setEditingFolder(c); setFolderModalOpen(true); }}
+                    onAnalytics={() => setFolderAnalyticsId(c.id)}
+                    color={c.color}
+                    {...folderDropProps(c.id, c.id)}
+                  />
+                ))}
+              </div>
+            );
+          })}
         </aside>
 
         {/* Main column */}
@@ -448,7 +481,9 @@ export function CampaignsListPage() {
       {folderModalOpen && (
         <FolderModal
           initial={editingFolder}
-          onClose={() => { setFolderModalOpen(false); setEditingFolder(null); }}
+          parentId={newFolderParent}
+          parentName={newFolderParent ? folders.find((f) => f.id === newFolderParent)?.name : undefined}
+          onClose={() => { setFolderModalOpen(false); setEditingFolder(null); setNewFolderParent(null); }}
         />
       )}
 
@@ -462,7 +497,7 @@ export function CampaignsListPage() {
 
 /* ─── Sub-components ───────────────────────────────────────────── */
 
-function FolderRow({ label, icon: Icon, count, active, onClick, onEdit, onAnalytics, color, dropActive, onDragOver, onDragLeave, onDrop }: {
+function FolderRow({ label, icon: Icon, count, active, onClick, onEdit, onAnalytics, onAddSub, color, indent, collapsible, collapsed, onToggleCollapse, dropActive, onDragOver, onDragLeave, onDrop }: {
   label: string;
   icon: any;
   count: number;
@@ -470,7 +505,12 @@ function FolderRow({ label, icon: Icon, count, active, onClick, onEdit, onAnalyt
   onClick: () => void;
   onEdit?: () => void;
   onAnalytics?: () => void;
+  onAddSub?: () => void;
   color: string;
+  indent?: boolean;
+  collapsible?: boolean;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
   dropActive?: boolean;
   onDragOver?: (e: React.DragEvent) => void;
   onDragLeave?: (e: React.DragEvent) => void;
@@ -487,18 +527,32 @@ function FolderRow({ label, icon: Icon, count, active, onClick, onEdit, onAnalyt
         onClick={onClick}
         className={cn(
           'w-full flex items-center gap-2 px-2 h-7 rounded-[6px] text-[12.5px] text-left transition-colors',
+          indent && 'pl-6',
           active
             ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_0_0_1px_var(--border-subtle),0_1px_2px_rgba(15,15,25,0.04)] font-medium'
             : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]/60 hover:text-[var(--text-primary)]'
         )}
       >
+        {collapsible ? (
+          <span
+            onClick={(e) => { e.stopPropagation(); onToggleCollapse?.(); }}
+            className="flex-shrink-0 -ml-1 p-0.5 rounded hover:bg-[var(--bg-hover)] cursor-pointer"
+          >
+            <ChevronRight className={cn('h-3 w-3 text-[var(--text-tertiary)] transition-transform', !collapsed && 'rotate-90')} />
+          </span>
+        ) : !indent ? <span className="w-3 flex-shrink-0" /> : null}
         <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: color }} />
         <Icon className="h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]" strokeWidth={1.75} />
         <span className="flex-1 truncate">{label}</span>
         <span className="text-[10.5px] text-[var(--text-tertiary)] tabular">{count}</span>
       </button>
-      {(onEdit || onAnalytics) && (
+      {(onEdit || onAnalytics || onAddSub) && (
         <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-px bg-[var(--bg-surface)] rounded shadow-[0_0_0_1px_var(--border-subtle)] px-0.5">
+          {onAddSub && (
+            <button onClick={(e) => { e.stopPropagation(); onAddSub(); }} title="New sub-folder" className="p-0.5 rounded hover:bg-[var(--bg-hover)]">
+              <FolderPlus className="h-3 w-3 text-[var(--text-tertiary)] hover:text-[var(--indigo)]" />
+            </button>
+          )}
           {onAnalytics && (
             <button onClick={(e) => { e.stopPropagation(); onAnalytics(); }} title="Folder analytics" className="p-0.5 rounded hover:bg-[var(--bg-hover)]">
               <BarChart3 className="h-3 w-3 text-[var(--text-tertiary)] hover:text-[var(--indigo)]" />
@@ -811,7 +865,7 @@ function ConfigItem({ icon: Icon, label, value }: { icon: any; label: string; va
 
 /* ─── Folder modal ──────────────────────────────────────────────── */
 
-function FolderModal({ initial, onClose }: { initial: CampaignFolder | null; onClose: () => void }) {
+function FolderModal({ initial, parentId, parentName, onClose }: { initial: CampaignFolder | null; parentId?: string | null; parentName?: string; onClose: () => void }) {
   const qc = useQueryClient();
   const [name, setName] = useState(initial?.name || '');
   const [color, setColor] = useState(initial?.color || FOLDER_COLORS[0]);
@@ -819,9 +873,9 @@ function FolderModal({ initial, onClose }: { initial: CampaignFolder | null; onC
   const saveMut = useMutation({
     mutationFn: async () => {
       if (initial) return campaignFoldersApi.update(initial.id, { name: name.trim(), color });
-      return campaignFoldersApi.create({ name: name.trim(), color });
+      return campaignFoldersApi.create({ name: name.trim(), color, parent_id: parentId ?? null });
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaign-folders'] }); toast.success(initial ? 'Folder updated' : 'Folder created'); onClose(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaign-folders'] }); toast.success(initial ? 'Folder updated' : parentId ? 'Sub-folder created' : 'Folder created'); onClose(); },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save'),
   });
 
@@ -834,8 +888,8 @@ function FolderModal({ initial, onClose }: { initial: CampaignFolder | null; onC
     <Modal
       isOpen
       onClose={onClose}
-      title={initial ? 'Edit folder' : 'New folder'}
-      description={initial ? 'Rename or recolour this folder.' : 'Group related campaigns together.'}
+      title={initial ? 'Edit folder' : parentId ? 'New sub-folder' : 'New folder'}
+      description={initial ? 'Rename or recolour this folder.' : parentName ? `Inside “${parentName}” — e.g. a project or quarter.` : 'Group related campaigns together.'}
       size="sm"
       footer={
         <div className="flex items-center justify-between w-full">

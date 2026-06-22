@@ -28,7 +28,7 @@ export const campaignFoldersService = {
     return folders.map((f: any) => ({ ...f, campaign_count: counts[f.id] || 0 }));
   },
 
-  async create(userId: string, input: { name: string; color?: string; icon?: string }) {
+  async create(userId: string, input: { name: string; color?: string; icon?: string; parent_id?: string | null }) {
     const { data, error } = await supabaseAdmin
       .from('campaign_folders')
       .insert({ user_id: userId, ...input })
@@ -41,7 +41,11 @@ export const campaignFoldersService = {
     return { ...data, campaign_count: 0 };
   },
 
-  async update(userId: string, id: string, input: { name?: string; color?: string; icon?: string; position?: number }) {
+  async update(userId: string, id: string, input: { name?: string; color?: string; icon?: string; position?: number; parent_id?: string | null }) {
+    // A folder can't be its own parent (prevents a trivial cycle)
+    if (input.parent_id && input.parent_id === id) {
+      throw new AppError('A folder cannot be moved into itself', 400);
+    }
     const { data, error } = await supabaseAdmin
       .from('campaign_folders')
       .update(input)

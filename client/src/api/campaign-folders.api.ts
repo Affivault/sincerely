@@ -6,6 +6,7 @@ export interface CampaignFolder {
   color: string;
   icon: string;
   position: number;
+  parent_id: string | null;
   campaign_count: number;
   created_at: string;
 }
@@ -40,11 +41,11 @@ export const campaignFoldersApi = {
     const { data } = await apiClient.get<CampaignFolder[]>('/campaign-folders');
     return data;
   },
-  create: async (input: { name: string; color?: string; icon?: string }) => {
+  create: async (input: { name: string; color?: string; icon?: string; parent_id?: string | null }) => {
     const { data } = await apiClient.post<CampaignFolder>('/campaign-folders', input);
     return data;
   },
-  update: async (id: string, input: Partial<{ name: string; color: string; icon: string; position: number }>) => {
+  update: async (id: string, input: Partial<{ name: string; color: string; icon: string; position: number; parent_id: string | null }>) => {
     const { data } = await apiClient.patch<CampaignFolder>(`/campaign-folders/${id}`, input);
     return data;
   },

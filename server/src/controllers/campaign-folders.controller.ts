@@ -7,6 +7,7 @@ const createSchema = z.object({
   name: z.string().min(1).max(100),
   color: z.string().optional(),
   icon: z.string().optional(),
+  parent_id: z.string().uuid().nullable().optional(),
 });
 
 const updateSchema = z.object({
@@ -14,6 +15,7 @@ const updateSchema = z.object({
   color: z.string().optional(),
   icon: z.string().optional(),
   position: z.number().int().optional(),
+  parent_id: z.string().uuid().nullable().optional(),
 });
 
 const moveSchema = z.object({
