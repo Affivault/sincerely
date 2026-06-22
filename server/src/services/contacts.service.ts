@@ -52,7 +52,7 @@ export const contactsService = {
 
     let query = supabaseAdmin
       .from('contacts')
-      .select('*, contact_tags(tag_id, tags(*))', { count: 'exact' })
+      .select('*, contact_tags(tag_id, tags(*)), list_contacts(contact_lists(id, name))', { count: 'exact' })
       .eq('user_id', userId);
 
     // Filter by list contacts if specified
@@ -121,7 +121,9 @@ export const contactsService = {
     const contacts = (data || []).map((c: any) => ({
       ...c,
       tags: (c.contact_tags || []).map((ct: any) => ct.tags).filter(Boolean),
+      lists: (c.list_contacts || []).map((lc: any) => lc.contact_lists).filter(Boolean),
       contact_tags: undefined,
+      list_contacts: undefined,
     }));
 
     return formatPaginatedResponse(contacts, count || 0, page, limit);
@@ -223,7 +225,7 @@ export const contactsService = {
     const valid: any[] = [];
     const ALLOWED_FIELDS = new Set([
       'email', 'first_name', 'last_name', 'company',
-      'job_title', 'phone', 'linkedin_url', 'website',
+      'job_title', 'phone', 'linkedin_url', 'website', 'location',
     ]);
     const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -442,7 +444,7 @@ export const contactsService = {
   async export(userId: string, contactIds?: string[], format: 'csv' | 'json' = 'csv') {
     let query = supabaseAdmin
       .from('contacts')
-      .select('email, first_name, last_name, company, job_title, phone, linkedin_url, website, source, is_unsubscribed, is_bounced, dcs_score, custom_fields, created_at')
+      .select('email, first_name, last_name, company, job_title, phone, linkedin_url, website, location, source, is_unsubscribed, is_bounced, dcs_score, custom_fields, created_at')
       .eq('user_id', userId);
 
     if (contactIds && contactIds.length > 0) {

@@ -100,6 +100,7 @@ const emptyContact: CreateContactInput = {
   phone: '',
   linkedin_url: '',
   website: '',
+  location: '',
 };
 
 /* Deterministic tint for a company monogram so the same company always
@@ -258,6 +259,39 @@ function LinkedInGlyph({ url }: { url?: string | null }) {
   return <a href={href} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>{inner}</a>;
 }
 
+/* Chips for tag / list membership, with a +N overflow. */
+function TagsCell({ tags }: { tags?: { id: string; name: string; color?: string }[] }) {
+  if (!tags || tags.length === 0) return <span className="text-[12px] text-[var(--text-muted)]">—</span>;
+  const shown = tags.slice(0, 2);
+  return (
+    <span className="inline-flex items-center gap-1 align-middle">
+      {shown.map((t) => (
+        <span key={t.id} className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-[10.5px] font-medium border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]">
+          <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: t.color || 'var(--text-tertiary)' }} />
+          {t.name}
+        </span>
+      ))}
+      {tags.length > shown.length && <span className="text-[10.5px] font-medium text-[var(--text-tertiary)]">+{tags.length - shown.length}</span>}
+    </span>
+  );
+}
+
+function ListsCell({ lists }: { lists?: { id: string; name: string }[] }) {
+  if (!lists || lists.length === 0) return <span className="text-[12px] text-[var(--text-muted)]">—</span>;
+  const shown = lists.slice(0, 2);
+  return (
+    <span className="inline-flex items-center gap-1 align-middle">
+      {shown.map((l) => (
+        <span key={l.id} className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-[10.5px] font-medium bg-[var(--indigo-subtle)] text-[var(--indigo)]">
+          <FolderOpen className="h-2.5 w-2.5 flex-shrink-0" />
+          {l.name}
+        </span>
+      ))}
+      {lists.length > shown.length && <span className="text-[10.5px] font-medium text-[var(--text-tertiary)]">+{lists.length - shown.length}</span>}
+    </span>
+  );
+}
+
 /* Verification summary pill — count + colour dot, doubles as a filter. */
 function StatusPill({ label, count, dot, active, onClick }: {
   label: string; count: number; dot: string; active: boolean; onClick: () => void;
@@ -284,7 +318,7 @@ function StatusPill({ label, count, dot, active, onClick }: {
 /* Configurable table columns, mapped to our contact fields (the same set
    surfaced during CSV import). The Contact identity column is always shown;
    these are the optional middle columns the user can toggle + reorder-by-default. */
-type ColumnId = 'email' | 'status' | 'company' | 'job_title' | 'phone' | 'website' | 'linkedin_url' | 'added' | 'health';
+type ColumnId = 'email' | 'status' | 'company' | 'location' | 'job_title' | 'phone' | 'website' | 'linkedin_url' | 'tags' | 'lists' | 'added' | 'health';
 interface ColumnDef {
   id: ColumnId;
   label: string;
@@ -298,14 +332,17 @@ const ALL_COLUMNS: ColumnDef[] = [
   ) },
   { id: 'status',      label: 'Status',    sortKey: 'dcs_score',  render: (c) => <VerificationBadge c={c} /> },
   { id: 'company',     label: 'Company',   sortKey: 'company',    tdClass: 'max-w-[200px]', render: (c) => <CompanyCell company={c.company} /> },
+  { id: 'location',    label: 'Location',                         tdClass: 'max-w-[200px]', render: (c) => <TextCell v={c.location} /> },
   { id: 'job_title',   label: 'Job title',                        tdClass: 'max-w-[180px]', render: (c) => <TextCell v={c.job_title} /> },
   { id: 'phone',       label: 'Phone',                            render: (c) => <TextCell v={c.phone} mono /> },
   { id: 'website',     label: 'Website',                          tdClass: 'max-w-[180px]', render: (c) => <LinkCell href={c.website} /> },
   { id: 'linkedin_url',label: 'LinkedIn',                         tdClass: 'max-w-[180px]', render: (c) => <LinkCell href={c.linkedin_url} label={c.linkedin_url ? 'Profile' : null} /> },
+  { id: 'tags',        label: 'Tags',                             tdClass: 'max-w-[240px]', render: (c) => <TagsCell tags={c.tags} /> },
+  { id: 'lists',       label: 'Lists',                            tdClass: 'max-w-[240px]', render: (c) => <ListsCell lists={c.lists} /> },
   { id: 'added',       label: 'Added',     sortKey: 'created_at', render: (c) => <span className="text-[11.5px] text-[var(--text-tertiary)] font-data" title={formatDate(c.created_at)}>{formatRelativeTime(c.created_at)}</span> },
   { id: 'health',      label: 'Health',    sortKey: 'dcs_score',  render: (c) => <HealthCell c={c} /> },
 ];
-const DEFAULT_COLUMNS: ColumnId[] = ['email', 'status', 'company', 'added'];
+const DEFAULT_COLUMNS: ColumnId[] = ['email', 'status', 'company', 'location', 'tags', 'lists', 'added'];
 
 
 export function ContactsListPage() {
@@ -626,6 +663,7 @@ export function ContactsListPage() {
       phone: contact.phone || '',
       linkedin_url: contact.linkedin_url || '',
       website: contact.website || '',
+      location: contact.location || '',
     });
     setShowCreateModal(true);
   };
@@ -1342,7 +1380,10 @@ export function ContactsListPage() {
                         )}
                       >
                         <td className={cn('sticky left-0 z-[1] w-[44px] pl-4 pr-2 py-2 relative border-b border-[var(--border-subtle)]', frozenBg)}>
-                          {isSelected && <span className="absolute left-0 top-0 bottom-0 w-[2.5px] bg-[var(--indigo)]" />}
+                          <span className={cn(
+                            'absolute left-0 top-0 bottom-0 w-[2.5px] transition-colors',
+                            isSelected ? 'bg-[var(--indigo)]' : 'bg-transparent group-hover:bg-[var(--indigo)]/40'
+                          )} />
                           <Checkbox
                             checked={isSelected}
                             onChange={() => toggleSelectContact(contact.id)}
@@ -1510,7 +1551,10 @@ export function ContactsListPage() {
                 <Input label="Phone" value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+1 555 000 1234" />
                 <Input label="Website" value={form.website || ''} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="company.com" />
               </div>
-              <Input label="LinkedIn URL" value={form.linkedin_url || ''} onChange={(e) => setForm({ ...form, linkedin_url: e.target.value })} placeholder="linkedin.com/in/…" />
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="LinkedIn URL" value={form.linkedin_url || ''} onChange={(e) => setForm({ ...form, linkedin_url: e.target.value })} placeholder="linkedin.com/in/…" />
+                <Input label="Location" value={form.location || ''} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="London, United Kingdom" />
+              </div>
             </form>
           </Modal>
         );

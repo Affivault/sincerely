@@ -9,6 +9,7 @@ export interface Contact {
   phone: string | null;
   linkedin_url: string | null;
   website: string | null;
+  location: string | null;
   custom_fields: Record<string, string>;
   source: string;
   is_unsubscribed: boolean;
@@ -42,6 +43,7 @@ export interface Tag {
 
 export interface ContactWithTags extends Contact {
   tags: Tag[];
+  lists?: { id: string; name: string }[];
 }
 
 export interface CreateContactInput {
@@ -53,6 +55,7 @@ export interface CreateContactInput {
   phone?: string;
   linkedin_url?: string;
   website?: string;
+  location?: string;
   custom_fields?: Record<string, string>;
   tag_ids?: string[];
 }

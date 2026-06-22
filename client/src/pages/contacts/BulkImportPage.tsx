@@ -33,6 +33,7 @@ const DB_FIELDS = [
   { value: 'phone',       label: 'Phone' },
   { value: 'linkedin_url',label: 'LinkedIn URL' },
   { value: 'website',     label: 'Website' },
+  { value: 'location',    label: 'Location' },
   { value: '__custom__',  label: 'Custom field (keep column name)' },
 ];
 
