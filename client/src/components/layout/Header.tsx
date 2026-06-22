@@ -15,16 +15,21 @@ import {
   Upload,
   FileText,
   CalendarClock,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useCommandPalette } from '../../context/CommandPaletteContext';
+import { useSidebar } from '../../context/SidebarContext';
+import { SkySendLogo } from '../SkySendLogo';
 import { cn } from '../../lib/utils';
 
 export function Header() {
   const { user, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { openPalette } = useCommandPalette();
+  const { collapsed, toggle } = useSidebar();
   const [menuOpen, setMenuOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const navigate = useNavigate();
@@ -37,7 +42,19 @@ export function Header() {
   ];
 
   return (
-    <header className="sticky top-0 z-30 flex h-[52px] items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/90 backdrop-blur-xl px-6 gap-4">
+    <header className="fixed top-0 inset-x-0 z-50 flex h-[56px] items-center border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/90 backdrop-blur-xl gap-3 pr-6">
+      {/* Logo zone — fixed, never collapses */}
+      <div className="flex items-center gap-1 h-full pl-4 pr-3 flex-shrink-0">
+        <span className="overflow-hidden"><SkySendLogo /></span>
+        <button
+          onClick={toggle}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="flex-shrink-0 p-1.5 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+        >
+          {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+        </button>
+      </div>
+
       {/* Search — opens the command palette */}
       <button
         type="button"

@@ -108,12 +108,13 @@ function AppContent() {
       className="min-h-screen bg-[var(--bg-app)]"
       style={{ backgroundImage: 'var(--noise), var(--gradient-page)' }}
     >
+      {/* Full-width top bar — holds the logo + sidebar toggle, never collapses */}
+      <Header />
       <Sidebar />
       <div className={cn(
-        'transition-[padding] duration-200',
+        'transition-[padding] duration-200 pt-[56px]',
         collapsed ? 'pl-[60px]' : 'pl-[244px]'
       )}>
-        <Header />
         {/* Generous workspace width — effectively full-bleed on laptops so data
             tables breathe, while capping ultrawide so forms stay readable. */}
         <main className="px-8 py-7 max-w-[1760px] mx-auto">
