@@ -517,7 +517,12 @@ export const inboxService = {
     if (!original) throw new AppError('Message not found', 404);
 
     const smtpAccount = await findSmtpAccount(userId, smtpAccountId || original.smtp_account_id);
-    const smtpPassword = decrypt(smtpAccount.smtp_pass_encrypted);
+    let smtpPassword: string;
+    try {
+      smtpPassword = decrypt(smtpAccount.smtp_pass_encrypted);
+    } catch (decryptErr: any) {
+      throw new AppError(`Failed to decrypt SMTP credentials for ${smtpAccount.label || smtpAccount.email_address}: ${decryptErr.message}`, 500);
+    }
     const domain = smtpAccount.email_address?.split('@')[1] || 'skysend.io';
     const newMessageId = `<${crypto.randomUUID()}@${domain}>`;
 

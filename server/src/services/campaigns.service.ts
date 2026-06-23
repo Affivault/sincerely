@@ -249,6 +249,19 @@ export const campaignsService = {
     return data;
   },
 
+  async retryErrors(userId: string, id: string) {
+    await this.get(userId, id); // ownership check
+    const now = new Date().toISOString();
+    const { data, error } = await supabaseAdmin
+      .from('campaign_contacts')
+      .update({ status: 'active', next_send_at: now, error_message: null })
+      .eq('campaign_id', id)
+      .eq('status', 'error')
+      .select('id');
+    if (error) throw new AppError(error.message, 500);
+    return { retried: data?.length || 0 };
+  },
+
   async cancel(userId: string, id: string) {
     const campaign = await this.get(userId, id);
     if (campaign.status !== 'running' && campaign.status !== 'paused') {

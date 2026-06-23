@@ -91,10 +91,15 @@ export async function processNextStep(campaignContactId: string): Promise<void> 
     // Without this, a failed query leaves the contact in a re-processable state
     // and the sequence worker picks it up again every 30 seconds.
     console.error(`processNextStep error for ${campaignContactId}:`, err.message);
-    await supabaseAdmin
+    const { data: stuck } = await supabaseAdmin
       .from('campaign_contacts')
-      .update({ next_send_at: null, error_message: `Sequence error: ${err.message}`.slice(0, 500) })
-      .eq('id', campaignContactId);
+      .update({ status: 'error', next_send_at: null, error_message: `Sequence error: ${err.message}`.slice(0, 500) })
+      .eq('id', campaignContactId)
+      .select('campaign_id')
+      .single();
+    if (stuck?.campaign_id) {
+      checkAndAutoCompleteCampaign(stuck.campaign_id).catch(() => {});
+    }
   }
 }
 
@@ -371,14 +376,14 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
         metadata: { error: err.message, code: err.code || err.responseCode, to: cc.contacts.email },
       });
 
-    // For non-bounce errors, stamp error_message so users can see why the contact is stuck.
-    // (Bounce path already sets status='bounced'; non-bounce leaves status='active' with
-    //  next_send_at=null — without this update the contact silently stalls with no indication.)
+    // For non-bounce errors, mark the contact as 'error' so the campaign can
+    // auto-complete and users can see which contacts need attention.
     if (!isBounce) {
       await supabaseAdmin
         .from('campaign_contacts')
-        .update({ error_message: `Send failed: ${err.message}`.slice(0, 500) })
+        .update({ status: 'error', next_send_at: null, error_message: `Send failed: ${err.message}`.slice(0, 500) })
         .eq('id', cc.id);
+      checkAndAutoCompleteCampaign(cc.campaign_id).catch(() => {});
     }
 
     // Don't rethrow — error is handled, contact won't be re-processed

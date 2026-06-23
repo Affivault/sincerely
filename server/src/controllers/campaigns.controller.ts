@@ -82,6 +82,13 @@ export const campaignsController = {
     } catch (err) { next(err); }
   },
 
+  async retryErrors(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await campaignsService.retryErrors(req.userId!, req.params.id);
+      res.json(result);
+    } catch (err) { next(err); }
+  },
+
   // Steps
   async getSteps(req: AuthRequest, res: Response, next: NextFunction) {
     try {

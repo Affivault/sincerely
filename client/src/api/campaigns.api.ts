@@ -101,6 +101,11 @@ export const campaignsApi = {
     return data;
   },
 
+  retryErrors: async (id: string) => {
+    const { data } = await apiClient.post<{ retried: number }>(`/campaigns/${id}/retry-errors`);
+    return data;
+  },
+
   clone: async (id: string) => {
     const { data } = await apiClient.post<Campaign>(`/campaigns/${id}/clone`);
     return data;

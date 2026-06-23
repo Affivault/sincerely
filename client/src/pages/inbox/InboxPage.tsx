@@ -723,7 +723,10 @@ function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string
     if (!selectedDate) return;
     const dt = new Date(selectedDate);
     dt.setHours(selectedTime.hour, selectedTime.minute, 0, 0);
-    if (dt <= new Date()) return;
+    if (dt <= new Date()) {
+      toast.error('Scheduled time must be in the future');
+      return;
+    }
     onSchedule(dt.toISOString());
   };
 

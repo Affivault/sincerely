@@ -28,6 +28,7 @@ import {
   Webhook,
   Search,
   X,
+  RefreshCw,
 } from 'lucide-react';
 import {
   BarChart,
@@ -118,6 +119,15 @@ export function CampaignDetailPage() {
       navigate(`/campaigns/${cloned.id}`);
     },
     onError: () => toast.error('Failed to clone campaign'),
+  });
+
+  const retryErrorsMutation = useMutation({
+    mutationFn: () => campaignsApi.retryErrors(id!),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['campaign-contacts', id] });
+      toast.success(`Retried ${result.retried} errored contact${result.retried !== 1 ? 's' : ''}`);
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to retry errors'),
   });
 
   const deleteMutation = useMutation({
@@ -371,6 +381,16 @@ export function CampaignDetailPage() {
               <span className="text-[11.5px] text-[var(--text-tertiary)] whitespace-nowrap tabular">
                 {filteredContacts.length} / {campaignContacts.data.length}
               </span>
+              {campaignContacts.data.some((cc: any) => cc.status === 'error') && (
+                <button
+                  onClick={() => retryErrorsMutation.mutate()}
+                  disabled={retryErrorsMutation.isPending}
+                  className="ml-auto flex items-center gap-1.5 h-8 px-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 text-[12.5px] font-medium hover:bg-amber-100 disabled:opacity-50 transition-colors dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${retryErrorsMutation.isPending ? 'animate-spin' : ''}`} />
+                  Retry Errors
+                </button>
+              )}
             </div>
           ) : null}
 
