@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LogOut,
   Search,
@@ -33,6 +33,22 @@ export function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Close the header dropdowns on scroll, route change or Escape — not just click
+  useEffect(() => {
+    if (!createOpen && !menuOpen) return;
+    const close = () => { setCreateOpen(false); setMenuOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [createOpen, menuOpen]);
+
+  useEffect(() => { setCreateOpen(false); setMenuOpen(false); }, [location.pathname]);
 
   const createItems = [
     { label: 'New campaign', desc: 'Build an outbound sequence', icon: Megaphone, to: '/campaigns/new' },
@@ -87,7 +103,7 @@ export function Header() {
           {createOpen && (
             <>
               <div className="fixed inset-0" onClick={() => setCreateOpen(false)} />
-              <div className="absolute right-0 top-full mt-1.5 w-60 rounded-xl glass p-1 shadow-[var(--shadow-xl)] animate-slide-in z-50">
+              <div className="absolute right-0 top-full mt-1.5 w-60 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] p-1 shadow-[var(--shadow-xl)] animate-slide-in z-50">
                 {createItems.map((item) => (
                   <button
                     key={item.to + item.label}
@@ -147,7 +163,7 @@ export function Header() {
           {menuOpen && (
             <>
               <div className="fixed inset-0" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 top-full mt-1.5 w-52 rounded-xl glass p-1 shadow-[var(--shadow-xl)] animate-slide-in z-50">
+              <div className="absolute right-0 top-full mt-1.5 w-52 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] p-1 shadow-[var(--shadow-xl)] animate-slide-in z-50">
                 {/* Account info */}
                 <div className="px-2.5 py-2 mb-0.5 border-b border-[var(--border-subtle)]">
                   <p className="text-[12.5px] font-semibold text-[var(--text-primary)] truncate">
