@@ -137,7 +137,7 @@ function HeroMockup() {
             <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />
           ))}
         </div>
-        <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: '.08em', color: '#94A3B8' }}>SKYSEND</span>
+        <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: '.08em', color: '#94A3B8' }}>MEETDRIVE</span>
         <div style={{ width: 22, height: 22, borderRadius: 6, background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
             <path d="M1.5 4.5H7.5M4.5 1.5L7.5 4.5L4.5 7.5" stroke="#7C3AED" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -225,7 +225,7 @@ export function LandingPageV2() {
 
   const testimonials = [
     { q: '"We went from 2% to 14% reply rate in six weeks. Nothing else even comes close."',                        name: 'Sarah Chen',  role: 'Head of Sales · Acme Corp',   av: '#7C3AED', m: '+600%', ml: 'reply rate lift' },
-    { q: '"The deliverability alone justifies the cost. Our entire outbound pipeline now runs through SkySend."',  name: 'Marcus Reid', role: 'Founder · TechFlow',           av: '#059669', m: '98.7%', ml: 'inbox rate' },
+    { q: '"The deliverability alone justifies the cost. Our entire outbound pipeline now runs through MeetDrive."',  name: 'Marcus Reid', role: 'Founder · TechFlow',           av: '#059669', m: '98.7%', ml: 'inbox rate' },
     { q: '"Finally an outreach tool our reps actually want to use. The UI is miles ahead of everything else."',    name: 'Priya Nair',  role: 'VP Sales · Growthly',          av: '#DC2626', m: '3×',    ml: 'pipeline growth' },
   ];
 
@@ -419,7 +419,7 @@ export function LandingPageV2() {
         <div className="hwg" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 2, position: 'relative' }}>
           <div style={{ position: 'absolute', top: 38, left: '16%', right: '16%', height: 1, background: 'linear-gradient(90deg,rgba(109,40,217,.2),rgba(14,165,233,.2))', zIndex: 0 }} />
           {[
-            { n: '01', t: 'Import your contacts',  d: 'Upload a CSV or sync from your CRM. SkySend cleanses, deduplicates, and scores every contact automatically.' },
+            { n: '01', t: 'Import your contacts',  d: 'Upload a CSV or sync from your CRM. MeetDrive cleanses, deduplicates, and scores every contact automatically.' },
             { n: '02', t: 'Build your sequence',   d: 'Drag-and-drop builder or let AI draft your entire campaign — subject lines, body copy, and follow-ups in seconds.' },
             { n: '03', t: 'Watch replies come in', d: 'Campaigns run on autopilot. Your unified inbox surfaces hot leads so you focus on conversations, not clicking send.' },
           ].map((step, i) => (
@@ -491,7 +491,7 @@ export function LandingPageV2() {
         <div className="r">
           <div style={{ width: 3, height: 48, background: 'linear-gradient(to bottom,#7C3AED,#0EA5E9)', borderRadius: 4, margin: '0 auto 30px' }} />
           <blockquote style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.5, letterSpacing: '-.025em', color: '#1E293B', marginBottom: 28, fontStyle: 'italic' }}>
-            "SkySend is the first tool that treats deliverability and personalisation as a single problem. It's in a completely different league."
+            "MeetDrive is the first tool that treats deliverability and personalisation as a single problem. It's in a completely different league."
           </blockquote>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
             <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'linear-gradient(145deg,#7C3AED,#0EA5E9)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#fff' }}>D</div>
@@ -609,7 +609,7 @@ export function LandingPageV2() {
             Ready to fill your pipeline?
           </h2>
           <p style={{ fontSize: 17, color: 'rgba(255,255,255,.68)', marginBottom: 36, lineHeight: 1.65, letterSpacing: '-.01em' }}>
-            Join 10,000+ sales teams already using SkySend to scale their outreach without scaling their headcount.
+            Join 10,000+ sales teams already using MeetDrive to scale their outreach without scaling their headcount.
           </p>
           <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link to="/signup" className="bw" style={{ padding: '14px 32px', fontSize: 16 }}>Get started free</Link>
@@ -649,7 +649,7 @@ export function LandingPageV2() {
             ))}
           </div>
           <div style={{ borderTop: '1px solid #1E293B', paddingTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-            <span style={{ fontSize: 13, letterSpacing: '-.01em', color: '#475569' }}>© 2025 SkySend. All rights reserved.</span>
+            <span style={{ fontSize: 13, letterSpacing: '-.01em', color: '#475569' }}>© 2025 MeetDrive. All rights reserved.</span>
             <div style={{ display: 'flex', gap: 20 }}>
               {['Privacy Policy', 'Terms of Service', 'Cookie Policy'].map(item => (
                 <a key={item} href="#" style={{ fontSize: 12.5, color: '#334155', textDecoration: 'none', letterSpacing: '-.01em' }}>{item}</a>

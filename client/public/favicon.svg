@@ -7,8 +7,8 @@
   </defs>
   <!-- Rounded square background -->
   <rect width="32" height="32" rx="7" fill="url(#g)"/>
-  <!-- Paper plane body (based on Lucide SendHorizontal, scaled to 20x20 centered) -->
-  <path fill="white" d="M26 6 L6 13 L15 17 L19 26 Z"/>
-  <!-- Lower fold triangle — gives depth -->
-  <path fill="rgba(0,0,0,0.18)" d="M26 6 L15 17 L19 26 Z"/>
+  <!-- MeetDrive "M" mark -->
+  <text x="16" y="22" text-anchor="middle" fill="white"
+        font-family="Inter, system-ui, -apple-system, sans-serif"
+        font-weight="700" font-size="18" letter-spacing="-0.5">M</text>
 </svg>

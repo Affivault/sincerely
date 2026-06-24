@@ -19,7 +19,7 @@ const sizeMap = {
   xl: 'h-12 w-12 text-[14px]',
 };
 
-/* Eight stable gradient pairings — chosen for the SkySend palette */
+/* Eight stable gradient pairings — chosen for the MeetDrive palette */
 const GRADIENTS = [
   'from-[#5B5BF5] to-[#8B5CF6]',
   'from-[#8B5CF6] to-[#EC4899]',

@@ -40,7 +40,7 @@ const lifetimeFeatures = [
 
 const testimonials = [
   {
-    quote: 'We replaced three tools with SkySend. The platform saved us $40K annually while improving every metric across the board.',
+    quote: 'We replaced three tools with MeetDrive. The platform saved us $40K annually while improving every metric across the board.',
     author: 'David Kim',
     role: 'CRO, Meridian',
     metric: '$40K',
@@ -178,7 +178,7 @@ export function LandingPage() {
               <span className="lp-mockup__dot" />
               <span className="lp-mockup__dot" />
               <span className="lp-mockup__dot" />
-              <span className="lp-mockup__chrome-title">SkySend · Campaign Analytics</span>
+              <span className="lp-mockup__chrome-title">MeetDrive · Campaign Analytics</span>
               <div className="lp-mockup__chrome-live">
                 <span className="lp-mockup__live-dot" />
                 Live
@@ -478,7 +478,7 @@ export function LandingPage() {
                 </div>
                 <div className="lp-sara__draft">
                   <p className="lp-sara__draft-body">
-                    Hi James, great to hear from you! I'd love to show you SkySend
+                    Hi James, great to hear from you! I'd love to show you MeetDrive
                     in action. Here's a link to book a 20-minute demo at your
                     convenience: [calendly link]. Pricing starts at $149/mo for
                     the Professional plan...
@@ -573,7 +573,7 @@ export function LandingPage() {
               </div>
 
               <p className="lp-lifetime__desc">
-                Every feature SkySend offers, permanently unlocked. For your entire team. Today, tomorrow, always.
+                Every feature MeetDrive offers, permanently unlocked. For your entire team. Today, tomorrow, always.
               </p>
 
               <Link to="/signup" className="lp-btn lp-btn--hero lp-lifetime__cta">
@@ -623,7 +623,7 @@ export function LandingPage() {
               Start booking more<br />meetings today.
             </h2>
             <p className="lp-body lp-cta__sub">
-              Join 500+ enterprise sales teams that use SkySend to
+              Join 500+ enterprise sales teams that use MeetDrive to
               hit their pipeline goals — consistently.
             </p>
             <Link to="/signup" className="lp-btn lp-btn--cta">
@@ -659,7 +659,7 @@ export function LandingPage() {
           </div>
         </div>
         <div className="lp-wrap lp-footer__bottom">
-          <p className="lp-footer__copy">© 2024 SkySend. All rights reserved.</p>
+          <p className="lp-footer__copy">© 2024 MeetDrive. All rights reserved.</p>
           <p className="lp-footer__copy">Built for the world's best sales teams.</p>
         </div>
       </footer>

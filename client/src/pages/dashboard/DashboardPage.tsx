@@ -23,7 +23,7 @@ import {
 } from 'recharts';
 
 /* ═══════════════════════════════════════════════════════════════════════
-   SkySend — Dashboard
+   MeetDrive — Dashboard
    A calm, monochrome-leaning operating surface. One accent (indigo); colour
    lives only in the data, as a tonal scale. Typography and rhythm carry it.
    ═══════════════════════════════════════════════════════════════════════ */

@@ -19,7 +19,7 @@ export function useUnreadCount() {
     if (count > prevCountRef.current && prevCountRef.current > 0) {
       const diff = count - prevCountRef.current;
       if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('SkySend Inbox', {
+        new Notification('MeetDrive Inbox', {
           body: `You have ${diff} new message${diff !== 1 ? 's' : ''}`,
           icon: '/favicon.svg',
         });
@@ -29,8 +29,8 @@ export function useUnreadCount() {
   }, [count]);
 
   useEffect(() => {
-    document.title = count > 0 ? `(${count}) SkySend` : 'SkySend';
-    return () => { document.title = 'SkySend'; };
+    document.title = count > 0 ? `(${count}) MeetDrive` : 'MeetDrive';
+    return () => { document.title = 'MeetDrive'; };
   }, [count]);
 
   useEffect(() => {

@@ -293,7 +293,7 @@ export function SmtpAccountsPage() {
           </span>
         }
         title="Sending accounts"
-        description="Connect SMTP / IMAP credentials so SkySend can send and read replies on your behalf."
+        description="Connect SMTP / IMAP credentials so MeetDrive can send and read replies on your behalf."
         meta={
           accounts && accounts.length > 0 ? (
             <>

@@ -71,7 +71,7 @@ export function LoginPage() {
         <div className="relative z-10 mt-auto pt-12">
           <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(16px)' }}>
             <p className="text-white/80 text-[14px] leading-relaxed">
-              "We went from 2% to 18% reply rates in two weeks. SkySend is the first tool that made our outbound feel effortless."
+              "We went from 2% to 18% reply rates in two weeks. MeetDrive is the first tool that made our outbound feel effortless."
             </p>
             <div className="mt-4 flex items-center gap-3">
               <div className="h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold text-[12px]" style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}>

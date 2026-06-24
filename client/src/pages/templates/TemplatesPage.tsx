@@ -60,7 +60,7 @@ function EmailPreview({ subject, bodyHtml, compact }: { subject: string; bodyHtm
     timeframe: '30 days',
     mutual_connection: 'Sarah from StartupX',
     topic: 'sales automation',
-    sender_company: 'SkySend',
+    sender_company: 'MeetDrive',
   };
 
   const interpolate = (text: string) =>

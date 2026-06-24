@@ -332,7 +332,7 @@ export function DomainsPage() {
           <div className="min-w-0">
             <p className="text-[13px] font-medium text-[var(--text-primary)]">Why verify your domain?</p>
             <p className="text-[12.5px] text-[var(--text-secondary)] mt-1">
-              SPF, DKIM and DMARC tell email providers that SkySend is authorised to send from your domain — dramatically improving inbox placement.
+              SPF, DKIM and DMARC tell email providers that MeetDrive is authorised to send from your domain — dramatically improving inbox placement.
             </p>
             <div className="flex flex-wrap items-center gap-3 mt-2 text-[11.5px] text-[var(--text-tertiary)]">
               <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald-500" /> Better inbox placement</span>

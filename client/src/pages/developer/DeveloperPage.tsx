@@ -174,7 +174,7 @@ export function DeveloperPage() {
       {tab === 'webhooks' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-[12px] text-[var(--text-secondary)]">Receive real-time notifications when events happen in SkySend.</p>
+            <p className="text-[12px] text-[var(--text-secondary)]">Receive real-time notifications when events happen in MeetDrive.</p>
             <button
               onClick={() => setShowCreateWebhook(true)}
               className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-[12px] font-semibold hover:opacity-90 transition-all shadow-[0_1px_3px_rgba(99,102,241,0.4)]"
@@ -293,7 +293,7 @@ export function DeveloperPage() {
       {tab === 'api-keys' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-[var(--text-secondary)]">Manage API keys for headless access to SkySend.</p>
+            <p className="text-sm text-[var(--text-secondary)]">Manage API keys for headless access to MeetDrive.</p>
             <button
               onClick={() => setShowCreateKey(true)}
               className="flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-sm font-medium text-white hover:bg-[#4F46E5] transition-colors"
@@ -360,7 +360,7 @@ export function DeveloperPage() {
                 <Key className="h-6 w-6 text-[var(--text-tertiary)]" />
               </div>
               <h3 className="font-medium text-[var(--text-primary)] mb-1">No API keys</h3>
-              <p className="text-sm text-[var(--text-secondary)]">Create an API key to access SkySend programmatically.</p>
+              <p className="text-sm text-[var(--text-secondary)]">Create an API key to access MeetDrive programmatically.</p>
             </div>
           ) : (
             <div className="space-y-3">

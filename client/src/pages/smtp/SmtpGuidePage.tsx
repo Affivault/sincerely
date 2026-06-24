@@ -50,7 +50,7 @@ const providers: Provider[] = [
       'Generate App Password: Google Account > Security > App passwords',
       'Select "Mail" as the app and your device',
       'Copy the 16-character password (remove spaces)',
-      'Use this as your SMTP password in SkySend',
+      'Use this as your SMTP password in MeetDrive',
     ],
     dns_steps: [
       'Google Workspace handles SPF/DKIM automatically for your domain',
@@ -302,7 +302,7 @@ export function SmtpGuidePage() {
           Back to SMTP Accounts
         </Link>
         <h1 className="text-2xl font-semibold text-primary">SMTP Connection Guide</h1>
-        <p className="text-sm text-secondary mt-1">Complete guide for connecting your email provider to SkySend, including DNS setup for custom domains.</p>
+        <p className="text-sm text-secondary mt-1">Complete guide for connecting your email provider to MeetDrive, including DNS setup for custom domains.</p>
       </div>
 
       {/* What You'll Need */}
