@@ -23,6 +23,7 @@ import { teamRoutes } from './team.routes.js';
 import { campaignFoldersRoutes } from './campaign-folders.routes.js';
 import { listFoldersRoutes } from './list-folders.routes.js';
 import { sendingSchedulesRoutes } from './sending-schedules.routes.js';
+import { billingRoutes } from './billing.routes.js';
 
 export const routes = Router();
 
@@ -53,3 +54,4 @@ routes.use('/team', teamRoutes);
 routes.use('/campaign-folders', campaignFoldersRoutes);
 routes.use('/list-folders', listFoldersRoutes);
 routes.use('/sending-schedules', sendingSchedulesRoutes);
+routes.use('/billing', billingRoutes);

@@ -3,6 +3,7 @@ import { SaraIntent, SaraAction, SaraStatus } from '@lemlist/shared';
 import type { SaraClassificationResult, SaraQueueStats } from '@lemlist/shared';
 import { fireEvent } from './webhook.service.js';
 import { suppressionService } from './suppression.service.js';
+import { billingService } from './billing.service.js';
 
 /**
  * SARA - Sincerely Autonomous Reply Agent
@@ -226,6 +227,17 @@ export async function processReply(messageId: string): Promise<SaraClassificatio
 
   if (msgError) throw new Error(`Failed to fetch message: ${msgError.message}`);
   if (!message) throw new Error('Message not found');
+
+  // SARA is a paid feature — skip classification/auto-actions when not included.
+  if (message.user_id && !(await billingService.hasFeature(message.user_id, 'sara'))) {
+    return {
+      intent: SaraIntent.Other,
+      confidence: 0,
+      action: 'none',
+      draft_reply: null,
+      reasoning: 'SARA is not included in the current plan.',
+    };
+  }
 
   const contactData = message.contacts
     ? { first_name: message.contacts.first_name, company: message.contacts.company }

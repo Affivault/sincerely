@@ -3,6 +3,7 @@ import { fireEvent } from './webhook.service.js';
 import { classifyReply } from './sara.service.js';
 import { sendCampaignEmail } from './email-sender.service.js';
 import { suppressionService } from './suppression.service.js';
+import { billingService } from './billing.service.js';
 import * as sse from './sse.service.js';
 import { nowInTimezone, partsInTimezone, startOfDayInTimezone, tzWallTimeToUtc } from '../utils/timezone.js';
 
@@ -304,9 +305,28 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     return;
   }
 
+  // Plan enforcement: owner of this campaign.
+  const ownerId: string | undefined = cc.campaigns?.user_id;
+
+  // Monthly email cap. If exhausted, reschedule to the start of next month so
+  // the contact auto-resumes when the quota resets (don't error/strand it).
+  if (ownerId && !(await billingService.hasEmailQuota(ownerId))) {
+    const now = new Date();
+    const nextPeriod = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    await supabaseAdmin
+      .from('campaign_contacts')
+      .update({ next_send_at: nextPeriod.toISOString() })
+      .eq('id', cc.id);
+    console.log(`[Sequence] Monthly email limit reached for user ${ownerId} — rescheduling contact ${cc.id} to ${nextPeriod.toISOString()}`);
+    return;
+  }
+
+  // A/B testing is a paid feature — fall back to variant A when not included.
+  const abAllowed = ownerId ? await billingService.hasFeature(ownerId, 'abTesting') : true;
+
   // A/B split: deterministic 50/50 based on contact ID hash
   const charCode = cc.contact_id.charCodeAt(0) || 0;
-  const useVariantB = charCode % 2 !== 0;
+  const useVariantB = abAllowed && charCode % 2 !== 0;
 
   let rawSubject = step.subject || '';
   if (step.subject_b) {
@@ -343,6 +363,8 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
       bodyText,
       ab_variant: step.subject_b ? (useVariantB ? 'b' : 'a') : undefined,
     });
+    // Count the send against the owner's monthly quota (only on success).
+    if (ownerId) await billingService.incrementEmailUsage(ownerId);
   } catch (err: any) {
     console.error(`[Sequence] Email send failed for ${cc.contacts.email}:`, err.message);
 

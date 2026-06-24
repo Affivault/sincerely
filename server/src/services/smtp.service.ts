@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
 import { sendViaSmtp } from './email-sender.service.js';
+import { billingService } from './billing.service.js';
 
 export const smtpService = {
   async list(userId: string) {
@@ -32,6 +33,9 @@ export const smtpService = {
   },
 
   async create(userId: string, input: any) {
+    // Enforce the plan's inbox cap before connecting another mailbox.
+    await billingService.assertCanAddInbox(userId);
+
     const { smtp_pass, ...rest } = input;
     const smtp_pass_encrypted = encrypt(smtp_pass);
 
