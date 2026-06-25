@@ -35,6 +35,7 @@ const SchedulesPage        = lazy(() => import('./pages/schedules/SchedulesPage'
 const InviteAcceptPage     = lazy(() => import('./pages/team/InviteAcceptPage').then(m => ({ default: m.InviteAcceptPage })));
 const LandingPageV2        = lazy(() => import('./pages/LandingPageV2').then(m => ({ default: m.LandingPageV2 })));
 const ToolkitPage          = lazy(() => import('./pages/toolkit/ToolkitPage').then(m => ({ default: m.ToolkitPage })));
+const BillingPage          = lazy(() => import('./pages/billing/BillingPage').then(m => ({ default: m.BillingPage })));
 
 function PageSpinner() {
   return (
@@ -106,6 +107,7 @@ export default function App() {
           <Route path="/assets"             element={<AssetBuilderPage />} />
           <Route path="/developer"          element={<DeveloperPage />} />
           <Route path="/settings"           element={<SettingsPage />} />
+          <Route path="/billing"            element={<BillingPage />} />
           <Route path="/suppression"        element={<SuppressionPage />} />
           <Route path="/verification"       element={<VerificationPage />} />
           <Route path="/toolkit"            element={<ToolkitPage />} />

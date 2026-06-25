@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, Send, Globe, LogOut,
   ShieldOff, UserPlus, CalendarClock, Layers,
-  ChevronRight, Wrench,
+  ChevronRight, Wrench, CreditCard,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
@@ -51,6 +51,7 @@ const settingsNav: NavItem[] = [
   { name: 'Domains',     href: '/domains',       icon: Globe },
   { name: 'Suppression', href: '/suppression',   icon: ShieldOff },
   { name: 'Team',        href: '/team',          icon: UserPlus },
+  { name: 'Billing',     href: '/billing',       icon: CreditCard },
   { name: 'Settings',    href: '/settings',      icon: Settings },
 ];
 
