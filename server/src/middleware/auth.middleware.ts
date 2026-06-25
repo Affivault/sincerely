@@ -27,25 +27,29 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
   try {
     if (env.SUPABASE_JWT_SECRET) {
       // Fast path: verify the signature locally with the configured secret.
-      const decoded = jwt.verify(token, env.SUPABASE_JWT_SECRET) as {
-        sub: string;
-        email: string;
-        exp: number;
-      };
-      if (!decoded || !decoded.sub) {
-        res.status(401).json({ error: 'Invalid token' });
-        return;
+      try {
+        const decoded = jwt.verify(token, env.SUPABASE_JWT_SECRET) as {
+          sub: string;
+          email: string;
+          exp: number;
+        };
+        if (decoded?.sub) {
+          req.userId = decoded.sub;
+          req.userEmail = decoded.email;
+          next();
+          return;
+        }
+      } catch {
+        // Local verification failed — wrong/rotated secret, or this Supabase
+        // project signs tokens asymmetrically (the JWT Secret can't verify
+        // them). Fall through to authoritative Supabase validation rather than
+        // locking the user out. (A genuinely forged token is still rejected
+        // below, so this is not a security hole.)
       }
-      req.userId = decoded.sub;
-      req.userEmail = decoded.email;
-      next();
-      return;
     }
 
-    // Secure fallback (no local secret configured): validate the token with
-    // Supabase itself. We must NEVER trust an unverified jwt.decode() here — that
-    // would let a forged token impersonate any user. getUser() checks the
-    // signature server-side. Set SUPABASE_JWT_SECRET to use the faster local path.
+    // Validate the token with Supabase itself. Authoritative, and works
+    // regardless of the signing scheme. We never trust an unverified decode.
     const { data, error } = await supabaseAdmin.auth.getUser(token);
     if (error || !data?.user) {
       res.status(401).json({ error: 'Invalid token' });
