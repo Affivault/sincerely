@@ -1119,7 +1119,7 @@ async function findSmtpAccount(userId: string, preferredId?: string | null): Pro
       .select('*')
       .eq('id', preferredId)
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
     if (data) return data;
   }
   const { data } = await supabaseAdmin
@@ -1128,7 +1128,7 @@ async function findSmtpAccount(userId: string, preferredId?: string | null): Pro
     .eq('user_id', userId)
     .eq('is_active', true)
     .limit(1)
-    .single();
+    .maybeSingle();
   if (!data) throw new AppError('No SMTP account available. Add one in SMTP Accounts settings.', 400);
   return data;
 }

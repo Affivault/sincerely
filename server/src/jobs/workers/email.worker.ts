@@ -115,7 +115,7 @@ export function startEmailWorker() {
             .eq('user_id', campaign.user_id)
             .eq('is_active', true)
             .limit(1)
-            .single();
+            .maybeSingle();
           if (anyAccount) {
             smtpAccount = anyAccount;
             console.log(`Last resort SMTP: ${smtpAccount.label || smtpAccount.id} (not verified)`);
@@ -211,7 +211,7 @@ export function startEmailWorker() {
         await sse.recordSend(smtpAccount.id);
 
         // 8. Record campaign activity (sent)
-        await supabaseAdmin
+        const { error: activityError } = await supabaseAdmin
           .from('campaign_activities')
           .insert({
             campaign_id: campaignId,
@@ -228,6 +228,9 @@ export function startEmailWorker() {
               tracking_id: trackingId,
             },
           });
+        if (activityError) {
+          console.error(`[Email] Failed to record campaign activity for job ${job.id}:`, activityError.message);
+        }
 
         // 9. Fire webhook event for email sent
         if (campaign) {

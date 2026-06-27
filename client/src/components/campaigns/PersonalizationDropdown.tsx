@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, User, Building2, Briefcase, Mail, Phone, Globe, Linkedin, Hash, Sparkles } from 'lucide-react';
+import { ChevronDown, User, Building2, Briefcase, Mail, Phone, Globe, Linkedin, Hash, Sparkles, MapPin, Globe2 } from 'lucide-react';
 
 export interface MergeTag {
   label: string;
@@ -16,6 +16,8 @@ const MERGE_TAGS: MergeTag[] = [
   { label: 'Full Name', value: '{{full_name}}', icon: User, category: 'Contact', description: 'First + last name' },
   { label: 'Email', value: '{{email}}', icon: Mail, category: 'Contact', description: 'Contact\'s email address' },
   { label: 'Phone', value: '{{phone}}', icon: Phone, category: 'Contact', description: 'Contact\'s phone number' },
+  { label: 'City', value: '{{city}}', icon: MapPin, category: 'Contact', description: 'Contact\'s city' },
+  { label: 'Country', value: '{{country}}', icon: Globe2, category: 'Contact', description: 'Contact\'s country' },
 
   // Professional
   { label: 'Company', value: '{{company}}', icon: Building2, category: 'Professional', description: 'Company name' },
@@ -23,11 +25,12 @@ const MERGE_TAGS: MergeTag[] = [
   { label: 'Website', value: '{{website}}', icon: Globe, category: 'Professional', description: 'Website URL' },
   { label: 'LinkedIn', value: '{{linkedin_url}}', icon: Linkedin, category: 'Professional', description: 'LinkedIn profile URL' },
 
+  // Custom
+  { label: 'Custom Field 1', value: '{{custom_field_1}}', icon: Hash, category: 'Custom', description: 'Custom field 1' },
+  { label: 'Custom Field 2', value: '{{custom_field_2}}', icon: Hash, category: 'Custom', description: 'Custom field 2' },
+
   // Dynamic
-  { label: 'Signature', value: '{{signature}}', icon: Sparkles, category: 'Dynamic', description: 'Your email signature' },
-  { label: 'Unsubscribe Link', value: '{{unsubscribe_link}}', icon: Hash, category: 'Dynamic', description: 'Opt-out link' },
-  { label: 'Sender Name', value: '{{sender_name}}', icon: User, category: 'Dynamic', description: 'Your name' },
-  { label: 'Sender Email', value: '{{sender_email}}', icon: Mail, category: 'Dynamic', description: 'Your email address' },
+  { label: 'Unsubscribe Link', value: '{{unsubscribe_link}}', icon: Sparkles, category: 'Dynamic', description: 'Opt-out link' },
 ];
 
 interface PersonalizationDropdownProps {
