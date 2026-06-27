@@ -103,7 +103,7 @@ export async function recordSend(accountId: string): Promise<void> {
         .from('smtp_accounts')
         .select('sends_today, total_sent')
         .eq('id', accountId)
-        .single();
+        .maybeSingle();
       if (data) {
         await supabaseAdmin
           .from('smtp_accounts')

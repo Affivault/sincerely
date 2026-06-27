@@ -32,7 +32,7 @@ export const campaignContactsService = {
       .from('campaigns')
       .select('id, user_id, list_id')
       .eq('id', campaignId)
-      .single();
+      .maybeSingle();
     if (!campaign) throw new AppError('Campaign not found', 404);
 
     let allowedContactIds = contactIds;
@@ -121,7 +121,7 @@ export const campaignContactsService = {
       .from('campaigns')
       .select('id, list_id')
       .eq('id', campaignId)
-      .single();
+      .maybeSingle();
     if (!campaign) throw new AppError('Campaign not found', 404);
     if (!campaign.list_id) throw new AppError('This campaign is not bound to a lead list', 400);
 

@@ -50,7 +50,7 @@ export function startInboxWorker() {
         .from('smtp_accounts')
         .select('smtp_pass_encrypted, smtp_host, email_address, last_inbox_sync_at')
         .eq('id', smtpAccountId)
-        .single();
+        .maybeSingle();
 
       if (!account) {
         console.error(`SMTP account ${smtpAccountId} not found`);
@@ -134,7 +134,7 @@ export function startInboxWorker() {
               .select('campaign_id, campaign_contact_id, contact_id, step_id')
               .eq('activity_type', 'sent')
               .eq('message_id', inReplyTo)
-              .single();
+              .maybeSingle();
             matchedActivity = data;
           }
 
@@ -145,7 +145,7 @@ export function startInboxWorker() {
               .select('id')
               .eq('email', fromEmail)
               .eq('user_id', userId)
-              .single();
+              .maybeSingle();
 
             if (contact) {
               const { data: cc } = await supabaseAdmin
@@ -155,7 +155,7 @@ export function startInboxWorker() {
                 .in('status', ['active', 'completed'])
                 .order('created_at', { ascending: false })
                 .limit(1)
-                .single();
+                .maybeSingle();
 
               if (cc) {
                 matchedActivity = {
