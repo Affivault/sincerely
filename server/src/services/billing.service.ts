@@ -94,6 +94,26 @@ export const billingService = {
     return sent < limits.emailsPerMonth;
   },
 
+  /**
+   * Atomically reserve one email against the monthly cap. Returns true if the
+   * send is allowed (and counts it), false if it would exceed the limit. Use
+   * this on every real send path so the cap can't be raced or bypassed.
+   */
+  async reserveEmailQuota(userId: string): Promise<boolean> {
+    const limits = await this.getLimits(userId);
+    const { data, error } = await supabaseAdmin.rpc('reserve_email_quota', {
+      p_user_id: userId,
+      p_limit: limits.emailsPerMonth,
+      p_count: 1,
+    });
+    if (!error) return data === true;
+    // Fallback if migration 020 isn't applied yet: non-atomic check + increment.
+    console.error(`[Billing] reserve_email_quota RPC failed, falling back: ${error.message}`);
+    const ok = await this.hasEmailQuota(userId);
+    if (ok) await this.incrementEmailUsage(userId);
+    return ok;
+  },
+
   async incrementEmailUsage(userId: string, count = 1): Promise<void> {
     const { error } = await supabaseAdmin.rpc('increment_email_usage', {
       p_user_id: userId,

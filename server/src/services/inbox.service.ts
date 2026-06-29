@@ -6,6 +6,14 @@ import { decrypt } from '../utils/encryption.js';
 import { sendViaSmtp } from './email-sender.service.js';
 import { processReply } from './sara.service.js';
 import { fireEvent } from './webhook.service.js';
+import { billingService } from './billing.service.js';
+
+/** Reserve a monthly-quota slot before an interactive send; throws if over cap. */
+async function assertSendQuota(userId: string): Promise<void> {
+  if (!(await billingService.reserveEmailQuota(userId))) {
+    throw new AppError("You've reached your monthly email limit. Upgrade to send more.", 403, 'UPGRADE_REQUIRED');
+  }
+}
 
 async function isAiTaggingEnabled(userId: string): Promise<boolean> {
   const { data } = await supabaseAdmin
@@ -539,6 +547,7 @@ export const inboxService = {
   ${original.body_html || `<p>${original.body_text || ''}</p>`}
 </div>`;
 
+    await assertSendQuota(userId);
     await sendViaSmtp({
       smtpHost: smtpAccount.smtp_host,
       smtpPort: smtpAccount.smtp_port,
@@ -609,6 +618,7 @@ export const inboxService = {
 <br/>
 ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
 
+    await assertSendQuota(userId);
     await sendViaSmtp({
       smtpHost: smtpAccount.smtp_host,
       smtpPort: smtpAccount.smtp_port,
@@ -654,6 +664,7 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
     // Use rich HTML from editor if provided, otherwise convert plain text
     const htmlBody = input.body_html || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${input.body.replace(/\n/g, '<br/>')}</div>`;
 
+    await assertSendQuota(userId);
     await sendViaSmtp({
       smtpHost: smtpAccount.smtp_host,
       smtpPort: smtpAccount.smtp_port,
@@ -1172,6 +1183,12 @@ export async function processScheduledEmails(): Promise<number> {
           .from('inbox_messages')
           .update({ sara_status: null, sara_action: null })
           .eq('id', msg.id);
+        continue;
+      }
+
+      // Monthly cap — skip (leave scheduled) if the owner is out of quota.
+      if (smtpAccount.user_id && !(await billingService.reserveEmailQuota(smtpAccount.user_id))) {
+        console.log(`[ScheduledEmails] User ${smtpAccount.user_id} over quota — leaving message ${msg.id} scheduled`);
         continue;
       }
 
