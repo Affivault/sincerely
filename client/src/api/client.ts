@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { supabase } from '../lib/supabase';
 import { API_URL } from '../lib/constants';
+import { notifyUpgrade } from '../lib/upgradeNag';
 
 const apiClient = axios.create({
   baseURL: API_URL,
@@ -27,6 +28,10 @@ apiClient.interceptors.request.use(async (config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // Plan-limit hit — pop the upgrade modal.
+    if (error.response?.status === 403 && error.response?.data?.code === 'UPGRADE_REQUIRED') {
+      notifyUpgrade(error.response.data.error);
+    }
     if (error.response?.status === 401 && !error.config._retry) {
       error.config._retry = true;
       const { error: refreshError } = await supabase.auth.refreshSession();

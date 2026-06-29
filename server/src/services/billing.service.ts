@@ -9,9 +9,9 @@ import {
   type UsageSummary,
 } from '@lemlist/shared';
 
-// Until a real subscription row exists (e.g. before Stripe is live), users are
-// treated as on the Trial plan so existing functionality keeps working.
-const DEFAULT_PLAN: PlanId = 'trial';
+// New users (and anyone without an active/trialing subscription) sit on the
+// restrictive Free plan until they subscribe.
+const DEFAULT_PLAN: PlanId = 'free';
 
 /** ISO date (YYYY-MM-DD, UTC) of the first day of the current month. */
 function currentPeriodStart(): string {
@@ -36,8 +36,8 @@ function planFromSubscription(sub: any | null): PlanId {
   if (status === 'active' || status === 'trialing') {
     return PLANS[sub.plan as PlanId] ? (sub.plan as PlanId) : DEFAULT_PLAN;
   }
-  // past_due / canceled / incomplete → restrict to the lowest paid tier.
-  return 'starter';
+  // past_due / canceled / incomplete → drop back to Free until they pay.
+  return 'free';
 }
 
 export const billingService = {
@@ -71,6 +71,7 @@ export const billingService = {
       throw new AppError(
         `Your plan allows up to ${limits.maxInboxes} sending inbox(es). Upgrade your plan to connect more.`,
         403,
+        'UPGRADE_REQUIRED',
       );
     }
   },
@@ -114,7 +115,7 @@ export const billingService = {
     return {
       plan: planId,
       planName: plan.name,
-      status: (sub?.status as SubscriptionStatus) || 'trialing',
+      status: (sub?.status as SubscriptionStatus) || 'free',
       trialEndsAt: sub?.trial_ends_at ?? null,
       periodStart: currentPeriodStart(),
       emailsSent,

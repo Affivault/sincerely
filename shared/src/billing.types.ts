@@ -1,7 +1,7 @@
 // Billing: plan definitions, limits, and usage types.
 // This is the single source of truth for plan limits, shared by client + server.
 
-export type PlanId = 'trial' | 'starter' | 'growth' | 'scale';
+export type PlanId = 'free' | 'trial' | 'starter' | 'growth' | 'scale';
 
 export interface PlanFeatures {
   /** SARA autonomous reply agent */
@@ -28,6 +28,11 @@ export interface PlanInfo extends PlanLimits {
 }
 
 export const PLANS: Record<PlanId, PlanInfo> = {
+  free: {
+    id: 'free', name: 'Free', priceMonthly: 0, priceAnnual: 0,
+    maxInboxes: 1, emailsPerMonth: 100,
+    features: { sara: false, abTesting: false },
+  },
   trial: {
     id: 'trial', name: 'Trial', priceMonthly: 0, priceAnnual: 0,
     maxInboxes: 25, emailsPerMonth: 15000,
@@ -51,6 +56,7 @@ export const PLANS: Record<PlanId, PlanInfo> = {
 };
 
 export type SubscriptionStatus =
+  | 'free'
   | 'trialing'
   | 'active'
   | 'past_due'

@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { ErrorBoundary } from '../ErrorBoundary';
+import { UpgradeNag } from '../UpgradeNag';
 import { CommandPalette } from '../CommandPalette';
 import { ShortcutsOverlay } from '../ShortcutsOverlay';
 import { ThemeProvider } from '../../context/ThemeContext';
@@ -118,6 +119,7 @@ function AppContent() {
         {/* Generous workspace width — effectively full-bleed on laptops so data
             tables breathe, while capping ultrawide so forms stay readable. */}
         <main className="px-8 py-7 max-w-[1760px] mx-auto">
+          <UpgradeNag />
           {/* key on pathname so the fade-up replays on every route change */}
           <div key={location.pathname} className="route-fade">
             <ErrorBoundary>

@@ -2,10 +2,12 @@ import { Request, Response, NextFunction } from 'express';
 
 export class AppError extends Error {
   statusCode: number;
+  code?: string;
 
-  constructor(message: string, statusCode: number) {
+  constructor(message: string, statusCode: number, code?: string) {
     super(message);
     this.statusCode = statusCode;
+    this.code = code;
     this.name = 'AppError';
   }
 }
@@ -19,7 +21,7 @@ export function errorMiddleware(
   console.error('Error:', err);
 
   if (err instanceof AppError) {
-    res.status(err.statusCode).json({ error: err.message });
+    res.status(err.statusCode).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
     return;
   }
 
