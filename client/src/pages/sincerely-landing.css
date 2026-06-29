@@ -1262,3 +1262,39 @@
 .md-auth__foot { margin-top: 26px; text-align: center; font-size: 13px; color: var(--txt-2); }
 .md-auth__mobile-logo { display: flex; margin-bottom: 28px; }
 @media (min-width: 1024px) { .md-auth__mobile-logo { display: none; } }
+
+/* =========================================================
+   Light mode — landing toggle (.md-landing.is-light)
+   Overrides the dark design tokens; accents stay the same.
+   ========================================================= */
+.md-landing.is-light {
+  --bg:         #FFFFFF;
+  --bg-2:       #F4F6FB;
+  --surface:    rgba(15,20,35,0.025);
+  --surface-2:  rgba(15,20,35,0.05);
+  --border:     rgba(15,20,35,0.09);
+  --border-hi:  rgba(15,20,35,0.16);
+  --border-str: rgba(15,20,35,0.30);
+  --txt:        #0E1320;
+  --txt-2:      rgba(14,19,32,0.64);
+  --txt-3:      rgba(14,19,32,0.42);
+  --txt-4:      rgba(14,19,32,0.20);
+  background: var(--bg);
+  color: var(--txt);
+}
+.md-landing.is-light .lp-header.is-scrolled {
+  background: rgba(255,255,255,0.72);
+  border-bottom: 1px solid rgba(15,20,35,0.08);
+}
+.md-landing.is-light .lp-header__link:hover { background: rgba(15,20,35,0.04); }
+.md-landing.is-light ::selection { background: rgba(108,92,250,0.18); color: #0E1320; }
+
+/* Theme toggle button in the landing header */
+.lp-header__theme {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 10px;
+  color: var(--txt-2); border: 1px solid var(--border);
+  background: var(--surface); cursor: pointer;
+  transition: color .18s, border-color .18s, background .18s;
+}
+.lp-header__theme:hover { color: var(--txt); border-color: var(--border-hi); background: var(--surface-2); }

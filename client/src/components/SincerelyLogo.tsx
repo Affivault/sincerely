@@ -24,7 +24,7 @@ function SMark({ gid }: { gid: string }) {
       <path
         d={S_PATH}
         stroke={`url(#${gid})`}
-        strokeWidth="6.5"
+        strokeWidth="9"
         strokeLinecap="round"
         strokeLinejoin="round"
       />

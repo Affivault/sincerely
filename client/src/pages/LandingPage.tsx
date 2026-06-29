@@ -10,8 +10,8 @@ import './sincerely-landing.css';
 type IconProps = React.SVGProps<SVGSVGElement>;
 
 const Icon: Record<string, (p: IconProps) => React.ReactElement> = {
-  Logo: (p) => <svg width="16" height="16" viewBox="0 0 40 40" fill="none" {...p}><path d="M27 12.5C24.7 9.3 19.6 8.3 15.6 9.6 11 11.1 9.8 15.6 13.2 18.2 15.6 20 20.2 20.4 23.8 21.8 28.8 23.7 29.4 28.4 26 31.2 22.8 33.8 17.4 33.2 13.8 30" stroke="currentColor" strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round" /></svg>,
-  Mark: (p) => <svg width="28" height="28" viewBox="0 0 40 40" fill="none" {...p}><defs><linearGradient id="md-mark" x1="8" y1="8" x2="32" y2="33" gradientUnits="userSpaceOnUse"><stop stopColor="#4F86F7" /><stop offset="1" stopColor="#8B5CF6" /></linearGradient></defs><path d="M27 12.5C24.7 9.3 19.6 8.3 15.6 9.6 11 11.1 9.8 15.6 13.2 18.2 15.6 20 20.2 20.4 23.8 21.8 28.8 23.7 29.4 28.4 26 31.2 22.8 33.8 17.4 33.2 13.8 30" stroke="url(#md-mark)" strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round" /></svg>,
+  Logo: (p) => <svg width="16" height="16" viewBox="0 0 40 40" fill="none" {...p}><path d="M27 12.5C24.7 9.3 19.6 8.3 15.6 9.6 11 11.1 9.8 15.6 13.2 18.2 15.6 20 20.2 20.4 23.8 21.8 28.8 23.7 29.4 28.4 26 31.2 22.8 33.8 17.4 33.2 13.8 30" stroke="currentColor" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" /></svg>,
+  Mark: (p) => <svg width="28" height="28" viewBox="0 0 40 40" fill="none" {...p}><defs><linearGradient id="md-mark" x1="8" y1="8" x2="32" y2="33" gradientUnits="userSpaceOnUse"><stop stopColor="#4F86F7" /><stop offset="1" stopColor="#8B5CF6" /></linearGradient></defs><path d="M27 12.5C24.7 9.3 19.6 8.3 15.6 9.6 11 11.1 9.8 15.6 13.2 18.2 15.6 20 20.2 20.4 23.8 21.8 28.8 23.7 29.4 28.4 26 31.2 22.8 33.8 17.4 33.2 13.8 30" stroke="url(#md-mark)" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" /></svg>,
   Send: (p) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M3 11l18-8-8 18-2-8-8-2z" /></svg>,
   Mail: (p) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 5L2 7" /></svg>,
   Inbox: (p) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><polyline points="22 12 16 12 14 15 10 15 8 12 2 12" /><path d="M5.5 5h13l3.5 7v6a2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2v-6Z" /></svg>,
@@ -40,7 +40,7 @@ const Icon: Record<string, (p: IconProps) => React.ReactElement> = {
   Trend: (p) => <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" {...p}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" /></svg>,
 };
 
-function Header() {
+function Header({ light, onToggle }: { light: boolean; onToggle: () => void }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16);
@@ -63,6 +63,11 @@ function Header() {
           <a className="lp-header__link" href="#faq">FAQ</a>
         </nav>
         <div className="lp-header__actions">
+          <button type="button" className="lp-header__theme" onClick={onToggle} aria-label="Toggle light or dark theme" title="Toggle theme">
+            {light
+              ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>
+              : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>}
+          </button>
           <Link className="lp-header__login" to="/login">Log in</Link>
           <Link className="lp-btn lp-btn--primary" to="/signup">Start free <Icon.ArrowRight className="lp-btn__arrow" /></Link>
         </div>
@@ -1125,6 +1130,14 @@ function Footer() {
 
 export function LandingPage() {
   const ref = useRef<HTMLDivElement>(null);
+  const [light, setLight] = useState(() => {
+    try { return localStorage.getItem('sincerely-landing-theme') === 'light'; } catch { return false; }
+  });
+  const toggleTheme = () => setLight((v) => {
+    const nv = !v;
+    try { localStorage.setItem('sincerely-landing-theme', nv ? 'light' : 'dark'); } catch { /* ignore */ }
+    return nv;
+  });
 
   // Scroll-reveal — mirror the design's IntersectionObserver, scoped to this page.
   useEffect(() => {
@@ -1142,16 +1155,16 @@ export function LandingPage() {
     return () => obs.disconnect();
   }, []);
 
-  // Keep the page background dark while the marketing site is mounted.
+  // Match the page background to the landing theme while the site is mounted.
   useEffect(() => {
     const prev = document.body.style.background;
-    document.body.style.background = '#070A14';
+    document.body.style.background = light ? '#FFFFFF' : '#070A14';
     return () => { document.body.style.background = prev; };
-  }, []);
+  }, [light]);
 
   return (
-    <div className="md-landing" data-atmosphere="flat" data-density="roomy" ref={ref}>
-      <Header />
+    <div className={`md-landing ${light ? 'is-light' : ''}`} data-atmosphere="flat" data-density="roomy" ref={ref}>
+      <Header light={light} onToggle={toggleTheme} />
       <div className="lp-stage">
         <Hero />
         <Logos />

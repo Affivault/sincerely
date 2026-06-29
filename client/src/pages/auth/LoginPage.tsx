@@ -15,7 +15,7 @@ function SincerelyLogo() {
               <stop stopColor="#4F86F7" /><stop offset="1" stopColor="#8B5CF6" />
             </linearGradient>
           </defs>
-          <path d="M27 12.5C24.7 9.3 19.6 8.3 15.6 9.6 11 11.1 9.8 15.6 13.2 18.2 15.6 20 20.2 20.4 23.8 21.8 28.8 23.7 29.4 28.4 26 31.2 22.8 33.8 17.4 33.2 13.8 30" stroke="url(#md-auth-mark)" strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M27 12.5C24.7 9.3 19.6 8.3 15.6 9.6 11 11.1 9.8 15.6 13.2 18.2 15.6 20 20.2 20.4 23.8 21.8 28.8 23.7 29.4 28.4 26 31.2 22.8 33.8 17.4 33.2 13.8 30" stroke="url(#md-auth-mark)" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </span>
       <span className="lp-header__logo-name">sincerely</span>
