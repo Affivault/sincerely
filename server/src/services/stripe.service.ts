@@ -143,14 +143,21 @@ export const stripeService = {
       return;
     }
 
-    const priceId = sub.items.data[0]?.price?.id;
+    const item = sub.items.data[0];
+    const priceId = item?.price?.id;
     const plan: PlanId = (priceId && PRICE_TO_PLAN[priceId]) || 'starter';
-    const periodEnd = (sub as any).current_period_end as number | undefined;
+    // current_period_end moved from the Subscription to the line item in recent
+    // Stripe API versions — read whichever is present.
+    const periodEnd =
+      ((sub as any).current_period_end as number | undefined) ??
+      ((item as any)?.current_period_end as number | undefined);
 
     const { error } = await supabaseAdmin.from('subscriptions').upsert(
       {
         user_id: userId,
-        plan: sub.status === 'canceled' ? 'starter' : plan,
+        // Store the real plan; planFromSubscription() downgrades non-active
+        // statuses (canceled/past_due) to Free at read time.
+        plan,
         status: sub.status,
         trial_ends_at: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
         current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
