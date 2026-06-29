@@ -32,7 +32,7 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 403 && error.response?.data?.code === 'UPGRADE_REQUIRED') {
       notifyUpgrade(error.response.data.error);
     }
-    if (error.response?.status === 401 && !error.config._retry) {
+    if (error.config && error.response?.status === 401 && !error.config._retry) {
       error.config._retry = true;
       const { error: refreshError } = await supabase.auth.refreshSession();
       if (refreshError) {

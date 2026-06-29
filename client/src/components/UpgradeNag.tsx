@@ -28,21 +28,26 @@ export function UpgradeNag() {
   });
 
   const isFree = usage?.plan === 'free';
-  const onBilling = location.pathname.startsWith('/billing');
+  const onBilling = location.pathname === '/billing';
 
-  // Limit-hit (403 UPGRADE_REQUIRED) → open immediately with the reason.
+  // Track in-flight checkout so the interval doesn't re-pop over the Stripe redirect.
+  const busyRef = useRef(false);
+  useEffect(() => { busyRef.current = busy !== null; }, [busy]);
+
+  // Limit-hit (403 UPGRADE_REQUIRED) → open immediately with the reason (free users only).
   useEffect(() => {
     return onUpgradePrompt((r) => {
+      if (!isFree) return;
       setReason(r);
       setOpen(true);
     });
-  }, []);
+  }, [isFree]);
 
   // Auto-open shortly after load, then keep re-popping on an interval — until they pay.
   useEffect(() => {
     if (!isFree || onBilling) return;
-    const first = window.setTimeout(() => setOpen(true), 2000);
-    const timer = window.setInterval(() => setOpen(true), NAG_INTERVAL);
+    const first = window.setTimeout(() => { if (!busyRef.current) setOpen(true); }, 2000);
+    const timer = window.setInterval(() => { if (!busyRef.current) setOpen(true); }, NAG_INTERVAL);
     return () => { window.clearTimeout(first); window.clearInterval(timer); };
   }, [isFree, onBilling]);
 

@@ -224,15 +224,7 @@ router.get('/click/:trackingId', async (req: Request, res: Response) => {
  * GET /api/track/unsubscribe/:trackingId
  * Unsubscribe a contact from further emails. Shows confirmation page.
  */
-router.get('/unsubscribe/:trackingId', async (req: Request, res: Response) => {
-  const parsed = parseTrackingId(req.params.trackingId);
-
-  if (!parsed) {
-    return res.status(400).send('<html><body><h2>Invalid link</h2></body></html>');
-  }
-
-  const { campaignContactId, stepId } = parsed;
-
+async function performUnsubscribe(campaignContactId: string, stepId: string | null, method: string): Promise<void> {
   try {
     const { data: cc } = await supabaseAdmin
       .from('campaign_contacts')
@@ -260,7 +252,7 @@ router.get('/unsubscribe/:trackingId', async (req: Request, res: Response) => {
           step_id: stepId,
           activity_type: 'unsubscribed',
           occurred_at: new Date().toISOString(),
-          metadata: { method: 'link_click' },
+          metadata: { method },
         });
 
       const userId = (cc as any).campaigns?.user_id;
@@ -284,6 +276,28 @@ router.get('/unsubscribe/:trackingId', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Unsubscribe error:', err);
   }
+}
+
+/**
+ * POST /api/track/unsubscribe/:trackingId
+ * RFC 8058 one-click unsubscribe — Gmail/Yahoo/Outlook POST here (required for
+ * bulk-sender compliance). Performs the unsubscribe and returns 200.
+ */
+router.post('/unsubscribe/:trackingId', async (req: Request, res: Response) => {
+  const parsed = parseTrackingId(req.params.trackingId);
+  if (!parsed) return res.status(400).json({ error: 'Invalid link' });
+  await performUnsubscribe(parsed.campaignContactId, parsed.stepId, 'one_click');
+  return res.status(200).json({ ok: true });
+});
+
+router.get('/unsubscribe/:trackingId', async (req: Request, res: Response) => {
+  const parsed = parseTrackingId(req.params.trackingId);
+
+  if (!parsed) {
+    return res.status(400).send('<html><body><h2>Invalid link</h2></body></html>');
+  }
+
+  await performUnsubscribe(parsed.campaignContactId, parsed.stepId, 'link_click');
 
   return res.send(`<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">

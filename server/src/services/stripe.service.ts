@@ -145,7 +145,8 @@ export const stripeService = {
 
     const item = sub.items.data[0];
     const priceId = item?.price?.id;
-    const plan: PlanId = (priceId && PRICE_TO_PLAN[priceId]) || 'starter';
+    // Unknown price → Free, never silently grant a paid tier.
+    const plan: PlanId = (priceId && PRICE_TO_PLAN[priceId]) || 'free';
     // current_period_end moved from the Subscription to the line item in recent
     // Stripe API versions — read whichever is present.
     const periodEnd =
@@ -166,7 +167,11 @@ export const stripeService = {
       },
       { onConflict: 'user_id' },
     );
-    if (error) console.error(`[Stripe] Failed to sync subscription for ${userId}: ${error.message}`);
+    if (error) {
+      // Throw so the webhook returns non-2xx and Stripe retries — otherwise a
+      // transient DB error would permanently drop the subscription sync.
+      throw new AppError(`Failed to sync subscription for ${userId}: ${error.message}`, 500);
+    }
   },
 
   async userIdForCustomer(customerId: string): Promise<string | null> {

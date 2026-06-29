@@ -35,6 +35,18 @@ services:
         sync: false
       - key: ENCRYPTION_KEY
         sync: false
+      # Set in the Render dashboard (sync:false keeps them out of the blueprint
+      # but documents that the service needs them so a re-apply can't drop them).
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: SMTP_RELAY_URL
+        sync: false
+      - key: SMTP_RELAY_SECRET
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
 
   - type: redis
     name: sincerely-redis

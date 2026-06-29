@@ -196,7 +196,14 @@ export function Header() {
                         {usage.emailsSent.toLocaleString()} / {isUnlimited(usage.emailsLimit) ? '∞' : usage.emailsLimit.toLocaleString()}
                       </span>
                     </div>
-                    {usage.status === 'trialing' && usage.trialEndsAt ? (
+                    {usage.status === 'past_due' || usage.status === 'canceled' ? (
+                      <button
+                        onClick={() => { setMenuOpen(false); navigate('/billing'); }}
+                        className="w-full mt-0.5 h-7 rounded-md text-[11.5px] font-semibold text-white bg-[var(--error)]"
+                      >
+                        {usage.status === 'past_due' ? 'Payment failed — fix billing' : 'Subscription canceled — renew'}
+                      </button>
+                    ) : usage.status === 'trialing' && usage.trialEndsAt ? (
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] text-[var(--text-tertiary)]">Trial ends</span>
                         <span className="text-[11.5px] text-[var(--text-secondary)]">in {daysUntil(usage.trialEndsAt)}d</span>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { billingApi } from '../../api/billing.api';
@@ -46,20 +46,26 @@ export function BillingPage() {
   const [interval, setInterval] = useState<Interval>('monthly');
   const [busy, setBusy] = useState<PlanId | 'portal' | null>(null);
 
+  const queryClient = useQueryClient();
   const { data: usage, isLoading } = useQuery({
     queryKey: ['billing', 'usage'],
     queryFn: billingApi.usage,
   });
 
-  // Toast on return from Stripe Checkout.
+  // Toast + refresh plan on return from Stripe Checkout (so the nag clears once paid).
   useEffect(() => {
     const status = new URLSearchParams(window.location.search).get('status');
-    if (status === 'success') toast.success('Subscription started — welcome aboard!');
-    else if (status === 'cancel') toast('Checkout canceled.', { icon: '↩️' });
+    if (status === 'success') {
+      toast.success('Subscription started — welcome aboard!');
+      queryClient.invalidateQueries({ queryKey: ['billing', 'usage'] });
+    } else if (status === 'cancel') {
+      toast('Checkout canceled.', { icon: '↩️' });
+    }
     if (status) window.history.replaceState({}, '', '/billing');
-  }, []);
+  }, [queryClient]);
 
   const onUpgrade = async (planId: PlanId) => {
+    if (busy) return;
     if (planId === 'scale') {
       window.location.href = 'mailto:info@affivault.com?subject=Sincerely%20Scale%20plan';
       return;
@@ -68,6 +74,7 @@ export function BillingPage() {
     setBusy(planId);
     try {
       const { url } = await billingApi.checkout(planId, interval);
+      if (!url) throw new Error('No checkout URL returned');
       window.location.href = url;
     } catch (err: any) {
       toast.error(err?.response?.data?.error || 'Could not start checkout. Please try again.');
@@ -76,9 +83,11 @@ export function BillingPage() {
   };
 
   const onManageBilling = async () => {
+    if (busy) return;
     setBusy('portal');
     try {
       const { url } = await billingApi.portal();
+      if (!url) throw new Error('No portal URL returned');
       window.location.href = url;
     } catch (err: any) {
       toast.error(err?.response?.data?.error || 'Could not open the billing portal.');
