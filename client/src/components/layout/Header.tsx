@@ -69,8 +69,8 @@ export function Header() {
   return (
     <header className="fixed top-0 inset-x-0 z-50 flex h-[56px] items-center border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/90 backdrop-blur-xl gap-3 pr-6">
       {/* Logo zone — fixed, never collapses */}
-      <div className="flex items-center gap-1 h-full pl-4 pr-3 flex-shrink-0">
-        <span className="overflow-hidden"><SincerelyLogo /></span>
+      <div className="flex items-center gap-2.5 h-full pl-5 pr-3 flex-shrink-0">
+        <span className="flex items-center overflow-hidden"><SincerelyLogo /></span>
         <button
           onClick={toggle}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
