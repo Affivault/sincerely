@@ -209,7 +209,7 @@ function Hero() {
                       className="mk__bar"
                       style={{ height: `${h}%`, animationDelay: `${800 + i * 50}ms` }}
                     >
-                      {(i === 6 || i === 13) && <span className="mk__bar-day">{days[i]}</span>}
+                      <span className="mk__bar-day">{days[i]}</span>
                     </div>
                   ))}
                 </div>
@@ -775,20 +775,37 @@ function Deliverability() {
   );
 }
 
+/* Recognizable, brand-coloured glyphs for the integration tiles. White marks
+   render on the brand-colour tile (set per app below) for an app-icon look. */
+const IntgGlyph: Record<string, React.ReactElement> = {
+  salesforce: <svg viewBox="0 0 24 24" fill="none"><path d="M17.4 19a4.4 4.4 0 0 0 .7-8.74A5 5 0 0 0 8.8 8.2a3.6 3.6 0 0 0-5.3 3.2 3.7 3.7 0 0 0 3.7 3.7" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /><path d="M7 19h10.4" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" /></svg>,
+  hubspot: <svg viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="15" r="4" stroke="#fff" strokeWidth="2" /><circle cx="17" cy="6.5" r="2.6" fill="#fff" /><path d="M17 9.1v3.3M11.2 12.4 14.8 8" stroke="#fff" strokeWidth="2" strokeLinecap="round" /></svg>,
+  pipedrive: <svg viewBox="0 0 24 24" fill="none"><path d="M9.5 4.5h2.7a5.2 5.2 0 0 1 0 10.4c-1.4 0-2.4-.5-3-1.2V20H6V4.5h3.5z" stroke="#fff" strokeWidth="2" strokeLinejoin="round" /></svg>,
+  gmail: <svg viewBox="0 0 24 24" fill="none"><path d="M4 7.2A1.6 1.6 0 0 1 6.6 6L12 10l5.4-4A1.6 1.6 0 0 1 20 7.2V17a1 1 0 0 1-1 1h-2.2v-7.1L12 14.4 7.2 10.9V18H5a1 1 0 0 1-1-1V7.2z" fill="#fff" /></svg>,
+  outlook: <svg viewBox="0 0 24 24" fill="none"><rect x="10" y="6" width="10" height="12" rx="1.4" stroke="#fff" strokeWidth="1.8" /><path d="M10 9.5 15 13l5-3.5" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round" /><ellipse cx="6.5" cy="12" rx="4.5" ry="5" fill="#fff" /><ellipse cx="6.5" cy="12" rx="1.8" ry="2.4" fill="#0F6CBD" /></svg>,
+  apollo: <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3.4" fill="#fff" /><ellipse cx="12" cy="12" rx="9" ry="4.2" stroke="#fff" strokeWidth="1.6" transform="rotate(-28 12 12)" /></svg>,
+  clearbit: <svg viewBox="0 0 24 24" fill="#fff"><rect x="4" y="13" width="3.6" height="7" rx="1.2" /><rect x="10.2" y="9" width="3.6" height="11" rx="1.2" /><rect x="16.4" y="4.5" width="3.6" height="15.5" rx="1.2" /></svg>,
+  slack: <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.1" strokeLinecap="round"><path d="M9.3 4 7.7 20M16.3 4l-1.6 16M4 9.3h16M3.7 14.7h16" /></svg>,
+  calendly: <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="5.5" width="16" height="14.5" rx="2.4" stroke="#fff" strokeWidth="1.9" /><path d="M4 9.5h16M8.5 3.5v4M15.5 3.5v4" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" /></svg>,
+  zapier: <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.3" strokeLinecap="round"><path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5 4.2 16.5" /></svg>,
+  segment: <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.3" strokeLinecap="round"><path d="M20.2 9.4A8.2 8.2 0 0 0 5.6 6.3" /><path d="M3.8 14.6a8.2 8.2 0 0 0 14.6 3.1" /></svg>,
+  webhooks: <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.9"><circle cx="6" cy="6" r="2.4" /><circle cx="6" cy="18" r="2.4" /><circle cx="18" cy="12" r="2.4" /><path d="M8.1 7.1 15.9 11M8.1 16.9 15.9 13" strokeLinecap="round" /></svg>,
+};
+
 function Integrations() {
   const apps = [
-    { name: 'Salesforce', cat: 'CRM', letter: 'sf' },
-    { name: 'HubSpot', cat: 'CRM', letter: 'hs' },
-    { name: 'Pipedrive', cat: 'CRM', letter: 'pd' },
-    { name: 'Gmail', cat: 'Mailbox', letter: 'gm' },
-    { name: 'Outlook', cat: 'Mailbox', letter: 'ol' },
-    { name: 'Apollo', cat: 'Enrichment', letter: 'ap' },
-    { name: 'Clearbit', cat: 'Enrichment', letter: 'cb' },
-    { name: 'Slack', cat: 'Notifications', letter: 'sl' },
-    { name: 'Calendly', cat: 'Scheduling', letter: 'cal' },
-    { name: 'Zapier', cat: 'Automation', letter: 'zp' },
-    { name: 'Segment', cat: 'Data', letter: 'sg' },
-    { name: 'Webhooks', cat: 'Developer', letter: '{ }' },
+    { name: 'Salesforce', cat: 'CRM', key: 'salesforce', color: '#00A1E0' },
+    { name: 'HubSpot', cat: 'CRM', key: 'hubspot', color: '#FF7A59' },
+    { name: 'Pipedrive', cat: 'CRM', key: 'pipedrive', color: '#1F8E4A' },
+    { name: 'Gmail', cat: 'Mailbox', key: 'gmail', color: '#EA4335' },
+    { name: 'Outlook', cat: 'Mailbox', key: 'outlook', color: '#0F6CBD' },
+    { name: 'Apollo', cat: 'Enrichment', key: 'apollo', color: '#5C4EE5' },
+    { name: 'Clearbit', cat: 'Enrichment', key: 'clearbit', color: '#3A86FF' },
+    { name: 'Slack', cat: 'Notifications', key: 'slack', color: '#4A154B' },
+    { name: 'Calendly', cat: 'Scheduling', key: 'calendly', color: '#006BFF' },
+    { name: 'Zapier', cat: 'Automation', key: 'zapier', color: '#FF4F00' },
+    { name: 'Segment', cat: 'Data', key: 'segment', color: '#52BD94' },
+    { name: 'Webhooks', cat: 'Developer', key: 'webhooks', color: '#6C5CFA' },
   ];
   return (
     <section className="lp-section intg" id="integrations">
@@ -801,7 +818,7 @@ function Integrations() {
         <div className="intg__grid">
           {apps.map((a, i) => (
             <div key={i} className="intg__card reveal" style={{ transitionDelay: `${(i % 4) * 60}ms` }}>
-              <span className="intg__mono">{a.letter}</span>
+              <span className="intg__logo" style={{ background: a.color }}>{IntgGlyph[a.key]}</span>
               <div className="intg__meta">
                 <div className="intg__name">{a.name}</div>
                 <div className="intg__cat">{a.cat}</div>

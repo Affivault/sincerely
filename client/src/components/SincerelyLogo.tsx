@@ -16,7 +16,7 @@ import type { CSSProperties } from 'react';
 export function SincerelyLogo({ className = '', inverted = false }: { className?: string; inverted?: boolean }) {
   // Fixed height tuned to the 56px app-shell header; CSS owns `display` so the
   // theme-aware swap below isn't beaten by an inline value.
-  const dim: CSSProperties = { height: 24, width: 'auto' };
+  const dim: CSSProperties = { height: 28, width: 'auto' };
 
   // Fixed dark/coloured panel → always the white wordmark.
   if (inverted) {
