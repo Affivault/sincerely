@@ -11,12 +11,12 @@ import type { CSSProperties } from 'react';
  * page is rendered with. Pass `inverted` to force the white logo on a fixed
  * dark/coloured panel regardless of the active theme.
  *
- * Size with the surrounding font-size (height is em-based) or a `className`.
+ * Sized for the app shell header by default; pass a `className` to override.
  */
 export function SincerelyLogo({ className = '', inverted = false }: { className?: string; inverted?: boolean }) {
-  // Height tracks the surrounding font-size; CSS owns `display` so the
-  // theme-aware swap below isn't beaten by an inline display value.
-  const dim: CSSProperties = { height: '1.5em', width: 'auto' };
+  // Fixed height so the wordmark reads clearly in the header; CSS owns
+  // `display` so the theme-aware swap below isn't beaten by an inline value.
+  const dim: CSSProperties = { height: 30, width: 'auto' };
 
   // Fixed dark/coloured panel → always the white wordmark.
   if (inverted) {

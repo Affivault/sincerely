@@ -2,8 +2,9 @@ import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
-import { ArrowRight, ArrowLeft, Mail } from 'lucide-react';
-import { SincerelyLogo } from '../../components/SincerelyLogo';
+import { ArrowLeft, Mail } from 'lucide-react';
+import { AuthShell, BrandMetrics, BrandQuote } from '../../components/AuthShell';
+import '../sincerely-landing.css';
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -27,99 +28,74 @@ export function ForgotPasswordPage() {
     setLoading(false);
   };
 
+  const brand = (
+    <>
+      <h1 className="md-auth__headline">
+        Locked out?<br />
+        Let's <em>fix that</em>.
+      </h1>
+      <p className="md-auth__lede">
+        Enter the email on your account and we'll send a secure link to get you
+        back into your workspace in seconds.
+      </p>
+      <BrandMetrics />
+    </>
+  );
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--bg-app)] px-6 py-12">
-      <div className="w-full max-w-[420px]">
-        {/* Logo */}
-        <div className="mb-8 flex justify-center">
-          <Link to="/">
-            <span className="text-xl"><SincerelyLogo /></span>
+    <AuthShell brand={brand} brandFooter={<BrandQuote />}>
+      {sent ? (
+        <div style={{ textAlign: 'center' }}>
+          <div className="md-auth__badge md-auth__badge--ok">
+            <Mail className="h-6 w-6" />
+          </div>
+          <h1 className="md-auth__form-h1">Check your email</h1>
+          <p className="md-auth__form-sub">
+            We sent a password reset link to <strong style={{ color: 'var(--txt)' }}>{email}</strong>. It expires in 1 hour.
+          </p>
+          <p className="md-auth__fine">
+            Didn't receive it? Check your spam folder, or{' '}
+            <button type="button" onClick={() => setSent(false)} className="md-auth__notice-btn" style={{ marginTop: 0 }}>
+              try again
+            </button>.
+          </p>
+          <Link to="/login" className="md-auth__back">
+            <ArrowLeft className="h-4 w-4" />
+            Back to sign in
           </Link>
         </div>
+      ) : (
+        <>
+          <h1 className="md-auth__form-h1">Reset your password</h1>
+          <p className="md-auth__form-sub">Enter your email and we'll send you a secure reset link.</p>
 
-        {sent ? (
-          /* Success state */
-          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center shadow-sm">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-              <Mail className="h-6 w-6 text-green-600 dark:text-green-400" />
+          <form onSubmit={handleSubmit} style={{ marginTop: 24 }}>
+            <div className="md-auth__field">
+              <label htmlFor="email" className="md-auth__label">Email address</label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+                className="md-auth__input"
+              />
             </div>
-            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Check your email</h2>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              We sent a password reset link to <strong>{email}</strong>. It expires in 1 hour.
-            </p>
-            <p className="mt-4 text-xs text-[var(--text-tertiary)]">
-              Didn't receive it? Check your spam folder, or{' '}
-              <button
-                onClick={() => setSent(false)}
-                className="font-medium underline"
-                style={{ color: '#818CF8' }}
-              >
-                try again
-              </button>
-              .
-            </p>
-            <Link
-              to="/login"
-              className="mt-6 inline-flex items-center gap-2 text-sm font-medium"
-              style={{ color: '#818CF8' }}
-            >
+
+            <button type="submit" disabled={loading} className="md-auth__submit">
+              {loading ? 'Sending…' : 'Send reset link'}
+            </button>
+          </form>
+
+          <p className="md-auth__foot">
+            <Link to="/login" className="md-auth__back" style={{ marginTop: 0 }}>
               <ArrowLeft className="h-4 w-4" />
               Back to sign in
             </Link>
-          </div>
-        ) : (
-          /* Form state */
-          <>
-            <div className="mb-8 text-center">
-              <h1 className="text-[18px] font-semibold text-[var(--text-primary)] tracking-tight">
-                Reset your password
-              </h1>
-              <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                Enter your email and we'll send you a reset link.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 shadow-sm">
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
-                    Email address
-                  </label>
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    required
-                    className="input-field"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full btn-primary justify-center py-2.5 rounded-xl"
-                >
-                  {loading ? 'Sending...' : 'Send reset link'}
-                  {!loading && <ArrowRight className="h-4 w-4" />}
-                </button>
-              </form>
-            </div>
-
-            <p className="mt-6 text-center text-sm text-[var(--text-secondary)]">
-              <Link
-                to="/login"
-                className="inline-flex items-center gap-1 font-medium"
-                style={{ color: '#818CF8' }}
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                Back to sign in
-              </Link>
-            </p>
-          </>
-        )}
-      </div>
-    </div>
+          </p>
+        </>
+      )}
+    </AuthShell>
   );
 }

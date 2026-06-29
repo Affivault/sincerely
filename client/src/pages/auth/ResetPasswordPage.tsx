@@ -2,8 +2,9 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
-import { ArrowRight, KeyRound, AlertTriangle } from 'lucide-react';
-import { SincerelyLogo } from '../../components/SincerelyLogo';
+import { AlertTriangle } from 'lucide-react';
+import { AuthShell, BrandMetrics, BrandQuote } from '../../components/AuthShell';
+import '../sincerely-landing.css';
 
 export function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -61,56 +62,43 @@ export function ResetPasswordPage() {
     }
   };
 
-  if (invalid) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-app)] px-6 py-12">
-        <div className="w-full max-w-[420px] rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center shadow-sm">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-            <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
+  const brand = (
+    <>
+      <h1 className="md-auth__headline">
+        Almost<br />
+        <em>there</em>.
+      </h1>
+      <p className="md-auth__lede">
+        Choose a new password and we'll sign you straight back into your
+        workspace — right where you left off.
+      </p>
+      <BrandMetrics />
+    </>
+  );
+
+  return (
+    <AuthShell brand={brand} brandFooter={<BrandQuote />}>
+      {invalid ? (
+        <div style={{ textAlign: 'center' }}>
+          <div className="md-auth__badge md-auth__badge--warn">
+            <AlertTriangle className="h-6 w-6" />
           </div>
-          <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Link expired or invalid</h2>
-          <p className="mt-2 text-sm text-[var(--text-secondary)]">
-            This password reset link has expired or already been used.
+          <h1 className="md-auth__form-h1">Link expired or invalid</h1>
+          <p className="md-auth__form-sub">
+            This password reset link has expired or has already been used.
           </p>
-          <Link
-            to="/forgot-password"
-            className="mt-6 inline-flex items-center gap-2 btn-primary py-2 px-4 rounded-lg text-sm"
-          >
+          <Link to="/forgot-password" className="md-auth__submit">
             Request a new link
           </Link>
         </div>
-      </div>
-    );
-  }
+      ) : (
+        <>
+          <h1 className="md-auth__form-h1">Set a new password</h1>
+          <p className="md-auth__form-sub">Choose a strong password of at least 6 characters.</p>
 
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--bg-app)] px-6 py-12">
-      <div className="w-full max-w-[420px]">
-        {/* Logo */}
-        <div className="mb-8 flex justify-center">
-          <Link to="/">
-            <span className="text-xl"><SincerelyLogo /></span>
-          </Link>
-        </div>
-
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full" style={{ background: 'rgba(99,102,241,0.1)' }}>
-            <KeyRound className="h-6 w-6" style={{ color: '#818CF8' }} />
-          </div>
-          <h1 className="text-[18px] font-semibold text-[var(--text-primary)] tracking-tight">
-            Set new password
-          </h1>
-          <p className="mt-2 text-sm text-[var(--text-secondary)]">
-            Choose a strong password of at least 6 characters.
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 shadow-sm">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
-                New password
-              </label>
+          <form onSubmit={handleSubmit} style={{ marginTop: 24 }}>
+            <div className="md-auth__field">
+              <label htmlFor="password" className="md-auth__label">New password</label>
               <input
                 id="password"
                 type="password"
@@ -119,15 +107,13 @@ export function ResetPasswordPage() {
                 placeholder="At least 6 characters"
                 required
                 minLength={6}
-                className="input-field"
+                className="md-auth__input"
                 disabled={!ready}
               />
             </div>
 
-            <div>
-              <label htmlFor="confirm" className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
-                Confirm password
-              </label>
+            <div className="md-auth__field">
+              <label htmlFor="confirm" className="md-auth__label">Confirm password</label>
               <input
                 id="confirm"
                 type="password"
@@ -136,22 +122,17 @@ export function ResetPasswordPage() {
                 placeholder="Repeat your new password"
                 required
                 minLength={6}
-                className="input-field"
+                className="md-auth__input"
                 disabled={!ready}
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={loading || !ready}
-              className="w-full btn-primary justify-center py-2.5 rounded-xl"
-            >
-              {loading ? 'Updating...' : !ready ? 'Verifying link...' : 'Update password'}
-              {!loading && ready && <ArrowRight className="h-4 w-4" />}
+            <button type="submit" disabled={loading || !ready} className="md-auth__submit">
+              {loading ? 'Updating…' : !ready ? 'Verifying link…' : 'Update password'}
             </button>
           </form>
-        </div>
-      </div>
-    </div>
+        </>
+      )}
+    </AuthShell>
   );
 }

@@ -209,7 +209,7 @@
   filter: drop-shadow(0 3px 10px rgba(108,92,250,0.35));
 }
 .lp-header__logo-mark svg { color: #fff; }
-.lp-header__logo-img { height: 30px; width: auto; display: block; filter: drop-shadow(0 3px 10px rgba(108,92,250,0.35)); }
+.lp-header__logo-img { height: 40px; width: auto; display: block; filter: drop-shadow(0 3px 10px rgba(108,92,250,0.35)); }
 .lp-header__logo-name { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: -0.03em; }
 .lp-header__logo-grad {
   background: linear-gradient(120deg, #8A4DFC, #2A71FC);
@@ -1045,6 +1045,14 @@
 .faq__cta a { color: var(--indigo-soft); font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: gap 200ms var(--ease), color 160ms; }
 .faq__cta a:hover { gap: 10px; color: #fff; }
 
+/* ========== In-page navigation ==========
+   Offset anchored sections so they clear the fixed 68px header instead of
+   scrolling underneath it, and ease the jump when the landing is mounted. */
+.md-landing [id] { scroll-margin-top: 92px; }
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.md-landing) { scroll-behavior: smooth; }
+}
+
 /* ========== Responsive ========== */
 @media (max-width: 960px) {
   .lp-feat__inner, .lp-feat__inner--rev { grid-template-columns: 1fr; gap: 48px; }
@@ -1263,4 +1271,54 @@
 .md-auth__foot { margin-top: 26px; text-align: center; font-size: 13px; color: var(--txt-2); }
 .md-auth__mobile-logo { display: flex; margin-bottom: 28px; }
 @media (min-width: 1024px) { .md-auth__mobile-logo { display: none; } }
+
+/* ---- Auth — shared additions for signup & password flows ---- */
+.md-auth__logo { display: inline-flex; }
+
+/* Mono eyebrow above the brand headline (e.g. "Free to start") */
+.md-auth__eyebrow { font-family: var(--font-mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--indigo-soft); margin: 64px 0 0; }
+.md-auth__eyebrow + .md-auth__headline { margin-top: 18px; }
+
+/* Onboarding steps on the sign-up brand panel */
+.md-auth__steps { list-style: none; margin: 40px 0 0; padding: 0;
+  display: flex; flex-direction: column; gap: 10px; max-width: 440px; }
+.md-auth__step { display: flex; align-items: center; gap: 14px; padding: 13px 16px;
+  border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.md-auth__step-n { flex-shrink: 0; font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 12px; font-weight: 600; color: var(--indigo-soft); }
+.md-auth__step-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.md-auth__step-t { font-size: 13px; font-weight: 600; color: var(--txt); line-height: 1.3; }
+.md-auth__step-d { font-size: 11.5px; color: var(--txt-3); line-height: 1.3; }
+
+/* In-form notice box (resend confirmation, "check your email", etc.) */
+.md-auth__notice { margin-top: 18px; padding: 14px 16px; border: 1px solid var(--border);
+  border-radius: 12px; background: var(--surface); font-size: 12.5px; color: var(--txt-2); line-height: 1.55; }
+.md-auth__notice strong { color: var(--txt); font-weight: 600; }
+.md-auth__notice--center { text-align: center; }
+.md-auth__notice-btn { margin-top: 6px; background: none; border: none; padding: 0; cursor: pointer;
+  font-size: 12.5px; font-weight: 600; color: var(--indigo-soft); font-family: inherit; }
+.md-auth__notice-btn:hover { text-decoration: underline; text-underline-offset: 2px; }
+.md-auth__notice-btn:disabled { opacity: 0.6; cursor: default; text-decoration: none; }
+
+/* Fine print (terms / privacy) */
+.md-auth__fine { margin-top: 18px; text-align: center; font-size: 11.5px; color: var(--txt-3); line-height: 1.55; }
+.md-auth__fine a { color: var(--txt-2); text-decoration: none; }
+.md-auth__fine a:hover { color: var(--txt); }
+
+/* Circular status badge for terminal states (success / invalid / key) */
+.md-auth__badge { width: 48px; height: 48px; margin: 0 auto 18px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; }
+.md-auth__badge--brand { background: rgba(108,92,250,0.14); color: var(--indigo-soft); }
+.md-auth__badge--ok { background: rgba(34,197,94,0.14); color: var(--green); }
+.md-auth__badge--warn { background: rgba(245,158,11,0.16); color: #FBBF24; }
+
+/* Back link with leading icon */
+.md-auth__back { display: inline-flex; align-items: center; gap: 6px; margin-top: 22px;
+  font-size: 13px; font-weight: 600; color: var(--indigo-soft); text-decoration: none; }
+.md-auth__back:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+/* Link styled as the primary submit button (terminal-state CTA) */
+a.md-auth__submit { text-decoration: none; margin-top: 20px; }
 
