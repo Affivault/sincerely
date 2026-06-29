@@ -310,9 +310,9 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
   // Plan enforcement: owner of this campaign.
   const ownerId: string | undefined = cc.campaigns?.user_id;
 
-  // Monthly email cap. If exhausted, reschedule to the start of next month so
-  // the contact auto-resumes when the quota resets (don't error/strand it).
-  if (ownerId && !(await billingService.hasEmailQuota(ownerId))) {
+  // Monthly email cap — atomically reserve a slot. If exhausted, reschedule to
+  // the start of next month so the contact auto-resumes when the quota resets.
+  if (ownerId && !(await billingService.reserveEmailQuota(ownerId))) {
     const now = new Date();
     const nextPeriod = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
     await supabaseAdmin
@@ -365,8 +365,7 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
       bodyText,
       ab_variant: step.subject_b ? (useVariantB ? 'b' : 'a') : undefined,
     });
-    // Count the send against the owner's monthly quota (only on success).
-    if (ownerId) await billingService.incrementEmailUsage(ownerId);
+    // (Quota already reserved above before sending.)
   } catch (err: any) {
     console.error(`[Sequence] Email send failed for ${cc.contacts.email}:`, err.message);
 

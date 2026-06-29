@@ -117,14 +117,14 @@ export const stripeService = {
         const session = event.data.object as Stripe.Checkout.Session;
         if (session.subscription) {
           const sub = await s.subscriptions.retrieve(session.subscription as string);
-          await this.syncSubscription(sub);
+          await this.syncSubscription(sub, event.created);
         }
         break;
       }
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
-        await this.syncSubscription(event.data.object as Stripe.Subscription);
+        await this.syncSubscription(event.data.object as Stripe.Subscription, event.created);
         break;
       }
       default:
@@ -134,12 +134,25 @@ export const stripeService = {
   },
 
   /** Upsert our subscriptions row from a Stripe Subscription object. */
-  async syncSubscription(sub: Stripe.Subscription): Promise<void> {
+  async syncSubscription(sub: Stripe.Subscription, eventCreated: number): Promise<void> {
     const userId =
       (sub.metadata?.user_id as string | undefined) ||
       (await this.userIdForCustomer(sub.customer as string));
     if (!userId) {
       console.error(`[Stripe] No user_id for subscription ${sub.id} (customer ${String(sub.customer)})`);
+      return;
+    }
+
+    // Ordering guard: ignore events older than the last one we applied, so a
+    // replayed or out-of-order webhook can't overwrite newer subscription state.
+    const eventAtIso = new Date(eventCreated * 1000).toISOString();
+    const { data: existing } = await supabaseAdmin
+      .from('subscriptions')
+      .select('last_event_at')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (existing?.last_event_at && new Date(existing.last_event_at).getTime() > new Date(eventAtIso).getTime()) {
+      console.log(`[Stripe] Skipping stale event for ${userId} (event ${eventAtIso} < stored ${existing.last_event_at})`);
       return;
     }
 
@@ -164,6 +177,7 @@ export const stripeService = {
         current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
         stripe_customer_id: sub.customer as string,
         stripe_subscription_id: sub.id,
+        last_event_at: eventAtIso,
       },
       { onConflict: 'user_id' },
     );
