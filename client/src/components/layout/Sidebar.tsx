@@ -191,7 +191,7 @@ function NavSection({ title, items, collapsed, badges, expandedGroups, onToggleG
     <div className="mb-0">
       {title && !collapsed && (
         <div className="px-2.5 mt-5 mb-1.5">
-          <span className="font-data text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-[0.12em]">{title}</span>
+          <span className="text-[11px] font-semibold text-[var(--text-tertiary)]">{title}</span>
         </div>
       )}
       {title && collapsed && (
