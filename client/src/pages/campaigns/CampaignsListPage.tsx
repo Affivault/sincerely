@@ -239,7 +239,7 @@ export function CampaignsListPage() {
 
       {/* ── Aggregate metrics strip ── */}
       {sentTotal > 0 && (
-        <div className="grid grid-cols-5 gap-2 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
           <MetricChip icon={Send}              label="Sent"    value={aggregateStats.sent}    tone="indigo" />
           <MetricChip icon={Mail}              label="Opens"   value={aggregateStats.opened}  tone="violet"  rate={openPctAgg} />
           <MetricChip icon={MousePointerClick} label="Clicks"  value={aggregateStats.clicked} tone="cyan"    rate={clickPctAgg} />
@@ -380,7 +380,7 @@ export function CampaignsListPage() {
               <div className="overflow-x-auto">
                 <div className="min-w-[760px]">
                   {/* Column header — click to sort */}
-                  <div className={cn(ROW_GRID, 'px-4 h-9 border-b border-[var(--border-subtle)] bg-[var(--bg-muted)]/40')}>
+                  <div className={cn(ROW_GRID, 'px-4 h-10 border-b border-[var(--border-subtle)] bg-[var(--bg-muted)]/40')}>
                     {([
                       { key: 'name' as SortKey,   label: 'Campaign', right: false },
                       { key: 'sent' as SortKey,   label: 'Sent',     right: true },
@@ -393,7 +393,7 @@ export function CampaignsListPage() {
                         key={col.key}
                         onClick={() => toggleSort(col.key)}
                         className={cn(
-                          'group/sort inline-flex items-center gap-1 font-data text-[10px] font-medium transition-colors select-none',
+                          'group/sort inline-flex items-center gap-1 text-[11px] font-medium transition-colors select-none',
                           col.right && 'justify-end',
                           sortKey === col.key ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                         )}
@@ -404,7 +404,7 @@ export function CampaignsListPage() {
                           : <ChevronsUpDown className="h-3 w-3 opacity-0 group-hover/sort:opacity-60 transition-opacity" />}
                       </button>
                     ))}
-                    <span className="font-data text-[10px] font-medium text-[var(--text-tertiary)]">Pipeline</span>
+                    <span className="text-[11px] font-medium text-[var(--text-tertiary)]">Pipeline</span>
                     <span />
                   </div>
                   <div className="divide-y divide-[var(--border-subtle)]">
@@ -582,15 +582,15 @@ function MetricChip({ icon: Icon, label, value, rate }: {
   icon: any; label: string; value: number; rate?: number; tone?: string;
 }) {
   return (
-    <div className="panel panel-hover px-3.5 py-3">
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <Icon className="h-3.5 w-3.5 text-[var(--text-tertiary)]" strokeWidth={2} />
-        <span className="text-[10.5px] font-medium text-[var(--text-tertiary)] flex-1">{label}</span>
+    <div className="panel p-4">
+      <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
+        <Icon className="h-4 w-4 flex-shrink-0" strokeWidth={1.75} />
+        <span className="text-[12.5px] font-medium">{label}</span>
         {rate !== undefined && (
-          <span className="text-[10.5px] tabular text-[var(--text-tertiary)] font-medium">{rate.toFixed(1)}%</span>
+          <span className="ml-auto text-[12px] tabular font-semibold text-[var(--text-secondary)]">{rate.toFixed(1)}%</span>
         )}
       </div>
-      <div className="text-[19px] font-semibold text-[var(--text-primary)] tabular tracking-[-0.02em] leading-none">
+      <div className="mt-2.5 text-[26px] font-semibold text-[var(--text-primary)] tabular tracking-[-0.03em] leading-none">
         {value.toLocaleString()}
       </div>
     </div>
