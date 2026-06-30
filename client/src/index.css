@@ -317,25 +317,18 @@
 
   .btn-primary,
   .btn-brand {
-    background: var(--indigo-grad);
+    background: var(--indigo);
     color: #ffffff;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.18),
-      0 1px 2px rgba(67, 56, 202, 0.35);
+    box-shadow: 0 1px 2px rgba(15, 15, 25, 0.08);
   }
   .btn-primary:hover,
   .btn-brand:hover {
-    background: var(--indigo-grad-hover);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.2),
-      0 2px 8px rgba(67, 56, 202, 0.45);
+    background: var(--indigo-hover);
   }
   .btn-primary:active,
   .btn-brand:active {
+    background: var(--indigo-hover);
     transform: translateY(0.5px);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      0 1px 1px rgba(67, 56, 202, 0.3);
   }
 
   .btn-secondary {
@@ -384,7 +377,7 @@
   .card {
     background: var(--bg-surface);
     border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
     transition: border-color var(--dur-base) var(--ease-out),
                 box-shadow var(--dur-base) var(--ease-out),
@@ -396,13 +389,12 @@
   a.card:hover,
   button.card:hover {
     border-color: var(--border-default);
-    box-shadow: var(--shadow-card-hover);
-    transform: translateY(-2px);
+    background: var(--bg-muted);
   }
   .card-hover:active,
   a.card:active,
   button.card:active {
-    transform: translateY(-1px);
+    background: var(--bg-active);
     transition-duration: var(--dur-fast);
   }
 
@@ -413,7 +405,7 @@
       linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
       linear-gradient(135deg, rgba(91, 91, 245, 0.35), rgba(139, 92, 246, 0.18) 35%, var(--border-subtle) 65%) border-box;
     border: 1px solid transparent;
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-card);
     transition: box-shadow 0.2s ease;
   }
@@ -425,7 +417,7 @@
   .surface {
     background: var(--bg-surface);
     border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-lg);
     box-shadow: 0 0 0 1px rgba(15,15,25,0.02), 0 1px 2px rgba(15,15,25,0.04);
   }
 
@@ -433,7 +425,7 @@
   .panel {
     background: var(--bg-surface);
     border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-lg);
     box-shadow: 0 1px 0 rgba(15, 15, 25, 0.02), 0 1px 3px rgba(15, 15, 25, 0.03);
   }
   .panel-hover {
@@ -650,7 +642,7 @@
 
   /* ── Tinted surfaces — coloured cards that still feel light and clean ── */
   .tint {
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-lg);
     border: 1px solid transparent;
     transition: border-color var(--dur-base) var(--ease-out),
                 box-shadow var(--dur-base) var(--ease-out),
