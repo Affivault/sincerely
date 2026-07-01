@@ -418,6 +418,9 @@ export function CampaignsListPage() {
                           onLaunch={() => launchMut.mutate(campaign.id)}
                           onPause={()  => pauseMut.mutate(campaign.id)}
                           onResume={() => resumeMut.mutate(campaign.id)}
+                          launchBusy={launchMut.isPending && launchMut.variables === campaign.id}
+                          pauseBusy={pauseMut.isPending && pauseMut.variables === campaign.id}
+                          resumeBusy={resumeMut.isPending && resumeMut.variables === campaign.id}
                           onEdit={()   => navigate(`/campaigns/${campaign.id}/edit`)}
                           onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setContextMenuFor({ id: campaign.id, x: e.clientX, y: e.clientY }); }}
                           dragging={draggingCampaignId === campaign.id}
@@ -606,7 +609,7 @@ const STATUS_DOT: Record<string, string> = {
   scheduled: 'bg-blue-500',
 };
 
-function CampaignRow({ campaign, expanded, onToggleSnapshot, onOpen, onLaunch, onPause, onResume, onEdit, onContextMenu, dragging, onDragStart, onDragEnd }: any) {
+function CampaignRow({ campaign, expanded, onToggleSnapshot, onOpen, onLaunch, onPause, onResume, onEdit, onContextMenu, dragging, onDragStart, onDragEnd, launchBusy, pauseBusy, resumeBusy }: any) {
   const total = campaign.sent_count || 0;
   const openPct   = total ? (campaign.opened_count  / total) * 100 : 0;
   const clickPct  = total ? (campaign.clicked_count / total) * 100 : 0;
@@ -688,13 +691,13 @@ function CampaignRow({ campaign, expanded, onToggleSnapshot, onOpen, onLaunch, o
           <ChevronDown className="h-3.5 w-3.5" />
         </button>
         {campaign.status === 'draft' && (
-          <button onClick={onLaunch} title="Launch" className="icon-btn !text-[var(--indigo)] hover:!bg-[var(--indigo-subtle)]"><Play className="h-3.5 w-3.5" /></button>
+          <button onClick={onLaunch} disabled={launchBusy} title="Launch" className="icon-btn !text-[var(--indigo)] hover:!bg-[var(--indigo-subtle)] disabled:opacity-50 disabled:pointer-events-none"><Play className="h-3.5 w-3.5" /></button>
         )}
         {campaign.status === 'running' && (
-          <button onClick={onPause} title="Pause" className="icon-btn"><Pause className="h-3.5 w-3.5" /></button>
+          <button onClick={onPause} disabled={pauseBusy} title="Pause" className="icon-btn disabled:opacity-50 disabled:pointer-events-none"><Pause className="h-3.5 w-3.5" /></button>
         )}
         {campaign.status === 'paused' && (
-          <button onClick={onResume} title="Resume" className="icon-btn !text-[var(--indigo)] hover:!bg-[var(--indigo-subtle)]"><Play className="h-3.5 w-3.5" /></button>
+          <button onClick={onResume} disabled={resumeBusy} title="Resume" className="icon-btn !text-[var(--indigo)] hover:!bg-[var(--indigo-subtle)] disabled:opacity-50 disabled:pointer-events-none"><Play className="h-3.5 w-3.5" /></button>
         )}
         <button onClick={onEdit} title="Edit" className="icon-btn opacity-0 group-hover:opacity-100 transition-opacity"><Pencil className="h-3.5 w-3.5" /></button>
         <button onClick={(e) => { e.stopPropagation(); onContextMenu(e); }} title="More" className="icon-btn"><MoreVertical className="h-3.5 w-3.5" /></button>

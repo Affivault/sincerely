@@ -27,6 +27,26 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
       { keys: ['?'], label: 'Keyboard shortcuts' },
     ],
   },
+  {
+    title: 'Inbox',
+    items: [
+      { keys: ['J'], label: 'Next conversation' },
+      { keys: ['K'], label: 'Previous conversation' },
+      { keys: ['R'], label: 'Reply' },
+      { keys: ['E'], label: 'Archive / unarchive' },
+      { keys: ['C'], label: 'Compose' },
+    ],
+  },
+  {
+    title: 'SARA queue',
+    items: [
+      { keys: ['J'], label: 'Next message' },
+      { keys: ['K'], label: 'Previous message' },
+      { keys: ['A'], label: 'Approve reply' },
+      { keys: ['E'], label: 'Edit draft' },
+      { keys: ['D'], label: 'Dismiss' },
+    ],
+  },
 ];
 
 export function ShortcutsOverlay({ open, onClose }: ShortcutsOverlayProps) {

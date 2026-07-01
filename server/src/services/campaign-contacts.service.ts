@@ -35,17 +35,27 @@ export const campaignContactsService = {
       .maybeSingle();
     if (!campaign) throw new AppError('Campaign not found', 404);
 
-    let allowedContactIds = contactIds;
+    // 2. Restrict to contacts actually owned by the campaign's user — never trust
+    //    caller-supplied contact IDs across tenants.
+    const { data: ownedContacts } = await supabaseAdmin
+      .from('contacts')
+      .select('id')
+      .eq('user_id', campaign.user_id)
+      .in('id', contactIds);
+    let allowedContactIds = (ownedContacts || []).map((c: any) => c.id as string);
+    if (allowedContactIds.length === 0) {
+      throw new AppError('None of the selected contacts belong to this account', 400);
+    }
 
-    // 2. If the campaign is bound to a list, restrict to contacts in that list
+    // 3. If the campaign is bound to a list, restrict to contacts in that list
     if (campaign.list_id) {
       const { data: members } = await supabaseAdmin
         .from('list_contacts')
         .select('contact_id')
         .eq('list_id', campaign.list_id)
-        .in('contact_id', contactIds);
+        .in('contact_id', allowedContactIds);
       const memberIds = new Set((members || []).map((m: any) => m.contact_id));
-      allowedContactIds = contactIds.filter((id) => memberIds.has(id));
+      allowedContactIds = allowedContactIds.filter((id) => memberIds.has(id));
       if (allowedContactIds.length === 0) {
         throw new AppError(
           'Selected contacts are not in this campaign\'s lead list. Add them to the list first.',
@@ -54,7 +64,7 @@ export const campaignContactsService = {
       }
     }
 
-    // 3. Block contacts that are already in any OTHER active campaign of the same user
+    // 4. Block contacts that are already in any OTHER active campaign of the same user
     //    if the other campaign is bound to a *different* list. (Same-list reuse is allowed.)
     const { data: otherEnrolments } = await supabaseAdmin
       .from('campaign_contacts')

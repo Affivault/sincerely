@@ -148,7 +148,7 @@ function CopyableEmail({ email }: { email: string }) {
           navigator.clipboard?.writeText(email).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 1200);
-          }).catch(() => {});
+          }).catch(() => toast.error('Could not copy email'));
         }}
         className="flex-shrink-0 p-1 rounded-md text-[var(--text-tertiary)] opacity-0 group-hover/email:opacity-100 hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)] transition-all"
       >

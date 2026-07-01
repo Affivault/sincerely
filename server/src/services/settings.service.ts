@@ -128,6 +128,8 @@ export const settingsService = {
       'suppression_list',
       'webhook_endpoints',
       'api_keys',
+      'usage_counters',
+      'subscriptions',
     ];
 
     for (const table of tables) {
