@@ -79,7 +79,7 @@ function SortableHeader({
       onClick={() => onSort(colKey)}
       className={`flex items-center gap-1 group/sort transition-colors ${active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
     >
-      <span className="font-data text-[10px] font-medium">{label}</span>
+      <span className="text-[11px] font-medium">{label}</span>
       {active
         ? (sortDir === 'asc'
             ? <ChevronUp className="h-3 w-3 flex-shrink-0" />
@@ -139,7 +139,7 @@ function CopyableEmail({ email }: { email: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <span className="group/email inline-flex items-center gap-1.5 min-w-0">
-      <span className="text-[12.5px] text-[var(--text-secondary)] truncate font-data">{email}</span>
+      <span className="text-[12.5px] text-[var(--text-secondary)] truncate">{email}</span>
       <button
         type="button"
         title="Copy email"
@@ -183,8 +183,8 @@ function HealthCell({ c }: { c: any }) {
   return <span className="text-[11px] text-[var(--text-muted)]">—</span>;
 }
 
-const TextCell = ({ v, mono }: { v?: string | null; mono?: boolean }) =>
-  v ? <span className={cn('text-[12.5px] text-[var(--text-secondary)] truncate', mono && 'font-data')}>{v}</span>
+const TextCell = ({ v }: { v?: string | null; mono?: boolean }) =>
+  v ? <span className="text-[12.5px] text-[var(--text-secondary)] truncate">{v}</span>
     : <span className="text-[12px] text-[var(--text-muted)]">—</span>;
 
 const LinkCell = ({ href, label }: { href?: string | null; label?: string | null }) => {
@@ -192,7 +192,7 @@ const LinkCell = ({ href, label }: { href?: string | null; label?: string | null
   const url = href.startsWith('http') ? href : `https://${href}`;
   return (
     <a href={url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
-      className="inline-flex items-center gap-1 text-[12.5px] text-[var(--indigo)] hover:underline truncate font-data">
+      className="inline-flex items-center gap-1 text-[12.5px] text-[var(--indigo)] hover:underline truncate">
       {(label || href).replace(/^https?:\/\//, '')}
       <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
     </a>
@@ -342,7 +342,7 @@ const ALL_COLUMNS: ColumnDef[] = [
   { id: 'linkedin_url',label: 'LinkedIn',                         tdClass: 'max-w-[180px]', render: (c) => <LinkCell href={c.linkedin_url} label={c.linkedin_url ? 'Profile' : null} /> },
   { id: 'tags',        label: 'Tags',                             tdClass: 'max-w-[240px]', render: (c) => <TagsCell tags={c.tags} /> },
   { id: 'lists',       label: 'Lists',                            tdClass: 'max-w-[240px]', render: (c) => <ListsCell lists={c.lists} /> },
-  { id: 'added',       label: 'Added',     sortKey: 'created_at', render: (c) => <span className="text-[11.5px] text-[var(--text-tertiary)] font-data" title={formatDate(c.created_at)}>{formatRelativeTime(c.created_at)}</span> },
+  { id: 'added',       label: 'Added',     sortKey: 'created_at', render: (c) => <span className="text-[11.5px] text-[var(--text-tertiary)]" title={formatDate(c.created_at)}>{formatRelativeTime(c.created_at)}</span> },
   { id: 'health',      label: 'Health',    sortKey: 'dcs_score',  render: (c) => <HealthCell c={c} /> },
 ];
 const DEFAULT_COLUMNS: ColumnId[] = ['email', 'status', 'company', 'location', 'tags', 'lists', 'added'];
@@ -1373,7 +1373,7 @@ export function ContactsListPage() {
                       <th key={col.id} className="bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-4 py-2 whitespace-nowrap min-w-[150px]">
                         {col.sortKey
                           ? <SortableHeader label={col.label} colKey={col.sortKey} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
-                          : <span className="font-data text-[10px] font-medium text-[var(--text-tertiary)]">{col.label}</span>}
+                          : <span className="text-[11px] font-medium text-[var(--text-tertiary)]">{col.label}</span>}
                       </th>
                     ))}
                     <th className="sticky right-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] w-[112px] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]" />
