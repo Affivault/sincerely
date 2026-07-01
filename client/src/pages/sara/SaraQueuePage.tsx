@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { saraApi } from '../../api/sara.api';
 import {
@@ -119,6 +119,11 @@ export function SaraQueuePage() {
   const messages = queue?.messages || [];
   const selectedMsg = useMemo(() => messages.find((m: any) => m.id === selectedId), [messages, selectedId]);
 
+  // Read fresh on every render so the keydown handler below never acts on a stale
+  // pending flag captured by an effect closure that hasn't re-run yet.
+  const mutationPendingRef = useRef(false);
+  mutationPendingRef.current = approveMutation.isPending || dismissMutation.isPending;
+
   // Auto-select first message on load / filter change
   useEffect(() => {
     if (messages.length > 0 && !selectedMsg) {
@@ -150,6 +155,7 @@ export function SaraQueuePage() {
         if (prev) { setSelectedId(prev.id); setIsEditing(false); }
       } else if (e.key === 'a' && selectedMsg && statusFilter === 'pending_review') {
         e.preventDefault();
+        if (mutationPendingRef.current) return;
         approveMutation.mutate({ id: selectedMsg.id, reply: isEditing ? editedReply : undefined });
       } else if (e.key === 'e' && selectedMsg?.sara_draft_reply && statusFilter === 'pending_review') {
         e.preventDefault();
@@ -157,6 +163,7 @@ export function SaraQueuePage() {
         setIsEditing(true);
       } else if (e.key === 'd' && selectedMsg && statusFilter === 'pending_review') {
         e.preventDefault();
+        if (mutationPendingRef.current) return;
         dismissMutation.mutate(selectedMsg.id);
       } else if (e.key === 'Escape') {
         if (isEditing) { setIsEditing(false); setEditedReply(''); }

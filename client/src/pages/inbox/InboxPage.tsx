@@ -1799,6 +1799,7 @@ export function InboxPage() {
   // Load SARA's pre-written draft into the reply composer (reuses the AI insert path)
   const applySaraDraft = useCallback(() => {
     if (!currentMsg?.sara_draft_reply) return;
+    setShowCompose(false);
     setReplyMode('reply');
     setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || '');
     setTimeout(() => handleAiInsert(currentMsg.sara_draft_reply || ''), 160);
@@ -1835,7 +1836,7 @@ export function InboxPage() {
           {/* Compose */}
           <div className={cn('pt-3', sidebarCollapsed ? 'px-2' : 'px-3')}>
             <button
-              onClick={() => setShowCompose(true)}
+              onClick={() => { setReplyMode(null); setShowCompose(true); }}
               title="Compose"
               className="flex items-center justify-center gap-1.5 w-full h-9 rounded-lg bg-[var(--indigo)] text-white text-[12.5px] font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
             >
@@ -2127,10 +2128,10 @@ export function InboxPage() {
                   <ArrowLeft className="h-4 w-4" />
                 </button>
                 <div className="flex-1" />
-                <button onClick={() => { setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }} title="Reply" className="p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
+                <button onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }} title="Reply" className="p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
                   <Reply className="h-4 w-4" />
                 </button>
-                <button onClick={() => { setReplyMode('forward'); setForwardTo(''); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }} title="Forward" className="p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
+                <button onClick={() => { setShowCompose(false); setReplyMode('forward'); setForwardTo(''); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }} title="Forward" className="p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
                   <Forward className="h-4 w-4" />
                 </button>
                 <button
@@ -2338,10 +2339,10 @@ export function InboxPage() {
                   {/* Quick action buttons */}
                   {!replyMode && (
                     <div className="mt-4 flex items-center gap-2">
-                      <button onClick={() => { setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-colors">
+                      <button onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-colors">
                         <Reply className="h-4 w-4" />Reply
                       </button>
-                      <button onClick={() => { setReplyMode('forward'); setForwardTo(''); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-colors">
+                      <button onClick={() => { setShowCompose(false); setReplyMode('forward'); setForwardTo(''); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-colors">
                         <Forward className="h-4 w-4" />Forward
                       </button>
                     </div>

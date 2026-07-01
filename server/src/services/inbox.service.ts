@@ -973,7 +973,8 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
               const { count } = await supabaseAdmin
                 .from('inbox_messages')
                 .select('*', { count: 'exact', head: true })
-                .eq('message_id', messageId);
+                .eq('message_id', messageId)
+                .eq('user_id', userId);
               if (count && count > 0) continue;
             }
 

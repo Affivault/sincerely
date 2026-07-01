@@ -205,7 +205,7 @@ export function CampaignDetailPage() {
           </p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
-          <button title="Clone campaign" onClick={() => cloneMutation.mutate()} className="icon-btn">
+          <button title="Clone campaign" onClick={() => cloneMutation.mutate()} disabled={cloneMutation.isPending} className="icon-btn disabled:opacity-50 disabled:pointer-events-none">
             <Copy className="h-3.5 w-3.5" />
           </button>
           {campaign.status === 'draft' && (
@@ -213,27 +213,27 @@ export function CampaignDetailPage() {
               <button onClick={() => navigate(`/campaigns/${id}/edit`)} className="btn-secondary">
                 <Pencil className="h-3.5 w-3.5" /> Edit
               </button>
-              <button onClick={() => launchMutation.mutate()} className="btn-primary">
+              <button onClick={() => launchMutation.mutate()} disabled={launchMutation.isPending} className="btn-primary disabled:opacity-50 disabled:pointer-events-none">
                 <Play className="h-3.5 w-3.5" /> Launch
               </button>
             </>
           )}
           {campaign.status === 'running' && (
             <>
-              <button onClick={() => pauseMutation.mutate()} className="btn-secondary text-[12px] h-8 px-3 rounded-lg gap-1.5">
+              <button onClick={() => pauseMutation.mutate()} disabled={pauseMutation.isPending} className="btn-secondary text-[12px] h-8 px-3 rounded-lg gap-1.5 disabled:opacity-50 disabled:pointer-events-none">
                 <Pause className="h-3.5 w-3.5" /> Pause
               </button>
-              <button onClick={() => cancelMutation.mutate()} className="btn-secondary text-[12px] h-8 px-3 rounded-lg gap-1.5 hover:text-rose-500 hover:border-rose-500/30">
+              <button onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending} className="btn-secondary text-[12px] h-8 px-3 rounded-lg gap-1.5 hover:text-rose-500 hover:border-rose-500/30 disabled:opacity-50 disabled:pointer-events-none">
                 <Square className="h-3.5 w-3.5" /> Cancel
               </button>
             </>
           )}
           {campaign.status === 'paused' && (
             <>
-              <button onClick={() => resumeMutation.mutate()} className="btn-primary">
+              <button onClick={() => resumeMutation.mutate()} disabled={resumeMutation.isPending} className="btn-primary disabled:opacity-50 disabled:pointer-events-none">
                 <Play className="h-3.5 w-3.5" /> Resume
               </button>
-              <button onClick={() => cancelMutation.mutate()} className="btn-secondary hover:text-rose-500 hover:border-rose-500/30">
+              <button onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending} className="btn-secondary hover:text-rose-500 hover:border-rose-500/30 disabled:opacity-50 disabled:pointer-events-none">
                 <Square className="h-3.5 w-3.5" /> Cancel
               </button>
             </>
@@ -241,7 +241,8 @@ export function CampaignDetailPage() {
           {(campaign.status === 'draft' || campaign.status === 'completed' || campaign.status === 'cancelled') && (
             <button
               onClick={() => { if (confirm('Delete this campaign permanently?')) deleteMutation.mutate(); }}
-              className="icon-btn hover:text-rose-500 hover:bg-rose-500/10"
+              disabled={deleteMutation.isPending}
+              className="icon-btn hover:text-rose-500 hover:bg-rose-500/10 disabled:opacity-50 disabled:pointer-events-none"
               title="Delete"
             >
               <Trash2 className="h-3.5 w-3.5" />
