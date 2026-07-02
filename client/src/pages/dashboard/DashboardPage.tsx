@@ -12,7 +12,7 @@ import { Avatar } from '../../components/shared/Avatar';
 import {
   Plus, Send, MailOpen, MousePointerClick, MessageSquare, Inbox,
   ChevronRight, ArrowUp, ArrowDown, Download, Megaphone, Activity,
-  AlertTriangle, X,
+  AlertTriangle, X, Reply, Flame, Clock, CheckCircle2, ArrowRight,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { cn } from '../../lib/utils';
@@ -22,9 +22,10 @@ import {
 
 /* ═══════════════════════════════════════════════════════════════════════
    Sincerely — Dashboard
-   Calm operating surface. One accent (indigo); a single hero chart; the rest
-   is plain numbers and lists. Whitespace and hierarchy do the work — no
-   competing gauges, donuts, funnels or uppercase microtext.
+   A command center, not a report. The page answers three questions in
+   order: What needs me right now? (action queue) — How is sending going?
+   (KPIs w/ sparklines + trend + funnel) — What's working? (leaderboard,
+   live replies). One accent; length and hierarchy carry the data.
    ═══════════════════════════════════════════════════════════════════════ */
 
 const ACCENT = '#6366F1';
@@ -77,6 +78,17 @@ const PERIODS = [
   { value: 90, label: '90D' },
 ];
 
+/* Reply-intent chips for the live replies feed (mirrors inbox colors) */
+const INTENT_CHIP: Record<string, { label: string; cls: string }> = {
+  interested: { label: 'Interested', cls: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
+  meeting: { label: 'Meeting', cls: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
+  objection: { label: 'Objection', cls: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
+  not_now: { label: 'Not now', cls: 'bg-slate-500/10 text-slate-500' },
+  out_of_office: { label: 'OOO', cls: 'bg-purple-500/10 text-purple-500' },
+  unsubscribe: { label: 'Unsub', cls: 'bg-red-500/10 text-red-500' },
+  bounce: { label: 'Bounce', cls: 'bg-red-500/10 text-red-500' },
+};
+
 /* ─── Segmented control ─────────────────────────────── */
 function Segmented<T extends string | number>({ options, value, onChange, size = 'md' }: {
   options: { value: T; label: string }[]; value: T; onChange: (v: T) => void; size?: 'sm' | 'md';
@@ -121,23 +133,69 @@ function Delta({ value, className }: { value: number | null | undefined; classNa
   );
 }
 
-/* ─── KPI tile — calm: icon + label, big number, delta ── */
-function Kpi({ label, icon: Icon, target, format, hint, delta, onClick }: {
-  label: string; icon: any; target: number; format: (n: number) => string; hint?: string;
-  delta?: number | null; onClick?: () => void;
+/* ─── Action queue card — "what needs me right now" ──── */
+function ActionCard({ icon: Icon, count, label, sub, to, tone = 'default' }: {
+  icon: any; count: number; label: string; sub: string; to: string;
+  tone?: 'default' | 'warn';
+}) {
+  const navigate = useNavigate();
+  return (
+    <button
+      onClick={() => navigate(to)}
+      className="group text-left panel panel-hover p-4 flex items-center gap-3.5"
+    >
+      <span className={cn(
+        'flex h-10 w-10 items-center justify-center rounded-xl flex-shrink-0',
+        tone === 'warn' ? 'bg-amber-500/12' : 'bg-[var(--indigo-subtle)]'
+      )}>
+        <Icon className={cn('h-[18px] w-[18px]', tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--indigo)]')} strokeWidth={1.9} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[20px] font-semibold tabular leading-none tracking-[-0.02em] text-[var(--text-primary)]">{fmtNum(count)}</span>
+        <span className="block mt-1 text-[12px] font-medium text-[var(--text-secondary)] truncate">{label}</span>
+        <span className="block text-[11px] text-[var(--text-tertiary)] truncate">{sub}</span>
+      </span>
+      <ArrowRight className="h-4 w-4 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+    </button>
+  );
+}
+
+/* ─── KPI tile with sparkline ───────────────────────── */
+function Kpi({ label, icon: Icon, target, format, delta, series, dataKey, onClick }: {
+  label: string; icon: any; target: number; format: (n: number) => string;
+  delta?: number | null; series: TrendDataPoint[]; dataKey: MetricKey; onClick?: () => void;
 }) {
   const animated = useCountUp(target);
+  const gid = `spark-${dataKey}`;
   return (
-    <button onClick={onClick} className="text-left panel panel-hover p-4">
-      <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
-        <Icon className="h-4 w-4 flex-shrink-0" strokeWidth={1.75} />
-        <span className="text-[12.5px] font-medium">{label}</span>
-        <Delta value={delta} className="ml-auto" />
+    <button onClick={onClick} className="text-left panel panel-hover overflow-hidden">
+      <div className="p-4 pb-0">
+        <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
+          <Icon className="h-4 w-4 flex-shrink-0" strokeWidth={1.75} />
+          <span className="text-[12.5px] font-medium">{label}</span>
+          <Delta value={delta} className="ml-auto" />
+        </div>
+        <div className="mt-2.5 text-[26px] font-semibold tabular leading-none tracking-[-0.03em] text-[var(--text-primary)]">
+          {format(animated)}
+        </div>
       </div>
-      <div className="mt-3 text-[28px] font-semibold tabular leading-none tracking-[-0.03em] text-[var(--text-primary)]">
-        {format(animated)}
+      {/* Sparkline — single series, no axes; the tile label names it */}
+      <div className="h-10 mt-2 -mb-px">
+        {series.length > 1 && (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={series} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={ACCENT} stopOpacity={0.18} />
+                  <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <Area type="monotone" dataKey={dataKey} stroke={ACCENT} strokeWidth={1.5}
+                fill={`url(#${gid})`} dot={false} isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
       </div>
-      {hint && <div className="mt-2 text-[12px] text-[var(--text-tertiary)] truncate">{hint}</div>}
     </button>
   );
 }
@@ -180,7 +238,7 @@ function ChartTooltip({ active, payload, label, metricLabel }: any) {
 function PerformanceChart({ data, metric }: { data: TrendDataPoint[]; metric: MetricKey }) {
   if (!data.length) {
     return (
-      <div className="h-[280px] flex flex-col items-center justify-center gap-2 text-center">
+      <div className="h-[268px] flex flex-col items-center justify-center gap-2 text-center">
         <Activity className="h-6 w-6 text-[var(--text-muted)]" strokeWidth={1.5} />
         <p className="text-[13px] text-[var(--text-secondary)]">No activity yet</p>
         <p className="text-[12px] text-[var(--text-tertiary)]">Launch a campaign to see trends.</p>
@@ -188,7 +246,7 @@ function PerformanceChart({ data, metric }: { data: TrendDataPoint[]; metric: Me
     );
   }
   return (
-    <ResponsiveContainer width="100%" height={280}>
+    <ResponsiveContainer width="100%" height={268}>
       <AreaChart data={data} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
         <defs>
           <linearGradient id="perf-area" x1="0" y1="0" x2="0" y2="1">
@@ -207,6 +265,49 @@ function PerformanceChart({ data, metric }: { data: TrendDataPoint[]; metric: Me
           fill="url(#perf-area)" dot={false} activeDot={{ r: 3.5, strokeWidth: 2, stroke: 'var(--bg-surface)', fill: ACCENT }} />
       </AreaChart>
     </ResponsiveContainer>
+  );
+}
+
+/* ─── Conversion funnel — one hue, length is the data ── */
+function Funnel({ sent, opened, clicked, replied }: {
+  sent: number; opened: number; clicked: number; replied: number;
+}) {
+  const stages = [
+    { label: 'Sent', value: sent },
+    { label: 'Opened', value: opened },
+    { label: 'Clicked', value: clicked },
+    { label: 'Replied', value: replied },
+  ];
+  const max = Math.max(sent, 1);
+  return (
+    <div className="p-4 space-y-1">
+      {stages.map((st, i) => {
+        const widthPct = Math.max((st.value / max) * 100, st.value > 0 ? 2 : 0);
+        const prev = i > 0 ? stages[i - 1].value : null;
+        const conv = prev && prev > 0 ? (st.value / prev) * 100 : null;
+        return (
+          <div key={st.label}>
+            {i > 0 && (
+              <div className="flex items-center gap-1.5 pl-[76px] py-1 text-[11px] text-[var(--text-tertiary)]">
+                <ArrowDown className="h-3 w-3 text-[var(--text-muted)]" strokeWidth={2} />
+                <span className="tabular font-medium">{conv != null ? `${conv.toFixed(1)}%` : '—'}</span>
+                <span>of {stages[i - 1].label.toLowerCase()}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              <span className="w-[64px] text-[12px] font-medium text-[var(--text-secondary)] flex-shrink-0 text-right">{st.label}</span>
+              <div className="flex-1 h-6 rounded-[4px] bg-[var(--bg-elevated)] overflow-hidden">
+                <div
+                  className="h-full rounded-[4px] transition-all duration-700"
+                  style={{ width: `${widthPct}%`, background: ACCENT, opacity: 1 - i * 0.18 }}
+                />
+              </div>
+              <span className="w-[52px] text-[12.5px] font-semibold tabular text-[var(--text-primary)] flex-shrink-0">{fmtNum(st.value)}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -274,7 +375,7 @@ function DashboardSkeleton() {
   );
 }
 
-/* ─── Inbox health — calm number + bar + plain stats ─── */
+/* ─── Inbox health — compact score + stats ──────────── */
 function InboxHealth({ score, verified, bounced, suppressed }: {
   score: number; verified: number; bounced: number; suppressed: number;
 }) {
@@ -282,26 +383,24 @@ function InboxHealth({ score, verified, bounced, suppressed }: {
   const tier = pct >= 80 ? 'Excellent' : pct >= 60 ? 'Healthy' : pct >= 40 ? 'Fair' : 'Needs attention';
   const color = pct >= 60 ? ACCENT : pct >= 40 ? '#F59E0B' : '#F43F5E';
   return (
-    <div className="p-4 flex flex-col gap-4 flex-1">
-      <div>
-        <div className="flex items-baseline justify-between">
-          <span className="text-[28px] font-semibold tabular leading-none tracking-[-0.03em] text-[var(--text-primary)]">
-            {pct.toFixed(0)}<span className="text-[14px] text-[var(--text-tertiary)] font-medium">/100</span>
-          </span>
-          <span className="text-[12.5px] font-medium" style={{ color }}>{tier}</span>
-        </div>
-        <div className="mt-3 h-2 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
-          <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: color }} />
-        </div>
+    <div className="p-4">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[24px] font-semibold tabular leading-none tracking-[-0.03em] text-[var(--text-primary)]">
+          {pct.toFixed(0)}<span className="text-[13px] text-[var(--text-tertiary)] font-medium">/100</span>
+        </span>
+        <span className="text-[12px] font-medium" style={{ color }}>{tier}</span>
       </div>
-      <div className="grid grid-cols-3 gap-2 mt-auto">
+      <div className="mt-2.5 h-1.5 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
+        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: color }} />
+      </div>
+      <div className="grid grid-cols-3 gap-2 mt-3.5">
         {[
           { label: 'Verified', value: verified },
           { label: 'Bounced', value: bounced },
           { label: 'Suppressed', value: suppressed },
         ].map((m) => (
           <div key={m.label}>
-            <div className="text-[15px] font-semibold tabular text-[var(--text-primary)] leading-none">{fmtNum(m.value)}</div>
+            <div className="text-[14px] font-semibold tabular text-[var(--text-primary)] leading-none">{fmtNum(m.value)}</div>
             <div className="text-[11px] text-[var(--text-tertiary)] mt-1">{m.label}</div>
           </div>
         ))}
@@ -340,6 +439,14 @@ export function DashboardPage() {
     queryKey: ['inbox', 'dashboard'],
     queryFn: () => inboxApi.list({ limit: 5, folder: 'inbox' }),
   });
+  const { data: inboxCounts } = useQuery({
+    queryKey: ['inbox', 'counts'],
+    queryFn: inboxApi.counts,
+  });
+  const { data: scheduledEmails } = useQuery({
+    queryKey: ['inbox', 'scheduled'],
+    queryFn: inboxApi.listScheduled,
+  });
   const { data: smtpAccounts } = useQuery({
     queryKey: ['smtp', 'accounts'],
     queryFn: () => smtpApi.list(),
@@ -375,6 +482,14 @@ export function DashboardPage() {
   const bounced = Number(s.bounced_contacts) || 0;
   const suppressed = Number(s.suppressed_count) || 0;
   const totalContacts = Number(s.total_contacts) || 0;
+
+  /* Action queue — real work items pulled from the inbox counts endpoint */
+  const intents = (inboxCounts?.intents || {}) as Record<string, number>;
+  const needsReply = (intents.interested || 0) + (intents.objection || 0) + (intents.meeting || 0);
+  const hotLeads = (intents.interested || 0) + (intents.meeting || 0);
+  const unreadReplies = inboxCounts?.unread ?? unreadCount;
+  const scheduledCount = Array.isArray(scheduledEmails) ? scheduledEmails.length : 0;
+  const allClear = needsReply === 0 && unreadReplies === 0 && scheduledCount === 0 && hotLeads === 0;
 
   return (
     <div className="stagger pb-8 space-y-5">
@@ -414,19 +529,34 @@ export function DashboardPage() {
         />
       )}
 
-      {/* ── KPI row ── */}
+      {/* ── Action queue: what needs you right now ── */}
+      {allClear ? (
+        <div className="panel px-4 py-3 flex items-center gap-2.5">
+          <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" strokeWidth={2} />
+          <span className="text-[13px] text-[var(--text-secondary)]">All clear — no replies waiting on you right now.</span>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <ActionCard icon={Reply} count={needsReply} label="Need a reply" sub="Interested, objections & meetings" to="/inbox" tone={needsReply > 0 ? 'warn' : 'default'} />
+          <ActionCard icon={Flame} count={hotLeads} label="Hot leads" sub="Interested + meetings booked" to="/inbox" />
+          <ActionCard icon={Inbox} count={unreadReplies} label="Unread replies" sub="Waiting in your unibox" to="/inbox" />
+          <ActionCard icon={Clock} count={scheduledCount} label="Scheduled sends" sub="Queued from compose & replies" to="/inbox" />
+        </div>
+      )}
+
+      {/* ── KPI band with sparklines ── */}
       <div className={cn('grid grid-cols-2 lg:grid-cols-4 gap-3 transition-opacity duration-300', refreshing && 'opacity-60')}>
-        <Kpi label="Emails sent" icon={Send} target={s.total_sent} format={fmtNum} hint={`${fmtFull(s.total_sent)} in ${period} days`}
-          delta={s.sent_change} onClick={() => navigate('/analytics')} />
-        <Kpi label="Open rate" icon={MailOpen} target={s.avg_open_rate} format={fmtPct} hint={`${fmtFull(s.total_opened)} opens`}
-          delta={s.opened_change} onClick={() => navigate('/analytics')} />
-        <Kpi label="Click rate" icon={MousePointerClick} target={s.avg_click_rate} format={fmtPct} hint={`${fmtFull(s.total_clicked)} clicks`}
-          delta={s.clicked_change} onClick={() => navigate('/analytics')} />
-        <Kpi label="Reply rate" icon={MessageSquare} target={s.avg_reply_rate} format={fmtPct} hint={`${fmtFull(s.total_replied)} replies`}
-          delta={s.replied_change} onClick={() => navigate('/inbox')} />
+        <Kpi label="Emails sent" icon={Send} target={s.total_sent} format={fmtNum}
+          delta={s.sent_change} series={trend} dataKey="sent" onClick={() => navigate('/analytics')} />
+        <Kpi label="Open rate" icon={MailOpen} target={s.avg_open_rate} format={fmtPct}
+          delta={s.opened_change} series={trend} dataKey="opened" onClick={() => navigate('/analytics')} />
+        <Kpi label="Click rate" icon={MousePointerClick} target={s.avg_click_rate} format={fmtPct}
+          delta={s.clicked_change} series={trend} dataKey="clicked" onClick={() => navigate('/analytics')} />
+        <Kpi label="Reply rate" icon={MessageSquare} target={s.avg_reply_rate} format={fmtPct}
+          delta={s.replied_change} series={trend} dataKey="replied" onClick={() => navigate('/inbox')} />
       </div>
 
-      {/* ── Performance + inbox health ── */}
+      {/* ── Trend chart + funnel / health column ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <section className={cn('panel lg:col-span-2 overflow-hidden transition-opacity duration-300', refreshing && 'opacity-60')}>
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 border-b border-[var(--border-subtle)]">
@@ -442,29 +572,43 @@ export function DashboardPage() {
               value={metric} onChange={setMetric} />
           </div>
           <div className="px-2 pb-2 pt-2">
-            <ErrorBoundary fallback={<div className="h-[280px] flex items-center justify-center text-[12px] text-[var(--text-tertiary)]">Chart unavailable</div>}>
+            <ErrorBoundary fallback={<div className="h-[268px] flex items-center justify-center text-[12px] text-[var(--text-tertiary)]">Chart unavailable</div>}>
               <PerformanceChart data={trend} metric={metric} />
             </ErrorBoundary>
           </div>
         </section>
 
-        <section className="panel overflow-hidden flex flex-col">
-          <Head title="Inbox health" desc="Deliverability score" action={<MoreLink to="/verification" label="Details" />} />
-          <InboxHealth score={Number(s.avg_dcs_score) || 0} verified={verified} bounced={bounced} suppressed={suppressed} />
-        </section>
+        <div className="space-y-4">
+          <section className={cn('panel overflow-hidden transition-opacity duration-300', refreshing && 'opacity-60')}>
+            <Head title="Conversion funnel" desc={`Last ${period} days`} />
+            <Funnel sent={Number(s.total_sent) || 0} opened={Number(s.total_opened) || 0}
+              clicked={Number(s.total_clicked) || 0} replied={Number(s.total_replied) || 0} />
+          </section>
+          <section className="panel overflow-hidden">
+            <Head title="Inbox health" desc="Deliverability score" action={<MoreLink to="/verification" label="Details" />} />
+            <InboxHealth score={Number(s.avg_dcs_score) || 0} verified={verified} bounced={bounced} suppressed={suppressed} />
+          </section>
+        </div>
       </div>
 
-      {/* ── Top campaigns + latest replies ── */}
+      {/* ── Leaderboard + live replies ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <section className="panel lg:col-span-2 overflow-hidden">
-          <Head title="Top campaigns" desc="Ranked by volume" action={<MoreLink to="/analytics" />} />
+          <Head title="Campaign leaderboard" desc="Ranked by volume" action={<MoreLink to="/analytics" />} />
           {topCampaigns.length > 0 ? (
             <div className="divide-y divide-[var(--border-subtle)]">
-              {topCampaigns.map((c) => (
+              {topCampaigns.map((c, i) => (
                 <button key={c.id} onClick={() => navigate(`/campaigns/${c.id}`)}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left group">
+                  <span className="w-6 text-[12px] font-semibold tabular text-[var(--text-muted)] flex-shrink-0">{String(i + 1).padStart(2, '0')}</span>
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: STATUS_DOT[c.status] || 'var(--text-muted)' }} />
-                  <p className="flex-1 min-w-0 text-[13px] font-medium text-[var(--text-primary)] truncate">{c.name}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">{c.name}</p>
+                    {/* Reply-rate bar: instant visual scan of what converts */}
+                    <div className="mt-1.5 h-1 rounded-full bg-[var(--bg-elevated)] overflow-hidden max-w-[220px]">
+                      <div className="h-full rounded-full" style={{ width: `${Math.min(100, (Number(c.reply_rate) || 0) * 4)}%`, background: ACCENT }} />
+                    </div>
+                  </div>
                   <div className="flex items-center gap-5 text-right flex-shrink-0">
                     <div className="hidden sm:block w-12">
                       <div className="text-[13px] font-semibold tabular text-[var(--text-primary)]">{fmtPct(c.open_rate)}</div>
@@ -494,26 +638,34 @@ export function DashboardPage() {
         </section>
 
         <section className="panel overflow-hidden flex flex-col">
-          <Head title="Latest replies" action={<MoreLink to="/inbox" label={unreadCount > 0 ? `${unreadCount} new` : 'Open'} />} />
+          <Head title="Latest replies" action={<MoreLink to="/inbox" label={unreadReplies > 0 ? `${unreadReplies} new` : 'Open'} />} />
           {recentMessages.length > 0 ? (
             <div className="divide-y divide-[var(--border-subtle)] flex-1">
-              {recentMessages.slice(0, 5).map((msg: any) => (
-                <Link key={msg.id} to="/inbox" className="flex items-start gap-2.5 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors">
-                  <div className="relative flex-shrink-0 mt-0.5">
-                    <Avatar name={msg.contact_name} email={msg.from_email} size="sm" />
-                    {!msg.is_read && <span className="absolute -top-0.5 -left-0.5 w-2 h-2 rounded-full ring-2 ring-[var(--bg-surface)]" style={{ background: ACCENT }} />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className={cn('text-[12.5px] truncate', msg.is_read ? 'text-[var(--text-secondary)]' : 'font-semibold text-[var(--text-primary)]')}>
-                        {msg.contact_name || msg.from_email?.split('@')[0] || 'Unknown'}
-                      </span>
-                      <span className="text-[11px] text-[var(--text-tertiary)] flex-shrink-0 tabular">{timeAgo(msg.received_at)}</span>
+              {recentMessages.slice(0, 5).map((msg: any) => {
+                const chip = msg.sara_intent ? INTENT_CHIP[msg.sara_intent] : null;
+                return (
+                  <Link key={msg.id} to="/inbox" className="flex items-start gap-2.5 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors">
+                    <div className="relative flex-shrink-0 mt-0.5">
+                      <Avatar name={msg.contact_name} email={msg.from_email} size="sm" />
+                      {!msg.is_read && <span className="absolute -top-0.5 -left-0.5 w-2 h-2 rounded-full ring-2 ring-[var(--bg-surface)]" style={{ background: ACCENT }} />}
                     </div>
-                    <p className="text-[11.5px] text-[var(--text-tertiary)] truncate leading-tight mt-0.5">{msg.subject || '(no subject)'}</p>
-                  </div>
-                </Link>
-              ))}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={cn('text-[12.5px] truncate', msg.is_read ? 'text-[var(--text-secondary)]' : 'font-semibold text-[var(--text-primary)]')}>
+                          {msg.contact_name || msg.from_email?.split('@')[0] || 'Unknown'}
+                        </span>
+                        <span className="text-[11px] text-[var(--text-tertiary)] flex-shrink-0 tabular">{timeAgo(msg.received_at)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                        <p className="text-[11.5px] text-[var(--text-tertiary)] truncate leading-tight flex-1">{msg.subject || '(no subject)'}</p>
+                        {chip && (
+                          <span className={cn('text-[9.5px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0', chip.cls)}>{chip.label}</span>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center py-12 text-center">
