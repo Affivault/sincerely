@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { PageHeader } from '../../components/shared/PageHeader';
+import { SettingsShell } from '../../components/shared/SettingsShell';
 import { billingApi } from '../../api/billing.api';
 import { PLANS, isUnlimited, type PlanId } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
@@ -116,8 +117,10 @@ export function BillingPage() {
     : null;
 
   return (
+    <SettingsShell>
     <div>
       <PageHeader
+        className="!mx-0 !mt-0 rounded-xl border border-[var(--border-subtle)]"
         leading={
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
             <CreditCard className="h-4 w-4 text-[var(--indigo)]" />
@@ -287,6 +290,7 @@ export function BillingPage() {
 
       {isLoading && <p className="text-[12px] text-[var(--text-tertiary)] mt-4">Loading usage…</p>}
     </div>
+    </SettingsShell>
   );
 }
 
