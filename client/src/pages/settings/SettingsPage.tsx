@@ -7,6 +7,7 @@ import { settingsApi, type UserSettings } from '../../api/settings.api';
 import { Button } from '../../components/ui/Button';
 import { Toggle } from '../../components/ui/Toggle';
 import { PageHeader } from '../../components/shared/PageHeader';
+import { SettingsShell } from '../../components/shared/SettingsShell';
 import { Avatar } from '../../components/shared/Avatar';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
@@ -232,57 +233,53 @@ export function SettingsPage() {
   }
 
   return (
+    <SettingsShell>
     <div>
       <PageHeader
-        decorate
+        className="!mx-0 !mt-0 rounded-xl border border-[var(--border-subtle)]"
         leading={
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
             <SettingsIcon className="h-4 w-4 text-[var(--indigo)]" />
           </span>
         }
-        title="Settings"
-        description="Manage your profile, account, notifications and AI preferences."
+        title="General"
+        description="Your profile, account, notifications and AI preferences."
         meta={user?.email ? <><Mail className="h-3 w-3" /> <span>{user.email}</span></> : undefined}
+        actions={
+          <button
+            onClick={handleSignOut}
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12.5px] font-medium text-[var(--error)] border border-[var(--border-default)] hover:bg-[var(--error-bg)] transition-colors"
+          >
+            <LogOut className="h-3.5 w-3.5" strokeWidth={1.75} /> Sign out
+          </button>
+        }
       />
 
-      <div className="grid grid-cols-[200px,1fr] gap-3">
-        {/* Sidebar */}
-        <aside className="panel-inset p-1.5 self-start sticky top-[56px]">
-          <nav className="space-y-px">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cn(
-                    'w-full flex items-center gap-2 px-2 h-8 rounded-[6px] text-[12.5px] text-left transition-colors',
-                    isActive
-                      ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_0_0_1px_var(--border-subtle),0_1px_2px_rgba(15,15,25,0.04)] font-medium'
-                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]/60 hover:text-[var(--text-primary)]'
-                  )}
-                >
-                  <Icon className={cn('h-3.5 w-3.5 flex-shrink-0', isActive ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} strokeWidth={1.75} />
-                  <span className="flex-1">{tab.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-
-          <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
+      {/* Section tabs — horizontal; the settings categories live in the shell rail */}
+      <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[var(--bg-elevated)] w-max max-w-full overflow-x-auto mb-4">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
             <button
-              onClick={handleSignOut}
-              className="w-full flex items-center gap-2 px-2 h-8 rounded-[6px] text-[12.5px] text-left text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors"
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'flex items-center gap-1.5 h-7 px-3 rounded-md text-[12.5px] font-medium whitespace-nowrap transition-colors',
+                isActive
+                  ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm'
+                  : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+              )}
             >
-              <LogOut className="h-3.5 w-3.5" strokeWidth={1.75} />
-              <span className="flex-1">Sign out</span>
+              <Icon className={cn('h-3.5 w-3.5 flex-shrink-0', isActive && 'text-[var(--indigo)]')} strokeWidth={1.75} />
+              {tab.label}
             </button>
-          </div>
-        </aside>
+          );
+        })}
+      </div>
 
-        {/* Content */}
-        <div className="min-w-0">
+      {/* Content */}
+      <div className="min-w-0 max-w-3xl">
           <div className="card p-5">
             {/* ═══ Profile Tab ═══ */}
             {activeTab === 'profile' && (
@@ -780,9 +777,9 @@ export function SettingsPage() {
               </button>
             </div>
           </div>
-        </div>
       </div>
     </div>
+    </SettingsShell>
   );
 }
 

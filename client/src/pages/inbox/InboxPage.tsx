@@ -254,24 +254,25 @@ function EmailBody({ html, text }: { html: string | null; text: string | null })
     return `<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><style>
 body {
   margin: 0;
-  padding: 16px;
+  padding: 20px 24px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  font-size: 14px;
-  line-height: 1.65;
-  color: #1a1a1a;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: #1F2328;
   word-wrap: break-word;
   overflow-wrap: break-word;
   -webkit-font-smoothing: antialiased;
+  max-width: 680px;
 }
-img { max-width: 100%; height: auto; display: block; }
-a { color: #1a73e8; text-decoration: none; }
+img { max-width: 100%; height: auto; display: block; border-radius: 6px; }
+a { color: #4F46E5; text-decoration: none; }
 a:hover { text-decoration: underline; }
-blockquote { margin: 8px 0; padding-left: 12px; border-left: 3px solid #dadce0; color: #5f6368; }
-pre { white-space: pre-wrap; font-size: 13px; background: #f8f9fa; padding: 12px; border-radius: 8px; }
+blockquote { margin: 10px 0; padding-left: 14px; border-left: 3px solid #E4E4EA; color: #6B7280; }
+pre { white-space: pre-wrap; font-size: 13px; background: #F6F7F9; padding: 12px 14px; border-radius: 8px; }
 table { border-collapse: collapse; max-width: 100%; }
-hr { border: none; border-top: 1px solid #e0e0e0; margin: 16px 0; }
-p { margin: 0 0 12px; }
-h1, h2, h3, h4 { margin: 0 0 8px; }
+hr { border: none; border-top: 1px solid #ECECEF; margin: 18px 0; }
+p { margin: 0 0 13px; }
+h1, h2, h3, h4 { margin: 0 0 10px; line-height: 1.35; }
 </style></head><body>${bodyContent}</body></html>`;
   }, [html, text]);
 
@@ -2454,9 +2455,10 @@ export function InboxPage() {
                 </button>
               </div>
 
-              {/* Conversation workspace: thread canvas + contact rail */}
+              {/* Conversation workspace: thread canvas + composer dock + contact rail */}
               <div className="flex-1 flex min-h-0">
-                <div className="flex-1 min-w-0 overflow-y-auto bg-[var(--bg-app)]">
+                <div className="flex-1 min-w-0 flex flex-col">
+                <div className="flex-1 overflow-y-auto bg-[var(--bg-app)]">
                   <div className="max-w-3xl mx-auto px-6 py-5">
                   {/* Thread header — subject first, contact meta below */}
                   <div className="mb-5">
@@ -2544,53 +2546,63 @@ export function InboxPage() {
                     selectedId={selectedId}
                   />
 
-                  {/* Reply / Forward composer */}
-                  {replyMode && (
-                    <div ref={replyComposerRef} className="mt-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden" style={{ boxShadow: 'var(--shadow-card)' }}>
-                      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
-                        <div className="flex items-center gap-2">
-                          {replyMode === 'reply' ? <Reply className="h-4 w-4 text-[var(--text-tertiary)]" /> : <Forward className="h-4 w-4 text-[var(--text-tertiary)]" />}
-                          <span className="text-sm font-medium text-[var(--text-primary)]">{replyMode === 'reply' ? 'Reply' : 'Forward'}</span>
-                          {replyMode === 'reply' && <span className="text-xs text-[var(--text-tertiary)]">to {currentMsg.from_email}</span>}
+                  </div>
+                </div>
+
+                {/* ── Composer dock — replying happens beside the thread, never below it ── */}
+                <div className="flex-shrink-0 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[0_-10px_28px_-18px_rgba(15,15,25,0.25)]">
+                  {replyMode ? (
+                    <div ref={replyComposerRef} className="max-w-3xl mx-auto w-full flex flex-col max-h-[52vh]">
+                      {/* Dock header: context + sender + close, one calm row */}
+                      <div className="flex items-center gap-2.5 px-4 h-11 border-b border-[var(--border-subtle)] flex-shrink-0">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--indigo-subtle)] flex-shrink-0">
+                          {replyMode === 'reply' ? <Reply className="h-3.5 w-3.5 text-[var(--indigo)]" /> : <Forward className="h-3.5 w-3.5 text-[var(--indigo)]" />}
+                        </span>
+                        <span className="text-[13px] font-semibold text-[var(--text-primary)] flex-shrink-0">{replyMode === 'reply' ? 'Reply' : 'Forward'}</span>
+                        {replyMode === 'reply' && (
+                          <span className="text-[12px] text-[var(--text-tertiary)] truncate">to {currentMsg.from_email}</span>
+                        )}
+                        <span className="flex-1" />
+                        <span className="text-[11px] text-[var(--text-tertiary)] hidden sm:block flex-shrink-0">From</span>
+                        <div className="max-w-[260px] min-w-0">
+                          <SenderSelect accounts={smtpAccounts} value={replySenderId} onChange={setReplySenderId} />
                         </div>
-                        <button onClick={() => setReplyMode(null)} className="p-1 rounded hover:bg-[var(--bg-hover)]"><X className="h-4 w-4 text-[var(--text-tertiary)]" /></button>
-                      </div>
-                      {/* Sender selection */}
-                      <div className="flex items-center px-4 py-2 border-b border-[var(--border-subtle)]">
-                        <span className="text-xs font-medium text-[var(--text-tertiary)] w-12">From</span>
-                        <SenderSelect accounts={smtpAccounts} value={replySenderId} onChange={setReplySenderId} />
+                        <div className="h-4 w-px bg-[var(--border-subtle)] flex-shrink-0" />
+                        <button onClick={() => setReplyMode(null)} title="Close composer" className="icon-btn flex-shrink-0"><X className="h-3.5 w-3.5" /></button>
                       </div>
                       {replyMode === 'forward' && (
-                        <div className="flex items-center px-4 py-2 border-b border-[var(--border-subtle)]">
-                          <span className="text-xs font-medium text-[var(--text-tertiary)] w-12">To</span>
-                          <input value={forwardTo} onChange={e => setForwardTo(e.target.value)} className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none" placeholder="recipient@example.com" />
+                        <div className="flex items-center px-4 py-2 border-b border-[var(--border-subtle)] flex-shrink-0">
+                          <span className="text-xs font-medium text-[var(--text-tertiary)] w-10">To</span>
+                          <input value={forwardTo} onChange={e => setForwardTo(e.target.value)} className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none" placeholder="recipient@example.com" autoFocus />
                         </div>
                       )}
-                      <RichTextEditor
-                        key={replyMode}
-                        placeholder={replyMode === 'reply' ? 'Write your reply...' : 'Write a message...'}
-                        onChange={replyEditor.handleChange}
-                        templates={templates}
-                        minHeight="140px"
-                        autoFocus
-                      />
-                      {/* Forwarded message preview — shows the original email content so the user knows what they're forwarding */}
-                      {replyMode === 'forward' && (
-                        <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40">
-                          <div className="px-4 py-2.5">
-                            <p className="text-[10px] font-semibold text-[var(--text-muted)] mb-1.5">Forwarded message</p>
-                            <div className="text-[11px] text-[var(--text-tertiary)] space-y-0.5">
-                              <p><span className="font-medium text-[var(--text-secondary)]">From:</span> {currentMsg.from_email}</p>
-                              <p><span className="font-medium text-[var(--text-secondary)]">Date:</span> {formatFullDate(currentMsg.received_at)}</p>
-                              <p><span className="font-medium text-[var(--text-secondary)]">Subject:</span> {currentMsg.subject || '(no subject)'}</p>
-                              <p><span className="font-medium text-[var(--text-secondary)]">To:</span> {currentMsg.to_email}</p>
+                      {/* Editor + forward preview scroll inside the dock */}
+                      <div className="flex-1 min-h-0 overflow-y-auto">
+                        <RichTextEditor
+                          key={replyMode}
+                          placeholder={replyMode === 'reply' ? 'Write your reply…' : 'Add a note (optional)…'}
+                          onChange={replyEditor.handleChange}
+                          templates={templates}
+                          minHeight="110px"
+                          autoFocus={replyMode === 'reply'}
+                        />
+                        {replyMode === 'forward' && (
+                          <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40">
+                            <div className="px-4 py-2.5">
+                              <p className="text-[10px] font-semibold text-[var(--text-muted)] mb-1.5">Forwarded message</p>
+                              <div className="text-[11px] text-[var(--text-tertiary)] space-y-0.5">
+                                <p><span className="font-medium text-[var(--text-secondary)]">From:</span> {currentMsg.from_email}</p>
+                                <p><span className="font-medium text-[var(--text-secondary)]">Date:</span> {formatFullDate(currentMsg.received_at)}</p>
+                                <p><span className="font-medium text-[var(--text-secondary)]">Subject:</span> {currentMsg.subject || '(no subject)'}</p>
+                                <p><span className="font-medium text-[var(--text-secondary)]">To:</span> {currentMsg.to_email}</p>
+                              </div>
+                            </div>
+                            <div className="max-h-[140px] overflow-y-auto border-t border-[var(--border-subtle)]">
+                              <EmailBody html={currentMsg.body_html} text={currentMsg.body_text} />
                             </div>
                           </div>
-                          <div className="max-h-[200px] overflow-y-auto border-t border-[var(--border-subtle)]">
-                            <EmailBody html={currentMsg.body_html} text={currentMsg.body_text} />
-                          </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                       {/* AI Assist Bar */}
                       {replyMode === 'reply' && (
                         <AiAssistBar
@@ -2646,20 +2658,26 @@ export function InboxPage() {
                         <button onClick={() => setReplyMode(null)} className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">Discard</button>
                       </div>
                     </div>
-                  )}
-
-                  {/* Quick action buttons */}
-                  {!replyMode && (
-                    <div className="mt-4 flex items-center gap-2">
-                      <button onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-colors">
-                        <Reply className="h-4 w-4" />Reply
+                  ) : (
+                    /* Idle state: a one-click reply bar keeps the composer a thought away */
+                    <div className="max-w-3xl mx-auto w-full px-4 py-3 flex items-center gap-2.5">
+                      <Avatar name={threadContactName || undefined} email={threadContactEmail || undefined} size="md" />
+                      <button
+                        onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
+                        className="flex-1 h-9 px-3.5 rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] text-left text-[12.5px] text-[var(--text-tertiary)] hover:border-[rgba(91,91,245,0.45)] hover:bg-[var(--bg-surface)] transition-colors"
+                      >
+                        Reply to {threadContactName || 'this conversation'}…
                       </button>
-                      <button onClick={() => { setShowCompose(false); setReplyMode('forward'); setForwardTo(''); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-colors">
-                        <Forward className="h-4 w-4" />Forward
+                      <button
+                        onClick={() => { setShowCompose(false); setReplyMode('forward'); setForwardTo(''); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
+                        title="Forward"
+                        className="icon-btn h-9 w-9 flex-shrink-0"
+                      >
+                        <Forward className="h-4 w-4" />
                       </button>
                     </div>
                   )}
-                  </div>
+                </div>
                 </div>
 
                 {/* Contact context rail */}

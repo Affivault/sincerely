@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { PageHeader } from '../../components/shared/PageHeader';
+import { SettingsShell } from '../../components/shared/SettingsShell';
 import { Avatar } from '../../components/shared/Avatar';
 import { formatDate, cn } from '../../lib/utils';
 import {
@@ -132,8 +133,10 @@ export function TeamPage() {
   if (orgLoading) return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>;
 
   return (
+    <SettingsShell>
     <div className="max-w-3xl">
       <PageHeader
+        className="!mx-0 !mt-0 rounded-xl border border-[var(--border-subtle)]"
         leading={
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
             <Users className="h-4 w-4 text-[var(--indigo)]" />
@@ -356,5 +359,6 @@ export function TeamPage() {
         </Modal>
       )}
     </div>
+    </SettingsShell>
   );
 }
