@@ -12,7 +12,7 @@ import { useSidebar } from '../../context/SidebarContext';
 import { useUnreadCount } from '../../hooks/useUnreadCount';
 
 /* ─── Nav shape ─────────────────────────────────────────────────── */
-type NavLeaf = { kind?: 'leaf'; name: string; href: string; icon: React.ElementType };
+type NavLeaf = { kind?: 'leaf'; name: string; href: string; icon: React.ElementType; match?: string[] };
 type NavGroup = { kind: 'group'; name: string; href: string; icon: React.ElementType; id: string; children: NavLeaf[] };
 type NavItem = NavLeaf | NavGroup;
 
@@ -46,13 +46,12 @@ const toolsNav: NavItem[] = [
   { name: 'Toolkit',  href: '/toolkit',   icon: Wrench },
 ];
 
+/* Every route that lives inside the settings workspace (SettingsShell owns
+   the detail nav there — the app sidebar shows a single entry for all of it). */
+const SETTINGS_ROUTES = ['/settings', '/team', '/billing', '/smtp-accounts', '/domains', '/suppression', '/verification'];
+
 const settingsNav: NavItem[] = [
-  { name: 'SMTP',        href: '/smtp-accounts', icon: Send },
-  { name: 'Domains',     href: '/domains',       icon: Globe },
-  { name: 'Suppression', href: '/suppression',   icon: ShieldOff },
-  { name: 'Team',        href: '/team',          icon: UserPlus },
-  { name: 'Billing',     href: '/billing',       icon: CreditCard },
-  { name: 'Settings',    href: '/settings',      icon: Settings },
+  { name: 'Settings', href: '/settings', icon: Settings, match: SETTINGS_ROUTES },
 ];
 
 /* Routes that belong inside the Campaigns group */
@@ -63,7 +62,9 @@ function NavLeafItem({ item, collapsed, badge, nested }: {
   item: NavLeaf; collapsed: boolean; badge?: number; nested?: boolean;
 }) {
   const location = useLocation();
-  const isActive = location.pathname === item.href || location.pathname.startsWith(item.href + '/');
+  const isActive = item.match
+    ? item.match.some((r) => location.pathname === r || location.pathname.startsWith(r + '/'))
+    : location.pathname === item.href || location.pathname.startsWith(item.href + '/');
   const Icon = item.icon;
 
   return (
@@ -282,8 +283,10 @@ export function Sidebar() {
         <div className="mt-1">
           <NavSection items={leadsNav}    {...sectionProps} />
         </div>
-        <NavSection title="Tools"  items={toolsNav}    {...sectionProps} />
-        <NavSection title="Config" items={settingsNav} {...sectionProps} />
+        <NavSection title="Tools" items={toolsNav} {...sectionProps} />
+        <div className="mt-3">
+          <NavSection items={settingsNav} {...sectionProps} />
+        </div>
       </nav>
 
       {/* User */}

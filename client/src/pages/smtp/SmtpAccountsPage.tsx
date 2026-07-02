@@ -9,6 +9,7 @@ import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { PageHeader } from '../../components/shared/PageHeader';
+import { SettingsShell } from '../../components/shared/SettingsShell';
 import { Card, CardHeader, CardTitle, CardDescription } from '../../components/shared/Card';
 import { StatCard } from '../../components/shared/StatCard';
 import { formatDate, cn } from '../../lib/utils';
@@ -284,8 +285,10 @@ export function SmtpAccountsPage() {
   const sentTodayTotal = (accounts || []).reduce((sum: number, a: SmtpAccount) => sum + a.sends_today, 0);
 
   return (
+    <SettingsShell>
     <div>
       <PageHeader
+        className="!mx-0 !mt-0 rounded-xl border border-[var(--border-subtle)]"
         decorate
         leading={
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
@@ -719,5 +722,6 @@ export function SmtpAccountsPage() {
         </form>
       </Modal>
     </div>
+    </SettingsShell>
   );
 }

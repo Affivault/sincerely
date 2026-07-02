@@ -7,6 +7,7 @@ import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { PageHeader } from '../../components/shared/PageHeader';
+import { SettingsShell } from '../../components/shared/SettingsShell';
 import { Card } from '../../components/shared/Card';
 import { formatDate, cn } from '../../lib/utils';
 import { ShieldOff, Plus, Trash2, Upload, Search, X, Filter } from 'lucide-react';
@@ -80,8 +81,10 @@ export function SuppressionPage() {
   const totalPages = data?.total_pages || 1;
 
   return (
+    <SettingsShell>
     <div>
       <PageHeader
+        className="!mx-0 !mt-0 rounded-xl border border-[var(--border-subtle)]"
         decorate
         leading={
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/8 border border-rose-500/15">
@@ -276,5 +279,6 @@ export function SuppressionPage() {
         </Modal>
       )}
     </div>
+    </SettingsShell>
   );
 }
