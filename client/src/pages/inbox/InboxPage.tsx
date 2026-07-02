@@ -51,6 +51,12 @@ import {
   CalendarClock,
   ChevronLeft,
   ChevronUp,
+  Copy,
+  PanelRight,
+  PanelRightClose,
+  Building2,
+  ArrowUpRight,
+  ArrowDownLeft,
 } from 'lucide-react';
 
 /* ─── Types ────────────────────────────────────────── */
@@ -152,6 +158,45 @@ function msgSnippet(msg: Message): string {
   const raw = msg.body_text || msg.body_html || '';
   const text = stripHtml(raw);
   return text.slice(0, 120).trim() || '(no content)';
+}
+
+/** "Today" / "Yesterday" / "Monday" / "Mon, Jun 12" — for timeline day separators. */
+function dayLabel(date: string): string {
+  const d = new Date(date);
+  const now = new Date();
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays > 1 && diffDays < 7) return d.toLocaleDateString('en-US', { weekday: 'long' });
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric',
+    ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
+  });
+}
+
+/** Strip Re:/Fwd: prefixes for subject-change detection within a thread. */
+function baseSubject(s: string | null | undefined): string {
+  return (s || '').replace(/^((re|fwd?|fw)\s*:\s*)+/i, '').trim().toLowerCase();
+}
+
+/** Guess a company name from a work-email domain; null for free providers. */
+function companyFromEmail(email?: string | null): string | null {
+  const domain = email?.split('@')[1]?.toLowerCase();
+  if (!domain) return null;
+  const free = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com', 'aol.com', 'proton.me', 'protonmail.com', 'live.com', 'msn.com', 'gmx.com', 'mail.com'];
+  if (free.includes(domain)) return null;
+  const name = domain.split('.')[0];
+  return name ? name.charAt(0).toUpperCase() + name.slice(1) : null;
+}
+
+/** "34m" / "5h" / "2d" — for avg-reply-gap stats. */
+function humanizeMs(ms: number): string {
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `${Math.max(1, mins)}m`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  return `${Math.round(hrs / 24)}d`;
 }
 
 const INTENT_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -968,17 +1013,144 @@ function TagFilterDropdown({ value, onChange }: { value: string; onChange: (v: s
   );
 }
 
-/* ─── Collapsible Thread Messages ─────────────────── */
-function CollapsibleThread({ thread, selectedId }: { thread: Message[]; selectedId: string | null }) {
-  // Expand latest message and the selected one by default, collapse older ones
+/* ─── Thread Timeline — conversation viewer ───────── */
+
+/** Day separator pill that sits on the timeline rail. */
+function DaySeparator({ label, gap }: { label: string; gap?: string }) {
+  return (
+    <div className="relative z-10 flex items-center gap-2 py-2.5">
+      <span className="flex h-[22px] items-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 text-[10.5px] font-semibold text-[var(--text-tertiary)] shadow-sm">
+        {label}
+      </span>
+      {gap && <span className="text-[10.5px] font-medium text-[var(--text-muted)]">{gap}</span>}
+    </div>
+  );
+}
+
+/** One message on the timeline: direction-coded node + expandable card. */
+function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: {
+  msg: Message;
+  threadSubject: string | null;
+  isCurrent: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const isOutbound = msg.direction === 'outbound';
+  const intent = !isOutbound && msg.sara_intent && msg.sara_intent !== 'scheduled'
+    ? (INTENT_COLORS[msg.sara_intent] || INTENT_COLORS.other)
+    : null;
+  const subjectChanged = !!baseSubject(msg.subject) && !!baseSubject(threadSubject) && baseSubject(msg.subject) !== baseSubject(threadSubject);
+  const d = new Date(msg.received_at);
+  const stamp = `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+  const viaInbox = msg.smtp_label || msg.smtp_email?.split('@')[0] || null;
+
+  return (
+    <div id={`msg-${msg.id}`} className="relative flex gap-3 pb-3 animate-fade-in">
+      {/* Rail node — avatar for the contact, indigo send-node for you */}
+      <div className="relative z-10 w-9 flex-shrink-0 flex justify-center pt-2">
+        {isOutbound ? (
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--indigo)] text-white ring-4 ring-[var(--bg-app)] shadow-[0_2px_8px_-2px_rgba(91,91,245,0.55)]">
+            <SendHorizontal className="h-3.5 w-3.5" />
+          </span>
+        ) : (
+          <span className="inline-flex rounded-full ring-4 ring-[var(--bg-app)]">
+            <Avatar name={msg.contact_name || senderName(msg)} email={msg.from_email} size="lg" />
+          </span>
+        )}
+      </div>
+
+      {/* Card */}
+      <div className={cn(
+        'flex-1 min-w-0 panel overflow-hidden transition-shadow',
+        isOutbound && 'border-[rgba(91,91,245,0.28)]',
+        isCurrent && 'ring-2 ring-[rgba(91,91,245,0.22)]'
+      )}>
+        <button
+          type="button"
+          onClick={onToggle}
+          className={cn(
+            'w-full text-left px-4 py-2.5 transition-colors',
+            expanded
+              ? cn('border-b', isOutbound
+                  ? 'bg-[var(--indigo-subtle)] border-[rgba(91,91,245,0.15)] hover:bg-[rgba(91,91,245,0.12)]'
+                  : 'border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]/60')
+              : 'hover:bg-[var(--bg-hover)]/60'
+          )}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-semibold text-[var(--text-primary)] flex-shrink-0">
+              {isOutbound ? 'You' : senderName(msg)}
+            </span>
+            <span className="text-[11px] text-[var(--text-tertiary)] truncate">
+              {isOutbound ? `to ${msg.to_email || 'contact'}` : (viaInbox ? `to ${viaInbox}` : msg.from_email)}
+            </span>
+            <span className="flex-1" />
+            {!expanded && intent && (
+              <span className={cn('hidden sm:inline-flex items-center text-[9.5px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0', intent.bg, intent.text)}>
+                {intent.label}
+              </span>
+            )}
+            <span className="text-[10.5px] text-[var(--text-tertiary)] tabular flex-shrink-0" title={formatFullDate(msg.received_at)}>{stamp}</span>
+            <ChevronDown className={cn('h-3.5 w-3.5 text-[var(--text-muted)] transition-transform flex-shrink-0', expanded && 'rotate-180')} />
+          </div>
+
+          {!expanded ? (
+            <p className="mt-1 text-[12px] text-[var(--text-tertiary)] truncate">{msgSnippet(msg)}</p>
+          ) : (
+            (intent || subjectChanged || msg.campaign_name || (isOutbound && viaInbox)) && (
+              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                {intent && (
+                  <span className={cn('inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md', intent.bg, intent.text)}>
+                    <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
+                    {intent.label}
+                  </span>
+                )}
+                {isOutbound && viaInbox && (
+                  <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-blue-500/8 text-blue-500" title={msg.smtp_email || undefined}>
+                    via {viaInbox}
+                  </span>
+                )}
+                {msg.campaign_name && (
+                  <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">{msg.campaign_name}</span>
+                )}
+                {subjectChanged && (
+                  <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 truncate max-w-[260px]" title={msg.subject || undefined}>
+                    Subject: {msg.subject}
+                  </span>
+                )}
+              </div>
+            )
+          )}
+        </button>
+
+        {expanded && (
+          <ErrorBoundary fallback={
+            <div className="p-5 text-sm text-[var(--text-secondary)]">
+              <p>{msg.body_text ? stripHtml(msg.body_text) : '(Unable to render email content)'}</p>
+            </div>
+          }>
+            <EmailBody html={msg.body_html} text={msg.body_text} />
+          </ErrorBoundary>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ThreadTimeline({ thread, threadSubject, selectedId }: {
+  thread: Message[];
+  threadSubject: string | null;
+  selectedId: string | null;
+}) {
+  // Expand the latest message and the selected one by default, collapse older ones
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
     const ids = new Set<string>();
-    if (thread.length > 0) ids.add(thread[thread.length - 1].id); // latest
+    if (thread.length > 0) ids.add(thread[thread.length - 1].id);
     if (selectedId) ids.add(selectedId);
     return ids;
   });
+  const [showEarlier, setShowEarlier] = useState(false);
 
-  // Update expanded set when thread or selection changes
   useEffect(() => {
     setExpandedIds(prev => {
       const next = new Set(prev);
@@ -988,7 +1160,19 @@ function CollapsibleThread({ thread, selectedId }: { thread: Message[]; selected
     });
   }, [thread.length, selectedId]);
 
-  const toggleExpand = (id: string) => {
+  // Long threads fold everything but the last few behind a rail pill
+  const RECENT = 4;
+  const earlierCount = thread.length > RECENT ? thread.length - RECENT : 0;
+
+  // If the selected message is inside the folded section, reveal it
+  useEffect(() => {
+    if (!selectedId || showEarlier || earlierCount === 0) return;
+    if (thread.slice(0, earlierCount).some(m => m.id === selectedId)) setShowEarlier(true);
+  }, [selectedId, earlierCount, showEarlier, thread]);
+
+  const visible = showEarlier || earlierCount === 0 ? thread : thread.slice(earlierCount);
+
+  const toggle = (id: string) => {
     setExpandedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -997,89 +1181,150 @@ function CollapsibleThread({ thread, selectedId }: { thread: Message[]; selected
     });
   };
 
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const rows: React.ReactNode[] = [];
+  let prev: Date | null = null;
+
+  if (earlierCount > 0) {
+    rows.push(
+      <div key="earlier" className="relative z-10 flex py-1.5">
+        <button
+          onClick={() => setShowEarlier(v => !v)}
+          className="flex items-center gap-1.5 h-7 pl-2 pr-3 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-colors shadow-sm"
+        >
+          {showEarlier ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          {showEarlier ? 'Hide earlier messages' : `Show ${earlierCount} earlier message${earlierCount === 1 ? '' : 's'}`}
+        </button>
+      </div>
+    );
+  }
+
+  for (const msg of visible) {
+    const d = new Date(msg.received_at);
+    if (!prev || d.toDateString() !== prev.toDateString()) {
+      const gapDays = prev ? Math.round((startOfDay(d) - startOfDay(prev)) / 86400000) : 0;
+      rows.push(
+        <DaySeparator
+          key={`day-${msg.id}`}
+          label={dayLabel(msg.received_at)}
+          gap={gapDays >= 2 ? `${gapDays} days later` : undefined}
+        />
+      );
+    }
+    rows.push(
+      <TimelineMessage
+        key={msg.id}
+        msg={msg}
+        threadSubject={threadSubject}
+        isCurrent={msg.id === selectedId}
+        expanded={expandedIds.has(msg.id)}
+        onToggle={() => toggle(msg.id)}
+      />
+    );
+    prev = d;
+  }
+
   return (
-    <div className="space-y-3">
-      {thread.map((msg) => {
-        const isOutbound = msg.direction === 'outbound';
-        const isCurrent = msg.id === selectedId;
-        const isExpanded = expandedIds.has(msg.id);
-
-        // Chat-style L/R layout: outbound messages right-aligned, inbound left-aligned.
-        const alignment = isOutbound ? 'ml-auto' : 'mr-auto';
-        const bubbleColor = isOutbound
-          ? 'bg-[#6366F1]/[0.08] border-[#6366F1]/25'
-          : 'bg-[var(--bg-surface)] border-[var(--border-subtle)]';
-
-        return (
-          <div
-            key={msg.id}
-            id={`msg-${msg.id}`}
-            className={`flex ${isOutbound ? 'justify-end' : 'justify-start'} animate-fade-in`}
-          >
-            <div
-              className={`max-w-[88%] w-full md:w-auto md:min-w-[420px] rounded-2xl border overflow-hidden transition-all ${alignment} ${bubbleColor} ${
-                isCurrent ? 'ring-2 ring-[#6366F1]/40' : ''
-              }`}
-              style={{ boxShadow: isCurrent ? '0 4px 16px rgba(99,102,241,0.18)' : '0 1px 3px rgba(0,0,0,.05)' }}
-            >
-              {/* Header — clickable toggle */}
-              <button
-                type="button"
-                onClick={() => toggleExpand(msg.id)}
-                className={`w-full text-left flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--bg-hover)]/40 ${
-                  isExpanded ? 'border-b border-[var(--border-subtle)]' : ''
-                }`}
-              >
-                {/* Avatar */}
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  isOutbound
-                    ? 'bg-[var(--indigo)] text-white'
-                    : 'bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[var(--text-primary)]'
-                }`}>
-                  {isOutbound ? <SendHorizontal className="h-3 w-3" /> : (
-                    <span className="text-[10px] font-semibold">{senderInitial(msg)}</span>
-                  )}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
-                      {isOutbound ? 'You' : senderName(msg)}
-                    </span>
-                    {msg.campaign_name && (
-                      <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">{msg.campaign_name}</span>
-                    )}
-                  </div>
-                  {!isExpanded && (
-                    <p className="text-[11px] text-[var(--text-tertiary)] truncate mt-0.5">{msgSnippet(msg)}</p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <span className="text-[10px] text-[var(--text-tertiary)] whitespace-nowrap">
-                    {isExpanded ? formatFullDate(msg.received_at) : timeAgo(msg.received_at)}
-                  </span>
-                  <ChevronRight className={`h-3 w-3 text-[var(--text-tertiary)] transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                </div>
-              </button>
-
-              {/* Body */}
-              {isExpanded && (
-                <div>
-                  <ErrorBoundary fallback={
-                    <div className="p-5 text-sm text-[var(--text-secondary)]">
-                      <p>{msg.body_text ? stripHtml(msg.body_text) : '(Unable to render email content)'}</p>
-                    </div>
-                  }>
-                    <EmailBody html={msg.body_html} text={msg.body_text} />
-                  </ErrorBoundary>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
+    <div className="relative">
+      {/* Timeline rail */}
+      <span aria-hidden className="absolute left-[17px] top-4 bottom-4 w-px bg-[var(--border-default)] opacity-70" />
+      {rows}
     </div>
+  );
+}
+
+/* ─── Contact context panel (right rail) ──────────── */
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-[5px]">
+      <span className="text-[11px] text-[var(--text-tertiary)] flex-shrink-0">{label}</span>
+      <span className="text-[11.5px] font-medium text-[var(--text-primary)] text-right min-w-0 truncate">{children}</span>
+    </div>
+  );
+}
+
+function ContactContextPanel({ msg, stats, onCopyEmail }: {
+  msg: Message;
+  stats: { total: number; inbound: number; outbound: number; first: string | null; last: string | null; avgReply: number | null };
+  onCopyEmail: () => void;
+}) {
+  const email = msg.direction === 'outbound' ? (msg.contact_email || msg.to_email) : (msg.contact_email || msg.from_email);
+  const name = msg.contact_name || (email ? email.split('@')[0] : 'Contact');
+  const company = companyFromEmail(email);
+  const intent = msg.sara_intent && msg.sara_intent !== 'scheduled' ? (INTENT_COLORS[msg.sara_intent] || INTENT_COLORS.other) : null;
+
+  return (
+    <aside className="hidden xl:flex w-[288px] flex-shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-col overflow-y-auto">
+      {/* Identity */}
+      <div className="flex flex-col items-center text-center px-5 pt-6 pb-5 border-b border-[var(--border-subtle)]">
+        <Avatar name={name} email={email} size="xl" />
+        <p className="mt-3 text-[14.5px] font-semibold text-[var(--text-primary)] leading-tight">{name}</p>
+        {email && <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)] truncate max-w-full">{email}</p>}
+        {company && (
+          <span className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-secondary)]">
+            <Building2 className="h-3 w-3 text-[var(--text-tertiary)]" />
+            {company}
+          </span>
+        )}
+        <button
+          onClick={onCopyEmail}
+          className="mt-3 flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-default)] text-[11px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
+        >
+          <Copy className="h-3 w-3" /> Copy email
+        </button>
+      </div>
+
+      {/* Engagement */}
+      <div className="px-4 py-4 border-b border-[var(--border-subtle)]">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2.5">Engagement</p>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="panel-inset px-2.5 py-2">
+            <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
+              <ArrowDownLeft className="h-3 w-3 text-emerald-500" />
+              <span className="text-[10.5px] font-medium">Received</span>
+            </div>
+            <p className="mt-1 text-[16px] font-semibold tabular text-[var(--text-primary)] leading-none">{stats.inbound}</p>
+          </div>
+          <div className="panel-inset px-2.5 py-2">
+            <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
+              <ArrowUpRight className="h-3 w-3 text-[var(--indigo)]" />
+              <span className="text-[10.5px] font-medium">Sent</span>
+            </div>
+            <p className="mt-1 text-[16px] font-semibold tabular text-[var(--text-primary)] leading-none">{stats.outbound}</p>
+          </div>
+          <div className="panel-inset px-2.5 py-2 col-span-2">
+            <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
+              <Clock className="h-3 w-3" />
+              <span className="text-[10.5px] font-medium">Avg reply gap</span>
+            </div>
+            <p className="mt-1 text-[16px] font-semibold tabular text-[var(--text-primary)] leading-none">
+              {stats.avgReply != null ? humanizeMs(stats.avgReply) : '—'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Details */}
+      <div className="px-4 py-4">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">Details</p>
+        <DetailRow label="Intent">
+          {intent ? (
+            <span className={cn('inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md', intent.bg, intent.text)}>{intent.label}</span>
+          ) : <span className="text-[var(--text-tertiary)] font-normal">Untagged</span>}
+        </DetailRow>
+        {msg.campaign_name && <DetailRow label="Campaign">{msg.campaign_name}</DetailRow>}
+        {(msg.smtp_label || msg.smtp_email) && (
+          <DetailRow label="Inbox">{msg.smtp_label || msg.smtp_email}</DetailRow>
+        )}
+        {stats.first && (
+          <DetailRow label="First contact">{new Date(stats.first).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</DetailRow>
+        )}
+        {stats.last && (
+          <DetailRow label="Last activity">{timeAgo(stats.last)} ago</DetailRow>
+        )}
+        <DetailRow label="Messages"><span className="tabular">{stats.total}</span></DetailRow>
+      </div>
+    </aside>
   );
 }
 
@@ -1333,6 +1578,7 @@ export function InboxPage() {
   const [tagFilter, setTagFilter] = useState('all');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [showContext, setShowContext] = useState(true);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -1802,6 +2048,47 @@ export function InboxPage() {
     setTimeout(() => handleAiInsert(currentMsg.sara_draft_reply || ''), 160);
   }, [currentMsg, smtpAccounts, handleAiInsert]);
 
+  /* ── Thread-level context for the timeline header + contact panel ── */
+  const fullThread: Message[] = useMemo(
+    () => (thread.length > 0 ? thread : currentMsg ? [currentMsg] : []),
+    [thread, currentMsg],
+  );
+  const threadSubject = fullThread[0]?.subject ?? currentMsg?.subject ?? null;
+  const threadStats = useMemo(() => {
+    const msgs = fullThread;
+    const inbound = msgs.filter(m => m.direction !== 'outbound').length;
+    // Avg gap between direction changes ≈ how fast this conversation turns around
+    let total = 0, n = 0;
+    for (let i = 1; i < msgs.length; i++) {
+      if ((msgs[i].direction === 'outbound') !== (msgs[i - 1].direction === 'outbound')) {
+        const delta = new Date(msgs[i].received_at).getTime() - new Date(msgs[i - 1].received_at).getTime();
+        if (delta > 0) { total += delta; n++; }
+      }
+    }
+    return {
+      total: msgs.length,
+      inbound,
+      outbound: msgs.length - inbound,
+      first: msgs[0]?.received_at ?? null,
+      last: msgs[msgs.length - 1]?.received_at ?? null,
+      avgReply: n ? total / n : null,
+    };
+  }, [fullThread]);
+
+  const threadContactEmail = currentMsg
+    ? (currentMsg.direction === 'outbound' ? (currentMsg.contact_email || currentMsg.to_email) : (currentMsg.contact_email || currentMsg.from_email))
+    : null;
+  const threadContactName = currentMsg
+    ? (currentMsg.contact_name || (threadContactEmail ? threadContactEmail.split('@')[0] : 'Contact'))
+    : null;
+
+  const copyContactEmail = useCallback(() => {
+    if (!threadContactEmail) return;
+    navigator.clipboard.writeText(threadContactEmail)
+      .then(() => toast.success('Email copied'))
+      .catch(() => toast.error('Failed to copy email'));
+  }, [threadContactEmail]);
+
   return (
     <div className="-mx-8 -my-6" style={{ height: 'calc(100vh - 56px)' }}>
       <div className="h-full flex bg-[var(--bg-app)]">
@@ -2152,69 +2439,96 @@ export function InboxPage() {
                 >
                   {currentMsg.is_read ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
+                <div className="h-4 w-px bg-[var(--border-subtle)] mx-1 hidden xl:block" />
+                <button
+                  onClick={() => setShowContext(v => !v)}
+                  title={showContext ? 'Hide contact details' : 'Show contact details'}
+                  className={cn(
+                    'p-2 rounded-lg transition-colors hidden xl:block',
+                    showContext
+                      ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                      : 'hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
+                  )}
+                >
+                  {showContext ? <PanelRightClose className="h-4 w-4" /> : <PanelRight className="h-4 w-4" />}
+                </button>
               </div>
 
-              {/* Email content */}
-              <div className="flex-1 overflow-y-auto">
-                <div className="max-w-3xl mx-auto px-6 py-6">
-                  {/* Conversation header */}
-                  <div className="flex items-start gap-3 mb-4">
-                    <div className="flex-1">
-                      <h1 className="text-xl font-semibold text-[var(--text-primary)] leading-tight">
-                        {currentMsg.contact_name || currentMsg.from_email?.split('@')[0] || 'Conversation'}
+              {/* Conversation workspace: thread canvas + contact rail */}
+              <div className="flex-1 flex min-h-0">
+                <div className="flex-1 min-w-0 overflow-y-auto bg-[var(--bg-app)]">
+                  <div className="max-w-3xl mx-auto px-6 py-5">
+                  {/* Thread header — subject first, contact meta below */}
+                  <div className="mb-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <h1 className="text-[19px] font-semibold text-[var(--text-primary)] leading-snug tracking-[-0.015em] min-w-0">
+                        {threadSubject || '(no subject)'}
                       </h1>
-                      <p className="text-xs text-[var(--text-tertiary)] mt-1">
-                        {thread.length > 1 ? `${thread.length} messages` : '1 message'}
-                        {currentMsg.contact_email && ` · ${currentMsg.contact_email}`}
-                      </p>
-                    </div>
-                    {/* Clickable tag dropdown */}
-                    <div className="relative flex-shrink-0">
-                      <button
-                        onClick={() => setShowTagDropdown(!showTagDropdown)}
-                        className={`flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors ${
-                          currentMsg.sara_intent
-                            ? `${(INTENT_COLORS[currentMsg.sara_intent] || INTENT_COLORS.other).bg} ${(INTENT_COLORS[currentMsg.sara_intent] || INTENT_COLORS.other).text}`
-                            : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]'
-                        }`}
-                      >
-                        <Tag className="h-3 w-3" />
-                        {currentMsg.sara_intent
-                          ? (INTENT_COLORS[currentMsg.sara_intent] || INTENT_COLORS.other).label
-                          : 'Add Tag'}
-                        <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
-                      </button>
-                      {showTagDropdown && (
-                        <>
-                          <div className="fixed inset-0 z-40" onClick={() => setShowTagDropdown(false)} />
-                          <div className="absolute right-0 top-full mt-1 z-50 w-48 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl shadow-lg overflow-hidden">
-                            {currentMsg.sara_intent && (
-                              <button
-                                onClick={() => { setTagMut.mutate({ id: currentMsg.id, tag: '' }); setShowTagDropdown(false); }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-subtle)]"
-                              >
-                                <X className="h-3 w-3" />
-                                Remove Tag
-                              </button>
-                            )}
-                            {TAG_OPTIONS.filter(t => t.value !== 'all').map(opt => {
-                              const info = INTENT_COLORS[opt.value] || INTENT_COLORS.other;
-                              const isActive = currentMsg.sara_intent === opt.value;
-                              return (
+                      {/* Clickable tag dropdown */}
+                      <div className="relative flex-shrink-0 mt-0.5">
+                        <button
+                          onClick={() => setShowTagDropdown(!showTagDropdown)}
+                          className={`flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors ${
+                            currentMsg.sara_intent
+                              ? `${(INTENT_COLORS[currentMsg.sara_intent] || INTENT_COLORS.other).bg} ${(INTENT_COLORS[currentMsg.sara_intent] || INTENT_COLORS.other).text}`
+                              : 'bg-[var(--bg-surface)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]'
+                          }`}
+                        >
+                          <Tag className="h-3 w-3" />
+                          {currentMsg.sara_intent
+                            ? (INTENT_COLORS[currentMsg.sara_intent] || INTENT_COLORS.other).label
+                            : 'Add Tag'}
+                          <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
+                        </button>
+                        {showTagDropdown && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setShowTagDropdown(false)} />
+                            <div className="absolute right-0 top-full mt-1 z-50 w-48 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl shadow-lg overflow-hidden">
+                              {currentMsg.sara_intent && (
                                 <button
-                                  key={opt.value}
-                                  onClick={() => { setTagMut.mutate({ id: currentMsg.id, tag: opt.value }); setShowTagDropdown(false); }}
-                                  className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
-                                    isActive ? 'bg-[var(--bg-elevated)]' : 'hover:bg-[var(--bg-hover)]'
-                                  } ${info.text}`}
+                                  onClick={() => { setTagMut.mutate({ id: currentMsg.id, tag: '' }); setShowTagDropdown(false); }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-subtle)]"
                                 >
-                                  <span className={`w-2 h-2 rounded-full ${info.bg} ring-1 ring-current`} />
-                                  {opt.label}
-                                  {isActive && <Check className="h-3 w-3 ml-auto" />}
+                                  <X className="h-3 w-3" />
+                                  Remove Tag
                                 </button>
-                              );
-                            })}
-                          </div>
+                              )}
+                              {TAG_OPTIONS.filter(t => t.value !== 'all').map(opt => {
+                                const info = INTENT_COLORS[opt.value] || INTENT_COLORS.other;
+                                const isActive = currentMsg.sara_intent === opt.value;
+                                return (
+                                  <button
+                                    key={opt.value}
+                                    onClick={() => { setTagMut.mutate({ id: currentMsg.id, tag: opt.value }); setShowTagDropdown(false); }}
+                                    className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
+                                      isActive ? 'bg-[var(--bg-elevated)]' : 'hover:bg-[var(--bg-hover)]'
+                                    } ${info.text}`}
+                                  >
+                                    <span className={`w-2 h-2 rounded-full ${info.bg} ring-1 ring-current`} />
+                                    {opt.label}
+                                    {isActive && <Check className="h-3 w-3 ml-auto" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-2 text-[12px] text-[var(--text-tertiary)] flex-wrap">
+                      <span className="font-medium text-[var(--text-secondary)]">{threadContactName}</span>
+                      {threadContactEmail && (
+                        <>
+                          <span className="sep-dot" />
+                          <span className="truncate max-w-[220px]">{threadContactEmail}</span>
+                        </>
+                      )}
+                      <span className="sep-dot" />
+                      <span className="tabular">{threadStats.total} message{threadStats.total === 1 ? '' : 's'}</span>
+                      {threadStats.first && threadStats.total > 1 && (
+                        <>
+                          <span className="sep-dot" />
+                          <span>Started {new Date(threadStats.first).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                         </>
                       )}
                     </div>
@@ -2223,9 +2537,10 @@ export function InboxPage() {
                   {/* SARA co-pilot — surfaces AI triage + one-tap draft */}
                   <SaraCopilot msg={currentMsg} onUseDraft={applySaraDraft} />
 
-                  {/* Conversation thread — collapsible messages */}
-                  <CollapsibleThread
-                    thread={thread.length > 0 ? thread : [currentMsg]}
+                  {/* Conversation timeline — day-grouped, direction-coded */}
+                  <ThreadTimeline
+                    thread={fullThread}
+                    threadSubject={threadSubject}
                     selectedId={selectedId}
                   />
 
@@ -2344,17 +2659,31 @@ export function InboxPage() {
                       </button>
                     </div>
                   )}
+                  </div>
                 </div>
+
+                {/* Contact context rail */}
+                {showContext && (
+                  <ContactContextPanel msg={currentMsg} stats={threadStats} onCopyEmail={copyContactEmail} />
+                )}
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center bg-[var(--bg-app)]">
               <div className="text-center">
-                <div className="mx-auto w-16 h-16 rounded-2xl bg-[var(--bg-elevated)] flex items-center justify-center mb-4 border border-[var(--border-subtle)]">
+                <div className="mx-auto w-16 h-16 rounded-2xl bg-[var(--bg-surface)] flex items-center justify-center mb-4 border border-[var(--border-subtle)] shadow-sm">
                   <MailPlus className="h-7 w-7 text-[var(--text-tertiary)]" />
                 </div>
-                <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1.5">Select a message</h3>
-                <p className="text-sm text-[var(--text-secondary)] max-w-xs">Choose a conversation from the left to read and reply.</p>
+                <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1.5">Select a conversation</h3>
+                <p className="text-sm text-[var(--text-secondary)] max-w-xs mx-auto">Pick a conversation from the list to read the full thread and reply.</p>
+                <div className="mt-6 flex items-center justify-center gap-4 text-[11px] text-[var(--text-tertiary)]">
+                  {[['J / K', 'navigate'], ['R', 'reply'], ['E', 'archive'], ['C', 'compose']].map(([key, label]) => (
+                    <span key={label} className="flex items-center gap-1.5">
+                      <kbd className="px-1.5 py-0.5 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] font-semibold text-[10px] text-[var(--text-secondary)] shadow-sm">{key}</kbd>
+                      {label}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           )}
