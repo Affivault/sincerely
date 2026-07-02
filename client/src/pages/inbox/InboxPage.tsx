@@ -1255,10 +1255,10 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
   const intent = msg.sara_intent && msg.sara_intent !== 'scheduled' ? (INTENT_COLORS[msg.sara_intent] || INTENT_COLORS.other) : null;
 
   return (
-    <aside className="hidden xl:flex w-[288px] flex-shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-col overflow-y-auto">
+    <aside className="hidden xl:flex w-[260px] flex-shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-col overflow-y-auto">
       {/* Identity */}
-      <div className="flex flex-col items-center text-center px-5 pt-6 pb-5 border-b border-[var(--border-subtle)]">
-        <Avatar name={name} email={email} size="xl" />
+      <div className="flex flex-col items-center text-center px-4 pt-5 pb-4 border-b border-[var(--border-subtle)]">
+        <Avatar name={name} email={email} size="lg" />
         <p className="mt-3 text-[14.5px] font-semibold text-[var(--text-primary)] leading-tight">{name}</p>
         {email && <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)] truncate max-w-full">{email}</p>}
         {company && (
@@ -1279,26 +1279,26 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
       <div className="px-4 py-4 border-b border-[var(--border-subtle)]">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2.5">Engagement</p>
         <div className="grid grid-cols-2 gap-2">
-          <div className="panel-inset px-2.5 py-2">
+          <div className="panel-inset px-2.5 py-1.5">
             <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
               <ArrowDownLeft className="h-3 w-3 text-emerald-500" />
               <span className="text-[10.5px] font-medium">Received</span>
             </div>
-            <p className="mt-1 text-[16px] font-semibold tabular text-[var(--text-primary)] leading-none">{stats.inbound}</p>
+            <p className="mt-0.5 text-[15px] font-semibold tabular text-[var(--text-primary)] leading-none">{stats.inbound}</p>
           </div>
-          <div className="panel-inset px-2.5 py-2">
+          <div className="panel-inset px-2.5 py-1.5">
             <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
               <ArrowUpRight className="h-3 w-3 text-[var(--indigo)]" />
               <span className="text-[10.5px] font-medium">Sent</span>
             </div>
-            <p className="mt-1 text-[16px] font-semibold tabular text-[var(--text-primary)] leading-none">{stats.outbound}</p>
+            <p className="mt-0.5 text-[15px] font-semibold tabular text-[var(--text-primary)] leading-none">{stats.outbound}</p>
           </div>
-          <div className="panel-inset px-2.5 py-2 col-span-2">
+          <div className="panel-inset px-2.5 py-1.5 col-span-2">
             <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
               <Clock className="h-3 w-3" />
               <span className="text-[10.5px] font-medium">Avg reply gap</span>
             </div>
-            <p className="mt-1 text-[16px] font-semibold tabular text-[var(--text-primary)] leading-none">
+            <p className="mt-0.5 text-[15px] font-semibold tabular text-[var(--text-primary)] leading-none">
               {stats.avgReply != null ? humanizeMs(stats.avgReply) : '—'}
             </p>
           </div>
@@ -2094,154 +2094,34 @@ export function InboxPage() {
     <div className="-mx-8 -my-6" style={{ height: 'calc(100vh - 56px)' }}>
       <div className="h-full flex bg-[var(--bg-app)]">
 
-        {/* ── Sidebar: labeled navigation ───────────────────── */}
-        <aside className={cn(
-          'flex-shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-surface)] flex flex-col transition-[width] duration-200',
-          sidebarCollapsed ? 'w-[64px]' : 'w-[240px]'
-        )}>
-          {/* Brand + collapse */}
-          <div className={cn('flex items-center h-[52px] border-b border-[var(--border-subtle)]', sidebarCollapsed ? 'justify-center px-0' : 'gap-2 px-3')}>
-            {!sidebarCollapsed && (
-              <>
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] flex-shrink-0">
-                  <Inbox className="h-4 w-4 text-[var(--indigo)]" />
-                </span>
-                <span className="text-[13.5px] font-semibold text-[var(--text-primary)] flex-1 tracking-[-0.01em]">Unibox</span>
-              </>
-            )}
-            <button
-              onClick={() => setSidebarCollapsed(v => !v)}
-              className="icon-btn flex-shrink-0"
-              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            >
-              {sidebarCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
-            </button>
-          </div>
-
-          {/* Compose */}
-          <div className={cn('pt-3', sidebarCollapsed ? 'px-2' : 'px-3')}>
-            <button
-              onClick={() => { setReplyMode(null); setShowCompose(true); }}
-              title="Compose"
-              className="flex items-center justify-center gap-1.5 w-full h-9 rounded-lg bg-[var(--indigo)] text-white text-[12.5px] font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              {!sidebarCollapsed && 'Compose'}
-            </button>
-          </div>
-
-          {/* Nav sections */}
-          <nav className={cn('flex-1 overflow-y-auto py-3 space-y-4 scrollbar-none', sidebarCollapsed ? 'px-2' : 'px-2.5')}>
-            <div className="space-y-0.5">
-              {!sidebarCollapsed && <p className="px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Mailboxes</p>}
-              {FOLDER_NAV.map(item => (
-                <NavRow
-                  key={item.id}
-                  item={item}
-                  collapsed={sidebarCollapsed}
-                  active={isViewActive({ folder: item.folder, tag: item.tag, quick: item.quick })}
-                  count={item.countKey ? viewCounts[item.countKey] : undefined}
-                  onClick={() => selectView({ folder: item.folder, tag: item.tag, quick: item.quick })}
-                />
-              ))}
-            </div>
-
-            <div className="space-y-0.5">
-              {!sidebarCollapsed && <p className="px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Smart views</p>}
-              {sidebarCollapsed && <div className="mx-2 my-1 h-px bg-[var(--border-subtle)]" />}
-              {SMART_NAV.map(item => (
-                <NavRow
-                  key={item.id}
-                  item={item}
-                  collapsed={sidebarCollapsed}
-                  active={isViewActive({ folder: item.folder, tag: item.tag, quick: item.quick })}
-                  count={item.countKey ? viewCounts[item.countKey] : undefined}
-                  onClick={() => selectView({ folder: item.folder, tag: item.tag, quick: item.quick })}
-                />
-              ))}
-            </div>
-
-            <div className="space-y-0.5">
-              {!sidebarCollapsed && <p className="px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">By tag</p>}
-              {sidebarCollapsed && <div className="mx-2 my-1 h-px bg-[var(--border-subtle)]" />}
-              {TAG_NAV.map(item => (
-                <NavRow
-                  key={item.id}
-                  item={item}
-                  collapsed={sidebarCollapsed}
-                  active={isViewActive({ folder: item.folder, tag: item.tag, quick: item.quick })}
-                  count={item.tag ? viewCounts[item.tag] : undefined}
-                  onClick={() => selectView({ folder: item.folder, tag: item.tag, quick: item.quick })}
-                />
-              ))}
-            </div>
-          </nav>
-
-          {/* Connected inboxes + sync */}
-          <div className={cn('border-t border-[var(--border-subtle)] py-2.5', sidebarCollapsed ? 'px-2' : 'px-3')}>
-            {sidebarCollapsed ? (
-              <button
-                onClick={handleRefresh}
-                disabled={isRefreshing || isFetching}
-                title="Sync inboxes"
-                className="icon-btn mx-auto disabled:opacity-40"
-              >
-                <RefreshCw className={cn('h-4 w-4', (isRefreshing || isFetching) && 'animate-spin')} />
-              </button>
-            ) : (
-              <>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Connected inboxes</span>
-                  <span className="text-[10px] font-medium tabular text-[var(--text-tertiary)]">{smtpAccounts.length}</span>
-                </div>
-                <div className="space-y-1">
-                  {smtpAccounts.length === 0 ? (
-                    <p className="text-[11px] text-[var(--text-tertiary)]">No inboxes connected yet.</p>
-                  ) : (
-                    smtpAccounts.slice(0, 3).map(a => (
-                      <div key={a.id} className="flex items-center gap-2">
-                        <span className={cn('h-1.5 w-1.5 rounded-full flex-shrink-0', a.is_verified ? 'bg-emerald-500' : 'bg-amber-500')} />
-                        <span className="text-[11.5px] text-[var(--text-secondary)] truncate flex-1">{a.label || a.email_address}</span>
-                      </div>
-                    ))
-                  )}
-                  {smtpAccounts.length > 3 && (
-                    <p className="text-[10.5px] text-[var(--text-tertiary)] pl-3.5">+{smtpAccounts.length - 3} more</p>
-                  )}
-                </div>
-                <button
-                  onClick={handleRefresh}
-                  disabled={isRefreshing || isFetching}
-                  className="flex items-center gap-1.5 mt-2 text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-40"
-                >
-                  <RefreshCw className={cn('h-3 w-3', (isRefreshing || isFetching) && 'animate-spin')} />
-                  {isRefreshing || isFetching ? 'Syncing…' : 'Sync now'}
-                </button>
-              </>
-            )}
-          </div>
-        </aside>
-
-        {/* ── Conversation list ── */}
-        <div className="flex flex-col border-r border-[var(--border-subtle)] bg-[var(--bg-surface)]" style={{ width: '384px', minWidth: '340px' }}>
-          {/* View header */}
-          <div className="flex items-center gap-2 px-4 h-[52px] border-b border-[var(--border-subtle)]">
-            <h2 className="text-[15px] font-semibold text-[var(--text-primary)] tracking-[-0.01em] truncate">{activeViewLabel}</h2>
-            <span className="text-[11px] font-medium tabular text-[var(--text-tertiary)] px-1.5 py-0.5 rounded-md bg-[var(--bg-elevated)] flex-shrink-0">{visibleConversations.length}</span>
+        {/* ── Conversation list — views live here; one sidebar per app ── */}
+        <div className="flex flex-col border-r border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-shrink-0" style={{ width: '400px', minWidth: '360px' }}>
+          {/* Row 1: view switcher + actions */}
+          <div className="flex items-center gap-1.5 px-3 h-[52px] border-b border-[var(--border-subtle)]">
+            <FolderSelector
+              folders={foldersList}
+              active={folder}
+              onChange={(f) => { setFolder(f); setSelectedId(null); setTagFilter('all'); setQuickFilter('all'); setUnreadOnly(false); }}
+            />
+            <span className="text-[11px] font-medium tabular text-[var(--text-tertiary)]">{visibleConversations.length}</span>
             {isFetching && <Loader2 className="h-3.5 w-3.5 text-[var(--text-tertiary)] animate-spin" />}
             <div className="flex-1" />
-            <button
-              onClick={() => markAllReadMut.mutate()}
-              disabled={markAllReadMut.isPending}
-              title="Mark all read"
-              className="icon-btn flex-shrink-0"
-            >
+            <button onClick={handleRefresh} disabled={isRefreshing || isFetching} title="Sync inboxes" className="icon-btn flex-shrink-0 disabled:opacity-40">
+              <RefreshCw className={cn('h-3.5 w-3.5', (isRefreshing || isFetching) && 'animate-spin')} />
+            </button>
+            <button onClick={() => markAllReadMut.mutate()} disabled={markAllReadMut.isPending} title="Mark all read" className="icon-btn flex-shrink-0">
               <CheckCheck className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setShowCompose(true)}
+              className="ml-1 flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo)] text-white text-[12px] font-semibold hover:bg-[var(--indigo-hover)] transition-colors flex-shrink-0 shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
+            >
+              <Pencil className="h-3.5 w-3.5" /> Compose
             </button>
           </div>
 
-          {/* Search + triage toggle */}
-          <div className="px-3 py-2.5 border-b border-[var(--border-subtle)] space-y-2.5">
+          {/* Row 2: search + smart-view chips */}
+          <div className="px-3 pt-2.5 pb-2 border-b border-[var(--border-subtle)]">
             <form onSubmit={handleSearch}>
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
@@ -2249,7 +2129,7 @@ export function InboxPage() {
                   value={searchInput}
                   onChange={e => setSearchInput(e.target.value)}
                   placeholder="Search conversations…"
-                  className="w-full pl-8 pr-8 h-9 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[12.5px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 transition-all"
+                  className="w-full pl-8 pr-8 h-8 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[12.5px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 transition-all"
                 />
                 {search && (
                   <button type="button" onClick={() => { setSearch(''); setSearchInput(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-[var(--bg-hover)]">
@@ -2258,22 +2138,28 @@ export function InboxPage() {
                 )}
               </div>
             </form>
-            <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[var(--bg-elevated)] w-max">
-              {[{ id: false, label: 'All' }, { id: true, label: 'Unread' }].map(opt => (
+            <div className="mt-2 flex items-center gap-1 overflow-x-auto scrollbar-none -mx-1 px-1">
+              {[
+                { id: 'all', label: 'All', count: undefined as number | undefined, active: quickFilter === 'all' && tagFilter === 'all' && !unreadOnly, onClick: () => { setQuickFilter('all'); setTagFilter('all'); setUnreadOnly(false); setSelectedId(null); } },
+                { id: 'unread', label: 'Unread', count: folder === 'inbox' ? viewCounts.unread : undefined, active: unreadOnly, onClick: () => setUnreadOnly(v => !v) },
+                { id: 'hot', label: 'Hot', count: viewCounts.hot, active: quickFilter === 'hot', onClick: () => { setQuickFilter('hot'); setTagFilter('all'); setUnreadOnly(false); setSelectedId(null); } },
+                { id: 'needs', label: 'Needs reply', count: viewCounts.needs_reply, active: quickFilter === 'needs_reply', onClick: () => { setQuickFilter('needs_reply'); setTagFilter('all'); setUnreadOnly(false); setSelectedId(null); } },
+                { id: 'meetings', label: 'Meetings', count: viewCounts.meeting, active: tagFilter === 'meeting', onClick: () => { setTagFilter('meeting'); setQuickFilter('all'); setUnreadOnly(false); setSelectedId(null); } },
+              ].map(chip => (
                 <button
-                  key={String(opt.id)}
-                  onClick={() => setUnreadOnly(opt.id)}
+                  key={chip.id}
+                  onClick={chip.onClick}
                   className={cn(
-                    'h-7 px-2.5 rounded-md text-[11.5px] font-medium transition-colors',
-                    unreadOnly === opt.id ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                    'flex-shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-md text-[11px] font-semibold whitespace-nowrap transition-colors',
+                    chip.active ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                   )}
                 >
-                  {opt.label}
-                  {opt.id && viewCounts.unread > 0 && folder === 'inbox' && (
-                    <span className="ml-1 text-[10px] text-[var(--indigo)]">{viewCounts.unread}</span>
-                  )}
+                  {chip.label}
+                  {chip.count != null && chip.count > 0 && <span className="tabular text-[10px] opacity-80">{chip.count}</span>}
                 </button>
               ))}
+              <div className="h-3.5 w-px bg-[var(--border-subtle)] mx-0.5 flex-shrink-0" />
+              <TagFilterDropdown value={tagFilter} onChange={v => { setTagFilter(v); setQuickFilter('all'); setSelectedId(null); }} />
             </div>
           </div>
 
@@ -2337,7 +2223,7 @@ export function InboxPage() {
                     key={conv.contactEmail}
                     onClick={() => selectMessage(msg)}
                     className={cn(
-                      'group w-full text-left relative px-4 py-3 border-b border-[var(--border-subtle)] transition-colors',
+                      'group w-full text-left relative px-3.5 py-2.5 border-b border-[var(--border-subtle)] transition-colors',
                       isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]'
                     )}
                   >
@@ -2384,11 +2270,6 @@ export function InboxPage() {
                             )}
                             {msg.campaign_name && (
                               <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)] truncate max-w-[110px]">{msg.campaign_name}</span>
-                            )}
-                            {msg.smtp_email && !isOutbound && (
-                              <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-blue-500/8 text-blue-500 truncate max-w-[90px] flex-shrink-0" title={`Delivered to ${msg.smtp_email}`}>
-                                {msg.smtp_label || msg.smtp_email.split('@')[0]}
-                              </span>
                             )}
                           </div>
                         )}
@@ -2463,7 +2344,7 @@ export function InboxPage() {
                   {/* Thread header — subject first, contact meta below */}
                   <div className="mb-5">
                     <div className="flex items-start justify-between gap-3">
-                      <h1 className="text-[19px] font-semibold text-[var(--text-primary)] leading-snug tracking-[-0.015em] min-w-0">
+                      <h1 className="text-[16.5px] font-semibold text-[var(--text-primary)] leading-snug tracking-[-0.015em] min-w-0">
                         {threadSubject || '(no subject)'}
                       </h1>
                       {/* Clickable tag dropdown */}
@@ -2552,7 +2433,7 @@ export function InboxPage() {
                 {/* ── Composer dock — replying happens beside the thread, never below it ── */}
                 <div className="flex-shrink-0 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[0_-10px_28px_-18px_rgba(15,15,25,0.25)]">
                   {replyMode ? (
-                    <div ref={replyComposerRef} className="max-w-3xl mx-auto w-full flex flex-col max-h-[52vh]">
+                    <div ref={replyComposerRef} className="max-w-3xl mx-auto w-full flex flex-col max-h-[60vh]">
                       {/* Dock header: context + sender + close, one calm row */}
                       <div className="flex items-center gap-2.5 px-4 h-11 border-b border-[var(--border-subtle)] flex-shrink-0">
                         <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--indigo-subtle)] flex-shrink-0">
@@ -2583,7 +2464,7 @@ export function InboxPage() {
                           placeholder={replyMode === 'reply' ? 'Write your reply…' : 'Add a note (optional)…'}
                           onChange={replyEditor.handleChange}
                           templates={templates}
-                          minHeight="110px"
+                          minHeight="170px"
                           autoFocus={replyMode === 'reply'}
                         />
                         {replyMode === 'forward' && (
@@ -2664,7 +2545,7 @@ export function InboxPage() {
                       <Avatar name={threadContactName || undefined} email={threadContactEmail || undefined} size="md" />
                       <button
                         onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
-                        className="flex-1 h-9 px-3.5 rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] text-left text-[12.5px] text-[var(--text-tertiary)] hover:border-[rgba(91,91,245,0.45)] hover:bg-[var(--bg-surface)] transition-colors"
+                        className="flex-1 h-10 px-4 rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] text-left text-[13px] text-[var(--text-tertiary)] hover:border-[rgba(91,91,245,0.45)] hover:bg-[var(--bg-surface)] transition-colors"
                       >
                         Reply to {threadContactName || 'this conversation'}…
                       </button>
