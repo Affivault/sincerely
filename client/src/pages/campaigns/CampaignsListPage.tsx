@@ -626,6 +626,27 @@ function CampaignRow({ campaign, expanded, onToggleSnapshot, onOpen, onLaunch, o
     )}>{v}</span>
   );
 
+  /* Rate cell with a micro-bar — length makes the table scannable at a glance.
+     `cap` is the rate treated as a "full" bar (60% open ≈ great, 15% reply ≈ great). */
+  const rateCell = (pct: number, cap: number, strong = false, warn = false) => (
+    <div className="text-right min-w-0">
+      <span className={cn(
+        'text-[13.5px] tabular',
+        warn ? 'font-semibold text-rose-500' : strong ? 'font-semibold text-[var(--text-primary)]' : 'font-medium text-[var(--text-secondary)]'
+      )}>{total ? `${pct.toFixed(1)}%` : '—'}</span>
+      <div className="mt-1 h-[3px] rounded-full bg-[var(--bg-elevated)] overflow-hidden ml-auto">
+        <div
+          className="h-full rounded-full transition-all duration-500 ml-auto"
+          style={{
+            width: `${total ? Math.min(100, (pct / cap) * 100) : 0}%`,
+            background: warn ? '#F43F5E' : 'var(--indigo)',
+            opacity: strong ? 1 : 0.55,
+          }}
+        />
+      </div>
+    </div>
+  );
+
   return (
     <div
       onClick={onOpen}
@@ -655,12 +676,12 @@ function CampaignRow({ campaign, expanded, onToggleSnapshot, onOpen, onLaunch, o
         </div>
       </div>
 
-      {/* Metrics */}
+      {/* Metrics — rates carry micro-bars so the column scans like a chart */}
       {metric(total ? total.toLocaleString() : '—', true)}
-      {metric(total ? `${openPct.toFixed(1)}%` : '—')}
-      {metric(total ? `${clickPct.toFixed(1)}%` : '—')}
-      {metric(total ? `${replyPct.toFixed(1)}%` : '—', true)}
-      {metric(total ? `${bouncePct.toFixed(1)}%` : '—', false, bouncePct > 3)}
+      {rateCell(openPct, 60)}
+      {rateCell(clickPct, 15)}
+      {rateCell(replyPct, 15, true)}
+      {rateCell(bouncePct, 10, false, bouncePct > 3)}
 
       {/* Pipeline */}
       <div className="min-w-0">
