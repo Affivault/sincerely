@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { SettingsShell } from '../../components/shared/SettingsShell';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { verificationApi } from '../../api/verification.api';
 import { Spinner } from '../../components/ui/Spinner';
@@ -132,6 +133,7 @@ export function VerificationPage() {
   const avgScore = Math.round(stats?.avg_score || 0);
 
   return (
+    <SettingsShell>
     <div className="space-y-5">
       {/* ── Hero command bar with live pipeline ──────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)]">
@@ -351,5 +353,6 @@ export function VerificationPage() {
         </div>
       )}
     </div>
+    </SettingsShell>
   );
 }
