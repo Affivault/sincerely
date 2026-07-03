@@ -72,6 +72,13 @@ export function BillingPage() {
     const status = new URLSearchParams(window.location.search).get('status');
     if (status === 'success') {
       toast.success('Subscription started — welcome aboard!');
+      // Webhooks are the source of truth, but re-sync straight from Stripe so
+      // the new plan shows even if the webhook is delayed or misconfigured.
+      billingApi.refresh().catch(() => {}).finally(() => {
+        queryClient.invalidateQueries({ queryKey: ['billing', 'usage'] });
+      });
+    } else if (status === 'changed') {
+      toast.success('Plan updated!');
       queryClient.invalidateQueries({ queryKey: ['billing', 'usage'] });
     } else if (status === 'cancel') {
       toast('Checkout canceled.', { icon: '↩️' });

@@ -6,6 +6,7 @@ import { smtpService } from '../services/smtp.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { decrypt } from '../utils/encryption.js';
 import { sendViaSmtp } from '../services/email-sender.service.js';
+import { billingService } from '../services/billing.service.js';
 
 const resolveTxt = promisify(dns.resolveTxt);
 const resolveMx = promisify(dns.resolveMx);
@@ -92,19 +93,34 @@ export const smtpController = {
         return res.status(500).json({ error: `Failed to decrypt SMTP password: ${decryptErr.message}` });
       }
 
+      // Test sends deliver real email to arbitrary recipients — they count
+      // against the monthly cap like any other send.
+      if (!(await billingService.reserveEmailQuota(req.userId!))) {
+        return res.status(403).json({
+          success: false,
+          error: "You've reached your monthly email limit. Upgrade to send more.",
+          code: 'UPGRADE_REQUIRED',
+        });
+      }
+
       const htmlBody = body_html || '<p>This is a test email from Sincerely.</p>';
-      await sendViaSmtp({
-        smtpHost: account.smtp_host,
-        smtpPort: account.smtp_port,
-        smtpSecure: account.smtp_secure,
-        smtpUser: account.smtp_user,
-        smtpPass: password,
-        from: account.email_address,
-        to,
-        subject: `[TEST] ${subject}`,
-        html: htmlBody,
-        text: htmlBody.replace(/<[^>]*>/g, ''),
-      });
+      try {
+        await sendViaSmtp({
+          smtpHost: account.smtp_host,
+          smtpPort: account.smtp_port,
+          smtpSecure: account.smtp_secure,
+          smtpUser: account.smtp_user,
+          smtpPass: password,
+          from: account.email_address,
+          to,
+          subject: `[TEST] ${subject}`,
+          html: htmlBody,
+          text: htmlBody.replace(/<[^>]*>/g, ''),
+        });
+      } catch (sendErr) {
+        await billingService.refundEmailQuota(req.userId!);
+        throw sendErr;
+      }
 
       // Mark account as verified since we know the credentials work
       await supabaseAdmin

@@ -61,7 +61,10 @@ export type SubscriptionStatus =
   | 'active'
   | 'past_due'
   | 'canceled'
-  | 'incomplete';
+  | 'incomplete'
+  | 'incomplete_expired'
+  | 'unpaid'
+  | 'paused';
 
 export interface Subscription {
   user_id: string;

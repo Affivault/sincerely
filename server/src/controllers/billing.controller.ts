@@ -29,6 +29,23 @@ export const billingController = {
     }
   },
 
+  /**
+   * POST /billing/refresh — re-sync plan state straight from Stripe, then
+   * return the usage summary. Safety net for missed webhooks (called by the
+   * client right after returning from Checkout).
+   */
+  async refresh(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (stripeService.isConfigured()) {
+        await stripeService.refreshFromStripe(req.userId!);
+      }
+      const summary = await billingService.getUsageSummary(req.userId!);
+      res.json(summary);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   /** POST /billing/portal — returns a Stripe Customer Portal URL. */
   async portal(req: AuthRequest, res: Response, next: NextFunction) {
     try {

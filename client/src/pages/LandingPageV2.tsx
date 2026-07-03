@@ -548,7 +548,7 @@ export function LandingPageV2() {
         <div style={{ maxWidth: 540, margin: '0 auto' }}>
           <div className="r" style={{ textAlign: 'center', marginBottom: 44 }}>
             <h2 style={{ fontSize: 44, fontWeight: 800, letterSpacing: '-.035em', color: '#0F172A', lineHeight: 1.12 }}>Simple, transparent pricing.</h2>
-            <p style={{ fontSize: 16, color: '#64748B', marginTop: 12, letterSpacing: '-.01em' }}>One plan. Everything included. No per-seat shock.</p>
+            <p style={{ fontSize: 16, color: '#64748B', marginTop: 12, letterSpacing: '-.01em' }}>No per-seat shock. Start free, upgrade when you're ready.</p>
           </div>
 
           <div className="r d1" style={{
@@ -566,18 +566,18 @@ export function LandingPageV2() {
               </div>
 
               <div style={{ marginBottom: 8 }}>
-                <span style={{ fontSize: 58, fontWeight: 800, letterSpacing: '-.04em', color: '#0F172A', lineHeight: 1 }}>£299</span>
+                <span style={{ fontSize: 58, fontWeight: 800, letterSpacing: '-.04em', color: '#0F172A', lineHeight: 1 }}>$59</span>
                 <span style={{ fontSize: 16, color: '#94A3B8', letterSpacing: '-.02em' }}>/month</span>
               </div>
-              <div style={{ fontSize: 13.5, color: '#94A3B8', marginBottom: 30, letterSpacing: '-.01em' }}>Or £999 lifetime — pay once, own it forever.</div>
+              <div style={{ fontSize: 13.5, color: '#94A3B8', marginBottom: 30, letterSpacing: '-.01em' }}>Growth plan · Starter from $39/mo · two months free on annual billing.</div>
 
               {[
                 'Unlimited campaigns & sequences',
-                'Up to 10,000 contacts',
-                '5 SMTP accounts + automated warm-up',
-                'AI personalization (1,000 credits/mo)',
-                'Analytics, A/B testing & team seats',
-                'Priority support & onboarding call',
+                'Up to 25 sending inboxes + automated warm-up',
+                '15,000 emails per month',
+                'SARA autonomous reply agent',
+                'A/B subject & body testing',
+                'Unified inbox & analytics',
               ].map((item, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                   <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, background: 'rgba(109,40,217,.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -590,10 +590,10 @@ export function LandingPageV2() {
               ))}
 
               <Link to="/signup" className="bp" style={{ width: '100%', justifyContent: 'center', marginTop: 26, padding: '14px 28px', fontSize: 15.5 }}>
-                Start free 14-day trial →
+                Start free 10-day trial →
               </Link>
               <div style={{ textAlign: 'center', marginTop: 13, fontSize: 12.5, color: '#94A3B8', letterSpacing: '-.01em' }}>
-                No credit card required · Cancel anytime
+                Free plan available · Cancel anytime
               </div>
             </div>
           </div>
@@ -620,7 +620,7 @@ export function LandingPageV2() {
             }}>Sign in →</Link>
           </div>
           <div style={{ marginTop: 20, fontSize: 13, color: 'rgba(255,255,255,.42)', letterSpacing: '-.01em' }}>
-            Free 14-day trial · No credit card · Full access from day one
+            Free plan to start · 10-day trial on paid plans · Cancel anytime
           </div>
         </div>
       </section>

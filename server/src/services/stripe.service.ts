@@ -8,6 +8,12 @@ import type { PlanId } from '@lemlist/shared';
 let stripe: Stripe | null = null;
 if (env.STRIPE_SECRET_KEY) {
   stripe = new Stripe(env.STRIPE_SECRET_KEY);
+  if (!env.STRIPE_WEBHOOK_SECRET) {
+    console.warn(
+      '[Stripe] STRIPE_WEBHOOK_SECRET is not set — subscription webhooks WILL fail, ' +
+        'so paying customers would stay on the Free plan. Set it before charging customers.',
+    );
+  }
 } else {
   console.log('STRIPE_SECRET_KEY not set — billing/checkout disabled');
 }
@@ -89,6 +95,34 @@ export const stripeService = {
 
     const customerId = await getOrCreateCustomer(userId, email);
 
+    // One live subscription per customer. If one already exists, change its
+    // price in place (prorated) instead of creating a second subscription
+    // through Checkout — that would double-charge the customer.
+    const existing = await s.subscriptions.list({ customer: customerId, status: 'all', limit: 100 });
+    const live = existing.data.find((sub) => sub.status === 'active' || sub.status === 'trialing');
+    if (live) {
+      const item = live.items.data[0];
+      if (!item) throw new AppError('Your subscription looks unusual — please contact support.', 500);
+      if (item.price?.id === priceId) throw new AppError("You're already on this plan.", 400);
+      const updated = await s.subscriptions.update(live.id, {
+        items: [{ id: item.id, price: priceId }],
+        proration_behavior: 'create_prorations',
+        metadata: { user_id: userId },
+      });
+      await this.syncSubscription(updated, Math.floor(Date.now() / 1000));
+      return `${env.CLIENT_URL}/billing?status=changed`;
+    }
+    if (existing.data.some((sub) => sub.status === 'past_due' || sub.status === 'unpaid')) {
+      throw new AppError(
+        'Your subscription has an unpaid invoice. Open "Manage billing" to update your payment method first.',
+        400,
+      );
+    }
+
+    // The free trial is for first-time subscribers only — a canceled customer
+    // re-subscribing must not get a fresh trial every time.
+    const hadSubscription = existing.data.length > 0;
+
     const session = await s.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
@@ -96,8 +130,12 @@ export const stripeService = {
       // 10-day trial, but card is required up front and the sub cancels if no
       // payment method is on file when the trial ends.
       subscription_data: {
-        trial_period_days: TRIAL_DAYS,
-        trial_settings: { end_behavior: { missing_payment_method: 'cancel' } },
+        ...(hadSubscription
+          ? {}
+          : {
+              trial_period_days: TRIAL_DAYS,
+              trial_settings: { end_behavior: { missing_payment_method: 'cancel' } },
+            }),
         metadata: { user_id: userId },
       },
       payment_method_collection: 'always',
@@ -218,6 +256,66 @@ export const stripeService = {
       // transient DB error would permanently drop the subscription sync.
       throw new AppError(`Failed to sync subscription for ${userId}: ${error.message}`, 500);
     }
+  },
+
+  /**
+   * Cancel every live Stripe subscription for a user. Used on account deletion:
+   * once the subscriptions row is wiped the customer→user mapping is gone, so a
+   * still-active Stripe subscription would keep charging a user who no longer
+   * has an account, with no way for webhooks to ever correct it. Callers must
+   * NOT delete billing rows if this throws.
+   */
+  async cancelAllSubscriptionsForUser(userId: string): Promise<void> {
+    if (!stripe) return; // Billing never configured — nothing can be live.
+    const { data: sub } = await supabaseAdmin
+      .from('subscriptions')
+      .select('stripe_customer_id, stripe_subscription_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!sub) return;
+
+    if (sub.stripe_customer_id) {
+      // Cancel by customer rather than the single stored subscription id so
+      // any stray duplicate subscriptions are cleaned up too.
+      const list = await stripe.subscriptions.list({
+        customer: sub.stripe_customer_id,
+        status: 'all',
+        limit: 100,
+      });
+      for (const s of list.data) {
+        if (s.status !== 'canceled' && s.status !== 'incomplete_expired') {
+          await stripe.subscriptions.cancel(s.id);
+        }
+      }
+    } else if (sub.stripe_subscription_id) {
+      await stripe.subscriptions.cancel(sub.stripe_subscription_id);
+    }
+  },
+
+  /**
+   * Pull current subscription state straight from Stripe and persist it — a
+   * safety net for missed or misconfigured webhooks (e.g. right after checkout).
+   */
+  async refreshFromStripe(userId: string): Promise<void> {
+    if (!stripe) return;
+    const { data: row } = await supabaseAdmin
+      .from('subscriptions')
+      .select('stripe_customer_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!row?.stripe_customer_id) return;
+
+    const subs = await stripe.subscriptions.list({
+      customer: row.stripe_customer_id,
+      status: 'all',
+      limit: 100,
+    });
+    if (subs.data.length === 0) return;
+    // Prefer a live subscription; otherwise the most recently created one.
+    const best =
+      subs.data.find((s) => s.status === 'active' || s.status === 'trialing') ||
+      subs.data.reduce((a, b) => (a.created > b.created ? a : b));
+    await this.syncSubscription(best, Math.floor(Date.now() / 1000));
   },
 
   async userIdForCustomer(customerId: string): Promise<string | null> {

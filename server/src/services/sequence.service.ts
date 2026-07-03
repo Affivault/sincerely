@@ -356,11 +356,14 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     .select('id')
     .maybeSingle();
   if (nullifyErr) {
+    if (ownerId) await billingService.refundEmailQuota(ownerId);
     throw new Error(`Failed to lock contact ${cc.id} for processing: ${nullifyErr.message}`);
   }
   if (!claimed) {
     // Lost the race to a concurrent processDueSteps() run — the other caller
-    // already claimed this contact for this step. Don't send a duplicate.
+    // already claimed this contact for this step. Don't send a duplicate, and
+    // give back the quota slot reserved above (the winner reserved its own).
+    if (ownerId) await billingService.refundEmailQuota(ownerId);
     console.log(`[Sequence] Contact ${cc.id} already claimed by a concurrent run — skipping`);
     return;
   }
@@ -383,6 +386,9 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     // (Quota already reserved above before sending.)
   } catch (err: any) {
     console.error(`[Sequence] Email send failed for ${cc.contacts.email}:`, err.message);
+
+    // The send never happened — give back the quota slot reserved above.
+    if (ownerId) await billingService.refundEmailQuota(ownerId);
 
     // Check for bounce: Number(undefined) = NaN which fails >= 500, so also check the string form
     const responseCode = Number(err.responseCode);
