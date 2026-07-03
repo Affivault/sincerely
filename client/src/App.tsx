@@ -38,6 +38,7 @@ const ToolkitPage          = lazy(() => import('./pages/toolkit/ToolkitPage').th
 const BillingPage          = lazy(() => import('./pages/billing/BillingPage').then(m => ({ default: m.BillingPage })));
 const TermsPage            = lazy(() => import('./pages/legal/TermsPage').then(m => ({ default: m.TermsPage })));
 const PrivacyPage          = lazy(() => import('./pages/legal/PrivacyPage').then(m => ({ default: m.PrivacyPage })));
+const StatusPage           = lazy(() => import('./pages/status/StatusPage').then(m => ({ default: m.StatusPage })));
 
 function PageSpinner() {
   return (
@@ -120,6 +121,9 @@ export default function App() {
         {/* Legal pages — public */}
         <Route path="/terms"   element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
+
+        {/* Self-diagnostics — public, used to debug connection problems */}
+        <Route path="/status"  element={<StatusPage />} />
 
         {/* Landing page preview */}
         <Route path="/lp2"    element={<LandingPageV2 />} />
