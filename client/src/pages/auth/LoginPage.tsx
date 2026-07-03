@@ -15,7 +15,17 @@ export function LoginPage() {
     e.preventDefault();
     setLoading(true);
     const { error } = await signIn(email, password);
-    if (error) toast.error(error.message);
+    if (error) {
+      // Network-level failures aren't the user's fault — send them to the
+      // self-diagnostics page instead of showing a cryptic fetch error.
+      const isConnectionProblem = /fetch|network|load failed|connection/i.test(error.message);
+      toast.error(
+        isConnectionProblem
+          ? 'Connection problem — visit usesincerely.com/status to see what\'s wrong.'
+          : error.message,
+        { duration: 6000 },
+      );
+    }
     setLoading(false);
   };
 
