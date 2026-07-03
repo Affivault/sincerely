@@ -177,7 +177,7 @@ export function SignupPage() {
 
       <p className="md-auth__fine">
         By signing up, you agree to our{' '}
-        <a href="#">Terms</a> and <a href="#">Privacy Policy</a>.
+        <Link to="/terms">Terms</Link> and <Link to="/privacy">Privacy Policy</Link>.
       </p>
 
       <p className="md-auth__foot">

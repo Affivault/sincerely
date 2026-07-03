@@ -434,7 +434,9 @@ function Footer() {
         </div>
         <div className="lx-footer__bottom">
           <span className="lx-footer__copy">© 2026 Sincerely, Inc. · All rights reserved.</span>
-          <span className="lx-footer__copy">Privacy · Terms · DPA</span>
+          <span className="lx-footer__copy">
+            <Link to="/privacy" style={{ color: 'inherit' }}>Privacy</Link> · <Link to="/terms" style={{ color: 'inherit' }}>Terms</Link>
+          </span>
         </div>
       </div>
     </footer>

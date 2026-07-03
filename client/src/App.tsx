@@ -36,6 +36,8 @@ const InviteAcceptPage     = lazy(() => import('./pages/team/InviteAcceptPage').
 const LandingPageV2        = lazy(() => import('./pages/LandingPageV2').then(m => ({ default: m.LandingPageV2 })));
 const ToolkitPage          = lazy(() => import('./pages/toolkit/ToolkitPage').then(m => ({ default: m.ToolkitPage })));
 const BillingPage          = lazy(() => import('./pages/billing/BillingPage').then(m => ({ default: m.BillingPage })));
+const TermsPage            = lazy(() => import('./pages/legal/TermsPage').then(m => ({ default: m.TermsPage })));
+const PrivacyPage          = lazy(() => import('./pages/legal/PrivacyPage').then(m => ({ default: m.PrivacyPage })));
 
 function PageSpinner() {
   return (
@@ -114,6 +116,10 @@ export default function App() {
           <Route path="/team"               element={<TeamPage />} />
           <Route path="/schedules"          element={<SchedulesPage />} />
         </Route>
+
+        {/* Legal pages — public */}
+        <Route path="/terms"   element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
 
         {/* Landing page preview */}
         <Route path="/lp2"    element={<LandingPageV2 />} />
