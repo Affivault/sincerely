@@ -651,8 +651,8 @@ export function LandingPageV2() {
           <div style={{ borderTop: '1px solid #1E293B', paddingTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
             <span style={{ fontSize: 13, letterSpacing: '-.01em', color: '#475569' }}>© 2025 Sincerely. All rights reserved.</span>
             <div style={{ display: 'flex', gap: 20 }}>
-              {['Privacy Policy', 'Terms of Service', 'Cookie Policy'].map(item => (
-                <a key={item} href="#" style={{ fontSize: 12.5, color: '#334155', textDecoration: 'none', letterSpacing: '-.01em' }}>{item}</a>
+              {[{ label: 'Privacy Policy', to: '/privacy' }, { label: 'Terms of Service', to: '/terms' }].map(item => (
+                <Link key={item.label} to={item.to} style={{ fontSize: 12.5, color: '#334155', textDecoration: 'none', letterSpacing: '-.01em' }}>{item.label}</Link>
               ))}
             </div>
           </div>
