@@ -14,6 +14,15 @@ export const billingApi = {
     return data;
   },
 
+  /**
+   * Re-sync plan state straight from Stripe (safety net for missed webhooks);
+   * returns the fresh usage summary.
+   */
+  refresh: async () => {
+    const { data } = await apiClient.post<UsageSummary>('/billing/refresh', {});
+    return data;
+  },
+
   /** Open the Stripe Customer Portal; returns the URL to redirect to. */
   portal: async () => {
     const { data } = await apiClient.post<{ url: string }>('/billing/portal', {});

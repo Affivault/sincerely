@@ -6,6 +6,7 @@ import { campaignContactsService } from '../services/campaign-contacts.service.j
 import { supabaseAdmin } from '../config/supabase.js';
 import { decrypt } from '../utils/encryption.js';
 import { sendViaSmtp } from '../services/email-sender.service.js';
+import { billingService } from '../services/billing.service.js';
 import * as sse from '../services/sse.service.js';
 
 export const campaignsController = {
@@ -171,22 +172,36 @@ export const campaignsController = {
         .single();
       if (!account) return res.status(404).json({ error: 'SMTP account not found' });
 
+      // Test sends deliver real email to arbitrary recipients — they count
+      // against the monthly cap like any other send.
+      if (!(await billingService.reserveEmailQuota(req.userId!))) {
+        return res.status(403).json({
+          error: "You've reached your monthly email limit. Upgrade to send more.",
+          code: 'UPGRADE_REQUIRED',
+        });
+      }
+
       const password = decrypt(account.smtp_pass_encrypted);
       const fromAddress = account.label
         ? `"${account.label.replace(/"/g, "'")}" <${account.email_address}>`
         : account.email_address;
-      await sendViaSmtp({
-        smtpHost: account.smtp_host,
-        smtpPort: account.smtp_port,
-        smtpSecure: account.smtp_secure,
-        smtpUser: account.smtp_user,
-        smtpPass: password,
-        from: fromAddress,
-        to,
-        subject: `[TEST] ${subject}`,
-        html: body_html,
-        text: body_html.replace(/<[^>]*>/g, ''),
-      });
+      try {
+        await sendViaSmtp({
+          smtpHost: account.smtp_host,
+          smtpPort: account.smtp_port,
+          smtpSecure: account.smtp_secure,
+          smtpUser: account.smtp_user,
+          smtpPass: password,
+          from: fromAddress,
+          to,
+          subject: `[TEST] ${subject}`,
+          html: body_html,
+          text: body_html.replace(/<[^>]*>/g, ''),
+        });
+      } catch (sendErr) {
+        await billingService.refundEmailQuota(req.userId!);
+        throw sendErr;
+      }
 
       res.json({ success: true, message: `Test email sent to ${to}` });
     } catch (err) { next(err); }

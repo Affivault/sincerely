@@ -15,6 +15,16 @@ async function assertSendQuota(userId: string): Promise<void> {
   }
 }
 
+/** Run a send with a reserved quota slot; refund the slot if the send fails. */
+async function sendWithQuotaRefund<T>(userId: string, send: () => Promise<T>): Promise<T> {
+  try {
+    return await send();
+  } catch (err) {
+    await billingService.refundEmailQuota(userId);
+    throw err;
+  }
+}
+
 async function isAiTaggingEnabled(userId: string): Promise<boolean> {
   const { data } = await supabaseAdmin
     .from('user_settings')
@@ -584,7 +594,7 @@ export const inboxService = {
 </div>`;
 
     await assertSendQuota(userId);
-    await sendViaSmtp({
+    await sendWithQuotaRefund(userId, () => sendViaSmtp({
       smtpHost: smtpAccount.smtp_host,
       smtpPort: smtpAccount.smtp_port,
       smtpSecure: smtpAccount.smtp_secure,
@@ -597,7 +607,7 @@ export const inboxService = {
       text: body,
       messageId: newMessageId,
       headers: original.message_id ? { 'In-Reply-To': original.message_id, 'References': original.message_id } : {},
-    });
+    }));
 
     await supabaseAdmin.from('inbox_messages').insert({
       user_id: userId,
@@ -655,7 +665,7 @@ export const inboxService = {
 ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
 
     await assertSendQuota(userId);
-    await sendViaSmtp({
+    await sendWithQuotaRefund(userId, () => sendViaSmtp({
       smtpHost: smtpAccount.smtp_host,
       smtpPort: smtpAccount.smtp_port,
       smtpSecure: smtpAccount.smtp_secure,
@@ -667,7 +677,7 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
       html: htmlBody,
       text: `${note || ''}\n\n---------- Forwarded message ----------\nFrom: ${original.from_email}\nDate: ${original.received_at}\nSubject: ${original.subject}\n\n${original.body_text || ''}`,
       messageId: newMessageId,
-    });
+    }));
 
     await supabaseAdmin.from('inbox_messages').insert({
       user_id: userId,
@@ -701,7 +711,7 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
     const htmlBody = input.body_html || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${input.body.replace(/\n/g, '<br/>')}</div>`;
 
     await assertSendQuota(userId);
-    await sendViaSmtp({
+    await sendWithQuotaRefund(userId, () => sendViaSmtp({
       smtpHost: smtpAccount.smtp_host,
       smtpPort: smtpAccount.smtp_port,
       smtpSecure: smtpAccount.smtp_secure,
@@ -713,7 +723,7 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
       html: htmlBody,
       text: input.body,
       messageId,
-    });
+    }));
 
     await supabaseAdmin.from('inbox_messages').insert({
       user_id: userId,
@@ -1231,7 +1241,7 @@ export async function processScheduledEmails(): Promise<number> {
 
       const smtpPassword = decrypt(smtpAccount.smtp_pass_encrypted);
 
-      await sendViaSmtp({
+      const doSend = () => sendViaSmtp({
         smtpHost: smtpAccount.smtp_host,
         smtpPort: smtpAccount.smtp_port,
         smtpSecure: smtpAccount.smtp_secure,
@@ -1245,6 +1255,8 @@ export async function processScheduledEmails(): Promise<number> {
         messageId: msg.message_id,
         headers: msg.in_reply_to ? { 'In-Reply-To': msg.in_reply_to, 'References': msg.in_reply_to } : {},
       });
+      // Only refund on failure if a slot was actually reserved above.
+      await (smtpAccount.user_id ? sendWithQuotaRefund(smtpAccount.user_id, doSend) : doSend());
 
       // Mark as sent by clearing the schedule markers
       await supabaseAdmin

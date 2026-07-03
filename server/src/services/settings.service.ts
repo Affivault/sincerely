@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { stripeService } from './stripe.service.js';
 
 export interface UserSettings {
   id: string;
@@ -91,6 +92,19 @@ export const settingsService = {
   },
 
   async deleteAccount(userId: string): Promise<void> {
+    // Cancel any live Stripe subscription BEFORE wiping billing rows — once the
+    // subscriptions row is gone the customer→user mapping is lost, and a still-
+    // active Stripe subscription would keep charging someone with no account.
+    try {
+      await stripeService.cancelAllSubscriptionsForUser(userId);
+    } catch (err: any) {
+      throw new AppError(
+        `Could not cancel your subscription (${err.message}). Your account was NOT deleted — ` +
+          'please try again, or cancel via Manage billing first.',
+        502,
+      );
+    }
+
     // Delete user settings
     await supabaseAdmin.from('user_settings').delete().eq('user_id', userId);
 

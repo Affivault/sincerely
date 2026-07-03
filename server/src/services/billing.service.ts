@@ -115,6 +115,20 @@ export const billingService = {
     return false;
   },
 
+  /**
+   * Return a reserved-but-unused quota slot (e.g. the send failed after the
+   * slot was reserved), so failed sends don't burn the monthly cap.
+   */
+  async refundEmailQuota(userId: string, count = 1): Promise<void> {
+    const { error } = await supabaseAdmin.rpc('increment_email_usage', {
+      p_user_id: userId,
+      p_count: -count,
+    });
+    if (error) {
+      console.error(`[Billing] Failed to refund email quota for ${userId}: ${error.message}`);
+    }
+  },
+
   async incrementEmailUsage(userId: string, count = 1): Promise<void> {
     const { error } = await supabaseAdmin.rpc('increment_email_usage', {
       p_user_id: userId,
