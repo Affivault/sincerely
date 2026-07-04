@@ -60,16 +60,19 @@ export function SettingsShell({ children }: { children: ReactNode }) {
                     key={it.to}
                     to={it.to}
                     className={({ isActive }) => cn(
-                      'relative flex items-center gap-2.5 h-[30px] px-2.5 rounded-lg text-[12.5px] font-medium transition-colors',
+                      'relative flex items-center gap-2.5 h-[30px] px-2.5 rounded-[7px] text-[12.5px] font-medium border transition-colors',
                       isActive
-                        ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
-                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
+                        // Raised-card active state — same language as the app sidebar
+                        ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] border-[var(--border-subtle)] shadow-[0_1px_2px_rgba(27,27,31,0.05)]'
+                        : 'border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
                     )}
                   >
                     {({ isActive }) => (
                       <>
-                        {isActive && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2.5px] rounded-r-full bg-[var(--indigo)]" />}
-                        <it.icon className="h-[15px] w-[15px] flex-shrink-0" strokeWidth={isActive ? 2.2 : 1.8} />
+                        <it.icon
+                          className={cn('h-[15px] w-[15px] flex-shrink-0', isActive ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')}
+                          strokeWidth={1.75}
+                        />
                         <span className="truncate">{it.label}</span>
                       </>
                     )}
