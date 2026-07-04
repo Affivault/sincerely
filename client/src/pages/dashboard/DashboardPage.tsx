@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useCountUp } from '../../hooks/useCountUp';
 import { analyticsApi, type TrendDataPoint } from '../../api/analytics.api';
 import { inboxApi } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
@@ -12,7 +11,7 @@ import { Avatar } from '../../components/shared/Avatar';
 import {
   Plus, Send, MailOpen, MousePointerClick, MessageSquare, Inbox,
   ChevronRight, ArrowUp, ArrowDown, Download, Megaphone, Activity,
-  AlertTriangle, X, Reply, Flame, Clock, CheckCircle2, ArrowRight,
+  AlertTriangle, Reply, Flame, Clock, CheckCircle2,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { cn } from '../../lib/utils';
@@ -133,69 +132,64 @@ function Delta({ value, className }: { value: number | null | undefined; classNa
   );
 }
 
-/* ─── Action queue card — "what needs me right now" ──── */
-function ActionCard({ icon: Icon, count, label, sub, to, tone = 'default' }: {
+/* ─── Attention row — one work item in the "Needs attention" queue ────
+   Quiet list rows, not stat cards: the count is a neutral chip on the
+   right, urgency is a small tinted icon, the row is the tap target. */
+function AttentionRow({ icon: Icon, count, label, sub, to, tone = 'default' }: {
   icon: any; count: number; label: string; sub: string; to: string;
-  tone?: 'default' | 'warn';
+  tone?: 'default' | 'warn' | 'hot';
 }) {
   const navigate = useNavigate();
+  const iconCls =
+    tone === 'warn' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+    : tone === 'hot' ? 'bg-rose-500/10 text-rose-500'
+    : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]';
   return (
     <button
       onClick={() => navigate(to)}
-      className="group text-left panel panel-hover p-4 flex items-center gap-3.5"
+      className="group w-full flex items-center gap-3 px-4 h-[46px] text-left hover:bg-[var(--bg-hover)] transition-colors"
     >
+      <span className={cn('flex h-6 w-6 items-center justify-center rounded-[6px] flex-shrink-0', iconCls)}>
+        <Icon className="h-[13px] w-[13px]" strokeWidth={2} />
+      </span>
+      <span className="text-[13px] font-medium text-[var(--text-primary)] flex-shrink-0">{label}</span>
+      <span className="text-[12px] text-[var(--text-tertiary)] truncate flex-1 min-w-0">{sub}</span>
       <span className={cn(
-        'flex h-10 w-10 items-center justify-center rounded-xl flex-shrink-0',
-        tone === 'warn' ? 'bg-amber-500/12' : 'bg-[var(--indigo-subtle)]'
+        'flex h-[19px] min-w-[19px] items-center justify-center rounded-[5px] px-1.5 text-[11px] font-semibold tabular flex-shrink-0',
+        tone === 'warn' ? 'bg-amber-500/12 text-amber-700 dark:text-amber-400' : 'bg-[var(--bg-active)] text-[var(--text-secondary)]'
       )}>
-        <Icon className={cn('h-[18px] w-[18px]', tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--indigo)]')} strokeWidth={1.9} />
+        {fmtNum(count)}
       </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[20px] font-semibold tabular leading-none tracking-[-0.02em] text-[var(--text-primary)]">{fmtNum(count)}</span>
-        <span className="block mt-1 text-[12px] font-medium text-[var(--text-secondary)] truncate">{label}</span>
-        <span className="block text-[11px] text-[var(--text-tertiary)] truncate">{sub}</span>
-      </span>
-      <ArrowRight className="h-4 w-4 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+      <ChevronRight className="h-3.5 w-3.5 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
     </button>
   );
 }
 
-/* ─── KPI tile with sparkline ───────────────────────── */
-function Kpi({ label, icon: Icon, target, format, delta, series, dataKey, onClick }: {
-  label: string; icon: any; target: number; format: (n: number) => string;
-  delta?: number | null; series: TrendDataPoint[]; dataKey: MetricKey; onClick?: () => void;
+/* ─── Metric cell — one selectable column in the performance module ── */
+function MetricCell({ label, value, delta, active, onClick }: {
+  label: string; value: string; delta?: number | null; active: boolean; onClick: () => void;
 }) {
-  const animated = useCountUp(target);
-  const gid = `spark-${dataKey}`;
   return (
-    <button onClick={onClick} className="text-left panel panel-hover overflow-hidden">
-      <div className="p-4 pb-0">
-        <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
-          <Icon className="h-4 w-4 flex-shrink-0" strokeWidth={1.75} />
-          <span className="text-[12.5px] font-medium">{label}</span>
-          <Delta value={delta} className="ml-auto" />
-        </div>
-        <div className="mt-2.5 text-[26px] font-semibold tabular leading-none tracking-[-0.03em] text-[var(--text-primary)]">
-          {format(animated)}
-        </div>
-      </div>
-      {/* Sparkline — single series, no axes; the tile label names it */}
-      <div className="h-10 mt-2 -mb-px">
-        {series.length > 1 && (
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={series} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={ACCENT} stopOpacity={0.18} />
-                  <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <Area type="monotone" dataKey={dataKey} stroke={ACCENT} strokeWidth={1.5}
-                fill={`url(#${gid})`} dot={false} isAnimationActive={false} />
-            </AreaChart>
-          </ResponsiveContainer>
-        )}
-      </div>
+    <button
+      onClick={onClick}
+      className={cn(
+        'relative flex-1 min-w-0 px-4 py-3 text-left transition-colors',
+        active ? 'bg-[var(--bg-surface)]' : 'bg-[var(--bg-muted)] hover:bg-[var(--bg-surface)]'
+      )}
+    >
+      {/* Active metric gets a hairline accent along the top edge */}
+      <span className={cn(
+        'absolute top-0 left-0 right-0 h-[2px] transition-opacity',
+        active ? 'opacity-100' : 'opacity-0'
+      )} style={{ background: ACCENT }} />
+      <span className="block text-[12px] font-medium text-[var(--text-tertiary)] truncate">{label}</span>
+      <span className="mt-1 flex items-baseline gap-2">
+        <span className={cn(
+          'text-[19px] font-semibold tabular leading-none tracking-[-0.02em]',
+          active ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+        )}>{value}</span>
+        <Delta value={delta} />
+      </span>
     </button>
   );
 }
@@ -316,43 +310,8 @@ const STATUS_DOT: Record<string, string> = {
   scheduled: '#6366F1', completed: 'var(--text-tertiary)', cancelled: '#F43F5E',
 };
 
-/* ─── SMTP health warning banner ────────────────────── */
+/* Accounts under this health score surface in the attention queue */
 const SMTP_HEALTH_THRESHOLD = 50;
-
-function SmtpHealthBanner({ accounts, onDismiss }: {
-  accounts: Array<{ id: string; label: string; email_address: string; health_score: number }>;
-  onDismiss: () => void;
-}) {
-  const single = accounts.length === 1;
-  return (
-    <div className="flex items-start gap-3 rounded-[10px] border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
-      <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" strokeWidth={2} />
-      <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-semibold text-amber-900 dark:text-amber-200 leading-snug">
-          {single
-            ? `Sending account "${accounts[0].label}" has a low health score (${accounts[0].health_score}/100)`
-            : `${accounts.length} sending accounts have low health scores`}
-        </p>
-        <p className="mt-0.5 text-[12px] text-amber-700 dark:text-amber-400">
-          {single
-            ? "High bounce rates can hurt deliverability. Review this account's sending activity."
-            : `Accounts affected: ${accounts.map((a) => a.label || a.email_address).join(', ')}.`}
-          {' '}
-          <Link to="/smtp" className="font-semibold underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-200 transition-colors">
-            Manage SMTP accounts →
-          </Link>
-        </p>
-      </div>
-      <button
-        onClick={onDismiss}
-        aria-label="Dismiss warning"
-        className="flex-shrink-0 p-0.5 rounded text-amber-600 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 transition-colors"
-      >
-        <X className="h-3.5 w-3.5" strokeWidth={2.5} />
-      </button>
-    </div>
-  );
-}
 
 /* ─── Loading skeleton ──────────────────────────────── */
 function DashboardSkeleton() {
@@ -521,77 +480,112 @@ export function DashboardPage() {
         </div>
       </header>
 
-      {/* ── SMTP health warning banner ── */}
-      {!smtpBannerDismissed && unhealthySmtpAccounts.length > 0 && (
-        <SmtpHealthBanner
-          accounts={unhealthySmtpAccounts}
-          onDismiss={() => setSmtpBannerDismissed(true)}
-        />
-      )}
-
-      {/* ── Action queue: what needs you right now ── */}
-      {allClear ? (
-        <div className="panel px-4 py-3 flex items-center gap-2.5">
-          <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" strokeWidth={2} />
-          <span className="text-[13px] text-[var(--text-secondary)]">All clear — no replies waiting on you right now.</span>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <ActionCard icon={Reply} count={needsReply} label="Need a reply" sub="Interested, objections & meetings" to="/inbox" tone={needsReply > 0 ? 'warn' : 'default'} />
-          <ActionCard icon={Flame} count={hotLeads} label="Hot leads" sub="Interested + meetings booked" to="/inbox" />
-          <ActionCard icon={Inbox} count={unreadReplies} label="Unread replies" sub="Waiting in your unibox" to="/inbox" />
-          <ActionCard icon={Clock} count={scheduledCount} label="Scheduled sends" sub="Queued from compose & replies" to="/inbox" />
-        </div>
-      )}
-
-      {/* ── KPI band with sparklines ── */}
-      <div className={cn('grid grid-cols-2 lg:grid-cols-4 gap-3 transition-opacity duration-300', refreshing && 'opacity-60')}>
-        <Kpi label="Emails sent" icon={Send} target={s.total_sent} format={fmtNum}
-          delta={s.sent_change} series={trend} dataKey="sent" onClick={() => navigate('/analytics')} />
-        <Kpi label="Open rate" icon={MailOpen} target={s.avg_open_rate} format={fmtPct}
-          delta={s.opened_change} series={trend} dataKey="opened" onClick={() => navigate('/analytics')} />
-        <Kpi label="Click rate" icon={MousePointerClick} target={s.avg_click_rate} format={fmtPct}
-          delta={s.clicked_change} series={trend} dataKey="clicked" onClick={() => navigate('/analytics')} />
-        <Kpi label="Reply rate" icon={MessageSquare} target={s.avg_reply_rate} format={fmtPct}
-          delta={s.replied_change} series={trend} dataKey="replied" onClick={() => navigate('/inbox')} />
-      </div>
-
-      {/* ── Trend chart + funnel / health column ── */}
+      {/* ── Row 1: work first — the attention queue + live replies ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <section className={cn('panel lg:col-span-2 overflow-hidden transition-opacity duration-300', refreshing && 'opacity-60')}>
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 border-b border-[var(--border-subtle)]">
-            <div className="min-w-0">
-              <div className="flex items-end gap-2.5">
-                <span className="text-[26px] font-semibold text-[var(--text-primary)] tabular leading-none tracking-[-0.03em]">{fmtFull(metricTotal)}</span>
-                <Delta value={metricChange} className="mb-0.5" />
-              </div>
-              <p className="mt-1.5 text-[12px] text-[var(--text-tertiary)]">{METRICS[metric].label.toLowerCase()} · vs previous {period} days</p>
+        <section className="panel lg:col-span-2 overflow-hidden">
+          <Head
+            title="Needs attention"
+            desc="Everything waiting on you, in one queue"
+            action={allClear && !unhealthySmtpAccounts.length ? undefined : <MoreLink to="/inbox" label="Open unibox" />}
+          />
+          {allClear && unhealthySmtpAccounts.length === 0 ? (
+            <div className="flex items-center gap-2.5 px-4 py-8 justify-center">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" strokeWidth={2} />
+              <span className="text-[13px] text-[var(--text-secondary)]">All clear — nothing waiting on you right now.</span>
             </div>
-            <Segmented size="sm"
-              options={(Object.keys(METRICS) as MetricKey[]).map((k) => ({ value: k, label: METRICS[k].label }))}
-              value={metric} onChange={setMetric} />
-          </div>
-          <div className="px-2 pb-2 pt-2">
-            <ErrorBoundary fallback={<div className="h-[268px] flex items-center justify-center text-[12px] text-[var(--text-tertiary)]">Chart unavailable</div>}>
-              <PerformanceChart data={trend} metric={metric} />
-            </ErrorBoundary>
-          </div>
+          ) : (
+            <div className="divide-y divide-[var(--border-subtle)]">
+              {needsReply > 0 && (
+                <AttentionRow icon={Reply} count={needsReply} label="Need a reply" sub="Interested, objections & meeting requests" to="/inbox" tone="warn" />
+              )}
+              {hotLeads > 0 && (
+                <AttentionRow icon={Flame} count={hotLeads} label="Hot leads" sub="Interested or booked a meeting" to="/inbox" tone="hot" />
+              )}
+              {unreadReplies > 0 && (
+                <AttentionRow icon={Inbox} count={unreadReplies} label="Unread replies" sub="Waiting in your unibox" to="/inbox" />
+              )}
+              {scheduledCount > 0 && (
+                <AttentionRow icon={Clock} count={scheduledCount} label="Scheduled sends" sub="Queued from compose & replies" to="/inbox" />
+              )}
+              {!smtpBannerDismissed && unhealthySmtpAccounts.length > 0 && (
+                <AttentionRow
+                  icon={AlertTriangle}
+                  count={unhealthySmtpAccounts.length}
+                  label={unhealthySmtpAccounts.length === 1 ? 'Inbox health low' : 'Inboxes health low'}
+                  sub={unhealthySmtpAccounts.map((a) => a.label || a.email_address).join(', ')}
+                  to="/smtp-accounts"
+                  tone="warn"
+                />
+              )}
+            </div>
+          )}
         </section>
 
-        <div className="space-y-4">
-          <section className={cn('panel overflow-hidden transition-opacity duration-300', refreshing && 'opacity-60')}>
-            <Head title="Conversion funnel" desc={`Last ${period} days`} />
-            <Funnel sent={Number(s.total_sent) || 0} opened={Number(s.total_opened) || 0}
-              clicked={Number(s.total_clicked) || 0} replied={Number(s.total_replied) || 0} />
-          </section>
-          <section className="panel overflow-hidden">
-            <Head title="Inbox health" desc="Deliverability score" action={<MoreLink to="/verification" label="Details" />} />
-            <InboxHealth score={Number(s.avg_dcs_score) || 0} verified={verified} bounced={bounced} suppressed={suppressed} />
-          </section>
-        </div>
+        <section className="panel overflow-hidden flex flex-col">
+          <Head title="Latest replies" action={<MoreLink to="/inbox" label={unreadReplies > 0 ? `${unreadReplies} new` : 'Open'} />} />
+          {recentMessages.length > 0 ? (
+            <div className="divide-y divide-[var(--border-subtle)] flex-1">
+              {recentMessages.slice(0, 4).map((msg: any) => {
+                const chip = msg.sara_intent ? INTENT_CHIP[msg.sara_intent] : null;
+                return (
+                  <Link key={msg.id} to="/inbox" className="flex items-start gap-2.5 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors">
+                    <div className="relative flex-shrink-0 mt-0.5">
+                      <Avatar name={msg.contact_name} email={msg.from_email} size="sm" />
+                      {!msg.is_read && <span className="absolute -top-0.5 -left-0.5 w-2 h-2 rounded-full ring-2 ring-[var(--bg-surface)]" style={{ background: ACCENT }} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={cn('text-[12.5px] truncate', msg.is_read ? 'text-[var(--text-secondary)]' : 'font-semibold text-[var(--text-primary)]')}>
+                          {msg.contact_name || msg.from_email?.split('@')[0] || 'Unknown'}
+                        </span>
+                        <span className="text-[11px] text-[var(--text-tertiary)] flex-shrink-0 tabular">{timeAgo(msg.received_at)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                        <p className="text-[11.5px] text-[var(--text-tertiary)] truncate leading-tight flex-1">{msg.subject || '(no subject)'}</p>
+                        {chip && (
+                          <span className={cn('text-[9.5px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0', chip.cls)}>{chip.label}</span>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center py-12 text-center">
+              <Inbox className="h-5 w-5 text-[var(--text-muted)] mb-2" strokeWidth={1.5} />
+              <p className="text-[12px] text-[var(--text-tertiary)]">No replies yet</p>
+            </div>
+          )}
+        </section>
       </div>
 
-      {/* ── Leaderboard + live replies ── */}
+      {/* ── Row 2: one performance module — metric strip drives the chart ── */}
+      <section className={cn('panel overflow-hidden transition-opacity duration-300', refreshing && 'opacity-60')}>
+        <div className="flex divide-x divide-[var(--border-subtle)] border-b border-[var(--border-subtle)]">
+          <MetricCell label="Emails sent" value={fmtNum(s.total_sent)} delta={s.sent_change}
+            active={metric === 'sent'} onClick={() => setMetric('sent')} />
+          <MetricCell label="Open rate" value={fmtPct(s.avg_open_rate)} delta={s.opened_change}
+            active={metric === 'opened'} onClick={() => setMetric('opened')} />
+          <MetricCell label="Click rate" value={fmtPct(s.avg_click_rate)} delta={s.clicked_change}
+            active={metric === 'clicked'} onClick={() => setMetric('clicked')} />
+          <MetricCell label="Reply rate" value={fmtPct(s.avg_reply_rate)} delta={s.replied_change}
+            active={metric === 'replied'} onClick={() => setMetric('replied')} />
+        </div>
+        <div className="flex items-center justify-between px-4 pt-3">
+          <p className="text-[12px] text-[var(--text-tertiary)]">
+            <span className="font-semibold tabular text-[var(--text-secondary)]">{fmtFull(metricTotal)}</span>
+            {' '}{METRICS[metric].label.toLowerCase()} · vs previous {period} days
+          </p>
+        </div>
+        <div className="px-2 pb-2">
+          <ErrorBoundary fallback={<div className="h-[240px] flex items-center justify-center text-[12px] text-[var(--text-tertiary)]">Chart unavailable</div>}>
+            <PerformanceChart data={trend} metric={metric} />
+          </ErrorBoundary>
+        </div>
+      </section>
+
+      {/* ── Row 3: what's working — campaigns + funnel/health rail ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <section className="panel lg:col-span-2 overflow-hidden">
           <Head title="Campaign leaderboard" desc="Ranked by volume" action={<MoreLink to="/analytics" />} />
@@ -637,43 +631,17 @@ export function DashboardPage() {
           )}
         </section>
 
-        <section className="panel overflow-hidden flex flex-col">
-          <Head title="Latest replies" action={<MoreLink to="/inbox" label={unreadReplies > 0 ? `${unreadReplies} new` : 'Open'} />} />
-          {recentMessages.length > 0 ? (
-            <div className="divide-y divide-[var(--border-subtle)] flex-1">
-              {recentMessages.slice(0, 5).map((msg: any) => {
-                const chip = msg.sara_intent ? INTENT_CHIP[msg.sara_intent] : null;
-                return (
-                  <Link key={msg.id} to="/inbox" className="flex items-start gap-2.5 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors">
-                    <div className="relative flex-shrink-0 mt-0.5">
-                      <Avatar name={msg.contact_name} email={msg.from_email} size="sm" />
-                      {!msg.is_read && <span className="absolute -top-0.5 -left-0.5 w-2 h-2 rounded-full ring-2 ring-[var(--bg-surface)]" style={{ background: ACCENT }} />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={cn('text-[12.5px] truncate', msg.is_read ? 'text-[var(--text-secondary)]' : 'font-semibold text-[var(--text-primary)]')}>
-                          {msg.contact_name || msg.from_email?.split('@')[0] || 'Unknown'}
-                        </span>
-                        <span className="text-[11px] text-[var(--text-tertiary)] flex-shrink-0 tabular">{timeAgo(msg.received_at)}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-                        <p className="text-[11.5px] text-[var(--text-tertiary)] truncate leading-tight flex-1">{msg.subject || '(no subject)'}</p>
-                        {chip && (
-                          <span className={cn('text-[9.5px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0', chip.cls)}>{chip.label}</span>
-                        )}
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center py-12 text-center">
-              <Inbox className="h-5 w-5 text-[var(--text-muted)] mb-2" strokeWidth={1.5} />
-              <p className="text-[12px] text-[var(--text-tertiary)]">No replies yet</p>
-            </div>
-          )}
-        </section>
+        <div className="space-y-4">
+          <section className={cn('panel overflow-hidden transition-opacity duration-300', refreshing && 'opacity-60')}>
+            <Head title="Conversion funnel" desc={`Last ${period} days`} />
+            <Funnel sent={Number(s.total_sent) || 0} opened={Number(s.total_opened) || 0}
+              clicked={Number(s.total_clicked) || 0} replied={Number(s.total_replied) || 0} />
+          </section>
+          <section className="panel overflow-hidden">
+            <Head title="Inbox health" desc="Deliverability score" action={<MoreLink to="/verification" label="Details" />} />
+            <InboxHealth score={Number(s.avg_dcs_score) || 0} verified={verified} bounced={bounced} suppressed={suppressed} />
+          </section>
+        </div>
       </div>
     </div>
   );
