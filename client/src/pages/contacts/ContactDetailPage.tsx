@@ -416,7 +416,7 @@ function InfoRow({
         <div className="flex items-center gap-1.5">
           {isLink ? (
             <a
-              href={value}
+              href={value.startsWith('http') ? value : `https://${value}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-[var(--text-primary)] hover:underline truncate block"

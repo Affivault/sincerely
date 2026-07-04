@@ -26,6 +26,7 @@ export type FlowStepType = 'email' | 'delay' | 'condition' | 'webhook_wait';
 
 export interface FlowStep extends CreateStepInput {
   id?: string;
+  _clientKey?: string;
 }
 
 interface FlowBuilderProps {
@@ -534,6 +535,7 @@ function DelayChip({ step, onUpdate, onRemove, onMoveUp, onMoveDown, isFirst, is
 export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep }: FlowBuilderProps) {
   const addStep = useCallback((type: StepType, atIndex?: number) => {
     const newStep: FlowStep = {
+      _clientKey: `step-${crypto.randomUUID()}`,
       step_type: type,
       step_order: steps.length,
       subject: type === StepType.Email ? '' : undefined,
@@ -648,7 +650,7 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep }: F
 
       {/* Steps */}
       {steps.map((step, index) => (
-        <div key={index}>
+        <div key={step.id || step._clientKey}>
           {/* Add step between nodes */}
           <AddStepMenu onAdd={(type) => addStep(type, index)} />
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
@@ -416,6 +416,14 @@ export function CampaignCreatePage() {
 
       await campaignsApi.setSenderPool(campaignId, senderPoolIds);
 
+      if (isEdit && campaignContacts?.data) {
+        const originalContactIds = campaignContacts.data.map((cc: any) => cc.contact_id);
+        const removedContactIds = originalContactIds.filter((cid: string) => !selectedContactIds.includes(cid));
+        if (removedContactIds.length > 0) {
+          await campaignsApi.removeContacts(campaignId, removedContactIds);
+        }
+      }
+
       if (selectedContactIds.length > 0) {
         await campaignsApi.addContacts(campaignId, selectedContactIds);
       }
@@ -452,6 +460,14 @@ export function CampaignCreatePage() {
       }
 
       await campaignsApi.setSenderPool(campaignId, senderPoolIds);
+
+      if (isEdit && campaignContacts?.data) {
+        const originalContactIds = campaignContacts.data.map((cc: any) => cc.contact_id);
+        const removedContactIds = originalContactIds.filter((cid: string) => !selectedContactIds.includes(cid));
+        if (removedContactIds.length > 0) {
+          await campaignsApi.removeContacts(campaignId, removedContactIds);
+        }
+      }
 
       if (selectedContactIds.length > 0) {
         await campaignsApi.addContacts(campaignId, selectedContactIds);
@@ -514,6 +530,17 @@ export function CampaignCreatePage() {
       prev.includes(contactId) ? prev.filter((cid) => cid !== contactId) : [...prev, contactId]
     );
   };
+
+  // Unsaved audience changes vs. what's currently enrolled — shown so editors can
+  // see at a glance what a save will actually add/remove before it happens.
+  const audienceDiff = useMemo(() => {
+    if (!isEdit || !campaignContacts?.data) return null;
+    const originalIds = new Set(campaignContacts.data.map((cc: any) => cc.contact_id));
+    const selectedIds = new Set(selectedContactIds);
+    const added = selectedContactIds.filter((cid) => !originalIds.has(cid)).length;
+    const removed = [...originalIds].filter((cid) => !selectedIds.has(cid)).length;
+    return added > 0 || removed > 0 ? { added, removed } : null;
+  }, [isEdit, campaignContacts, selectedContactIds]);
 
   const handleSave = () => {
     if (!campaignForm.name) {
@@ -1486,6 +1513,15 @@ export function CampaignCreatePage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
+                    {audienceDiff && (
+                      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11.5px] text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                        <span className="font-semibold">Unsaved audience changes:</span>
+                        {audienceDiff.added > 0 && <span>+{audienceDiff.added} to add</span>}
+                        {audienceDiff.added > 0 && audienceDiff.removed > 0 && <span>·</span>}
+                        {audienceDiff.removed > 0 && <span>-{audienceDiff.removed} to remove</span>}
+                        <span className="text-[var(--text-tertiary)]">— save to apply</span>
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
                         <p className="text-[10.5px] text-[var(--text-tertiary)] font-bold">Recipients</p>

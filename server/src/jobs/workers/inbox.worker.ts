@@ -120,7 +120,8 @@ export function startInboxWorker() {
             const { count } = await supabaseAdmin
               .from('inbox_messages')
               .select('*', { count: 'exact', head: true })
-              .eq('message_id', messageId);
+              .eq('message_id', messageId)
+              .eq('user_id', userId);
             if (count && count > 0) continue;
           }
 
@@ -131,9 +132,10 @@ export function startInboxWorker() {
           if (inReplyTo) {
             const { data } = await supabaseAdmin
               .from('campaign_activities')
-              .select('campaign_id, campaign_contact_id, contact_id, step_id')
+              .select('campaign_id, campaign_contact_id, contact_id, step_id, campaigns!inner(user_id)')
               .eq('activity_type', 'sent')
               .eq('message_id', inReplyTo)
+              .eq('campaigns.user_id', userId)
               .maybeSingle();
             matchedActivity = data;
           }
