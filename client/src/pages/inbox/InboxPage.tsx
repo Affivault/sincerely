@@ -1934,14 +1934,12 @@ export function InboxPage() {
     }
   }, [folder, archiveMut, unarchiveMut, conversations]);
 
-  const unreadCount = conversations.filter(c => c.hasUnread).length;
-
   const isInArchived = folder === 'archived';
   const archiveLabel = isInArchived ? 'Move to Inbox' : 'Archive';
   const ArchiveIcon = isInArchived ? ArchiveRestore : Archive;
 
   const foldersList: { id: Folder; label: string; icon: React.ElementType; count?: number }[] = [
-    { id: 'inbox', label: 'Inbox', icon: Inbox, count: unreadCount || undefined },
+    { id: 'inbox', label: 'Inbox', icon: Inbox, count: viewCounts.unread || undefined },
     { id: 'starred', label: 'Starred', icon: Star },
     { id: 'sent', label: 'Sent', icon: SendHorizontal },
     { id: 'scheduled', label: 'Scheduled', icon: Clock },

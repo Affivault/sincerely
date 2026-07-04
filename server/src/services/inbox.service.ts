@@ -1042,9 +1042,10 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
             if (inReplyTo) {
               const { data } = await supabaseAdmin
                 .from('campaign_activities')
-                .select('campaign_id, campaign_contact_id, contact_id, step_id')
+                .select('campaign_id, campaign_contact_id, contact_id, step_id, campaigns!inner(user_id)')
                 .eq('activity_type', 'sent')
                 .eq('message_id', inReplyTo)
+                .eq('campaigns.user_id', userId)
                 .single();
               matchedActivity = data;
             }

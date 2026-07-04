@@ -96,42 +96,31 @@ app.get('/health', async (_req, res) => {
     diagnostics.supabase = `error: ${err.message}`;
   }
 
-  // Check SMTP accounts
+  // Aggregate operational counts only — this endpoint is public and unauthenticated,
+  // so it must never return per-tenant data (account emails, campaign names, error text).
   try {
     const { supabaseAdmin } = await import('./config/supabase.js');
-    const { data: accounts } = await supabaseAdmin
+    const { count: activeSmtpCount } = await supabaseAdmin
       .from('smtp_accounts')
-      .select('id, label, is_active, is_verified, email_address');
-    diagnostics.smtp_accounts = (accounts || []).map((a: any) => ({
-      label: a.label,
-      email: a.email_address,
-      active: a.is_active,
-      verified: a.is_verified,
-    }));
-  } catch (err: any) {
-    diagnostics.smtp_accounts = `error: ${err.message}`;
-  }
+      .select('*', { count: 'exact', head: true })
+      .eq('is_active', true);
+    diagnostics.active_smtp_accounts = activeSmtpCount ?? 0;
 
-  // Check running campaigns
-  try {
-    const { supabaseAdmin } = await import('./config/supabase.js');
-    const { data: running } = await supabaseAdmin
+    const { count: runningCount } = await supabaseAdmin
       .from('campaigns')
-      .select('id, name, status, started_at')
+      .select('*', { count: 'exact', head: true })
       .eq('status', 'running');
-    diagnostics.running_campaigns = running || [];
+    diagnostics.running_campaigns = runningCount ?? 0;
 
-    // Check due contacts
-    const { data: dueContacts, error: dueErr } = await supabaseAdmin
+    const { count: dueCount } = await supabaseAdmin
       .from('campaign_contacts')
-      .select('id, campaign_id, status, current_step_order, next_send_at, error_message')
+      .select('*', { count: 'exact', head: true })
       .eq('status', 'active')
       .not('next_send_at', 'is', null)
-      .lte('next_send_at', new Date().toISOString())
-      .limit(10);
-    diagnostics.due_contacts = dueErr ? `error: ${dueErr.message}` : (dueContacts || []);
+      .lte('next_send_at', new Date().toISOString());
+    diagnostics.due_contacts = dueCount ?? 0;
   } catch (err: any) {
-    diagnostics.running_campaigns = `error: ${err.message}`;
+    diagnostics.operational_counts = `error: ${err.message}`;
   }
 
   res.json(diagnostics);
