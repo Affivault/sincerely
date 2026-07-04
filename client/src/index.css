@@ -6,27 +6,29 @@
 
 @layer base {
   :root {
-    --bg-app: #FAFAFB;
+    /* Warm paper neutrals — the Attio/Folk canvas: content lives on white,
+       chrome on a barely-warm off-white, separated by hairlines not shadows. */
+    --bg-app: #F9F8F7;
     --bg-surface: #FFFFFF;
-    --bg-elevated: #F4F4F6;
-    --bg-hover: #F0F0F3;
-    --bg-active: #E8E8EC;
-    --bg-muted: #F7F7F9;
-    --bg-inset: #F4F4F6;
+    --bg-elevated: #F3F2F0;
+    --bg-hover: #EFEDEA;
+    --bg-active: #E7E5E1;
+    --bg-muted: #FBFAF9;
+    --bg-inset: #F3F2F0;
 
-    --border-subtle: #ECECEF;
-    --border-default: #DFDFE3;
-    --border-strong: #C6C6CB;
+    --border-subtle: #ECEAE6;
+    --border-default: #E0DDD8;
+    --border-strong: #C9C5BE;
 
-    --text-primary: #08080B;
-    --text-secondary: #5A5A66;
-    --text-tertiary: #8E8E98;
-    --text-muted: #B8B8C0;
+    --text-primary: #1B1B1F;
+    --text-secondary: #61606A;
+    --text-tertiary: #8F8E97;
+    --text-muted: #BCBAC2;
 
-    --accent: #08080B;
-    --accent-hover: #18181B;
-    --accent-muted: #5A5A66;
-    --accent-subtle: #F4F4F6;
+    --accent: #1B1B1F;
+    --accent-hover: #2A2A2F;
+    --accent-muted: #61606A;
+    --accent-subtle: #F3F2F0;
 
     --indigo: #5B5BF5;
     --indigo-hover: #4646E5;
@@ -59,15 +61,16 @@
     --info-bg: #F4F4F6;
     --info-border: #ECECEF;
 
-    /* Premium layered shadows — soft ambient + crisp contact, faint indigo tint */
-    --shadow-sm: 0 1px 1px rgba(15, 15, 25, 0.04), 0 1px 2px rgba(15, 15, 25, 0.05);
-    --shadow-md: 0 1px 2px rgba(15, 15, 25, 0.04), 0 4px 8px -1px rgba(15, 15, 25, 0.06), 0 8px 20px -4px rgba(15, 15, 25, 0.07);
-    --shadow-lg: 0 2px 4px -1px rgba(15, 15, 25, 0.05), 0 8px 16px -4px rgba(15, 15, 25, 0.08), 0 20px 36px -8px rgba(15, 15, 25, 0.10);
-    --shadow-xl: 0 4px 8px -2px rgba(15, 15, 25, 0.06), 0 16px 28px -8px rgba(15, 15, 25, 0.12), 0 36px 64px -12px rgba(20, 20, 43, 0.18);
-    --shadow-card: 0 0 0 1px rgba(15, 15, 25, 0.04), 0 1px 2px rgba(15, 15, 25, 0.04);
-    --shadow-card-hover: 0 0 0 1px rgba(15, 15, 25, 0.05), 0 2px 4px -1px rgba(15, 15, 25, 0.05), 0 10px 24px -6px rgba(15, 15, 25, 0.10);
-    --shadow-glow: 0 0 0 1px rgba(91, 91, 245, 0.18), 0 4px 16px rgba(91, 91, 245, 0.14);
-    --shadow-glow-sm: 0 0 0 1px rgba(91, 91, 245, 0.12), 0 2px 8px rgba(91, 91, 245, 0.1);
+    /* Hairline material — depth comes from 1px lines and barely-there contact
+       shadows, never from glow. Popovers alone get real elevation. */
+    --shadow-sm: 0 1px 2px rgba(27, 27, 31, 0.04);
+    --shadow-md: 0 1px 2px rgba(27, 27, 31, 0.04), 0 3px 8px -2px rgba(27, 27, 31, 0.06);
+    --shadow-lg: 0 1px 2px rgba(27, 27, 31, 0.04), 0 8px 20px -6px rgba(27, 27, 31, 0.10);
+    --shadow-xl: 0 2px 4px -1px rgba(27, 27, 31, 0.05), 0 16px 36px -8px rgba(27, 27, 31, 0.14);
+    --shadow-card: 0 1px 2px rgba(27, 27, 31, 0.04);
+    --shadow-card-hover: 0 1px 2px rgba(27, 27, 31, 0.04), 0 6px 16px -6px rgba(27, 27, 31, 0.08);
+    --shadow-glow: 0 0 0 1px rgba(91, 91, 245, 0.14), 0 2px 8px rgba(91, 91, 245, 0.08);
+    --shadow-glow-sm: 0 0 0 1px rgba(91, 91, 245, 0.10), 0 1px 4px rgba(91, 91, 245, 0.06);
 
     --gradient-brand: linear-gradient(135deg, #5B5BF5 0%, #8B5CF6 100%);
     --gradient-brand-soft: linear-gradient(135deg, rgba(91,91,245,0.12) 0%, rgba(139,92,246,0.08) 100%);
@@ -78,8 +81,8 @@
     --gradient-amber: linear-gradient(135deg, #F59E0B 0%, #EF4444 100%);
     --gradient-violet: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
 
-    /* Calm ambient backdrop — a single, very faint indigo wash */
-    --gradient-page: radial-gradient(1100px 560px at 100% -12%, rgba(99, 102, 241, 0.05), transparent 62%);
+    /* Flat canvas — the Attio/Folk look has no ambient wash at all */
+    --gradient-page: none;
 
     --radius-xs: 4px;
     --radius-sm: 6px;
@@ -96,10 +99,10 @@
     --dur-base: 180ms;
     --dur-slow: 280ms;
 
-    /* Material — glass overlays + ambient grain */
-    --glass-bg: rgba(255, 255, 255, 0.82);
-    --glass-border: rgba(15, 15, 25, 0.08);
-    --noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.022'/%3E%3C/svg%3E");
+    /* Material — glass overlays only; the grain texture is retired (flat canvas) */
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    --glass-border: rgba(27, 27, 31, 0.08);
+    --noise: none;
 
     /* Data-accent type — mono for timestamps, labels, kbd (Vercel/Linear DNA) */
     --font-data: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
@@ -108,22 +111,22 @@
   }
 
   .dark {
-    --bg-app: #09090B;
-    --bg-surface: #0F0F12;
-    --bg-elevated: #16161A;
-    --bg-hover: #1C1C21;
-    --bg-active: #24242A;
-    --bg-muted: #0C0C0F;
-    --bg-inset: #0A0A0D;
+    --bg-app: #121212;
+    --bg-surface: #191919;
+    --bg-elevated: #202020;
+    --bg-hover: #242424;
+    --bg-active: #2C2C2C;
+    --bg-muted: #161616;
+    --bg-inset: #101010;
 
-    --border-subtle: #1C1C21;
-    --border-default: #24242A;
-    --border-strong: #3A3A42;
+    --border-subtle: #262626;
+    --border-default: #2E2E2E;
+    --border-strong: #444444;
 
-    --text-primary: #FAFAFB;
-    --text-secondary: #9B9BA5;
-    --text-tertiary: #6B6B76;
-    --text-muted: #3A3A42;
+    --text-primary: #F4F4F3;
+    --text-secondary: #A19FA6;
+    --text-tertiary: #737179;
+    --text-muted: #454348;
 
     --accent: #FAFAFB;
     --accent-hover: #E4E4E7;
@@ -158,14 +161,14 @@
     --info-bg: rgba(155, 155, 165, 0.08);
     --info-border: rgba(155, 155, 165, 0.15);
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 2px 4px -1px rgba(0, 0, 0, 0.4), 0 6px 16px -4px rgba(0, 0, 0, 0.45);
-    --shadow-lg: 0 4px 8px -2px rgba(0, 0, 0, 0.4), 0 16px 32px -8px rgba(0, 0, 0, 0.5);
-    --shadow-xl: 0 8px 16px -4px rgba(0, 0, 0, 0.45), 0 32px 56px -12px rgba(0, 0, 0, 0.6);
-    --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.02), 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-card-hover: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 8px 24px -6px rgba(0, 0, 0, 0.55);
-    --shadow-glow: 0 0 0 1px rgba(99, 102, 241, 0.2), 0 4px 16px rgba(99, 102, 241, 0.18);
-    --shadow-glow-sm: 0 0 0 1px rgba(99, 102, 241, 0.15), 0 2px 8px rgba(99, 102, 241, 0.12);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 10px -2px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 2px 4px -1px rgba(0, 0, 0, 0.35), 0 12px 24px -6px rgba(0, 0, 0, 0.45);
+    --shadow-xl: 0 4px 8px -2px rgba(0, 0, 0, 0.4), 0 24px 48px -10px rgba(0, 0, 0, 0.55);
+    --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.02), 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-card-hover: 0 0 0 1px rgba(255, 255, 255, 0.03), 0 6px 18px -6px rgba(0, 0, 0, 0.5);
+    --shadow-glow: 0 0 0 1px rgba(99, 102, 241, 0.16), 0 2px 8px rgba(99, 102, 241, 0.12);
+    --shadow-glow-sm: 0 0 0 1px rgba(99, 102, 241, 0.12), 0 1px 4px rgba(99, 102, 241, 0.08);
 
     --gradient-brand: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
     --gradient-success: linear-gradient(135deg, #10B981 0%, #059669 100%);
@@ -175,9 +178,9 @@
     --gradient-amber: linear-gradient(135deg, #F59E0B 0%, #EF4444 100%);
     --gradient-violet: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
 
-    --gradient-page: radial-gradient(1100px 560px at 100% -12%, rgba(99, 102, 241, 0.08), transparent 62%);
+    --gradient-page: none;
 
-    --glass-bg: rgba(18, 18, 22, 0.78);
+    --glass-bg: rgba(24, 24, 24, 0.82);
     --glass-border: rgba(255, 255, 255, 0.08);
 
     color-scheme: dark;
@@ -249,12 +252,9 @@
   .text-tertiary { color: var(--text-tertiary); }
   .text-muted { color: var(--text-muted); }
 
-  /* Premium gradient text */
+  /* Former gradient text — solid ink now (quiet, Attio-style) */
   .gradient-text {
-    background: linear-gradient(135deg, #6366F1, #8B5CF6);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--text-primary);
   }
 
   /* Status left border utilities */
@@ -277,9 +277,9 @@
     background-size: 32px 32px;
   }
 
-  /* ── Soft radial brand glow — drop behind hero areas for warmth. */
+  /* ── Brand glow retired — flat canvas everywhere. */
   .glow-brand {
-    background: radial-gradient(800px 240px at 50% -10%, rgba(91, 91, 245, 0.12), transparent 70%);
+    background: none;
   }
 
   /* Tabular numerals — for stats, metrics, money */
@@ -489,11 +489,13 @@
     color: var(--info);
   }
 
+  /* Table headers — regular-case Inter, medium gray. Data-dense tables read
+     through typography and hairlines, not shouting mono-caps. */
   .table-header {
-    @apply text-[10px] font-medium uppercase;
-    font-family: var(--font-data);
-    letter-spacing: 0.08em;
+    @apply text-[12px] font-medium;
+    letter-spacing: 0.005em;
     color: var(--text-tertiary);
+    text-transform: none;
   }
   .table-cell {
     @apply py-2.5 text-[13px];
@@ -625,20 +627,21 @@
      This is what turns the plain greyscale UI into a colourful product.
      ═══════════════════════════════════════════════════════════════════════ */
 
-  /* ── Gradient icon tiles — the coloured squares behind icons everywhere ── */
+  /* ── Icon tiles — flat pastel squares with a saturated icon (Folk-style).
+     No gradients, no glow: a soft tinted field + hairline ring. ── */
   .tile {
-    @apply inline-flex items-center justify-center flex-shrink-0 text-white;
-    border-radius: var(--radius-lg);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 12px -2px rgba(15, 15, 25, 0.18);
+    @apply inline-flex items-center justify-center flex-shrink-0;
+    border-radius: var(--radius-md);
+    box-shadow: inset 0 0 0 1px rgba(27, 27, 31, 0.05);
   }
-  .tile-indigo  { background: linear-gradient(135deg, #6366F1, #8B5CF6); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 16px -4px rgba(99,102,241,0.55); }
-  .tile-violet  { background: linear-gradient(135deg, #8B5CF6, #D946EF); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 16px -4px rgba(139,92,246,0.5); }
-  .tile-fuchsia { background: linear-gradient(135deg, #D946EF, #F43F5E); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 16px -4px rgba(217,70,239,0.5); }
-  .tile-cyan    { background: linear-gradient(135deg, #06B6D4, #3B82F6); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 16px -4px rgba(6,182,212,0.5); }
-  .tile-blue    { background: linear-gradient(135deg, #3B82F6, #6366F1); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 16px -4px rgba(59,130,246,0.5); }
-  .tile-emerald { background: linear-gradient(135deg, #10B981, #06B6D4); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 16px -4px rgba(16,185,129,0.5); }
-  .tile-amber   { background: linear-gradient(135deg, #F59E0B, #F43F5E); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 16px -4px rgba(245,158,11,0.5); }
-  .tile-rose    { background: linear-gradient(135deg, #F43F5E, #EC4899); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 16px -4px rgba(244,63,94,0.5); }
+  .tile-indigo  { background: rgba(99,102,241,0.10);  color: #5B5BF5; }
+  .tile-violet  { background: rgba(139,92,246,0.10);  color: #7C4DDC; }
+  .tile-fuchsia { background: rgba(217,70,239,0.10);  color: #C026D3; }
+  .tile-cyan    { background: rgba(6,182,212,0.10);   color: #0891B2; }
+  .tile-blue    { background: rgba(59,130,246,0.10);  color: #2563EB; }
+  .tile-emerald { background: rgba(16,185,129,0.10);  color: #059669; }
+  .tile-amber   { background: rgba(245,158,11,0.12);  color: #B45309; }
+  .tile-rose    { background: rgba(244,63,94,0.10);   color: #E11D48; }
 
   /* ── Tinted surfaces — coloured cards that still feel light and clean ── */
   .tint {
@@ -648,23 +651,19 @@
                 box-shadow var(--dur-base) var(--ease-out),
                 transform var(--dur-base) var(--ease-out);
   }
-  .tint-indigo  { background: linear-gradient(160deg, rgba(99,102,241,0.10), rgba(139,92,246,0.04)); border-color: rgba(99,102,241,0.18); }
-  .tint-violet  { background: linear-gradient(160deg, rgba(139,92,246,0.10), rgba(217,70,239,0.04)); border-color: rgba(139,92,246,0.18); }
-  .tint-cyan    { background: linear-gradient(160deg, rgba(6,182,212,0.10), rgba(59,130,246,0.04));  border-color: rgba(6,182,212,0.18); }
-  .tint-emerald { background: linear-gradient(160deg, rgba(16,185,129,0.10), rgba(6,182,212,0.04));  border-color: rgba(16,185,129,0.18); }
-  .tint-amber   { background: linear-gradient(160deg, rgba(245,158,11,0.10), rgba(244,63,94,0.04));  border-color: rgba(245,158,11,0.20); }
-  .tint-rose    { background: linear-gradient(160deg, rgba(244,63,94,0.10), rgba(236,72,153,0.04));  border-color: rgba(244,63,94,0.18); }
+  .tint-indigo  { background: rgba(99,102,241,0.06);  border-color: rgba(99,102,241,0.14); }
+  .tint-violet  { background: rgba(139,92,246,0.06);  border-color: rgba(139,92,246,0.14); }
+  .tint-cyan    { background: rgba(6,182,212,0.06);   border-color: rgba(6,182,212,0.14); }
+  .tint-emerald { background: rgba(16,185,129,0.06);  border-color: rgba(16,185,129,0.14); }
+  .tint-amber   { background: rgba(245,158,11,0.07);  border-color: rgba(245,158,11,0.16); }
+  .tint-rose    { background: rgba(244,63,94,0.06);   border-color: rgba(244,63,94,0.14); }
   a.tint:hover, button.tint:hover, .tint-hover:hover {
-    transform: translateY(-2px);
     box-shadow: var(--shadow-card-hover);
   }
 
-  /* ── Gradient hero panel — for page headers & feature banners ── */
+  /* ── Hero panel — flat surface now; headers stay calm ── */
   .hero-gradient {
-    background:
-      radial-gradient(680px 200px at 8% -40%, rgba(99,102,241,0.16), transparent 70%),
-      radial-gradient(520px 180px at 90% -30%, rgba(139,92,246,0.14), transparent 70%),
-      var(--bg-surface);
+    background: var(--bg-surface);
   }
 
   /* ── Colourful chips ── */
@@ -680,20 +679,16 @@
   .chip-amber   { background: rgba(245,158,11,0.14);  color: var(--c-amber);   border-color: rgba(245,158,11,0.24); }
   .chip-rose    { background: rgba(244,63,94,0.12);   color: var(--c-rose);    border-color: rgba(244,63,94,0.22); }
 
-  /* ── Gradient text accents ── */
+  /* ── Former gradient text — now solid ink; typography carries the weight ── */
   .gradient-text-brand {
-    background: linear-gradient(120deg, #6366F1 0%, #8B5CF6 45%, #D946EF 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: var(--text-primary);
   }
 
-  /* Section eyebrow label — mono small-caps, the editorial accent */
+  /* Section eyebrow label — quiet uppercase micro-label */
   .eyebrow {
-    @apply text-[10px] font-medium uppercase leading-none;
-    font-family: var(--font-data);
-    letter-spacing: 0.14em;
-    color: var(--c-indigo);
+    @apply text-[10.5px] font-semibold uppercase leading-none;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
   }
 
   /* Animated live dot */
