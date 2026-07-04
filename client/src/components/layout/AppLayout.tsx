@@ -114,7 +114,7 @@ function AppContent() {
       <Sidebar />
       <div className={cn(
         'transition-[padding] duration-200 pt-[56px]',
-        collapsed ? 'pl-[60px]' : 'pl-[244px]'
+        collapsed ? 'pl-[52px]' : 'pl-[240px]'
       )}>
         {/* Generous workspace width — effectively full-bleed on laptops so data
             tables breathe, while capping ultrawide so forms stay readable. */}
