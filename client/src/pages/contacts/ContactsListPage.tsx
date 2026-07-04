@@ -55,6 +55,15 @@ import {
   EyeOff,
   PanelLeftClose,
   PanelLeftOpen,
+  Mail,
+  Building2,
+  MapPin,
+  Briefcase,
+  Phone,
+  Globe,
+  List,
+  Clock,
+  Activity,
 } from 'lucide-react';
 
 type ContactSortKey = 'first_name' | 'email' | 'company' | 'dcs_score' | 'created_at';
@@ -325,25 +334,27 @@ type ColumnId = 'email' | 'status' | 'company' | 'location' | 'job_title' | 'pho
 interface ColumnDef {
   id: ColumnId;
   label: string;
+  /** Column-type glyph shown in the header — the spreadsheet-grid cue */
+  icon?: React.ElementType;
   sortKey?: ContactSortKey;
   tdClass?: string;
   render: (c: any) => React.ReactNode;
 }
 const ALL_COLUMNS: ColumnDef[] = [
-  { id: 'email',       label: 'Email',     sortKey: 'email',      tdClass: 'max-w-[280px]', render: (c) => (
+  { id: 'email',       label: 'Email',     icon: Mail,        sortKey: 'email',      tdClass: 'max-w-[280px]', render: (c) => (
     <span className="flex items-center gap-2 min-w-0"><EmailStatusDot c={c} /><CopyableEmail email={c.email} /></span>
   ) },
-  { id: 'status',      label: 'Status',    sortKey: 'dcs_score',  render: (c) => <VerificationBadge c={c} /> },
-  { id: 'company',     label: 'Company',   sortKey: 'company',    tdClass: 'max-w-[200px]', render: (c) => <CompanyCell company={c.company} /> },
-  { id: 'location',    label: 'Location',                         tdClass: 'max-w-[200px]', render: (c) => <TextCell v={c.location} /> },
-  { id: 'job_title',   label: 'Job title',                        tdClass: 'max-w-[180px]', render: (c) => <TextCell v={c.job_title} /> },
-  { id: 'phone',       label: 'Phone',                            render: (c) => <TextCell v={c.phone} mono /> },
-  { id: 'website',     label: 'Website',                          tdClass: 'max-w-[180px]', render: (c) => <LinkCell href={c.website} /> },
-  { id: 'linkedin_url',label: 'LinkedIn',                         tdClass: 'max-w-[180px]', render: (c) => <LinkCell href={c.linkedin_url} label={c.linkedin_url ? 'Profile' : null} /> },
-  { id: 'tags',        label: 'Tags',                             tdClass: 'max-w-[240px]', render: (c) => <TagsCell tags={c.tags} /> },
-  { id: 'lists',       label: 'Lists',                            tdClass: 'max-w-[240px]', render: (c) => <ListsCell lists={c.lists} /> },
-  { id: 'added',       label: 'Added',     sortKey: 'created_at', render: (c) => <span className="text-[11.5px] text-[var(--text-tertiary)]" title={formatDate(c.created_at)}>{formatRelativeTime(c.created_at)}</span> },
-  { id: 'health',      label: 'Health',    sortKey: 'dcs_score',  render: (c) => <HealthCell c={c} /> },
+  { id: 'status',      label: 'Status',    icon: ShieldCheck, sortKey: 'dcs_score',  render: (c) => <VerificationBadge c={c} /> },
+  { id: 'company',     label: 'Company',   icon: Building2,   sortKey: 'company',    tdClass: 'max-w-[200px]', render: (c) => <CompanyCell company={c.company} /> },
+  { id: 'location',    label: 'Location',  icon: MapPin,                             tdClass: 'max-w-[200px]', render: (c) => <TextCell v={c.location} /> },
+  { id: 'job_title',   label: 'Job title', icon: Briefcase,                          tdClass: 'max-w-[180px]', render: (c) => <TextCell v={c.job_title} /> },
+  { id: 'phone',       label: 'Phone',     icon: Phone,                              render: (c) => <TextCell v={c.phone} mono /> },
+  { id: 'website',     label: 'Website',   icon: Globe,                              tdClass: 'max-w-[180px]', render: (c) => <LinkCell href={c.website} /> },
+  { id: 'linkedin_url',label: 'LinkedIn',  icon: Linkedin,                           tdClass: 'max-w-[180px]', render: (c) => <LinkCell href={c.linkedin_url} label={c.linkedin_url ? 'Profile' : null} /> },
+  { id: 'tags',        label: 'Tags',      icon: TagIcon,                            tdClass: 'max-w-[240px]', render: (c) => <TagsCell tags={c.tags} /> },
+  { id: 'lists',       label: 'Lists',     icon: List,                               tdClass: 'max-w-[240px]', render: (c) => <ListsCell lists={c.lists} /> },
+  { id: 'added',       label: 'Added',     icon: Clock,       sortKey: 'created_at', render: (c) => <span className="text-[11.5px] text-[var(--text-tertiary)]" title={formatDate(c.created_at)}>{formatRelativeTime(c.created_at)}</span> },
+  { id: 'health',      label: 'Health',    icon: Activity,    sortKey: 'dcs_score',  render: (c) => <HealthCell c={c} /> },
 ];
 const DEFAULT_COLUMNS: ColumnId[] = ['email', 'status', 'company', 'location', 'tags', 'lists', 'added'];
 
@@ -822,7 +833,7 @@ export function ContactsListPage() {
     return ALL_COLUMNS.find((c) => c.id === id) || null;
   };
   // Columns to render, in the user's saved order (standard + custom unified).
-  const activeColumns = visibleColumns.map(resolveColumn).filter(Boolean) as { id: string; label: string; sortKey?: ContactSortKey; render: (c: any) => React.ReactNode; tdClass?: string }[];
+  const activeColumns = visibleColumns.map(resolveColumn).filter(Boolean) as { id: string; label: string; icon?: React.ElementType; sortKey?: ContactSortKey; render: (c: any) => React.ReactNode; tdClass?: string }[];
   // Everything available to add, with a friendly label, minus what's shown.
   const availableColumns = [
     ...ALL_COLUMNS.map((c) => ({ id: c.id as string, label: c.label })),
@@ -1358,7 +1369,7 @@ export function ContactsListPage() {
               <table className="w-full border-separate border-spacing-0 text-left">
                 <thead>
                   <tr>
-                    <th className="sticky left-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] w-[44px] pl-4 pr-2 py-2">
+                    <th className="sticky left-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] w-[44px] pl-3 pr-2 py-[7px]">
                       <Checkbox
                         checked={allSelected}
                         indeterminate={someSelected && !allSelected}
@@ -1366,23 +1377,30 @@ export function ContactsListPage() {
                         aria-label="Select all contacts"
                       />
                     </th>
-                    <th className="sticky left-[44px] z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] min-w-[240px] px-3 py-2 shadow-[inset_-1px_0_0_var(--border-subtle)]">
-                      <SortableHeader label="Contact" colKey="first_name" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                    <th className="sticky left-[44px] z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] min-w-[240px] px-3 py-[7px] shadow-[inset_-1px_0_0_var(--border-subtle)]">
+                      <span className="flex items-center gap-1.5">
+                        <Users className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />
+                        <SortableHeader label="Contact" colKey="first_name" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                      </span>
                     </th>
                     {activeColumns.map((col) => (
-                      <th key={col.id} className="bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-4 py-2 whitespace-nowrap min-w-[150px]">
-                        {col.sortKey
-                          ? <SortableHeader label={col.label} colKey={col.sortKey} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
-                          : <span className="text-[11px] font-medium text-[var(--text-tertiary)]">{col.label}</span>}
+                      <th key={col.id} className="bg-[var(--bg-muted)] border-b border-r border-[var(--border-subtle)] px-3 py-[7px] whitespace-nowrap min-w-[150px]">
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          {col.icon && <col.icon className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />}
+                          {col.sortKey
+                            ? <SortableHeader label={col.label} colKey={col.sortKey} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                            : <span className="text-[11px] font-medium text-[var(--text-tertiary)]">{col.label}</span>}
+                        </span>
                       </th>
                     ))}
                     <th className="sticky right-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] w-[112px] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]" />
                   </tr>
                 </thead>
                 <tbody>
-                  {contacts.map((contact: any) => {
+                  {contacts.map((contact: any, rowIdx: number) => {
                     const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
                     const isSelected = selectedContacts.has(contact.id);
+                    const rowNumber = (page - 1) * DEFAULT_PAGE_SIZE + rowIdx + 1;
                     // Frozen cells need an opaque bg so scrolled content can't show through.
                     const frozenBg = isSelected
                       ? 'bg-[var(--bg-active)]'
@@ -1396,18 +1414,26 @@ export function ContactsListPage() {
                           isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]'
                         )}
                       >
-                        <td className={cn('sticky left-0 z-[1] w-[44px] pl-4 pr-2 py-2 relative border-b border-[var(--border-subtle)]', frozenBg)}>
+                        <td className={cn('sticky left-0 z-[1] w-[44px] pl-3 pr-2 py-1.5 relative border-b border-[var(--border-subtle)]', frozenBg)}>
+                          {/* Sheets-style gutter: row number at rest, checkbox on hover/selection */}
                           <span className={cn(
-                            'absolute left-0 top-0 bottom-0 w-[2.5px] transition-colors',
-                            isSelected ? 'bg-[var(--indigo)]' : 'bg-transparent group-hover:bg-[var(--indigo)]/40'
-                          )} />
-                          <Checkbox
-                            checked={isSelected}
-                            onChange={() => toggleSelectContact(contact.id)}
-                            aria-label={`Select ${fullName || contact.email}`}
-                          />
+                            'text-[10.5px] tabular text-[var(--text-muted)] transition-opacity select-none',
+                            isSelected ? 'opacity-0' : 'group-hover:opacity-0'
+                          )}>
+                            {rowNumber}
+                          </span>
+                          <span className={cn(
+                            'absolute inset-0 flex items-center pl-3 transition-opacity',
+                            isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                          )}>
+                            <Checkbox
+                              checked={isSelected}
+                              onChange={() => toggleSelectContact(contact.id)}
+                              aria-label={`Select ${fullName || contact.email}`}
+                            />
+                          </span>
                         </td>
-                        <td className={cn('sticky left-[44px] z-[1] min-w-[240px] px-3 py-2 border-b border-[var(--border-subtle)] shadow-[inset_-1px_0_0_var(--border-subtle)]', frozenBg)}>
+                        <td className={cn('sticky left-[44px] z-[1] min-w-[240px] px-3 py-1.5 border-b border-[var(--border-subtle)] shadow-[inset_-1px_0_0_var(--border-subtle)]', frozenBg)}>
                           <div className="flex items-center gap-2.5 min-w-0">
                             <Avatar name={fullName || contact.email} email={contact.email} size="sm" />
                             <div className="min-w-0">
@@ -1424,7 +1450,7 @@ export function ContactsListPage() {
                           </div>
                         </td>
                         {activeColumns.map((col) => (
-                          <td key={col.id} className={cn('px-4 py-2 whitespace-nowrap border-b border-[var(--border-subtle)] min-w-[150px]', col.tdClass)}>
+                          <td key={col.id} className={cn('px-3 py-1.5 whitespace-nowrap border-b border-r border-[var(--border-subtle)] min-w-[150px]', col.tdClass)}>
                             {col.render(contact)}
                           </td>
                         ))}
