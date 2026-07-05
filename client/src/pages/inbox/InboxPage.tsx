@@ -2129,6 +2129,300 @@ export function InboxPage() {
     <div className="overflow-hidden" style={{ height: 'calc(100vh - 56px)' }}>
       <div className="h-full flex flex-col bg-[var(--bg-app)]">
 
+        {currentMsg && folder !== 'scheduled' ? (
+          <>
+            {/* ── Focus toolbar: back + position + actions ── */}
+            <div className="flex items-center gap-2 px-3 h-[50px] border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-shrink-0">
+              <button
+                onClick={() => setSelectedId(null)}
+                className="flex items-center gap-1.5 h-8 px-2.5 rounded-[8px] text-[12.5px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" /> {foldersList.find(f => f.id === folder)?.label || 'Inbox'}
+              </button>
+              <span className="h-4 w-px bg-[var(--border-subtle)]" />
+              <span className="text-[12px] text-[var(--text-tertiary)] tabular">
+                {Math.max(1, visibleConversations.findIndex(c => c.latestMessage.id === selectedId) + 1)} of {visibleConversations.length}
+              </span>
+              <span className="hidden lg:flex items-center gap-1.5 ml-2 text-[11px] text-[var(--text-muted)]">
+                <kbd className="kbd">J</kbd><kbd className="kbd">K</kbd> move
+                <kbd className="kbd ml-1">Esc</kbd> close
+              </span>
+              <div className="flex-1" />
+              <button
+                onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-[8px] bg-[var(--indigo-subtle)] text-[var(--indigo)] text-[12.5px] font-semibold hover:bg-[rgba(91,91,245,0.14)] transition-colors"
+              >
+                <Reply className="h-3.5 w-3.5" /> Reply
+              </button>
+              <button onClick={() => { setShowCompose(false); setReplyMode('forward'); setForwardTo(''); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }} title="Forward" className="icon-btn h-8 w-8">
+                <Forward className="h-4 w-4" />
+              </button>
+              <button onClick={() => toggleStarMut.mutate(currentMsg.id)} title={currentMsg.is_starred ? 'Unstar' : 'Star'} className="icon-btn h-8 w-8">
+                <Star className={`h-4 w-4 ${currentMsg.is_starred ? 'text-amber-400 fill-amber-400' : ''}`} />
+              </button>
+              <button onClick={() => handleArchiveToggle(currentMsg)} title={archiveLabel} className="icon-btn h-8 w-8">
+                <ArchiveIcon className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => currentMsg.is_read ? markUnreadMut.mutate(currentMsg.id) : markReadMut.mutate(currentMsg.id)}
+                title={currentMsg.is_read ? 'Mark unread' : 'Mark read'}
+                className="icon-btn h-8 w-8"
+              >
+                {currentMsg.is_read ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+              <span className="h-4 w-px bg-[var(--border-subtle)] hidden xl:block" />
+              <button
+                onClick={() => setShowContext(v => !v)}
+                title={showContext ? 'Hide contact details' : 'Show contact details'}
+                className={cn('icon-btn h-8 w-8 hidden xl:inline-flex', showContext && 'bg-[var(--indigo-subtle)] text-[var(--indigo)]')}
+              >
+                {showContext ? <PanelRightClose className="h-4 w-4" /> : <PanelRight className="h-4 w-4" />}
+              </button>
+            </div>
+
+            {/* ── Reading room: hero header + thread canvas + composer + context rail ── */}
+            <div className="flex-1 flex min-h-0">
+              <div className="flex-1 min-w-0 flex flex-col">
+                <div className="flex-1 overflow-y-auto bg-[var(--bg-app)]">
+                  <div className="max-w-[860px] mx-auto px-8 pt-8 pb-6">
+                    {/* Conversation hero — who, what, and the intent tag */}
+                    <div className="flex items-start gap-4">
+                      <span className="hidden sm:inline-flex rounded-full ring-4 ring-[var(--bg-surface)] shadow-[var(--shadow-sm)] flex-shrink-0">
+                        <Avatar name={threadContactName || undefined} email={threadContactEmail || undefined} size="lg" />
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-baseline gap-2 min-w-0">
+                              <h2 className="text-[15px] font-semibold text-[var(--text-primary)] truncate">{threadContactName || 'Unknown sender'}</h2>
+                              {threadContactEmail && <span className="text-[12px] text-[var(--text-tertiary)] truncate hidden md:inline">{threadContactEmail}</span>}
+                            </div>
+                            <h1 className="mt-1 text-[22px] font-semibold text-[var(--text-primary)] leading-snug tracking-[-0.02em]">
+                              {threadSubject || '(no subject)'}
+                            </h1>
+                            <div className="mt-1.5 flex items-center gap-2 text-[12px] text-[var(--text-tertiary)] flex-wrap">
+                              <span className="tabular">{threadStats.total} message{threadStats.total === 1 ? '' : 's'}</span>
+                              {threadStats.first && threadStats.total > 1 && (
+                                <>
+                                  <span className="sep-dot" />
+                                  <span>Started {new Date(threadStats.first).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                </>
+                              )}
+                              {currentMsg.campaign_name && (
+                                <>
+                                  <span className="sep-dot" />
+                                  <span className="truncate max-w-[220px]">{currentMsg.campaign_name}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                      {/* Clickable tag dropdown */}
+                      <div className="relative flex-shrink-0 mt-0.5">
+                        <button
+                          onClick={() => setShowTagDropdown(!showTagDropdown)}
+                          className={`flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors ${
+                            currentMsg.sara_intent
+                              ? `${(INTENT_COLORS[currentMsg.sara_intent] || INTENT_COLORS.other).bg} ${(INTENT_COLORS[currentMsg.sara_intent] || INTENT_COLORS.other).text}`
+                              : 'bg-[var(--bg-surface)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]'
+                          }`}
+                        >
+                          <Tag className="h-3 w-3" />
+                          {currentMsg.sara_intent
+                            ? (INTENT_COLORS[currentMsg.sara_intent] || INTENT_COLORS.other).label
+                            : 'Add Tag'}
+                          <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
+                        </button>
+                        {showTagDropdown && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setShowTagDropdown(false)} />
+                            <div className="absolute right-0 top-full mt-1 z-50 w-48 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl shadow-lg overflow-hidden">
+                              {currentMsg.sara_intent && (
+                                <button
+                                  onClick={() => { setTagMut.mutate({ id: currentMsg.id, tag: '' }); setShowTagDropdown(false); }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-subtle)]"
+                                >
+                                  <X className="h-3 w-3" />
+                                  Remove Tag
+                                </button>
+                              )}
+                              {TAG_OPTIONS.filter(t => t.value !== 'all').map(opt => {
+                                const info = INTENT_COLORS[opt.value] || INTENT_COLORS.other;
+                                const isActive = currentMsg.sara_intent === opt.value;
+                                return (
+                                  <button
+                                    key={opt.value}
+                                    onClick={() => { setTagMut.mutate({ id: currentMsg.id, tag: opt.value }); setShowTagDropdown(false); }}
+                                    className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
+                                      isActive ? 'bg-[var(--bg-elevated)]' : 'hover:bg-[var(--bg-hover)]'
+                                    } ${info.text}`}
+                                  >
+                                    <span className={`w-2 h-2 rounded-full ${info.bg} ring-1 ring-current`} />
+                                    {opt.label}
+                                    {isActive && <Check className="h-3 w-3 ml-auto" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="my-6 h-px bg-[var(--border-subtle)]" />
+
+                    {/* SARA co-pilot — surfaces AI triage + one-tap draft */}
+                    <SaraCopilot msg={currentMsg} onUseDraft={applySaraDraft} />
+
+                    {/* Conversation timeline — day-grouped, direction-coded */}
+                    <ThreadTimeline
+                      thread={fullThread}
+                      threadSubject={threadSubject}
+                      selectedId={selectedId}
+                    />
+                  </div>
+                </div>
+
+                {/* ── Composer dock — replying happens beside the thread, never below it ── */}
+                <div className="flex-shrink-0 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[0_-10px_28px_-18px_rgba(15,15,25,0.25)]">
+                  {replyMode ? (
+                    <div ref={replyComposerRef} className="max-w-[860px] mx-auto w-full flex flex-col max-h-[60vh]">
+                      {/* Dock header: context + sender + close, one calm row */}
+                      <div className="flex items-center gap-2.5 px-4 h-11 border-b border-[var(--border-subtle)] flex-shrink-0">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--indigo-subtle)] flex-shrink-0">
+                          {replyMode === 'reply' ? <Reply className="h-3.5 w-3.5 text-[var(--indigo)]" /> : <Forward className="h-3.5 w-3.5 text-[var(--indigo)]" />}
+                        </span>
+                        <span className="text-[13px] font-semibold text-[var(--text-primary)] flex-shrink-0">{replyMode === 'reply' ? 'Reply' : 'Forward'}</span>
+                        {replyMode === 'reply' && (
+                          <span className="text-[12px] text-[var(--text-tertiary)] truncate">to {currentMsg.from_email}</span>
+                        )}
+                        <span className="flex-1" />
+                        <span className="text-[11px] text-[var(--text-tertiary)] hidden sm:block flex-shrink-0">From</span>
+                        <div className="max-w-[260px] min-w-0">
+                          <SenderSelect accounts={smtpAccounts} value={replySenderId} onChange={setReplySenderId} />
+                        </div>
+                        <div className="h-4 w-px bg-[var(--border-subtle)] flex-shrink-0" />
+                        <button onClick={() => setReplyMode(null)} title="Close composer" className="icon-btn flex-shrink-0"><X className="h-3.5 w-3.5" /></button>
+                      </div>
+                      {replyMode === 'forward' && (
+                        <div className="flex items-center px-4 py-2 border-b border-[var(--border-subtle)] flex-shrink-0">
+                          <span className="text-xs font-medium text-[var(--text-tertiary)] w-10">To</span>
+                          <input value={forwardTo} onChange={e => setForwardTo(e.target.value)} className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none" placeholder="recipient@example.com" autoFocus />
+                        </div>
+                      )}
+                      {/* Editor + forward preview scroll inside the dock */}
+                      <div className="flex-1 min-h-0 overflow-y-auto">
+                        <RichTextEditor
+                          key={replyMode}
+                          placeholder={replyMode === 'reply' ? 'Write your reply…' : 'Add a note (optional)…'}
+                          onChange={replyEditor.handleChange}
+                          templates={templates}
+                          minHeight="170px"
+                          autoFocus={replyMode === 'reply'}
+                        />
+                        {replyMode === 'forward' && (
+                          <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40">
+                            <div className="px-4 py-2.5">
+                              <p className="text-[10px] font-semibold text-[var(--text-muted)] mb-1.5">Forwarded message</p>
+                              <div className="text-[11px] text-[var(--text-tertiary)] space-y-0.5">
+                                <p><span className="font-medium text-[var(--text-secondary)]">From:</span> {currentMsg.from_email}</p>
+                                <p><span className="font-medium text-[var(--text-secondary)]">Date:</span> {formatFullDate(currentMsg.received_at)}</p>
+                                <p><span className="font-medium text-[var(--text-secondary)]">Subject:</span> {currentMsg.subject || '(no subject)'}</p>
+                                <p><span className="font-medium text-[var(--text-secondary)]">To:</span> {currentMsg.to_email}</p>
+                              </div>
+                            </div>
+                            <div className="max-h-[140px] overflow-y-auto border-t border-[var(--border-subtle)]">
+                              <EmailBody html={currentMsg.body_html} text={currentMsg.body_text} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      {/* AI Assist Bar */}
+                      {replyMode === 'reply' && (
+                        <AiAssistBar
+                          messageId={currentMsg.id}
+                          onInsert={handleAiInsert}
+                        />
+                      )}
+                      <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-subtle)]">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              const sid = replySenderId || undefined;
+                              if (replyMode === 'reply' && !replyEditor.isEmpty) replyMut.mutate({ id: currentMsg.id, body: replyEditor.text, body_html: replyEditor.html, smtp_account_id: sid });
+                              else if (replyMode === 'forward' && forwardTo.trim()) forwardMut.mutate({ id: currentMsg.id, to: forwardTo, note: replyEditor.text || undefined, body_html: replyEditor.html || undefined, smtp_account_id: sid });
+                            }}
+                            disabled={
+                              (replyMode === 'reply' ? replyEditor.isEmpty || replyMut.isPending : !forwardTo.trim() || forwardMut.isPending)
+                            }
+                            className="flex items-center gap-2 px-5 py-2 rounded-lg bg-[var(--indigo)] text-white text-sm font-semibold hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                            {replyMut.isPending || forwardMut.isPending ? 'Sending...' : replyMode === 'reply' ? 'Send Reply' : 'Forward'}
+                          </button>
+                          {replyMode === 'reply' && (
+                            <div className="relative">
+                              <button
+                                onClick={() => setShowReplySchedule(!showReplySchedule)}
+                                disabled={replyEditor.isEmpty || replyMut.isPending}
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40 ${
+                                  showReplySchedule
+                                    ? 'bg-[#6366F1]/10 text-[var(--indigo)] border border-[#6366F1]/20'
+                                    : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)]'
+                                }`}
+                                title="Schedule send"
+                              >
+                                <CalendarClock className="h-3.5 w-3.5" />
+                                <span className="text-[13px]">Schedule</span>
+                                <ChevronDown className={`h-3 w-3 transition-transform ${showReplySchedule ? 'rotate-180' : ''}`} />
+                              </button>
+                              {showReplySchedule && (
+                                <ScheduleSendPicker
+                                  onSchedule={(scheduledAt) => {
+                                    const sid = replySenderId || undefined;
+                                    scheduleReplyMut.mutate({ id: currentMsg.id, body: replyEditor.text, body_html: replyEditor.html, smtp_account_id: sid, scheduled_at: scheduledAt });
+                                    setShowReplySchedule(false);
+                                  }}
+                                  onClose={() => setShowReplySchedule(false)}
+                                />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <button onClick={() => setReplyMode(null)} className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">Discard</button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Idle state: a one-click reply bar keeps the composer a thought away */
+                    <div className="max-w-[860px] mx-auto w-full px-4 py-3 flex items-center gap-2.5">
+                      <Avatar name={threadContactName || undefined} email={threadContactEmail || undefined} size="md" />
+                      <button
+                        onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
+                        className="flex-1 h-10 px-4 rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] text-left text-[13px] text-[var(--text-tertiary)] hover:border-[rgba(91,91,245,0.45)] hover:bg-[var(--bg-surface)] transition-colors"
+                      >
+                        Reply to {threadContactName || 'this conversation'}…
+                      </button>
+                      <button
+                        onClick={() => { setShowCompose(false); setReplyMode('forward'); setForwardTo(''); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
+                        title="Forward"
+                        className="icon-btn h-9 w-9 flex-shrink-0"
+                      >
+                        <Forward className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Contact context rail */}
+              {showContext && (
+                <ContactContextPanel msg={currentMsg} stats={threadStats} onCopyEmail={copyContactEmail} />
+              )}
+            </div>
+          </>
+        ) : (
+          <>
         {/* ── Command bar: view tabs + intent filter + search + actions ── */}
         <div className="flex items-center gap-1 px-4 h-[50px] border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-shrink-0 overflow-x-auto scrollbar-none">
           {([
@@ -2342,297 +2636,9 @@ export function InboxPage() {
             )}
           </div>
         )}
+          </>
+        )}
       </div>
-
-      {/* ── Focus panel — the thread slides over the table ── */}
-      {currentMsg && folder !== 'scheduled' && (
-        <>
-          <div
-            className="fixed inset-x-0 bottom-0 top-[56px] z-40 bg-[rgba(27,27,31,0.14)]"
-            onClick={() => setSelectedId(null)}
-          />
-          <aside className="fixed right-0 top-[56px] bottom-0 z-50 w-[min(1000px,85vw)] bg-[var(--bg-surface)] border-l border-[var(--border-subtle)] shadow-[var(--shadow-xl)] rounded-l-[14px] overflow-hidden flex flex-col animate-slide-in">
-              {/* Toolbar */}
-              <div className="flex items-center gap-1 px-4 py-2 border-b border-[var(--border-subtle)]">
-                <button onClick={() => setSelectedId(null)} title="Close (Esc)" className="p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
-                  <ArrowLeft className="h-4 w-4" />
-                </button>
-                <div className="flex-1" />
-                <button onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }} title="Reply" className="p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
-                  <Reply className="h-4 w-4" />
-                </button>
-                <button onClick={() => { setShowCompose(false); setReplyMode('forward'); setForwardTo(''); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }} title="Forward" className="p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
-                  <Forward className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => toggleStarMut.mutate(currentMsg.id)}
-                  title={currentMsg.is_starred ? 'Unstar' : 'Star'}
-                  className="p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
-                >
-                  <Star className={`h-4 w-4 ${currentMsg.is_starred ? 'text-amber-400 fill-amber-400' : ''}`} />
-                </button>
-                <button
-                  onClick={() => handleArchiveToggle(currentMsg)}
-                  title={archiveLabel}
-                  className="p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
-                >
-                  <ArchiveIcon className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => currentMsg.is_read ? markUnreadMut.mutate(currentMsg.id) : markReadMut.mutate(currentMsg.id)}
-                  title={currentMsg.is_read ? 'Mark unread' : 'Mark read'}
-                  className="p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
-                >
-                  {currentMsg.is_read ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-                <div className="h-4 w-px bg-[var(--border-subtle)] mx-1 hidden xl:block" />
-                <button
-                  onClick={() => setShowContext(v => !v)}
-                  title={showContext ? 'Hide contact details' : 'Show contact details'}
-                  className={cn(
-                    'p-2 rounded-lg transition-colors hidden xl:block',
-                    showContext
-                      ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
-                      : 'hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
-                  )}
-                >
-                  {showContext ? <PanelRightClose className="h-4 w-4" /> : <PanelRight className="h-4 w-4" />}
-                </button>
-              </div>
-
-              {/* Conversation workspace: thread canvas + composer dock + contact rail */}
-              <div className="flex-1 flex min-h-0">
-                <div className="flex-1 min-w-0 flex flex-col">
-                <div className="flex-1 overflow-y-auto bg-[var(--bg-app)]">
-                  <div className="max-w-3xl mx-auto px-6 py-5">
-                  {/* Thread header — subject first, contact meta below */}
-                  <div className="mb-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <h1 className="text-[16.5px] font-semibold text-[var(--text-primary)] leading-snug tracking-[-0.015em] min-w-0">
-                        {threadSubject || '(no subject)'}
-                      </h1>
-                      {/* Clickable tag dropdown */}
-                      <div className="relative flex-shrink-0 mt-0.5">
-                        <button
-                          onClick={() => setShowTagDropdown(!showTagDropdown)}
-                          className={`flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors ${
-                            currentMsg.sara_intent
-                              ? `${(INTENT_COLORS[currentMsg.sara_intent] || INTENT_COLORS.other).bg} ${(INTENT_COLORS[currentMsg.sara_intent] || INTENT_COLORS.other).text}`
-                              : 'bg-[var(--bg-surface)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]'
-                          }`}
-                        >
-                          <Tag className="h-3 w-3" />
-                          {currentMsg.sara_intent
-                            ? (INTENT_COLORS[currentMsg.sara_intent] || INTENT_COLORS.other).label
-                            : 'Add Tag'}
-                          <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
-                        </button>
-                        {showTagDropdown && (
-                          <>
-                            <div className="fixed inset-0 z-40" onClick={() => setShowTagDropdown(false)} />
-                            <div className="absolute right-0 top-full mt-1 z-50 w-48 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl shadow-lg overflow-hidden">
-                              {currentMsg.sara_intent && (
-                                <button
-                                  onClick={() => { setTagMut.mutate({ id: currentMsg.id, tag: '' }); setShowTagDropdown(false); }}
-                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-subtle)]"
-                                >
-                                  <X className="h-3 w-3" />
-                                  Remove Tag
-                                </button>
-                              )}
-                              {TAG_OPTIONS.filter(t => t.value !== 'all').map(opt => {
-                                const info = INTENT_COLORS[opt.value] || INTENT_COLORS.other;
-                                const isActive = currentMsg.sara_intent === opt.value;
-                                return (
-                                  <button
-                                    key={opt.value}
-                                    onClick={() => { setTagMut.mutate({ id: currentMsg.id, tag: opt.value }); setShowTagDropdown(false); }}
-                                    className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
-                                      isActive ? 'bg-[var(--bg-elevated)]' : 'hover:bg-[var(--bg-hover)]'
-                                    } ${info.text}`}
-                                  >
-                                    <span className={`w-2 h-2 rounded-full ${info.bg} ring-1 ring-current`} />
-                                    {opt.label}
-                                    {isActive && <Check className="h-3 w-3 ml-auto" />}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="mt-1.5 flex items-center gap-2 text-[12px] text-[var(--text-tertiary)] flex-wrap">
-                      <span className="font-medium text-[var(--text-secondary)]">{threadContactName}</span>
-                      {threadContactEmail && (
-                        <>
-                          <span className="sep-dot" />
-                          <span className="truncate max-w-[220px]">{threadContactEmail}</span>
-                        </>
-                      )}
-                      <span className="sep-dot" />
-                      <span className="tabular">{threadStats.total} message{threadStats.total === 1 ? '' : 's'}</span>
-                      {threadStats.first && threadStats.total > 1 && (
-                        <>
-                          <span className="sep-dot" />
-                          <span>Started {new Date(threadStats.first).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* SARA co-pilot — surfaces AI triage + one-tap draft */}
-                  <SaraCopilot msg={currentMsg} onUseDraft={applySaraDraft} />
-
-                  {/* Conversation timeline — day-grouped, direction-coded */}
-                  <ThreadTimeline
-                    thread={fullThread}
-                    threadSubject={threadSubject}
-                    selectedId={selectedId}
-                  />
-
-                  </div>
-                </div>
-
-                {/* ── Composer dock — replying happens beside the thread, never below it ── */}
-                <div className="flex-shrink-0 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[0_-10px_28px_-18px_rgba(15,15,25,0.25)]">
-                  {replyMode ? (
-                    <div ref={replyComposerRef} className="max-w-3xl mx-auto w-full flex flex-col max-h-[60vh]">
-                      {/* Dock header: context + sender + close, one calm row */}
-                      <div className="flex items-center gap-2.5 px-4 h-11 border-b border-[var(--border-subtle)] flex-shrink-0">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--indigo-subtle)] flex-shrink-0">
-                          {replyMode === 'reply' ? <Reply className="h-3.5 w-3.5 text-[var(--indigo)]" /> : <Forward className="h-3.5 w-3.5 text-[var(--indigo)]" />}
-                        </span>
-                        <span className="text-[13px] font-semibold text-[var(--text-primary)] flex-shrink-0">{replyMode === 'reply' ? 'Reply' : 'Forward'}</span>
-                        {replyMode === 'reply' && (
-                          <span className="text-[12px] text-[var(--text-tertiary)] truncate">to {currentMsg.from_email}</span>
-                        )}
-                        <span className="flex-1" />
-                        <span className="text-[11px] text-[var(--text-tertiary)] hidden sm:block flex-shrink-0">From</span>
-                        <div className="max-w-[260px] min-w-0">
-                          <SenderSelect accounts={smtpAccounts} value={replySenderId} onChange={setReplySenderId} />
-                        </div>
-                        <div className="h-4 w-px bg-[var(--border-subtle)] flex-shrink-0" />
-                        <button onClick={() => setReplyMode(null)} title="Close composer" className="icon-btn flex-shrink-0"><X className="h-3.5 w-3.5" /></button>
-                      </div>
-                      {replyMode === 'forward' && (
-                        <div className="flex items-center px-4 py-2 border-b border-[var(--border-subtle)] flex-shrink-0">
-                          <span className="text-xs font-medium text-[var(--text-tertiary)] w-10">To</span>
-                          <input value={forwardTo} onChange={e => setForwardTo(e.target.value)} className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none" placeholder="recipient@example.com" autoFocus />
-                        </div>
-                      )}
-                      {/* Editor + forward preview scroll inside the dock */}
-                      <div className="flex-1 min-h-0 overflow-y-auto">
-                        <RichTextEditor
-                          key={replyMode}
-                          placeholder={replyMode === 'reply' ? 'Write your reply…' : 'Add a note (optional)…'}
-                          onChange={replyEditor.handleChange}
-                          templates={templates}
-                          minHeight="170px"
-                          autoFocus={replyMode === 'reply'}
-                        />
-                        {replyMode === 'forward' && (
-                          <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40">
-                            <div className="px-4 py-2.5">
-                              <p className="text-[10px] font-semibold text-[var(--text-muted)] mb-1.5">Forwarded message</p>
-                              <div className="text-[11px] text-[var(--text-tertiary)] space-y-0.5">
-                                <p><span className="font-medium text-[var(--text-secondary)]">From:</span> {currentMsg.from_email}</p>
-                                <p><span className="font-medium text-[var(--text-secondary)]">Date:</span> {formatFullDate(currentMsg.received_at)}</p>
-                                <p><span className="font-medium text-[var(--text-secondary)]">Subject:</span> {currentMsg.subject || '(no subject)'}</p>
-                                <p><span className="font-medium text-[var(--text-secondary)]">To:</span> {currentMsg.to_email}</p>
-                              </div>
-                            </div>
-                            <div className="max-h-[140px] overflow-y-auto border-t border-[var(--border-subtle)]">
-                              <EmailBody html={currentMsg.body_html} text={currentMsg.body_text} />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      {/* AI Assist Bar */}
-                      {replyMode === 'reply' && (
-                        <AiAssistBar
-                          messageId={currentMsg.id}
-                          onInsert={handleAiInsert}
-                        />
-                      )}
-                      <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-subtle)]">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              const sid = replySenderId || undefined;
-                              if (replyMode === 'reply' && !replyEditor.isEmpty) replyMut.mutate({ id: currentMsg.id, body: replyEditor.text, body_html: replyEditor.html, smtp_account_id: sid });
-                              else if (replyMode === 'forward' && forwardTo.trim()) forwardMut.mutate({ id: currentMsg.id, to: forwardTo, note: replyEditor.text || undefined, body_html: replyEditor.html || undefined, smtp_account_id: sid });
-                            }}
-                            disabled={
-                              (replyMode === 'reply' ? replyEditor.isEmpty || replyMut.isPending : !forwardTo.trim() || forwardMut.isPending)
-                            }
-                            className="flex items-center gap-2 px-5 py-2 rounded-lg bg-[var(--indigo)] text-white text-sm font-semibold hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
-                          >
-                            <Send className="h-3.5 w-3.5" />
-                            {replyMut.isPending || forwardMut.isPending ? 'Sending...' : replyMode === 'reply' ? 'Send Reply' : 'Forward'}
-                          </button>
-                          {replyMode === 'reply' && (
-                            <div className="relative">
-                              <button
-                                onClick={() => setShowReplySchedule(!showReplySchedule)}
-                                disabled={replyEditor.isEmpty || replyMut.isPending}
-                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40 ${
-                                  showReplySchedule
-                                    ? 'bg-[#6366F1]/10 text-[var(--indigo)] border border-[#6366F1]/20'
-                                    : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)]'
-                                }`}
-                                title="Schedule send"
-                              >
-                                <CalendarClock className="h-3.5 w-3.5" />
-                                <span className="text-[13px]">Schedule</span>
-                                <ChevronDown className={`h-3 w-3 transition-transform ${showReplySchedule ? 'rotate-180' : ''}`} />
-                              </button>
-                              {showReplySchedule && (
-                                <ScheduleSendPicker
-                                  onSchedule={(scheduledAt) => {
-                                    const sid = replySenderId || undefined;
-                                    scheduleReplyMut.mutate({ id: currentMsg.id, body: replyEditor.text, body_html: replyEditor.html, smtp_account_id: sid, scheduled_at: scheduledAt });
-                                    setShowReplySchedule(false);
-                                  }}
-                                  onClose={() => setShowReplySchedule(false)}
-                                />
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <button onClick={() => setReplyMode(null)} className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">Discard</button>
-                      </div>
-                    </div>
-                  ) : (
-                    /* Idle state: a one-click reply bar keeps the composer a thought away */
-                    <div className="max-w-3xl mx-auto w-full px-4 py-3 flex items-center gap-2.5">
-                      <Avatar name={threadContactName || undefined} email={threadContactEmail || undefined} size="md" />
-                      <button
-                        onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
-                        className="flex-1 h-10 px-4 rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] text-left text-[13px] text-[var(--text-tertiary)] hover:border-[rgba(91,91,245,0.45)] hover:bg-[var(--bg-surface)] transition-colors"
-                      >
-                        Reply to {threadContactName || 'this conversation'}…
-                      </button>
-                      <button
-                        onClick={() => { setShowCompose(false); setReplyMode('forward'); setForwardTo(''); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
-                        title="Forward"
-                        className="icon-btn h-9 w-9 flex-shrink-0"
-                      >
-                        <Forward className="h-4 w-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-                </div>
-
-                {/* Contact context rail */}
-                {showContext && (
-                  <ContactContextPanel msg={currentMsg} stats={threadStats} onCopyEmail={copyContactEmail} />
-                )}
-              </div>
-          </aside>
-        </>
-      )}
 
       {showCompose && (
         <ComposeModal
