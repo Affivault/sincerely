@@ -157,7 +157,8 @@ function stripHtml(str: string): string {
 function msgSnippet(msg: Message): string {
   const raw = msg.body_text || msg.body_html || '';
   const text = stripHtml(raw);
-  return text.slice(0, 120).trim() || '(no content)';
+  // Empty string (not a placeholder) so rows can simply omit the line.
+  return text.slice(0, 120).trim();
 }
 
 /** "Today" / "Yesterday" / "Monday" / "Mon, Jun 12" — for timeline day separators. */
@@ -233,6 +234,18 @@ const TAG_OPTIONS = [
   { value: 'bounce', label: 'Bounce' },
   { value: 'other', label: 'Other' },
 ];
+
+/* Dot colors for the intent rows in the mail-nav rail */
+const INTENT_DOTS: Record<string, string> = {
+  interested: '#10B981',
+  meeting: '#3B82F6',
+  not_now: '#64748B',
+  objection: '#F59E0B',
+  out_of_office: '#8B5CF6',
+  unsubscribe: '#EF4444',
+  bounce: '#F43F5E',
+  other: '#94A3B8',
+};
 
 /* ─── Email HTML Renderer (sandboxed iframe) ──────── */
 function EmailBody({ html, text }: { html: string | null; text: string | null }) {
@@ -1493,17 +1506,16 @@ function NavRow({ item, active, collapsed, count, onClick }: {
       onClick={onClick}
       title={collapsed ? item.label : undefined}
       className={cn(
-        'group relative flex items-center w-full rounded-lg transition-colors',
-        collapsed ? 'h-9 justify-center' : 'h-[30px] gap-2.5 px-2.5',
+        'group relative flex items-center w-full rounded-[7px] border transition-colors',
+        collapsed ? 'h-8 justify-center' : 'h-[29px] gap-2.5 px-2',
         active
-          ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
-          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
+          ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] border-[var(--border-subtle)] shadow-[0_1px_2px_rgba(27,27,31,0.05)]'
+          : 'border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
       )}
     >
-      {active && !collapsed && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2.5px] rounded-r-full bg-[var(--indigo)]" />}
       {item.dot
         ? <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: item.dot }} />
-        : Icon && <Icon className="h-[15px] w-[15px] flex-shrink-0" strokeWidth={active ? 2.2 : 1.8} />}
+        : Icon && <Icon className={cn('h-[14px] w-[14px] flex-shrink-0', active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} strokeWidth={1.8} />}
       {!collapsed && (
         <>
           <span className="flex-1 text-left text-[12.5px] font-medium truncate">{item.label}</span>
@@ -2092,16 +2104,109 @@ export function InboxPage() {
     <div className="-mx-8 -my-6" style={{ height: 'calc(100vh - 56px)' }}>
       <div className="h-full flex bg-[var(--bg-app)]">
 
-        {/* ── Conversation list — views live here; one sidebar per app ── */}
-        <div className="flex flex-col border-r border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-shrink-0" style={{ width: '400px', minWidth: '360px' }}>
-          {/* Row 1: view switcher + actions */}
-          <div className="flex items-center gap-1.5 px-3 h-[52px] border-b border-[var(--border-subtle)]">
-            <FolderSelector
-              folders={foldersList}
-              active={folder}
-              onChange={(f) => { setFolder(f); setSelectedId(null); setTagFilter('all'); setQuickFilter('all'); setUnreadOnly(false); }}
+        {/* ── Mail nav rail — folders, smart views and intents, always visible ── */}
+        <nav className={cn(
+          'flex flex-col border-r border-[var(--border-subtle)] bg-[var(--bg-app)] flex-shrink-0 transition-[width] duration-200',
+          sidebarCollapsed ? 'w-[52px]' : 'w-[196px]'
+        )}>
+          <div className={cn('pt-3 pb-2', sidebarCollapsed ? 'px-2' : 'px-2.5')}>
+            <button
+              onClick={() => { setReplyMode(null); setShowCompose(true); }}
+              title="Compose (c)"
+              className={cn(
+                'flex items-center justify-center gap-1.5 rounded-[8px] bg-[var(--indigo)] text-white text-[12.5px] font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(91,91,245,0.35)]',
+                sidebarCollapsed ? 'h-8 w-8 mx-auto' : 'h-8 w-full'
+              )}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              {!sidebarCollapsed && 'Compose'}
+            </button>
+          </div>
+
+          <div className={cn('flex-1 overflow-y-auto pb-2 space-y-px', sidebarCollapsed ? 'px-2' : 'px-2.5')}>
+            {foldersList.map(f => (
+              <NavRow
+                key={f.id}
+                item={{ id: f.id, label: f.label, icon: f.icon }}
+                active={folder === f.id}
+                collapsed={sidebarCollapsed}
+                count={f.count}
+                onClick={() => { setFolder(f.id); setSelectedId(null); setTagFilter('all'); setQuickFilter('all'); setUnreadOnly(false); }}
+              />
+            ))}
+
+            {!sidebarCollapsed && (
+              <div className="px-2 pt-4 pb-1">
+                <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Views</span>
+              </div>
+            )}
+            {sidebarCollapsed && <div className="my-2 mx-auto w-4 h-px bg-[var(--border-default)]" />}
+            <NavRow
+              item={{ id: 'unread', label: 'Unread', icon: MailOpen }}
+              active={unreadOnly}
+              collapsed={sidebarCollapsed}
+              count={folder === 'inbox' ? viewCounts.unread : undefined}
+              onClick={() => setUnreadOnly(v => !v)}
             />
-            <span className="text-[11px] font-medium tabular text-[var(--text-tertiary)]">{visibleConversations.length}</span>
+            <NavRow
+              item={{ id: 'hot', label: 'Hot leads', icon: Sparkles }}
+              active={quickFilter === 'hot'}
+              collapsed={sidebarCollapsed}
+              count={viewCounts.hot}
+              onClick={() => { setQuickFilter(quickFilter === 'hot' ? 'all' : 'hot'); setTagFilter('all'); setUnreadOnly(false); setSelectedId(null); }}
+            />
+            <NavRow
+              item={{ id: 'needs', label: 'Needs reply', icon: Reply }}
+              active={quickFilter === 'needs_reply'}
+              collapsed={sidebarCollapsed}
+              count={viewCounts.needs_reply}
+              onClick={() => { setQuickFilter(quickFilter === 'needs_reply' ? 'all' : 'needs_reply'); setTagFilter('all'); setUnreadOnly(false); setSelectedId(null); }}
+            />
+
+            {!sidebarCollapsed && (
+              <div className="px-2 pt-4 pb-1">
+                <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Intents</span>
+              </div>
+            )}
+            {sidebarCollapsed && <div className="my-2 mx-auto w-4 h-px bg-[var(--border-default)]" />}
+            {TAG_OPTIONS.filter(t => t.value !== 'all').map(t => (
+              <NavRow
+                key={t.value}
+                item={{ id: t.value, label: t.label, dot: INTENT_DOTS[t.value] || '#94A3B8' }}
+                active={tagFilter === t.value}
+                collapsed={sidebarCollapsed}
+                count={viewCounts[t.value]}
+                onClick={() => {
+                  const next = tagFilter === t.value ? 'all' : t.value;
+                  setTagFilter(next); setQuickFilter('all'); setUnreadOnly(false); setSelectedId(null);
+                }}
+              />
+            ))}
+          </div>
+
+          <div className={cn('border-t border-[var(--border-subtle)] py-1.5', sidebarCollapsed ? 'px-2' : 'px-2.5')}>
+            <button
+              onClick={() => setSidebarCollapsed(v => !v)}
+              title={sidebarCollapsed ? 'Expand' : 'Collapse'}
+              className={cn('icon-btn', sidebarCollapsed ? 'mx-auto' : '')}
+            >
+              {sidebarCollapsed ? <PanelRight className="h-3.5 w-3.5 rotate-180" /> : <PanelRightClose className="h-3.5 w-3.5 rotate-180" />}
+            </button>
+          </div>
+        </nav>
+
+        {/* ── Conversation list ── */}
+        <div className="flex flex-col border-r border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-shrink-0" style={{ width: '360px', minWidth: '320px' }}>
+          {/* Header: current view + actions */}
+          <div className="flex items-center gap-2 px-3.5 h-[52px] border-b border-[var(--border-subtle)]">
+            <h2 className="text-[14px] font-semibold text-[var(--text-primary)] tracking-[-0.01em] truncate">
+              {tagFilter !== 'all'
+                ? TAG_OPTIONS.find(t => t.value === tagFilter)?.label
+                : quickFilter !== 'all'
+                  ? QUICK_FILTERS.find(f => f.id === quickFilter)?.label
+                  : unreadOnly ? 'Unread' : foldersList.find(f => f.id === folder)?.label}
+            </h2>
+            <span className="text-[11px] font-medium tabular text-[var(--text-tertiary)]">{folder === 'scheduled' ? '' : visibleConversations.length}</span>
             {isFetching && <Loader2 className="h-3.5 w-3.5 text-[var(--text-tertiary)] animate-spin" />}
             <div className="flex-1" />
             <button onClick={handleRefresh} disabled={isRefreshing || isFetching} title="Sync inboxes" className="icon-btn flex-shrink-0 disabled:opacity-40">
@@ -2110,16 +2215,10 @@ export function InboxPage() {
             <button onClick={() => markAllReadMut.mutate()} disabled={markAllReadMut.isPending} title="Mark all read" className="icon-btn flex-shrink-0">
               <CheckCheck className="h-4 w-4" />
             </button>
-            <button
-              onClick={() => { setReplyMode(null); setShowCompose(true); }}
-              className="ml-1 flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo)] text-white text-[12px] font-semibold hover:bg-[var(--indigo-hover)] transition-colors flex-shrink-0 shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
-            >
-              <Pencil className="h-3.5 w-3.5" /> Compose
-            </button>
           </div>
 
-          {/* Row 2: search + smart-view chips */}
-          <div className="px-3 pt-2.5 pb-2 border-b border-[var(--border-subtle)]">
+          {/* Search */}
+          <div className="px-3 py-2 border-b border-[var(--border-subtle)]">
             <form onSubmit={handleSearch}>
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
@@ -2136,29 +2235,6 @@ export function InboxPage() {
                 )}
               </div>
             </form>
-            <div className="mt-2 flex items-center gap-1 overflow-x-auto scrollbar-none -mx-1 px-1">
-              {[
-                { id: 'all', label: 'All', count: undefined as number | undefined, active: quickFilter === 'all' && tagFilter === 'all' && !unreadOnly, onClick: () => { setQuickFilter('all'); setTagFilter('all'); setUnreadOnly(false); setSelectedId(null); } },
-                { id: 'unread', label: 'Unread', count: folder === 'inbox' ? viewCounts.unread : undefined, active: unreadOnly, onClick: () => setUnreadOnly(v => !v) },
-                { id: 'hot', label: 'Hot', count: viewCounts.hot, active: quickFilter === 'hot', onClick: () => { setQuickFilter('hot'); setTagFilter('all'); setUnreadOnly(false); setSelectedId(null); } },
-                { id: 'needs', label: 'Needs reply', count: viewCounts.needs_reply, active: quickFilter === 'needs_reply', onClick: () => { setQuickFilter('needs_reply'); setTagFilter('all'); setUnreadOnly(false); setSelectedId(null); } },
-                { id: 'meetings', label: 'Meetings', count: viewCounts.meeting, active: tagFilter === 'meeting', onClick: () => { setTagFilter('meeting'); setQuickFilter('all'); setUnreadOnly(false); setSelectedId(null); } },
-              ].map(chip => (
-                <button
-                  key={chip.id}
-                  onClick={chip.onClick}
-                  className={cn(
-                    'flex-shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-md text-[11px] font-semibold whitespace-nowrap transition-colors',
-                    chip.active ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-                  )}
-                >
-                  {chip.label}
-                  {chip.count != null && chip.count > 0 && <span className="tabular text-[10px] opacity-80">{chip.count}</span>}
-                </button>
-              ))}
-              <div className="h-3.5 w-px bg-[var(--border-subtle)] mx-0.5 flex-shrink-0" />
-              <TagFilterDropdown value={tagFilter} onChange={v => { setTagFilter(v); setQuickFilter('all'); setSelectedId(null); }} />
-            </div>
           </div>
 
           {/* Connection error banner — only when sync hit errors */}
@@ -2257,7 +2333,9 @@ export function InboxPage() {
                         <p className={cn('text-[12.5px] truncate mt-0.5', conv.hasUnread ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]')}>
                           {msg.subject || '(no subject)'}
                         </p>
-                        <p className="text-[11.5px] text-[var(--text-tertiary)] truncate mt-0.5">{msgSnippet(msg)}</p>
+                        {msgSnippet(msg) && (
+                          <p className="text-[11.5px] text-[var(--text-tertiary)] truncate mt-0.5">{msgSnippet(msg)}</p>
+                        )}
                         {(intent || msg.campaign_name || (msg.smtp_email && !isOutbound)) && (
                           <div className="flex items-center gap-1.5 mt-2 overflow-hidden">
                             {intent && (
