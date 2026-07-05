@@ -147,9 +147,15 @@ function AppContent() {
         collapsed ? 'pl-[52px]' : 'pl-[240px]'
       )}>
         {/* Generous workspace width — effectively full-bleed on laptops so data
-            tables breathe, while capping ultrawide so forms stay readable. */}
-        <main className="px-8 py-7 max-w-[1760px] mx-auto">
-          <UpgradeNag />
+            tables breathe, while capping ultrawide so forms stay readable.
+            The Unibox is a full-viewport app surface: no padding, no max-width,
+            no promo banner — it owns every pixel below the header. */}
+        <main className={cn(
+          location.pathname.startsWith('/inbox')
+            ? 'max-w-none p-0'
+            : 'px-8 py-7 max-w-[1760px] mx-auto'
+        )}>
+          {!location.pathname.startsWith('/inbox') && <UpgradeNag />}
           {/* key on pathname so the fade-up replays on every route change */}
           <div key={location.pathname} className="route-fade">
             <ErrorBoundary>
