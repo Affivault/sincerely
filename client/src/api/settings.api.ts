@@ -38,10 +38,10 @@ export const settingsApi = {
     return data;
   },
 
-  changePassword: async (newPassword: string) => {
+  changePassword: async (currentPassword: string, newPassword: string) => {
     const { data } = await apiClient.post<{ success: boolean; message: string }>(
       '/settings/change-password',
-      { new_password: newPassword }
+      { current_password: currentPassword, new_password: newPassword }
     );
     return data;
   },

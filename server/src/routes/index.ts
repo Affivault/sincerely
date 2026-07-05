@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.middleware.js';
-import { apiKeyMiddleware } from '../middleware/apikey.middleware.js';
+import { apiKeyMiddleware, enforceApiKeyScope } from '../middleware/apikey.middleware.js';
 import { contactRoutes } from './contact.routes.js';
 import { tagRoutes } from './tag.routes.js';
 import { listsRoutes } from './lists.routes.js';
@@ -31,6 +31,7 @@ export const routes = Router();
 // Otherwise passes through to JWT auth middleware.
 routes.use(apiKeyMiddleware);
 routes.use(authMiddleware);
+routes.use(enforceApiKeyScope);
 
 routes.use('/contacts', contactRoutes);
 routes.use('/tags', tagRoutes);

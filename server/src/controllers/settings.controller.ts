@@ -1,7 +1,9 @@
 import { Response, NextFunction } from 'express';
+import { createClient } from '@supabase/supabase-js';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { settingsService } from '../services/settings.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
+import { env } from '../config/env.js';
 
 export const settingsController = {
   async get(req: AuthRequest, res: Response, next: NextFunction) {
@@ -20,9 +22,23 @@ export const settingsController = {
 
   async changePassword(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { new_password } = req.body;
+      const { current_password, new_password } = req.body;
+      if (!current_password) {
+        return res.status(400).json({ error: 'Current password is required' });
+      }
       if (!new_password || new_password.length < 6) {
         return res.status(400).json({ error: 'Password must be at least 6 characters' });
+      }
+
+      // Re-authenticate with the current password before allowing the change,
+      // so a stolen/short-lived access token alone can't lock the real owner out.
+      const anonClient = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
+      const { error: reauthError } = await anonClient.auth.signInWithPassword({
+        email: req.userEmail!,
+        password: current_password,
+      });
+      if (reauthError) {
+        return res.status(401).json({ error: 'Current password is incorrect' });
       }
 
       const { error } = await supabaseAdmin.auth.admin.updateUserById(req.userId!, {
