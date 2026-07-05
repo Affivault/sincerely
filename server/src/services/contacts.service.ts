@@ -396,9 +396,18 @@ export const contactsService = {
       .eq('user_id', userId)
       .in('id', contactIds);
 
+    // Verify tags belong to user — otherwise another tenant's tag metadata
+    // could be attached to (and rendered for) this user's contacts.
+    const { data: tags } = await supabaseAdmin
+      .from('tags')
+      .select('id')
+      .eq('user_id', userId)
+      .in('id', tagIds);
+
     const validIds = (contacts || []).map((c: any) => c.id);
+    const validTagIds = (tags || []).map((t: any) => t.id);
     const rows = validIds.flatMap((cId: string) =>
-      tagIds.map((tId: string) => ({ contact_id: cId, tag_id: tId }))
+      validTagIds.map((tId: string) => ({ contact_id: cId, tag_id: tId }))
     );
 
     if (rows.length > 0) {
@@ -415,14 +424,21 @@ export const contactsService = {
       .eq('user_id', userId)
       .in('id', contactIds);
 
+    const { data: tags } = await supabaseAdmin
+      .from('tags')
+      .select('id')
+      .eq('user_id', userId)
+      .in('id', tagIds);
+
     const validIds = (contacts || []).map((c: any) => c.id);
-    if (validIds.length === 0) return;
+    const validTagIds = (tags || []).map((t: any) => t.id);
+    if (validIds.length === 0 || validTagIds.length === 0) return;
 
     const { error } = await supabaseAdmin
       .from('contact_tags')
       .delete()
       .in('contact_id', validIds)
-      .in('tag_id', tagIds);
+      .in('tag_id', validTagIds);
     if (error) throw new AppError(error.message, 500);
   },
 

@@ -29,6 +29,22 @@ export const campaignsService = {
     if (!data) throw new AppError('Campaign not found', 404);
   },
 
+  /**
+   * Verify a smtp_account_id belongs to this user before it can be attached to
+   * a campaign. Without this, a user could point their campaign's smtp_account_id
+   * at another tenant's account and send real email through their mailbox.
+   */
+  async assertSmtpAccountOwnership(userId: string, smtpAccountId: string): Promise<void> {
+    const { data, error } = await supabaseAdmin
+      .from('smtp_accounts')
+      .select('id')
+      .eq('id', smtpAccountId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error) throw new AppError(error.message, 500);
+    if (!data) throw new AppError('SMTP account not found', 404);
+  },
+
   async list(userId: string, params: ListParams) {
     const { page, limit, from, to } = getPagination(params);
 
@@ -88,6 +104,10 @@ export const campaignsService = {
   },
 
   async create(userId: string, input: any) {
+    if (input.smtp_account_id) {
+      await this.assertSmtpAccountOwnership(userId, input.smtp_account_id);
+    }
+
     const { data, error } = await supabaseAdmin
       .from('campaigns')
       .insert({ ...input, user_id: userId, status: 'draft' })
@@ -103,6 +123,10 @@ export const campaignsService = {
     const existing = await this.get(userId, id);
     if (existing.status !== 'draft') {
       throw new AppError('Can only edit campaigns in draft status', 400);
+    }
+
+    if (input.smtp_account_id) {
+      await this.assertSmtpAccountOwnership(userId, input.smtp_account_id);
     }
 
     const { data, error } = await supabaseAdmin
@@ -161,6 +185,7 @@ export const campaignsService = {
         .from('smtp_accounts')
         .select('id, label, is_active')
         .eq('id', campaign.smtp_account_id)
+        .eq('user_id', userId)
         .single();
       if (!smtp || !smtp.is_active) {
         throw new AppError('Campaign SMTP account is inactive or missing. Check your email account settings.', 400);

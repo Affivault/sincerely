@@ -49,6 +49,13 @@ function isTypingTarget(el: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable;
 }
 
+// Global shortcuts (like `n` for "new campaign") must not fire while a modal
+// is open — e.g. focus resting on a button inside a template editor — or
+// they silently navigate away and discard whatever the modal held.
+function isModalOpen(): boolean {
+  return document.querySelector('[role="dialog"]') !== null;
+}
+
 function AppContent() {
   const { collapsed } = useSidebar();
   const { open, closePalette, togglePalette } = useCommandPalette();
@@ -57,6 +64,7 @@ function AppContent() {
   const navigate = useNavigate();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const goPending = useRef<number | null>(null);
+  const prevUnreadRef = useRef<number>(0);
 
   // Wayfinding — document title tracks the current page
   useEffect(() => {
@@ -65,6 +73,28 @@ function AppContent() {
     document.title = `${page ? `${page} · ` : ''}Sincerely${badge}`;
     return () => { document.title = 'Sincerely'; };
   }, [unreadCount, location.pathname]);
+
+  // Desktop notification for new mail — lives here (the single top-level
+  // subscriber) rather than inside useUnreadCount, since that hook is called
+  // from both Sidebar and AppLayout and would otherwise fire twice.
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    if (unreadCount > prevUnreadRef.current && prevUnreadRef.current > 0) {
+      const diff = unreadCount - prevUnreadRef.current;
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('Sincerely Inbox', {
+          body: `You have ${diff} new message${diff !== 1 ? 's' : ''}`,
+          icon: '/favicon.png',
+        });
+      }
+    }
+    prevUnreadRef.current = unreadCount;
+  }, [unreadCount]);
 
   // Global ⌘K / Ctrl+K to summon the command palette
   useEffect(() => {
@@ -82,7 +112,7 @@ function AppContent() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (isTypingTarget(e.target)) return;
+      if (isTypingTarget(e.target) || isModalOpen()) return;
 
       // Second stroke of a pending `g` sequence
       if (goPending.current !== null) {

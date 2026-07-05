@@ -562,24 +562,54 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep }: F
     }
   }, [steps, onStepsChange, onEditStep]);
 
+  // Condition steps store true_branch_step/false_branch_step as raw array
+  // indices — removing or reordering steps without remapping them leaves
+  // existing conditions silently pointed at the wrong step (or one that no
+  // longer exists).
+  const remapConditionBranches = useCallback(
+    (newSteps: FlowStep[], remap: (value: number) => number | null) =>
+      newSteps.map((s) =>
+        s.step_type === StepType.Condition
+          ? {
+              ...s,
+              true_branch_step: s.true_branch_step != null ? remap(s.true_branch_step) ?? undefined : s.true_branch_step,
+              false_branch_step: s.false_branch_step != null ? remap(s.false_branch_step) ?? undefined : s.false_branch_step,
+            }
+          : s
+      ),
+    []
+  );
+
   const removeStep = useCallback((index: number) => {
-    onStepsChange(steps.filter((_, i) => i !== index));
+    const remapped = remapConditionBranches(
+      steps.filter((_, i) => i !== index),
+      (value) => {
+        if (value === index) return null; // the target step was deleted
+        return value > index ? value - 1 : value;
+      }
+    );
+    onStepsChange(remapped);
     // Keep the editor pointed at the same step after the indices shift down.
     if (editingStep === index) onEditStep(-1);
     else if (editingStep !== null && editingStep > index) onEditStep(editingStep - 1);
-  }, [steps, onStepsChange, editingStep, onEditStep]);
+  }, [steps, onStepsChange, editingStep, onEditStep, remapConditionBranches]);
 
   const moveStep = useCallback((from: number, to: number) => {
     if (to < 0 || to >= steps.length) return;
     const newSteps = [...steps];
     const [moved] = newSteps.splice(from, 1);
     newSteps.splice(to, 0, moved);
-    onStepsChange(newSteps);
+    const remapped = remapConditionBranches(newSteps, (value) => {
+      if (value === from) return to;
+      if (from < to) return value > from && value <= to ? value - 1 : value;
+      return value >= to && value < from ? value + 1 : value;
+    });
+    onStepsChange(remapped);
     // Remap the edited step's index to follow the reorder.
     if (editingStep === from) onEditStep(to);
     else if (editingStep !== null && editingStep > from && editingStep <= to) onEditStep(editingStep - 1);
     else if (editingStep !== null && editingStep < from && editingStep >= to) onEditStep(editingStep + 1);
-  }, [steps, onStepsChange, editingStep, onEditStep]);
+  }, [steps, onStepsChange, editingStep, onEditStep, remapConditionBranches]);
 
   const updateStep = useCallback((index: number, updates: Partial<FlowStep>) => {
     onStepsChange(steps.map((s, i) => (i === index ? { ...s, ...updates } : s)));

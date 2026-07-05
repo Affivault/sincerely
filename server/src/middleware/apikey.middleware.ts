@@ -4,9 +4,32 @@ import { validateKey } from '../services/apikey.service.js';
 export interface ApiKeyRequest extends Request {
   userId?: string;
   userEmail?: string;
+  apiKeyId?: string;
   apiKeyScopes?: string[];
   apiKeyRateLimit?: number;
   authMethod?: 'jwt' | 'apikey';
+}
+
+// Per-key fixed-window request counter (requests per rolling minute). This is
+// in-process only — fine for a single server instance; a multi-instance
+// deployment would need a shared store (e.g. Redis) instead.
+const RATE_WINDOW_MS = 60_000;
+const requestCounts = new Map<string, { count: number; windowStart: number }>();
+
+function isRateLimited(keyId: string, limit: number): { limited: boolean; retryAfterSeconds: number } {
+  const now = Date.now();
+  const entry = requestCounts.get(keyId);
+
+  if (!entry || now - entry.windowStart >= RATE_WINDOW_MS) {
+    requestCounts.set(keyId, { count: 1, windowStart: now });
+    return { limited: false, retryAfterSeconds: 0 };
+  }
+
+  entry.count += 1;
+  if (entry.count > limit) {
+    return { limited: true, retryAfterSeconds: Math.ceil((entry.windowStart + RATE_WINDOW_MS - now) / 1000) };
+  }
+  return { limited: false, retryAfterSeconds: 0 };
 }
 
 /**
@@ -37,8 +60,17 @@ export async function apiKeyMiddleware(req: ApiKeyRequest, res: Response, next: 
       res.status(401).json({ error: 'Invalid or expired API key' });
       return;
     }
+
+    const { limited, retryAfterSeconds } = isRateLimited(result.keyId, result.rateLimit);
+    if (limited) {
+      res.setHeader('Retry-After', String(retryAfterSeconds));
+      res.status(429).json({ error: 'Rate limit exceeded', rate_limit: result.rateLimit, retry_after_seconds: retryAfterSeconds });
+      return;
+    }
+
     req.userId = result.userId;
     req.authMethod = 'apikey';
+    req.apiKeyId = result.keyId;
     req.apiKeyScopes = result.scopes;
     req.apiKeyRateLimit = result.rateLimit;
     next();

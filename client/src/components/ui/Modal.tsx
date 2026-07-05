@@ -48,6 +48,9 @@ export function Modal({ isOpen, onClose, title, description, children, size = 'm
 
       {/* Panel — frosted glass over the dimmed workspace */}
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         className={cn(
           'relative w-full max-h-[90vh] flex flex-col rounded-[14px] glass shadow-[var(--shadow-xl)]',
           sizes[size]

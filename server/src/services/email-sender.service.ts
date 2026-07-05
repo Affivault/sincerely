@@ -196,6 +196,7 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
       .from('smtp_accounts')
       .select('*')
       .eq('id', campaign.smtp_account_id)
+      .eq('user_id', campaign.user_id)
       .single();
     smtpAccount = fallback;
     console.log(`[EmailSender] Using campaign default SMTP: ${smtpAccount?.label || smtpAccount?.id}`);

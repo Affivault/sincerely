@@ -48,6 +48,7 @@ export function DeveloperPage() {
 
   const [showCreateKey, setShowCreateKey] = useState(false);
   const [keyName, setKeyName] = useState('');
+  const [keyRateLimit, setKeyRateLimit] = useState(100);
   const [newRawKey, setNewRawKey] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
 
@@ -110,11 +111,12 @@ export function DeveloperPage() {
   });
 
   const createKeyMutation = useMutation({
-    mutationFn: () => apikeyApi.create({ name: keyName }),
+    mutationFn: () => apikeyApi.create({ name: keyName, rate_limit: keyRateLimit }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
       setNewRawKey(data.raw_key);
       setKeyName('');
+      setKeyRateLimit(100);
       toast.success('API key created');
     },
     onError: () => toast.error('Failed to create key'),
@@ -388,9 +390,22 @@ export function DeveloperPage() {
                 <h3 className="text-sm font-medium text-[var(--text-primary)]">New API Key</h3>
                 <button onClick={() => setShowCreateKey(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X className="h-4 w-4" /></button>
               </div>
-              <div>
-                <label className="text-xs text-[var(--text-tertiary)] mb-1 block">Key Name</label>
-                <input type="text" value={keyName} onChange={(e) => setKeyName(e.target.value)} placeholder="e.g. Production CRM" className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--text-primary)]" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-[var(--text-tertiary)] mb-1 block">Key Name</label>
+                  <input type="text" value={keyName} onChange={(e) => setKeyName(e.target.value)} placeholder="e.g. Production CRM" className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--text-primary)]" />
+                </div>
+                <div>
+                  <label className="text-xs text-[var(--text-tertiary)] mb-1 block">Rate limit (requests/min)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10000}
+                    value={keyRateLimit}
+                    onChange={(e) => setKeyRateLimit(Math.max(1, Number(e.target.value) || 1))}
+                    className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--text-primary)]"
+                  />
+                </div>
               </div>
               <button
                 onClick={() => createKeyMutation.mutate()}
@@ -427,9 +442,12 @@ export function DeveloperPage() {
                     <p className="text-xs text-[var(--text-tertiary)] font-mono">{key.key_prefix}••••••••</p>
                   </div>
                   <div className="text-right">
-                    <span className={cn('text-xs rounded-full px-2 py-0.5', key.is_active ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]')}>
-                      {key.is_active ? 'Active' : 'Revoked'}
-                    </span>
+                    <div className="flex items-center justify-end gap-2">
+                      <span className="text-[10px] text-[var(--text-tertiary)]">{key.rate_limit}/min</span>
+                      <span className={cn('text-xs rounded-full px-2 py-0.5', key.is_active ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]')}>
+                        {key.is_active ? 'Active' : 'Revoked'}
+                      </span>
+                    </div>
                     {key.last_used_at && (
                       <p className="text-[10px] text-[var(--text-tertiary)] mt-1">Last used {formatDateTime(key.last_used_at)}</p>
                     )}

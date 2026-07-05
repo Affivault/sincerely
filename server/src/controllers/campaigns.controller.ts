@@ -219,7 +219,19 @@ export const campaignsController = {
   async setSenderPool(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       await campaignsService.assertOwnership(req.userId!, req.params.id);
-      await sse.setCampaignPool(req.params.id, req.body.smtp_account_ids || []);
+      const accountIds: string[] = req.body.smtp_account_ids || [];
+      if (accountIds.length > 0) {
+        const { count, error } = await supabaseAdmin
+          .from('smtp_accounts')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', req.userId!)
+          .in('id', accountIds);
+        if (error) throw error;
+        if ((count || 0) !== accountIds.length) {
+          return res.status(404).json({ error: 'One or more SMTP accounts not found' });
+        }
+      }
+      await sse.setCampaignPool(req.params.id, accountIds);
       res.status(204).send();
     } catch (err) { next(err); }
   },

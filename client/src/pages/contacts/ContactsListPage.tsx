@@ -743,17 +743,25 @@ export function ContactsListPage() {
 
   const toggleSelectAll = () => {
     const contacts = contactsData?.data || [];
-    if (selectedContacts.size === contacts.length) {
-      setSelectedContacts(new Set());
-    } else {
-      setSelectedContacts(new Set(contacts.map((c: any) => c.id)));
-    }
+    const pageIds = contacts.map((c: any) => c.id);
+    const allPageSelected = pageIds.length > 0 && pageIds.every((cid: string) => selectedContacts.has(cid));
+    setSelectedContacts((prev) => {
+      const next = new Set(prev);
+      // Only touch this page's rows — matching by size alone let selections
+      // on other pages bleed into (or get wiped by) this page's checkbox.
+      if (allPageSelected) {
+        pageIds.forEach((cid: string) => next.delete(cid));
+      } else {
+        pageIds.forEach((cid: string) => next.add(cid));
+      }
+      return next;
+    });
   };
 
   const contacts = contactsData?.data || [];
   const totalPages = contactsData?.total_pages || 1;
   const totalContacts = contactsData?.total || 0;
-  const allSelected = contacts.length > 0 && selectedContacts.size === contacts.length;
+  const allSelected = contacts.length > 0 && contacts.every((c: any) => selectedContacts.has(c.id));
   const someSelected = selectedContacts.size > 0;
   const pendingOnPage = (contacts as any[]).filter((c) => !c.dcs_verified_at && !c.is_bounced).length;
 
