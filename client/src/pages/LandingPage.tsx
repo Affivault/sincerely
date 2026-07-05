@@ -103,18 +103,18 @@ export function LandingPage() {
       {/* ── Hero ── */}
       <section className="ld-hero">
         <div className="ld-wrap">
-          <a className="ld-eyebrow ld-rise" href="#sara"><b>NEW</b> SARA — the autonomous reply agent <ArrowRight size={12} /></a>
+          <a className="ld-eyebrow ld-rise" href="#sara"><b>NEW</b> Meet SARA — replies that answer themselves <ArrowRight size={12} /></a>
           <h1 className="ld-rise" style={{ animationDelay: '60ms' }}>
-            Cold outreach that<br />books the <em>meeting</em>.
+            You send the cold email.<br /><em>She books the meeting.</em>
           </h1>
           <p className="ld-hero__sub ld-rise" style={{ animationDelay: '120ms' }}>
-            Sincerely runs your outbound end to end — multi-inbox sending with
-            built-in warm-up, spreadsheet-grade lead lists, and an AI agent that
-            turns replies into booked meetings.
+            Sincerely runs outbound end to end: sends from every inbox you own,
+            keeps you out of spam, and puts an AI agent on reply duty —
+            <strong> so the only emails you touch are the ones worth money.</strong>
           </p>
           <div className="ld-hero__ctas ld-rise" style={{ animationDelay: '180ms' }}>
-            <Link className="ld-btn ld-btn--primary ld-btn--lg" to="/signup">Start sending free <ArrowRight size={15} strokeWidth={2.2} /></Link>
-            <a className="ld-btn ld-btn--ghost ld-btn--lg" href="#features">See the product</a>
+            <Link className="ld-btn ld-btn--accent ld-btn--lg" to="/signup">Start sending free <ArrowRight size={15} strokeWidth={2.2} /></Link>
+            <a className="ld-btn ld-btn--ghost ld-btn--lg" href="#how">See how it works</a>
           </div>
           <p className="ld-hero__trust ld-rise" style={{ animationDelay: '240ms' }}>
             <span><Check size={13} strokeWidth={2.6} /> Free plan, no card</span>
@@ -128,12 +128,63 @@ export function LandingPage() {
         </div>
       </section>
 
+
+      {/* ── Intent marquee — the work SARA sorts, scrolling by ── */}
+      <div className="ld-marquee" aria-hidden="true">
+        <div className="ld-marquee__track">
+          {[0, 1].map(half => (
+            <div key={half} style={{ display: 'flex', gap: 10 }}>
+              {[
+                ['#10B981', 'Interested', '"tell me more about pricing"'],
+                ['#3B82F6', 'Meeting booked', '"Thursday at 2 works"'],
+                ['#F59E0B', 'Objection', '"we already use a tool"'],
+                ['#8B5CF6', 'Out of office', 'auto-followup queued'],
+                ['#EF4444', 'Unsubscribe', 'suppressed automatically'],
+                ['#F43F5E', 'Bounce', 'sequence stopped'],
+                ['#10B981', 'Interested', '"can you do a demo?"'],
+                ['#64748B', 'Not now', '"circle back in Q4"'],
+              ].map(([dot, label, quote], i) => (
+                <span key={`${half}-${i}`} className="ld-mchip">
+                  <span className="dot" style={{ background: dot as string }} />
+                  <b>{label}</b> {quote}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── How it works — the whole system in three beats ── */}
+      <section className="ld-section ld-center" id="how">
+        <div className="ld-wrap">
+          <div className="ld-kicker">How it works</div>
+          <h2 className="ld-h2">Three moves. <em>Then it compounds.</em></h2>
+          <div className="ld-steps">
+            <div className="ld-step">
+              <div className="ld-step__n">01</div>
+              <h3>Connect your inboxes</h3>
+              <p>Google, Outlook, or any SMTP — connect up to 25 sending accounts. Warm-up throttling and health scores keep every one of them out of the spam folder.</p>
+            </div>
+            <div className="ld-step">
+              <div className="ld-step__n">02</div>
+              <h3>Load and verify your leads</h3>
+              <p>Import any CSV into a spreadsheet-grade grid. Every address gets verified before you send — bounces are pipeline poison, so we catch them first.</p>
+            </div>
+            <div className="ld-step">
+              <div className="ld-step__n">03</div>
+              <h3>Launch. SARA takes the replies.</h3>
+              <p>Sequences send on your schedule. When replies land, SARA reads them, tags the intent, and drafts the answer — you approve, she sends, the meeting books.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── Features ── */}
       <section className="ld-section ld-center" id="features">
         <div className="ld-wrap">
           <div className="ld-kicker">The platform</div>
-          <h2 className="ld-h2">Everything outbound needs.<br />Nothing it doesn't.</h2>
-          <p className="ld-lede">Six tools that usually live in six tabs, built as one calm product.</p>
+          <h2 className="ld-h2">Six tabs of tooling,<br />collapsed into <em>one</em>.</h2>
+          <p className="ld-lede">Sender, verifier, CRM grid, reply desk, test lab, and analyst — every job outbound demands, one calm surface.</p>
           <div className="ld-features">
             {FEATURES.map((f) => (
               <div key={f.title} className="ld-feature">
@@ -157,10 +208,11 @@ export function LandingPage() {
             </div>
             <div className="ld-split__copy">
               <div className="ld-kicker">Lead lists</div>
-              <h3>Your leads, in a grid that works like a spreadsheet.</h3>
+              <h3>A lead list that moves at the speed of a spreadsheet.</h3>
               <p>
-                Typed columns, verification status on every address, tags, lists and
-                bulk actions — the speed of a sheet with the structure of a CRM.
+                Typed columns. Verification status on every address. Tags, lists,
+                and bulk actions that never make you leave the grid. It's the sheet
+                your team already knows — with a CRM's spine.
               </p>
               <ul className="ld-checks">
                 <li><Check size={14} strokeWidth={2.4} /> Import any CSV and map fields in seconds</li>
@@ -178,11 +230,11 @@ export function LandingPage() {
           <div className="ld-split">
             <div className="ld-split__copy">
               <div className="ld-kicker">SARA — Sincerely Autonomous Reply Agent</div>
-              <h3>Replies handled while you sleep.</h3>
+              <h3>Every reply read, tagged, and drafted — before you open the tab.</h3>
               <p>
-                Every reply is read, classified and triaged. Interested? A draft is
-                waiting for your approval. Unsubscribe or bounce? Handled and
-                suppressed automatically. Your job shrinks to one click: send.
+                Interested? The draft is waiting. Objection? Countered, pending your
+                approval. Unsubscribe or bounce? Already suppressed, sequence already
+                stopped. Your reply desk shrinks to a single button: <strong>send</strong>.
               </p>
               <ul className="ld-checks">
                 <li><Check size={14} strokeWidth={2.4} /> Intent detection: interested, objection, meeting, OOO, unsubscribe</li>
@@ -221,8 +273,8 @@ export function LandingPage() {
       <section className="ld-section ld-center" id="pricing">
         <div className="ld-wrap">
           <div className="ld-kicker">Pricing</div>
-          <h2 className="ld-h2">Simple, honest pricing.</h2>
-          <p className="ld-lede">Start free. Paid plans include a 10-day trial — cancel anytime from the billing page.</p>
+          <h2 className="ld-h2">Priced like a tool.<br />Works like a <em>team</em>.</h2>
+          <p className="ld-lede">Start free, no card. Every paid plan begins with a 10-day trial, and cancelling is two clicks on the billing page — we earn the renewal or we don't.</p>
           <div className="ld-plans">
             <PlanCard id="starter" />
             <PlanCard id="growth" hot />
@@ -235,7 +287,7 @@ export function LandingPage() {
       <section className="ld-section ld-center" id="faq">
         <div className="ld-wrap">
           <div className="ld-kicker">FAQ</div>
-          <h2 className="ld-h2">Fair questions.</h2>
+          <h2 className="ld-h2">Fair <em>questions.</em></h2>
           <div className="ld-faq">
             {FAQS.map((f) => (
               <details key={f.q}>
@@ -250,8 +302,8 @@ export function LandingPage() {
       {/* ── CTA ── */}
       <section className="ld-cta">
         <div className="ld-wrap">
-          <h2>Ready to fill your calendar?</h2>
-          <p>Connect an inbox, import your list, and send your first campaign this afternoon.</p>
+          <h2>Your next customer already<br />opened the email. <em>Answer them.</em></h2>
+          <p>Connect an inbox, load your list, launch before lunch. SARA covers the replies from day one.</p>
           <div className="ld-cta__row">
             <Link className="ld-btn ld-btn--ghost ld-btn--lg" to="/signup">Get started free</Link>
             <Link className="ld-btn ld-btn--accent ld-btn--lg" to="/login">Sign in <ArrowRight size={15} strokeWidth={2.2} /></Link>
