@@ -150,6 +150,9 @@ function stripHtml(str: string): string {
     .replace(/&gt;/gi, '>')
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
+    // Real emails are full of ASCII divider runs ("-----", "====", "____") —
+    // junk in a one-line preview, so collapse them away.
+    .replace(/[-_=~*•—]{3,}/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -2123,7 +2126,7 @@ export function InboxPage() {
   };
 
   return (
-    <div className="-mx-8 -my-6" style={{ height: 'calc(100vh - 56px)' }}>
+    <div className="overflow-hidden" style={{ height: 'calc(100vh - 56px)' }}>
       <div className="h-full flex flex-col bg-[var(--bg-app)]">
 
         {/* ── Command bar: view tabs + intent filter + search + actions ── */}
@@ -2227,7 +2230,7 @@ export function InboxPage() {
             <ScheduledEmailsPanel onCancel={(id) => cancelScheduledMut.mutate(id)} />
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto bg-[var(--bg-surface)]">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden bg-[var(--bg-surface)]">
             {/* Sticky column header — the grid identity */}
             <div className="sticky top-0 z-[2] flex items-center gap-3 px-4 h-[34px] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] text-[11.5px] font-medium text-[var(--text-tertiary)]">
               <span className="w-[220px] flex-shrink-0">Sender</span>
@@ -2272,7 +2275,7 @@ export function InboxPage() {
                     key={conv.contactEmail}
                     onClick={() => selectMessage(msg)}
                     className={cn(
-                      'group w-full text-left flex items-center gap-3 px-4 h-[52px] border-b border-[var(--border-subtle)] transition-colors',
+                      'group w-full min-w-0 overflow-hidden text-left flex items-center gap-3 px-4 h-[52px] border-b border-[var(--border-subtle)] transition-colors',
                       isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]'
                     )}
                   >
@@ -2300,12 +2303,12 @@ export function InboxPage() {
                     </span>
 
                     {/* Conversation: subject + snippet on one scannable line */}
-                    <span className="flex-1 min-w-0 flex items-baseline gap-2">
-                      <span className={cn('text-[12.5px] truncate', conv.hasUnread ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]')}>
+                    <span className="flex-1 min-w-0 flex items-baseline gap-2 overflow-hidden">
+                      <span className={cn('min-w-0 flex-shrink truncate text-[12.5px]', conv.hasUnread ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]')}>
                         {msg.subject || '(no subject)'}
                       </span>
                       {snippet && (
-                        <span className="text-[12px] text-[var(--text-tertiary)] truncate hidden sm:inline">— {snippet}</span>
+                        <span className="flex-1 min-w-0 truncate text-[12px] text-[var(--text-tertiary)] hidden sm:inline">— {snippet}</span>
                       )}
                     </span>
 
@@ -2345,10 +2348,10 @@ export function InboxPage() {
       {currentMsg && folder !== 'scheduled' && (
         <>
           <div
-            className="fixed inset-x-0 bottom-0 top-[56px] z-40 bg-[rgba(27,27,31,0.28)]"
+            className="fixed inset-x-0 bottom-0 top-[56px] z-40 bg-[rgba(27,27,31,0.14)]"
             onClick={() => setSelectedId(null)}
           />
-          <aside className="fixed right-0 top-[56px] bottom-0 z-50 w-[min(920px,80vw)] bg-[var(--bg-surface)] border-l border-[var(--border-subtle)] shadow-[var(--shadow-xl)] flex flex-col animate-slide-in">
+          <aside className="fixed right-0 top-[56px] bottom-0 z-50 w-[min(1000px,85vw)] bg-[var(--bg-surface)] border-l border-[var(--border-subtle)] shadow-[var(--shadow-xl)] rounded-l-[14px] overflow-hidden flex flex-col animate-slide-in">
               {/* Toolbar */}
               <div className="flex items-center gap-1 px-4 py-2 border-b border-[var(--border-subtle)]">
                 <button onClick={() => setSelectedId(null)} title="Close (Esc)" className="p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
