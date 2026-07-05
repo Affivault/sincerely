@@ -97,19 +97,21 @@ export default async function handler(req: VercelReq, res: VercelRes) {
   }
 
   try {
+    // Timeouts are sized to leave headroom under this function's 30s
+    // maxDuration (vercel.json) — connectionTimeout + socketTimeout must stay
+    // safely below that, since sendMail() alone can hit both in sequence.
     const transporter = nodemailer.createTransport({
       host: smtp_host,
       port,
       secure: smtp_secure ?? false,
       auth: { user: smtp_user, pass: smtp_pass },
-      connectionTimeout: 15000,
-      socketTimeout: 25000,
+      connectionTimeout: 8000,
+      socketTimeout: 15000,
     });
 
-    // Verify SMTP connection
-    await transporter.verify();
-
-    // Send
+    // sendMail() establishes and validates the connection itself, so a
+    // separate verify() call (which was doubling our exposure to the same
+    // timeout budget) is redundant.
     const info = await transporter.sendMail({
       from,
       to,

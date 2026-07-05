@@ -381,6 +381,15 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
   const [showSchedule, setShowSchedule] = useState(false);
   const editor = useRichTextEditorRef();
 
+  // smtpAccounts is fetched async and can still be empty when this modal
+  // first mounts; resync once accounts arrive so the selected sender always
+  // matches what's actually shown in <SenderSelect>.
+  useEffect(() => {
+    if (!senderId && smtpAccounts[0]) {
+      setSenderId(smtpAccounts[0].id);
+    }
+  }, [smtpAccounts, senderId]);
+
   const canSend = to && subject && !editor.isEmpty && !sending && smtpAccounts.length > 0;
 
   const handleSchedule = (scheduledAt: string) => {
@@ -1929,14 +1938,41 @@ export function InboxPage() {
   /* ── Group messages into conversation threads for the sidebar ── */
   const conversations: ConversationThread[] = useMemo(() => groupConversations(messages), [messages]);
 
+  // Quick filter presets: combine hard intents into actionable buckets
+  const QUICK_FILTERS: { id: string; label: string; match?: string[] }[] = [
+    { id: 'all', label: 'All' },
+    { id: 'hot', label: 'Hot', match: ['interested', 'meeting'] },
+    { id: 'needs_reply', label: 'Needs reply', match: ['interested', 'objection', 'meeting'] },
+    { id: 'not_now', label: 'Cold', match: ['not_now', 'unsubscribe'] },
+  ];
+  const [quickFilter, setQuickFilter] = useState('all');
+
+  // Apply quick filter on top of conversations (client-side)
+  const filteredConversations = useMemo(() => {
+    if (quickFilter === 'all') return conversations;
+    const preset = QUICK_FILTERS.find(f => f.id === quickFilter);
+    if (!preset?.match) return conversations;
+    return conversations.filter(c => preset.match!.includes(c.latestMessage.sara_intent || ''));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations, quickFilter]);
+
+  // Final visible list: quick/tag filter + optional unread-only triage toggle
+  const visibleConversations = useMemo(
+    () => unreadOnly ? filteredConversations.filter(c => c.hasUnread) : filteredConversations,
+    [filteredConversations, unreadOnly],
+  );
+
   // Defined here (after conversations) so it can read conversations to pick the next entry
   const handleArchiveToggle = useCallback((msg: Message) => {
     const conv = conversations.find(c => c.latestMessage.id === msg.id);
     const contactEmail = conv?.contactEmail ?? null;
-    // Select the next conversation immediately so the panel doesn't go blank
+    // Select the next conversation immediately so the panel doesn't go blank.
+    // Pick from visibleConversations (the currently filtered/searched view),
+    // not the raw list, so we never jump to a conversation outside the
+    // active filter (e.g. "Unread only" or a quick filter).
     if (conv) {
-      const idx = conversations.indexOf(conv);
-      const next = conversations[idx + 1] ?? conversations[idx - 1] ?? null;
+      const idx = visibleConversations.findIndex(c => c.latestMessage.id === msg.id);
+      const next = idx === -1 ? null : (visibleConversations[idx + 1] ?? visibleConversations[idx - 1] ?? null);
       setSelectedId(next?.latestMessage.id ?? null);
     } else {
       setSelectedId(null);
@@ -1946,7 +1982,7 @@ export function InboxPage() {
     } else {
       archiveMut.mutate({ id: msg.id, contactEmail });
     }
-  }, [folder, archiveMut, unarchiveMut, conversations]);
+  }, [folder, archiveMut, unarchiveMut, conversations, visibleConversations]);
 
   const isInArchived = folder === 'archived';
   const archiveLabel = isInArchived ? 'Move to Inbox' : 'Archive';
@@ -2009,30 +2045,6 @@ export function InboxPage() {
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [currentMsg, showCompose, replyMode, smtpAccounts, handleArchiveToggle]);
-
-  // Quick filter presets: combine hard intents into actionable buckets
-  const QUICK_FILTERS: { id: string; label: string; match?: string[] }[] = [
-    { id: 'all', label: 'All' },
-    { id: 'hot', label: 'Hot', match: ['interested', 'meeting'] },
-    { id: 'needs_reply', label: 'Needs reply', match: ['interested', 'objection', 'meeting'] },
-    { id: 'not_now', label: 'Cold', match: ['not_now', 'unsubscribe'] },
-  ];
-  const [quickFilter, setQuickFilter] = useState('all');
-
-  // Apply quick filter on top of conversations (client-side)
-  const filteredConversations = useMemo(() => {
-    if (quickFilter === 'all') return conversations;
-    const preset = QUICK_FILTERS.find(f => f.id === quickFilter);
-    if (!preset?.match) return conversations;
-    return conversations.filter(c => preset.match!.includes(c.latestMessage.sara_intent || ''));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations, quickFilter]);
-
-  // Final visible list: quick/tag filter + optional unread-only triage toggle
-  const visibleConversations = useMemo(
-    () => unreadOnly ? filteredConversations.filter(c => c.hasUnread) : filteredConversations,
-    [filteredConversations, unreadOnly],
-  );
 
   /* ── Sidebar view selection + active detection ── */
   const selectView = useCallback((v: { folder?: Folder; tag?: string; quick?: string }) => {

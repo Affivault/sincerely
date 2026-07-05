@@ -44,6 +44,26 @@ interface TabConfig {
   icon: React.ElementType;
 }
 
+/** Quick heuristic strength score for the change-password meter — length + character variety. */
+function getPasswordStrength(password: string): { score: 0 | 1 | 2 | 3 | 4; label: string; barClass: string; textClass: string } {
+  if (!password) return { score: 0, label: '', barClass: 'bg-transparent', textClass: '' };
+
+  let score = 0;
+  if (password.length >= 8) score++;
+  if (password.length >= 12) score++;
+  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
+  if (/\d/.test(password) && /[^A-Za-z0-9]/.test(password)) score++;
+
+  const levels: Record<number, { label: string; barClass: string; textClass: string }> = {
+    0: { label: 'Very weak', barClass: 'bg-[var(--error)]', textClass: 'text-[var(--error)]' },
+    1: { label: 'Weak', barClass: 'bg-[var(--error)]', textClass: 'text-[var(--error)]' },
+    2: { label: 'Fair', barClass: 'bg-amber-500', textClass: 'text-amber-500' },
+    3: { label: 'Good', barClass: 'bg-[var(--indigo)]', textClass: 'text-[var(--indigo)]' },
+    4: { label: 'Strong', barClass: 'bg-[var(--success)]', textClass: 'text-[var(--success)]' },
+  };
+  return { score: score as 0 | 1 | 2 | 3 | 4, ...levels[score] };
+}
+
 const tabs: TabConfig[] = [
   { id: 'profile', label: 'Profile', icon: User },
   { id: 'account', label: 'Account', icon: Shield },
@@ -87,6 +107,7 @@ export function SettingsPage() {
 
   // Password change
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -169,10 +190,11 @@ export function SettingsPage() {
 
   // ── Change password mutation ──
   const changePasswordMutation = useMutation({
-    mutationFn: (password: string) => settingsApi.changePassword(password),
+    mutationFn: () => settingsApi.changePassword(currentPassword, newPassword),
     onSuccess: () => {
       toast.success('Password updated successfully');
       setShowPasswordModal(false);
+      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     },
@@ -182,6 +204,10 @@ export function SettingsPage() {
   });
 
   const handleChangePassword = () => {
+    if (!currentPassword) {
+      toast.error('Enter your current password');
+      return;
+    }
     if (newPassword.length < 6) {
       toast.error('Password must be at least 6 characters');
       return;
@@ -190,7 +216,7 @@ export function SettingsPage() {
       toast.error('Passwords do not match');
       return;
     }
-    changePasswordMutation.mutate(newPassword);
+    changePasswordMutation.mutate();
   };
 
   // ── Delete account mutation ──
@@ -418,6 +444,16 @@ export function SettingsPage() {
                   <div className="p-5 rounded-xl bg-[var(--bg-surface)] space-y-4" style={{ border: '2px solid rgba(99,102,241,0.25)' }}>
                     <h3 className="text-sm font-semibold text-[var(--text-primary)]">Change Password</h3>
                     <div>
+                      <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Current Password</label>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        placeholder="Enter current password"
+                        className="input-field"
+                      />
+                    </div>
+                    <div>
                       <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">New Password</label>
                       <div className="relative">
                         <input
@@ -435,6 +471,24 @@ export function SettingsPage() {
                           {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
+                      {newPassword && (
+                        <div className="mt-2">
+                          <div className="flex gap-1">
+                            {[0, 1, 2, 3].map((i) => (
+                              <div
+                                key={i}
+                                className={cn(
+                                  'h-1 flex-1 rounded-full transition-colors',
+                                  i < getPasswordStrength(newPassword).score ? getPasswordStrength(newPassword).barClass : 'bg-[var(--border-subtle)]'
+                                )}
+                              />
+                            ))}
+                          </div>
+                          <p className={cn('text-[11px] mt-1 font-medium', getPasswordStrength(newPassword).textClass)}>
+                            {getPasswordStrength(newPassword).label}
+                          </p>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Confirm Password</label>
@@ -454,7 +508,7 @@ export function SettingsPage() {
                         variant="primary"
                         size="sm"
                         onClick={handleChangePassword}
-                        disabled={changePasswordMutation.isPending || !newPassword || newPassword !== confirmPassword}
+                        disabled={changePasswordMutation.isPending || !currentPassword || !newPassword || newPassword !== confirmPassword}
                       >
                         {changePasswordMutation.isPending ? (
                           <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Updating...</>
@@ -465,7 +519,7 @@ export function SettingsPage() {
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => { setShowPasswordModal(false); setNewPassword(''); setConfirmPassword(''); }}
+                        onClick={() => { setShowPasswordModal(false); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }}
                       >
                         Cancel
                       </Button>

@@ -323,6 +323,7 @@ export const domainService = {
       .from('sending_domains')
       .update(updateData)
       .eq('id', id)
+      .eq('user_id', userId)
       .select()
       .single();
 

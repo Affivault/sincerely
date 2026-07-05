@@ -106,3 +106,43 @@ export function requireScope(scope: string) {
     next();
   };
 }
+
+/**
+ * Central scope gate for every /api/v1 route: a GET/HEAD needs the 'read'
+ * scope, anything else needs 'write'. Mount after apiKeyMiddleware +
+ * authMiddleware so req.authMethod/apiKeyScopes are populated. JWT-authed
+ * requests always pass through untouched.
+ */
+export function enforceApiKeyScope(req: ApiKeyRequest, res: Response, next: NextFunction): void {
+  if (req.authMethod !== 'apikey') {
+    next();
+    return;
+  }
+
+  const requiredScope = req.method === 'GET' || req.method === 'HEAD' ? 'read' : 'write';
+  if (!req.apiKeyScopes || !req.apiKeyScopes.includes(requiredScope)) {
+    res.status(403).json({
+      error: `API key lacks required scope: ${requiredScope}`,
+      required_scope: requiredScope,
+      available_scopes: req.apiKeyScopes || [],
+    });
+    return;
+  }
+
+  next();
+}
+
+/**
+ * Blocks API-key authentication entirely. For account-security-sensitive
+ * endpoints (password changes, account deletion, API key management) that
+ * must stay reachable only from a real user session — a leaked or
+ * intentionally scoped-down API key must never be able to reach them, no
+ * matter what scopes it carries.
+ */
+export function jwtOnly(req: ApiKeyRequest, res: Response, next: NextFunction): void {
+  if (req.authMethod === 'apikey') {
+    res.status(403).json({ error: 'This endpoint requires a user session; API keys are not accepted here' });
+    return;
+  }
+  next();
+}
