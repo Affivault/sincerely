@@ -64,6 +64,9 @@
 .ld-btn--lg { height: 44px; padding: 0 22px; font-size: 14.5px; border-radius: 11px; }
 .ld-btn--accent { background: var(--ld-accent); color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 1px 2px rgba(70,70,229,.3); }
 .ld-btn--accent:hover { background: var(--ld-accent-ink); }
+/* Links used as buttons: outweigh the global `.ld a { color: inherit }` */
+a.ld-btn--primary, a.ld-btn--primary:hover,
+a.ld-btn--accent, a.ld-btn--accent:hover { color: #fff; }
 
 /* ── Hero ───────────────────────────────────────────────────────── */
 .ld-hero { padding: 84px 0 0; text-align: center; }
@@ -80,15 +83,20 @@
   font-size: 11px; font-weight: 700; letter-spacing: .02em;
 }
 .ld-hero h1 {
-  margin: 22px auto 0; max-width: 780px;
-  font-size: clamp(38px, 6vw, 62px); font-weight: 700; line-height: 1.04;
-  letter-spacing: -0.035em; color: var(--ld-ink);
+  margin: 26px auto 0; max-width: 900px;
+  font-size: clamp(44px, 7.2vw, 84px); font-weight: 700; line-height: 1.02;
+  letter-spacing: -0.042em; color: var(--ld-ink);
 }
-.ld-hero h1 em { font-style: normal; color: var(--ld-accent); }
+.ld-hero h1 em {
+  font-family: 'Newsreader', Georgia, serif;
+  font-style: italic; font-weight: 500; letter-spacing: -0.02em;
+  color: var(--ld-accent);
+}
 .ld-hero__sub {
-  margin: 20px auto 0; max-width: 560px;
-  font-size: 16.5px; line-height: 1.65; color: var(--ld-body);
+  margin: 24px auto 0; max-width: 620px;
+  font-size: 17.5px; line-height: 1.6; color: var(--ld-body);
 }
+.ld-hero__sub strong { color: var(--ld-ink); font-weight: 600; }
 .ld-hero__ctas { display: flex; gap: 12px; justify-content: center; margin-top: 30px; flex-wrap: wrap; }
 .ld-hero__trust {
   display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;
@@ -123,6 +131,40 @@
   pointer-events: none;
 }
 
+/* ── Intent marquee — SARA's world scrolling by under the hero ──── */
+.ld-marquee {
+  margin-top: 0; padding: 18px 0 0; overflow: hidden; position: relative;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+.ld-marquee__track {
+  display: flex; gap: 10px; width: max-content;
+  animation: ldMarquee 36s linear infinite;
+}
+.ld-marquee:hover .ld-marquee__track { animation-play-state: paused; }
+@keyframes ldMarquee { to { transform: translateX(-50%); } }
+.ld-mchip {
+  display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 13px;
+  border-radius: 100px; border: 1px solid var(--ld-line); background: var(--ld-surface);
+  font-size: 12.5px; font-weight: 550; color: var(--ld-body); white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(27,27,31,.03);
+}
+.ld-mchip b { font-weight: 650; color: var(--ld-ink); }
+.ld-mchip .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── How it works — three numbered beats ───────────────────────── */
+.ld-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 44px; text-align: left; }
+.ld-step {
+  position: relative; background: var(--ld-surface); border: 1px solid var(--ld-line);
+  border-radius: 14px; padding: 24px; box-shadow: 0 1px 2px rgba(27,27,31,.04);
+}
+.ld-step__n {
+  font-family: 'Newsreader', Georgia, serif; font-style: italic;
+  font-size: 34px; line-height: 1; color: var(--ld-accent);
+}
+.ld-step h3 { margin: 14px 0 7px; font-size: 15.5px; font-weight: 650; letter-spacing: -0.015em; }
+.ld-step p { margin: 0; font-size: 13.5px; line-height: 1.65; color: var(--ld-body); }
+
 /* ── Section scaffolding ────────────────────────────────────────── */
 .ld-section { padding: 96px 0 0; }
 .ld-kicker {
@@ -130,8 +172,12 @@
   color: var(--ld-faint);
 }
 .ld-h2 {
-  margin: 12px 0 0; font-size: clamp(28px, 4vw, 40px); font-weight: 700;
-  line-height: 1.12; letter-spacing: -0.03em; color: var(--ld-ink);
+  margin: 12px 0 0; font-size: clamp(30px, 4.4vw, 46px); font-weight: 700;
+  line-height: 1.1; letter-spacing: -0.035em; color: var(--ld-ink);
+}
+.ld-h2 em {
+  font-family: 'Newsreader', Georgia, serif;
+  font-style: italic; font-weight: 500; color: var(--ld-accent);
 }
 .ld-lede { margin: 14px 0 0; max-width: 560px; font-size: 15.5px; color: var(--ld-body); }
 .ld-center { text-align: center; }
@@ -226,7 +272,8 @@
   margin-top: 96px; background: var(--ld-ink); color: #fff;
   padding: 88px 0; text-align: center;
 }
-.ld-cta h2 { margin: 0; font-size: clamp(30px, 4.5vw, 46px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
+.ld-cta h2 { margin: 0; font-size: clamp(34px, 5.5vw, 60px); font-weight: 700; letter-spacing: -0.035em; line-height: 1.06; }
+.ld-cta h2 em { font-family: 'Newsreader', Georgia, serif; font-style: italic; font-weight: 500; color: #A5B4FC; }
 .ld-cta p { margin: 16px auto 0; max-width: 480px; font-size: 15px; color: rgba(255,255,255,.62); }
 .ld-cta .ld-btn--ghost { background: #fff; border-color: transparent; color: var(--ld-ink); }
 .ld-cta__row { display: flex; gap: 12px; justify-content: center; margin-top: 30px; flex-wrap: wrap; }
@@ -249,6 +296,7 @@
 /* ── Responsive ─────────────────────────────────────────────────── */
 @media (max-width: 960px) {
   .ld-features { grid-template-columns: repeat(2, 1fr); }
+  .ld-steps { grid-template-columns: 1fr; }
   .ld-split, .ld-split--flip { grid-template-columns: 1fr; gap: 28px; }
   .ld-plans { grid-template-columns: 1fr; max-width: 420px; margin-left: auto; margin-right: auto; }
 }
