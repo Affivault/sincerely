@@ -83,7 +83,7 @@ export async function deleteKey(userId: string, keyId: string): Promise<void> {
  */
 export async function validateKey(
   rawKey: string
-): Promise<{ userId: string; scopes: string[]; rateLimit: number } | null> {
+): Promise<{ keyId: string; userId: string; scopes: string[]; rateLimit: number } | null> {
   const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
 
   const { data } = await supabaseAdmin
@@ -103,6 +103,7 @@ export async function validateKey(
     .eq('id', data.id);
 
   return {
+    keyId: data.id,
     userId: data.user_id,
     scopes: data.scopes,
     rateLimit: data.rate_limit,

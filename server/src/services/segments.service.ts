@@ -119,71 +119,93 @@ export const segmentsService = {
   },
 
   async countMatchingContacts(userId: string, filterConfig: FilterConfig): Promise<number> {
-    const { conditions, logic } = filterConfig;
+    const ids = await this.getMatchingContactIds(userId, filterConfig);
+    return ids.length;
+  },
 
-    if (!conditions || conditions.length === 0) {
-      // No conditions = all contacts
-      const { count } = await supabaseAdmin
-        .from('contacts')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId);
-      return count || 0;
-    }
-
-    // Build query dynamically
-    let query = supabaseAdmin
-      .from('contacts')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
-
-    // For 'or' logic, we need to build an or() clause
-    // For 'and' logic (default), we chain conditions
-    if (logic === 'or' && conditions.length > 1) {
-      const orConditions = conditions.map((c) => this.buildConditionString(c)).filter(Boolean);
-      if (orConditions.length > 0) {
-        query = query.or(orConditions.join(','));
-      }
-    } else {
-      // AND logic - chain conditions
-      for (const condition of conditions) {
-        query = this.applyCondition(query, condition);
-      }
-    }
-
-    const { count, error } = await query;
+  // Tag conditions can't be expressed as a plain column filter (they require a
+  // join through contact_tags), so they're resolved to a contact-id set here
+  // and combined with the rest of the filter in getMatchingContactIds. Scoping
+  // the join by contacts.user_id also means a tag id from another tenant just
+  // resolves to an empty set instead of leaking anything.
+  async getContactIdsWithTag(userId: string, tagId: string): Promise<string[]> {
+    const { data, error } = await supabaseAdmin
+      .from('contact_tags')
+      .select('contact_id, contacts!inner(user_id)')
+      .eq('tag_id', tagId)
+      .eq('contacts.user_id', userId);
     if (error) throw new AppError(error.message, 500);
-
-    return count || 0;
+    return (data || []).map((r: any) => r.contact_id);
   },
 
   async getMatchingContactIds(userId: string, filterConfig: FilterConfig): Promise<string[]> {
     const { conditions, logic } = filterConfig;
 
-    let query = supabaseAdmin
-      .from('contacts')
-      .select('id')
-      .eq('user_id', userId);
-
     if (!conditions || conditions.length === 0) {
-      const { data } = await query;
+      const { data, error } = await supabaseAdmin.from('contacts').select('id').eq('user_id', userId);
+      if (error) throw new AppError(error.message, 500);
       return (data || []).map((c: any) => c.id);
     }
 
-    if (logic === 'or' && conditions.length > 1) {
-      const orConditions = conditions.map((c) => this.buildConditionString(c)).filter(Boolean);
-      if (orConditions.length > 0) {
-        query = query.or(orConditions.join(','));
+    const tagConditions = conditions.filter((c) => c.field === 'tag');
+    const otherConditions = conditions.filter((c) => c.field !== 'tag');
+
+    const tagIdSets = await Promise.all(
+      tagConditions.map(async (c) => {
+        const ids = await this.getContactIdsWithTag(userId, String(c.value));
+        const idSet = new Set(ids);
+        if (c.operator === 'not_equals') {
+          const { data: all, error } = await supabaseAdmin.from('contacts').select('id').eq('user_id', userId);
+          if (error) throw new AppError(error.message, 500);
+          return new Set((all || []).map((row: any) => row.id).filter((id: string) => !idSet.has(id)));
+        }
+        return idSet;
+      })
+    );
+
+    let otherIds: string[] | null = null;
+    if (otherConditions.length > 0 || tagConditions.length === 0) {
+      let query = supabaseAdmin.from('contacts').select('id').eq('user_id', userId);
+
+      if (logic === 'or' && otherConditions.length > 1) {
+        const orConditions = otherConditions.map((c) => this.buildConditionString(c)).filter(Boolean) as string[];
+        if (orConditions.length > 0) {
+          query = query.or(orConditions.join(','));
+        }
+      } else {
+        for (const condition of otherConditions) {
+          query = this.applyCondition(query, condition);
+        }
       }
-    } else {
-      for (const condition of conditions) {
-        query = this.applyCondition(query, condition);
-      }
+
+      const { data, error } = await query;
+      if (error) throw new AppError(error.message, 500);
+      otherIds = (data || []).map((c: any) => c.id);
     }
 
-    const { data, error } = await query;
-    if (error) throw new AppError(error.message, 500);
+    if (tagIdSets.length === 0) {
+      return otherIds || [];
+    }
 
-    return (data || []).map((c: any) => c.id);
+    if (logic === 'or') {
+      const union = new Set<string>(otherIds || []);
+      for (const set of tagIdSets) {
+        for (const id of set) union.add(id);
+      }
+      return Array.from(union);
+    }
+
+    // AND logic: intersect every tag set, then intersect with the other conditions' result (if any)
+    let result = tagIdSets[0];
+    for (let i = 1; i < tagIdSets.length; i++) {
+      const other = tagIdSets[i];
+      result = new Set([...result].filter((id) => other.has(id)));
+    }
+    if (otherIds !== null) {
+      const otherSet = new Set(otherIds);
+      result = new Set([...result].filter((id) => otherSet.has(id)));
+    }
+    return Array.from(result);
   },
 
   buildConditionString(condition: SegmentCondition): string | null {

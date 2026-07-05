@@ -2111,7 +2111,7 @@ export function InboxPage() {
               <CheckCheck className="h-4 w-4" />
             </button>
             <button
-              onClick={() => setShowCompose(true)}
+              onClick={() => { setReplyMode(null); setShowCompose(true); }}
               className="ml-1 flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo)] text-white text-[12px] font-semibold hover:bg-[var(--indigo-hover)] transition-colors flex-shrink-0 shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
             >
               <Pencil className="h-3.5 w-3.5" /> Compose

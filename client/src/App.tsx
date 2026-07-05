@@ -58,7 +58,17 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <PageSpinner />;
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) {
+    // A pending team invite (stashed by InviteAcceptPage before sending an
+    // unauthenticated visitor here to log in) needs to be resumed now —
+    // otherwise it's silently dropped and the invite is never accepted.
+    const inviteToken = sessionStorage.getItem('invite_token');
+    if (inviteToken) {
+      sessionStorage.removeItem('invite_token');
+      return <Navigate to={`/invite?token=${encodeURIComponent(inviteToken)}`} replace />;
+    }
+    return <Navigate to="/dashboard" replace />;
+  }
   return <>{children}</>;
 }
 

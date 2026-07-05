@@ -229,8 +229,12 @@ export function SmtpAccountsPage() {
   const handleEmailChange = useCallback((email: string) => {
     setForm((prev) => ({ ...prev, email_address: email, smtp_user: email }));
 
-    // Only auto-detect if user hasn't already selected a preset manually
-    if (!activePreset || autoDetected) {
+    // Only auto-detect if user hasn't already selected a preset manually, and
+    // never while editing an existing account — openEdit() always clears
+    // activePreset, so without the editId check, retyping/correcting the
+    // email on a working account would silently overwrite its real SMTP/IMAP
+    // settings with generic preset defaults.
+    if (!editId && (!activePreset || autoDetected)) {
       const detected = detectPresetFromEmail(email);
       if (detected) {
         setActivePreset(detected);
@@ -254,7 +258,7 @@ export function SmtpAccountsPage() {
         setAutoDetected(false);
       }
     }
-  }, [activePreset, autoDetected]);
+  }, [activePreset, autoDetected, editId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

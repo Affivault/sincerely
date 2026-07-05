@@ -1,11 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
 import { inboxApi } from '../api/inbox.api';
 import { useAuth } from '../context/AuthContext';
 
+// Pure data read — this hook is called from multiple components (Sidebar,
+// AppLayout) that are always mounted together, so any side effect placed
+// here (desktop notifications, document.title) would fire once per mount
+// and double up. Side effects live in a single top-level subscriber instead
+// (see AppLayout's useUnreadNotifications).
 export function useUnreadCount() {
   const { user } = useAuth();
-  const prevCountRef = useRef<number>(0);
 
   const { data: count = 0 } = useQuery({
     queryKey: ['inbox-unread-count'],
@@ -14,30 +17,6 @@ export function useUnreadCount() {
     enabled: !!user,
     staleTime: 20_000,
   });
-
-  useEffect(() => {
-    if (count > prevCountRef.current && prevCountRef.current > 0) {
-      const diff = count - prevCountRef.current;
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('Sincerely Inbox', {
-          body: `You have ${diff} new message${diff !== 1 ? 's' : ''}`,
-          icon: '/favicon.png',
-        });
-      }
-    }
-    prevCountRef.current = count;
-  }, [count]);
-
-  useEffect(() => {
-    document.title = count > 0 ? `(${count}) Sincerely` : 'Sincerely';
-    return () => { document.title = 'Sincerely'; };
-  }, [count]);
-
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => {});
-    }
-  }, []);
 
   return count;
 }
