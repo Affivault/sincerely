@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inboxApi } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
 import { templateApi } from '../../api/template.api';
+import { crmApi } from '../../api/crm.api';
 import { Spinner } from '../../components/ui/Spinner';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/shared/EmptyState';
@@ -1982,6 +1983,22 @@ export function InboxPage() {
     onError: () => toast.error('Failed to update tag'),
   });
 
+  // Tagging a conversation "Meeting Booked" drops a meeting onto the CRM
+  // calendar for tomorrow morning, linked to the contact — one less thing to
+  // remember. Fired only when the intent is newly set to meeting.
+  const bookMeetingMut = useMutation({
+    mutationFn: (input: { title: string; contact_name: string | null; contact_email: string | null }) => {
+      const start = new Date();
+      start.setDate(start.getDate() + 1);
+      start.setHours(10, 0, 0, 0);
+      return crmApi.createEvent({ ...input, type: 'meeting', starts_at: start.toISOString() });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['crm'] });
+      toast.success('Meeting added to your CRM calendar');
+    },
+  });
+
   const archiveMut = useMutation({
     mutationFn: ({ id }: { id: string; contactEmail: string | null }) => inboxApi.archiveThread(id),
     onMutate: async ({ contactEmail }: { id: string; contactEmail: string | null }) => {
@@ -2450,7 +2467,17 @@ export function InboxPage() {
                                 return (
                                   <button
                                     key={opt.value}
-                                    onClick={() => { setTagMut.mutate({ id: currentMsg.id, tag: opt.value }); setShowTagDropdown(false); }}
+                                    onClick={() => {
+                                      setTagMut.mutate({ id: currentMsg.id, tag: opt.value });
+                                      if (opt.value === 'meeting' && currentMsg.sara_intent !== 'meeting') {
+                                        bookMeetingMut.mutate({
+                                          title: `Meeting — ${threadContactName || currentMsg.contact_name || currentMsg.from_email}`,
+                                          contact_name: threadContactName || currentMsg.contact_name || null,
+                                          contact_email: threadContactEmail || currentMsg.from_email || null,
+                                        });
+                                      }
+                                      setShowTagDropdown(false);
+                                    }}
                                     className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
                                       isActive ? 'bg-[var(--bg-elevated)]' : 'hover:bg-[var(--bg-hover)]'
                                     } ${info.text}`}

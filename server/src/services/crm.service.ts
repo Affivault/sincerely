@@ -18,11 +18,18 @@ const EVENT_KEYS = ['title', 'type', 'starts_at', 'ends_at', 'contact_name', 'co
 
 export const crmService = {
   /* ── Deals ── */
-  async listDeals(userId: string) {
-    const { data, error } = await supabaseAdmin
-      .from('deals')
-      .select('*')
-      .eq('user_id', userId)
+  async listDeals(userId: string, filters?: { contactId?: string; contactEmail?: string }) {
+    let query = supabaseAdmin.from('deals').select('*').eq('user_id', userId);
+    // Scope to a specific lead (used by the contact page) — match either the
+    // linked contact_id or the captured contact_email.
+    if (filters?.contactId && filters?.contactEmail) {
+      query = query.or(`contact_id.eq.${filters.contactId},contact_email.eq.${filters.contactEmail}`);
+    } else if (filters?.contactId) {
+      query = query.eq('contact_id', filters.contactId);
+    } else if (filters?.contactEmail) {
+      query = query.eq('contact_email', filters.contactEmail);
+    }
+    const { data, error } = await query
       .order('position', { ascending: true })
       .order('created_at', { ascending: false });
     if (error) throw new AppError(error.message, 500);
