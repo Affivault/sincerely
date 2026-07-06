@@ -71,7 +71,18 @@ export function CampaignDetailPage() {
 
   const { data: campaignContacts } = useQuery({
     queryKey: ['campaign-contacts', id],
-    queryFn: () => campaignsApi.getContacts(id!, { limit: 100 }),
+    queryFn: async () => {
+      // The API caps `limit` at 100 server-side, so campaigns with more than
+      // 100 enrolled contacts need every page fetched or the audience (and
+      // every count/filter derived from it) silently truncates to the first 100.
+      const first = await campaignsApi.getContacts(id!, { limit: 100, page: 1 });
+      const allContacts = [...first.data];
+      for (let page = 2; page <= first.total_pages; page++) {
+        const next = await campaignsApi.getContacts(id!, { limit: 100, page });
+        allContacts.push(...next.data);
+      }
+      return { ...first, data: allContacts };
+    },
     enabled: !!id && activeTab === 'contacts',
   });
 

@@ -146,8 +146,21 @@ export const settingsService = {
       'subscriptions',
     ];
 
+    const failedTables: string[] = [];
     for (const table of tables) {
-      await supabaseAdmin.from(table).delete().eq('user_id', userId);
+      const { error: deleteError } = await supabaseAdmin.from(table).delete().eq('user_id', userId);
+      if (deleteError) failedTables.push(`${table} (${deleteError.message})`);
+    }
+
+    if (failedTables.length > 0) {
+      // Don't destroy the auth identity if any table failed to delete — otherwise
+      // the user is told their account is gone while their data silently survives
+      // with no owner left to reconcile it back to.
+      throw new AppError(
+        `Account deletion incomplete — failed to delete: ${failedTables.join(', ')}. ` +
+          'Your login was NOT removed; please try again or contact support.',
+        500,
+      );
     }
 
     // Delete the auth user via Supabase admin

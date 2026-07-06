@@ -9,6 +9,7 @@ export const listsService = {
       .from('contact_lists')
       .select('*')
       .eq('user_id', userId)
+      .eq('is_trashed', false)
       .order('is_default', { ascending: false })
       .order('name', { ascending: true });
 
@@ -44,6 +45,7 @@ export const listsService = {
       .select('*')
       .eq('id', id)
       .eq('user_id', userId)
+      .eq('is_trashed', false)
       .single();
 
     if (error) throw new AppError(error.message, 500);

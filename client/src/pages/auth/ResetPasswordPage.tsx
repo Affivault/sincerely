@@ -36,6 +36,9 @@ export function ResetPasswordPage() {
         // No token at all — link is invalid or expired
         setInvalid(true);
       }
+    }).catch((err) => {
+      console.error('Failed to check reset-password session:', err);
+      setInvalid(true);
     });
 
     return () => subscription.unsubscribe();

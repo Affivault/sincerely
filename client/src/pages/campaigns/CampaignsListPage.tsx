@@ -87,6 +87,14 @@ export function CampaignsListPage() {
     },
   });
 
+  // Independent of `statusFilter` — used only to compute status-tab and
+  // folder-rail counts, which must reflect every status even when a single
+  // status tab is selected (campaignsResp above is server-filtered to just that status).
+  const { data: allStatusesResp } = useQuery({
+    queryKey: ['campaigns', 'all-statuses'],
+    queryFn: () => campaignsApi.list({ page: 1, limit: 500 }),
+  });
+
   const { data: folders = [] } = useQuery({
     queryKey: ['campaign-folders'],
     queryFn: campaignFoldersApi.list,
@@ -105,6 +113,7 @@ export function CampaignsListPage() {
   });
 
   const allCampaigns: CampaignWithStats[] = (campaignsResp?.data || []) as any;
+  const allStatusesCampaigns: CampaignWithStats[] = (allStatusesResp?.data || []) as any;
 
   // Column sorting
   const [sortKey, setSortKey] = useState<SortKey>('created');
@@ -163,7 +172,23 @@ export function CampaignsListPage() {
     return totals;
   }, [visibleCampaigns]);
 
-  const uncategorisedCount = allCampaigns.filter((c: any) => !c.folder_id).length;
+  // Folder-scoped (but status-agnostic) view, so the tab/rail counts below
+  // reflect every status even while a single status tab is selected.
+  const folderScopedCampaigns = useMemo(() => {
+    let result = allStatusesCampaigns;
+    if (activeFolderId !== 'all') {
+      result = activeFolderId === null
+        ? result.filter((c: any) => !c.folder_id)
+        : result.filter((c: any) => c.folder_id === activeFolderId);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((c: any) => c.name?.toLowerCase().includes(q));
+    }
+    return result;
+  }, [allStatusesCampaigns, activeFolderId, searchQuery]);
+
+  const uncategorisedCount = allStatusesCampaigns.filter((c: any) => !c.folder_id).length;
 
   const sentTotal = aggregateStats.sent || 0;
   const openPctAgg   = sentTotal ? (aggregateStats.opened  / sentTotal) * 100 : 0;
@@ -175,8 +200,8 @@ export function CampaignsListPage() {
     value: t.value,
     label: t.label,
     count: t.value === ''
-      ? visibleCampaigns.length
-      : visibleCampaigns.filter((c: any) => c.status === t.value).length,
+      ? folderScopedCampaigns.length
+      : folderScopedCampaigns.filter((c: any) => c.status === t.value).length,
   }));
 
   return (
@@ -266,7 +291,7 @@ export function CampaignsListPage() {
           <FolderRow
             label="All"
             icon={Layers}
-            count={allCampaigns.length}
+            count={allStatusesCampaigns.length}
             active={activeFolderId === 'all'}
             onClick={() => setActiveFolderId('all')}
             color="#5B5BF5"

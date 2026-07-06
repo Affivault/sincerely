@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase.js';
 import { resumeWebhookWait } from '../services/sequence.service.js';
+import { isValidInboundWebhookToken } from '../utils/inbound-webhook-token.js';
 
 /**
  * Inbound Webhook Routes
@@ -8,7 +9,7 @@ import { resumeWebhookWait } from '../services/sequence.service.js';
  * Public endpoint for external systems to send webhook events that
  * can resume contacts in WebhookWait steps.
  *
- * POST /api/webhooks/inbound/:campaignId
+ * POST /api/webhooks/inbound/:campaignId?token=<see getInboundWebhookToken>
  * Body: { event: string, contact_email: string, data?: any }
  */
 export const webhookInboundRoutes = Router();
@@ -16,6 +17,13 @@ export const webhookInboundRoutes = Router();
 webhookInboundRoutes.post('/:campaignId', async (req: Request, res: Response) => {
   try {
     const { campaignId } = req.params;
+    const token = (req.query.token as string) ?? req.get('X-Webhook-Token');
+
+    if (!isValidInboundWebhookToken(campaignId, token)) {
+      res.status(401).json({ error: 'Invalid or missing webhook token' });
+      return;
+    }
+
     const { event, contact_email, data } = req.body;
 
     if (!event || !contact_email) {

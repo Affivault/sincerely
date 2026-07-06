@@ -38,3 +38,6 @@ campaignRoutes.post('/:id/test-email', campaignsController.sendTest);
 // Sender pool (rotation)
 campaignRoutes.get('/:id/sender-pool', campaignsController.getSenderPool);
 campaignRoutes.put('/:id/sender-pool', campaignsController.setSenderPool);
+
+// Inbound webhook token (for webhook_wait steps)
+campaignRoutes.get('/:id/webhook-token', campaignsController.getWebhookToken);
