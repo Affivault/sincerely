@@ -27,7 +27,6 @@ import {
   Sparkles,
   RefreshCw,
   Pencil,
-  Trash2,
   MailPlus,
   ArrowLeft,
   Check,
@@ -403,56 +402,91 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
     }
   };
 
+  const senderAcct = smtpAccounts.find(a => a.id === senderId) || smtpAccounts[0];
+
   return (
     <div className={`fixed inset-0 z-50 flex ${expanded ? 'items-center justify-center' : 'items-end justify-end'} p-4`}>
-      <div className="fixed inset-0 bg-black/20" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/25 backdrop-blur-[1px]" onClick={onClose} />
       <div
-        className={`relative bg-[var(--bg-surface)] rounded-xl border border-[var(--border-subtle)] shadow-2xl flex flex-col transition-all duration-200 ${
-          expanded ? 'w-[800px] max-h-[80vh]' : 'w-[620px] max-h-[85vh]'
+        className={`relative bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] flex flex-col transition-all duration-200 overflow-hidden ${
+          expanded ? 'w-[820px] max-h-[85vh]' : 'w-[640px] max-h-[85vh]'
         }`}
-        style={{ boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}
+        style={{ boxShadow: 'var(--shadow-xl)' }}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] rounded-t-xl">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)]">New Message</h3>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setExpanded(!expanded)}
-              className="p-1.5 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
-              title={expanded ? 'Minimize' : 'Expand'}
-            >
-              {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-            </button>
-            <button onClick={onClose} className="p-1.5 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)]">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+        {/* Header — matches the reply composer's icon + title language */}
+        <div className="flex items-center gap-2.5 px-4 h-[52px] border-b border-[var(--border-subtle)] flex-shrink-0">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] flex-shrink-0">
+            <MailPlus className="h-3.5 w-3.5 text-[var(--indigo)]" />
+          </span>
+          <p className="flex-1 text-[13px] font-semibold text-[var(--text-primary)]">New message</p>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="icon-btn h-7 w-7 flex-shrink-0"
+            title={expanded ? 'Minimize' : 'Expand'}
+          >
+            {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          </button>
+          <button onClick={onClose} title="Close" className="icon-btn h-7 w-7 flex-shrink-0"><X className="h-3.5 w-3.5" /></button>
         </div>
-        <div className="border-b border-[var(--border-subtle)]">
-          <div className="flex items-center px-4 py-2 border-b border-[var(--border-subtle)]">
-            <span className="text-xs font-medium text-[var(--text-tertiary)] w-12">From</span>
+
+        {/* To — recipient, with the sending-inbox routing on the right (two identities) */}
+        <div className="flex items-center gap-2.5 px-4 h-11 border-b border-[var(--border-subtle)] flex-shrink-0">
+          <span className="text-[11px] font-medium text-[var(--text-tertiary)] flex-shrink-0">To</span>
+          <input value={to} onChange={e => setTo(e.target.value)} className="flex-1 min-w-0 bg-transparent text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]" placeholder="recipient@example.com" autoFocus />
+          <span className="text-[11px] text-[var(--text-tertiary)] flex-shrink-0 hidden sm:inline">via</span>
+          <div className="min-w-0 max-w-[190px] flex-shrink-0">
             <SenderSelect accounts={smtpAccounts} value={senderId} onChange={setSenderId} />
           </div>
-          <div className="flex items-center px-4 py-2 border-b border-[var(--border-subtle)]">
-            <span className="text-xs font-medium text-[var(--text-tertiary)] w-12">To</span>
-            <input value={to} onChange={e => setTo(e.target.value)} className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none" placeholder="recipient@example.com" />
-          </div>
-          <div className="flex items-center px-4 py-2">
-            <span className="text-xs font-medium text-[var(--text-tertiary)] w-12">Subject</span>
-            <input value={subject} onChange={e => setSubject(e.target.value)} className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none" placeholder="Subject" />
-          </div>
+          {senderAcct && (senderAcct.is_verified ? (
+            <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-emerald-600 dark:text-emerald-400 flex-shrink-0" title="This inbox is verified for sending.">
+              <BadgeCheck className="h-3.5 w-3.5" /><span className="hidden md:inline">Verified</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-amber-600 dark:text-amber-400 flex-shrink-0" title="This inbox isn't verified for sending — deliverability may suffer.">
+              Unverified
+            </span>
+          ))}
         </div>
+
+        {/* Subject */}
+        <div className="flex items-center gap-2.5 px-4 h-11 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 flex-shrink-0">
+          <span className="text-[11px] font-medium text-[var(--text-tertiary)] flex-shrink-0">Subject</span>
+          <input value={subject} onChange={e => setSubject(e.target.value)} className="flex-1 min-w-0 bg-transparent text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]" placeholder="Add a subject" />
+        </div>
+
+        {/* Writing surface — seamless bare editor, like the reply composer */}
         <div className="flex-1 min-h-0 overflow-y-auto">
           <RichTextEditor
-            placeholder="Write your message..."
+            bare
+            placeholder="Write your message…"
             onChange={editor.handleChange}
             onTemplateSelect={(t) => { if (t.subject) setSubject(t.subject); }}
             templates={templates}
-            minHeight={expanded ? '300px' : '200px'}
-            autoFocus
+            minHeight={expanded ? '320px' : '200px'}
           />
         </div>
-        <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-subtle)]">
+
+        {/* Action bar — Discard left, Schedule + Send right */}
+        <div className="flex items-center justify-between gap-2 px-4 py-3 border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/30 flex-shrink-0">
+          <button onClick={onClose} className="h-9 px-3 rounded-lg text-[13px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">Discard</button>
           <div className="flex items-center gap-2">
+            <div className="relative">
+              <button
+                onClick={() => setShowSchedule(!showSchedule)}
+                disabled={!canSend}
+                className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-[13px] font-medium transition-all disabled:opacity-40 ${
+                  showSchedule
+                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(91,91,245,0.25)]'
+                    : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
+                }`}
+                title="Schedule send"
+              >
+                <CalendarClock className="h-3.5 w-3.5" />
+                <span>Schedule</span>
+                <ChevronDown className={`h-3 w-3 transition-transform ${showSchedule ? 'rotate-180' : ''}`} />
+              </button>
+              {showSchedule && <ScheduleSendPicker onSchedule={handleSchedule} onClose={() => setShowSchedule(false)} />}
+            </div>
             <button
               onClick={() => {
                 if (canSend) {
@@ -460,32 +494,12 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
                 }
               }}
               disabled={!canSend}
-              className="flex items-center gap-2 px-5 py-2 rounded-lg bg-[var(--indigo)] text-white text-sm font-semibold hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
+              className="flex items-center gap-2 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-[13px] font-semibold hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
             >
               <Send className="h-3.5 w-3.5" />
-              {sending ? 'Sending...' : 'Send'}
+              {sending ? 'Sending…' : 'Send'}
             </button>
-            <div className="relative">
-              <button
-                onClick={() => setShowSchedule(!showSchedule)}
-                disabled={!canSend}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40 ${
-                  showSchedule
-                    ? 'bg-[#6366F1]/10 text-[var(--indigo)] border border-[#6366F1]/20'
-                    : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)]'
-                }`}
-                title="Schedule send"
-              >
-                <CalendarClock className="h-3.5 w-3.5" />
-                <span className="text-[13px]">Schedule</span>
-                <ChevronDown className={`h-3 w-3 transition-transform ${showSchedule ? 'rotate-180' : ''}`} />
-              </button>
-              {showSchedule && <ScheduleSendPicker onSchedule={handleSchedule} onClose={() => setShowSchedule(false)} />}
-            </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors">
-            <Trash2 className="h-4 w-4" />
-          </button>
         </div>
       </div>
     </div>
@@ -2374,12 +2388,14 @@ export function InboxPage() {
                   </div>
                 </div>
 
-                {/* ── Composer dock — a floating card on the warm canvas, matching the reading room ── */}
-                <div className="flex-shrink-0 bg-[var(--bg-app)] px-4 sm:px-8 pt-2 pb-5">
+                {/* ── Composer dock — sits inside the thread's message column so it flows with the emails above ── */}
+                <div className="flex-shrink-0 bg-[var(--bg-app)] pt-1 pb-5">
+                  <div className="max-w-[860px] mx-auto px-8">
+                  <div className="pl-12">
                   {replyMode ? (
                     <div
                       ref={replyComposerRef}
-                      className="max-w-[860px] mx-auto w-full flex flex-col max-h-[64vh] rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] overflow-hidden"
+                      className="w-full flex flex-col max-h-[64vh] rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] overflow-hidden"
                     >
                       {/* Routing line — recipient identity, with close. No labels, no boxes. */}
                       <div className="flex items-center gap-2.5 px-4 h-[50px] border-b border-[var(--border-subtle)] flex-shrink-0">
@@ -2518,7 +2534,7 @@ export function InboxPage() {
                     </div>
                   ) : (
                     /* Idle state: a one-click reply bar keeps the composer a thought away */
-                    <div className="max-w-[860px] mx-auto w-full flex items-center gap-2.5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)] px-3 py-2.5">
+                    <div className="w-full flex items-center gap-2.5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)] px-3 py-2.5">
                       <Avatar name={threadContactName || undefined} email={threadContactEmail || undefined} size="md" />
                       <button
                         onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
@@ -2535,6 +2551,8 @@ export function InboxPage() {
                       </button>
                     </div>
                   )}
+                  </div>
+                  </div>
                 </div>
               </div>
 
