@@ -37,6 +37,9 @@ interface RichTextEditorProps {
   templates?: Template[];
   minHeight?: string;
   autoFocus?: boolean;
+  /** Seamless variant: no outer border/background, transparent toolbar — lets a
+      parent card own the framing (used by the Unibox reply composer). */
+  bare?: boolean;
 }
 
 /* ─── Toolbar Button ──────────────────────────── */
@@ -205,6 +208,7 @@ export function RichTextEditor({
   templates,
   minHeight = '200px',
   autoFocus = false,
+  bare = false,
 }: RichTextEditorProps) {
   const [showLink, setShowLink] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
@@ -285,9 +289,15 @@ export function RichTextEditor({
   };
 
   return (
-    <div className="border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-surface)] overflow-hidden focus-within:border-[var(--text-primary)] transition-colors">
+    <div className={bare
+      ? 'overflow-hidden'
+      : 'border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-surface)] overflow-hidden focus-within:border-[var(--text-primary)] transition-colors'}>
       {/* Toolbar */}
-      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] flex-wrap relative">
+      <div className={`flex items-center gap-0.5 px-2 py-1.5 flex-wrap relative ${
+        bare
+          ? 'border-b border-[var(--border-subtle)]/60'
+          : 'border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]'
+      }`}>
         <ToolbarBtn
           active={editor.isActive('bold')}
           onClick={() => editor.chain().focus().toggleBold().run()}
