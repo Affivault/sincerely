@@ -24,6 +24,7 @@ import { campaignFoldersRoutes } from './campaign-folders.routes.js';
 import { listFoldersRoutes } from './list-folders.routes.js';
 import { sendingSchedulesRoutes } from './sending-schedules.routes.js';
 import { billingRoutes } from './billing.routes.js';
+import { crmRoutes } from './crm.routes.js';
 
 export const routes = Router();
 
@@ -56,3 +57,4 @@ routes.use('/campaign-folders', campaignFoldersRoutes);
 routes.use('/list-folders', listFoldersRoutes);
 routes.use('/sending-schedules', sendingSchedulesRoutes);
 routes.use('/billing', billingRoutes);
+routes.use('/crm', crmRoutes);
