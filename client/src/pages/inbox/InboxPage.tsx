@@ -2381,74 +2381,68 @@ export function InboxPage() {
                       ref={replyComposerRef}
                       className="max-w-[860px] mx-auto w-full flex flex-col max-h-[64vh] rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] overflow-hidden"
                     >
-                      {/* Card header: what you're doing + who it's going to + close */}
-                      <div className="flex items-center gap-3 px-4 h-[52px] border-b border-[var(--border-subtle)] flex-shrink-0">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] flex-shrink-0">
-                          {replyMode === 'reply' ? <Reply className="h-4 w-4 text-[var(--indigo)]" /> : <Forward className="h-4 w-4 text-[var(--indigo)]" />}
+                      {/* Routing line — recipient identity, with close. No labels, no boxes. */}
+                      <div className="flex items-center gap-2.5 px-4 h-[50px] border-b border-[var(--border-subtle)] flex-shrink-0">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] flex-shrink-0">
+                          {replyMode === 'reply' ? <Reply className="h-3.5 w-3.5 text-[var(--indigo)]" /> : <Forward className="h-3.5 w-3.5 text-[var(--indigo)]" />}
                         </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[13px] font-semibold text-[var(--text-primary)] leading-tight">{replyMode === 'reply' ? 'Reply' : 'Forward'}</p>
-                          <p className="text-[11px] text-[var(--text-tertiary)] truncate leading-tight mt-0.5">
-                            {replyMode === 'reply' ? `to ${threadContactName || currentMsg.from_email}` : 'Choose a recipient below'}
-                          </p>
-                        </div>
-                        <button onClick={() => setReplyMode(null)} title="Close composer" className="icon-btn h-8 w-8 flex-shrink-0"><X className="h-3.5 w-3.5" /></button>
+                        <span className="text-[11px] font-medium text-[var(--text-tertiary)] flex-shrink-0">To</span>
+                        {replyMode === 'reply' ? (
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <Avatar name={threadContactName || undefined} email={currentMsg.from_email} size="sm" />
+                            <span className="text-[13px] font-semibold text-[var(--text-primary)] truncate">{threadContactName || currentMsg.from_email}</span>
+                            {threadContactName && <span className="text-[12px] text-[var(--text-tertiary)] truncate hidden sm:inline">{currentMsg.from_email}</span>}
+                          </div>
+                        ) : (
+                          <input
+                            value={forwardTo}
+                            onChange={e => setForwardTo(e.target.value)}
+                            className="flex-1 min-w-0 bg-transparent text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
+                            placeholder="recipient@example.com"
+                            autoFocus
+                          />
+                        )}
+                        <button onClick={() => setReplyMode(null)} title="Close composer" className="icon-btn h-7 w-7 flex-shrink-0"><X className="h-3.5 w-3.5" /></button>
                       </div>
 
-                      {/* Address fields — a soft inset block so it reads as context, not a hard form */}
-                      <div className="px-4 pt-3 flex-shrink-0">
-                        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 divide-y divide-[var(--border-subtle)] overflow-hidden">
-                          {/* From — the sending inbox, with a deliverability check */}
-                          <div className="flex items-center gap-2.5 px-3 min-h-[38px] py-1">
-                            <span className="text-[11px] font-medium text-[var(--text-tertiary)] w-[52px] flex-shrink-0">From</span>
-                            <div className="flex-1 min-w-0">
-                              <SenderSelect accounts={smtpAccounts} value={replySenderId} onChange={setReplySenderId} />
-                            </div>
-                            {(() => {
-                              const acct = smtpAccounts.find(a => a.id === replySenderId) || smtpAccounts[0];
-                              if (!acct) return null;
-                              return acct.is_verified ? (
-                                <span className="inline-flex items-center gap-1 text-[10.5px] font-medium px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex-shrink-0">
-                                  <BadgeCheck className="h-3 w-3" /> Verified
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 text-[10.5px] font-medium px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 flex-shrink-0" title="This inbox isn't verified for sending — deliverability may suffer.">
-                                  Unverified
-                                </span>
-                              );
-                            })()}
-                          </div>
-                          {/* To — fixed recipient on reply, editable on forward */}
-                          <div className="flex items-center gap-2.5 px-3 min-h-[38px] py-1">
-                            <span className="text-[11px] font-medium text-[var(--text-tertiary)] w-[52px] flex-shrink-0">To</span>
-                            {replyMode === 'reply' ? (
-                              <span className="flex-1 min-w-0 truncate text-[13px] text-[var(--text-primary)]">{currentMsg.from_email}</span>
-                            ) : (
-                              <input value={forwardTo} onChange={e => setForwardTo(e.target.value)} className="flex-1 bg-transparent text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]" placeholder="recipient@example.com" autoFocus />
-                            )}
-                          </div>
-                          {/* Subject — server derives the reply subject, so show it read-only */}
-                          <div className="flex items-center gap-2.5 px-3 min-h-[38px] py-1">
-                            <span className="text-[11px] font-medium text-[var(--text-tertiary)] w-[52px] flex-shrink-0">Subject</span>
-                            <span className="flex-1 min-w-0 truncate text-[13px] text-[var(--text-secondary)]">
-                              {(replyMode === 'reply' ? 'Re: ' : 'Fwd: ') + ((threadSubject || '').replace(/^((re|fwd?|fw)\s*:\s*)+/i, '') || '(no subject)')}
+                      {/* Meta strip — subject on the left, sending-inbox routing on the right */}
+                      <div className="flex items-center gap-2 px-4 h-9 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 flex-shrink-0">
+                        <span className="text-[12px] text-[var(--text-tertiary)] truncate min-w-0">
+                          {(replyMode === 'reply' ? 'Re: ' : 'Fwd: ') + ((threadSubject || '').replace(/^((re|fwd?|fw)\s*:\s*)+/i, '') || '(no subject)')}
+                        </span>
+                        <span className="flex-1" />
+                        <span className="text-[11px] text-[var(--text-tertiary)] flex-shrink-0 hidden sm:inline">via</span>
+                        <div className="min-w-0 max-w-[190px] flex-shrink-0">
+                          <SenderSelect accounts={smtpAccounts} value={replySenderId} onChange={setReplySenderId} />
+                        </div>
+                        {(() => {
+                          const acct = smtpAccounts.find(a => a.id === replySenderId) || smtpAccounts[0];
+                          if (!acct) return null;
+                          return acct.is_verified ? (
+                            <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-emerald-600 dark:text-emerald-400 flex-shrink-0" title="This inbox is verified for sending.">
+                              <BadgeCheck className="h-3.5 w-3.5" /><span className="hidden md:inline">Verified</span>
                             </span>
-                          </div>
-                        </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-amber-600 dark:text-amber-400 flex-shrink-0" title="This inbox isn't verified for sending — deliverability may suffer.">
+                              Unverified
+                            </span>
+                          );
+                        })()}
                       </div>
 
-                      {/* Editor + forward preview — the writing surface */}
-                      <div className="flex-1 min-h-0 overflow-y-auto px-1 pt-1">
+                      {/* Writing surface — a seamless canvas; the editor melts into the card */}
+                      <div className="flex-1 min-h-0 overflow-y-auto">
                         <RichTextEditor
                           key={replyMode}
+                          bare
                           placeholder={replyMode === 'reply' ? 'Write your reply…' : 'Add a note (optional)…'}
                           onChange={replyEditor.handleChange}
                           templates={templates}
-                          minHeight="170px"
+                          minHeight="180px"
                           autoFocus={replyMode === 'reply'}
                         />
                         {replyMode === 'forward' && (
-                          <div className="mx-3 mb-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 overflow-hidden">
+                          <div className="mx-4 mb-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 overflow-hidden">
                             <div className="px-3.5 py-2.5">
                               <p className="text-[10px] font-semibold text-[var(--text-muted)] mb-1.5">Forwarded message</p>
                               <div className="text-[11px] text-[var(--text-tertiary)] space-y-0.5">
