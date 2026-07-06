@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inboxApi } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
@@ -57,6 +58,8 @@ import {
   Building2,
   ArrowUpRight,
   ArrowDownLeft,
+  BadgeCheck,
+  Megaphone,
 } from 'lucide-react';
 
 /* ─── Types ────────────────────────────────────────── */
@@ -93,6 +96,7 @@ interface Message {
   received_at: string;
   contact_name: string | null;
   contact_email?: string | null;
+  contact_id?: string | null;
   campaign_name: string | null;
   campaign_id: string | null;
   smtp_account_id?: string | null;
@@ -1269,31 +1273,107 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
   const name = msg.contact_name || (email ? email.split('@')[0] : 'Contact');
   const company = companyFromEmail(email);
   const intent = msg.sara_intent && msg.sara_intent !== 'scheduled' ? (INTENT_COLORS[msg.sara_intent] || INTENT_COLORS.other) : null;
+  // Only link to the lead record when the message is matched to a real contact.
+  const contactHref = msg.contact_id ? `/contacts/${msg.contact_id}` : null;
+  const sendingInbox = msg.smtp_label || msg.smtp_email;
 
   return (
-    <aside className="hidden xl:flex w-[260px] flex-shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-col overflow-y-auto">
-      {/* Identity */}
-      <div className="flex flex-col items-center text-center px-4 pt-5 pb-4 border-b border-[var(--border-subtle)]">
-        <Avatar name={name} email={email} size="lg" />
-        <p className="mt-3 text-[14.5px] font-semibold text-[var(--text-primary)] leading-tight">{name}</p>
-        {email && <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)] truncate max-w-full">{email}</p>}
-        {company && (
-          <span className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-secondary)]">
-            <Building2 className="h-3 w-3 text-[var(--text-tertiary)]" />
-            {company}
-          </span>
-        )}
-        <button
-          onClick={onCopyEmail}
-          className="mt-3 flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-default)] text-[11px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
-        >
-          <Copy className="h-3 w-3" /> Copy email
-        </button>
+    <aside className="hidden xl:flex w-[280px] flex-shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-col overflow-y-auto">
+      {/* ── Prospect card — the person, linked to their lead record ── */}
+      <div className="px-3.5 pt-4 pb-3.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2 px-1">Prospect</p>
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 p-3.5">
+          <div className="flex items-start gap-3">
+            <Avatar name={name} email={email} size="md" />
+            <div className="min-w-0 flex-1">
+              {contactHref ? (
+                <Link
+                  to={contactHref}
+                  className="group inline-flex items-center gap-1 text-[13.5px] font-semibold text-[var(--text-primary)] hover:text-[var(--indigo)] transition-colors leading-tight"
+                >
+                  <span className="truncate">{name}</span>
+                  <ArrowUpRight className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </Link>
+              ) : (
+                <p className="text-[13.5px] font-semibold text-[var(--text-primary)] leading-tight truncate">{name}</p>
+              )}
+              {email && <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)] truncate">{email}</p>}
+              {company && (
+                <span className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-secondary)]">
+                  <Building2 className="h-3 w-3 text-[var(--text-tertiary)]" />
+                  {company}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-1.5">
+            <button
+              onClick={onCopyEmail}
+              className="flex items-center justify-center gap-1.5 h-7 flex-1 rounded-lg border border-[var(--border-default)] text-[11px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              <Copy className="h-3 w-3" /> Copy email
+            </button>
+            {contactHref && (
+              <Link
+                to={contactHref}
+                className="flex items-center justify-center gap-1.5 h-7 flex-1 rounded-lg border border-[var(--border-default)] text-[11px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                Open lead <ArrowUpRight className="h-3 w-3" />
+              </Link>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Engagement */}
-      <div className="px-4 py-4 border-b border-[var(--border-subtle)]">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2.5">Engagement</p>
+      {/* ── Campaign card — which sequence this thread belongs to ── */}
+      {(msg.campaign_name || sendingInbox) && (
+        <div className="px-3.5 pb-3.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2 px-1">Campaign</p>
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 p-3.5">
+            {msg.campaign_name ? (
+              <div className="flex items-start gap-2.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] flex-shrink-0">
+                  <Megaphone className="h-3.5 w-3.5 text-[var(--indigo)]" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  {msg.campaign_id ? (
+                    <Link
+                      to={`/campaigns/${msg.campaign_id}`}
+                      className="group inline-flex items-center gap-1 text-[12.5px] font-semibold text-[var(--text-primary)] hover:text-[var(--indigo)] transition-colors leading-snug"
+                    >
+                      <span className="truncate">{msg.campaign_name}</span>
+                      <ArrowUpRight className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </Link>
+                  ) : (
+                    <p className="text-[12.5px] font-semibold text-[var(--text-primary)] leading-snug truncate">{msg.campaign_name}</p>
+                  )}
+                  <p className="mt-0.5 text-[11px] text-[var(--text-tertiary)]">Outreach sequence</p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex-shrink-0">
+                  <AtSign className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12.5px] font-semibold text-[var(--text-primary)] leading-snug">Direct message</p>
+                  <p className="mt-0.5 text-[11px] text-[var(--text-tertiary)]">Not part of a campaign</p>
+                </div>
+              </div>
+            )}
+            {sendingInbox && (
+              <div className="mt-3 pt-3 border-t border-[var(--border-subtle)] flex items-center gap-2">
+                <span className="text-[10px] text-[var(--text-tertiary)] flex-shrink-0">Sending from</span>
+                <span className="ml-auto text-[11px] font-medium text-[var(--text-primary)] truncate">{sendingInbox}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Engagement ── */}
+      <div className="px-3.5 pb-3.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2 px-1">Engagement</p>
         <div className="grid grid-cols-2 gap-2">
           <div className="panel-inset px-2.5 py-1.5">
             <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
@@ -1321,25 +1401,23 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
         </div>
       </div>
 
-      {/* Details */}
-      <div className="px-4 py-4">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">Details</p>
-        <DetailRow label="Intent">
-          {intent ? (
-            <span className={cn('inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md', intent.bg, intent.text)}>{intent.label}</span>
-          ) : <span className="text-[var(--text-tertiary)] font-normal">Untagged</span>}
-        </DetailRow>
-        {msg.campaign_name && <DetailRow label="Campaign">{msg.campaign_name}</DetailRow>}
-        {(msg.smtp_label || msg.smtp_email) && (
-          <DetailRow label="Inbox">{msg.smtp_label || msg.smtp_email}</DetailRow>
-        )}
-        {stats.first && (
-          <DetailRow label="First contact">{new Date(stats.first).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</DetailRow>
-        )}
-        {stats.last && (
-          <DetailRow label="Last activity">{timeAgo(stats.last)} ago</DetailRow>
-        )}
-        <DetailRow label="Messages"><span className="tabular">{stats.total}</span></DetailRow>
+      {/* ── Details ── */}
+      <div className="px-3.5 pb-4">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1.5 px-1">Details</p>
+        <div className="px-1">
+          <DetailRow label="Intent">
+            {intent ? (
+              <span className={cn('inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md', intent.bg, intent.text)}>{intent.label}</span>
+            ) : <span className="text-[var(--text-tertiary)] font-normal">Untagged</span>}
+          </DetailRow>
+          {stats.first && (
+            <DetailRow label="First contact">{new Date(stats.first).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</DetailRow>
+          )}
+          {stats.last && (
+            <DetailRow label="Last activity">{timeAgo(stats.last)} ago</DetailRow>
+          )}
+          <DetailRow label="Messages"><span className="tabular">{stats.total}</span></DetailRow>
+        </div>
       </div>
     </aside>
   );
@@ -2287,30 +2365,55 @@ export function InboxPage() {
                 {/* ── Composer dock — replying happens beside the thread, never below it ── */}
                 <div className="flex-shrink-0 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[0_-10px_28px_-18px_rgba(15,15,25,0.25)]">
                   {replyMode ? (
-                    <div ref={replyComposerRef} className="max-w-[860px] mx-auto w-full flex flex-col max-h-[60vh]">
-                      {/* Dock header: context + sender + close, one calm row */}
+                    <div ref={replyComposerRef} className="max-w-[860px] mx-auto w-full flex flex-col max-h-[62vh]">
+                      {/* Dock header: what you're doing + close */}
                       <div className="flex items-center gap-2.5 px-4 h-11 border-b border-[var(--border-subtle)] flex-shrink-0">
                         <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--indigo-subtle)] flex-shrink-0">
                           {replyMode === 'reply' ? <Reply className="h-3.5 w-3.5 text-[var(--indigo)]" /> : <Forward className="h-3.5 w-3.5 text-[var(--indigo)]" />}
                         </span>
                         <span className="text-[13px] font-semibold text-[var(--text-primary)] flex-shrink-0">{replyMode === 'reply' ? 'Reply' : 'Forward'}</span>
-                        {replyMode === 'reply' && (
-                          <span className="text-[12px] text-[var(--text-tertiary)] truncate">to {currentMsg.from_email}</span>
-                        )}
                         <span className="flex-1" />
-                        <span className="text-[11px] text-[var(--text-tertiary)] hidden sm:block flex-shrink-0">From</span>
-                        <div className="max-w-[260px] min-w-0">
-                          <SenderSelect accounts={smtpAccounts} value={replySenderId} onChange={setReplySenderId} />
-                        </div>
-                        <div className="h-4 w-px bg-[var(--border-subtle)] flex-shrink-0" />
                         <button onClick={() => setReplyMode(null)} title="Close composer" className="icon-btn flex-shrink-0"><X className="h-3.5 w-3.5" /></button>
                       </div>
-                      {replyMode === 'forward' && (
-                        <div className="flex items-center px-4 py-2 border-b border-[var(--border-subtle)] flex-shrink-0">
-                          <span className="text-xs font-medium text-[var(--text-tertiary)] w-10">To</span>
-                          <input value={forwardTo} onChange={e => setForwardTo(e.target.value)} className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none" placeholder="recipient@example.com" autoFocus />
+                      {/* Stacked address form — From / To / Subject, like a real mail client */}
+                      <div className="flex-shrink-0 border-b border-[var(--border-subtle)]">
+                        {/* From row — the sending inbox, with a deliverability check */}
+                        <div className="flex items-center gap-2 px-4 h-10 border-b border-[var(--border-subtle)]/70">
+                          <span className="text-[11px] font-medium text-[var(--text-tertiary)] w-14 flex-shrink-0">From</span>
+                          <div className="flex-1 min-w-0">
+                            <SenderSelect accounts={smtpAccounts} value={replySenderId} onChange={setReplySenderId} />
+                          </div>
+                          {(() => {
+                            const acct = smtpAccounts.find(a => a.id === replySenderId) || smtpAccounts[0];
+                            if (!acct) return null;
+                            return acct.is_verified ? (
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-medium px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex-shrink-0">
+                                <BadgeCheck className="h-3 w-3" /> Verified
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-medium px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 flex-shrink-0" title="This inbox isn't verified for sending — deliverability may suffer.">
+                                Unverified
+                              </span>
+                            );
+                          })()}
                         </div>
-                      )}
+                        {/* To row — fixed recipient on reply, editable on forward */}
+                        <div className="flex items-center gap-2 px-4 h-10 border-b border-[var(--border-subtle)]/70">
+                          <span className="text-[11px] font-medium text-[var(--text-tertiary)] w-14 flex-shrink-0">To</span>
+                          {replyMode === 'reply' ? (
+                            <span className="flex-1 min-w-0 truncate text-[13px] text-[var(--text-primary)]">{currentMsg.from_email}</span>
+                          ) : (
+                            <input value={forwardTo} onChange={e => setForwardTo(e.target.value)} className="flex-1 bg-transparent text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]" placeholder="recipient@example.com" autoFocus />
+                          )}
+                        </div>
+                        {/* Subject row — server derives the reply subject, so show it read-only */}
+                        <div className="flex items-center gap-2 px-4 h-10">
+                          <span className="text-[11px] font-medium text-[var(--text-tertiary)] w-14 flex-shrink-0">Subject</span>
+                          <span className="flex-1 min-w-0 truncate text-[13px] text-[var(--text-secondary)]">
+                            {(replyMode === 'reply' ? 'Re: ' : 'Fwd: ') + ((threadSubject || '').replace(/^((re|fwd?|fw)\s*:\s*)+/i, '') || '(no subject)')}
+                          </span>
+                        </div>
+                      </div>
                       {/* Editor + forward preview scroll inside the dock */}
                       <div className="flex-1 min-h-0 overflow-y-auto">
                         <RichTextEditor
@@ -2346,21 +2449,8 @@ export function InboxPage() {
                         />
                       )}
                       <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-subtle)]">
+                        <button onClick={() => setReplyMode(null)} className="text-xs font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">Discard</button>
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              const sid = replySenderId || undefined;
-                              if (replyMode === 'reply' && !replyEditor.isEmpty) replyMut.mutate({ id: currentMsg.id, body: replyEditor.text, body_html: replyEditor.html, smtp_account_id: sid });
-                              else if (replyMode === 'forward' && forwardTo.trim()) forwardMut.mutate({ id: currentMsg.id, to: forwardTo, note: replyEditor.text || undefined, body_html: replyEditor.html || undefined, smtp_account_id: sid });
-                            }}
-                            disabled={
-                              (replyMode === 'reply' ? replyEditor.isEmpty || replyMut.isPending : !forwardTo.trim() || forwardMut.isPending)
-                            }
-                            className="flex items-center gap-2 px-5 py-2 rounded-lg bg-[var(--indigo)] text-white text-sm font-semibold hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
-                          >
-                            <Send className="h-3.5 w-3.5" />
-                            {replyMut.isPending || forwardMut.isPending ? 'Sending...' : replyMode === 'reply' ? 'Send Reply' : 'Forward'}
-                          </button>
                           {replyMode === 'reply' && (
                             <div className="relative">
                               <button
@@ -2389,8 +2479,21 @@ export function InboxPage() {
                               )}
                             </div>
                           )}
+                          <button
+                            onClick={() => {
+                              const sid = replySenderId || undefined;
+                              if (replyMode === 'reply' && !replyEditor.isEmpty) replyMut.mutate({ id: currentMsg.id, body: replyEditor.text, body_html: replyEditor.html, smtp_account_id: sid });
+                              else if (replyMode === 'forward' && forwardTo.trim()) forwardMut.mutate({ id: currentMsg.id, to: forwardTo, note: replyEditor.text || undefined, body_html: replyEditor.html || undefined, smtp_account_id: sid });
+                            }}
+                            disabled={
+                              (replyMode === 'reply' ? replyEditor.isEmpty || replyMut.isPending : !forwardTo.trim() || forwardMut.isPending)
+                            }
+                            className="flex items-center gap-2 px-5 py-2 rounded-lg bg-[var(--indigo)] text-white text-sm font-semibold hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                            {replyMut.isPending || forwardMut.isPending ? 'Sending...' : replyMode === 'reply' ? 'Send Reply' : 'Forward'}
+                          </button>
                         </div>
-                        <button onClick={() => setReplyMode(null)} className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">Discard</button>
                       </div>
                     </div>
                   ) : (
