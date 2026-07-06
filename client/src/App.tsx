@@ -22,6 +22,7 @@ const SmtpAccountsPage     = lazy(() => import('./pages/smtp/SmtpAccountsPage').
 const SmtpGuidePage        = lazy(() => import('./pages/smtp/SmtpGuidePage').then(m => ({ default: m.SmtpGuidePage })));
 const AnalyticsDashboardPage = lazy(() => import('./pages/analytics/AnalyticsDashboardPage').then(m => ({ default: m.AnalyticsDashboardPage })));
 const InboxPage            = lazy(() => import('./pages/inbox/InboxPage').then(m => ({ default: m.InboxPage })));
+const CrmPage              = lazy(() => import('./pages/crm/CrmPage').then(m => ({ default: m.CrmPage })));
 const SettingsPage         = lazy(() => import('./pages/settings/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const SseDashboardPage     = lazy(() => import('./pages/sse/SseDashboardPage').then(m => ({ default: m.SseDashboardPage })));
 const AssetBuilderPage     = lazy(() => import('./pages/assets/AssetBuilderPage').then(m => ({ default: m.AssetBuilderPage })));
@@ -114,6 +115,7 @@ export default function App() {
           <Route path="/domains"            element={<DomainsPage />} />
           <Route path="/analytics"          element={<AnalyticsDashboardPage />} />
           <Route path="/inbox"              element={<InboxPage />} />
+          <Route path="/crm"                element={<CrmPage />} />
           <Route path="/sara"               element={<Navigate to="/inbox" replace />} />
           <Route path="/sse"                element={<SseDashboardPage />} />
           <Route path="/templates"          element={<TemplatesPage />} />

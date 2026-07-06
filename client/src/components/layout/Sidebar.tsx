@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers,
-  ChevronRight, Wrench, ArrowUpRight,
+  ChevronRight, Wrench, ArrowUpRight, Handshake,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
@@ -24,6 +24,7 @@ const isGroup = (item: NavItem): item is NavGroup => (item as NavGroup).kind ===
 const workspaceNav: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Unibox',    href: '/inbox',     icon: Inbox },
+  { name: 'CRM',       href: '/crm',       icon: Handshake, match: ['/crm'] },
 ];
 
 const campaignsNav: NavItem[] = [
