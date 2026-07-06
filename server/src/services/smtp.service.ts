@@ -66,10 +66,13 @@ export const smtpService = {
   async update(userId: string, id: string, input: any) {
     const updateData: any = { ...input };
 
+    // Only re-encrypt when a new password is supplied; always drop the raw
+    // field so an empty `smtp_pass` (e.g. a signature-only edit) never reaches
+    // the DB as a non-existent column.
     if (input.smtp_pass) {
       updateData.smtp_pass_encrypted = encrypt(input.smtp_pass);
-      delete updateData.smtp_pass;
     }
+    delete updateData.smtp_pass;
 
     const { data, error } = await supabaseAdmin
       .from('smtp_accounts')

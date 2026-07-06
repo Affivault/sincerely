@@ -24,6 +24,10 @@ export interface SmtpAccount {
   last_bounce_at: string | null;
   warmup_mode: boolean;
   warmup_daily_target: number;
+  /** HTML signature for this inbox, surfaced in the composer. */
+  signature_html: string | null;
+  /** When true, the signature is added by default on every new compose/reply from this inbox. */
+  signature_auto: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -59,6 +63,8 @@ export interface CreateSmtpAccountInput {
   imap_port?: number;
   imap_secure?: boolean;
   daily_send_limit?: number;
+  signature_html?: string | null;
+  signature_auto?: boolean;
 }
 
 export interface UpdateSmtpAccountInput extends Partial<CreateSmtpAccountInput> {}
