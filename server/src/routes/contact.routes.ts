@@ -9,6 +9,7 @@ export const contactRoutes = Router();
 contactRoutes.get('/', contactsController.list);
 contactRoutes.get('/stats', contactsController.getStats);
 contactRoutes.get('/verification-breakdown', contactsController.verificationBreakdown);
+contactRoutes.get('/companies', contactsController.companies);
 contactRoutes.get('/:id', contactsController.get);
 contactRoutes.post('/', contactsController.create);
 contactRoutes.put('/:id', contactsController.update);

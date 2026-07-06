@@ -171,6 +171,7 @@ export interface ContactsListParams {
   page?: number;
   limit?: number;
   search?: string;
+  company?: string;
   tag_ids?: string[];
   list_id?: string;
   segment_id?: string;

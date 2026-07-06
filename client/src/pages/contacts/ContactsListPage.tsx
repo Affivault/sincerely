@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
@@ -327,6 +327,95 @@ function StatusPill({ label, count, dot, active, onClick }: {
   );
 }
 
+/* Searchable "view leads by company" filter — pick a company to see only its leads. */
+function CompanyFilter({ value, options, onChange }: {
+  value: string | null;
+  options: { company: string; count: number }[];
+  onChange: (company: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const list = needle ? options.filter((o) => o.company.toLowerCase().includes(needle)) : options;
+    return list.slice(0, 100);
+  }, [q, options]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        title="Filter leads by company"
+        className={cn(
+          'inline-flex items-center gap-1.5 h-8 pl-2.5 pr-2 rounded-lg text-[12px] font-medium border transition-colors',
+          value
+            ? 'bg-[var(--indigo-subtle)] border-[var(--indigo)] text-[var(--indigo)]'
+            : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]'
+        )}
+      >
+        <Building2 className="h-3.5 w-3.5" />
+        <span className="max-w-[150px] truncate">{value || 'Company'}</span>
+        {value ? (
+          <span
+            role="button"
+            onClick={(e) => { e.stopPropagation(); onChange(null); }}
+            className="ml-0.5 -mr-0.5 flex h-4 w-4 items-center justify-center rounded hover:bg-[var(--indigo)]/15"
+          >
+            <X className="h-3 w-3" />
+          </span>
+        ) : (
+          <ChevronDown className={cn('h-3 w-3 transition-transform', open && 'rotate-180')} />
+        )}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 w-64 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-[var(--border-subtle)]">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+              <input
+                autoFocus
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search companies…"
+                className="w-full h-8 pl-8 pr-2 text-[12px] rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
+              />
+            </div>
+          </div>
+          <div className="max-h-64 overflow-y-auto py-1">
+            {value && (
+              <button onClick={() => { onChange(null); setOpen(false); }} className="w-full flex items-center gap-2 px-3 py-1.5 text-[12px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]">
+                <X className="h-3 w-3" /> Clear filter
+              </button>
+            )}
+            {filtered.length === 0 ? (
+              <p className="px-3 py-4 text-[12px] text-[var(--text-tertiary)] text-center">
+                {options.length === 0 ? 'No companies on your leads yet' : 'No matches'}
+              </p>
+            ) : filtered.map((o) => (
+              <button
+                key={o.company}
+                onClick={() => { onChange(o.company); setOpen(false); setQ(''); }}
+                className={cn('w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors', value === o.company ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]')}
+              >
+                <span className="flex-1 min-w-0 truncate text-[12.5px] text-[var(--text-primary)]">{o.company}</span>
+                <span className="text-[10.5px] font-semibold tabular text-[var(--text-tertiary)]">{o.count.toLocaleString()}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* Configurable table columns, mapped to our contact fields (the same set
    surfaced during CSV import). The Contact identity column is always shown;
    these are the optional middle columns the user can toggle + reorder-by-default. */
@@ -382,6 +471,7 @@ export function ContactsListPage() {
   const [sortBy, setSortBy] = useState<ContactSortKey>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('');
+  const [companyFilter, setCompanyFilter] = useState<string | null>(null);
 
   const handleSort = (key: ContactSortKey) => {
     if (key === sortBy) {
@@ -407,6 +497,18 @@ export function ContactsListPage() {
     setPage(1);
   }, [debouncedSearch]);
 
+  // Reset to page 1 whenever the company filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [companyFilter]);
+
+  // Distinct companies (with counts) for the "view by company" filter
+  const { data: companyOptions } = useQuery({
+    queryKey: ['contact-companies'],
+    queryFn: contactsApi.companies,
+    staleTime: 60000,
+  });
+
   // Auto-verify preference — drives the live "verifying…" affordance
   const { data: userSettings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get });
   const autoVerifyOn = userSettings?.auto_verify_contacts ?? true;
@@ -422,11 +524,12 @@ export function ContactsListPage() {
   });
 
   const { data: contactsData, isLoading } = useQuery({
-    queryKey: ['contacts', page, debouncedSearch, activeListId, sortBy, sortDir, statusFilter],
+    queryKey: ['contacts', page, debouncedSearch, activeListId, sortBy, sortDir, statusFilter, companyFilter],
     queryFn: () => contactsApi.list({
       page,
       limit: DEFAULT_PAGE_SIZE,
       search: debouncedSearch || undefined,
+      company: companyFilter || undefined,
       list_id: activeListId || undefined,
       sort_by: sortBy,
       sort_order: sortDir,
@@ -1175,6 +1278,9 @@ export function ContactsListPage() {
               {totalContacts} result{totalContacts !== 1 ? 's' : ''}
             </span>
           )}
+
+          {/* View leads by company */}
+          <CompanyFilter value={companyFilter} options={companyOptions || []} onChange={setCompanyFilter} />
 
           {/* Live auto-verification indicator */}
           {autoVerifyOn && pendingOnPage > 0 && (

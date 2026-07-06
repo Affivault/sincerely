@@ -237,27 +237,24 @@ function useSignatureState(accounts: SmtpAccount[], senderId: string) {
   return { sigHtml, available, on: on && available, toggle: () => setOn(o => !o), setOn };
 }
 
-/** The signature block rendered inside the composer, with a remove affordance. */
+/** The signature rendered inline in the composer — reads as part of the email
+    body (a hairline separator, same body text), exactly how it sends. A quiet
+    remove control appears on hover. */
 function SignaturePreview({ html, onRemove }: { html: string; onRemove: () => void }) {
   return (
-    <div className="px-4 pb-3 pt-1">
-      <div className="relative rounded-xl border border-dashed border-[var(--border-default)] bg-[var(--bg-elevated)]/40 px-3.5 pt-3 pb-2.5">
-        <span className="absolute -top-2 left-3 inline-flex items-center px-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)] bg-[var(--bg-surface)] rounded">
-          Signature
-        </span>
-        <button
-          type="button"
-          onClick={onRemove}
-          title="Remove signature"
-          className="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-        <div
-          className="prose prose-sm max-w-none text-[13px] leading-relaxed text-[var(--text-secondary)] [&_p]:my-0.5 [&_a]:text-[var(--indigo)] [&_img]:max-h-16 [&_img]:inline"
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
-      </div>
+    <div className="group relative px-4 pb-4">
+      <div
+        className="prose prose-sm max-w-none text-[14px] leading-relaxed text-[var(--text-primary)] border-t border-[var(--border-subtle)] pt-3 mt-1 [&_p]:my-1 [&_a]:text-[var(--indigo)] [&_a]:no-underline [&_img]:max-h-16 [&_img]:inline"
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+      <button
+        type="button"
+        onClick={onRemove}
+        title="Remove signature"
+        className="absolute top-2 right-3 flex items-center gap-1 h-6 px-2 rounded-md bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[10.5px] font-medium text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] shadow-sm transition-opacity"
+      >
+        <X className="h-3 w-3" /> Signature
+      </button>
     </div>
   );
 }
@@ -2777,7 +2774,7 @@ export function InboxPage() {
         ) : (
           <div className="flex-1 overflow-y-auto overflow-x-hidden bg-[var(--bg-surface)]">
             {/* Sticky column header — the grid identity */}
-            <div className="sticky top-0 z-[2] flex items-center gap-3 px-4 h-[34px] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] text-[11.5px] font-medium text-[var(--text-tertiary)]">
+            <div className="sticky top-0 z-[2] flex items-center gap-3 px-4 h-[30px] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-tertiary)]">
               <span className="w-[220px] flex-shrink-0">Sender</span>
               <span className="flex-1 min-w-0">Conversation</span>
               <span className="w-[110px] flex-shrink-0 hidden md:block">Intent</span>
@@ -2788,10 +2785,10 @@ export function InboxPage() {
 
             {isLoading ? (
               <div>
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 px-4 h-[52px] border-b border-[var(--border-subtle)]">
+                {Array.from({ length: 14 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 h-[40px] border-b border-[var(--border-subtle)]">
                     <div className="flex items-center gap-2.5 w-[220px] flex-shrink-0">
-                      <Skeleton className="h-7 w-7 rounded-full flex-shrink-0" />
+                      <Skeleton className="h-6 w-6 rounded-full flex-shrink-0" />
                       <Skeleton className="h-3 w-28" />
                     </div>
                     <Skeleton className="h-3 flex-1" />
@@ -2820,7 +2817,7 @@ export function InboxPage() {
                     key={conv.contactEmail}
                     onClick={() => selectMessage(msg)}
                     className={cn(
-                      'group w-full min-w-0 overflow-hidden text-left flex items-center gap-3 px-4 h-[52px] border-b border-[var(--border-subtle)] transition-colors',
+                      'group w-full min-w-0 overflow-hidden text-left flex items-center gap-3 px-4 h-[40px] border-b border-[var(--border-subtle)] transition-colors',
                       isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]'
                     )}
                   >
@@ -2828,8 +2825,8 @@ export function InboxPage() {
                     <span className="flex items-center gap-2.5 w-[220px] flex-shrink-0 min-w-0">
                       <span className="relative flex-shrink-0">
                         {isOutbound ? (
-                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)] border border-[var(--border-subtle)]">
-                            <SendHorizontal className="h-3 w-3" />
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)] border border-[var(--border-subtle)]">
+                            <SendHorizontal className="h-2.5 w-2.5" />
                           </span>
                         ) : (
                           <Avatar name={avatarSeed} email={msg.from_email} size="sm" />
