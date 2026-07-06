@@ -120,4 +120,10 @@ export const campaignsApi = {
   setSenderPool: async (campaignId: string, smtpAccountIds: string[]) => {
     await apiClient.put(`/campaigns/${campaignId}/sender-pool`, { smtp_account_ids: smtpAccountIds });
   },
+
+  // Inbound webhook token (for webhook_wait steps)
+  getWebhookToken: async (campaignId: string) => {
+    const { data } = await apiClient.get<{ token: string; url: string }>(`/campaigns/${campaignId}/webhook-token`);
+    return data;
+  },
 };

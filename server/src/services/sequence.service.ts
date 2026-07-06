@@ -571,8 +571,12 @@ async function evaluateCondition(cc: any, step: any): Promise<boolean> {
     }
 
     case 'webhook_received': {
-      // Check if a specific webhook was received for this contact
-      const isReceived = cc.waiting_for_webhook === null && cc.webhook_wait_until === null;
+      // resumeWebhookWait() and processWebhookTimeouts() both clear
+      // waiting_for_webhook/webhook_wait_until, so those alone can't tell a
+      // received webhook apart from a timeout — webhook_received_at can.
+      const isReceived = cc.waiting_for_webhook === null
+        && cc.webhook_wait_until === null
+        && !!cc.webhook_received_at;
       return applyOperator(isReceived, operator, value);
     }
 
@@ -620,6 +624,7 @@ async function processWebhookWaitStep(cc: any, step: any): Promise<void> {
         next_send_at: null,
         waiting_for_webhook: step.webhook_event,
         webhook_wait_until: waitUntil.toISOString(),
+        webhook_received_at: null,
       })
       .eq('id', cc.id);
   } catch (err: any) {
@@ -664,6 +669,7 @@ export async function resumeWebhookWait(
     .update({
       waiting_for_webhook: null,
       webhook_wait_until: null,
+      webhook_received_at: new Date().toISOString(),
       current_step_order: (cc.current_step_order || 0) + 1,
       next_send_at: new Date().toISOString(),
     })

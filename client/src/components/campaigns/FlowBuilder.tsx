@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Mail,
   Clock,
@@ -17,9 +18,12 @@ import {
   Webhook,
   ShieldCheck,
   Brain,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { StepType, ConditionField, ConditionOperator } from '@lemlist/shared';
 import type { CreateStepInput } from '@lemlist/shared';
+import { campaignsApi } from '../../api/campaigns.api';
 import { cn } from '../../lib/utils';
 
 export type FlowStepType = 'email' | 'delay' | 'condition' | 'webhook_wait';
@@ -34,6 +38,50 @@ interface FlowBuilderProps {
   onStepsChange: (steps: FlowStep[]) => void;
   onEditStep: (index: number) => void;
   editingStep: number | null;
+  /** Present once the campaign has been saved — lets the webhook_wait step show its inbound URL. */
+  campaignId?: string;
+}
+
+/** Read-only inbound webhook URL + one-click copy, shown inside a webhook_wait step's config panel. */
+function WebhookUrlField({ campaignId }: { campaignId: string }) {
+  const [copied, setCopied] = useState(false);
+  const { data, isLoading } = useQuery({
+    queryKey: ['campaign-webhook-token', campaignId],
+    queryFn: () => campaignsApi.getWebhookToken(campaignId),
+  });
+
+  const copy = () => {
+    if (!data?.url) return;
+    navigator.clipboard.writeText(data.url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  return (
+    <div>
+      <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Inbound webhook URL</label>
+      <div className="flex items-center gap-1.5">
+        <input
+          type="text"
+          readOnly
+          value={isLoading ? 'Loading…' : data?.url || ''}
+          onFocus={(e) => e.target.select()}
+          className="flex-1 h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-xs font-mono text-[var(--text-secondary)] outline-none"
+        />
+        <button
+          type="button"
+          onClick={copy}
+          disabled={!data?.url}
+          className="h-9 w-9 flex items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50"
+          title="Copy URL"
+        >
+          {copied ? <Check className="h-3.5 w-3.5 text-[var(--success)]" /> : <Copy className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+      <p className="text-xs text-[var(--text-tertiary)] mt-1">POST here with <code>{'{ event, contact_email }'}</code> to resume matching contacts. The token proves the call is authorized — keep this URL private.</p>
+    </div>
+  );
 }
 
 const stepTypeConfig: Record<string, {
@@ -205,6 +253,7 @@ function FlowNode({
   onMoveUp,
   onMoveDown,
   onUpdate,
+  campaignId,
 }: {
   step: FlowStep;
   index: number;
@@ -216,6 +265,7 @@ function FlowNode({
   onMoveUp: () => void;
   onMoveDown: () => void;
   onUpdate: (updates: Partial<FlowStep>) => void;
+  campaignId?: string;
 }) {
   const [showHtmlPreview, setShowHtmlPreview] = useState(false);
   const config = stepTypeConfig[step.step_type] || stepTypeConfig.email;
@@ -419,6 +469,11 @@ function FlowNode({
                     />
                     <p className="text-xs text-[var(--text-tertiary)] mt-1">Contact proceeds to next step after timeout if webhook not received.</p>
                   </div>
+                  {campaignId ? (
+                    <WebhookUrlField campaignId={campaignId} />
+                  ) : (
+                    <p className="text-xs text-[var(--text-tertiary)]">Save the campaign to get your inbound webhook URL.</p>
+                  )}
                 </div>
               )}
             </div>
@@ -532,7 +587,7 @@ function DelayChip({ step, onUpdate, onRemove, onMoveUp, onMoveDown, isFirst, is
   );
 }
 
-export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep }: FlowBuilderProps) {
+export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, campaignId }: FlowBuilderProps) {
   const addStep = useCallback((type: StepType, atIndex?: number) => {
     const newStep: FlowStep = {
       _clientKey: `step-${crypto.randomUUID()}`,
@@ -707,6 +762,7 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep }: F
               onMoveUp={() => moveStep(index, index - 1)}
               onMoveDown={() => moveStep(index, index + 1)}
               onUpdate={(updates) => updateStep(index, updates)}
+              campaignId={campaignId}
             />
           )}
         </div>

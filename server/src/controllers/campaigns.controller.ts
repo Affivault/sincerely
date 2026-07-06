@@ -8,6 +8,8 @@ import { decrypt } from '../utils/encryption.js';
 import { sendViaSmtp } from '../services/email-sender.service.js';
 import { billingService } from '../services/billing.service.js';
 import * as sse from '../services/sse.service.js';
+import { getInboundWebhookToken } from '../utils/inbound-webhook-token.js';
+import { env } from '../config/env.js';
 
 export const campaignsController = {
   // Campaign CRUD
@@ -213,6 +215,19 @@ export const campaignsController = {
       await campaignsService.assertOwnership(req.userId!, req.params.id);
       const pool = await sse.getCampaignPool(req.params.id);
       res.json(pool);
+    } catch (err) { next(err); }
+  },
+
+  // Inbound webhook token — lets the owner configure an external system to
+  // call back into POST /api/webhooks/inbound/:id with proof it's authorized.
+  async getWebhookToken(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      await campaignsService.assertOwnership(req.userId!, req.params.id);
+      const token = getInboundWebhookToken(req.params.id);
+      res.json({
+        token,
+        url: `${env.API_BASE_URL}/api/webhooks/inbound/${req.params.id}?token=${token}`,
+      });
     } catch (err) { next(err); }
   },
 

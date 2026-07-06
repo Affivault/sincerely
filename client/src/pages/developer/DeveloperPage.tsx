@@ -315,7 +315,10 @@ export function DeveloperPage() {
                     <button onClick={() => setShowDeliveries(showDeliveries === ep.id ? null : ep.id)} className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[11px] font-medium bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
                       <Clock className="h-3 w-3" /> Logs
                     </button>
-                    <button onClick={() => deleteEndpointMutation.mutate(ep.id)} className="icon-btn hover:text-rose-500 hover:bg-rose-500/10">
+                    <button
+                      onClick={() => { if (confirm(`Delete the webhook endpoint "${ep.label}"? This cannot be undone.`)) deleteEndpointMutation.mutate(ep.id); }}
+                      className="icon-btn hover:text-rose-500 hover:bg-rose-500/10"
+                    >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -454,14 +457,14 @@ export function DeveloperPage() {
                   </div>
                   {key.is_active && (
                     <button
-                      onClick={() => revokeKeyMutation.mutate(key.id)}
+                      onClick={() => { if (confirm(`Revoke the API key "${key.name}"? Anything using it will stop working immediately.`)) revokeKeyMutation.mutate(key.id); }}
                       className="p-1.5 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-xs flex items-center gap-1"
                     >
                       <Shield className="h-3 w-3" /> Revoke
                     </button>
                   )}
                   <button
-                    onClick={() => deleteKeyMutation.mutate(key.id)}
+                    onClick={() => { if (confirm(`Delete the API key "${key.name}"? This cannot be undone.`)) deleteKeyMutation.mutate(key.id); }}
                     className="p-1.5 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                   >
                     <Trash2 className="h-3.5 w-3.5" />

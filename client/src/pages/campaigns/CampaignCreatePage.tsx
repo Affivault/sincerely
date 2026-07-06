@@ -1199,6 +1199,7 @@ export function CampaignCreatePage() {
                       onStepsChange={setSteps}
                       onEditStep={(i) => setEditingStep(i === -1 ? null : i)}
                       editingStep={editingStep}
+                      campaignId={isEdit ? id : undefined}
                     />
                   </div>
                 </div>
