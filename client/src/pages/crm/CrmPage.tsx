@@ -66,7 +66,7 @@ const EVENT_META: Record<EventType, { label: string; icon: typeof Phone; dot: st
 };
 
 /* ─── Deal modal ──────────────────────────────────── */
-function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClose: () => void }) {
+export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClose: () => void }) {
   const qc = useQueryClient();
   const editing = !!deal?.id;
   const [form, setForm] = useState<CreateDealInput & { stage: DealStage }>({
@@ -82,10 +82,17 @@ function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClose: () 
 
   const save = useMutation({
     mutationFn: () => {
-      const payload = { ...form, value: Number(form.value) || 0, expected_close_date: form.expected_close_date || null };
+      const payload = {
+        ...form,
+        value: Number(form.value) || 0,
+        expected_close_date: form.expected_close_date || null,
+        // Preserve the lead link when the deal is created from a contact page.
+        contact_email: deal?.contact_email ?? undefined,
+        contact_id: deal?.contact_id ?? undefined,
+      };
       return editing ? crmApi.updateDeal(deal!.id!, payload) : crmApi.createDeal(payload);
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm', 'deals'] }); toast.success(editing ? 'Deal updated' : 'Deal added'); onClose(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm'] }); toast.success(editing ? 'Deal updated' : 'Deal added'); onClose(); },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save deal'),
   });
   const del = useMutation({
@@ -485,7 +492,7 @@ export function CrmPage() {
   const [taskModal, setTaskModal] = useState<Partial<CrmTask> | null | undefined>(undefined);
   const [eventModal, setEventModal] = useState<Partial<CrmEvent> | null | undefined>(undefined);
 
-  const dealsQ = useQuery({ queryKey: ['crm', 'deals'], queryFn: crmApi.listDeals });
+  const dealsQ = useQuery({ queryKey: ['crm', 'deals'], queryFn: () => crmApi.listDeals() });
   const tasksQ = useQuery({ queryKey: ['crm', 'tasks'], queryFn: crmApi.listTasks });
   const eventsQ = useQuery({ queryKey: ['crm', 'events'], queryFn: () => crmApi.listEvents() });
 

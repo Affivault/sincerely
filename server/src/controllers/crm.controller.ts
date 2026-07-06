@@ -5,7 +5,11 @@ import { crmService } from '../services/crm.service.js';
 export const crmController = {
   // Deals
   async listDeals(req: AuthRequest, res: Response, next: NextFunction) {
-    try { res.json(await crmService.listDeals(req.userId!)); } catch (err) { next(err); }
+    try {
+      const contactId = typeof req.query.contact_id === 'string' ? req.query.contact_id : undefined;
+      const contactEmail = typeof req.query.contact_email === 'string' ? req.query.contact_email : undefined;
+      res.json(await crmService.listDeals(req.userId!, { contactId, contactEmail }));
+    } catch (err) { next(err); }
   },
   async createDeal(req: AuthRequest, res: Response, next: NextFunction) {
     try { res.status(201).json(await crmService.createDeal(req.userId!, req.body)); } catch (err) { next(err); }

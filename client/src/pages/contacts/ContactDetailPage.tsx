@@ -3,6 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contactsApi, listsApi } from '../../api/contacts.api';
 import { analyticsApi } from '../../api/analytics.api';
+import { crmApi } from '../../api/crm.api';
+import { DealModal } from '../crm/CrmPage';
+import { DEAL_STAGES, type Deal } from '@lemlist/shared';
 import { Spinner } from '../../components/ui/Spinner';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
@@ -58,11 +61,18 @@ export function ContactDetailPage() {
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [moveFromListId, setMoveFromListId] = useState<string | null>(null);
   const [moveToListId, setMoveToListId] = useState<string | null>(null);
+  const [dealModal, setDealModal] = useState<Partial<Deal> | null | undefined>(undefined);
 
   const { data: contact, isLoading } = useQuery({
     queryKey: ['contacts', id],
     queryFn: () => contactsApi.get(id!),
     enabled: !!id,
+  });
+
+  const { data: contactDeals } = useQuery({
+    queryKey: ['crm', 'deals', 'contact', id],
+    queryFn: () => crmApi.listDeals({ contact_id: id!, contact_email: contact?.email }),
+    enabled: !!id && !!contact,
   });
 
   const { data: timeline } = useQuery({
@@ -282,6 +292,41 @@ export function ContactDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Deals — this lead's CRM pipeline */}
+          <div className="card p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-[11px] font-bold text-[var(--text-tertiary)]">Deals</h2>
+              <button
+                onClick={() => setDealModal({ contact_name: fullName || contact.email, contact_email: contact.email, contact_id: contact.id, company: contact.company || null })}
+                className="inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] rounded-md transition-colors"
+              >
+                <Plus className="h-3 w-3" /> New deal
+              </button>
+            </div>
+            {!contactDeals || contactDeals.length === 0 ? (
+              <p className="text-[12px] text-[var(--text-tertiary)]">No deals yet for this lead</p>
+            ) : (
+              <div className="space-y-1">
+                {contactDeals.map((d) => {
+                  const stage = DEAL_STAGES.find((s) => s.id === d.stage);
+                  const dot = d.stage === 'won' ? 'bg-emerald-500' : d.stage === 'lost' ? 'bg-rose-500' : d.stage === 'proposal' ? 'bg-amber-500' : d.stage === 'qualified' ? 'bg-[var(--indigo)]' : 'bg-slate-400';
+                  return (
+                    <button
+                      key={d.id}
+                      onClick={() => setDealModal(d)}
+                      className="w-full flex items-center gap-2 h-9 px-2.5 rounded-[6px] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] transition-colors text-left"
+                    >
+                      <span className={cn('h-2 w-2 rounded-full flex-shrink-0', dot)} />
+                      <span className="flex-1 min-w-0 truncate text-[12px] font-medium text-[var(--text-primary)]">{d.title}</span>
+                      <span className="text-[11px] text-[var(--text-tertiary)] flex-shrink-0">{stage?.label}</span>
+                      <span className="text-[12px] font-semibold text-[var(--text-primary)] tabular flex-shrink-0">${Math.round(d.value || 0).toLocaleString()}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Activity Timeline */}
@@ -380,6 +425,8 @@ export function ContactDetailPage() {
           </div>
         </Modal>
       )}
+
+      {dealModal !== undefined && <DealModal deal={dealModal} onClose={() => setDealModal(undefined)} />}
     </div>
   );
 }

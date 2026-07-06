@@ -7,7 +7,8 @@ import type {
 
 export const crmApi = {
   // Deals
-  listDeals: async () => (await apiClient.get<Deal[]>('/crm/deals')).data,
+  listDeals: async (params?: { contact_id?: string; contact_email?: string }) =>
+    (await apiClient.get<Deal[]>('/crm/deals', { params })).data,
   createDeal: async (input: CreateDealInput) => (await apiClient.post<Deal>('/crm/deals', input)).data,
   updateDeal: async (id: string, input: UpdateDealInput) => (await apiClient.put<Deal>(`/crm/deals/${id}`, input)).data,
   deleteDeal: async (id: string) => { await apiClient.delete(`/crm/deals/${id}`); },
