@@ -127,4 +127,11 @@ export const contactsController = {
       res.json(breakdown);
     } catch (err) { next(err); }
   },
+
+  async companies(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const companies = await contactsService.companies(req.userId!);
+      res.json(companies);
+    } catch (err) { next(err); }
+  },
 };

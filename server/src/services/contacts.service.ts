@@ -9,6 +9,7 @@ interface ListParams {
   page?: number;
   limit?: number;
   search?: string;
+  company?: string;
   tag_ids?: string[];
   list_id?: string;
   is_unsubscribed?: boolean;
@@ -73,6 +74,11 @@ export const contactsService = {
       }
     }
 
+    // Exact-company filter (chosen from the distinct-companies picker)
+    if (params.company) {
+      query = query.eq('company', params.company);
+    }
+
     if (params.is_unsubscribed !== undefined) {
       query = query.eq('is_unsubscribed', params.is_unsubscribed);
     }
@@ -127,6 +133,34 @@ export const contactsService = {
     }));
 
     return formatPaginatedResponse(contacts, count || 0, page, limit);
+  },
+
+  /** Distinct companies (with counts) for this user's contacts — powers the
+      "view leads by company" filter. Falls back to an in-memory aggregate if
+      the RPC helper isn't present yet. */
+  async companies(userId: string): Promise<{ company: string; count: number }[]> {
+    const { data, error } = await supabaseAdmin.rpc('contact_companies', { uid: userId });
+    if (!error && Array.isArray(data)) {
+      return (data as any[]).map((r) => ({ company: r.company as string, count: Number(r.count) }));
+    }
+
+    // Fallback: aggregate client-side (used before migration 024 is applied).
+    const { data: rows, error: rowsErr } = await supabaseAdmin
+      .from('contacts')
+      .select('company')
+      .eq('user_id', userId)
+      .not('company', 'is', null)
+      .limit(5000);
+    if (rowsErr) throw new AppError(rowsErr.message, 500);
+    const counts = new Map<string, number>();
+    for (const r of (rows || []) as any[]) {
+      const c = (r.company || '').trim();
+      if (c) counts.set(c, (counts.get(c) || 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([company, count]) => ({ company, count }))
+      .sort((a, b) => b.count - a.count || a.company.localeCompare(b.company))
+      .slice(0, 500);
   },
 
   async get(userId: string, id: string) {

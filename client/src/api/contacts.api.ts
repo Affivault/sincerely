@@ -45,6 +45,11 @@ export const contactsApi = {
     return data;
   },
 
+  companies: async () => {
+    const { data } = await apiClient.get<{ company: string; count: number }[]>('/contacts/companies');
+    return data;
+  },
+
   get: async (id: string) => {
     const { data } = await apiClient.get<ContactWithTags>(`/contacts/${id}`);
     return data;
