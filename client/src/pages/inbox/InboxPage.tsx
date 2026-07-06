@@ -59,6 +59,7 @@ import {
   ArrowDownLeft,
   BadgeCheck,
   Megaphone,
+  PenLine,
 } from 'lucide-react';
 
 /* ─── Types ────────────────────────────────────────── */
@@ -79,6 +80,8 @@ interface SmtpAccount {
   label?: string;
   is_active: boolean;
   is_verified: boolean;
+  signature_html?: string | null;
+  signature_auto?: boolean;
 }
 
 interface Message {
@@ -195,6 +198,89 @@ function companyFromEmail(email?: string | null): string | null {
   if (free.includes(domain)) return null;
   const name = domain.split('.')[0];
   return name ? name.charAt(0).toUpperCase() + name.slice(1) : null;
+}
+
+/* ─── Email signatures ─────────────────────────────── */
+/** True when a signature HTML string carries any real content. */
+function hasSignature(html?: string | null): boolean {
+  return !!html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim().length > 0;
+}
+
+/** Append the inbox signature to a draft body when the toggle is on. */
+function withSignature(
+  html: string,
+  text: string,
+  sigHtml: string | null | undefined,
+  on: boolean,
+): { body: string; body_html: string } {
+  if (on && hasSignature(sigHtml)) {
+    return {
+      body_html: `${html}<br><br>${sigHtml}`,
+      body: `${text}\n\n${stripHtml(sigHtml!)}`,
+    };
+  }
+  return { body: text, body_html: html };
+}
+
+/** Signature on/off state for a composer, following the selected sender inbox. */
+function useSignatureState(accounts: SmtpAccount[], senderId: string) {
+  const acct = accounts.find(a => a.id === senderId);
+  const sigHtml = acct?.signature_html || null;
+  const available = hasSignature(sigHtml);
+  const auto = !!acct?.signature_auto;
+  const [on, setOn] = useState(false);
+  // Whenever the sender changes (or accounts finish loading), follow that
+  // inbox's "always add" default — so the signature swaps with the sender.
+  useEffect(() => {
+    setOn(available && auto);
+  }, [senderId, available, auto]);
+  return { sigHtml, available, on: on && available, toggle: () => setOn(o => !o), setOn };
+}
+
+/** The signature block rendered inside the composer, with a remove affordance. */
+function SignaturePreview({ html, onRemove }: { html: string; onRemove: () => void }) {
+  return (
+    <div className="px-4 pb-3 pt-1">
+      <div className="relative rounded-xl border border-dashed border-[var(--border-default)] bg-[var(--bg-elevated)]/40 px-3.5 pt-3 pb-2.5">
+        <span className="absolute -top-2 left-3 inline-flex items-center px-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)] bg-[var(--bg-surface)] rounded">
+          Signature
+        </span>
+        <button
+          type="button"
+          onClick={onRemove}
+          title="Remove signature"
+          className="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+        <div
+          className="prose prose-sm max-w-none text-[13px] leading-relaxed text-[var(--text-secondary)] [&_p]:my-0.5 [&_a]:text-[var(--indigo)] [&_img]:max-h-16 [&_img]:inline"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** The add/remove signature toggle button shown in a composer's action bar. */
+function SignatureButton({ available, on, onToggle }: { available: boolean; on: boolean; onToggle: () => void }) {
+  if (!available) return null;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      title={on ? 'Remove signature' : 'Add signature'}
+      className={cn(
+        'flex items-center gap-1.5 h-9 px-3 rounded-lg text-[13px] font-medium transition-colors',
+        on
+          ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+          : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]',
+      )}
+    >
+      <PenLine className="h-3.5 w-3.5" />
+      Signature
+    </button>
+  );
 }
 
 /** "34m" / "5h" / "2d" — for avg-reply-gap stats. */
@@ -383,6 +469,7 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
   const [expanded, setExpanded] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const editor = useRichTextEditorRef();
+  const sig = useSignatureState(smtpAccounts, senderId);
 
   // smtpAccounts is fetched async and can still be empty when this modal
   // first mounts; resync once accounts arrive so the selected sender always
@@ -397,7 +484,8 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
 
   const handleSchedule = (scheduledAt: string) => {
     if (to && subject && !editor.isEmpty) {
-      onSchedule({ to, subject, body: editor.text, body_html: editor.html, smtp_account_id: senderId || undefined, scheduled_at: scheduledAt });
+      const b = withSignature(editor.html, editor.text, sig.sigHtml, sig.on);
+      onSchedule({ to, subject, body: b.body, body_html: b.body_html, smtp_account_id: senderId || undefined, scheduled_at: scheduledAt });
       setShowSchedule(false);
     }
   };
@@ -464,11 +552,17 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
             templates={templates}
             minHeight={expanded ? '320px' : '200px'}
           />
+          {sig.on && (
+            <SignaturePreview html={sig.sigHtml!} onRemove={() => sig.setOn(false)} />
+          )}
         </div>
 
         {/* Action bar — Discard left, Schedule + Send right */}
         <div className="flex items-center justify-between gap-2 px-4 py-3 border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/30 flex-shrink-0">
-          <button onClick={onClose} className="h-9 px-3 rounded-lg text-[13px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">Discard</button>
+          <div className="flex items-center gap-1 min-w-0">
+            <button onClick={onClose} className="h-9 px-3 rounded-lg text-[13px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">Discard</button>
+            <SignatureButton available={sig.available} on={sig.on} onToggle={sig.toggle} />
+          </div>
           <div className="flex items-center gap-2">
             <div className="relative">
               <button
@@ -490,7 +584,8 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
             <button
               onClick={() => {
                 if (canSend) {
-                  onSend({ to, subject, body: editor.text, body_html: editor.html, smtp_account_id: senderId || undefined });
+                  const b = withSignature(editor.html, editor.text, sig.sigHtml, sig.on);
+                  onSend({ to, subject, body: b.body, body_html: b.body_html, smtp_account_id: senderId || undefined });
                 }
               }}
               disabled={!canSend}
@@ -1715,6 +1810,9 @@ export function InboxPage() {
   });
   const smtpAccounts: SmtpAccount[] = (smtpAccountsRaw || []).filter((a: any) => a.is_active);
 
+  // Signature state for the reply/forward composer — follows the chosen sender.
+  const replySig = useSignatureState(smtpAccounts, replySenderId);
+
   /* ── Email templates for insertion ── */
   const { data: emailTemplates } = useQuery({
     queryKey: ['templates', 'emails'],
@@ -2473,6 +2571,9 @@ export function InboxPage() {
                             </div>
                           </div>
                         )}
+                        {replySig.on && (
+                          <SignaturePreview html={replySig.sigHtml!} onRemove={() => replySig.setOn(false)} />
+                        )}
                       </div>
 
                       {/* AI Assist Bar */}
@@ -2485,7 +2586,10 @@ export function InboxPage() {
 
                       {/* Action bar — Discard left, Schedule + Send anchored right */}
                       <div className="flex items-center justify-between gap-2 px-4 py-3 border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/30 flex-shrink-0">
-                        <button onClick={() => setReplyMode(null)} className="h-9 px-3 rounded-lg text-[13px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">Discard</button>
+                        <div className="flex items-center gap-1 min-w-0">
+                          <button onClick={() => setReplyMode(null)} className="h-9 px-3 rounded-lg text-[13px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">Discard</button>
+                          <SignatureButton available={replySig.available} on={replySig.on} onToggle={replySig.toggle} />
+                        </div>
                         <div className="flex items-center gap-2">
                           {replyMode === 'reply' && (
                             <div className="relative">
@@ -2507,7 +2611,8 @@ export function InboxPage() {
                                 <ScheduleSendPicker
                                   onSchedule={(scheduledAt) => {
                                     const sid = replySenderId || undefined;
-                                    scheduleReplyMut.mutate({ id: currentMsg.id, body: replyEditor.text, body_html: replyEditor.html, smtp_account_id: sid, scheduled_at: scheduledAt });
+                                    const b = withSignature(replyEditor.html, replyEditor.text, replySig.sigHtml, replySig.on);
+                                    scheduleReplyMut.mutate({ id: currentMsg.id, body: b.body, body_html: b.body_html, smtp_account_id: sid, scheduled_at: scheduledAt });
                                     setShowReplySchedule(false);
                                   }}
                                   onClose={() => setShowReplySchedule(false)}
@@ -2518,8 +2623,13 @@ export function InboxPage() {
                           <button
                             onClick={() => {
                               const sid = replySenderId || undefined;
-                              if (replyMode === 'reply' && !replyEditor.isEmpty) replyMut.mutate({ id: currentMsg.id, body: replyEditor.text, body_html: replyEditor.html, smtp_account_id: sid });
-                              else if (replyMode === 'forward' && forwardTo.trim()) forwardMut.mutate({ id: currentMsg.id, to: forwardTo, note: replyEditor.text || undefined, body_html: replyEditor.html || undefined, smtp_account_id: sid });
+                              if (replyMode === 'reply' && !replyEditor.isEmpty) {
+                                const b = withSignature(replyEditor.html, replyEditor.text, replySig.sigHtml, replySig.on);
+                                replyMut.mutate({ id: currentMsg.id, body: b.body, body_html: b.body_html, smtp_account_id: sid });
+                              } else if (replyMode === 'forward' && forwardTo.trim()) {
+                                const b = withSignature(replyEditor.html || '', replyEditor.text || '', replySig.sigHtml, replySig.on);
+                                forwardMut.mutate({ id: currentMsg.id, to: forwardTo, note: b.body || undefined, body_html: b.body_html || undefined, smtp_account_id: sid });
+                              }
                             }}
                             disabled={
                               (replyMode === 'reply' ? replyEditor.isEmpty || replyMut.isPending : !forwardTo.trim() || forwardMut.isPending)

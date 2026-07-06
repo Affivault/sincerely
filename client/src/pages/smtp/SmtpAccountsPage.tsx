@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
+import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { SettingsShell } from '../../components/shared/SettingsShell';
@@ -41,6 +42,8 @@ const emptyForm: CreateSmtpAccountInput = {
   smtp_user: '',
   smtp_pass: '',
   daily_send_limit: 200,
+  signature_html: '',
+  signature_auto: false,
 };
 
 interface QuickConnectProvider {
@@ -202,6 +205,8 @@ export function SmtpAccountsPage() {
       imap_port: account.imap_port || undefined,
       imap_secure: account.imap_secure || undefined,
       daily_send_limit: account.daily_send_limit,
+      signature_html: account.signature_html || '',
+      signature_auto: account.signature_auto || false,
     });
     setShowModal(true);
   };
@@ -262,9 +267,13 @@ export function SmtpAccountsPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Treat an empty rich-text editor ("", "<p></p>", whitespace) as no signature.
+    const sig = (form.signature_html || '').replace(/<[^>]*>/g, '').trim();
     const submitForm = {
       ...form,
       smtp_user: form.smtp_user || form.email_address,
+      signature_html: sig ? form.signature_html : null,
+      signature_auto: sig ? !!form.signature_auto : false,
     };
     createMutation.mutate(submitForm);
   };
@@ -705,6 +714,42 @@ export function SmtpAccountsPage() {
               </div>
             </>
           )}
+
+          {/* Email signature — surfaced in the composer for this inbox */}
+          <div className="border-t border-subtle pt-4">
+            <div className="flex items-center justify-between mb-1">
+              <h4 className="text-sm font-medium text-primary">Email signature</h4>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={!!form.signature_auto}
+                onClick={() => updateField('signature_auto', !form.signature_auto)}
+                className="flex items-center gap-2 text-xs font-medium text-[var(--text-secondary)]"
+                title='Automatically add this signature to every new email and reply from this inbox'
+              >
+                Always add to new emails
+                <span className={cn(
+                  'relative inline-flex h-[18px] w-8 items-center rounded-full transition-colors',
+                  form.signature_auto ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]'
+                )}>
+                  <span className={cn(
+                    'inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform',
+                    form.signature_auto ? 'translate-x-[15px]' : 'translate-x-[2px]'
+                  )} />
+                </span>
+              </button>
+            </div>
+            <p className="text-xs text-tertiary mb-2.5">
+              Appears as a one-click button in the composer for this inbox — switch senders and the signature follows.
+            </p>
+            <RichTextEditor
+              key={`sig-${editId || 'new'}`}
+              initialContent={form.signature_html || ''}
+              onChange={(html, text) => updateField('signature_html', text.trim() ? html : '')}
+              minHeight="110px"
+              placeholder="e.g. Jordan Lee — Founder, Sincerely · jordan@usesincerely.com"
+            />
+          </div>
 
           <div className="flex items-center justify-between pt-4 border-t border-subtle">
             <Link
