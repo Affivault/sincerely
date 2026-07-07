@@ -33,7 +33,7 @@ import {
 import toast from 'react-hot-toast';
 import type { SendingDomain, DomainVerifyResponse, DnsRecordInstruction } from '@lemlist/shared';
 
-function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
+export function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
   return (
     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded ${
       ok
@@ -126,7 +126,7 @@ function CopyableRecord({ record }: { record: DnsRecordInstruction }) {
   );
 }
 
-function DomainDetailPanel({
+export function DomainDetailPanel({
   domain,
   onClose,
 }: {
