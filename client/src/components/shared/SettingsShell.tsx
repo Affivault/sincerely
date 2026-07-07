@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import {
-  Settings, Users, CreditCard, AtSign, Globe, Clock,
+  Settings, Users, CreditCard, AtSign, Clock,
   Ban, ShieldCheck, Code2, type LucideIcon,
 } from 'lucide-react';
 
@@ -25,7 +25,6 @@ const GROUPS: { label: string; items: { to: string; label: string; icon: LucideI
     label: 'Sending',
     items: [
       { to: '/email-accounts', label: 'Email accounts', icon: AtSign },
-      { to: '/domains', label: 'Domains', icon: Globe },
       { to: '/schedules', label: 'Schedules', icon: Clock },
     ],
   },

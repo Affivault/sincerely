@@ -23,7 +23,6 @@ const PAGE_TITLES: [prefix: string, name: string][] = [
   ['/schedules', 'Schedules'],
   ['/contacts', 'Lead Lists'],
   ['/email-accounts', 'Email accounts'],
-  ['/domains', 'Domains'],
   ['/suppression', 'Suppression'],
   ['/verification', 'Verification'],
   ['/team', 'Team'],

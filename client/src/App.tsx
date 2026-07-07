@@ -28,7 +28,6 @@ const SseDashboardPage     = lazy(() => import('./pages/sse/SseDashboardPage').t
 const AssetBuilderPage     = lazy(() => import('./pages/assets/AssetBuilderPage').then(m => ({ default: m.AssetBuilderPage })));
 const TemplatesPage        = lazy(() => import('./pages/templates/TemplatesPage').then(m => ({ default: m.TemplatesPage })));
 const DeveloperPage        = lazy(() => import('./pages/developer/DeveloperPage').then(m => ({ default: m.DeveloperPage })));
-const DomainsPage          = lazy(() => import('./pages/domains/DomainsPage').then(m => ({ default: m.DomainsPage })));
 const SuppressionPage      = lazy(() => import('./pages/suppression/SuppressionPage').then(m => ({ default: m.SuppressionPage })));
 const VerificationPage     = lazy(() => import('./pages/verification/VerificationPage').then(m => ({ default: m.VerificationPage })));
 const TeamPage             = lazy(() => import('./pages/team/TeamPage').then(m => ({ default: m.TeamPage })));
@@ -113,7 +112,7 @@ export default function App() {
           <Route path="/email-accounts"     element={<EmailAccountsPage />} />
           <Route path="/smtp-accounts"      element={<Navigate to="/email-accounts" replace />} />
           <Route path="/smtp-accounts/guide" element={<SmtpGuidePage />} />
-          <Route path="/domains"            element={<DomainsPage />} />
+          <Route path="/domains"            element={<Navigate to="/email-accounts" replace />} />
           <Route path="/analytics"          element={<AnalyticsDashboardPage />} />
           <Route path="/inbox"              element={<InboxPage />} />
           <Route path="/crm"                element={<CrmPage />} />
