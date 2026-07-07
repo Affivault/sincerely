@@ -65,6 +65,12 @@ const EVENT_META: Record<EventType, { label: string; icon: typeof Phone; dot: st
   meeting: { label: 'Meeting', icon: UsersIcon, dot: 'bg-emerald-500', chip: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
 };
 
+/** Deal <select> options for linking a task/event to a deal. */
+function useDealOptions() {
+  const { data } = useQuery({ queryKey: ['crm', 'deals'], queryFn: () => crmApi.listDeals() });
+  return [{ value: '', label: 'No deal' }, ...(data || []).map(d => ({ value: d.id, label: d.title }))];
+}
+
 /* ─── Deal modal ──────────────────────────────────── */
 export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClose: () => void }) {
   const qc = useQueryClient();
@@ -143,13 +149,15 @@ function TaskModal({ task, onClose }: { task: Partial<CrmTask> | null; onClose: 
     contact_name: task?.contact_name || '',
     priority: (task?.priority as TaskPriority) || 'normal',
     due_date: toDateInput(task?.due_date) || '',
+    deal_id: task?.deal_id || '',
     notes: task?.notes || '',
   });
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+  const dealOptions = useDealOptions();
 
   const save = useMutation({
     mutationFn: () => {
-      const payload = { ...form, due_date: form.due_date ? new Date(form.due_date + 'T09:00').toISOString() : null };
+      const payload = { ...form, deal_id: form.deal_id || null, due_date: form.due_date ? new Date(form.due_date + 'T09:00').toISOString() : null };
       return editing ? crmApi.updateTask(task!.id!, payload) : crmApi.createTask(payload);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm', 'tasks'] }); toast.success(editing ? 'Task updated' : 'Task added'); onClose(); },
@@ -169,6 +177,7 @@ function TaskModal({ task, onClose }: { task: Partial<CrmTask> | null; onClose: 
           <Select label="Priority" options={[{ value: 'high', label: 'High' }, { value: 'normal', label: 'Normal' }, { value: 'low', label: 'Low' }]} value={form.priority} onChange={e => set('priority', e.target.value)} />
           <Input label="Contact" value={form.contact_name || ''} onChange={e => set('contact_name', e.target.value)} placeholder="Sarah Chen" />
         </div>
+        <Select label="Linked deal" options={dealOptions} value={form.deal_id || ''} onChange={e => set('deal_id', e.target.value)} />
         <div>
           <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Notes</label>
           <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} rows={2} className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]" />
@@ -199,13 +208,15 @@ export function EventModal({ event, onClose }: { event: Partial<CrmEvent> | null
     starts_at: toLocalInput(event?.starts_at) || toLocalInput(new Date().toISOString()),
     contact_name: event?.contact_name || '',
     location: event?.location || '',
+    deal_id: event?.deal_id || '',
     notes: event?.notes || '',
   });
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+  const dealOptions = useDealOptions();
 
   const save = useMutation({
     mutationFn: () => {
-      const payload = { ...form, starts_at: fromLocalInput(form.starts_at) as string };
+      const payload = { ...form, deal_id: form.deal_id || null, starts_at: fromLocalInput(form.starts_at) as string };
       return editing ? crmApi.updateEvent(event!.id!, payload) : crmApi.createEvent(payload);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm', 'events'] }); toast.success(editing ? 'Event updated' : 'Event booked'); onClose(); },
@@ -228,6 +239,7 @@ export function EventModal({ event, onClose }: { event: Partial<CrmEvent> | null
           <Input label="Contact" value={form.contact_name || ''} onChange={e => set('contact_name', e.target.value)} placeholder="Sarah Chen" />
           <Input label="Location / link" value={form.location || ''} onChange={e => set('location', e.target.value)} placeholder="Google Meet, Zoom…" />
         </div>
+        <Select label="Linked deal" options={dealOptions} value={form.deal_id || ''} onChange={e => set('deal_id', e.target.value)} />
         <div>
           <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Notes</label>
           <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} rows={2} className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]" />
@@ -249,21 +261,36 @@ export function EventModal({ event, onClose }: { event: Partial<CrmEvent> | null
 }
 
 /* ─── Pipeline (deals kanban) ─────────────────────── */
-function PipelineBoard({ deals, onEdit }: { deals: Deal[]; onEdit: (d: Deal) => void }) {
+function PipelineBoard({ deals, tasks, events, onEdit }: { deals: Deal[]; tasks: CrmTask[]; events: CrmEvent[]; onEdit: (d: Deal) => void }) {
   const qc = useQueryClient();
   const [dragId, setDragId] = useState<string | null>(null);
-  const [overStage, setOverStage] = useState<DealStage | null>(null);
+  const [over, setOver] = useState<{ stage: DealStage; index: number } | null>(null);
 
-  const move = useMutation({
-    mutationFn: ({ id, stage }: { id: string; stage: DealStage }) => crmApi.updateDeal(id, { stage }),
-    onMutate: async ({ id, stage }) => {
-      await qc.cancelQueries({ queryKey: ['crm', 'deals'] });
-      const prev = qc.getQueryData<Deal[]>(['crm', 'deals']);
-      qc.setQueryData<Deal[]>(['crm', 'deals'], (old) => (old || []).map(d => d.id === id ? { ...d, stage } : d));
-      return { prev };
-    },
-    onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(['crm', 'deals'], ctx.prev); toast.error('Failed to move deal'); },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['crm', 'deals'] }),
+  // Reorder within a column (or move across stages) at a given index — persists
+  // fresh sequential positions for the affected column, optimistically.
+  const commit = (stage: DealStage, index: number) => {
+    const id = dragId;
+    if (!id) return;
+    const all = qc.getQueryData<Deal[]>(['crm', 'deals']) || deals;
+    const moving = all.find(d => d.id === id);
+    if (!moving) return;
+    const targetList = all.filter(d => d.stage === stage && d.id !== id);
+    const insertAt = Math.max(0, Math.min(index, targetList.length));
+    const newOrder = [...targetList.slice(0, insertAt), moving, ...targetList.slice(insertAt)];
+    const rebuilt = newOrder.map((d, i) => ({ ...d, stage, position: i }));
+    const changed = rebuilt.filter((d, i) => d.id === id || newOrder[i].position !== i || newOrder[i].stage !== stage);
+    qc.setQueryData<Deal[]>(['crm', 'deals'], (old) => {
+      const others = (old || []).filter(d => d.stage !== stage && d.id !== id);
+      return [...others, ...rebuilt];
+    });
+    Promise.all(changed.map(d => crmApi.updateDeal(d.id, { stage, position: d.position })))
+      .then(() => qc.invalidateQueries({ queryKey: ['crm'] }))
+      .catch(() => { toast.error('Failed to reorder'); qc.invalidateQueries({ queryKey: ['crm'] }); });
+  };
+
+  const linkCounts = (dealId: string) => ({
+    tasks: tasks.filter(t => t.deal_id === dealId && !t.is_done).length,
+    events: events.filter(e => e.deal_id === dealId && new Date(e.starts_at) >= new Date()).length,
   });
 
   return (
@@ -271,15 +298,15 @@ function PipelineBoard({ deals, onEdit }: { deals: Deal[]; onEdit: (d: Deal) => 
       {DEAL_STAGES.map(stage => {
         const items = deals.filter(d => d.stage === stage.id);
         const total = items.reduce((s, d) => s + (d.value || 0), 0);
+        const dropHere = over?.stage === stage.id;
         return (
           <div
             key={stage.id}
-            onDragOver={(e) => { e.preventDefault(); setOverStage(stage.id); }}
-            onDragLeave={() => setOverStage(s => s === stage.id ? null : s)}
-            onDrop={() => { if (dragId) move.mutate({ id: dragId, stage: stage.id }); setDragId(null); setOverStage(null); }}
+            onDragOver={(e) => { e.preventDefault(); setOver({ stage: stage.id, index: items.length }); }}
+            onDrop={(e) => { e.preventDefault(); if (dragId && over) commit(over.stage, over.index); setDragId(null); setOver(null); }}
             className={cn(
               'flex-shrink-0 w-[264px] rounded-xl border bg-[var(--bg-muted)]/40 flex flex-col max-h-full transition-colors',
-              overStage === stage.id ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)]/40' : 'border-[var(--border-subtle)]'
+              dropHere ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)]/40' : 'border-[var(--border-subtle)]'
             )}
           >
             <div className="flex items-center gap-2 px-3 h-11 flex-shrink-0">
@@ -289,39 +316,52 @@ function PipelineBoard({ deals, onEdit }: { deals: Deal[]; onEdit: (d: Deal) => 
               <span className="flex-1" />
               <span className="text-[11px] font-semibold text-[var(--text-secondary)] tabular">{fmtMoney(total)}</span>
             </div>
-            <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-2 min-h-[80px]">
-              {items.map(d => (
-                <button
-                  key={d.id}
-                  draggable
-                  onDragStart={() => setDragId(d.id)}
-                  onDragEnd={() => { setDragId(null); setOverStage(null); }}
-                  onClick={() => onEdit(d)}
-                  className={cn(
-                    'group w-full text-left rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5 shadow-[var(--shadow-sm)] hover:border-[var(--border-default)] hover:shadow-[var(--shadow-md)] transition-all cursor-grab active:cursor-grabbing',
-                    dragId === d.id && 'opacity-50'
-                  )}
-                >
-                  <div className="flex items-start gap-1.5">
-                    <GripVertical className="h-3.5 w-3.5 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
-                    <span className="text-[12.5px] font-medium text-[var(--text-primary)] leading-snug line-clamp-2">{d.title}</span>
-                  </div>
-                  <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    <span className="text-[12px] font-semibold text-[var(--text-primary)] tabular">{fmtMoney(d.value, d.currency)}</span>
-                    {d.company && (
-                      <span className="inline-flex items-center gap-1 text-[10.5px] text-[var(--text-tertiary)] truncate max-w-[110px]">
-                        <Building2 className="h-3 w-3 flex-shrink-0" />{d.company}
-                      </span>
+            <div className="flex-1 overflow-y-auto px-2 pb-2 min-h-[80px]">
+              {items.map((d, idx) => {
+                const lc = linkCounts(d.id);
+                return (
+                  <div key={d.id}>
+                    {dropHere && over!.index === idx && dragId !== d.id && (
+                      <div className="h-0.5 my-1 rounded-full bg-[var(--indigo)]" />
                     )}
+                    <button
+                      draggable
+                      onDragStart={() => setDragId(d.id)}
+                      onDragEnd={() => { setDragId(null); setOver(null); }}
+                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); const after = e.clientY > r.top + r.height / 2; setOver({ stage: stage.id, index: after ? idx + 1 : idx }); }}
+                      onClick={() => onEdit(d)}
+                      className={cn(
+                        'group w-full text-left rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5 my-1 shadow-[var(--shadow-sm)] hover:border-[var(--border-default)] hover:shadow-[var(--shadow-md)] transition-all cursor-grab active:cursor-grabbing',
+                        dragId === d.id && 'opacity-50'
+                      )}
+                    >
+                      <div className="flex items-start gap-1.5">
+                        <GripVertical className="h-3.5 w-3.5 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
+                        <span className="text-[12.5px] font-medium text-[var(--text-primary)] leading-snug line-clamp-2">{d.title}</span>
+                      </div>
+                      <div className="mt-2 flex items-center gap-2 flex-wrap">
+                        <span className="text-[12px] font-semibold text-[var(--text-primary)] tabular">{fmtMoney(d.value, d.currency)}</span>
+                        {d.company && (
+                          <span className="inline-flex items-center gap-1 text-[10.5px] text-[var(--text-tertiary)] truncate max-w-[110px]">
+                            <Building2 className="h-3 w-3 flex-shrink-0" />{d.company}
+                          </span>
+                        )}
+                      </div>
+                      {(d.expected_close_date || lc.tasks > 0 || lc.events > 0) && (
+                        <div className="mt-1.5 flex items-center gap-2.5 text-[10.5px] text-[var(--text-tertiary)]">
+                          {d.expected_close_date && <span className="inline-flex items-center gap-1"><CalendarClock className="h-3 w-3" /> {relDay(d.expected_close_date).label}</span>}
+                          {lc.tasks > 0 && <span className="inline-flex items-center gap-1"><ListTodo className="h-3 w-3" /> {lc.tasks}</span>}
+                          {lc.events > 0 && <span className="inline-flex items-center gap-1"><CalendarIcon className="h-3 w-3" /> {lc.events}</span>}
+                        </div>
+                      )}
+                    </button>
                   </div>
-                  {d.expected_close_date && (
-                    <div className="mt-1.5 inline-flex items-center gap-1 text-[10.5px] text-[var(--text-tertiary)]">
-                      <CalendarClock className="h-3 w-3" /> {relDay(d.expected_close_date).label}
-                    </div>
-                  )}
-                </button>
-              ))}
-              {items.length === 0 && (
+                );
+              })}
+              {dropHere && over!.index >= items.length && (
+                <div className="h-0.5 my-1 rounded-full bg-[var(--indigo)]" />
+              )}
+              {items.length === 0 && !dropHere && (
                 <p className="text-[11px] text-[var(--text-muted)] text-center py-4">Drop deals here</p>
               )}
             </div>
@@ -584,7 +624,7 @@ export function CrmPage() {
         deals.length === 0 ? (
           <EmptyBoard icon={Handshake} title="No deals yet" body="Add your first deal to start tracking your pipeline." action="New deal" onAction={() => setDealModal(null)} />
         ) : (
-          <PipelineBoard deals={deals} onEdit={(d) => setDealModal(d)} />
+          <PipelineBoard deals={deals} tasks={tasks} events={events} onEdit={(d) => setDealModal(d)} />
         )
       ) : tab === 'tasks' ? (
         <TasksPanel tasks={tasks} onEdit={(t) => setTaskModal(t)} />
