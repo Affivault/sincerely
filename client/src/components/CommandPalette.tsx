@@ -46,7 +46,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     { id: 'nav-templates', label: 'Templates', icon: FileText, group: 'Navigate', href: '/templates', keywords: 'emails snippets' },
     { id: 'nav-schedules', label: 'Schedules', icon: CalendarClock, group: 'Navigate', href: '/schedules', keywords: 'sending times' },
     { id: 'nav-contacts', label: 'Lead Lists', icon: Users, group: 'Navigate', href: '/contacts', keywords: 'leads people audience' },
-    { id: 'nav-smtp', label: 'SMTP Accounts', icon: Send, group: 'Navigate', href: '/smtp-accounts', keywords: 'mailbox sender' },
+    { id: 'nav-smtp', label: 'Email accounts', icon: Send, group: 'Navigate', href: '/email-accounts', keywords: 'mailbox sender smtp' },
     { id: 'nav-domains', label: 'Domains', icon: Globe, group: 'Navigate', href: '/domains', keywords: 'dns spf dkim' },
     { id: 'nav-verification', label: 'Verification', icon: ShieldCheck, group: 'Navigate', href: '/verification', keywords: 'validate dcs score' },
     { id: 'nav-suppression', label: 'Suppression', icon: ShieldOff, group: 'Navigate', href: '/suppression', keywords: 'blocklist unsubscribe' },

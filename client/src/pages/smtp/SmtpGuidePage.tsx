@@ -298,7 +298,7 @@ export function SmtpGuidePage() {
     <div className="space-y-4">
       {/* Header */}
       <div>
-        <Link to="/smtp-accounts" className="inline-flex items-center gap-1.5 text-sm text-secondary hover:text-primary mb-4 transition-colors">
+        <Link to="/email-accounts" className="inline-flex items-center gap-1.5 text-sm text-secondary hover:text-primary mb-4 transition-colors">
           <ArrowLeft className="h-4 w-4" />
           Back to SMTP Accounts
         </Link>
@@ -545,7 +545,7 @@ export function SmtpGuidePage() {
         <h3 className="font-medium text-primary mb-2">Ready to connect?</h3>
         <p className="text-sm text-secondary mb-4">Add your SMTP credentials to start sending campaigns.</p>
         <Link
-          to="/smtp-accounts"
+          to="/email-accounts"
           className="btn-primary inline-flex items-center gap-2 px-4 py-2 bg-[var(--text-primary)] text-[var(--bg-app)] text-sm font-medium rounded-md hover:opacity-90 transition-opacity"
         >
           <Mail className="h-4 w-4" />

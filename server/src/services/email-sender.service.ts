@@ -35,6 +35,17 @@ interface SmtpSendResult {
 }
 
 /**
+ * Build an RFC 5322 From header from a display name and address:
+ * `"Thomas Vance" <thomas@acme.com>`. Falls back to the bare address when no
+ * name is given, and escapes quotes in the name.
+ */
+export function formatFromHeader(name: string | null | undefined, email: string): string {
+  const clean = (name || '').trim();
+  if (!clean) return email;
+  return `"${clean.replace(/"/g, '\\"')}" <${email}>`;
+}
+
+/**
  * Send an email via Vercel SMTP relay (HTTPS) or direct SMTP.
  * When SMTP_RELAY_URL is configured, sends via relay to bypass port blocks.
  * Otherwise falls back to direct nodemailer SMTP.
@@ -49,34 +60,51 @@ export async function sendViaSmtp(params: SmtpSendParams): Promise<SmtpSendResul
 async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
   console.log(`[SMTP Relay] Sending to ${params.to} via ${env.SMTP_RELAY_URL}`);
 
-  const response = await fetch(env.SMTP_RELAY_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${env.SMTP_RELAY_SECRET}`,
-    },
-    body: JSON.stringify({
-      smtp_host: params.smtpHost,
-      smtp_port: params.smtpPort,
-      smtp_secure: params.smtpSecure,
-      smtp_user: params.smtpUser,
-      smtp_pass: params.smtpPass,
-      from: params.from,
-      to: params.to,
-      subject: params.subject,
-      html: params.html,
-      text: params.text,
-      message_id: params.messageId,
-      headers: params.headers,
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(env.SMTP_RELAY_URL!, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.SMTP_RELAY_SECRET}`,
+      },
+      body: JSON.stringify({
+        smtp_host: params.smtpHost,
+        smtp_port: params.smtpPort,
+        smtp_secure: params.smtpSecure,
+        smtp_user: params.smtpUser,
+        smtp_pass: params.smtpPass,
+        from: params.from,
+        to: params.to,
+        subject: params.subject,
+        html: params.html,
+        text: params.text,
+        message_id: params.messageId,
+        headers: params.headers,
+      }),
+    });
+  } catch (err: any) {
+    // Relay host unreachable (DNS/network) — fall back to a direct SMTP attempt
+    // rather than hard-failing the send.
+    console.warn(`[SMTP Relay] Unreachable (${err.message}); falling back to direct SMTP`);
+    return sendDirect(params);
+  }
 
-  // Relay may return non-JSON (e.g. HTML 502 from a reverse proxy) — parse safely
+  // A misconfigured or missing relay endpoint returns 404, and reverse proxies
+  // return 5xx as HTML. In either case the relay isn't usable, so fall back to
+  // a direct SMTP send instead of surfacing an opaque "non-JSON response" error.
+  if (response.status === 404 || response.status === 405 || response.status >= 500) {
+    console.warn(`[SMTP Relay] Endpoint returned HTTP ${response.status}; falling back to direct SMTP`);
+    return sendDirect(params);
+  }
+
+  // Relay may still return non-JSON (e.g. an HTML error page) — parse safely.
   let data: any = {};
   try {
     data = await response.json();
   } catch {
-    throw new Error(`SMTP relay returned non-JSON response (HTTP ${response.status} ${response.statusText})`);
+    console.warn(`[SMTP Relay] Non-JSON response (HTTP ${response.status}); falling back to direct SMTP`);
+    return sendDirect(params);
   }
 
   if (!response.ok || !data.success) {
@@ -269,9 +297,7 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
     } : {}),
   };
 
-  const fromAddress = smtpAccount.label
-    ? `"${smtpAccount.label.replace(/"/g, '\\"')}" <${smtpAccount.email_address}>`
-    : smtpAccount.email_address;
+  const fromAddress = formatFromHeader(smtpAccount.from_name || smtpAccount.label, smtpAccount.email_address);
 
   let sendResult;
   try {

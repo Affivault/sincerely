@@ -18,7 +18,7 @@ const BulkImportPage       = lazy(() => import('./pages/contacts/BulkImportPage'
 const CampaignsListPage    = lazy(() => import('./pages/campaigns/CampaignsListPage').then(m => ({ default: m.CampaignsListPage })));
 const CampaignCreatePage   = lazy(() => import('./pages/campaigns/CampaignCreatePage').then(m => ({ default: m.CampaignCreatePage })));
 const CampaignDetailPage   = lazy(() => import('./pages/campaigns/CampaignDetailPage').then(m => ({ default: m.CampaignDetailPage })));
-const SmtpAccountsPage     = lazy(() => import('./pages/smtp/SmtpAccountsPage').then(m => ({ default: m.SmtpAccountsPage })));
+const EmailAccountsPage    = lazy(() => import('./pages/smtp/EmailAccountsPage').then(m => ({ default: m.EmailAccountsPage })));
 const SmtpGuidePage        = lazy(() => import('./pages/smtp/SmtpGuidePage').then(m => ({ default: m.SmtpGuidePage })));
 const AnalyticsDashboardPage = lazy(() => import('./pages/analytics/AnalyticsDashboardPage').then(m => ({ default: m.AnalyticsDashboardPage })));
 const InboxPage            = lazy(() => import('./pages/inbox/InboxPage').then(m => ({ default: m.InboxPage })));
@@ -110,7 +110,8 @@ export default function App() {
           <Route path="/campaigns/new"      element={<CampaignCreatePage />} />
           <Route path="/campaigns/:id"      element={<CampaignDetailPage />} />
           <Route path="/campaigns/:id/edit" element={<CampaignCreatePage />} />
-          <Route path="/smtp-accounts"      element={<SmtpAccountsPage />} />
+          <Route path="/email-accounts"     element={<EmailAccountsPage />} />
+          <Route path="/smtp-accounts"      element={<Navigate to="/email-accounts" replace />} />
           <Route path="/smtp-accounts/guide" element={<SmtpGuidePage />} />
           <Route path="/domains"            element={<DomainsPage />} />
           <Route path="/analytics"          element={<AnalyticsDashboardPage />} />

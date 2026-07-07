@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
-import { sendViaSmtp } from './email-sender.service.js';
+import { sendViaSmtp, formatFromHeader } from './email-sender.service.js';
 import { billingService } from './billing.service.js';
 
 export const smtpService = {
@@ -120,7 +120,7 @@ export const smtpService = {
         smtpSecure: account.smtp_secure,
         smtpUser: account.smtp_user,
         smtpPass: password,
-        from: account.email_address,
+        from: formatFromHeader(account.from_name || account.label, account.email_address),
         to: account.email_address,
         subject: '[Sincerely] SMTP Verification',
         text: 'Your SMTP account has been verified successfully.',
@@ -130,6 +130,35 @@ export const smtpService = {
         .update({ is_verified: true })
         .eq('id', id);
       return { success: true, message: 'SMTP connection verified successfully' };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Connection failed' };
+    }
+  },
+
+  /**
+   * Verify raw SMTP credentials without persisting an account — powers the
+   * "Check connection" button in the connect flow, so a mailbox can be proven
+   * before it's saved. Sends a one-line verification mail to the account's own
+   * address (never an external recipient), so it doesn't consume send quota.
+   */
+  async verifyCredentials(_userId: string, input: any) {
+    const required = ['email_address', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass'];
+    for (const key of required) {
+      if (!input?.[key]) return { success: false, message: `Missing ${key.replace('_', ' ')}` };
+    }
+    try {
+      await sendViaSmtp({
+        smtpHost: input.smtp_host,
+        smtpPort: Number(input.smtp_port),
+        smtpSecure: !!input.smtp_secure,
+        smtpUser: input.smtp_user,
+        smtpPass: input.smtp_pass,
+        from: formatFromHeader(input.from_name, input.email_address),
+        to: input.email_address,
+        subject: '[Sincerely] Connection check',
+        text: 'This mailbox is correctly configured to send through Sincerely.',
+      });
+      return { success: true, message: 'Connection successful — this mailbox can send.' };
     } catch (err: any) {
       return { success: false, message: err.message || 'Connection failed' };
     }

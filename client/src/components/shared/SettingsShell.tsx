@@ -24,7 +24,7 @@ const GROUPS: { label: string; items: { to: string; label: string; icon: LucideI
   {
     label: 'Sending',
     items: [
-      { to: '/smtp-accounts', label: 'Email accounts', icon: AtSign },
+      { to: '/email-accounts', label: 'Email accounts', icon: AtSign },
       { to: '/domains', label: 'Domains', icon: Globe },
       { to: '/schedules', label: 'Schedules', icon: Clock },
     ],
