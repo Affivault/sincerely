@@ -513,7 +513,7 @@ export function DashboardPage() {
                   count={unhealthySmtpAccounts.length}
                   label={unhealthySmtpAccounts.length === 1 ? 'Inbox health low' : 'Inboxes health low'}
                   sub={unhealthySmtpAccounts.map((a) => a.label || a.email_address).join(', ')}
-                  to="/smtp-accounts"
+                  to="/email-accounts"
                   tone="warn"
                 />
               )}

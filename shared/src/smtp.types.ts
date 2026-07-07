@@ -2,6 +2,8 @@ export interface SmtpAccount {
   id: string;
   user_id: string;
   label: string;
+  /** Human display name shown to recipients in the From header (e.g. "Thomas Vance"). Falls back to label when unset. */
+  from_name: string | null;
   email_address: string;
   smtp_host: string;
   smtp_port: number;
@@ -53,6 +55,7 @@ export interface SseSelectionResult {
 
 export interface CreateSmtpAccountInput {
   label: string;
+  from_name?: string | null;
   email_address: string;
   smtp_host: string;
   smtp_port: number;
@@ -68,6 +71,22 @@ export interface CreateSmtpAccountInput {
 }
 
 export interface UpdateSmtpAccountInput extends Partial<CreateSmtpAccountInput> {}
+
+/** Raw credentials for a pre-save "check connection" that does not persist anything. */
+export interface VerifySmtpInput {
+  email_address: string;
+  from_name?: string | null;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_secure: boolean;
+  smtp_user: string;
+  smtp_pass: string;
+}
+
+export interface VerifySmtpResult {
+  success: boolean;
+  message: string;
+}
 
 export interface SmtpPreset {
   name: string;

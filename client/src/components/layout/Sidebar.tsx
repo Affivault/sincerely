@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers,
-  ChevronRight, Wrench, ArrowUpRight, Handshake,
+  ChevronRight, Wrench, ArrowUpRight, Handshake, AtSign,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
@@ -32,10 +32,11 @@ const campaignsNav: NavItem[] = [
     kind: 'group', id: 'campaigns',
     name: 'Campaigns', href: '/campaigns', icon: Megaphone,
     children: [
-      { name: 'All campaigns', href: '/campaigns',  icon: Layers },
-      { name: 'Analytics',     href: '/analytics',  icon: BarChart3 },
-      { name: 'Templates',     href: '/templates',  icon: FileText },
-      { name: 'Schedules',     href: '/schedules',  icon: CalendarClock },
+      { name: 'All campaigns',  href: '/campaigns',       icon: Layers },
+      { name: 'Email accounts', href: '/email-accounts',  icon: AtSign },
+      { name: 'Analytics',      href: '/analytics',       icon: BarChart3 },
+      { name: 'Templates',      href: '/templates',       icon: FileText },
+      { name: 'Schedules',      href: '/schedules',       icon: CalendarClock },
     ],
   },
 ];
@@ -51,14 +52,14 @@ const toolsNav: NavItem[] = [
 
 /* Every route that lives inside the settings workspace (SettingsShell owns
    the detail nav there — the app sidebar shows a single entry for all of it). */
-const SETTINGS_ROUTES = ['/settings', '/team', '/billing', '/smtp-accounts', '/domains', '/suppression', '/verification'];
+const SETTINGS_ROUTES = ['/settings', '/team', '/billing', '/domains', '/suppression', '/verification'];
 
 const settingsNav: NavItem[] = [
   { name: 'Settings', href: '/settings', icon: Settings, match: SETTINGS_ROUTES },
 ];
 
 /* Routes that belong inside the Campaigns group */
-const CAMPAIGN_ROUTES = ['/campaigns', '/analytics', '/templates', '/schedules'];
+const CAMPAIGN_ROUTES = ['/campaigns', '/email-accounts', '/analytics', '/templates', '/schedules'];
 
 /* ─── Row styling (the Attio look) ──────────────────────────────────
    Inactive rows are quiet text on the gray rail. The ACTIVE row is a

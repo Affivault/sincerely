@@ -5,7 +5,7 @@ import { AuthRequest } from '../middleware/auth.middleware.js';
 import { smtpService } from '../services/smtp.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { decrypt } from '../utils/encryption.js';
-import { sendViaSmtp } from '../services/email-sender.service.js';
+import { sendViaSmtp, formatFromHeader } from '../services/email-sender.service.js';
 import { billingService } from '../services/billing.service.js';
 
 const resolveTxt = promisify(dns.resolveTxt);
@@ -51,6 +51,17 @@ export const smtpController = {
   async test(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const result = await smtpService.test(req.userId!, req.params.id);
+      res.json(result);
+    } catch (err) { next(err); }
+  },
+
+  /**
+   * POST /smtp-accounts/verify
+   * Check raw SMTP credentials before saving the account.
+   */
+  async verify(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await smtpService.verifyCredentials(req.userId!, req.body);
       res.json(result);
     } catch (err) { next(err); }
   },
@@ -111,7 +122,7 @@ export const smtpController = {
           smtpSecure: account.smtp_secure,
           smtpUser: account.smtp_user,
           smtpPass: password,
-          from: account.email_address,
+          from: formatFromHeader(account.from_name || account.label, account.email_address),
           to,
           subject: `[TEST] ${subject}`,
           html: htmlBody,

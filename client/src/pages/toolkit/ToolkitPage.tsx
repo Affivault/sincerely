@@ -114,7 +114,7 @@ export function ToolkitPage() {
           iconBg="bg-violet-500/10"
           title="SMTP Accounts"
           description="Configure and manage sending accounts. Monitor send rates, test connections, and rotate accounts for deliverability."
-          onClick={() => navigate('/smtp-accounts')}
+          onClick={() => navigate('/email-accounts')}
         />
 
         <ToolCard
