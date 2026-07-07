@@ -273,6 +273,7 @@ export const inboxService = {
     sara_intent?: string;
     search?: string;
     folder?: string;
+    contact_email?: string;
   }) {
     const { page, limit, from, to } = getPagination(params);
 
@@ -281,8 +282,15 @@ export const inboxService = {
       .select('*, contacts(first_name, last_name, email), campaigns(name), smtp_accounts(id, email_address, label)', { count: 'exact' })
       .eq('user_id', userId);
 
-    // Folder-based filtering
-    const folder = params.folder || 'inbox';
+    // Every message to/from a specific contact (both directions, all folders) —
+    // powers the "all past emails" view on the contact page.
+    if (params.contact_email) {
+      const e = params.contact_email.replace(/[%_,()]/g, '');
+      query = query.or(`from_email.eq.${e},to_email.eq.${e}`);
+    }
+
+    // Folder-based filtering (skipped when scoped to a contact)
+    const folder = params.folder || (params.contact_email ? 'all' : 'inbox');
     if (folder === 'inbox') {
       query = query.or('is_archived.is.null,is_archived.eq.false');
     } else if (folder === 'starred') {

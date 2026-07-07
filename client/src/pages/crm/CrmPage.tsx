@@ -190,7 +190,7 @@ function TaskModal({ task, onClose }: { task: Partial<CrmTask> | null; onClose: 
 }
 
 /* ─── Event modal ─────────────────────────────────── */
-function EventModal({ event, onClose }: { event: Partial<CrmEvent> | null; onClose: () => void }) {
+export function EventModal({ event, onClose }: { event: Partial<CrmEvent> | null; onClose: () => void }) {
   const qc = useQueryClient();
   const editing = !!event?.id;
   const [form, setForm] = useState<CreateEventInput & { type: EventType }>({

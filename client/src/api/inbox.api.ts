@@ -22,6 +22,7 @@ export const inboxApi = {
     sara_status?: string;
     sara_intent?: string;
     search?: string;
+    contact_email?: string;
   }) => {
     const { data } = await apiClient.get<PaginatedResponse<InboxMessageWithContext>>('/inbox', { params });
     return data;
