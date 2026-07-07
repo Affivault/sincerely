@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { crmApi } from '../../api/crm.api';
 import { Modal } from '../../components/ui/Modal';
@@ -12,6 +13,7 @@ import {
   Handshake, ListTodo, Calendar as CalendarIcon, Plus, Trash2,
   ChevronLeft, ChevronRight, Phone, Users as UsersIcon, Building2,
   CalendarClock, CheckCircle2, Circle, Flag, GripVertical,
+  X, Pencil, Clock, ArrowUpRight, Mail, StickyNote,
 } from 'lucide-react';
 import {
   DEAL_STAGES,
@@ -39,6 +41,15 @@ function toLocalInput(iso?: string | null): string {
 }
 function fromLocalInput(v: string): string | null {
   return v ? new Date(v).toISOString() : null;
+}
+function dealAge(iso?: string | null): string {
+  if (!iso) return '—';
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return '1 day';
+  if (days < 30) return `${days} days`;
+  const months = Math.round(days / 30);
+  return months === 1 ? '1 month' : `${months} months`;
 }
 function relDay(iso?: string | null): { label: string; tone: 'over' | 'today' | 'soon' | 'none' } {
   if (!iso) return { label: 'No date', tone: 'none' };
@@ -257,6 +268,246 @@ export function EventModal({ event, onClose }: { event: Partial<CrmEvent> | null
         </div>
       </form>
     </Modal>
+  );
+}
+
+/* ─── Deal detail drawer ──────────────────────────── */
+const STAGE_ACTIVE: Record<DealStage, string> = {
+  lead: 'bg-slate-500 text-white border-slate-500',
+  qualified: 'bg-[var(--indigo)] text-white border-[var(--indigo)]',
+  proposal: 'bg-amber-500 text-white border-amber-500',
+  won: 'bg-emerald-500 text-white border-emerald-500',
+  lost: 'bg-rose-500 text-white border-rose-500',
+};
+
+export function DealDrawer({
+  deal, tasks, events, onClose, onEdit, onAddTask, onBookEvent,
+}: {
+  deal: Deal;
+  tasks: CrmTask[];
+  events: CrmEvent[];
+  onClose: () => void;
+  onEdit: (d: Deal) => void;
+  onAddTask: (d: Deal) => void;
+  onBookEvent: (d: Deal) => void;
+}) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    setShow(true);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const close = () => { setShow(false); setTimeout(onClose, 180); };
+
+  const dealTasks = tasks
+    .filter(t => t.deal_id === deal.id)
+    .sort((a, b) => Number(a.is_done) - Number(b.is_done) || (a.due_date || '').localeCompare(b.due_date || ''));
+  const dealEvents = events
+    .filter(e => e.deal_id === deal.id)
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+
+  const changeStage = (stage: DealStage) => {
+    if (stage === deal.stage) return;
+    qc.setQueryData<Deal[]>(['crm', 'deals'], (old) => (old || []).map(d => d.id === deal.id ? { ...d, stage } : d));
+    crmApi.updateDeal(deal.id, { stage })
+      .then(() => qc.invalidateQueries({ queryKey: ['crm', 'deals'] }))
+      .catch(() => { toast.error('Failed to move deal'); qc.invalidateQueries({ queryKey: ['crm', 'deals'] }); });
+  };
+
+  const toggleTask = (t: CrmTask) => {
+    qc.setQueryData<CrmTask[]>(['crm', 'tasks'], (old) => (old || []).map(x => x.id === t.id ? { ...x, is_done: !x.is_done } : x));
+    crmApi.updateTask(t.id, { is_done: !t.is_done })
+      .then(() => qc.invalidateQueries({ queryKey: ['crm', 'tasks'] }))
+      .catch(() => qc.invalidateQueries({ queryKey: ['crm', 'tasks'] }));
+  };
+
+  const close_ = relDay(deal.expected_close_date);
+  const closeTone = close_.tone === 'over' ? 'text-rose-500' : close_.tone === 'today' ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-primary)]';
+
+  return (
+    <div className="fixed inset-0 z-40">
+      <div
+        onClick={close}
+        className={cn('absolute inset-0 bg-black/30 backdrop-blur-[1px] transition-opacity duration-200', show ? 'opacity-100' : 'opacity-0')}
+      />
+      <div
+        className={cn(
+          'absolute right-0 top-0 h-full w-full max-w-[456px] bg-[var(--bg-surface)] border-l border-[var(--border-subtle)] shadow-[var(--shadow-xl)] flex flex-col transition-transform duration-200 ease-out',
+          show ? 'translate-x-0' : 'translate-x-full'
+        )}
+      >
+        {/* Header */}
+        <div className="flex-shrink-0 px-5 pt-4 pb-4 border-b border-[var(--border-subtle)]">
+          <div className="flex items-center justify-between mb-3">
+            <span className={cn('inline-flex items-center gap-1.5 h-6 px-2 rounded-md text-[11px] font-semibold', STAGE_ACTIVE[deal.stage])}>
+              {DEAL_STAGES.find(s => s.id === deal.stage)?.label}
+            </span>
+            <div className="flex items-center gap-1">
+              <button onClick={() => onEdit(deal)} className="icon-btn h-7 w-7" title="Edit deal"><Pencil className="h-3.5 w-3.5" /></button>
+              <button onClick={close} className="icon-btn h-7 w-7" title="Close"><X className="h-4 w-4" /></button>
+            </div>
+          </div>
+          <h2 className="text-[17px] font-semibold text-[var(--text-primary)] leading-snug tracking-[-0.01em]">{deal.title}</h2>
+          {(deal.company || deal.contact_name) && (
+            <div className="mt-1.5 flex items-center gap-2.5 text-[12.5px] text-[var(--text-tertiary)]">
+              {deal.company && <span className="inline-flex items-center gap-1"><Building2 className="h-3.5 w-3.5" />{deal.company}</span>}
+              {deal.contact_name && <span className="inline-flex items-center gap-1"><UsersIcon className="h-3.5 w-3.5" />{deal.contact_name}</span>}
+            </div>
+          )}
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          {/* Stage changer */}
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2">Stage</p>
+            <div className="flex flex-wrap gap-1.5">
+              {DEAL_STAGES.map(s => {
+                const active = s.id === deal.stage;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => changeStage(s.id)}
+                    className={cn(
+                      'h-7 px-2.5 rounded-lg text-[12px] font-medium border transition-all',
+                      active ? STAGE_ACTIVE[s.id] : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)]'
+                    )}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-2.5">
+            <Stat label="Value" value={fmtMoney(deal.value, deal.currency)} />
+            <Stat label="Close date" value={close_.label} tone={closeTone} />
+            <Stat label="Deal age" value={dealAge(deal.created_at)} />
+          </div>
+
+          {/* Tasks */}
+          <Section title="Tasks" count={dealTasks.length} actionLabel="Add task" onAction={() => onAddTask(deal)} icon={ListTodo}>
+            {dealTasks.length === 0 ? (
+              <p className="text-[12px] text-[var(--text-muted)] py-1">No tasks linked to this deal yet.</p>
+            ) : (
+              <div className="space-y-0.5">
+                {dealTasks.map(t => {
+                  const due = relDay(t.due_date);
+                  const tone = due.tone === 'over' ? 'text-rose-500' : due.tone === 'today' ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-tertiary)]';
+                  return (
+                    <div key={t.id} className="flex items-center gap-2.5 py-1.5">
+                      <button onClick={() => toggleTask(t)} className="flex-shrink-0" title={t.is_done ? 'Mark not done' : 'Mark done'}>
+                        {t.is_done ? <CheckCircle2 className="h-[17px] w-[17px] text-emerald-500" /> : <Circle className="h-[17px] w-[17px] text-[var(--text-muted)] hover:text-[var(--indigo)] transition-colors" />}
+                      </button>
+                      <span className={cn('flex-1 min-w-0 text-[12.5px] truncate', t.is_done ? 'line-through text-[var(--text-muted)]' : 'text-[var(--text-primary)]')}>{t.title}</span>
+                      {!t.is_done && t.due_date && <span className={cn('text-[11px] font-medium tabular flex-shrink-0', tone)}>{due.label}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Section>
+
+          {/* Events */}
+          <Section title="Meetings & calls" count={dealEvents.length} actionLabel="Book" onAction={() => onBookEvent(deal)} icon={CalendarIcon}>
+            {dealEvents.length === 0 ? (
+              <p className="text-[12px] text-[var(--text-muted)] py-1">No calls or meetings booked yet.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {dealEvents.map(ev => {
+                  const meta = EVENT_META[ev.type];
+                  const Icon = meta.icon;
+                  const past = new Date(ev.starts_at) < new Date();
+                  const when = new Date(ev.starts_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' · ' + new Date(ev.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                  return (
+                    <div key={ev.id} className={cn('flex items-center gap-2.5 rounded-lg border border-[var(--border-subtle)] px-2.5 py-2', past && 'opacity-60')}>
+                      <span className={cn('flex h-6 w-6 items-center justify-center rounded-md flex-shrink-0', meta.chip)}><Icon className="h-3.5 w-3.5" /></span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{ev.title}</p>
+                        <p className="text-[11px] text-[var(--text-tertiary)]">{when}{ev.location ? ` · ${ev.location}` : ''}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Section>
+
+          {/* Notes */}
+          <Section title="Notes" icon={StickyNote}>
+            {deal.notes?.trim() ? (
+              <p className="text-[12.5px] text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed">{deal.notes}</p>
+            ) : (
+              <button onClick={() => onEdit(deal)} className="text-[12px] text-[var(--text-muted)] hover:text-[var(--indigo)] transition-colors">Add notes…</button>
+            )}
+          </Section>
+
+          {/* Contact */}
+          {(deal.contact_email || deal.contact_id) && (
+            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-muted)]/40 p-3">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--indigo-subtle)] text-[var(--indigo)] text-[13px] font-semibold flex-shrink-0">
+                  {(deal.contact_name || deal.company || '?').charAt(0).toUpperCase()}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{deal.contact_name || 'Contact'}</p>
+                  {deal.contact_email && <p className="text-[11px] text-[var(--text-tertiary)] truncate inline-flex items-center gap-1"><Mail className="h-3 w-3" />{deal.contact_email}</p>}
+                </div>
+                {deal.contact_id && (
+                  <button onClick={() => { close(); navigate(`/contacts/${deal.contact_id}`); }} className="inline-flex items-center gap-1 text-[12px] font-medium text-[var(--indigo)] hover:underline flex-shrink-0">
+                    Open <ArrowUpRight className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex-shrink-0 px-5 py-3 border-t border-[var(--border-subtle)] flex items-center justify-between">
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]"><Clock className="h-3 w-3" /> {deal.updated_at ? `Updated ${dealAge(deal.updated_at)} ago` : 'Recently updated'}</span>
+          <Button variant="secondary" onClick={() => onEdit(deal)}><Pencil className="h-3.5 w-3.5" /> Edit deal</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-muted)]/40 px-2.5 py-2">
+      <p className="text-[10.5px] font-medium text-[var(--text-muted)]">{label}</p>
+      <p className={cn('mt-0.5 text-[13.5px] font-semibold tabular leading-tight', tone || 'text-[var(--text-primary)]')}>{value}</p>
+    </div>
+  );
+}
+
+function Section({ title, count, actionLabel, onAction, icon: Icon, children }: {
+  title: string; count?: number; actionLabel?: string; onAction?: () => void; icon: typeof ListTodo; children: ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <Icon className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">{title}</p>
+        {count != null && count > 0 && <span className="text-[11px] font-medium text-[var(--text-tertiary)] tabular">{count}</span>}
+        <span className="flex-1" />
+        {actionLabel && onAction && (
+          <button onClick={onAction} className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[var(--indigo)] hover:underline">
+            <Plus className="h-3 w-3" />{actionLabel}
+          </button>
+        )}
+      </div>
+      {children}
+    </div>
   );
 }
 
@@ -531,6 +782,7 @@ export function CrmPage() {
   const [dealModal, setDealModal] = useState<Partial<Deal> | null | undefined>(undefined);
   const [taskModal, setTaskModal] = useState<Partial<CrmTask> | null | undefined>(undefined);
   const [eventModal, setEventModal] = useState<Partial<CrmEvent> | null | undefined>(undefined);
+  const [drawerId, setDrawerId] = useState<string | null>(null);
 
   const dealsQ = useQuery({ queryKey: ['crm', 'deals'], queryFn: () => crmApi.listDeals() });
   const tasksQ = useQuery({ queryKey: ['crm', 'tasks'], queryFn: crmApi.listTasks });
@@ -624,12 +876,24 @@ export function CrmPage() {
         deals.length === 0 ? (
           <EmptyBoard icon={Handshake} title="No deals yet" body="Add your first deal to start tracking your pipeline." action="New deal" onAction={() => setDealModal(null)} />
         ) : (
-          <PipelineBoard deals={deals} tasks={tasks} events={events} onEdit={(d) => setDealModal(d)} />
+          <PipelineBoard deals={deals} tasks={tasks} events={events} onEdit={(d) => setDrawerId(d.id)} />
         )
       ) : tab === 'tasks' ? (
         <TasksPanel tasks={tasks} onEdit={(t) => setTaskModal(t)} />
       ) : (
         <CalendarPanel events={events} onAdd={(iso) => setEventModal({ starts_at: iso })} onEdit={(e) => setEventModal(e)} />
+      )}
+
+      {drawerId && deals.some(d => d.id === drawerId) && (
+        <DealDrawer
+          deal={deals.find(d => d.id === drawerId)!}
+          tasks={tasks}
+          events={events}
+          onClose={() => setDrawerId(null)}
+          onEdit={(d) => setDealModal(d)}
+          onAddTask={(d) => setTaskModal({ deal_id: d.id, contact_name: d.contact_name })}
+          onBookEvent={(d) => setEventModal({ deal_id: d.id, contact_name: d.contact_name, contact_email: d.contact_email, title: `Call — ${d.company || d.contact_name || d.title}` })}
+        />
       )}
 
       {dealModal !== undefined && <DealModal deal={dealModal} onClose={() => setDealModal(undefined)} />}
