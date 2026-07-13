@@ -6,7 +6,7 @@ import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { Card } from '../../components/shared/Card';
 import { cn } from '../../lib/utils';
-import { Flame, TrendingUp, Send, Reply, ShieldCheck, Play, Pause, Settings2, Info, Users } from 'lucide-react';
+import { Flame, TrendingUp, Send, Reply, ShieldCheck, Play, Pause, Settings2, Info, MailCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { WarmupAccountStatus } from '@lemlist/shared';
 
@@ -132,6 +132,7 @@ export function WarmupPanel() {
                       <Metric icon={Send} value={a.sent_7d} label="sent" />
                       <Metric icon={TrendingUp} value={a.received_7d} label="received" />
                       <Metric icon={Reply} value={a.replied_7d} label="replied" />
+                      <Metric icon={MailCheck} value={a.rescued_7d} label="rescued" />
                     </div>
                   </>
                 ) : (
@@ -140,14 +141,14 @@ export function WarmupPanel() {
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-1.5 flex-shrink-0">
+              <div className="flex items-center gap-1.5 flex-shrink-0 sm:justify-end">
                 {a.warmup_mode ? (
                   <>
-                    <button onClick={() => setConfig(a)} className="icon-btn h-7 px-2 text-[11.5px]" title="Configure"><Settings2 className="h-3 w-3" /> Configure</button>
-                    <button onClick={() => pause.mutate(a.id)} className="icon-btn h-7 px-2 text-[11.5px]" title="Pause warm-up"><Pause className="h-3 w-3" /> Pause</button>
+                    <button onClick={() => setConfig(a)} className="icon-btn h-7 w-7" title="Configure warm-up"><Settings2 className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => pause.mutate(a.id)} className="icon-btn h-7 w-7" title="Pause warm-up"><Pause className="h-3.5 w-3.5" /></button>
                   </>
                 ) : (
-                  <button onClick={() => setConfig(a)} className="icon-btn h-7 px-2.5 text-[11.5px]"><Play className="h-3 w-3" /> Enable warm-up</button>
+                  <button onClick={() => setConfig(a)} className="icon-btn h-7 px-2.5 text-[11.5px] whitespace-nowrap"><Play className="h-3 w-3" /> Enable</button>
                 )}
               </div>
             </div>
