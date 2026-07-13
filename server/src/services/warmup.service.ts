@@ -79,7 +79,7 @@ async function summary(userId: string): Promise<WarmupSummary> {
 
   const { data: warmupRows } = await supabaseAdmin
     .from('warmup_emails')
-    .select('from_account_id, to_account_id, status, is_reply, sent_at')
+    .select('from_account_id, to_account_id, is_reply, sent_at, opened_at, replied_at, rescued_at')
     .eq('user_id', userId)
     .gte('sent_at', since);
   const events = (warmupRows || []) as any[];
@@ -87,8 +87,8 @@ async function summary(userId: string): Promise<WarmupSummary> {
   const statuses: WarmupAccountStatus[] = rows.map((a) => {
     const sent_7d = events.filter((e) => e.from_account_id === a.id && !e.is_reply).length;
     const received_7d = events.filter((e) => e.to_account_id === a.id).length;
-    const replied_7d = events.filter((e) => e.to_account_id === a.id && (e.status === 'replied')).length;
-    const rescued_7d = events.filter((e) => e.to_account_id === a.id && e.status === 'rescued').length;
+    const replied_7d = events.filter((e) => e.to_account_id === a.id && e.replied_at).length;
+    const rescued_7d = events.filter((e) => e.to_account_id === a.id && e.rescued_at).length;
     return {
       id: a.id,
       email_address: a.email_address,
@@ -112,7 +112,7 @@ async function summary(userId: string): Promise<WarmupSummary> {
     peer_pool: peerPool,
     total_warming: rows.filter((a) => a.warmup_mode).length,
     sent_7d: events.filter((e) => !e.is_reply).length,
-    replied_7d: events.filter((e) => e.status === 'replied').length,
+    replied_7d: events.filter((e) => e.replied_at).length,
   };
 }
 
@@ -207,4 +207,182 @@ async function runWarmupTick(maxGlobalSends = 60): Promise<number> {
   return sent;
 }
 
-export const warmupService = { setWarmup, summary, runWarmupTick };
+/* ─── Inbound engagement (IMAP) ───────────────────────────────────────
+   The half that actually builds reputation: on the receiving side, warm-up
+   mail is opened, rescued from spam back to the inbox, and replied to. We match
+   received warm-up messages by their Message-ID (`<wu-TOKEN@domain>`), so no
+   fragile header search is needed. Reused connection logic mirrors the inbox
+   sync so it behaves consistently with the rest of the app. */
+
+const GMAIL_SPAM = ['[Gmail]/Spam'];
+const GENERIC_SPAM = ['Junk', 'Junk Email', 'INBOX.Junk', 'Spam', 'Bulk Mail'];
+const WARMUP_REPLIES = [
+  'Thanks for this — makes sense. I\'ll take a look and get back to you.',
+  'Appreciate the note! All good on my end, talk soon.',
+  'Got it, thank you. Let\'s catch up properly next week.',
+  'Sounds great — I\'m in. Speak soon!',
+  'Perfect, that works for me. Thanks for following up.',
+];
+
+function imapHostFor(account: any): string | null {
+  const host = (account.imap_host || account.smtp_host || '') as string;
+  const email = (account.email_address || '') as string;
+  const isGmail = host.includes('gmail') || email.endsWith('@gmail.com');
+  const isOutlook = host.includes('outlook') || host.includes('office365');
+  if (account.imap_host) return account.imap_host;
+  if (isGmail) return 'imap.gmail.com';
+  if (isOutlook) return 'outlook.office365.com';
+  if (host.startsWith('smtp.')) return host.replace('smtp.', 'imap.');
+  const domain = email.split('@')[1];
+  return domain ? `imap.${domain}` : null;
+}
+
+async function connectImap(account: any): Promise<any | null> {
+  let ImapFlow: any;
+  try { ({ ImapFlow } = await import('imapflow')); } catch { return null; }
+  const host = imapHostFor(account);
+  if (!host) return null;
+  let password: string;
+  try { password = decrypt(account.smtp_pass_encrypted); } catch { return null; }
+  const client = new ImapFlow({
+    host,
+    port: account.imap_port || 993,
+    secure: account.imap_secure !== false,
+    auth: { user: account.smtp_user || account.email_address, pass: password },
+    logger: false,
+  });
+  await Promise.race([
+    client.connect(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('connect timeout')), 12000)),
+  ]);
+  return client;
+}
+
+const tokenFromMessageId = (mid: string): string | null => {
+  const m = /^<wu-([0-9a-f]+)@/.exec(mid || '');
+  return m ? m[1] : null;
+};
+
+/**
+ * One engagement tick — for each mailbox that has recently received warm-up mail,
+ * open the messages, rescue any that landed in spam, and reply to a share of
+ * them. Bounded per tick and fully guarded so a single flaky IMAP host never
+ * stalls the rest.
+ */
+async function runEngagementTick(maxAccounts = 15): Promise<{ opened: number; replied: number; rescued: number }> {
+  const since = new Date(Date.now() - 3 * 86_400_000);
+  const { data: pending } = await supabaseAdmin
+    .from('warmup_emails')
+    .select('*')
+    .is('replied_at', null)
+    .gte('sent_at', since.toISOString());
+  const rows = (pending || []) as any[];
+  if (rows.length === 0) return { opened: 0, replied: 0, rescued: 0 };
+
+  const byRecipient = new Map<string, any[]>();
+  for (const r of rows) {
+    if (!byRecipient.has(r.to_account_id)) byRecipient.set(r.to_account_id, []);
+    byRecipient.get(r.to_account_id)!.push(r);
+  }
+
+  const acctIds = [...new Set(rows.flatMap((r) => [r.to_account_id, r.from_account_id]))];
+  const { data: accts } = await supabaseAdmin.from('smtp_accounts').select('*').in('id', acctIds);
+  const acctById = new Map<string, any>((accts || []).map((a: any) => [a.id, a]));
+
+  let opened = 0, replied = 0, rescued = 0, processed = 0;
+
+  for (const [toId, list] of byRecipient) {
+    if (processed >= maxAccounts) break;
+    const account = acctById.get(toId);
+    if (!account || !account.is_active || !account.is_verified) continue;
+
+    let client: any;
+    try { client = await connectImap(account); } catch { continue; }
+    if (!client) continue;
+    processed++;
+
+    const tokenToRow = new Map<string, any>(list.map((r) => [r.token, r]));
+    const isGmail = (account.smtp_host || '').includes('gmail') || (account.email_address || '').endsWith('@gmail.com');
+    const folders = [{ path: 'INBOX', spam: false }, ...(isGmail ? GMAIL_SPAM : GENERIC_SPAM).map((p) => ({ path: p, spam: true }))];
+
+    try {
+      const remaining = new Set(tokenToRow.keys());
+      for (const folder of folders) {
+        if (remaining.size === 0) break;
+        try { await client.mailboxOpen(folder.path); } catch { continue; }
+        let scanned = 0;
+        for await (const msg of client.fetch({ since }, { envelope: true, uid: true })) {
+          if (scanned++ > 800 || remaining.size === 0) break; // bound work on busy inboxes
+          const token = tokenFromMessageId(msg.envelope?.messageId || '');
+          if (!token) continue;
+          const row = tokenToRow.get(token);
+          if (!row) continue;
+          remaining.delete(token);
+          try { await client.messageFlagsAdd(String(msg.uid), ['\\Seen'], { uid: true }); } catch { /* ignore */ }
+          if (folder.spam) {
+            try { await client.messageMove(String(msg.uid), 'INBOX', { uid: true }); row._rescued = true; } catch { /* ignore */ }
+          }
+          row._opened = true;
+        }
+      }
+    } finally {
+      try { await client.logout(); } catch { try { client.close(); } catch { /* ignore */ } }
+    }
+
+    // Persist open/rescue outcomes and decide which to reply to.
+    for (const row of list) {
+      const upd: Record<string, any> = {};
+      if (row._opened && !row.opened_at) upd.opened_at = new Date().toISOString();
+      if (row._rescued && !row.rescued_at) { upd.rescued_at = new Date().toISOString(); rescued++; }
+      if (Object.keys(upd).length) {
+        await supabaseAdmin.from('warmup_emails').update(upd).eq('id', row.id);
+        if (upd.opened_at) opened++;
+      }
+      // Reply to ~35% of opened, non-reply warm-up mail (keeps threads human).
+      if (row._opened && !row.is_reply && Math.random() < 0.35) {
+        const sender = acctById.get(row.from_account_id);
+        if (!sender) continue;
+        let password: string;
+        try { password = decrypt(account.smtp_pass_encrypted); } catch { continue; }
+        const token = crypto.randomBytes(12).toString('hex');
+        const domain = (account.email_address.split('@')[1]) || 'usesincerely.com';
+        const messageId = `<wu-${token}@${domain}>`;
+        const subject = row.subject.startsWith('Re:') ? row.subject : `Re: ${row.subject}`;
+        const body = pick(WARMUP_REPLIES);
+        try {
+          await sendViaSmtp({
+            smtpHost: account.smtp_host,
+            smtpPort: account.smtp_port,
+            smtpSecure: account.smtp_secure,
+            smtpUser: account.smtp_user,
+            smtpPass: password,
+            from: formatFromHeader(account.from_name || account.label, account.email_address),
+            to: sender.email_address,
+            subject,
+            text: body,
+            html: `<p>${body}</p>`,
+            messageId,
+            headers: { 'X-Sincerely-Warmup': token },
+          });
+        } catch { continue; }
+        await supabaseAdmin.from('warmup_emails').update({ replied_at: new Date().toISOString() }).eq('id', row.id);
+        await supabaseAdmin.from('warmup_emails').insert({
+          user_id: row.user_id,
+          from_account_id: account.id,
+          to_account_id: sender.id,
+          to_email: sender.email_address,
+          subject,
+          message_id: messageId,
+          token,
+          status: 'sent',
+          is_reply: true,
+        });
+        replied++;
+      }
+    }
+  }
+
+  return { opened, replied, rescued };
+}
+
+export const warmupService = { setWarmup, summary, runWarmupTick, runEngagementTick };
