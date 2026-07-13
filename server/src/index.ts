@@ -5,6 +5,7 @@ import { startInboxWorker } from './jobs/workers/inbox.worker.js';
 import { startVerificationWorker } from './jobs/workers/verification.worker.js';
 import { scheduleInboxSync } from './jobs/schedulers/inbox.scheduler.js';
 import { startSseMaintenanceScheduler } from './jobs/schedulers/sse-maintenance.scheduler.js';
+import { startWarmupScheduler } from './jobs/schedulers/warmup.scheduler.js';
 
 const port = parseInt(env.PORT, 10);
 
@@ -59,6 +60,15 @@ const server = app.listen(port, () => {
     console.log('SSE maintenance scheduler started');
   } catch (err: any) {
     console.warn('SSE maintenance scheduler failed to start:', err.message);
+  }
+
+  // Warm-up engine: trickle warm-up emails between a user's own mailboxes.
+  try {
+    const warmup = startWarmupScheduler();
+    if (warmup) disposers.push(() => warmup.stop());
+    console.log('Warm-up scheduler started');
+  } catch (err: any) {
+    console.warn('Warm-up scheduler failed to start:', err.message);
   }
 });
 

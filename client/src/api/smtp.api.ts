@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { SmtpAccount, CreateSmtpAccountInput, UpdateSmtpAccountInput, VerifySmtpInput, VerifySmtpResult } from '@lemlist/shared';
+import type { SmtpAccount, CreateSmtpAccountInput, UpdateSmtpAccountInput, VerifySmtpInput, VerifySmtpResult, WarmupSummary, SetWarmupInput } from '@lemlist/shared';
 
 export const smtpApi = {
   list: async () => {
@@ -33,6 +33,16 @@ export const smtpApi = {
 
   verify: async (input: VerifySmtpInput) => {
     const { data } = await apiClient.post<VerifySmtpResult>('/smtp-accounts/verify', input);
+    return data;
+  },
+
+  getWarmup: async () => {
+    const { data } = await apiClient.get<WarmupSummary>('/smtp-accounts/warmup');
+    return data;
+  },
+
+  setWarmup: async (id: string, input: SetWarmupInput) => {
+    const { data } = await apiClient.post<SmtpAccount>(`/smtp-accounts/${id}/warmup`, input);
     return data;
   },
 

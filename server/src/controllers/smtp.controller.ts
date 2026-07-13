@@ -7,6 +7,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { decrypt } from '../utils/encryption.js';
 import { sendViaSmtp, formatFromHeader } from '../services/email-sender.service.js';
 import { billingService } from '../services/billing.service.js';
+import { warmupService } from '../services/warmup.service.js';
 
 const resolveTxt = promisify(dns.resolveTxt);
 const resolveMx = promisify(dns.resolveMx);
@@ -62,6 +63,22 @@ export const smtpController = {
   async verify(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const result = await smtpService.verifyCredentials(req.userId!, req.body);
+      res.json(result);
+    } catch (err) { next(err); }
+  },
+
+  /** GET /smtp-accounts/warmup — warm-up status + metrics for every mailbox. */
+  async warmupSummary(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await warmupService.summary(req.userId!);
+      res.json(result);
+    } catch (err) { next(err); }
+  },
+
+  /** POST /smtp-accounts/:id/warmup — enable/pause warm-up and set the ramp config. */
+  async setWarmup(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await warmupService.setWarmup(req.userId!, req.params.id, req.body);
       res.json(result);
     } catch (err) { next(err); }
   },
