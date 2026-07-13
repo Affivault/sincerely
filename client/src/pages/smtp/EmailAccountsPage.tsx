@@ -21,6 +21,7 @@ import toast from 'react-hot-toast';
 import type { SmtpAccount, SmtpPreset, SendingDomain } from '@lemlist/shared';
 import { SMTP_PRESETS } from '@lemlist/shared';
 import { SmtpAccountModal } from './SmtpAccountModal';
+import { WarmupPanel } from './WarmupPanel';
 import { StatusBadge, DomainDetailPanel } from '../domains/DomainsPage';
 
 interface QuickConnectProvider { preset: SmtpPreset; icon: React.ReactNode; description: string; }
@@ -408,6 +409,13 @@ export function EmailAccountsPage() {
           </div>
           {filtered.length === 0 && <div className="py-10 text-center text-[12.5px] text-[var(--text-tertiary)]">No mailboxes match “{search}”.</div>}
         </Card>
+      )}
+
+      {/* ── Step 3: Warm-up ── */}
+      {list.length > 0 && (
+        <div className="mt-6">
+          <WarmupPanel />
+        </div>
       )}
 
       <p className="text-[11.5px] text-[var(--text-tertiary)] mt-3 flex items-center gap-1.5">

@@ -25,7 +25,16 @@ export interface SmtpAccount {
   bounce_rate_7d: number;
   last_bounce_at: string | null;
   warmup_mode: boolean;
+  /** Target daily volume the warm-up ramp climbs toward. */
   warmup_daily_target: number;
+  /** When the warm-up ramp started (null = never enrolled). */
+  warmup_started_at: string | null;
+  /** Day-one warm-up allowance the ramp starts from. */
+  warmup_start_volume: number;
+  /** Number of days the ramp takes to reach the target. */
+  warmup_ramp_days: number;
+  /** Warm-up emails sent to peer inboxes today (separate from campaign sends_today). */
+  warmup_sent_today: number;
   /** HTML signature for this inbox, surfaced in the composer. */
   signature_html: string | null;
   /** When true, the signature is added by default on every new compose/reply from this inbox. */
@@ -51,6 +60,92 @@ export interface SseSelectionResult {
   account: SmtpAccount | null;
   reason: string;
   all_exhausted: boolean;
+}
+
+/* ─── Warm-up ramp math (shared by the send-gating engine and the UI) ───
+   A new mailbox must not jump straight to full volume, or providers throttle
+   and spam-folder it. The ramp starts low and climbs linearly to the target
+   over `ramp_days`, so real campaign volume is capped to today's allowance. */
+
+export interface WarmupPlanFields {
+  warmup_mode: boolean;
+  warmup_started_at: string | null;
+  warmup_start_volume: number;
+  warmup_daily_target: number;
+  warmup_ramp_days: number;
+  daily_send_limit: number;
+}
+
+/** Whole days elapsed since the ramp began (day 0 = the first day). */
+export function warmupDayNumber(startedAt: string | null): number {
+  if (!startedAt) return 0;
+  const ms = Date.now() - new Date(startedAt).getTime();
+  return Math.max(0, Math.floor(ms / 86_400_000));
+}
+
+/**
+ * Today's maximum real-campaign send allowance for a mailbox. When warm-up is
+ * off (or never enrolled) this is simply the account's daily_send_limit, so the
+ * same helper can gate every account uniformly.
+ */
+export function warmupAllowance(a: WarmupPlanFields): number {
+  if (!a.warmup_mode || !a.warmup_started_at) return a.daily_send_limit;
+  const target = a.warmup_daily_target > 0 ? a.warmup_daily_target : a.daily_send_limit;
+  const start = Math.max(1, a.warmup_start_volume || 4);
+  const ramp = Math.max(1, a.warmup_ramp_days || 30);
+  const day = warmupDayNumber(a.warmup_started_at);
+  if (day >= ramp) return target;
+  return Math.max(start, Math.round(start + (target - start) * (day / ramp)));
+}
+
+/** True once the ramp has run its course and the mailbox can graduate to full volume. */
+export function warmupIsComplete(a: WarmupPlanFields): boolean {
+  if (!a.warmup_mode || !a.warmup_started_at) return false;
+  return warmupDayNumber(a.warmup_started_at) >= Math.max(1, a.warmup_ramp_days || 30);
+}
+
+/** How many warm-up emails to send to peer inboxes today (a gentle, capped curve). */
+export function warmupSendTarget(a: WarmupPlanFields): number {
+  if (!a.warmup_mode || !a.warmup_started_at) return 0;
+  const day = warmupDayNumber(a.warmup_started_at);
+  return Math.min(4 + day, 20);
+}
+
+export interface WarmupAccountStatus {
+  id: string;
+  email_address: string;
+  from_name: string | null;
+  label: string;
+  warmup_mode: boolean;
+  is_verified: boolean;
+  health_score: number;
+  /** Ramp progress */
+  day: number;
+  ramp_days: number;
+  allowance: number;
+  target: number;
+  start_volume: number;
+  complete: boolean;
+  /** Engagement metrics over the last 7 days */
+  sent_7d: number;
+  received_7d: number;
+  replied_7d: number;
+  rescued_7d: number;
+}
+
+export interface WarmupSummary {
+  accounts: WarmupAccountStatus[];
+  peer_pool: number;
+  total_warming: number;
+  sent_7d: number;
+  replied_7d: number;
+}
+
+export interface SetWarmupInput {
+  enabled: boolean;
+  warmup_daily_target?: number;
+  warmup_start_volume?: number;
+  warmup_ramp_days?: number;
 }
 
 export interface CreateSmtpAccountInput {

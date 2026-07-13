@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import type { SmtpAccount, SmtpAccountHealthSummary, SseSelectionResult } from '@lemlist/shared';
+import { warmupAllowance } from '@lemlist/shared';
 
 /**
  * SSE - Smart-Sharding Engine
@@ -51,9 +52,11 @@ export async function selectBestSender(
     };
   }
 
-  // Filter accounts that still have capacity (limit=0 means unlimited)
+  // Filter accounts that still have capacity (limit=0 means unlimited).
+  // While a mailbox is warming up, its cap is the ramped allowance, not the
+  // full daily limit — this is what protects a new inbox's reputation.
   const available = accounts.filter((a: SmtpAccount) => {
-    const limit = a.warmup_mode ? a.warmup_daily_target : a.daily_send_limit;
+    const limit = warmupAllowance(a);
     return limit === 0 || a.sends_today < limit;
   });
 
@@ -67,7 +70,7 @@ export async function selectBestSender(
 
   // Score each account: higher is better
   const scored = available.map((a: SmtpAccount) => {
-    const limit = a.warmup_mode ? a.warmup_daily_target : a.daily_send_limit;
+    const limit = warmupAllowance(a);
     const healthComponent = a.health_score * HEALTH_WEIGHT;
     // limit=0 means unlimited — treat as fully available (100% capacity remaining)
     const utilizationComponent = (limit === 0 ? 100 : (1 - a.sends_today / limit) * 100) * UTILIZATION_WEIGHT;
@@ -81,7 +84,7 @@ export async function selectBestSender(
 
   return {
     account: best.account,
-    reason: `Selected ${best.account.label} (score: ${best.score.toFixed(1)}, health: ${best.account.health_score}, utilization: ${best.account.sends_today}/${best.account.warmup_mode ? best.account.warmup_daily_target : best.account.daily_send_limit})`,
+    reason: `Selected ${best.account.label} (score: ${best.score.toFixed(1)}, health: ${best.account.health_score}, utilization: ${best.account.sends_today}/${warmupAllowance(best.account)})`,
     all_exhausted: false,
   };
 }
@@ -231,7 +234,7 @@ export async function getHealthDashboard(
   if (!accounts) return [];
 
   return accounts.map((a: SmtpAccount) => {
-    const limit = a.warmup_mode ? a.warmup_daily_target : a.daily_send_limit;
+    const limit = warmupAllowance(a);
     return {
       id: a.id,
       label: a.label,
@@ -298,6 +301,12 @@ export async function resetDailySendCounts(): Promise<number> {
     })
     .gt('sends_today', 0)
     .select('id');
+
+  // Reset the separate warm-up traffic counter too.
+  await supabaseAdmin
+    .from('smtp_accounts')
+    .update({ warmup_sent_today: 0 })
+    .gt('warmup_sent_today', 0);
 
   return data?.length || 0;
 }
