@@ -414,7 +414,7 @@ export function EmailAccountsPage() {
       {/* ── Step 3: Warm-up ── */}
       {list.length > 0 && (
         <div className="mt-6">
-          <WarmupPanel />
+          <WarmupPanel onAddMailbox={openAdd} />
         </div>
       )}
 
