@@ -1,7 +1,7 @@
 // Billing: plan definitions, limits, and usage types.
 // This is the single source of truth for plan limits, shared by client + server.
 
-export type PlanId = 'free' | 'trial' | 'starter' | 'growth' | 'scale';
+export type PlanId = 'free' | 'trial' | 'starter' | 'growth' | 'scale' | 'lifetime';
 
 export interface PlanFeatures {
   /** SARA autonomous reply agent */
@@ -52,6 +52,13 @@ export const PLANS: Record<PlanId, PlanInfo> = {
   },
   scale: {
     id: 'scale', name: 'Scale', priceMonthly: null, priceAnnual: null,
+    maxInboxes: -1, emailsPerMonth: -1, prospectCredits: -1,
+    features: { sara: true, abTesting: true },
+  },
+  // Manually granted only (never sold through checkout): overrides every
+  // limit, forever. Grant via SQL: set subscriptions.plan = 'lifetime'.
+  lifetime: {
+    id: 'lifetime', name: 'Lifetime', priceMonthly: null, priceAnnual: null,
     maxInboxes: -1, emailsPerMonth: -1, prospectCredits: -1,
     features: { sara: true, abTesting: true },
   },

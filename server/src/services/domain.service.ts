@@ -5,8 +5,92 @@ import { AppError } from '../middleware/error.middleware.js';
 import type { DnsCheckResult, DnsRecordInstruction } from '@lemlist/shared';
 
 // A dedicated resolver so slow/unresponsive nameservers can't hang a verify
-// request: 4s per attempt, 2 attempts max per lookup.
+// request: 4s per attempt, 2 attempts max per lookup. Used as the LAST
+// fallback only — see the DoH layer below for why.
 const resolver = new dns.promises.Resolver({ timeout: 4000, tries: 2 });
+
+/* ─────────────────────────── DNS lookup layer ───────────────────────────
+ * Container hosts routinely break classic UDP DNS for exactly the queries
+ * verification depends on: TXT answers with several records (SPF + ownership
+ * token + site verifications) overflow the UDP packet, the resolver retries
+ * over TCP port 53, and the platform blocks it → ETIMEOUT, and the domain
+ * looks "unverified" even though the user's records are perfect.
+ *
+ * So all checks resolve via DNS-over-HTTPS first (Cloudflare, then Google —
+ * plain HTTPS on port 443, which the server demonstrably has), and only fall
+ * back to the OS resolver when both DoH endpoints are unreachable.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+const DNS_TYPE = { TXT: 16, MX: 15, CNAME: 5 } as const;
+type DnsType = keyof typeof DNS_TYPE;
+
+/** Unwrap presentation-format TXT data: `"chunk1" "chunk2"` → `chunk1chunk2`. */
+function unquoteTxt(data: string): string {
+  const chunks = Array.from(data.matchAll(/"((?:[^"\\]|\\.)*)"/g), (m) => m[1].replace(/\\(.)/g, '$1'));
+  return chunks.length > 0 ? chunks.join('') : data;
+}
+
+const stripDot = (s: string) => s.replace(/\.$/, '');
+
+/** One DoH endpoint query. Returns raw `data` strings, or null when the endpoint itself failed. */
+async function dohQuery(endpoint: string, name: string, type: DnsType): Promise<string[] | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const res = await fetch(`${endpoint}?name=${encodeURIComponent(name)}&type=${type}`, {
+      headers: { accept: 'application/dns-json' },
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    const json: any = await res.json();
+    // Status 0 = NOERROR, 3 = NXDOMAIN (a definitive "no records") — both are
+    // valid answers. Anything else (SERVFAIL…) means "endpoint couldn't say".
+    if (json.Status !== 0 && json.Status !== 3) return null;
+    const answers: any[] = Array.isArray(json.Answer) ? json.Answer : [];
+    return answers.filter((a) => a.type === DNS_TYPE[type]).map((a) => String(a.data));
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Resolve via Cloudflare DoH → Google DoH → OS resolver. Missing records → []. */
+async function resolveRecords(name: string, type: DnsType): Promise<string[]> {
+  for (const endpoint of ['https://cloudflare-dns.com/dns-query', 'https://dns.google/resolve']) {
+    const answers = await dohQuery(endpoint, name, type);
+    if (answers !== null) return answers;
+  }
+  // Both DoH endpoints unreachable — classic resolver as a last resort.
+  try {
+    if (type === 'TXT') return (await resolver.resolveTxt(name)).map((chunks) => `"${chunks.join('" "')}"`);
+    if (type === 'MX') return (await resolver.resolveMx(name)).map((r) => `${r.priority} ${r.exchange}`);
+    return await resolver.resolveCname(name);
+  } catch {
+    return [];
+  }
+}
+
+/** All TXT record strings at a name (chunks joined, quotes stripped). */
+async function lookupTxt(name: string): Promise<string[]> {
+  return (await resolveRecords(name, 'TXT')).map(unquoteTxt);
+}
+
+/** MX records at a name, sorted by priority. */
+async function lookupMx(name: string): Promise<Array<{ exchange: string; priority: number }>> {
+  return (await resolveRecords(name, 'MX'))
+    .map((d) => {
+      const m = d.trim().match(/^(\d+)\s+(\S+)$/);
+      return m ? { priority: Number(m[1]), exchange: stripDot(m[2]) } : null;
+    })
+    .filter((r): r is { exchange: string; priority: number } => r !== null)
+    .sort((a, b) => a.priority - b.priority);
+}
+
+/** CNAME targets at a name. */
+async function lookupCname(name: string): Promise<string[]> {
+  return (await resolveRecords(name, 'CNAME')).map((d) => stripDot(d.trim()));
+}
 
 /** Provider-specific SPF includes for checking */
 const PROVIDER_SPF_MAP: Record<string, string[]> = {
@@ -84,23 +168,17 @@ function looksLikeDkim(txt: string): boolean {
 }
 
 /**
- * Probe one DKIM selector. resolveTxt follows CNAME chains, so provider
+ * Probe one DKIM selector. TXT resolution follows CNAME chains, so provider
  * CNAME setups (SendGrid, M365, SES) are found via the TXT path too; the
  * CNAME fallback only matters when the target zone is temporarily broken,
  * and it requires a DKIM-looking target to avoid wildcard-DNS false hits.
  */
 async function probeDkimSelector(domain: string, selector: string): Promise<{ selector: string; via: 'txt' | 'cname' } | null> {
   const host = `${selector}._domainkey.${domain}`;
-  try {
-    const records = await resolver.resolveTxt(host);
-    for (const chunks of records) {
-      if (looksLikeDkim(chunks.join(''))) return { selector, via: 'txt' };
-    }
-  } catch { /* fall through to CNAME */ }
-  try {
-    const targets = await resolver.resolveCname(host);
-    if (targets.some((t) => /domainkey|dkim/i.test(t))) return { selector, via: 'cname' };
-  } catch { /* selector not configured */ }
+  const records = await lookupTxt(host);
+  if (records.some(looksLikeDkim)) return { selector, via: 'txt' };
+  const targets = await lookupCname(host);
+  if (targets.some((t) => /domainkey|dkim/i.test(t))) return { selector, via: 'cname' };
   return null;
 }
 
@@ -115,58 +193,53 @@ async function performDnsCheck(domain: string, verificationToken: string): Promi
   };
 
   // MX, root TXT (SPF + ownership token) and DMARC lookups are independent —
-  // run them in parallel instead of serially.
-  const [mxRes, txtRes, dmarcRes] = await Promise.allSettled([
-    resolver.resolveMx(domain),
-    resolver.resolveTxt(domain),
-    resolver.resolveTxt(`_dmarc.${domain}`),
+  // run them in parallel. The lookup layer never throws (missing → []).
+  const [mxRecords, txtRecords, dmarcRecords] = await Promise.all([
+    lookupMx(domain),
+    lookupTxt(domain),
+    lookupTxt(`_dmarc.${domain}`),
   ]);
 
   // 1. MX records + provider detection
-  if (mxRes.status === 'fulfilled' && mxRes.value.length > 0) {
-    const mxRecords = [...mxRes.value].sort((a, b) => a.priority - b.priority);
+  if (mxRecords.length > 0) {
     result.mx.found = true;
-    result.mx.records = mxRecords.map((r) => ({ exchange: r.exchange, priority: r.priority }));
+    result.mx.records = mxRecords;
     result.provider_hint = detectProvider(mxRecords.map((r) => r.exchange));
   }
 
   // 2. TXT records (SPF + verification token)
-  if (txtRes.status === 'fulfilled') {
-    const spfRecords: string[] = [];
-    for (const chunks of txtRes.value) {
-      const joined = chunks.join('');
-      if (/^v=spf1(\s|$)/i.test(joined.trim())) spfRecords.push(joined.trim());
-      // The ownership token may be pasted with surrounding quotes/whitespace.
-      if (joined.trim().replace(/^"|"$/g, '') === verificationToken) {
-        result.verification_txt.found = true;
-      }
+  const spfRecords: string[] = [];
+  for (const record of txtRecords) {
+    const value = record.trim();
+    if (/^v=spf1(\s|$)/i.test(value)) spfRecords.push(value);
+    // The ownership token may be pasted with surrounding quotes/whitespace.
+    if (value.replace(/^"|"$/g, '').trim() === verificationToken) {
+      result.verification_txt.found = true;
     }
-    if (spfRecords.length > 0) {
-      const spf = spfRecords[0];
-      result.spf.found = true;
-      result.spf.record = spf;
-      // More than one SPF record is a hard permerror per RFC 7208 §4.5.
-      result.spf.multiple = spfRecords.length > 1;
-      const hasMechanism = /(\s|^)(include:|ip4:|ip6:|a[\s:]|mx[\s:]|exists:|redirect=)/i.test(spf + ' ');
-      const hasTerminal = /(\s)([~\-?+]?all)(\s|$)/i.test(spf + ' ') || /redirect=/i.test(spf);
-      result.spf.valid = hasMechanism && hasTerminal && !result.spf.multiple;
-      if (result.provider_hint) {
-        const providerIncludes = PROVIDER_SPF_MAP[result.provider_hint] || [];
-        result.spf.includes_provider = providerIncludes.some((inc) => spf.toLowerCase().includes(inc));
-      }
+  }
+  if (spfRecords.length > 0) {
+    const spf = spfRecords[0];
+    result.spf.found = true;
+    result.spf.record = spf;
+    // More than one SPF record is a hard permerror per RFC 7208 §4.5.
+    result.spf.multiple = spfRecords.length > 1;
+    const hasMechanism = /(\s|^)(include:|ip4:|ip6:|a[\s:]|mx[\s:]|exists:|redirect=)/i.test(spf + ' ');
+    const hasTerminal = /(\s)([~\-?+]?all)(\s|$)/i.test(spf + ' ') || /redirect=/i.test(spf);
+    result.spf.valid = hasMechanism && hasTerminal && !result.spf.multiple;
+    if (result.provider_hint) {
+      const providerIncludes = PROVIDER_SPF_MAP[result.provider_hint] || [];
+      result.spf.includes_provider = providerIncludes.some((inc) => spf.toLowerCase().includes(inc));
     }
   }
 
   // 3. DMARC
-  if (dmarcRes.status === 'fulfilled') {
-    for (const chunks of dmarcRes.value) {
-      const joined = chunks.join('');
-      if (/^v=DMARC1/i.test(joined.trim())) {
-        result.dmarc.found = true;
-        result.dmarc.record = joined.trim();
-        result.dmarc.policy = parseDmarcPolicy(joined);
-        break;
-      }
+  for (const record of dmarcRecords) {
+    const value = record.trim();
+    if (/^v=DMARC1/i.test(value)) {
+      result.dmarc.found = true;
+      result.dmarc.record = value;
+      result.dmarc.policy = parseDmarcPolicy(value);
+      break;
     }
   }
 

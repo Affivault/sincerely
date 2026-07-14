@@ -2044,9 +2044,27 @@ export function InboxPage() {
     setSelectedId(msg.id);
     setReplyMode(null);
     setReplySenderId(msg.smtp_account_id || smtpAccounts[0]?.id || '');
-    // Mark the whole thread as read (not just this message)
+
+    // Optimistically mark the whole conversation read in every cached inbox
+    // list, using the same key groupConversations threads by — the unread dot
+    // clears instantly instead of after two network round-trips.
+    const threadKey = (m: Message) => (
+      (m.direction === 'outbound' ? (m.contact_email || m.to_email) : (m.contact_email || m.from_email)) || ''
+    ).toLowerCase();
+    const key = threadKey(msg);
+    qc.setQueriesData({ queryKey: ['inbox'] }, (old: any) => {
+      if (!old || !Array.isArray(old.data)) return old; // lists only — skip counts/detail/thread caches
+      return {
+        ...old,
+        data: old.data.map((m: Message) =>
+          m.id === msg.id || (key && threadKey(m) === key) ? { ...m, is_read: true } : m,
+        ),
+      };
+    });
+
+    // Persist server-side, then re-sync lists + badge counts.
     inboxApi.markThreadRead(msg.id).then(() => invalidate()).catch((err: unknown) => console.error('[Inbox] markThreadRead failed:', err));
-  }, [smtpAccounts, invalidate]);
+  }, [smtpAccounts, invalidate, qc]);
 
   const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
