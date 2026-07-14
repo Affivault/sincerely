@@ -2,24 +2,30 @@ import { useState, useMemo, useEffect, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { crmApi } from '../../api/crm.api';
+import { contactsApi } from '../../api/contacts.api';
+import { inboxApi } from '../../api/inbox.api';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Spinner } from '../../components/ui/Spinner';
+import { Avatar } from '../../components/shared/Avatar';
+import { SearchInput } from '../../components/shared/SearchInput';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import {
   Handshake, ListTodo, Calendar as CalendarIcon, Plus, Trash2,
   ChevronLeft, ChevronRight, Phone, Users as UsersIcon, Building2,
   CalendarClock, CheckCircle2, Circle, Flag, GripVertical,
-  X, Pencil, Clock, ArrowUpRight, Mail, StickyNote,
+  X, Pencil, Clock, ArrowUpRight, ArrowDownLeft, Mail, StickyNote,
+  Link2, Trophy, MailOpen, Briefcase,
 } from 'lucide-react';
 import {
   DEAL_STAGES,
   type Deal, type DealStage, type CreateDealInput,
   type CrmTask, type CreateTaskInput, type TaskPriority,
   type CrmEvent, type CreateEventInput, type EventType,
+  type ContactWithTags,
 } from '@lemlist/shared';
 
 /* ─── Helpers ─────────────────────────────────────── */
@@ -51,16 +57,28 @@ function dealAge(iso?: string | null): string {
   const months = Math.round(days / 30);
   return months === 1 ? '1 month' : `${months} months`;
 }
-function relDay(iso?: string | null): { label: string; tone: 'over' | 'today' | 'soon' | 'none' } {
-  if (!iso) return { label: 'No date', tone: 'none' };
+function relDay(iso?: string | null): { label: string; tone: 'over' | 'today' | 'soon' | 'none'; diff: number | null } {
+  if (!iso) return { label: 'No date', tone: 'none', diff: null };
   const d = new Date(iso);
   const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diff = Math.round((start(d) - start(new Date())) / 86400000);
-  if (diff < 0) return { label: `${Math.abs(diff)}d overdue`, tone: 'over' };
-  if (diff === 0) return { label: 'Today', tone: 'today' };
-  if (diff === 1) return { label: 'Tomorrow', tone: 'soon' };
-  if (diff < 7) return { label: `In ${diff}d`, tone: 'soon' };
-  return { label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), tone: 'none' };
+  if (diff < 0) return { label: `${Math.abs(diff)}d overdue`, tone: 'over', diff };
+  if (diff === 0) return { label: 'Today', tone: 'today', diff };
+  if (diff === 1) return { label: 'Tomorrow', tone: 'soon', diff };
+  if (diff < 7) return { label: `In ${diff}d`, tone: 'soon', diff };
+  return { label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), tone: 'none', diff };
+}
+
+/** Best display name for the lead attached to a deal (live contact wins). */
+function leadName(d: Deal): string | null {
+  if (d.contact) {
+    const n = [d.contact.first_name, d.contact.last_name].filter(Boolean).join(' ');
+    if (n) return n;
+  }
+  return d.contact_name || d.contact?.email || d.contact_email || null;
+}
+function leadEmail(d: Deal): string | null {
+  return d.contact?.email || d.contact_email || null;
 }
 
 const STAGE_DOT: Record<DealStage, string> = {
@@ -82,6 +100,94 @@ function useDealOptions() {
   return [{ value: '', label: 'No deal' }, ...(data || []).map(d => ({ value: d.id, label: d.title }))];
 }
 
+/* ─── Lead picker ─────────────────────────────────── */
+/**
+ * Attach a real platform contact to a deal: search your contact base and
+ * link, or just type a free-text name for someone who isn't a contact yet.
+ */
+function LeadPicker({
+  linkedName, linkedEmail, name, onName, onLink, onUnlink,
+}: {
+  linkedName: string | null;
+  linkedEmail: string | null;
+  name: string;
+  onName: (v: string) => void;
+  onLink: (c: ContactWithTags) => void;
+  onUnlink: () => void;
+}) {
+  const [focused, setFocused] = useState(false);
+  const [debounced, setDebounced] = useState('');
+  const isLinked = !!linkedEmail;
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(name.trim()), 250);
+    return () => clearTimeout(t);
+  }, [name]);
+
+  const { data: results } = useQuery({
+    queryKey: ['crm', 'lead-search', debounced],
+    queryFn: () => contactsApi.list({ search: debounced, limit: 6 }),
+    enabled: !isLinked && debounced.length >= 2,
+  });
+
+  if (isLinked) {
+    return (
+      <div>
+        <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Lead</label>
+        <div className="flex items-center gap-2.5 rounded-lg border border-[var(--indigo)]/30 bg-[var(--indigo-subtle)]/40 px-2.5 h-10">
+          <Avatar name={linkedName} email={linkedEmail} size="md" />
+          <div className="flex-1 min-w-0 leading-tight">
+            <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{linkedName || linkedEmail}</p>
+            <p className="text-[10.5px] text-[var(--text-tertiary)] truncate">{linkedEmail}</p>
+          </div>
+          <span className="hidden sm:inline-flex items-center gap-1 text-[10.5px] font-medium text-[var(--indigo)]"><Link2 className="h-3 w-3" /> Linked</span>
+          <button type="button" onClick={onUnlink} className="icon-btn h-6 w-6" title="Unlink lead"><X className="h-3.5 w-3.5" /></button>
+        </div>
+      </div>
+    );
+  }
+
+  const options = results?.data || [];
+  const open = focused && debounced.length >= 2 && options.length > 0;
+
+  return (
+    <div className="relative">
+      <Input
+        label="Lead"
+        value={name}
+        onChange={e => onName(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setTimeout(() => setFocused(false), 150)}
+        placeholder="Search contacts or type a name…"
+        autoComplete="off"
+      />
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] overflow-hidden">
+          {options.map(c => {
+            const full = [c.first_name, c.last_name].filter(Boolean).join(' ');
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); onLink(c); }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+              >
+                <Avatar name={full || c.email} email={c.email} size="md" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{full || c.email}</p>
+                  <p className="text-[11px] text-[var(--text-tertiary)] truncate">{c.email}{c.company ? ` · ${c.company}` : ''}</p>
+                </div>
+                <Link2 className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <p className="mt-1 text-[11px] text-[var(--text-tertiary)]">Pick a contact to sync this deal with your leads, or type any name.</p>
+    </div>
+  );
+}
+
 /* ─── Deal modal ──────────────────────────────────── */
 export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClose: () => void }) {
   const qc = useQueryClient();
@@ -89,7 +195,9 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
   const [form, setForm] = useState<CreateDealInput & { stage: DealStage }>({
     title: deal?.title || '',
     company: deal?.company || '',
-    contact_name: deal?.contact_name || '',
+    contact_name: deal?.contact_name || (deal?.contact ? [deal.contact.first_name, deal.contact.last_name].filter(Boolean).join(' ') : '') || '',
+    contact_email: deal?.contact_email || deal?.contact?.email || null,
+    contact_id: deal?.contact_id || deal?.contact?.id || null,
     value: deal?.value ?? 0,
     stage: (deal?.stage as DealStage) || 'lead',
     expected_close_date: toDateInput(deal?.expected_close_date) || '',
@@ -103,9 +211,9 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
         ...form,
         value: Number(form.value) || 0,
         expected_close_date: form.expected_close_date || null,
-        // Preserve the lead link when the deal is created from a contact page.
-        contact_email: deal?.contact_email ?? undefined,
-        contact_id: deal?.contact_id ?? undefined,
+        contact_email: form.contact_email || null,
+        contact_id: form.contact_id || null,
+        contact_name: form.contact_name?.trim() || null,
       };
       return editing ? crmApi.updateDeal(deal!.id!, payload) : crmApi.createDeal(payload);
     },
@@ -114,20 +222,36 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
   });
   const del = useMutation({
     mutationFn: () => crmApi.deleteDeal(deal!.id!),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm', 'deals'] }); toast.success('Deal deleted'); onClose(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm'] }); toast.success('Deal deleted'); onClose(); },
     onError: () => toast.error('Failed to delete'),
   });
+
+  const linkContact = (c: ContactWithTags) => {
+    const full = [c.first_name, c.last_name].filter(Boolean).join(' ');
+    setForm(f => ({
+      ...f,
+      contact_id: c.id,
+      contact_email: c.email,
+      contact_name: full || c.email,
+      company: f.company || c.company || '',
+    }));
+  };
 
   return (
     <Modal isOpen onClose={onClose} title={editing ? 'Edit deal' : 'New deal'} size="md">
       <form onSubmit={(e) => { e.preventDefault(); if (form.title.trim()) save.mutate(); }} className="space-y-4">
         <Input label="Deal name" value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Northbeam — annual plan" required autoFocus />
-        <div className="grid grid-cols-2 gap-4">
-          <Input label="Company" value={form.company || ''} onChange={e => set('company', e.target.value)} placeholder="Northbeam" />
-          <Input label="Contact" value={form.contact_name || ''} onChange={e => set('contact_name', e.target.value)} placeholder="Sarah Chen" />
-        </div>
+        <LeadPicker
+          linkedName={form.contact_name || null}
+          linkedEmail={form.contact_email || null}
+          name={form.contact_name || ''}
+          onName={v => set('contact_name', v)}
+          onLink={linkContact}
+          onUnlink={() => setForm(f => ({ ...f, contact_id: null, contact_email: null, contact_name: '' }))}
+        />
+        <Input label="Company" value={form.company || ''} onChange={e => set('company', e.target.value)} placeholder="Northbeam" />
         <div className="grid grid-cols-3 gap-4">
-          <Input label="Value (USD)" type="number" value={String(form.value ?? 0)} onChange={e => set('value', e.target.value)} />
+          <Input label="Value (USD)" type="number" min="0" value={String(form.value ?? 0)} onChange={e => set('value', e.target.value)} />
           <Select label="Stage" options={DEAL_STAGES.map(s => ({ value: s.id, label: s.label }))} value={form.stage} onChange={e => set('stage', e.target.value)} />
           <Input label="Close date" type="date" value={form.expected_close_date || ''} onChange={e => set('expected_close_date', e.target.value)} />
         </div>
@@ -218,6 +342,8 @@ export function EventModal({ event, onClose }: { event: Partial<CrmEvent> | null
     type: (event?.type as EventType) || 'meeting',
     starts_at: toLocalInput(event?.starts_at) || toLocalInput(new Date().toISOString()),
     contact_name: event?.contact_name || '',
+    // Keep the lead's email so the event stays linked to the contact record.
+    contact_email: event?.contact_email || null,
     location: event?.location || '',
     deal_id: event?.deal_id || '',
     notes: event?.notes || '',
@@ -227,7 +353,7 @@ export function EventModal({ event, onClose }: { event: Partial<CrmEvent> | null
 
   const save = useMutation({
     mutationFn: () => {
-      const payload = { ...form, deal_id: form.deal_id || null, starts_at: fromLocalInput(form.starts_at) as string };
+      const payload = { ...form, deal_id: form.deal_id || null, contact_email: form.contact_email || null, starts_at: fromLocalInput(form.starts_at) as string };
       return editing ? crmApi.updateEvent(event!.id!, payload) : crmApi.createEvent(payload);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm', 'events'] }); toast.success(editing ? 'Event updated' : 'Event booked'); onClose(); },
@@ -305,6 +431,17 @@ export function DealDrawer({
 
   const close = () => { setShow(false); setTimeout(onClose, 180); };
 
+  const email = leadEmail(deal);
+  const name = leadName(deal);
+
+  // Every email exchanged with this deal's lead — real platform sync with the inbox.
+  const { data: emailsPage, isLoading: loadingEmails } = useQuery({
+    queryKey: ['crm', 'deal-emails', email],
+    queryFn: () => inboxApi.list({ contact_email: email!, limit: 5 }),
+    enabled: !!email,
+  });
+  const emails = (emailsPage?.data || []) as any[];
+
   const dealTasks = tasks
     .filter(t => t.deal_id === deal.id)
     .sort((a, b) => Number(a.is_done) - Number(b.is_done) || (a.due_date || '').localeCompare(b.due_date || ''));
@@ -354,10 +491,10 @@ export function DealDrawer({
             </div>
           </div>
           <h2 className="text-[17px] font-semibold text-[var(--text-primary)] leading-snug tracking-[-0.01em]">{deal.title}</h2>
-          {(deal.company || deal.contact_name) && (
+          {(deal.company || name) && (
             <div className="mt-1.5 flex items-center gap-2.5 text-[12.5px] text-[var(--text-tertiary)]">
               {deal.company && <span className="inline-flex items-center gap-1"><Building2 className="h-3.5 w-3.5" />{deal.company}</span>}
-              {deal.contact_name && <span className="inline-flex items-center gap-1"><UsersIcon className="h-3.5 w-3.5" />{deal.contact_name}</span>}
+              {name && <span className="inline-flex items-center gap-1"><UsersIcon className="h-3.5 w-3.5" />{name}</span>}
             </div>
           )}
         </div>
@@ -392,6 +529,66 @@ export function DealDrawer({
             <Stat label="Close date" value={close_.label} tone={closeTone} />
             <Stat label="Deal age" value={dealAge(deal.created_at)} />
           </div>
+
+          {/* Lead card — the contact/lead attached to this deal */}
+          {(email || name || deal.contact_id) && (
+            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-muted)]/40 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2 flex items-center gap-1.5">
+                <Link2 className="h-3 w-3" /> Attached lead
+              </p>
+              <div className="flex items-center gap-2.5">
+                <Avatar name={name} email={email} size="lg" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{name || 'Contact'}</p>
+                  {(deal.contact?.job_title || deal.contact?.company || deal.company) && (
+                    <p className="text-[11px] text-[var(--text-tertiary)] truncate inline-flex items-center gap-1">
+                      <Briefcase className="h-3 w-3 shrink-0" />
+                      {[deal.contact?.job_title, deal.contact?.company || deal.company].filter(Boolean).join(' @ ')}
+                    </p>
+                  )}
+                  {email && <p className="text-[11px] text-[var(--text-tertiary)] truncate flex items-center gap-1"><Mail className="h-3 w-3 shrink-0" />{email}</p>}
+                </div>
+                {(deal.contact_id || deal.contact?.id) && (
+                  <button onClick={() => { close(); navigate(`/contacts/${deal.contact_id || deal.contact?.id}`); }} className="inline-flex items-center gap-1 text-[12px] font-medium text-[var(--indigo)] hover:underline flex-shrink-0">
+                    Open <ArrowUpRight className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Conversation — synced from the inbox */}
+          {email && (
+            <Section title="Conversation" count={emailsPage?.total || emails.length} icon={MailOpen}
+              actionLabel={deal.contact_id ? 'View all' : undefined}
+              onAction={deal.contact_id ? () => { close(); navigate(`/contacts/${deal.contact_id}`); } : undefined}
+            >
+              {loadingEmails ? (
+                <div className="flex justify-center py-3"><Spinner size="sm" /></div>
+              ) : emails.length === 0 ? (
+                <p className="text-[12px] text-[var(--text-muted)] py-1">No emails exchanged with {name || email} yet.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {emails.map((m) => {
+                    const outbound = m.direction === 'outbound';
+                    return (
+                      <div key={m.id} className="flex items-center gap-2.5 rounded-lg border border-[var(--border-subtle)] px-2.5 py-2">
+                        <span className={cn('flex h-6 w-6 items-center justify-center rounded-md flex-shrink-0', outbound ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400')}>
+                          {outbound ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownLeft className="h-3.5 w-3.5" />}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[12px] font-medium text-[var(--text-primary)] truncate">{m.subject || '(no subject)'}</p>
+                          <p className="text-[10.5px] text-[var(--text-tertiary)]">
+                            {outbound ? 'You' : (name || m.from_email)} · {new Date(m.received_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Section>
+          )}
 
           {/* Tasks */}
           <Section title="Tasks" count={dealTasks.length} actionLabel="Add task" onAction={() => onAddTask(deal)} icon={ListTodo}>
@@ -449,26 +646,6 @@ export function DealDrawer({
               <button onClick={() => onEdit(deal)} className="text-[12px] text-[var(--text-muted)] hover:text-[var(--indigo)] transition-colors">Add notes…</button>
             )}
           </Section>
-
-          {/* Contact */}
-          {(deal.contact_email || deal.contact_id) && (
-            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-muted)]/40 p-3">
-              <div className="flex items-center gap-2.5">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--indigo-subtle)] text-[var(--indigo)] text-[13px] font-semibold flex-shrink-0">
-                  {(deal.contact_name || deal.company || '?').charAt(0).toUpperCase()}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{deal.contact_name || 'Contact'}</p>
-                  {deal.contact_email && <p className="text-[11px] text-[var(--text-tertiary)] truncate inline-flex items-center gap-1"><Mail className="h-3 w-3" />{deal.contact_email}</p>}
-                </div>
-                {deal.contact_id && (
-                  <button onClick={() => { close(); navigate(`/contacts/${deal.contact_id}`); }} className="inline-flex items-center gap-1 text-[12px] font-medium text-[var(--indigo)] hover:underline flex-shrink-0">
-                    Open <ArrowUpRight className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Footer */}
@@ -512,7 +689,7 @@ function Section({ title, count, actionLabel, onAction, icon: Icon, children }: 
 }
 
 /* ─── Pipeline (deals kanban) ─────────────────────── */
-function PipelineBoard({ deals, tasks, events, onEdit }: { deals: Deal[]; tasks: CrmTask[]; events: CrmEvent[]; onEdit: (d: Deal) => void }) {
+function PipelineBoard({ deals, tasks, events, onEdit, dragDisabled }: { deals: Deal[]; tasks: CrmTask[]; events: CrmEvent[]; onEdit: (d: Deal) => void; dragDisabled?: boolean }) {
   const qc = useQueryClient();
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<{ stage: DealStage; index: number } | null>(null);
@@ -570,19 +747,22 @@ function PipelineBoard({ deals, tasks, events, onEdit }: { deals: Deal[]; tasks:
             <div className="flex-1 overflow-y-auto px-2 pb-2 min-h-[80px]">
               {items.map((d, idx) => {
                 const lc = linkCounts(d.id);
+                const lead = leadName(d);
+                const closeInfo = d.expected_close_date ? relDay(d.expected_close_date) : null;
                 return (
                   <div key={d.id}>
                     {dropHere && over!.index === idx && dragId !== d.id && (
                       <div className="h-0.5 my-1 rounded-full bg-[var(--indigo)]" />
                     )}
                     <button
-                      draggable
-                      onDragStart={() => setDragId(d.id)}
+                      draggable={!dragDisabled}
+                      onDragStart={() => { if (!dragDisabled) setDragId(d.id); }}
                       onDragEnd={() => { setDragId(null); setOver(null); }}
                       onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); const after = e.clientY > r.top + r.height / 2; setOver({ stage: stage.id, index: after ? idx + 1 : idx }); }}
                       onClick={() => onEdit(d)}
                       className={cn(
-                        'group w-full text-left rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5 my-1 shadow-[var(--shadow-sm)] hover:border-[var(--border-default)] hover:shadow-[var(--shadow-md)] transition-all cursor-grab active:cursor-grabbing',
+                        'group w-full text-left rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5 my-1 shadow-[var(--shadow-sm)] hover:border-[var(--border-default)] hover:shadow-[var(--shadow-md)] transition-all',
+                        dragDisabled ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
                         dragId === d.id && 'opacity-50'
                       )}
                     >
@@ -598,11 +778,22 @@ function PipelineBoard({ deals, tasks, events, onEdit }: { deals: Deal[]; tasks:
                           </span>
                         )}
                       </div>
-                      {(d.expected_close_date || lc.tasks > 0 || lc.events > 0) && (
-                        <div className="mt-1.5 flex items-center gap-2.5 text-[10.5px] text-[var(--text-tertiary)]">
-                          {d.expected_close_date && <span className="inline-flex items-center gap-1"><CalendarClock className="h-3 w-3" /> {relDay(d.expected_close_date).label}</span>}
-                          {lc.tasks > 0 && <span className="inline-flex items-center gap-1"><ListTodo className="h-3 w-3" /> {lc.tasks}</span>}
-                          {lc.events > 0 && <span className="inline-flex items-center gap-1"><CalendarIcon className="h-3 w-3" /> {lc.events}</span>}
+                      {(lead || closeInfo || lc.tasks > 0 || lc.events > 0) && (
+                        <div className="mt-1.5 flex items-center gap-2 text-[10.5px] text-[var(--text-tertiary)]">
+                          {lead && (
+                            <span className="inline-flex items-center gap-1 min-w-0 flex-shrink" title={leadEmail(d) || lead}>
+                              <Avatar name={lead} email={leadEmail(d)} size="xs" />
+                              <span className="truncate max-w-[92px]">{lead}</span>
+                            </span>
+                          )}
+                          <span className="flex-1" />
+                          {closeInfo && (
+                            <span className={cn('inline-flex items-center gap-1 flex-shrink-0', closeInfo.tone === 'over' && d.stage !== 'won' && d.stage !== 'lost' && 'text-rose-500 font-medium')}>
+                              <CalendarClock className="h-3 w-3" /> {closeInfo.label}
+                            </span>
+                          )}
+                          {lc.tasks > 0 && <span className="inline-flex items-center gap-1 flex-shrink-0"><ListTodo className="h-3 w-3" /> {lc.tasks}</span>}
+                          {lc.events > 0 && <span className="inline-flex items-center gap-1 flex-shrink-0"><CalendarIcon className="h-3 w-3" /> {lc.events}</span>}
                         </div>
                       )}
                     </button>
@@ -624,7 +815,7 @@ function PipelineBoard({ deals, tasks, events, onEdit }: { deals: Deal[]; tasks:
 }
 
 /* ─── Tasks panel ─────────────────────────────────── */
-function TasksPanel({ tasks, onEdit }: { tasks: CrmTask[]; onEdit: (t: CrmTask) => void }) {
+function TasksPanel({ tasks, deals, onEdit }: { tasks: CrmTask[]; deals: Deal[]; onEdit: (t: CrmTask) => void }) {
   const qc = useQueryClient();
   const toggle = useMutation({
     mutationFn: ({ id, is_done }: { id: string; is_done: boolean }) => crmApi.updateTask(id, { is_done }),
@@ -638,20 +829,36 @@ function TasksPanel({ tasks, onEdit }: { tasks: CrmTask[]; onEdit: (t: CrmTask) 
     onSettled: () => qc.invalidateQueries({ queryKey: ['crm', 'tasks'] }),
   });
 
+  const dealTitle = (id: string | null) => (id ? deals.find(d => d.id === id)?.title : undefined);
+
+  // Group open tasks by urgency so the list reads like a to-do plan.
   const open = tasks.filter(t => !t.is_done);
   const done = tasks.filter(t => t.is_done);
+  const groups: { label: string; items: CrmTask[]; tone?: string }[] = [
+    { label: 'Overdue', items: open.filter(t => (relDay(t.due_date).diff ?? 1) < 0), tone: 'text-rose-500' },
+    { label: 'Today', items: open.filter(t => relDay(t.due_date).diff === 0), tone: 'text-amber-600 dark:text-amber-400' },
+    { label: 'Upcoming', items: open.filter(t => (relDay(t.due_date).diff ?? -1) > 0) },
+    { label: 'No due date', items: open.filter(t => !t.due_date) },
+    { label: 'Done', items: done },
+  ];
 
   const Row = ({ t }: { t: CrmTask }) => {
     const due = relDay(t.due_date);
     const tone = due.tone === 'over' ? 'text-rose-500' : due.tone === 'today' ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-tertiary)]';
+    const linked = dealTitle(t.deal_id);
     return (
-      <div className="group flex items-center gap-3 px-3 h-12 border-b border-[var(--border-subtle)] hover:bg-[var(--bg-hover)] transition-colors">
+      <div className="group flex items-center gap-3 px-3 h-12 border-b border-[var(--border-subtle)] last:border-b-0 hover:bg-[var(--bg-hover)] transition-colors">
         <button onClick={() => toggle.mutate({ id: t.id, is_done: !t.is_done })} className="flex-shrink-0" title={t.is_done ? 'Mark not done' : 'Mark done'}>
           {t.is_done ? <CheckCircle2 className="h-[18px] w-[18px] text-emerald-500" /> : <Circle className="h-[18px] w-[18px] text-[var(--text-muted)] hover:text-[var(--indigo)] transition-colors" />}
         </button>
         <button onClick={() => onEdit(t)} className="flex-1 min-w-0 text-left flex items-center gap-2">
           <span className={cn('text-[13px] truncate', t.is_done ? 'line-through text-[var(--text-muted)]' : 'text-[var(--text-primary)]')}>{t.title}</span>
           {t.contact_name && <span className="text-[11px] text-[var(--text-tertiary)] truncate hidden sm:inline">· {t.contact_name}</span>}
+          {linked && (
+            <span className="hidden md:inline-flex items-center gap-1 px-1.5 h-[17px] text-[10px] font-medium text-[var(--indigo)] bg-[var(--indigo-subtle)] rounded-[4px] truncate max-w-[160px]">
+              <Handshake className="h-2.5 w-2.5 flex-shrink-0" />{linked}
+            </span>
+          )}
         </button>
         {t.priority !== 'normal' && (
           <span className={cn('hidden sm:inline-flex items-center gap-1 text-[10.5px] font-medium', PRIORITY_META[t.priority].cls)}>
@@ -675,10 +882,14 @@ function TasksPanel({ tasks, onEdit }: { tasks: CrmTask[]; onEdit: (t: CrmTask) 
 
   return (
     <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden max-w-3xl">
-      {open.length > 0 && <div className="px-3 h-8 flex items-center text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] bg-[var(--bg-muted)]/50 border-b border-[var(--border-subtle)]">To do · {open.length}</div>}
-      {open.map(t => <Row key={t.id} t={t} />)}
-      {done.length > 0 && <div className="px-3 h-8 flex items-center text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] bg-[var(--bg-muted)]/50 border-y border-[var(--border-subtle)]">Done · {done.length}</div>}
-      {done.map(t => <Row key={t.id} t={t} />)}
+      {groups.filter(g => g.items.length > 0).map(g => (
+        <div key={g.label}>
+          <div className={cn('px-3 h-8 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider bg-[var(--bg-muted)]/50 border-y border-[var(--border-subtle)] first:border-t-0', g.tone || 'text-[var(--text-muted)]')}>
+            {g.label} · {g.items.length}
+          </div>
+          {g.items.map(t => <Row key={t.id} t={t} />)}
+        </div>
+      ))}
     </div>
   );
 }
@@ -783,6 +994,7 @@ export function CrmPage() {
   const [taskModal, setTaskModal] = useState<Partial<CrmTask> | null | undefined>(undefined);
   const [eventModal, setEventModal] = useState<Partial<CrmEvent> | null | undefined>(undefined);
   const [drawerId, setDrawerId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   const dealsQ = useQuery({ queryKey: ['crm', 'deals'], queryFn: () => crmApi.listDeals() });
   const tasksQ = useQuery({ queryKey: ['crm', 'tasks'], queryFn: crmApi.listTasks });
@@ -792,14 +1004,28 @@ export function CrmPage() {
   const tasks = tasksQ.data || [];
   const events = eventsQ.data || [];
 
-  const pipelineValue = deals.filter(d => d.stage !== 'lost').reduce((s, d) => s + (d.value || 0), 0);
-  const wonValue = deals.filter(d => d.stage === 'won').reduce((s, d) => s + (d.value || 0), 0);
-  const openTasks = tasks.filter(t => !t.is_done).length;
+  // Free-text search across deal title, company and the attached lead.
+  const q = query.trim().toLowerCase();
+  const visibleDeals = q
+    ? deals.filter(d =>
+        [d.title, d.company, d.contact_name, leadEmail(d), leadName(d)]
+          .filter(Boolean)
+          .some(v => String(v).toLowerCase().includes(q)))
+    : deals;
+
+  const pipelineValue = deals.filter(d => d.stage !== 'lost' && d.stage !== 'won').reduce((s, d) => s + (d.value || 0), 0);
+  const wonDeals = deals.filter(d => d.stage === 'won');
+  const lostDeals = deals.filter(d => d.stage === 'lost');
+  const wonValue = wonDeals.reduce((s, d) => s + (d.value || 0), 0);
+  const winRate = wonDeals.length + lostDeals.length > 0 ? Math.round((wonDeals.length / (wonDeals.length + lostDeals.length)) * 100) : null;
+  const linkedLeads = deals.filter(d => d.contact_id || d.contact_email).length;
+  const openTasks = tasks.filter(t => !t.is_done);
+  const overdueTasks = openTasks.filter(t => (relDay(t.due_date).diff ?? 1) < 0).length;
   const upcoming = events.filter(e => new Date(e.starts_at) >= new Date()).length;
 
   const tabs: { id: Tab; label: string; icon: typeof Handshake; count?: number }[] = [
     { id: 'pipeline', label: 'Pipeline', icon: Handshake, count: deals.length },
-    { id: 'tasks', label: 'Tasks', icon: ListTodo, count: openTasks },
+    { id: 'tasks', label: 'Tasks', icon: ListTodo, count: openTasks.length },
     { id: 'calendar', label: 'Calendar', icon: CalendarIcon, count: upcoming },
   ];
 
@@ -822,7 +1048,7 @@ export function CrmPage() {
           </span>
           <div>
             <h1 className="text-[19px] font-semibold text-[var(--text-primary)] tracking-[-0.01em]">CRM</h1>
-            <p className="text-[12.5px] text-[var(--text-tertiary)]">Track deals, follow-ups, and the calls & meetings you book.</p>
+            <p className="text-[12.5px] text-[var(--text-tertiary)]">Deals synced with your leads — see every contact, task, and meeting in one pipeline.</p>
           </div>
         </div>
         <Button variant="primary" onClick={newAction}><Plus className="h-4 w-4" /> {newLabel}</Button>
@@ -830,22 +1056,22 @@ export function CrmPage() {
 
       {/* Stat strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        {[
-          { label: 'Open pipeline', value: fmtMoney(pipelineValue), sub: `${deals.filter(d => d.stage !== 'won' && d.stage !== 'lost').length} active deals` },
-          { label: 'Won', value: fmtMoney(wonValue), sub: `${deals.filter(d => d.stage === 'won').length} closed` },
-          { label: 'Open tasks', value: String(openTasks), sub: `${tasks.length} total` },
-          { label: 'Upcoming events', value: String(upcoming), sub: 'calls & meetings' },
-        ].map(s => (
+        {([
+          { label: 'Open pipeline', value: fmtMoney(pipelineValue), sub: `${deals.filter(d => d.stage !== 'won' && d.stage !== 'lost').length} active deals`, subTone: undefined, icon: Handshake },
+          { label: 'Won', value: fmtMoney(wonValue), sub: winRate != null ? `${wonDeals.length} closed · ${winRate}% win rate` : `${wonDeals.length} closed`, subTone: undefined, icon: Trophy },
+          { label: 'Open tasks', value: String(openTasks.length), sub: overdueTasks > 0 ? `${overdueTasks} overdue` : `${tasks.length} total`, subTone: overdueTasks > 0 ? 'text-rose-500' : undefined, icon: ListTodo },
+          { label: 'Linked leads', value: String(linkedLeads), sub: `${upcoming} upcoming event${upcoming === 1 ? '' : 's'}`, subTone: undefined, icon: Link2 },
+        ] as { label: string; value: string; sub: string; subTone?: string; icon: typeof Handshake }[]).map(s => (
           <div key={s.label} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3">
-            <p className="text-[11px] font-medium text-[var(--text-tertiary)]">{s.label}</p>
+            <p className="text-[11px] font-medium text-[var(--text-tertiary)] flex items-center gap-1.5"><s.icon className="h-3 w-3" />{s.label}</p>
             <p className="mt-1 text-[19px] font-semibold text-[var(--text-primary)] tabular leading-none">{s.value}</p>
-            <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">{s.sub}</p>
+            <p className={cn('mt-1.5 text-[11px]', s.subTone || 'text-[var(--text-muted)]')}>{s.sub}</p>
           </div>
         ))}
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-[var(--border-subtle)] mb-5">
+      <div className="flex items-center gap-1 border-b border-[var(--border-subtle)] mb-4">
         {tabs.map(t => {
           const Icon = t.icon;
           const active = tab === t.id;
@@ -867,6 +1093,12 @@ export function CrmPage() {
             </button>
           );
         })}
+        <span className="flex-1" />
+        {tab === 'pipeline' && deals.length > 0 && (
+          <div className="hidden sm:flex items-center gap-2 pb-1.5">
+            <SearchInput value={query} onChange={setQuery} placeholder="Search deals, companies, leads…" className="w-64" />
+          </div>
+        )}
       </div>
 
       {/* Body */}
@@ -875,11 +1107,16 @@ export function CrmPage() {
       ) : tab === 'pipeline' ? (
         deals.length === 0 ? (
           <EmptyBoard icon={Handshake} title="No deals yet" body="Add your first deal to start tracking your pipeline." action="New deal" onAction={() => setDealModal(null)} />
+        ) : visibleDeals.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-[var(--border-default)] bg-[var(--bg-surface)] py-14 text-center">
+            <p className="text-[13px] font-medium text-[var(--text-primary)]">No deals match “{query}”</p>
+            <button onClick={() => setQuery('')} className="mt-1 text-[12px] text-[var(--indigo)] hover:underline">Clear search</button>
+          </div>
         ) : (
-          <PipelineBoard deals={deals} tasks={tasks} events={events} onEdit={(d) => setDrawerId(d.id)} />
+          <PipelineBoard deals={visibleDeals} tasks={tasks} events={events} onEdit={(d) => setDrawerId(d.id)} dragDisabled={q.length > 0} />
         )
       ) : tab === 'tasks' ? (
-        <TasksPanel tasks={tasks} onEdit={(t) => setTaskModal(t)} />
+        <TasksPanel tasks={tasks} deals={deals} onEdit={(t) => setTaskModal(t)} />
       ) : (
         <CalendarPanel events={events} onAdd={(iso) => setEventModal({ starts_at: iso })} onEdit={(e) => setEventModal(e)} />
       )}
@@ -891,8 +1128,8 @@ export function CrmPage() {
           events={events}
           onClose={() => setDrawerId(null)}
           onEdit={(d) => setDealModal(d)}
-          onAddTask={(d) => setTaskModal({ deal_id: d.id, contact_name: d.contact_name })}
-          onBookEvent={(d) => setEventModal({ deal_id: d.id, contact_name: d.contact_name, contact_email: d.contact_email, title: `Call — ${d.company || d.contact_name || d.title}` })}
+          onAddTask={(d) => setTaskModal({ deal_id: d.id, contact_name: leadName(d) })}
+          onBookEvent={(d) => setEventModal({ deal_id: d.id, contact_name: leadName(d), contact_email: leadEmail(d), title: `Call — ${d.company || leadName(d) || d.title}` })}
         />
       )}
 

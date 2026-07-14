@@ -22,7 +22,14 @@ export interface SendingDomain {
 
 export interface DnsCheckResult {
   mx: { found: boolean; records: Array<{ exchange: string; priority: number }> };
-  spf: { found: boolean; record: string | null; valid: boolean; includes_provider: boolean };
+  spf: {
+    found: boolean;
+    record: string | null;
+    valid: boolean;
+    includes_provider: boolean;
+    /** More than one SPF record published — a permanent error per RFC 7208 */
+    multiple?: boolean;
+  };
   dkim: { found: boolean; selector: string | null; note: string };
   dmarc: { found: boolean; record: string | null; policy: string | null };
   verification_txt: { found: boolean };
@@ -30,11 +37,22 @@ export interface DnsCheckResult {
 }
 
 export interface DnsRecordInstruction {
+  /** Stable identifier: ownership | spf | dkim | dmarc */
+  id?: string;
+  /** Short display name, e.g. "SPF" */
+  label?: string;
   type: 'TXT' | 'CNAME' | 'MX';
   host: string;
+  /** The value the user should publish (empty when there's nothing to copy) */
   value: string;
+  /** What we actually found in DNS, when different from `value` */
+  current?: string | null;
   purpose: string;
   status: 'verified' | 'missing' | 'warning';
+  /** Extra guidance shown under the record (warnings, provider steps) */
+  note?: string;
+  /** False when the value is informational and shouldn't offer a copy button */
+  copyable?: boolean;
 }
 
 export interface CreateDomainInput {
