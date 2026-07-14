@@ -54,13 +54,32 @@ export interface ProspectSearchResponse {
 export interface ProspectCreditsSummary {
   /** Monthly allowance from the plan. -1 = unlimited */
   allowance: number;
-  /** Credits spent this calendar month (net of refunds) */
+  /** Plan credits spent this calendar month (net of refunds) */
   used: number;
-  /** allowance - used (or -1 when unlimited) */
+  /** Plan credits left this month (-1 when unlimited) */
+  plan_remaining: number;
+  /** Purchased credits balance — never expires, spent after plan credits */
+  purchased: number;
+  /** Total spendable right now: plan_remaining + purchased (-1 = unlimited) */
   remaining: number;
-  /** ISO date the allowance resets (start of next month) */
+  /** ISO date the plan allowance resets (start of next month) */
   resets_at: string;
 }
+
+/** One-off purchasable credit packs (Stripe payment mode, no dashboard setup
+ *  needed — prices are created inline). Tune freely; ids must stay stable. */
+export interface CreditPack {
+  id: string;
+  credits: number;
+  priceUsd: number;
+  label: string;
+}
+
+export const CREDIT_PACKS: CreditPack[] = [
+  { id: 'pack_500', credits: 500, priceUsd: 15, label: 'Top-up' },
+  { id: 'pack_2000', credits: 2000, priceUsd: 49, label: 'Popular' },
+  { id: 'pack_5000', credits: 5000, priceUsd: 99, label: 'Best value' },
+];
 
 export interface ProspectorStatus {
   /** Configured provider, or null when no data provider API key is set */
