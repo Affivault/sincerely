@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers,
-  ChevronRight, Wrench, ArrowUpRight, Handshake, AtSign,
+  ChevronRight, Wrench, ArrowUpRight, Handshake, AtSign, Radar,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
@@ -42,6 +42,7 @@ const campaignsNav: NavItem[] = [
 ];
 
 const leadsNav: NavItem[] = [
+  { name: 'Prospector', href: '/prospector', icon: Radar },
   { name: 'Lead Lists', href: '/contacts', icon: Users },
 ];
 

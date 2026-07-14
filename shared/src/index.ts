@@ -10,3 +10,4 @@ export * from './apikey.types.js';
 export * from './domain.types.js';
 export * from './billing.types.js';
 export * from './crm.types.js';
+export * from './prospecting.types.js';
