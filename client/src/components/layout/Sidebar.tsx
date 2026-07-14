@@ -4,14 +4,14 @@ import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers,
-  ChevronRight, Wrench, ArrowUpRight, Handshake, AtSign, Radar,
+  ChevronRight, Wrench, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
 import { useSidebar } from '../../context/SidebarContext';
 import { useUnreadCount } from '../../hooks/useUnreadCount';
 import { billingApi } from '../../api/billing.api';
-import { isUnlimited } from '@lemlist/shared';
+import { isUnlimited, ADMIN_EMAILS } from '@lemlist/shared';
 
 /* ─── Nav shape ─────────────────────────────────────────────────── */
 type NavLeaf = { kind?: 'leaf'; name: string; href: string; icon: React.ElementType; match?: string[] };
@@ -57,6 +57,12 @@ const SETTINGS_ROUTES = ['/settings', '/team', '/billing', '/domains', '/suppres
 
 const settingsNav: NavItem[] = [
   { name: 'Settings', href: '/settings', icon: Settings, match: SETTINGS_ROUTES },
+];
+
+/* Owner-only console — rendered only for the admin account; the server
+   independently 404s everyone else, so this is purely cosmetic gating. */
+const adminNav: NavItem[] = [
+  { name: 'Admin', href: '/admin', icon: ShieldCheck },
 ];
 
 /* Routes that belong inside the Campaigns group */
@@ -347,6 +353,11 @@ export function Sidebar() {
         <div className={cn(collapsed ? 'mt-1' : 'mt-4')}>
           <NavSection items={settingsNav} {...sectionProps} />
         </div>
+        {!!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase()) && (
+          <div className="mt-px">
+            <NavSection items={adminNav} {...sectionProps} />
+          </div>
+        )}
       </nav>
 
       {/* Plan usage — quiet until it matters, loud when the cap nears */}
