@@ -52,11 +52,24 @@ privacy policy covers third-party B2B data).
 
 ## Rollout steps
 
-1. Run `supabase/migrations/028_prospector_credits.sql` in the Supabase SQL editor.
+1. Run `supabase/migrations/028_prospector_credits.sql`, then
+   `029_prospect_credit_packs.sql` in the Supabase SQL editor.
 2. Pick a provider, sign an API plan, set the env key, redeploy.
-3. Sanity-check unit economics: your credit price vs. provider cost per reveal
-   (e.g. PDL ~$0.10–0.28/match at low volume vs. Growth = 1000 credits on $59).
-   Adjust `prospectCredits` per plan accordingly.
-4. Later: paid credit top-ups (a `topup` ledger row after a Stripe one-off
-   payment — the ledger already supports it), team-shared credit pools, and a
-   company (account-level) search tab.
+3. Sanity-check unit economics: your credit price vs. provider cost per reveal.
+   Adjust `prospectCredits` per plan and `CREDIT_PACKS` pricing (both in
+   `shared/src/prospecting.types.ts` / `billing.types.ts`) accordingly.
+4. Later: team-shared credit pools and a company (account-level) search tab.
+
+## Credit packs (paid top-ups)
+
+Users can buy one-off credit packs from the Prospector page ("Buy credits").
+- Packs are defined in `CREDIT_PACKS` (`shared/src/prospecting.types.ts`) —
+  500/$15, 2,000/$49, 5,000/$99 by default. Change numbers freely; ids must
+  stay stable. Prices are created inline in Stripe payment-mode checkout, so
+  there is **no Stripe dashboard setup** beyond the existing keys + webhook.
+- Purchased credits live in the ledger's `purchased` bucket: they **never
+  expire** and are spent only after the month's plan credits run out.
+  Refunds always return to the bucket that was charged.
+- Granting happens in the `checkout.session.completed` /
+  `checkout.session.async_payment_succeeded` webhooks, idempotent per
+  session id (a replayed webhook can't double-grant).

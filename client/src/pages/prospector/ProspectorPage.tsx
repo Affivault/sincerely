@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { prospectingApi } from '../../api/prospecting.api';
 import { listsApi } from '../../api/contacts.api';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
+import { Modal } from '../../components/ui/Modal';
 import { Spinner } from '../../components/ui/Spinner';
 import { Avatar } from '../../components/shared/Avatar';
 import { cn } from '../../lib/utils';
@@ -14,6 +15,7 @@ import {
   Lock, Unlock, CheckCircle2, ChevronLeft, ChevronRight, X,
   Linkedin, ArrowUpRight, Coins, KeyRound, FolderOpen, Plus,
 } from 'lucide-react';
+import { CREDIT_PACKS } from '@lemlist/shared';
 import type {
   ProspectPerson, ProspectSearchFilters, ProspectSearchResponse,
 } from '@lemlist/shared';
@@ -74,28 +76,94 @@ function ChipInput({
   );
 }
 
-function CreditsMeter({ allowance, remaining }: { allowance: number; remaining: number }) {
+function CreditsMeter({ allowance, planRemaining, purchased, onBuy }: {
+  allowance: number; planRemaining: number; purchased: number; onBuy: () => void;
+}) {
   if (allowance < 0) {
     return <span className="text-[12px] font-medium text-[var(--text-secondary)]">Unlimited credits</span>;
   }
-  const pct = allowance > 0 ? Math.max(0, Math.min(100, (remaining / allowance) * 100)) : 0;
-  const low = pct <= 15;
+  const pct = allowance > 0 ? Math.max(0, Math.min(100, (planRemaining / allowance) * 100)) : 0;
+  const low = pct <= 15 && purchased === 0;
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-2.5 flex-wrap">
       <Coins className={cn('h-4 w-4', low ? 'text-amber-500' : 'text-[var(--indigo)]')} />
       <div className="w-28 h-1.5 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
         <div className={cn('h-full rounded-full transition-all', low ? 'bg-amber-500' : '[background:var(--indigo-grad)]')} style={{ width: `${pct}%` }} />
       </div>
       <span className="text-[12px] font-medium text-[var(--text-primary)] tabular">
-        {remaining}<span className="text-[var(--text-muted)]">/{allowance} credits</span>
+        {planRemaining}<span className="text-[var(--text-muted)]">/{allowance}</span>
+        {purchased > 0 && <span className="text-[var(--indigo)]"> +{purchased.toLocaleString()}</span>}
+        <span className="text-[var(--text-muted)]"> credits</span>
       </span>
+      <Button size="sm" variant="secondary" onClick={onBuy}><Plus className="h-3 w-3" /> Buy credits</Button>
     </div>
+  );
+}
+
+/** Credit-pack picker → Stripe checkout redirect. */
+function BuyCreditsModal({ onClose }: { onClose: () => void }) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const buy = async (packId: string) => {
+    setBusyId(packId);
+    try {
+      const { url } = await prospectingApi.buyCredits(packId);
+      window.location.href = url;
+    } catch (e: any) {
+      toast.error(e.response?.data?.error || 'Could not start checkout.');
+      setBusyId(null);
+    }
+  };
+  return (
+    <Modal isOpen onClose={onClose} title="Buy prospect credits" description="Purchased credits never expire and are used after your monthly plan credits." size="md">
+      <div className="space-y-2">
+        {CREDIT_PACKS.map((pack) => {
+          const perCredit = pack.priceUsd / pack.credits;
+          return (
+            <div key={pack.id} className="flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] flex-shrink-0">
+                <Coins className="h-4 w-4 text-[var(--indigo)]" />
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-semibold text-[var(--text-primary)] tabular">
+                  {pack.credits.toLocaleString()} credits
+                  <span className="ml-2 inline-flex items-center px-1.5 h-[17px] text-[10px] font-medium bg-[var(--bg-elevated)] text-[var(--text-tertiary)] rounded-[4px]">{pack.label}</span>
+                </p>
+                <p className="text-[11px] text-[var(--text-tertiary)]">${perCredit.toFixed(3)} per lead</p>
+              </div>
+              <Button variant={pack.id === 'pack_2000' ? 'primary' : 'secondary'} disabled={busyId !== null} onClick={() => buy(pack.id)}>
+                {busyId === pack.id ? 'Redirecting…' : `$${pack.priceUsd}`}
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-[11px] text-[var(--text-muted)]">Secure checkout via Stripe. Credits appear within a few seconds of payment.</p>
+    </Modal>
   );
 }
 
 export function ProspectorPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [buyOpen, setBuyOpen] = useState(false);
+
+  // Back from Stripe checkout — confirm and refresh the balance.
+  useEffect(() => {
+    const status = searchParams.get('credits');
+    if (!status) return;
+    if (status === 'success') {
+      toast.success('Payment received — your credits will appear in a few seconds.');
+      const t = setTimeout(() => qc.invalidateQueries({ queryKey: ['prospecting', 'status'] }), 4000);
+      setSearchParams({}, { replace: true });
+      return () => clearTimeout(t);
+    }
+    if (status === 'cancel') {
+      toast('Checkout cancelled — no charge was made.', { icon: 'ℹ️' });
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Filters
   const [titles, setTitles] = useState<string[]>([]);
@@ -172,7 +240,14 @@ export function ProspectorPage() {
             <p className="text-[12.5px] text-[var(--text-tertiary)]">Search 100M+ B2B profiles, reveal verified emails, and drop them straight into your lead lists.</p>
           </div>
         </div>
-        {credits && <CreditsMeter allowance={credits.allowance} remaining={credits.remaining} />}
+        {credits && (
+          <CreditsMeter
+            allowance={credits.allowance}
+            planRemaining={credits.plan_remaining}
+            purchased={credits.purchased}
+            onBuy={() => setBuyOpen(true)}
+          />
+        )}
       </div>
 
       {/* Provider not configured */}
@@ -389,17 +464,24 @@ export function ProspectorPage() {
 
           {/* Out of credits nudge */}
           {credits && credits.allowance >= 0 && credits.remaining === 0 && (
-            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-2.5">
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-2.5 flex-wrap">
               <span className="text-[12.5px] text-[var(--text-secondary)] flex items-center gap-2">
-                <Coins className="h-3.5 w-3.5 text-amber-500" /> You've used all {credits.allowance} credits this month. They reset {new Date(credits.resets_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.
+                <Coins className="h-3.5 w-3.5 text-amber-500" /> You're out of credits. Plan credits reset {new Date(credits.resets_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.
               </span>
-              <Link to="/billing" className="inline-flex items-center gap-1 text-[12px] font-semibold text-[var(--indigo)] hover:underline flex-shrink-0">
-                <Plus className="h-3 w-3" /> Upgrade for more
-              </Link>
+              <span className="flex items-center gap-3 flex-shrink-0">
+                <button onClick={() => setBuyOpen(true)} className="inline-flex items-center gap-1 text-[12px] font-semibold text-[var(--indigo)] hover:underline">
+                  <Plus className="h-3 w-3" /> Buy credits
+                </button>
+                <Link to="/billing" className="text-[12px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">
+                  or upgrade plan
+                </Link>
+              </span>
             </div>
           )}
         </div>
       </div>
+
+      {buyOpen && <BuyCreditsModal onClose={() => setBuyOpen(false)} />}
     </div>
   );
 }

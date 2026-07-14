@@ -3,7 +3,7 @@ import { env } from '../config/env.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { STRIPE_PRICES, PRICE_TO_PLAN, TRIAL_DAYS, type BillingInterval } from '../config/billing.config.js';
-import type { PlanId } from '@lemlist/shared';
+import { CREDIT_PACKS, type PlanId } from '@lemlist/shared';
 
 let stripe: Stripe | null = null;
 if (env.STRIPE_SECRET_KEY) {
@@ -149,6 +149,75 @@ export const stripeService = {
     return session.url;
   },
 
+  /**
+   * One-off checkout for a prospect credit pack. Prices are created inline
+   * (payment mode), so no Stripe dashboard setup is needed. Credits are
+   * granted by the checkout.session.completed webhook, idempotently.
+   */
+  async createCreditPackCheckout(userId: string, email: string | undefined, packId: string): Promise<string> {
+    const s = requireStripe();
+    const pack = CREDIT_PACKS.find((p) => p.id === packId);
+    if (!pack) throw new AppError('Unknown credit pack.', 400);
+
+    const customerId = await getOrCreateCustomer(userId, email);
+
+    const session = await s.checkout.sessions.create({
+      mode: 'payment',
+      customer: customerId,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: 'usd',
+            unit_amount: pack.priceUsd * 100,
+            product_data: {
+              name: `${pack.credits.toLocaleString()} prospect credits`,
+              description: 'Sincerely Prospector credits — never expire.',
+            },
+          },
+        },
+      ],
+      metadata: {
+        kind: 'prospect_credits',
+        user_id: userId,
+        pack_id: pack.id,
+        credits: String(pack.credits),
+      },
+      client_reference_id: userId,
+      allow_promotion_codes: true,
+      success_url: `${env.CLIENT_URL}/prospector?credits=success`,
+      cancel_url: `${env.CLIENT_URL}/prospector?credits=cancel`,
+    });
+
+    if (!session.url) throw new AppError('Failed to create checkout session.', 502);
+    return session.url;
+  },
+
+  /** Grant a purchased credit pack from a completed checkout — idempotent per session. */
+  async grantCreditPack(session: Stripe.Checkout.Session): Promise<void> {
+    const userId = (session.metadata?.user_id as string | undefined) || session.client_reference_id || undefined;
+    const credits = Number(session.metadata?.credits || 0);
+    if (!userId || !Number.isInteger(credits) || credits <= 0) {
+      console.error(`[Stripe] Credit-pack session ${session.id} missing user/credits metadata — not granted.`);
+      return;
+    }
+    const { error } = await supabaseAdmin.from('prospect_credit_ledger').insert({
+      user_id: userId,
+      delta: credits,
+      kind: 'topup',
+      reason: session.metadata?.pack_id || 'credit_pack',
+      bucket: 'purchased',
+      stripe_session_id: session.id,
+    });
+    if (error) {
+      // 23505 = this session was already granted (webhook replay) — fine.
+      if (error.code === '23505') return;
+      // Throw so Stripe retries the webhook rather than silently losing a paid pack.
+      throw new AppError(`Failed to grant credits for session ${session.id}: ${error.message}`, 500);
+    }
+    console.log(`[Stripe] Granted ${credits} prospect credits to ${userId} (session ${session.id})`);
+  },
+
   async createPortalSession(userId: string): Promise<string> {
     const s = requireStripe();
     const { data: sub } = await supabaseAdmin
@@ -188,6 +257,16 @@ export const stripeService = {
         if (session.subscription) {
           const sub = await s.subscriptions.retrieve(session.subscription as string);
           await this.syncSubscription(sub, event.created);
+        } else if (session.mode === 'payment' && session.metadata?.kind === 'prospect_credits' && session.payment_status === 'paid') {
+          await this.grantCreditPack(session);
+        }
+        break;
+      }
+      case 'checkout.session.async_payment_succeeded': {
+        // Delayed payment methods (e.g. bank debits) complete here instead.
+        const session = event.data.object as Stripe.Checkout.Session;
+        if (session.mode === 'payment' && session.metadata?.kind === 'prospect_credits') {
+          await this.grantCreditPack(session);
         }
         break;
       }

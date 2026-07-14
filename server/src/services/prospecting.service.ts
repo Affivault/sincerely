@@ -44,18 +44,34 @@ function nextMonthIso(): string {
 async function creditsSummary(userId: string): Promise<ProspectCreditsSummary> {
   const planId = await billingService.getPlanId(userId);
   const allowance = PLANS[planId].prospectCredits;
-  const { data, error } = await supabaseAdmin
+
+  // Plan bucket: this month's movements against the resetting allowance.
+  const { data: planRows, error: planError } = await supabaseAdmin
     .from('prospect_credit_ledger')
     .select('delta')
     .eq('user_id', userId)
+    .eq('bucket', 'plan')
     .gte('created_at', monthStartIso());
-  if (error) throw new AppError(error.message, 500);
-  const net = (data || []).reduce((s, r: any) => s + (r.delta || 0), 0);
-  const used = Math.max(0, -net);
+  if (planError) throw new AppError(planError.message, 500);
+  const planNet = (planRows || []).reduce((s, r: any) => s + (r.delta || 0), 0);
+  const used = Math.max(0, -planNet);
+  const planRemaining = allowance < 0 ? -1 : Math.max(0, allowance - used);
+
+  // Purchased bucket: persistent balance, never expires.
+  const { data: purchasedRows, error: purchasedError } = await supabaseAdmin
+    .from('prospect_credit_ledger')
+    .select('delta')
+    .eq('user_id', userId)
+    .eq('bucket', 'purchased');
+  if (purchasedError) throw new AppError(purchasedError.message, 500);
+  const purchased = Math.max(0, (purchasedRows || []).reduce((s, r: any) => s + (r.delta || 0), 0));
+
   return {
     allowance,
     used,
-    remaining: allowance < 0 ? -1 : Math.max(0, allowance - used),
+    plan_remaining: planRemaining,
+    purchased,
+    remaining: allowance < 0 ? -1 : planRemaining + purchased,
     resets_at: nextMonthIso(),
   };
 }
@@ -129,10 +145,11 @@ export const prospectingService = {
       };
     }
 
-    // Spend one credit atomically against the plan allowance.
+    // Spend one credit atomically: monthly plan allowance first, then the
+    // purchased (never-expiring) balance.
     const planId = await billingService.getPlanId(userId);
     const allowance = PLANS[planId].prospectCredits;
-    const { data: spendResult, error: spendError } = await supabaseAdmin.rpc('try_spend_prospect_credits', {
+    const { data: spendRows, error: spendError } = await supabaseAdmin.rpc('try_spend_prospect_credits', {
       p_user_id: userId,
       p_amount: 1,
       p_allowance: allowance,
@@ -141,8 +158,10 @@ export const prospectingService = {
       p_provider_person_id: personId,
     });
     if (spendError) throw new AppError(spendError.message, 500);
-    if (spendResult === -1) {
-      throw new AppError('You’re out of prospect credits for this month. Upgrade your plan to keep revealing leads.', 403);
+    const spend = Array.isArray(spendRows) ? spendRows[0] : spendRows;
+    const spentBucket: string | null = spend?.spent_bucket ?? null;
+    if (!spentBucket) {
+      throw new AppError('You’re out of prospect credits. Buy a credit pack or upgrade your plan to keep revealing leads.', 403);
     }
 
     // Get the email: search-time cache first, provider enrich as fallback.
@@ -157,10 +176,10 @@ export const prospectingService = {
         email = res.email;
         enriched = res.person;
       } catch (err: any) {
-        // Provider failure → refund the credit, surface the error.
+        // Provider failure → refund the credit to the bucket it came from.
         await supabaseAdmin.from('prospect_credit_ledger').insert({
           user_id: userId, delta: 1, kind: 'refund', reason: 'provider_error',
-          provider: provider.id, provider_person_id: personId,
+          provider: provider.id, provider_person_id: personId, bucket: spentBucket,
         });
         throw new AppError(err?.message || 'The data provider failed to enrich this lead. You were not charged.', 502);
       }
@@ -170,7 +189,7 @@ export const prospectingService = {
       // No usable email → refund; only successful reveals cost credits.
       await supabaseAdmin.from('prospect_credit_ledger').insert({
         user_id: userId, delta: 1, kind: 'refund', reason: 'no_email_found',
-        provider: provider.id, provider_person_id: personId,
+        provider: provider.id, provider_person_id: personId, bucket: spentBucket,
       });
       return {
         found: false, email: null, contact_id: null, already_revealed: false,
