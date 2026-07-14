@@ -297,9 +297,15 @@ export const stripeService = {
     const eventAtIso = new Date(eventCreated * 1000).toISOString();
     const { data: existing } = await supabaseAdmin
       .from('subscriptions')
-      .select('last_event_at')
+      .select('last_event_at, plan')
       .eq('user_id', userId)
       .maybeSingle();
+    // Manually granted lifetime access is never managed by Stripe — no
+    // webhook may downgrade or overwrite it.
+    if (existing?.plan === 'lifetime') {
+      console.log(`[Stripe] Ignoring subscription event for lifetime user ${userId}`);
+      return;
+    }
     if (existing?.last_event_at && new Date(existing.last_event_at).getTime() > new Date(eventAtIso).getTime()) {
       console.log(`[Stripe] Skipping stale event for ${userId} (event ${eventAtIso} < stored ${existing.last_event_at})`);
       return;

@@ -32,6 +32,9 @@ async function getSubscription(userId: string): Promise<any | null> {
 
 function planFromSubscription(sub: any | null): PlanId {
   if (!sub) return DEFAULT_PLAN;
+  // Manually granted lifetime access overrides everything, regardless of
+  // Stripe status — it is never sold, so Stripe state is irrelevant to it.
+  if (sub.plan === 'lifetime') return 'lifetime';
   const status = sub.status as SubscriptionStatus;
   if (status === 'active' || status === 'trialing') {
     return PLANS[sub.plan as PlanId] ? (sub.plan as PlanId) : DEFAULT_PLAN;

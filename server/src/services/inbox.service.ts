@@ -560,13 +560,19 @@ export const inboxService = {
   async markThreadRead(userId: string, messageId: string) {
     const contactEmail = await resolveContactEmail(userId, messageId);
     if (!contactEmail) return inboxService.markRead(userId, messageId);
-    const emailQ = `"${contactEmail.replace(/"/g, '""')}"`;
+    // Case-insensitive match ("John@X.com" vs "john@x.com" are the same
+    // mailbox) — ilike with escaped wildcards is equality, ignoring case.
+    const pattern = contactEmail.replace(/([%_\\])/g, '\\$1');
+    const emailQ = `"${pattern.replace(/"/g, '""')}"`;
     const { error } = await supabaseAdmin
       .from('inbox_messages')
       .update({ is_read: true })
       .eq('user_id', userId)
-      .or(`from_email.eq.${emailQ},to_email.eq.${emailQ}`);
+      .or(`from_email.ilike.${emailQ},to_email.ilike.${emailQ}`);
     if (error) throw new AppError(error.message, 500);
+    // The clicked message must never stay unread, even if its addresses are
+    // stored in an unexpected shape (e.g. "Name <a@b.com>").
+    await inboxService.markRead(userId, messageId);
   },
 
   async reply(userId: string, messageId: string, body: string, smtpAccountId?: string, bodyHtml?: string) {
