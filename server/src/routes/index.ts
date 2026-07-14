@@ -26,6 +26,7 @@ import { sendingSchedulesRoutes } from './sending-schedules.routes.js';
 import { billingRoutes } from './billing.routes.js';
 import { crmRoutes } from './crm.routes.js';
 import { prospectingRoutes } from './prospecting.routes.js';
+import { adminRoutes } from './admin.routes.js';
 
 export const routes = Router();
 
@@ -60,3 +61,4 @@ routes.use('/sending-schedules', sendingSchedulesRoutes);
 routes.use('/billing', billingRoutes);
 routes.use('/crm', crmRoutes);
 routes.use('/prospecting', prospectingRoutes);
+routes.use('/admin', adminRoutes);

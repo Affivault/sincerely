@@ -24,6 +24,7 @@ const AnalyticsDashboardPage = lazy(() => import('./pages/analytics/AnalyticsDas
 const InboxPage            = lazy(() => import('./pages/inbox/InboxPage').then(m => ({ default: m.InboxPage })));
 const CrmPage              = lazy(() => import('./pages/crm/CrmPage').then(m => ({ default: m.CrmPage })));
 const ProspectorPage       = lazy(() => import('./pages/prospector/ProspectorPage').then(m => ({ default: m.ProspectorPage })));
+const AdminPage            = lazy(() => import('./pages/admin/AdminPage').then(m => ({ default: m.AdminPage })));
 const SettingsPage         = lazy(() => import('./pages/settings/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const SseDashboardPage     = lazy(() => import('./pages/sse/SseDashboardPage').then(m => ({ default: m.SseDashboardPage })));
 const AssetBuilderPage     = lazy(() => import('./pages/assets/AssetBuilderPage').then(m => ({ default: m.AssetBuilderPage })));
@@ -118,6 +119,7 @@ export default function App() {
           <Route path="/inbox"              element={<InboxPage />} />
           <Route path="/crm"                element={<CrmPage />} />
           <Route path="/prospector"         element={<ProspectorPage />} />
+          <Route path="/admin"              element={<AdminPage />} />
           <Route path="/sara"               element={<Navigate to="/inbox" replace />} />
           <Route path="/sse"                element={<SseDashboardPage />} />
           <Route path="/templates"          element={<TemplatesPage />} />
