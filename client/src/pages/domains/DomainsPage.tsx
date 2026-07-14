@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { domainApi } from '../../api/domain.api';
@@ -28,7 +28,9 @@ import {
   Shield,
   Mail,
   HelpCircle,
-  ExternalLink,
+  Server,
+  Sparkles,
+  ClipboardCopy,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { SendingDomain, DomainVerifyResponse, DnsRecordInstruction } from '@lemlist/shared';
@@ -46,94 +48,130 @@ export function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
   );
 }
 
-function CopyableRecord({ record }: { record: DnsRecordInstruction }) {
+/** Copy button with its own feedback state, so each field reports independently. */
+function CopyButton({ text, title }: { text: string; title: string }) {
   const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(timer.current), []);
 
-  const handleCopy = async (text: string) => {
+  const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error('Failed to copy to clipboard');
     }
   };
 
-  const statusColor =
-    record.status === 'verified' ? 'border-green-500/30 bg-green-500/5' :
-    record.status === 'warning' ? 'border-amber-500/30 bg-amber-500/5' :
-    'border-red-500/30 bg-red-500/5';
-
-  const statusIcon =
-    record.status === 'verified' ? <CheckCircle2 className="h-4 w-4 text-green-500" /> :
-    record.status === 'warning' ? <AlertTriangle className="h-4 w-4 text-amber-500" /> :
-    <XCircle className="h-4 w-4 text-red-400" />;
-
   return (
-    <div className={`rounded-lg border ${statusColor} p-4 space-y-2`}>
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-2">
-          {statusIcon}
-          <span className="text-sm font-medium text-[var(--text-primary)]">
-            {record.type} Record
-          </span>
-          <span className={`text-xs px-1.5 py-0.5 rounded font-mono ${
-            record.status === 'verified' ? 'bg-green-500/10 text-green-500' :
-            record.status === 'warning' ? 'bg-amber-500/10 text-amber-500' :
-            'bg-red-500/10 text-red-400'
-          }`}>
-            {record.status === 'verified' ? 'Configured' : record.status === 'warning' ? 'Needs attention' : 'Not found'}
-          </span>
-        </div>
-      </div>
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="shrink-0 p-2 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+      title={title}
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
 
-      <p className="text-xs text-[var(--text-secondary)]">{record.purpose}</p>
+const RECORD_STATUS_META = {
+  verified: {
+    border: 'border-emerald-500/25',
+    icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" />,
+    chip: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    text: 'Configured',
+  },
+  warning: {
+    border: 'border-amber-500/30',
+    icon: <AlertTriangle className="h-4 w-4 text-amber-500" />,
+    chip: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    text: 'Needs attention',
+  },
+  missing: {
+    border: 'border-[var(--border-subtle)]',
+    icon: <XCircle className="h-4 w-4 text-rose-400" />,
+    chip: 'bg-rose-500/10 text-rose-500',
+    text: 'Not found',
+  },
+} as const;
 
-      {/* Host */}
-      <div className="space-y-1">
-        <label className="text-[11px] font-medium text-[var(--text-tertiary)]">Host / Name</label>
-        <div className="flex items-center gap-2">
-          <code className="flex-1 text-xs font-mono text-[var(--text-primary)] bg-[var(--bg-elevated)] px-3 py-2 rounded border border-[var(--border-subtle)] break-all">
-            {record.host}
-          </code>
-          <button
-            onClick={() => handleCopy(record.host)}
-            className="shrink-0 p-2 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-            title="Copy host"
-          >
-            {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Value */}
-      <div className="space-y-1">
-        <label className="text-[11px] font-medium text-[var(--text-tertiary)]">Value / Content</label>
-        <div className="flex items-center gap-2">
-          <code className="flex-1 text-xs font-mono text-[var(--text-primary)] bg-[var(--bg-elevated)] px-3 py-2 rounded border border-[var(--border-subtle)] break-all">
-            {record.value}
-          </code>
-          <button
-            onClick={() => handleCopy(record.value)}
-            className="shrink-0 p-2 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-            title="Copy value"
-          >
-            <Copy className="h-3.5 w-3.5" />
-          </button>
-        </div>
+function RecordField({ label, value, copyable = true }: { label: string; value: string; copyable?: boolean }) {
+  return (
+    <div className="space-y-1 min-w-0">
+      <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">{label}</span>
+      <div className="flex items-center gap-1.5">
+        <code className="flex-1 min-w-0 text-[11.5px] font-mono text-[var(--text-primary)] bg-[var(--bg-elevated)] px-2.5 py-1.5 rounded-md border border-[var(--border-subtle)] break-all leading-relaxed">
+          {value}
+        </code>
+        {copyable && <CopyButton text={value} title={`Copy ${label.toLowerCase()}`} />}
       </div>
     </div>
   );
 }
 
+function DnsRecordCard({ record }: { record: DnsRecordInstruction }) {
+  const meta = RECORD_STATUS_META[record.status];
+  const showValue = record.copyable !== false && record.value;
+
+  return (
+    <div className={cn('rounded-xl border bg-[var(--bg-surface)] p-3.5 space-y-2.5', meta.border)}>
+      <div className="flex items-center gap-2 flex-wrap">
+        {meta.icon}
+        <span className="text-[13px] font-semibold text-[var(--text-primary)]">
+          {record.label || record.type}
+        </span>
+        <span className="text-[10px] font-semibold font-mono px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-tertiary)] border border-[var(--border-subtle)]">
+          {record.type}
+        </span>
+        <span className={cn('text-[10.5px] px-1.5 py-0.5 rounded font-medium', meta.chip)}>{meta.text}</span>
+        <span className="flex-1" />
+      </div>
+
+      <p className="text-[12px] text-[var(--text-secondary)]">{record.purpose}</p>
+
+      <div className="grid gap-2.5 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <RecordField label="Host / Name" value={record.host} />
+        {showValue ? <RecordField label="Value / Content" value={record.value} /> : null}
+      </div>
+
+      {record.current && record.current !== record.value && record.status !== 'verified' && (
+        <div className="text-[11.5px] text-[var(--text-tertiary)]">
+          <span className="font-medium text-[var(--text-secondary)]">Currently published:</span>{' '}
+          <code className="font-mono break-all">{record.current}</code>
+        </div>
+      )}
+
+      {record.note && (
+        <div className={cn(
+          'flex items-start gap-2 rounded-lg px-2.5 py-2 text-[11.5px] leading-relaxed',
+          record.status === 'warning' ? 'bg-amber-500/5 text-amber-700 dark:text-amber-400' : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
+        )}>
+          <HelpCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          <span>{record.note}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const CHECKS: { key: keyof Pick<SendingDomain, 'txt_verified' | 'spf_ok' | 'dkim_ok' | 'dmarc_ok'>; label: string }[] = [
+  { key: 'txt_verified', label: 'Ownership' },
+  { key: 'spf_ok', label: 'SPF' },
+  { key: 'dkim_ok', label: 'DKIM' },
+  { key: 'dmarc_ok', label: 'DMARC' },
+];
+
 export function DomainDetailPanel({
   domain,
-  onClose,
 }: {
   domain: SendingDomain;
-  onClose: () => void;
+  onClose?: () => void;
 }) {
   const queryClient = useQueryClient();
+  const wasVerified = useRef(domain.is_verified);
 
   const { data: recordsData, isLoading: loadingRecords } = useQuery({
     queryKey: ['domain-records', domain.id],
@@ -146,9 +184,10 @@ export function DomainDetailPanel({
       queryClient.invalidateQueries({ queryKey: ['domains'] });
       queryClient.invalidateQueries({ queryKey: ['domain-records', domain.id] });
       if (result.domain.is_verified) {
+        wasVerified.current = true;
         toast.success(`${domain.domain} verified successfully!`);
       } else {
-        toast('DNS records checked. Some records are still missing.', { icon: '!' });
+        toast('DNS checked — some records still aren’t visible yet. Changes can take a few minutes to propagate.', { icon: '🕐' });
       }
     },
     onError: (err: any) => {
@@ -156,74 +195,148 @@ export function DomainDetailPanel({
     },
   });
 
+  // Quietly re-check every 30s while the panel is open and the domain isn't
+  // verified — DNS propagation resolves itself without the user hammering
+  // the Verify button. Celebrate once on the transition to verified.
+  useEffect(() => {
+    if (domain.is_verified) return;
+    const interval = setInterval(() => {
+      domainApi.verify(domain.id)
+        .then((result) => {
+          queryClient.invalidateQueries({ queryKey: ['domains'] });
+          queryClient.invalidateQueries({ queryKey: ['domain-records', domain.id] });
+          if (result.domain.is_verified && !wasVerified.current) {
+            wasVerified.current = true;
+            toast.success(`${domain.domain} verified successfully!`);
+          }
+        })
+        .catch(() => { /* silent — this is a background convenience check */ });
+    }, 30_000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [domain.id, domain.is_verified]);
+
+  const passing = CHECKS.filter((c) => domain[c.key]).length;
+  const records = recordsData?.records || [];
+  const mx = recordsData?.dns?.mx;
+
+  const copyAll = async () => {
+    const lines = records
+      .filter((r) => r.copyable !== false && r.value)
+      .map((r) => `${r.type}\t${r.host}\t${r.value}`);
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'));
+      toast.success('All records copied — paste them into your DNS manager');
+    } catch {
+      toast.error('Failed to copy to clipboard');
+    }
+  };
+
   return (
-    <div className="space-y-5">
-      {/* Domain header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-[var(--text-primary)]">{domain.domain}</h3>
-          <div className="flex items-center gap-2 mt-1">
-            <StatusBadge ok={domain.txt_verified} label="Ownership" />
-            <StatusBadge ok={domain.spf_ok} label="SPF" />
-            <StatusBadge ok={domain.dkim_ok} label="DKIM" />
-            <StatusBadge ok={domain.dmarc_ok} label="DMARC" />
+    <div className="space-y-4">
+      {/* Header: domain + progress + verify */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="text-[16px] font-semibold text-[var(--text-primary)] truncate">{domain.domain}</h3>
+            {domain.is_verified && (
+              <span className="inline-flex items-center gap-1 px-1.5 h-[19px] text-[10.5px] font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-[4px]">
+                <Sparkles className="h-2.5 w-2.5" /> Ready to send
+              </span>
+            )}
+          </div>
+          {/* Segmented progress */}
+          <div className="mt-2 flex items-center gap-2.5">
+            <div className="flex items-center gap-1">
+              {CHECKS.map((c) => (
+                <span
+                  key={c.key}
+                  title={`${c.label}: ${domain[c.key] ? 'passing' : 'not configured'}`}
+                  className={cn('h-1.5 w-9 rounded-full transition-colors', domain[c.key] ? 'bg-emerald-500' : 'bg-[var(--border-default)]')}
+                />
+              ))}
+            </div>
+            <span className="text-[11.5px] font-medium text-[var(--text-tertiary)] tabular">{passing} of {CHECKS.length} checks passing</span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+            {CHECKS.map((c) => <StatusBadge key={c.key} ok={!!domain[c.key]} label={c.label} />)}
           </div>
         </div>
-        <Button
-          variant="primary"
-          onClick={() => verifyMutation.mutate()}
-          disabled={verifyMutation.isPending}
-        >
-          <RefreshCw className={`h-4 w-4 ${verifyMutation.isPending ? 'animate-spin' : ''}`} />
-          {verifyMutation.isPending ? 'Checking...' : 'Verify DNS'}
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {records.length > 0 && (
+            <Button variant="secondary" size="sm" onClick={copyAll} title="Copy every record as tab-separated lines">
+              <ClipboardCopy className="h-3.5 w-3.5" /> Copy all
+            </Button>
+          )}
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => verifyMutation.mutate()}
+            disabled={verifyMutation.isPending}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${verifyMutation.isPending ? 'animate-spin' : ''}`} />
+            {verifyMutation.isPending ? 'Checking…' : 'Verify DNS'}
+          </Button>
+        </div>
       </div>
 
-      {/* Provider detection */}
-      {domain.detected_provider && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)]">
-          <Mail className="h-3.5 w-3.5 shrink-0" />
-          Email provider detected: <span className="font-medium text-[var(--text-primary)]">{domain.detected_provider}</span>
+      {/* Provider + MX context */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {domain.detected_provider && (
+          <span className="inline-flex items-center gap-1.5 px-2.5 h-7 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[11.5px] text-[var(--text-secondary)]">
+            <Mail className="h-3 w-3 shrink-0" />
+            Provider: <span className="font-medium text-[var(--text-primary)]">{domain.detected_provider}</span>
+          </span>
+        )}
+        {mx && (
+          <span className="inline-flex items-center gap-1.5 px-2.5 h-7 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[11.5px] text-[var(--text-secondary)]" title={mx.records.map((r) => `${r.priority} ${r.exchange}`).join('\n')}>
+            <Server className="h-3 w-3 shrink-0" />
+            {mx.found
+              ? <>MX: <span className="font-medium text-[var(--text-primary)] font-mono">{mx.records[0]?.exchange}</span>{mx.records.length > 1 ? ` +${mx.records.length - 1}` : ''}</>
+              : <>No MX records — replies and bounces to this domain can't be received</>}
+          </span>
+        )}
+      </div>
+
+      {/* Setup steps — only while unverified */}
+      {!domain.is_verified && (
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 p-3.5">
+          <div className="flex items-start gap-2.5">
+            <HelpCircle className="h-4 w-4 text-[var(--indigo)] mt-0.5 shrink-0" />
+            <div className="text-[12px] text-[var(--text-secondary)] min-w-0">
+              <p className="font-medium text-[var(--text-primary)] mb-1.5">How to finish setup</p>
+              <ol className="space-y-1 list-decimal list-inside">
+                <li>Open the DNS manager at your registrar (Cloudflare, Namecheap, GoDaddy…)</li>
+                <li>Add each record below — copy the host and value exactly as shown</li>
+                <li>We re-check automatically every 30 seconds while this panel is open; propagation usually takes 5–15 minutes (up to 48h)</li>
+              </ol>
+            </div>
+          </div>
         </div>
       )}
-
-      {/* Instructions */}
-      <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4 space-y-2">
-        <div className="flex items-start gap-2">
-          <HelpCircle className="h-4 w-4 text-[var(--text-secondary)] mt-0.5 shrink-0" />
-          <div className="text-sm text-[var(--text-secondary)]">
-            <p className="font-medium text-[var(--text-primary)]">How to set up your domain</p>
-            <ol className="mt-2 space-y-1 list-decimal list-inside text-xs">
-              <li>Copy each DNS record below and add it to your domain's DNS settings</li>
-              <li>DNS changes can take up to 48 hours to propagate (usually 5-15 minutes)</li>
-              <li>Click <strong>Verify DNS</strong> to check if your records are detected</li>
-              <li>Once the ownership TXT record is verified, your domain is ready to use</li>
-            </ol>
-          </div>
-        </div>
-      </div>
 
       {/* DNS Records */}
       {loadingRecords ? (
         <div className="flex justify-center py-8">
           <Spinner size="md" />
         </div>
-      ) : recordsData ? (
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium text-[var(--text-primary)] flex items-center gap-2">
-            <Shield className="h-4 w-4 text-[var(--indigo)]" />
-            DNS Records to Configure
+      ) : records.length > 0 ? (
+        <div className="space-y-2.5">
+          <h4 className="text-[12px] font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
+            <Shield className="h-3.5 w-3.5 text-[var(--indigo)]" />
+            DNS records
           </h4>
-          {recordsData.records.map((record, idx) => (
-            <CopyableRecord key={idx} record={record} />
+          {records.map((record) => (
+            <DnsRecordCard key={record.id || record.host + record.type} record={record} />
           ))}
         </div>
       ) : null}
 
       {/* Last checked */}
       {domain.last_checked_at && (
-        <p className="text-xs text-[var(--text-tertiary)]">
-          Last checked: {new Date(domain.last_checked_at).toLocaleString()}
+        <p className="text-[11px] text-[var(--text-tertiary)]">
+          Last checked {new Date(domain.last_checked_at).toLocaleString()}
+          {!domain.is_verified && ' · re-checking automatically'}
         </p>
       )}
     </div>
@@ -484,7 +597,7 @@ export function DomainsPage() {
 
             <div className="space-y-3">
               {addResult.records.map((record, idx) => (
-                <CopyableRecord key={idx} record={record} />
+                <DnsRecordCard key={record.id || idx} record={record} />
               ))}
             </div>
 

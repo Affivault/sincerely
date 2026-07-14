@@ -5,6 +5,9 @@ const DEAL_STAGES = ['lead', 'qualified', 'proposal', 'won', 'lost'];
 const TASK_PRIORITIES = ['low', 'normal', 'high'];
 const EVENT_TYPES = ['call', 'meeting'];
 
+/** Embed the linked contact so the client can show live lead data on deals. */
+const DEAL_SELECT = '*, contact:contacts(id, email, first_name, last_name, company, job_title, phone, linkedin_url)';
+
 /** Keep only known columns from a request body so callers can't write arbitrary fields. */
 function pick(body: any, keys: readonly string[]): Record<string, any> {
   const out: Record<string, any> = {};
@@ -16,14 +19,57 @@ const DEAL_KEYS = ['title', 'company', 'contact_name', 'contact_email', 'contact
 const TASK_KEYS = ['title', 'due_date', 'priority', 'deal_id', 'contact_name', 'notes', 'is_done'] as const;
 const EVENT_KEYS = ['title', 'type', 'starts_at', 'ends_at', 'contact_name', 'contact_email', 'location', 'notes', 'deal_id'] as const;
 
+/** Coerce/validate deal input in place so bad payloads 400 instead of 500ing at the DB. */
+function sanitizeDealInput(input: Record<string, any>) {
+  if (input.stage && !DEAL_STAGES.includes(input.stage)) throw new AppError('Invalid stage', 400);
+  if (input.value !== undefined && input.value !== null) {
+    const n = Number(input.value);
+    if (!Number.isFinite(n) || n < 0) throw new AppError('Deal value must be a non-negative number', 400);
+    input.value = n;
+  }
+  if (input.position !== undefined && input.position !== null) {
+    const p = Number(input.position);
+    if (!Number.isInteger(p) || p < 0) throw new AppError('Invalid position', 400);
+    input.position = p;
+  }
+  if (input.expected_close_date === '') input.expected_close_date = null;
+  if (typeof input.contact_email === 'string') {
+    input.contact_email = input.contact_email.trim().toLowerCase() || null;
+  }
+}
+
+/**
+ * Keep deals in sync with the contacts base: when a deal carries an email but
+ * no linked lead, attach the matching contact (and backfill name/company).
+ */
+async function autoLinkContact(userId: string, input: Record<string, any>) {
+  if (input.contact_id || !input.contact_email) return;
+  const pattern = String(input.contact_email).replace(/([%_\\])/g, '\\$1');
+  const { data } = await supabaseAdmin
+    .from('contacts')
+    .select('id, first_name, last_name, company')
+    .eq('user_id', userId)
+    .ilike('email', pattern)
+    .maybeSingle();
+  if (data) {
+    input.contact_id = data.id;
+    if (!input.contact_name) {
+      input.contact_name = [data.first_name, data.last_name].filter(Boolean).join(' ') || null;
+    }
+    if (!input.company && data.company) input.company = data.company;
+  }
+}
+
 export const crmService = {
   /* ── Deals ── */
   async listDeals(userId: string, filters?: { contactId?: string; contactEmail?: string }) {
-    let query = supabaseAdmin.from('deals').select('*').eq('user_id', userId);
+    let query = supabaseAdmin.from('deals').select(DEAL_SELECT).eq('user_id', userId);
     // Scope to a specific lead (used by the contact page) — match either the
-    // linked contact_id or the captured contact_email.
+    // linked contact_id or the captured contact_email. Values are quoted so
+    // emails with reserved characters can't break the filter expression.
+    const quote = (v: string) => `"${v.replace(/"/g, '')}"`;
     if (filters?.contactId && filters?.contactEmail) {
-      query = query.or(`contact_id.eq.${filters.contactId},contact_email.eq.${filters.contactEmail}`);
+      query = query.or(`contact_id.eq.${filters.contactId},contact_email.eq.${quote(filters.contactEmail)}`);
     } else if (filters?.contactId) {
       query = query.eq('contact_id', filters.contactId);
     } else if (filters?.contactEmail) {
@@ -39,11 +85,12 @@ export const crmService = {
   async createDeal(userId: string, body: any) {
     if (!body.title || !String(body.title).trim()) throw new AppError('Deal title is required', 400);
     const input = pick(body, DEAL_KEYS as any);
-    if (input.stage && !DEAL_STAGES.includes(input.stage)) throw new AppError('Invalid stage', 400);
+    sanitizeDealInput(input);
+    await autoLinkContact(userId, input);
     const { data, error } = await supabaseAdmin
       .from('deals')
       .insert({ ...input, user_id: userId })
-      .select()
+      .select(DEAL_SELECT)
       .single();
     if (error) throw new AppError(error.message, 500);
     return data;
@@ -51,13 +98,16 @@ export const crmService = {
 
   async updateDeal(userId: string, id: string, body: any) {
     const input = pick(body, DEAL_KEYS as any);
-    if (input.stage && !DEAL_STAGES.includes(input.stage)) throw new AppError('Invalid stage', 400);
+    sanitizeDealInput(input);
+    if (input.contact_email !== undefined && input.contact_id === undefined) {
+      await autoLinkContact(userId, input);
+    }
     const { data, error } = await supabaseAdmin
       .from('deals')
       .update(input)
       .eq('id', id)
       .eq('user_id', userId)
-      .select()
+      .select(DEAL_SELECT)
       .single();
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Deal not found', 404);
