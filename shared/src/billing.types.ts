@@ -15,6 +15,8 @@ export interface PlanLimits {
   maxInboxes: number;
   /** Max emails sent per calendar month. -1 = unlimited. */
   emailsPerMonth: number;
+  /** Prospector reveal credits per calendar month. -1 = unlimited. */
+  prospectCredits: number;
   features: PlanFeatures;
 }
 
@@ -30,27 +32,27 @@ export interface PlanInfo extends PlanLimits {
 export const PLANS: Record<PlanId, PlanInfo> = {
   free: {
     id: 'free', name: 'Free', priceMonthly: 0, priceAnnual: 0,
-    maxInboxes: 1, emailsPerMonth: 100,
+    maxInboxes: 1, emailsPerMonth: 100, prospectCredits: 25,
     features: { sara: false, abTesting: false },
   },
   trial: {
     id: 'trial', name: 'Trial', priceMonthly: 0, priceAnnual: 0,
-    maxInboxes: 25, emailsPerMonth: 15000,
+    maxInboxes: 25, emailsPerMonth: 15000, prospectCredits: 500,
     features: { sara: true, abTesting: true },
   },
   starter: {
     id: 'starter', name: 'Starter', priceMonthly: 39, priceAnnual: 348,
-    maxInboxes: 3, emailsPerMonth: 1500,
+    maxInboxes: 3, emailsPerMonth: 1500, prospectCredits: 250,
     features: { sara: false, abTesting: false },
   },
   growth: {
     id: 'growth', name: 'Growth', priceMonthly: 59, priceAnnual: 499,
-    maxInboxes: 25, emailsPerMonth: 15000,
+    maxInboxes: 25, emailsPerMonth: 15000, prospectCredits: 1000,
     features: { sara: true, abTesting: true },
   },
   scale: {
     id: 'scale', name: 'Scale', priceMonthly: null, priceAnnual: null,
-    maxInboxes: -1, emailsPerMonth: -1,
+    maxInboxes: -1, emailsPerMonth: -1, prospectCredits: -1,
     features: { sara: true, abTesting: true },
   },
 };

@@ -19,6 +19,10 @@ const envSchema = z.object({
   SMTP_RELAY_SECRET: z.string().optional().default(''),
   STRIPE_SECRET_KEY: z.string().optional().default(''),
   STRIPE_WEBHOOK_SECRET: z.string().optional().default(''),
+  // Prospector data providers — set one key to switch the built-in
+  // prospect search on. PDL takes priority when both are configured.
+  PDL_API_KEY: z.string().optional().default(''),
+  APOLLO_API_KEY: z.string().optional().default(''),
 });
 
 const parsed = envSchema.safeParse(process.env);
