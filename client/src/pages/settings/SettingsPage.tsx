@@ -103,6 +103,7 @@ export function SettingsPage() {
   const [aiAutoClassify, setAiAutoClassify] = useState(true);
   const [aiAutoUnsubscribe, setAiAutoUnsubscribe] = useState(true);
   const [aiAutoBounce, setAiAutoBounce] = useState(true);
+  const [crmAutoDeals, setCrmAutoDeals] = useState(true);
   const [autoVerifyContacts, setAutoVerifyContacts] = useState(true);
 
   // Password change
@@ -142,6 +143,7 @@ export function SettingsPage() {
       setAiAutoClassify(settings.sara_auto_classify ?? true);
       setAiAutoUnsubscribe(settings.sara_auto_unsubscribe ?? true);
       setAiAutoBounce(settings.sara_auto_bounce ?? true);
+      setCrmAutoDeals((settings as any).crm_auto_deals ?? true);
       setAutoVerifyContacts((settings as any).auto_verify_contacts ?? true);
       setHasChanges(false);
     }
@@ -182,6 +184,7 @@ export function SettingsPage() {
       sara_confidence_threshold: 85,
       sara_auto_unsubscribe: aiAutoUnsubscribe,
       sara_auto_bounce: aiAutoBounce,
+      crm_auto_deals: crmAutoDeals,
       sara_draft_replies: false,
       ai_tagging_enabled: aiTaggingEnabled,
       auto_verify_contacts: autoVerifyContacts,
@@ -784,6 +787,12 @@ export function SettingsPage() {
                         description="Automatically mark bounced contacts and stop sequences (high confidence)"
                         checked={aiAutoBounce}
                         onChange={(v) => { setAiAutoBounce(v); markChanged(); }}
+                      />
+                      <ToggleSetting
+                        label="Auto-create CRM deals"
+                        description="When a reply is tagged Interested or Meeting, create a qualified deal and a follow-up task in your CRM automatically"
+                        checked={crmAutoDeals}
+                        onChange={(v) => { setCrmAutoDeals(v); markChanged(); }}
                       />
                     </div>
 

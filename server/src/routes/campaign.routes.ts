@@ -30,6 +30,7 @@ campaignRoutes.delete('/:id/steps/:stepId', campaignsController.deleteStep);
 // Campaign contacts
 campaignRoutes.get('/:id/contacts', campaignsController.getContacts);
 campaignRoutes.post('/:id/contacts', campaignsController.addContacts);
+campaignRoutes.post('/:id/enroll', campaignsController.enrollContacts);
 campaignRoutes.delete('/:id/contacts', campaignsController.removeContacts);
 
 // Test email

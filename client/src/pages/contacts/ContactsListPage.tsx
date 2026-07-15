@@ -12,6 +12,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { Modal } from '../../components/ui/Modal';
+import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { PageHeader } from '../../components/shared/PageHeader';
@@ -52,6 +53,7 @@ import {
   ArrowRightLeft,
   GripVertical,
   Eye,
+  Megaphone,
   EyeOff,
   PanelLeftClose,
   PanelLeftOpen,
@@ -460,6 +462,7 @@ export function ContactsListPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showListModal, setShowListModal] = useState(false);
   const [showAddToListModal, setShowAddToListModal] = useState(false);
+  const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [form, setForm] = useState<CreateContactInput>({ ...emptyContact });
   const [editId, setEditId] = useState<string | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -1405,6 +1408,14 @@ export function ContactsListPage() {
             </div>
             <div className="flex items-center gap-2 ml-auto">
               <button
+                onClick={() => setShowCampaignModal(true)}
+                className="inline-flex items-center gap-1.5 text-sm h-8 px-3 rounded-lg font-semibold text-white transition-opacity hover:opacity-90"
+                style={{ background: 'var(--indigo-grad)' }}
+              >
+                <Megaphone className="h-3.5 w-3.5" />
+                Add to campaign
+              </button>
+              <button
                 onClick={() => batchVerifyMutation.mutate(Array.from(selectedContacts))}
                 disabled={batchVerifyMutation.isPending}
                 className="btn-secondary text-sm h-8 rounded-lg disabled:opacity-50"
@@ -1908,6 +1919,15 @@ export function ContactsListPage() {
             />
           </form>
         </Modal>
+      )}
+
+      {/* Add to Campaign Modal — the funnel closer */}
+      {showCampaignModal && (
+        <AddToCampaignModal
+          contactIds={Array.from(selectedContacts)}
+          onClose={() => setShowCampaignModal(false)}
+          onDone={() => setSelectedContacts(new Set())}
+        />
       )}
 
       {/* Add to List Modal */}

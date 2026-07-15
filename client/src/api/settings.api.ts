@@ -23,6 +23,7 @@ export interface UserSettings {
   sara_draft_replies: boolean;
   ai_tagging_enabled: boolean;
   auto_verify_contacts: boolean;
+  crm_auto_deals: boolean;
   created_at: string;
   updated_at: string;
 }

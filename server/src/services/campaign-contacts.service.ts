@@ -137,6 +137,50 @@ export const campaignContactsService = {
   },
 
   /**
+   * One-call funnel: put contacts into the campaign's bound lead list (when
+   * it has one) and enroll them. This is what "Add to campaign" from the
+   * contacts page / prospector uses — callers shouldn't need to know that
+   * campaigns are list-bound.
+   */
+  async enroll(campaignId: string, contactIds: string[]) {
+    if (!contactIds || contactIds.length === 0) {
+      throw new AppError('No contacts selected', 400);
+    }
+
+    const { data: campaign } = await supabaseAdmin
+      .from('campaigns')
+      .select('id, user_id, list_id, status')
+      .eq('id', campaignId)
+      .maybeSingle();
+    if (!campaign) throw new AppError('Campaign not found', 404);
+    if (['completed', 'cancelled'].includes(campaign.status)) {
+      throw new AppError('This campaign has finished — pick an active or draft campaign.', 400);
+    }
+
+    // Only the campaign owner's contacts can ever be enrolled.
+    const { data: ownedContacts } = await supabaseAdmin
+      .from('contacts')
+      .select('id')
+      .eq('user_id', campaign.user_id)
+      .in('id', contactIds);
+    const ownedIds = (ownedContacts || []).map((c: any) => c.id as string);
+    if (ownedIds.length === 0) {
+      throw new AppError('None of the selected contacts belong to this account', 400);
+    }
+
+    // Membership first, so add()'s list restriction passes.
+    if (campaign.list_id) {
+      const rows = ownedIds.map((contactId) => ({ list_id: campaign.list_id, contact_id: contactId }));
+      const { error: listError } = await supabaseAdmin
+        .from('list_contacts')
+        .upsert(rows, { onConflict: 'list_id,contact_id' });
+      if (listError) throw new AppError(listError.message, 500);
+    }
+
+    return this.add(campaignId, ownedIds);
+  },
+
+  /**
    * Add every contact from the campaign's bound lead list. Use this when the
    * user clicks "Import from list" in the campaign builder.
    */

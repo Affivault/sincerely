@@ -85,6 +85,15 @@ export const campaignsApi = {
     return data;
   },
 
+  /** Add contacts to the campaign's bound list AND enroll them in one call. */
+  enrollContacts: async (campaignId: string, contactIds: string[]) => {
+    const { data } = await apiClient.post<{ added: number; skipped: number; total: number }>(
+      `/campaigns/${campaignId}/enroll`,
+      { contact_ids: contactIds },
+    );
+    return data;
+  },
+
   addContacts: async (campaignId: string, contactIds: string[]) => {
     await apiClient.post(`/campaigns/${campaignId}/contacts`, { contact_ids: contactIds });
   },
