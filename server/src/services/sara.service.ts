@@ -4,7 +4,72 @@ import type { SaraClassificationResult, SaraQueueStats } from '@lemlist/shared';
 import { fireEvent } from './webhook.service.js';
 import { suppressionService } from './suppression.service.js';
 import { billingService } from './billing.service.js';
+import { crmService } from './crm.service.js';
+import { settingsService } from './settings.service.js';
 import { AppError } from '../middleware/error.middleware.js';
+
+/**
+ * SARA → CRM: when a reply is classified as interested/meeting, create a
+ * qualified deal (plus a high-priority follow-up task) linked to the lead —
+ * the pipeline fills itself from the inbox. Users can switch this off with
+ * the `crm_auto_deals` setting; failures never break classification.
+ */
+async function maybeCreateDealFromReply(message: any, result: SaraClassificationResult): Promise<void> {
+  try {
+    if (result.intent !== SaraIntent.Interested && result.intent !== SaraIntent.Meeting) return;
+    if (result.confidence < 0.6) return;
+    const userId: string | undefined = message.user_id;
+    if (!userId) return;
+
+    // Opt-out toggle — default is ON (undefined column counts as enabled).
+    const settings = await settingsService.get(userId);
+    if ((settings as any).crm_auto_deals === false) return;
+
+    const email = String(message.contacts?.email || message.from_email || '').trim().toLowerCase();
+    if (!email) return;
+
+    // Never stack a second auto-deal on a lead that already has an open one.
+    let dupQuery = supabaseAdmin
+      .from('deals')
+      .select('id, stage')
+      .eq('user_id', userId)
+      .not('stage', 'in', '(won,lost)');
+    dupQuery = message.contact_id
+      ? dupQuery.or(`contact_id.eq.${message.contact_id},contact_email.eq."${email.replace(/"/g, '')}"`)
+      : dupQuery.eq('contact_email', email);
+    const { data: openDeals } = await dupQuery.limit(1);
+    if (openDeals && openDeals.length > 0) return;
+
+    const name = [message.contacts?.first_name, message.contacts?.last_name].filter(Boolean).join(' ') || null;
+    const meeting = result.intent === SaraIntent.Meeting;
+    const deal = await crmService.createDeal(userId, {
+      title: `${name || email} — ${meeting ? 'meeting requested' : 'inbound interest'}`,
+      stage: 'qualified',
+      contact_id: message.contact_id || undefined,
+      contact_email: email,
+      contact_name: name,
+      company: message.contacts?.company || null,
+      notes: `Auto-created by SARA — reply classified as "${result.intent}" (${Math.round(result.confidence * 100)}% confidence).\nSubject: ${message.subject || '(no subject)'}\n\nYou can turn this off in Settings → SARA → Auto-create CRM deals.`,
+    });
+
+    await crmService.createTask(userId, {
+      title: meeting ? `Book the meeting with ${name || email}` : `Reply to ${name || email} while it's hot`,
+      priority: 'high',
+      due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      contact_name: name || email,
+      deal_id: deal?.id || null,
+    });
+
+    fireEvent(userId, 'sara.intent_classified', {
+      message_id: message.id,
+      auto_deal_created: true,
+      deal_id: deal?.id,
+      intent: result.intent,
+    }).catch(() => {});
+  } catch (err: any) {
+    console.error('[SARA] Auto-deal creation failed (classification unaffected):', err?.message || err);
+  }
+}
 
 /**
  * SARA - Sincerely Autonomous Reply Agent
@@ -281,6 +346,9 @@ export async function processReply(messageId: string, requestingUserId?: string)
       contact_id: message.contact_id,
     }).catch(() => {});
   }
+
+  // Positive intent → fill the CRM pipeline automatically (user-toggleable).
+  await maybeCreateDealFromReply(message, result);
 
   // Auto-execute for high-confidence unsubscribe/bounce
   if (

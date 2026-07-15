@@ -25,6 +25,8 @@ export interface UserSettings {
   sara_draft_replies: boolean;
   ai_tagging_enabled: boolean;
   auto_verify_contacts: boolean;
+  /** SARA auto-creates a CRM deal when a reply is interested/meeting */
+  crm_auto_deals: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -50,7 +52,27 @@ const DEFAULTS: Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at
   sara_draft_replies: true,
   ai_tagging_enabled: true,
   auto_verify_contacts: true,
+  crm_auto_deals: true,
 };
+
+/** Columns a client may write. Everything else (id, user_id, timestamps —
+ *  or any unknown key) is dropped so a crafted payload can't touch them. */
+const UPDATABLE_KEYS = new Set(Object.keys(DEFAULTS));
+
+/**
+ * When code ships before its migration, a write can hit a column that doesn't
+ * exist yet ("column X of relation user_settings does not exist"). Strip the
+ * offending key and report it so the caller can retry instead of failing the
+ * whole settings save.
+ */
+function stripMissingColumn(errorMessage: string, obj: Record<string, any>): boolean {
+  const m = /column "([a-zA-Z0-9_]+)"/.exec(errorMessage || '');
+  if (m && m[1] in obj) {
+    delete obj[m[1]];
+    return true;
+  }
+  return false;
+}
 
 export const settingsService = {
   async get(userId: string): Promise<UserSettings> {
@@ -61,34 +83,53 @@ export const settingsService = {
       .single();
 
     if (error && error.code === 'PGRST116') {
-      // No row found — create default settings for this user
-      const { data: newRow, error: insertError } = await supabaseAdmin
-        .from('user_settings')
-        .insert({ user_id: userId, ...DEFAULTS })
-        .select('*')
-        .single();
-
-      if (insertError) throw new AppError(insertError.message, 500);
-      return newRow as UserSettings;
+      // No row found — create default settings for this user. Retry with
+      // fewer keys when a default targets a not-yet-migrated column.
+      const row: Record<string, any> = { user_id: userId, ...DEFAULTS };
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const { data: newRow, error: insertError } = await supabaseAdmin
+          .from('user_settings')
+          .insert(row)
+          .select('*')
+          .single();
+        if (!insertError) return { ...DEFAULTS, ...(newRow as any) } as UserSettings;
+        if (!stripMissingColumn(insertError.message, row)) {
+          throw new AppError(insertError.message, 500);
+        }
+      }
+      throw new AppError('Failed to create settings', 500);
     }
 
     if (error) throw new AppError(error.message, 500);
-    return data as UserSettings;
+    // Overlay defaults so not-yet-migrated columns still come back typed.
+    return { ...DEFAULTS, ...(data as any) } as UserSettings;
   },
 
   async update(userId: string, updates: Partial<Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at'>>): Promise<UserSettings> {
     // Ensure the row exists first (upsert-like pattern)
     await settingsService.get(userId);
 
-    const { data, error } = await supabaseAdmin
-      .from('user_settings')
-      .update(updates)
-      .eq('user_id', userId)
-      .select('*')
-      .single();
+    // Only known settings columns may be written — a crafted payload can't
+    // touch id/user_id/timestamps or anything else.
+    const filtered: Record<string, any> = {};
+    for (const [key, value] of Object.entries(updates as Record<string, any>)) {
+      if (UPDATABLE_KEYS.has(key)) filtered[key] = value;
+    }
+    if (Object.keys(filtered).length === 0) return settingsService.get(userId);
 
-    if (error) throw new AppError(error.message, 500);
-    return data as UserSettings;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const { data, error } = await supabaseAdmin
+        .from('user_settings')
+        .update(filtered)
+        .eq('user_id', userId)
+        .select('*')
+        .single();
+      if (!error) return { ...DEFAULTS, ...(data as any) } as UserSettings;
+      if (!stripMissingColumn(error.message, filtered) || Object.keys(filtered).length === 0) {
+        throw new AppError(error.message, 500);
+      }
+    }
+    throw new AppError('Failed to update settings', 500);
   },
 
   async deleteAccount(userId: string): Promise<void> {

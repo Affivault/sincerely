@@ -150,6 +150,15 @@ export const campaignsController = {
     } catch (err) { next(err); }
   },
 
+  /** POST /campaigns/:id/enroll — add contacts to the bound list AND enroll them */
+  async enrollContacts(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      await campaignsService.assertOwnership(req.userId!, req.params.id);
+      const result = await campaignContactsService.enroll(req.params.id, req.body.contact_ids);
+      res.json(result);
+    } catch (err) { next(err); }
+  },
+
   async removeContacts(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       await campaignsService.assertOwnership(req.userId!, req.params.id);

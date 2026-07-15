@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
 import { smtpApi } from '../../api/smtp.api';
@@ -26,6 +26,7 @@ import {
   Zap, FileText, TrendingUp, ShieldCheck, Brain, Wand2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { StepType } from '@lemlist/shared';
 import type {
   CreateCampaignInput, CreateStepInput, CampaignStep, SmtpAccount, ContactWithTags,
 } from '@lemlist/shared';
@@ -402,6 +403,57 @@ export function CampaignCreatePage() {
       setSelectedContactIds(campaignContacts.data.map((cc: any) => cc.contact_id));
     }
   }, [campaignContacts]);
+
+  // "Use template" from the Templates page navigates here with the template
+  // in router state — hydrate the sequence from it (new campaigns only).
+  const location = useLocation();
+  const appliedTemplate = useRef(false);
+  useEffect(() => {
+    if (isEdit || appliedTemplate.current) return;
+    const st: any = location.state;
+    if (!st?.templateEmail && !st?.templateSequence) return;
+    appliedTemplate.current = true;
+
+    if (st.templateEmail) {
+      const emailStep: FlowStep = {
+        step_type: StepType.Email,
+        step_order: 0,
+        subject: st.templateEmail.subject || '',
+        body_html: st.templateEmail.body_html || '',
+        _clientKey: 'tpl-email-0',
+      };
+      setSteps((prev) => prev.length > 0 ? prev : [emailStep]);
+      setCampaignForm((f) => ({ ...f, name: f.name || st.templateEmail.name }));
+      toast.success(`Template “${st.templateEmail.name}” loaded — pick your audience and go.`);
+    } else if (st.templateSequence) {
+      const tplSteps = [...(st.templateSequence.steps || [])].sort((a: any, b: any) => a.step_order - b.step_order);
+      const flow: FlowStep[] = [];
+      tplSteps.forEach((s: any, i: number) => {
+        if (i > 0 && ((s.delay_days || 0) > 0 || (s.delay_hours || 0) > 0)) {
+          flow.push({
+            step_type: StepType.Delay,
+            step_order: flow.length,
+            delay_days: s.delay_days || 0,
+            delay_hours: s.delay_hours || 0,
+            _clientKey: `tpl-delay-${i}`,
+          });
+        }
+        flow.push({
+          step_type: StepType.Email,
+          step_order: flow.length,
+          subject: s.subject || '',
+          body_html: s.body_html || '',
+          _clientKey: `tpl-email-${i}`,
+        });
+      });
+      setSteps((prev) => prev.length > 0 ? prev : flow);
+      setCampaignForm((f) => ({ ...f, name: f.name || st.templateSequence.name }));
+      toast.success(`Sequence “${st.templateSequence.name}” loaded (${tplSteps.length} email${tplSteps.length === 1 ? '' : 's'}) — pick your audience and go.`);
+    }
+    // Clear router state so refresh/back doesn't re-apply the template.
+    window.history.replaceState({}, '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, location.state]);
 
   useEffect(() => {
     if (existingSenderPool && existingSenderPool.length > 0) {

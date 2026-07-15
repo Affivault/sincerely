@@ -9,11 +9,12 @@ import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
 import { Spinner } from '../../components/ui/Spinner';
 import { Avatar } from '../../components/shared/Avatar';
+import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
 import { cn } from '../../lib/utils';
 import {
   Radar, Search, MapPin, Building2, Briefcase, Users, Sparkles,
   Lock, Unlock, CheckCircle2, ChevronLeft, ChevronRight, X,
-  Linkedin, ArrowUpRight, Coins, KeyRound, FolderOpen, Plus,
+  Linkedin, ArrowUpRight, Coins, KeyRound, FolderOpen, Plus, Megaphone,
 } from 'lucide-react';
 import { CREDIT_PACKS } from '@lemlist/shared';
 import type {
@@ -177,6 +178,7 @@ export function ProspectorPage() {
   const [listId, setListId] = useState('');
   const [results, setResults] = useState<ProspectSearchResponse | null>(null);
   const [revealingId, setRevealingId] = useState<string | null>(null);
+  const [campaignContactIds, setCampaignContactIds] = useState<string[] | null>(null);
 
   const { data: status } = useQuery({ queryKey: ['prospecting', 'status'], queryFn: prospectingApi.status });
   const { data: lists } = useQuery({ queryKey: ['lists'], queryFn: listsApi.list });
@@ -425,12 +427,21 @@ export function ProspectorPage() {
                         <td className="py-2.5 pr-4 pl-3">
                           <div className="flex justify-end">
                             {p.already_revealed && p.contact_id ? (
-                              <button
-                                onClick={() => navigate(`/contacts/${p.contact_id}`)}
-                                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[12px] font-medium text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
-                              >
-                                Open lead <ArrowUpRight className="h-3 w-3" />
-                              </button>
+                              <span className="inline-flex items-center gap-0.5">
+                                <button
+                                  onClick={() => setCampaignContactIds([p.contact_id!])}
+                                  className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[12px] font-medium text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
+                                  title="Add this lead to a campaign"
+                                >
+                                  <Megaphone className="h-3 w-3" /> Campaign
+                                </button>
+                                <button
+                                  onClick={() => navigate(`/contacts/${p.contact_id}`)}
+                                  className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
+                                >
+                                  Open <ArrowUpRight className="h-3 w-3" />
+                                </button>
+                              </span>
                             ) : (
                               <Button
                                 size="sm"
@@ -482,6 +493,7 @@ export function ProspectorPage() {
       </div>
 
       {buyOpen && <BuyCreditsModal onClose={() => setBuyOpen(false)} />}
+      {campaignContactIds && <AddToCampaignModal contactIds={campaignContactIds} onClose={() => setCampaignContactIds(null)} />}
     </div>
   );
 }

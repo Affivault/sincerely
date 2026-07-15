@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { analyticsApi, type TrendDataPoint } from '../../api/analytics.api';
 import { inboxApi } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
+import { settingsApi } from '../../api/settings.api';
 import { useUnreadCount } from '../../hooks/useUnreadCount';
 import { useAuth } from '../../context/AuthContext';
 import { Skeleton } from '../../components/ui/Skeleton';
@@ -430,6 +431,11 @@ export function DashboardPage() {
     queryFn: () => smtpApi.list(),
     staleTime: 5 * 60 * 1000,
   });
+  const { data: userSettings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: settingsApi.get,
+    staleTime: 5 * 60 * 1000,
+  });
 
   if (analyticsLoading || trendLoading) return <DashboardSkeleton />;
 
@@ -454,7 +460,12 @@ export function DashboardPage() {
   const topCampaigns = [...campaigns].sort((a, b) => b.sent - a.sent).slice(0, 5);
 
   const recentMessages = Array.isArray(inboxData?.data) ? inboxData.data : [];
-  const name = user?.email?.split('@')[0] || 'there';
+  // Prefer the name the user set in Settings; fall back to the email prefix.
+  const settingsFirst = (userSettings?.first_name || '').trim();
+  const settingsLast = (userSettings?.last_name || '').trim();
+  const name = settingsFirst || settingsLast
+    ? [settingsFirst, settingsLast].filter(Boolean).join(' ')
+    : (user?.email?.split('@')[0] || 'there');
 
   const verified = Number(s.verified_contacts) || 0;
   const bounced = Number(s.bounced_contacts) || 0;

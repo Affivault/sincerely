@@ -6,6 +6,7 @@ import { analyticsApi } from '../../api/analytics.api';
 import { crmApi } from '../../api/crm.api';
 import { inboxApi } from '../../api/inbox.api';
 import { DealModal, EventModal } from '../crm/CrmPage';
+import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
 import { EmailBody } from '../../components/shared/EmailBody';
 import { DEAL_STAGES, type Deal, type CrmEvent } from '@lemlist/shared';
 import { Spinner } from '../../components/ui/Spinner';
@@ -70,6 +71,7 @@ export function ContactDetailPage() {
   const [moveToListId, setMoveToListId] = useState<string | null>(null);
   const [dealModal, setDealModal] = useState<Partial<Deal> | null | undefined>(undefined);
   const [eventModal, setEventModal] = useState<Partial<CrmEvent> | null | undefined>(undefined);
+  const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [detailTab, setDetailTab] = useState<'emails' | 'activity'>('emails');
   const [openEmailId, setOpenEmailId] = useState<string | null>(null);
 
@@ -229,6 +231,12 @@ export function ContactDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={() => setShowCampaignModal(true)}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[12.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+          >
+            <Send className="h-3.5 w-3.5" /> Add to campaign
+          </button>
           <button
             onClick={() => setEventModal({ ...eventPrefill, type: 'meeting' })}
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[12.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
@@ -553,6 +561,7 @@ export function ContactDetailPage() {
 
       {dealModal !== undefined && <DealModal deal={dealModal} onClose={() => setDealModal(undefined)} />}
       {eventModal !== undefined && <EventModal event={eventModal} onClose={() => setEventModal(undefined)} />}
+      {showCampaignModal && <AddToCampaignModal contactIds={[contact.id]} onClose={() => setShowCampaignModal(false)} />}
     </div>
   );
 }
