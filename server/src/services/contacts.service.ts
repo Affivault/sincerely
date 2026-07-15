@@ -379,12 +379,27 @@ export const contactsService = {
       try { fs.unlinkSync(filePath); } catch { /* ignore cleanup errors */ }
     }
     const parsed = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
+    const rows = parsed.data as Record<string, string>[];
+
+    // Reject absurdly large imports outright — with no cap, a huge CSV would
+    // otherwise be processed as thousands of sequential single-row upserts
+    // below, tying up the DB connection and the request for a very long time.
+    const MAX_ROWS = 50_000;
+    if (rows.length > MAX_ROWS) {
+      throw new AppError(
+        `CSV has ${rows.length.toLocaleString()} rows; the maximum per import is ${MAX_ROWS.toLocaleString()}. Split the file and import in batches.`,
+        400
+      );
+    }
 
     const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    let imported = 0;
     let errors = 0;
 
-    for (const row of parsed.data as Record<string, string>[]) {
+    // Dedup within the batch (last occurrence wins), same rule bulkCreate
+    // uses — Postgres upsert errors if two rows in one call share a conflict key.
+    const validByEmail = new Map<string, Record<string, any>>();
+
+    for (const row of rows) {
       const contact: Record<string, any> = { user_id: userId, source: 'csv_import' };
 
       for (const [csvCol, dbField] of Object.entries(columnMapping)) {
@@ -407,15 +422,25 @@ export const contactsService = {
         continue;
       }
 
-      const { error } = await supabaseAdmin.from('contacts').upsert(
-        contact,
-        { onConflict: 'user_id,email' }
-      );
+      validByEmail.set(contact.email, contact);
+    }
+
+    const validContacts = Array.from(validByEmail.values());
+    let imported = 0;
+
+    // Upsert in batches instead of one round-trip per row — thousands of
+    // sequential awaits held the DB connection open for the entire import.
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < validContacts.length; i += BATCH_SIZE) {
+      const batch = validContacts.slice(i, i + BATCH_SIZE);
+      const { error } = await supabaseAdmin
+        .from('contacts')
+        .upsert(batch, { onConflict: 'user_id,email' });
 
       if (error) {
-        errors++;
+        errors += batch.length;
       } else {
-        imported++;
+        imported += batch.length;
       }
     }
 

@@ -65,6 +65,7 @@ function AppContent() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const goPending = useRef<number | null>(null);
   const prevUnreadRef = useRef<number>(0);
+  const originalFaviconHrefRef = useRef<string | null>(null);
 
   // Wayfinding — document title tracks the current page
   useEffect(() => {
@@ -81,7 +82,12 @@ function AppContent() {
   useEffect(() => {
     const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
     if (!link) return;
-    const originalHref = link.getAttribute('href') || '/favicon.png';
+    // Captured once so re-badging on subsequent unreadCount changes never
+    // reads back an already-badged data URL as the "clean" icon.
+    if (originalFaviconHrefRef.current === null) {
+      originalFaviconHrefRef.current = link.getAttribute('href') || '/favicon.png';
+    }
+    const originalHref = originalFaviconHrefRef.current;
 
     if (unreadCount <= 0) {
       link.href = originalHref;

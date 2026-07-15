@@ -30,6 +30,27 @@ export const campaignsService = {
   },
 
   /**
+   * Like assertOwnership, but also blocks mutating a campaign's step sequence
+   * once it's left draft. Contacts mid-sequence track their position via
+   * campaign_contacts.current_step_order, a plain array index into the steps
+   * list — adding/removing/reordering steps on a running campaign shifts that
+   * index out from under in-flight contacts and sends them the wrong step.
+   */
+  async assertEditableSteps(userId: string, campaignId: string): Promise<void> {
+    const { data, error } = await supabaseAdmin
+      .from('campaigns')
+      .select('id, status')
+      .eq('id', campaignId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error) throw new AppError(error.message, 500);
+    if (!data) throw new AppError('Campaign not found', 404);
+    if (data.status !== 'draft') {
+      throw new AppError('Can only edit steps while the campaign is in draft status', 400);
+    }
+  },
+
+  /**
    * Verify a smtp_account_id belongs to this user before it can be attached to
    * a campaign. Without this, a user could point their campaign's smtp_account_id
    * at another tenant's account and send real email through their mailbox.

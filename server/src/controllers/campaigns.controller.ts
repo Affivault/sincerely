@@ -103,7 +103,7 @@ export const campaignsController = {
 
   async addStep(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      await campaignsService.assertOwnership(req.userId!, req.params.id);
+      await campaignsService.assertEditableSteps(req.userId!, req.params.id);
       const step = await campaignStepsService.add(req.params.id, req.body);
       res.status(201).json(step);
     } catch (err) { next(err); }
@@ -111,7 +111,7 @@ export const campaignsController = {
 
   async updateStep(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      await campaignsService.assertOwnership(req.userId!, req.params.id);
+      await campaignsService.assertEditableSteps(req.userId!, req.params.id);
       const step = await campaignStepsService.update(req.params.id, req.params.stepId, req.body);
       res.json(step);
     } catch (err) { next(err); }
@@ -119,7 +119,7 @@ export const campaignsController = {
 
   async deleteStep(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      await campaignsService.assertOwnership(req.userId!, req.params.id);
+      await campaignsService.assertEditableSteps(req.userId!, req.params.id);
       await campaignStepsService.delete(req.params.id, req.params.stepId);
       res.status(204).send();
     } catch (err) { next(err); }
@@ -127,7 +127,7 @@ export const campaignsController = {
 
   async reorderSteps(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      await campaignsService.assertOwnership(req.userId!, req.params.id);
+      await campaignsService.assertEditableSteps(req.userId!, req.params.id);
       await campaignStepsService.reorder(req.params.id, req.body.step_ids);
       res.status(204).send();
     } catch (err) { next(err); }
