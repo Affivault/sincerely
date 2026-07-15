@@ -163,14 +163,23 @@ export const listsService = {
     // Verify list belongs to user
     await this.get(userId, listId);
 
-    const { data, error } = await supabaseAdmin
-      .from('list_contacts')
-      .select('contact_id')
-      .eq('list_id', listId);
-
-    if (error) throw new AppError(error.message, 500);
-
-    return (data || []).map((row: any) => row.contact_id);
+    // Page through every membership — Supabase caps a single select at ~1000
+    // rows, so a large list would otherwise silently return only its first
+    // 1000 contacts when "Add from list" is used in the campaign builder.
+    const pageSize = 1000;
+    const ids: string[] = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabaseAdmin
+        .from('list_contacts')
+        .select('contact_id')
+        .eq('list_id', listId)
+        .range(from, from + pageSize - 1);
+      if (error) throw new AppError(error.message, 500);
+      const rows = data || [];
+      for (const row of rows) ids.push(row.contact_id);
+      if (rows.length < pageSize) break;
+    }
+    return ids;
   },
 
   async getListsForContact(userId: string, contactId: string) {

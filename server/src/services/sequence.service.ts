@@ -852,7 +852,7 @@ function htmlToText(html: string): string {
     .trim();
 }
 
-function interpolateMergeTags(text: string, contact: any): string {
+export function interpolateMergeTags(text: string, contact: any): string {
   return text
     .replace(/\{\{first_name\}\}/gi, contact.first_name || '')
     .replace(/\{\{last_name\}\}/gi, contact.last_name || '')
@@ -867,4 +867,31 @@ function interpolateMergeTags(text: string, contact: any): string {
     .replace(/\{\{website\}\}/gi, contact.website || '')
     .replace(/\{\{custom_field_1\}\}/gi, contact.custom_field_1 || '')
     .replace(/\{\{custom_field_2\}\}/gi, contact.custom_field_2 || '');
+}
+
+/**
+ * Realistic sample contact for previews / test sends, so a test email reads
+ * naturally ("Hi Alex,") instead of showing raw {{first_name}} tags. Any
+ * leftover unknown {{tag}} is blanked so nothing raw ever ships.
+ */
+export const SAMPLE_PREVIEW_CONTACT = {
+  first_name: 'Alex',
+  last_name: 'Morgan',
+  full_name: 'Alex Morgan',
+  email: 'alex.morgan@example.com',
+  company: 'Acme Inc',
+  job_title: 'Head of Growth',
+  phone: '+1 (555) 123-4567',
+  city: 'San Francisco',
+  country: 'United States',
+  linkedin_url: 'https://linkedin.com/in/alexmorgan',
+  website: 'https://acme.example.com',
+  custom_field_1: 'Sample 1',
+  custom_field_2: 'Sample 2',
+};
+
+/** Fill merge tags with sample data and strip any leftover unknown tags. */
+export function previewWithSampleData(text: string): string {
+  return interpolateMergeTags(text || '', SAMPLE_PREVIEW_CONTACT)
+    .replace(/\{\{\s*[\w.-]+\s*\}\}/g, '');
 }

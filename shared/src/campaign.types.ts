@@ -89,6 +89,8 @@ export interface CreateCampaignInput {
   name: string;
   smtp_account_id?: string;
   timezone?: string;
+  /** When set to a future ISO time, launch waits until then instead of sending immediately */
+  scheduled_at?: string | null;
   send_window_start?: string;
   send_window_end?: string;
   send_days?: string[];

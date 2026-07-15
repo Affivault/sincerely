@@ -23,7 +23,7 @@ import {
   CheckCircle2, Search, Building2, ChevronRight, SkipForward, Gauge, Shield,
   Eye, MousePointerClick, MessageSquare, Send, AlertTriangle, Rocket,
   RotateCcw, Plus, FolderOpen, ListPlus, Sparkles, Loader2, X, Timer,
-  Zap, FileText, TrendingUp, ShieldCheck, Brain, Wand2,
+  Zap, FileText, TrendingUp, ShieldCheck, Brain, Wand2, CalendarClock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { StepType } from '@lemlist/shared';
@@ -174,6 +174,7 @@ export function CampaignCreatePage() {
     track_opens: true,
     track_clicks: true,
     include_unsubscribe: false,
+    scheduled_at: null,
   });
 
   const [steps, setSteps] = useState<FlowStep[]>([]);
@@ -463,6 +464,10 @@ export function CampaignCreatePage() {
 
   const [launching, setLaunching] = useState(false);
   const [showLaunchConfirm, setShowLaunchConfirm] = useState(false);
+  // Explicit start choice so a campaign never fires the instant you launch
+  // unless you deliberately choose "Send now".
+  const [sendMode, setSendMode] = useState<'now' | 'schedule'>('now');
+  const [scheduleAt, setScheduleAt] = useState('');
 
   const saveCampaign = async (): Promise<string | null> => {
     try {
@@ -570,13 +575,28 @@ export function CampaignCreatePage() {
       setWizardStep(0);
       return;
     }
+    // Guard against an accidental blast: scheduling requires a *future* time.
+    let scheduledIso: string | null = null;
+    if (sendMode === 'schedule') {
+      if (!scheduleAt) { toast.error('Pick a date and time to schedule the start.'); return; }
+      const when = new Date(scheduleAt);
+      if (isNaN(when.getTime()) || when.getTime() <= Date.now()) {
+        toast.error('Scheduled start must be in the future.');
+        return;
+      }
+      scheduledIso = when.toISOString();
+    }
+    // Persist the start choice on the form so saveCampaign writes scheduled_at.
+    campaignForm.scheduled_at = scheduledIso;
     setLaunching(true);
     try {
       const campaignId = await saveCampaign();
       if (!campaignId) { setLaunching(false); return; }
       await campaignsApi.launch(campaignId);
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
-      toast.success('Campaign launched!');
+      toast.success(scheduledIso
+        ? `Campaign scheduled for ${new Date(scheduledIso).toLocaleString()}`
+        : 'Campaign launched!');
       navigate(`/campaigns/${campaignId}`);
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed to launch');
@@ -1497,7 +1517,7 @@ export function CampaignCreatePage() {
                                     </button>
                                   </div>
                                   <p className="text-[10.5px] text-[var(--text-tertiary)] leading-snug">
-                                    Personalization tags like <span className="font-data">{'{{first_name}}'}</span> are sent as-is in tests.
+                                    Tags like <span className="font-data">{'{{first_name}}'}</span> are filled with sample data (Alex Morgan @ Acme Inc) so the test reads like the real thing.
                                   </p>
                                 </div>
                               )}
@@ -1878,6 +1898,56 @@ export function CampaignCreatePage() {
                   </div>
                 </SectionCard>
 
+                {/* When to start — explicit choice so nothing fires by surprise */}
+                <SectionCard icon={Clock} title="When should it start?" description="Choose to send now or schedule the first email." accent="indigo">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setSendMode('now')}
+                      className={cn(
+                        'flex items-start gap-2.5 rounded-xl border p-3 text-left transition-colors',
+                        sendMode === 'now' ? 'border-[var(--indigo)]/40 bg-[var(--indigo-subtle)]/50' : 'border-[var(--border-subtle)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)]'
+                      )}
+                    >
+                      <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0', sendMode === 'now' ? 'bg-[var(--indigo-subtle)]' : 'bg-[var(--bg-elevated)]')}>
+                        <Send className={cn('h-4 w-4', sendMode === 'now' ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[13px] font-semibold text-[var(--text-primary)]">Send now</span>
+                        <span className="block text-[11.5px] text-[var(--text-tertiary)]">First email goes out on launch (throttled by your sending window & daily limit).</span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSendMode('schedule')}
+                      className={cn(
+                        'flex items-start gap-2.5 rounded-xl border p-3 text-left transition-colors',
+                        sendMode === 'schedule' ? 'border-[var(--indigo)]/40 bg-[var(--indigo-subtle)]/50' : 'border-[var(--border-subtle)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)]'
+                      )}
+                    >
+                      <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0', sendMode === 'schedule' ? 'bg-[var(--indigo-subtle)]' : 'bg-[var(--bg-elevated)]')}>
+                        <CalendarClock className={cn('h-4 w-4', sendMode === 'schedule' ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] font-semibold text-[var(--text-primary)]">Schedule</span>
+                        <span className="block text-[11.5px] text-[var(--text-tertiary)]">Start automatically at a date & time you choose.</span>
+                      </span>
+                    </button>
+                  </div>
+                  {sendMode === 'schedule' && (
+                    <div className="mt-3">
+                      <label className="block text-[11.5px] font-medium text-[var(--text-secondary)] mb-1">Start date & time ({campaignForm.timezone || 'local'})</label>
+                      <input
+                        type="datetime-local"
+                        value={scheduleAt}
+                        min={new Date(Date.now() + 5 * 60000).toISOString().slice(0, 16)}
+                        onChange={(e) => setScheduleAt(e.target.value)}
+                        className="w-full sm:w-72 h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-[13px] text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)]"
+                      />
+                    </div>
+                  )}
+                </SectionCard>
+
                 {/* Launch area */}
                 <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--indigo-subtle)] p-5">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -1890,11 +1960,13 @@ export function CampaignCreatePage() {
                       </div>
                       <div>
                         <h3 className="text-[14px] font-bold text-[var(--text-primary)]">
-                          {reviewReady ? 'Ready to launch' : 'Almost there'}
+                          {reviewReady ? (sendMode === 'schedule' ? 'Ready to schedule' : 'Ready to launch') : 'Almost there'}
                         </h3>
                         <p className="text-[12px] text-[var(--text-secondary)] mt-0.5 leading-snug max-w-md">
                           {reviewReady
-                            ? `${selectedContactIds.length.toLocaleString()} contacts will receive ${emailSteps.length} email${emailSteps.length === 1 ? '' : 's'} once you launch.`
+                            ? (sendMode === 'schedule'
+                                ? `${selectedContactIds.length.toLocaleString()} contacts will start receiving ${emailSteps.length} email${emailSteps.length === 1 ? '' : 's'} at your scheduled time.`
+                                : `${selectedContactIds.length.toLocaleString()} contacts will receive ${emailSteps.length} email${emailSteps.length === 1 ? '' : 's'} once you launch.`)
                             : `${healthChecks.length - passedChecks} health check${healthChecks.length - passedChecks === 1 ? '' : 's'} not yet passing — resolve before launching.`}
                         </p>
                       </div>
@@ -1918,8 +1990,8 @@ export function CampaignCreatePage() {
                             : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)] cursor-not-allowed'
                         )}
                       >
-                        <Rocket className="h-4 w-4" />
-                        {launching ? 'Launching…' : 'Launch campaign'}
+                        {sendMode === 'schedule' ? <CalendarClock className="h-4 w-4" /> : <Rocket className="h-4 w-4" />}
+                        {launching ? 'Working…' : sendMode === 'schedule' ? 'Schedule campaign' : 'Launch campaign'}
                       </button>
                     </div>
                   </div>
@@ -1932,16 +2004,20 @@ export function CampaignCreatePage() {
                   </Button>
                 </div>
 
-                <Modal isOpen={showLaunchConfirm} onClose={() => setShowLaunchConfirm(false)} title="Launch campaign">
+                <Modal isOpen={showLaunchConfirm} onClose={() => setShowLaunchConfirm(false)} title={sendMode === 'schedule' ? 'Schedule campaign' : 'Launch campaign'}>
                   <div className="space-y-4">
                     <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
-                      You're about to launch{' '}
-                      <strong className="text-[var(--text-primary)]">{campaignForm.name}</strong>. This will start sending emails to{' '}
+                      {sendMode === 'schedule' ? "You're about to schedule " : "You're about to launch "}
+                      <strong className="text-[var(--text-primary)]">{campaignForm.name}</strong>
+                      {sendMode === 'schedule'
+                        ? <> to start on <strong className="text-[var(--text-primary)]">{scheduleAt ? new Date(scheduleAt).toLocaleString() : '—'}</strong>, sending to </>
+                        : <>. This will <strong className="text-[var(--text-primary)]">start sending immediately</strong> to </>}
                       <strong className="text-[var(--text-primary)]">{selectedContactIds.length.toLocaleString()} contacts</strong>{' '}
                       with{' '}
                       <strong className="text-[var(--text-primary)]">{emailSteps.length} email step{emailSteps.length !== 1 ? 's' : ''}</strong>.
                     </p>
                     <div className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3.5 space-y-1.5 text-[12px] text-[var(--text-secondary)]">
+                      {sendMode === 'schedule' && <p className="text-[var(--text-primary)] font-medium">Starts: {scheduleAt ? new Date(scheduleAt).toLocaleString() : '—'}</p>}
                       <p>Sending window: {campaignForm.send_window_start} – {campaignForm.send_window_end} ({campaignForm.timezone})</p>
                       <p>Daily limit: {campaignForm.daily_limit || 'Unlimited'}</p>
                       <p>Stop on reply: {campaignForm.stop_on_reply !== false ? 'Yes' : 'No'}</p>
@@ -1950,8 +2026,8 @@ export function CampaignCreatePage() {
                     <div className="flex justify-end gap-2 pt-2">
                       <Button variant="secondary" onClick={() => setShowLaunchConfirm(false)}>Cancel</Button>
                       <Button onClick={handleSaveAndLaunch} disabled={launching}>
-                        <Rocket className="h-3.5 w-3.5" />
-                        {launching ? 'Launching…' : 'Confirm & launch'}
+                        {sendMode === 'schedule' ? <CalendarClock className="h-3.5 w-3.5" /> : <Rocket className="h-3.5 w-3.5" />}
+                        {launching ? 'Working…' : sendMode === 'schedule' ? 'Confirm & schedule' : 'Confirm & launch'}
                       </Button>
                     </div>
                   </div>

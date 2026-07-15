@@ -26,6 +26,27 @@ interface SmtpSendParams {
   text?: string;
   messageId?: string;
   headers?: Record<string, string>;
+  /** Override SMTP handshake/socket timeouts (ms). Interactive test sends use
+   *  a short budget so the API replies well before the client's 30s timeout. */
+  timeoutMs?: number;
+}
+
+/** Turn a raw SMTP/relay error into a short, human, actionable message. */
+export function describeSmtpError(err: any): string {
+  const raw = String(err?.message || err || '').toLowerCase();
+  if (raw.includes('invalid login') || raw.includes('auth') || raw.includes('535') || raw.includes('credentials') || raw.includes('username and password'))
+    return 'Authentication failed — check the username/password. Gmail & Outlook need an app password, not your normal login.';
+  if (raw.includes('etimedout') || raw.includes('timeout') || raw.includes('timed out'))
+    return 'Connection timed out — the SMTP host/port may be wrong or your provider blocks this port. Try port 465 (SSL) or 587 (TLS).';
+  if (raw.includes('econnrefused'))
+    return 'Connection refused — double-check the SMTP host and port.';
+  if (raw.includes('enotfound') || raw.includes('getaddrinfo'))
+    return 'SMTP host not found — check the server address (e.g. smtp.gmail.com).';
+  if (raw.includes('certificate') || raw.includes('self signed') || raw.includes('self-signed'))
+    return 'TLS certificate problem — try toggling SSL/TLS, or use port 465 with SSL.';
+  if (raw.includes('greeting'))
+    return 'The server never sent a greeting — wrong port or SSL/TLS setting. Try 465 (SSL) or 587 (TLS).';
+  return err?.message || 'Could not connect to the mail server.';
 }
 
 interface SmtpSendResult {
@@ -121,13 +142,17 @@ async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
 async function sendDirect(params: SmtpSendParams): Promise<SmtpSendResult> {
   console.log(`[SMTP Direct] Sending to ${params.to} via ${params.smtpHost}:${params.smtpPort}`);
 
+  // greetingTimeout is the usual culprit behind a hung "Send test" — without
+  // it, a wrong port/SSL combo makes nodemailer wait indefinitely for a banner.
+  const budget = params.timeoutMs;
   const transporter = nodemailer.createTransport({
     host: params.smtpHost,
     port: params.smtpPort,
     secure: params.smtpSecure,
     auth: { user: params.smtpUser, pass: params.smtpPass },
-    connectionTimeout: 15000,
-    socketTimeout: 30000,
+    connectionTimeout: budget ?? 15000,
+    greetingTimeout: budget ?? 12000,
+    socketTimeout: budget ? budget + 3000 : 30000,
   });
 
   let info;

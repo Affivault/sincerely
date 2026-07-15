@@ -5,7 +5,8 @@ import { AuthRequest } from '../middleware/auth.middleware.js';
 import { smtpService } from '../services/smtp.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { decrypt } from '../utils/encryption.js';
-import { sendViaSmtp, formatFromHeader } from '../services/email-sender.service.js';
+import { sendViaSmtp, formatFromHeader, describeSmtpError } from '../services/email-sender.service.js';
+import { previewWithSampleData } from '../services/sequence.service.js';
 import { billingService } from '../services/billing.service.js';
 import { warmupService } from '../services/warmup.service.js';
 
@@ -131,7 +132,16 @@ export const smtpController = {
         });
       }
 
-      const htmlBody = body_html || '<p>This is a test email from Sincerely.</p>';
+      // Fill personalization tags with sample data so the test reads naturally
+      // ("Hi Alex,") instead of showing raw {{first_name}} tags. A tiny banner
+      // marks it as a preview so the recipient knows the values are samples.
+      const rawHtml = body_html || '<p>This is a test email from Sincerely.</p>';
+      const previewSubject = previewWithSampleData(subject);
+      const previewHtml =
+        `<div style="background:#EEF2FF;border:1px solid #C7D2FE;border-radius:8px;padding:8px 12px;margin-bottom:16px;font:13px/1.4 -apple-system,Segoe UI,sans-serif;color:#4338CA">` +
+        `✦ <strong>Test preview</strong> — personalization tags are filled with sample data (e.g. Alex Morgan @ Acme Inc).</div>` +
+        previewWithSampleData(rawHtml);
+
       try {
         await sendViaSmtp({
           smtpHost: account.smtp_host,
@@ -141,13 +151,18 @@ export const smtpController = {
           smtpPass: password,
           from: formatFromHeader(account.from_name || account.label, account.email_address),
           to,
-          subject: `[TEST] ${subject}`,
-          html: htmlBody,
-          text: htmlBody.replace(/<[^>]*>/g, ''),
+          subject: `[TEST] ${previewSubject}`,
+          html: previewHtml,
+          text: previewHtml.replace(/<[^>]*>/g, ''),
+          // Short handshake budget so a wrong port/SSL fails fast (well under
+          // the client's 30s HTTP timeout) with an actionable message.
+          timeoutMs: 12000,
         });
       } catch (sendErr) {
         await billingService.refundEmailQuota(req.userId!);
-        throw sendErr;
+        const friendly = describeSmtpError(sendErr);
+        console.error('[TestEmail] Send error:', (sendErr as any)?.message);
+        return res.status(502).json({ success: false, error: friendly });
       }
 
       // Mark account as verified since we know the credentials work
@@ -157,10 +172,10 @@ export const smtpController = {
         .eq('id', account.id);
 
       console.log(`[TestEmail] Sent to ${to} via ${account.label || account.smtp_host}`);
-      res.json({ success: true, message: `Test email sent to ${to}` });
+      res.json({ success: true, message: `Test email sent to ${to} — check your inbox` });
     } catch (err: any) {
       console.error('[TestEmail] Send error:', err.message);
-      res.status(500).json({ success: false, error: `Send failed: ${err.message}` });
+      res.status(500).json({ success: false, error: describeSmtpError(err) });
     }
   },
 
