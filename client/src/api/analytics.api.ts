@@ -161,13 +161,22 @@ export const analyticsApi = {
     return data;
   },
 
-  exportOverviewReport: (days?: number) => {
-    const params = new URLSearchParams();
-    if (days) params.set('days', String(days));
-    return `${apiClient.defaults.baseURL}/analytics/export/overview${params.toString() ? '?' + params.toString() : ''}`;
+  // These hit an authenticated route, so they can't be plain hrefs (a bare
+  // browser navigation sends no Authorization header and would always 401).
+  // Fetch through apiClient — which attaches the bearer token — and hand the
+  // caller a Blob to save via an object URL instead.
+  exportOverviewReport: async (days?: number) => {
+    const { data } = await apiClient.get('/analytics/export/overview', {
+      params: days ? { days } : undefined,
+      responseType: 'blob',
+    });
+    return data as Blob;
   },
 
-  exportCampaignReport: (campaignId: string) => {
-    return `${apiClient.defaults.baseURL}/analytics/export/campaigns/${campaignId}`;
+  exportCampaignReport: async (campaignId: string) => {
+    const { data } = await apiClient.get(`/analytics/export/campaigns/${campaignId}`, {
+      responseType: 'blob',
+    });
+    return data as Blob;
   },
 };

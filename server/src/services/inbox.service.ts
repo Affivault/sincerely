@@ -134,10 +134,11 @@ async function syncArchiveToImap(
     });
 
     try {
-      await Promise.race([
-        client.connect(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('connect timeout')), 12000)),
-      ]);
+      let connectTimeoutId: ReturnType<typeof setTimeout>;
+      const connectTimeout = new Promise<never>((_, reject) => {
+        connectTimeoutId = setTimeout(() => reject(new Error('connect timeout')), 12000);
+      });
+      await Promise.race([client.connect(), connectTimeout]).finally(() => clearTimeout(connectTimeoutId));
 
       // Candidate target folders (first one that works wins).
       const archiveTargets = isGmail

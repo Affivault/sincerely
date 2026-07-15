@@ -714,6 +714,7 @@ export function ContactsListPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['verification-breakdown'] });
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Verification failed'),
   });
@@ -722,6 +723,7 @@ export function ContactsListPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['verification-breakdown'] });
       toast.success('Verification complete');
       setSelectedContacts(new Set());
     },

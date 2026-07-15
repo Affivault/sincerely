@@ -1560,16 +1560,26 @@ function ScheduledEmailsPanel({ onCancel }: { onCancel: (id: string) => void }) 
   );
 }
 
-/* ─── Conversation grouping (shared by list + sidebar counts) ─── */
+/* ─── Conversation grouping (shared by list + sidebar counts) ───
+   Emails are matched case-insensitively everywhere a message needs to be
+   tied to its thread (grouping, mark-as-read, archive/unarchive) — raw
+   header casing varies across providers, and comparing raw case in one
+   place while lowercasing in another silently splits a single conversation
+   into two or breaks optimistic UI updates for it. */
+function threadEmailOf(msg: Message): string {
+  const raw = msg.direction === 'outbound'
+    ? (msg.contact_email || msg.to_email)
+    : (msg.contact_email || msg.from_email);
+  return (raw || '').toLowerCase();
+}
+
 function groupConversations(messages: Message[]): ConversationThread[] {
   if (messages.length === 0) return [];
   const threadMap = new Map<string, Message[]>();
 
   for (const msg of messages) {
     if (msg.sara_status === 'scheduled') continue;
-    const contactEmail = msg.direction === 'outbound'
-      ? (msg.contact_email || msg.to_email)
-      : (msg.contact_email || msg.from_email);
+    const contactEmail = threadEmailOf(msg);
     if (!contactEmail) {
       threadMap.set(msg.id, [msg]);
       continue;
@@ -1935,12 +1945,7 @@ export function InboxPage() {
           if (!old?.data) return old;
           return {
             ...old,
-            data: old.data.filter((m: Message) => {
-              const msgEmail = m.direction === 'outbound'
-                ? (m.contact_email || m.to_email)
-                : (m.contact_email || m.from_email);
-              return msgEmail !== contactEmail;
-            }),
+            data: old.data.filter((m: Message) => threadEmailOf(m) !== contactEmail),
           };
         });
       }
@@ -1966,12 +1971,7 @@ export function InboxPage() {
           if (!old?.data) return old;
           return {
             ...old,
-            data: old.data.filter((m: Message) => {
-              const msgEmail = m.direction === 'outbound'
-                ? (m.contact_email || m.to_email)
-                : (m.contact_email || m.from_email);
-              return msgEmail !== contactEmail;
-            }),
+            data: old.data.filter((m: Message) => threadEmailOf(m) !== contactEmail),
           };
         });
       }
@@ -2048,22 +2048,25 @@ export function InboxPage() {
     // Optimistically mark the whole conversation read in every cached inbox
     // list, using the same key groupConversations threads by — the unread dot
     // clears instantly instead of after two network round-trips.
-    const threadKey = (m: Message) => (
-      (m.direction === 'outbound' ? (m.contact_email || m.to_email) : (m.contact_email || m.from_email)) || ''
-    ).toLowerCase();
-    const key = threadKey(msg);
+    const key = threadEmailOf(msg);
     qc.setQueriesData({ queryKey: ['inbox'] }, (old: any) => {
       if (!old || !Array.isArray(old.data)) return old; // lists only — skip counts/detail/thread caches
       return {
         ...old,
         data: old.data.map((m: Message) =>
-          m.id === msg.id || (key && threadKey(m) === key) ? { ...m, is_read: true } : m,
+          m.id === msg.id || (key && threadEmailOf(m) === key) ? { ...m, is_read: true } : m,
         ),
       };
     });
 
-    // Persist server-side, then re-sync lists + badge counts.
-    inboxApi.markThreadRead(msg.id).then(() => invalidate()).catch((err: unknown) => console.error('[Inbox] markThreadRead failed:', err));
+    // Persist server-side, then re-sync lists + badge counts. On failure the
+    // optimistic "read" flip above is wrong — re-invalidate so the cache is
+    // pulled back in line with the server instead of staying stuck showing
+    // read messages that were never actually marked read.
+    inboxApi.markThreadRead(msg.id).then(() => invalidate()).catch((err: unknown) => {
+      console.error('[Inbox] markThreadRead failed:', err);
+      invalidate();
+    });
   }, [smtpAccounts, invalidate, qc]);
 
   const handleSearch = useCallback((e: React.FormEvent) => {

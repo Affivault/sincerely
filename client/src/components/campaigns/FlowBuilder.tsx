@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import {
   Mail,
   Clock,
@@ -55,7 +56,7 @@ function WebhookUrlField({ campaignId }: { campaignId: string }) {
     navigator.clipboard.writeText(data.url).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    });
+    }).catch(() => toast.error('Failed to copy to clipboard'));
   };
 
   return (

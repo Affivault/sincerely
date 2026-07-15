@@ -35,7 +35,7 @@ function getUtilizationColor(pct: number): string {
 }
 
 export function SseDashboardPage() {
-  const { data: accounts, isLoading, refetch } = useQuery({
+  const { data: accounts, isLoading, isError, refetch } = useQuery({
     queryKey: ['sse-dashboard'],
     queryFn: sseApi.dashboard,
   });
@@ -82,6 +82,17 @@ export function SseDashboardPage() {
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--text-primary)] border-t-transparent" />
+        </div>
+      ) : isError ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--bg-elevated)] mb-4">
+            <AlertTriangle className="h-8 w-8 text-red-400" />
+          </div>
+          <h3 className="text-lg font-medium text-[var(--text-primary)] mb-1">Couldn't load senders</h3>
+          <p className="text-sm text-[var(--text-secondary)] mb-4">Something went wrong fetching the smart-sharding dashboard.</p>
+          <button onClick={() => refetch()} className="btn-secondary">
+            <RefreshCw className="h-3.5 w-3.5" /> Retry
+          </button>
         </div>
       ) : !accounts || accounts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">

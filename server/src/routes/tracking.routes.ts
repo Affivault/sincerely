@@ -25,7 +25,10 @@ function parseTrackingId(trackingId: string): { campaignContactId: string; stepI
 
     if (!campaignContactId || !stepId || !hmac) return null;
 
-    // Verify HMAC
+    // Verify HMAC using a constant-time comparison — a plain `!==` compare
+    // leaks timing information character-by-character, letting an attacker
+    // forge a valid tracking id (and thus mutate another tenant's campaign
+    // activity/unsubscribe state) via a timing side-channel.
     const payload = `${campaignContactId}:${stepId}`;
     const expectedHmac = crypto
       .createHmac('sha256', env.TRACKING_SECRET)
@@ -33,7 +36,9 @@ function parseTrackingId(trackingId: string): { campaignContactId: string; stepI
       .digest('hex')
       .slice(0, 16);
 
-    if (hmac !== expectedHmac) return null;
+    const provided = Buffer.from(hmac, 'utf8');
+    const expected = Buffer.from(expectedHmac, 'utf8');
+    if (provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) return null;
 
     return { campaignContactId, stepId };
   } catch {

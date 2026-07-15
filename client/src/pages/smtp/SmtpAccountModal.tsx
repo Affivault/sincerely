@@ -41,7 +41,7 @@ export function presetToForm(preset: SmtpPreset): Form {
     smtp_pass: '',
     imap_host: preset.imap_host || undefined,
     imap_port: preset.imap_port || undefined,
-    imap_secure: preset.imap_secure || undefined,
+    imap_secure: preset.imap_secure ?? undefined,
     daily_send_limit: preset.recommended_daily_limit || 200,
     signature_html: '',
     signature_auto: false,
@@ -121,7 +121,7 @@ export function SmtpAccountModal({
         smtp_secure: preset.smtp_secure,
         imap_host: preset.imap_host || undefined,
         imap_port: preset.imap_port || undefined,
-        imap_secure: preset.imap_secure || undefined,
+        imap_secure: preset.imap_secure ?? undefined,
         daily_send_limit: preset.recommended_daily_limit || prev.daily_send_limit,
       }));
     } else {
@@ -148,7 +148,7 @@ export function SmtpAccountModal({
           smtp_secure: detected.smtp_secure,
           imap_host: detected.imap_host || undefined,
           imap_port: detected.imap_port || undefined,
-          imap_secure: detected.imap_secure || undefined,
+          imap_secure: detected.imap_secure ?? undefined,
           daily_send_limit: detected.recommended_daily_limit || prev.daily_send_limit,
         }));
       } else if (autoDetected) {
