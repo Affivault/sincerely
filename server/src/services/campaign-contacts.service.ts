@@ -90,18 +90,32 @@ export const campaignContactsService = {
       );
     }
 
-    const rows = finalIds.map((contactId) => ({
-      campaign_id: campaignId,
-      contact_id: contactId,
-      status: 'pending',
-      current_step_order: 0,
-    }));
-
-    const { error } = await supabaseAdmin
+    // 5. Never overwrite a contact who's already enrolled in THIS campaign — an
+    //    upsert on (campaign_id, contact_id) would silently reset their real
+    //    progress (status/current_step_order) back to pending/0, e.g. when the
+    //    same list is re-imported after some contacts already ran the sequence.
+    const { data: alreadyEnrolled } = await supabaseAdmin
       .from('campaign_contacts')
-      .upsert(rows, { onConflict: 'campaign_id,contact_id' });
+      .select('contact_id')
+      .eq('campaign_id', campaignId)
+      .in('contact_id', finalIds);
+    const alreadyEnrolledIds = new Set((alreadyEnrolled || []).map((r: any) => r.contact_id as string));
+    const newIds = finalIds.filter((id) => !alreadyEnrolledIds.has(id));
 
-    if (error) throw new AppError(error.message, 500);
+    if (newIds.length > 0) {
+      const rows = newIds.map((contactId) => ({
+        campaign_id: campaignId,
+        contact_id: contactId,
+        status: 'pending',
+        current_step_order: 0,
+      }));
+
+      const { error } = await supabaseAdmin
+        .from('campaign_contacts')
+        .insert(rows);
+
+      if (error) throw new AppError(error.message, 500);
+    }
 
     // Update campaign total_contacts
     const { count, error: countError } = await supabaseAdmin

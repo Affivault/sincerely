@@ -203,6 +203,18 @@ export function CampaignCreatePage() {
     enabled: isEdit,
   });
 
+  // A campaign's sequence can only be edited while it's still a draft — once
+  // it's running, contacts are mid-sequence and track their position by step
+  // index, so editing steps would shift that index out from under them.
+  // Bounce out to the read-only detail page instead of letting the user fill
+  // out the whole wizard only to hit a save error at the end.
+  useEffect(() => {
+    if (isEdit && existingCampaign && existingCampaign.status !== 'draft') {
+      toast.error('This campaign has already launched — only draft campaigns can be edited.');
+      navigate(`/campaigns/${id}`, { replace: true });
+    }
+  }, [isEdit, existingCampaign, id, navigate]);
+
   const { data: existingSenderPool } = useQuery({
     queryKey: ['sender-pool', id],
     queryFn: () => campaignsApi.getSenderPool(id!),
@@ -596,6 +608,19 @@ export function CampaignCreatePage() {
   };
 
   if (isEdit && loadingCampaign) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
+  // A campaign's sequence can only be edited while it's still a draft — once
+  // it's running, contacts are mid-sequence and track their position by step
+  // index, so editing steps would shift that index out from under them.
+  // Bounce out to the read-only detail page instead of letting the user fill
+  // out the whole wizard only to hit a save error at the end.
+  if (isEdit && existingCampaign && existingCampaign.status !== 'draft') {
     return (
       <div className="flex h-[60vh] items-center justify-center">
         <Spinner size="lg" />

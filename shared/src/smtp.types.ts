@@ -91,8 +91,8 @@ export function warmupDayNumber(startedAt: string | null): number {
 export function warmupAllowance(a: WarmupPlanFields): number {
   if (!a.warmup_mode || !a.warmup_started_at) return a.daily_send_limit;
   const target = a.warmup_daily_target > 0 ? a.warmup_daily_target : a.daily_send_limit;
-  const start = Math.max(1, a.warmup_start_volume || 4);
-  const ramp = Math.max(1, a.warmup_ramp_days || 30);
+  const start = Math.max(1, a.warmup_start_volume > 0 ? a.warmup_start_volume : 4);
+  const ramp = Math.max(1, a.warmup_ramp_days > 0 ? a.warmup_ramp_days : 30);
   const day = warmupDayNumber(a.warmup_started_at);
   if (day >= ramp) return target;
   return Math.max(start, Math.round(start + (target - start) * (day / ramp)));
@@ -101,7 +101,7 @@ export function warmupAllowance(a: WarmupPlanFields): number {
 /** True once the ramp has run its course and the mailbox can graduate to full volume. */
 export function warmupIsComplete(a: WarmupPlanFields): boolean {
   if (!a.warmup_mode || !a.warmup_started_at) return false;
-  return warmupDayNumber(a.warmup_started_at) >= Math.max(1, a.warmup_ramp_days || 30);
+  return warmupDayNumber(a.warmup_started_at) >= Math.max(1, a.warmup_ramp_days > 0 ? a.warmup_ramp_days : 30);
 }
 
 /** How many warm-up emails to send to peer inboxes today (a gentle, capped curve). */
