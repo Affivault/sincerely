@@ -224,11 +224,18 @@ export const campaignsService = {
       }
     }
 
+    // Honor a future scheduled start: the first send waits until scheduled_at
+    // instead of firing the moment Launch is clicked. This is what stops a
+    // campaign from blasting immediately unless the user chose "Send now".
+    const scheduledAt = campaign.scheduled_at ? new Date(campaign.scheduled_at) : null;
+    const isScheduled = !!scheduledAt && scheduledAt.getTime() > Date.now() + 30_000;
+    const firstSendAt = isScheduled ? scheduledAt!.toISOString() : new Date().toISOString();
+
     const { data, error } = await supabaseAdmin
       .from('campaigns')
       .update({
-        status: 'running',
-        started_at: new Date().toISOString(),
+        status: isScheduled ? 'scheduled' : 'running',
+        started_at: isScheduled ? null : new Date().toISOString(),
         total_contacts: count,
       })
       .eq('id', id)
@@ -237,23 +244,23 @@ export const campaignsService = {
 
     if (error) throw new AppError(error.message, 500);
 
-    // Activate ALL contacts that aren't completed/bounced/unsubscribed
-    // This handles both fresh launches (pending → active) and re-launches (active contacts with stale next_send_at)
-    const now = new Date().toISOString();
-    console.log(`[Campaign] Activating contacts for campaign ${id}`);
+    // Activate ALL contacts that aren't completed/bounced/unsubscribed, with
+    // next_send_at set to the scheduled start (or now). This handles both
+    // fresh launches (pending → active) and re-launches (stale next_send_at).
+    console.log(`[Campaign] Activating contacts for campaign ${id} (start: ${firstSendAt})`);
 
     const { data: activatedPending, error: pendErr } = await supabaseAdmin
       .from('campaign_contacts')
-      .update({ status: 'active', next_send_at: now })
+      .update({ status: 'active', next_send_at: firstSendAt })
       .eq('campaign_id', id)
       .eq('status', 'pending')
       .select('id');
     if (pendErr) console.error('[Campaign] Error activating pending contacts:', pendErr.message);
 
-    // Also reset any stuck 'active' contacts (from failed previous launches) — give them a fresh next_send_at
+    // Also reset any stuck 'active' contacts (from failed previous launches)
     const { data: resetActive, error: actErr } = await supabaseAdmin
       .from('campaign_contacts')
-      .update({ next_send_at: now, error_message: null })
+      .update({ next_send_at: firstSendAt, error_message: null })
       .eq('campaign_id', id)
       .eq('status', 'active')
       .select('id');
@@ -264,13 +271,18 @@ export const campaignsService = {
 
     fireEvent(userId, 'campaign.launched', { campaign: data }).catch((err: any) => console.error('[Campaign] Webhook error:', err?.message ?? String(err)));
 
-    // Immediately start processing — await for real feedback
-    console.log(`[Campaign] Launched campaign ${id} — triggering immediate processing`);
-    try {
-      const processed = await processDueSteps();
-      console.log(`[Campaign] Immediate processing: ${processed} contact(s) processed`);
-    } catch (err: any) {
-      console.error('[Campaign] Immediate processing error:', err.message);
+    // Only kick immediate processing for "send now". Scheduled campaigns are
+    // picked up by the sequence worker once next_send_at arrives.
+    if (!isScheduled) {
+      console.log(`[Campaign] Launched campaign ${id} — triggering immediate processing`);
+      try {
+        const processed = await processDueSteps();
+        console.log(`[Campaign] Immediate processing: ${processed} contact(s) processed`);
+      } catch (err: any) {
+        console.error('[Campaign] Immediate processing error:', err.message);
+      }
+    } else {
+      console.log(`[Campaign] Scheduled campaign ${id} to start at ${firstSendAt}`);
     }
 
     return data;
