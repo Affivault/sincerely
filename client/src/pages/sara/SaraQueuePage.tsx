@@ -124,17 +124,24 @@ export function SaraQueuePage() {
   const mutationPendingRef = useRef(false);
   mutationPendingRef.current = approveMutation.isPending || dismissMutation.isPending;
 
-  // Auto-select first message on load / filter change
+  // Auto-select first message on load / filter change / whenever the
+  // currently selected message drops out of the queue (e.g. a background
+  // refetch swaps it for a same-count list that no longer contains it —
+  // depending on messages.length alone would miss that and leave the detail
+  // pane stuck showing nothing selected).
   useEffect(() => {
-    if (messages.length > 0 && !selectedMsg) {
+    if (messages.length === 0) {
+      setSelectedId(null);
+      return;
+    }
+    const stillPresent = selectedId != null && messages.some((m: any) => m.id === selectedId);
+    if (!stillPresent) {
       setSelectedId(messages[0].id);
       setIsEditing(false);
       setEditedReply('');
-    } else if (messages.length === 0) {
-      setSelectedId(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length, statusFilter, intentFilter]);
+  }, [messages, statusFilter, intentFilter]);
 
   // Keyboard shortcuts: J/K to navigate, A=approve, E=edit, D=dismiss, Esc=cancel edit
   useEffect(() => {

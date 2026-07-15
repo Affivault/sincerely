@@ -251,10 +251,11 @@ async function connectImap(account: any): Promise<any | null> {
     auth: { user: account.smtp_user || account.email_address, pass: password },
     logger: false,
   });
-  await Promise.race([
-    client.connect(),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('connect timeout')), 12000)),
-  ]);
+  let connectTimeoutId: ReturnType<typeof setTimeout>;
+  const connectTimeout = new Promise<never>((_, reject) => {
+    connectTimeoutId = setTimeout(() => reject(new Error('connect timeout')), 12000);
+  });
+  await Promise.race([client.connect(), connectTimeout]).finally(() => clearTimeout(connectTimeoutId));
   return client;
 }
 

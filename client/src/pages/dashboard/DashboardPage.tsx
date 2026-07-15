@@ -14,6 +14,7 @@ import {
   AlertTriangle, Reply, Flame, Clock, CheckCircle2,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -382,6 +383,24 @@ export function DashboardPage() {
 
   const setPeriodPersist = (p: number) => { setPeriod(p); try { localStorage.setItem('dashboard.period', String(p)); } catch { /* ignore */ } };
 
+  const [exporting, setExporting] = useState(false);
+  const exportReport = async () => {
+    setExporting(true);
+    try {
+      const blob = await analyticsApi.exportOverviewReport(period);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `overview-report-${period}d.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Failed to export report');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const { data: analytics, isLoading: analyticsLoading, isFetching: aFetching } = useQuery({
     queryKey: ['analytics', 'overview', period],
     queryFn: () => analyticsApi.overview(period),
@@ -412,7 +431,7 @@ export function DashboardPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  if (analyticsLoading && trendLoading) return <DashboardSkeleton />;
+  if (analyticsLoading || trendLoading) return <DashboardSkeleton />;
 
   const unhealthySmtpAccounts = (smtpAccounts || [])
     .filter((a) => a.is_active && a.health_score < SMTP_HEALTH_THRESHOLD);
@@ -471,9 +490,9 @@ export function DashboardPage() {
         </div>
         <div className="flex items-center gap-2">
           <Segmented options={PERIODS} value={period} onChange={setPeriodPersist} />
-          <a href={analyticsApi.exportOverviewReport(period)} className="btn-secondary" title="Export CSV report">
-            <Download className="h-3.5 w-3.5" /> Export
-          </a>
+          <button onClick={exportReport} disabled={exporting} className="btn-secondary disabled:opacity-50" title="Export CSV report">
+            <Download className="h-3.5 w-3.5" /> {exporting ? 'Exporting…' : 'Export'}
+          </button>
           <button className="btn-primary" onClick={() => navigate('/campaigns/new')}>
             <Plus className="h-3.5 w-3.5" /> New campaign
           </button>

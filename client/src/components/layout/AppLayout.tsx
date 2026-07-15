@@ -74,6 +74,46 @@ function AppContent() {
     return () => { document.title = 'Sincerely'; };
   }, [unreadCount, location.pathname]);
 
+  // Favicon badge — a red dot on the tab icon so unread mail is visible
+  // even when Sincerely is a background tab (title text alone is easy to
+  // miss). Drawn on a canvas over the existing favicon and swapped in via
+  // the <link rel="icon"> element; reverted to the plain icon at 0.
+  useEffect(() => {
+    const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (!link) return;
+    const originalHref = link.getAttribute('href') || '/favicon.png';
+
+    if (unreadCount <= 0) {
+      link.href = originalHref;
+      return;
+    }
+
+    let cancelled = false;
+    const img = new Image();
+    img.src = originalHref;
+    img.onload = () => {
+      if (cancelled) return;
+      const size = img.width || 40;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0, size, size);
+      const r = size * 0.16;
+      ctx.beginPath();
+      ctx.arc(size - r, r, r, 0, Math.PI * 2);
+      ctx.fillStyle = '#EF4444';
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = size * 0.03;
+      ctx.fill();
+      ctx.stroke();
+      link.href = canvas.toDataURL('image/png');
+    };
+
+    return () => { cancelled = true; };
+  }, [unreadCount]);
+
   // Desktop notification for new mail — lives here (the single top-level
   // subscriber) rather than inside useUnreadCount, since that hook is called
   // from both Sidebar and AppLayout and would otherwise fire twice.

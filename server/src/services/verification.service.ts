@@ -37,13 +37,17 @@ async function checkDomain(email: string): Promise<boolean> {
   const domain = email.split('@')[1];
   if (!domain) return false;
 
+  // Always clear the timer once the race settles — otherwise every call leaves
+  // a live 8s timeout running even after the DNS lookup resolves first, which
+  // adds up fast across a batch/auto-verify run (each contact triggers this
+  // up to twice: MX then the A-record fallback).
   const withTimeout = <T>(promise: Promise<T>): Promise<T> =>
-    Promise.race([
-      promise,
-      new Promise<T>((_, reject) =>
-        setTimeout(() => reject(new Error('DNS timeout')), DNS_TIMEOUT_MS)
-      ),
-    ]);
+    new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('DNS timeout')), DNS_TIMEOUT_MS);
+      promise
+        .then((value) => { clearTimeout(timer); resolve(value); })
+        .catch((err) => { clearTimeout(timer); reject(err); });
+    });
 
   try {
     const mxRecords = await withTimeout(dns.promises.resolveMx(domain));

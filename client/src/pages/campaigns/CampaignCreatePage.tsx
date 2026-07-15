@@ -452,41 +452,50 @@ export function CampaignCreatePage() {
     onSuccess: async (campaign) => {
       const campaignId = isEdit ? id! : campaign.id;
 
-      if (isEdit && existingCampaign?.steps) {
-        const currentStepIds = new Set(steps.map(s => s.id).filter(Boolean));
-        const stepsToDelete = (existingCampaign.steps as CampaignStep[]).filter(s => !currentStepIds.has(s.id));
-        for (const step of stepsToDelete) {
-          await campaignsApi.deleteStep(campaignId, step.id);
+      // Everything below runs after the campaign row itself is already
+      // created/updated — a failure here must still surface to the user
+      // (and stop short of navigating away) instead of becoming an unhandled
+      // promise rejection that leaves the campaign half-configured.
+      try {
+        if (isEdit && existingCampaign?.steps) {
+          const currentStepIds = new Set(steps.map(s => s.id).filter(Boolean));
+          const stepsToDelete = (existingCampaign.steps as CampaignStep[]).filter(s => !currentStepIds.has(s.id));
+          for (const step of stepsToDelete) {
+            await campaignsApi.deleteStep(campaignId, step.id);
+          }
         }
-      }
 
-      for (let i = 0; i < steps.length; i++) {
-        const step = steps[i];
-        const stepData = { ...step, step_order: i };
-        if (step.id && isEdit) {
-          await campaignsApi.updateStep(campaignId, step.id, stepData);
-        } else {
-          await campaignsApi.addStep(campaignId, stepData);
+        for (let i = 0; i < steps.length; i++) {
+          const step = steps[i];
+          const stepData = { ...step, step_order: i };
+          if (step.id && isEdit) {
+            await campaignsApi.updateStep(campaignId, step.id, stepData);
+          } else {
+            await campaignsApi.addStep(campaignId, stepData);
+          }
         }
-      }
 
-      await campaignsApi.setSenderPool(campaignId, senderPoolIds);
+        await campaignsApi.setSenderPool(campaignId, senderPoolIds);
 
-      if (isEdit && campaignContacts?.data) {
-        const originalContactIds = campaignContacts.data.map((cc: any) => cc.contact_id);
-        const removedContactIds = originalContactIds.filter((cid: string) => !selectedContactIds.includes(cid));
-        if (removedContactIds.length > 0) {
-          await campaignsApi.removeContacts(campaignId, removedContactIds);
+        if (isEdit && campaignContacts?.data) {
+          const originalContactIds = campaignContacts.data.map((cc: any) => cc.contact_id);
+          const removedContactIds = originalContactIds.filter((cid: string) => !selectedContactIds.includes(cid));
+          if (removedContactIds.length > 0) {
+            await campaignsApi.removeContacts(campaignId, removedContactIds);
+          }
         }
-      }
 
-      if (selectedContactIds.length > 0) {
-        await campaignsApi.addContacts(campaignId, selectedContactIds);
-      }
+        if (selectedContactIds.length > 0) {
+          await campaignsApi.addContacts(campaignId, selectedContactIds);
+        }
 
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
-      toast.success(isEdit ? 'Campaign updated' : 'Campaign created');
-      navigate(`/campaigns/${campaignId}`);
+        queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+        toast.success(isEdit ? 'Campaign updated' : 'Campaign created');
+        navigate(`/campaigns/${campaignId}`);
+      } catch (err: any) {
+        queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+        toast.error(err.response?.data?.error || 'Campaign saved, but some changes failed to apply');
+      }
     },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to save'),
   });
