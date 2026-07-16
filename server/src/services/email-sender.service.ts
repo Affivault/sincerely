@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { supabaseAdmin } from '../config/supabase.js';
 import { env } from '../config/env.js';
 import { decrypt } from '../utils/encryption.js';
+import { resolveHostIp } from '../utils/dns-doh.js';
 import { fireEvent } from './webhook.service.js';
 import * as sse from './sse.service.js';
 
@@ -145,14 +146,23 @@ async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
 async function sendDirect(params: SmtpSendParams): Promise<SmtpSendResult> {
   console.log(`[SMTP Direct] Sending to ${params.to} via ${params.smtpHost}:${params.smtpPort}`);
 
+  // Resolve the SMTP host to an IP over DNS-over-HTTPS first. Managed hosts
+  // often break system DNS (port 53), so nodemailer's built-in lookup hangs
+  // and the send "times out" before a socket is even opened. Connecting by IP
+  // with tls.servername set keeps TLS/cert validation correct.
+  const ip = await resolveHostIp(params.smtpHost).catch(() => null);
+  const connectHost = ip || params.smtpHost;
+
   // greetingTimeout is the usual culprit behind a hung "Send test" — without
   // it, a wrong port/SSL combo makes nodemailer wait indefinitely for a banner.
   const budget = params.timeoutMs;
   const transporter = nodemailer.createTransport({
-    host: params.smtpHost,
+    host: connectHost,
     port: params.smtpPort,
     secure: params.smtpSecure,
     auth: { user: params.smtpUser, pass: params.smtpPass },
+    // Validate the certificate against the real hostname even when we dialed an IP.
+    tls: { servername: params.smtpHost },
     connectionTimeout: budget ?? 15000,
     greetingTimeout: budget ?? 12000,
     socketTimeout: budget ? budget + 3000 : 30000,

@@ -7,6 +7,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { decrypt } from '../utils/encryption.js';
 import { sendViaSmtp, formatFromHeader, describeSmtpError } from '../services/email-sender.service.js';
 import { previewWithSampleData } from '../services/sequence.service.js';
+import { resolveDoh } from '../utils/dns-doh.js';
 import { billingService } from '../services/billing.service.js';
 import { warmupService } from '../services/warmup.service.js';
 
@@ -205,78 +206,69 @@ export const smtpController = {
         provider_hint: null,
       };
 
-      // MX records
-      try {
-        const mxRecords = await resolveMx(cleanDomain);
-        results.mx.found = mxRecords.length > 0;
-        results.mx.records = mxRecords
-          .sort((a, b) => a.priority - b.priority)
-          .map((r) => ({ exchange: r.exchange, priority: r.priority }));
+      // All lookups go over DNS-over-HTTPS — the host's system DNS is
+      // unreliable (port 53 blocked), which made this check silently report
+      // SPF/DKIM/DMARC as "not found" even when correctly configured.
+      const unquote = (d: string) => {
+        const chunks = Array.from(d.matchAll(/"((?:[^"\\]|\\.)*)"/g), (m) => m[1].replace(/\\(.)/g, '$1'));
+        return chunks.length ? chunks.join('') : d;
+      };
+      const stripDot = (s: string) => s.replace(/\.$/, '');
 
-        // Detect provider from MX
-        const mxStr = mxRecords.map((r) => r.exchange.toLowerCase()).join(' ');
-        if (mxStr.includes('google') || mxStr.includes('gmail')) results.provider_hint = 'Google Workspace';
-        else if (mxStr.includes('outlook') || mxStr.includes('microsoft')) results.provider_hint = 'Microsoft 365';
-        else if (mxStr.includes('zoho')) results.provider_hint = 'Zoho Mail';
-        else if (mxStr.includes('fastmail')) results.provider_hint = 'Fastmail';
-        else if (mxStr.includes('protonmail') || mxStr.includes('proton')) results.provider_hint = 'ProtonMail';
-        else if (mxStr.includes('yahoo')) results.provider_hint = 'Yahoo Mail';
-      } catch { /* no MX records */ }
+      // MX records
+      const mxRaw = await resolveDoh(cleanDomain, 'MX');
+      const mxRecords = mxRaw
+        .map((d) => { const m = d.trim().match(/^(\d+)\s+(\S+)$/); return m ? { priority: Number(m[1]), exchange: stripDot(m[2]) } : null; })
+        .filter((r): r is { priority: number; exchange: string } => r !== null)
+        .sort((a, b) => a.priority - b.priority);
+      results.mx.found = mxRecords.length > 0;
+      results.mx.records = mxRecords;
+      const mxStr = mxRecords.map((r) => r.exchange.toLowerCase()).join(' ');
+      if (mxStr.includes('google') || mxStr.includes('gmail')) results.provider_hint = 'Google Workspace';
+      else if (mxStr.includes('outlook') || mxStr.includes('microsoft')) results.provider_hint = 'Microsoft 365';
+      else if (mxStr.includes('zoho')) results.provider_hint = 'Zoho Mail';
+      else if (mxStr.includes('fastmail') || mxStr.includes('messagingengine')) results.provider_hint = 'Fastmail';
+      else if (mxStr.includes('protonmail') || mxStr.includes('proton')) results.provider_hint = 'ProtonMail';
+      else if (mxStr.includes('yahoo')) results.provider_hint = 'Yahoo Mail';
 
       // SPF record
-      try {
-        const txtRecords = await resolveTxt(cleanDomain);
-        for (const record of txtRecords) {
-          const joined = record.join('');
-          if (joined.startsWith('v=spf1')) {
-            results.spf.found = true;
-            results.spf.record = joined;
-            results.spf.valid = joined.includes('include:') || joined.includes('ip4:') || joined.includes('a ') || joined.includes('mx ');
-            break;
-          }
+      for (const raw of await resolveDoh(cleanDomain, 'TXT')) {
+        const joined = unquote(raw).trim();
+        if (/^v=spf1(\s|$)/i.test(joined)) {
+          results.spf.found = true;
+          results.spf.record = joined;
+          results.spf.valid = /(\s|^)(include:|ip4:|ip6:|a[\s:]|mx[\s:]|redirect=)/i.test(joined + ' ');
+          break;
         }
-      } catch { /* no TXT records */ }
-
-      // DMARC record
-      try {
-        const dmarcRecords = await resolveTxt(`_dmarc.${cleanDomain}`);
-        for (const record of dmarcRecords) {
-          const joined = record.join('');
-          if (joined.startsWith('v=DMARC1')) {
-            results.dmarc.found = true;
-            results.dmarc.record = joined;
-            const policyMatch = joined.match(/p=(\w+)/);
-            results.dmarc.policy = policyMatch ? policyMatch[1] : null;
-            break;
-          }
-        }
-      } catch { /* no DMARC record */ }
-
-      // Try common DKIM selectors
-      const dkimSelectors = ['google', 'selector1', 'selector2', 'default', 'dkim', 'k1', 's1', 'mail'];
-      for (const selector of dkimSelectors) {
-        try {
-          const dkimRecords = await resolveTxt(`${selector}._domainkey.${cleanDomain}`);
-          if (dkimRecords.length > 0) {
-            const joined = dkimRecords[0].join('');
-            if (joined.includes('v=DKIM1') || joined.includes('p=')) {
-              results.dkim.found = true;
-              results.dkim.note = `Found DKIM with selector "${selector}"`;
-              break;
-            }
-          }
-        } catch { /* try next selector */ }
       }
 
-      // Also check for CNAME-based DKIM
-      if (!results.dkim.found) {
-        for (const selector of dkimSelectors) {
-          try {
-            await resolveCname(`${selector}._domainkey.${cleanDomain}`);
-            results.dkim.found = true;
-            results.dkim.note = `Found DKIM CNAME with selector "${selector}"`;
-            break;
-          } catch { /* try next */ }
+      // DMARC record — parse p= without matching sp=/np= tags
+      for (const raw of await resolveDoh(`_dmarc.${cleanDomain}`, 'TXT')) {
+        const joined = unquote(raw).trim();
+        if (/^v=DMARC1/i.test(joined)) {
+          results.dmarc.found = true;
+          results.dmarc.record = joined;
+          const policyMatch = joined.match(/(?:^|[;\s])p\s*=\s*([a-zA-Z]+)/);
+          results.dmarc.policy = policyMatch ? policyMatch[1].toLowerCase() : null;
+          break;
+        }
+      }
+
+      // DKIM — probe common selectors over TXT (follows CNAMEs) then CNAME
+      const dkimSelectors = ['google', 'selector1', 'selector2', 'default', 'dkim', 'k1', 's1', 'mail', 'zmail', 'fm1'];
+      for (const selector of dkimSelectors) {
+        const host = `${selector}._domainkey.${cleanDomain}`;
+        const txts = await resolveDoh(host, 'TXT');
+        if (txts.some((t) => /v=DKIM1/i.test(unquote(t)) || /(^|;)\s*[kp]\s*=/.test(unquote(t)))) {
+          results.dkim.found = true;
+          results.dkim.note = `Found DKIM with selector "${selector}"`;
+          break;
+        }
+        const cnames = await resolveDoh(host, 'CNAME');
+        if (cnames.some((c) => /domainkey|dkim/i.test(c))) {
+          results.dkim.found = true;
+          results.dkim.note = `Found DKIM CNAME with selector "${selector}"`;
+          break;
         }
       }
 

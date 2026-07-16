@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { decrypt } from '../utils/encryption.js';
+import { resolveHostIp } from '../utils/dns-doh.js';
 import { sendViaSmtp } from './email-sender.service.js';
 import { processReply } from './sara.service.js';
 import { fireEvent } from './webhook.service.js';
@@ -125,10 +126,12 @@ async function syncArchiveToImap(
       imapHost = `imap.${emailDomain}`;
     }
 
+    const imapIp = await resolveHostIp(imapHost).catch(() => null);
     const client = new ImapFlow({
-      host: imapHost,
+      host: imapIp || imapHost,
       port: 993,
       secure: true,
+      servername: imapHost,
       auth: { user: account.smtp_user || account.email_address, pass: password },
       logger: false,
     });
@@ -990,10 +993,12 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
           else if (account.smtp_host?.includes('smtp.')) imapHost = account.smtp_host.replace('smtp.', 'imap.');
           else imapHost = `imap.${account.email_address?.split('@')[1] || ''}`;
 
+          const imapIp2 = await resolveHostIp(imapHost).catch(() => null);
           client = new ImapFlow({
-            host: imapHost,
+            host: imapIp2 || imapHost,
             port: 993,
             secure: true,
+            servername: imapHost,
             auth: { user: account.smtp_user || account.email_address, pass: password },
             logger: false,
             emitLogs: false,

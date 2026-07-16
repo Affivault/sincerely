@@ -4,6 +4,7 @@ import { simpleParser, ParsedMail } from 'mailparser';
 import { redisConnection } from '../../config/redis.js';
 import { supabaseAdmin } from '../../config/supabase.js';
 import { decrypt } from '../../utils/encryption.js';
+import { resolveHostIp } from '../../utils/dns-doh.js';
 import { fireEvent } from '../../services/webhook.service.js';
 import { processReply } from '../../services/sara.service.js';
 
@@ -75,11 +76,14 @@ export function startInboxWorker() {
         else imapHost = `imap.${emailDomain}`;
       }
 
-      // 2. Connect to IMAP
+      // 2. Connect to IMAP — resolve host over DoH so broken system DNS on the
+      // host doesn't stall reply syncing (same root cause as SMTP timeouts).
+      const imapIp = await resolveHostIp(imapHost).catch(() => null);
       const client = new ImapFlow({
-        host: imapHost,
+        host: imapIp || imapHost,
         port: job.data.imapPort || 993,
         secure: job.data.imapSecure !== false,
+        servername: imapHost,
         auth: {
           user: job.data.imapUser || account.email_address,
           pass: password,

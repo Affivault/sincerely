@@ -233,13 +233,15 @@ export function CampaignCreatePage() {
     queryFn: () => contactsApi.list({ limit: 50, search: contactSearch || undefined }),
   });
 
-  // Fetch full contact details for selected IDs preview (subset)
+  // Fetch full contact details for the selected IDs so the audience list can
+  // show — and let you remove — every recipient, not just the first handful.
   const { data: selectedContactsPreview } = useQuery({
-    queryKey: ['contacts', 'selected-preview', selectedContactIds.slice(0, 8).join(',')],
+    queryKey: ['contacts', 'selected-preview', [...selectedContactIds].sort().join(',')],
     queryFn: async () => {
       if (selectedContactIds.length === 0) return [];
-      const list = await contactsApi.list({ limit: 200 });
-      return (list.data || []).filter((c: any) => selectedContactIds.includes(c.id)).slice(0, 8);
+      const selected = new Set(selectedContactIds);
+      const list = await contactsApi.list({ limit: 1000 });
+      return (list.data || []).filter((c: any) => selected.has(c.id));
     },
     enabled: selectedContactIds.length > 0,
   });
@@ -1473,7 +1475,9 @@ export function CampaignCreatePage() {
                                     >
                                       <option value="">Send from…</option>
                                       {accounts.map((a: SmtpAccount) => (
-                                        <option key={a.id} value={a.id}>{a.label || a.email_address}</option>
+                                        <option key={a.id} value={a.id}>
+                                          {a.email_address}{a.label && a.label !== a.email_address ? ` (${a.label})` : ''}
+                                        </option>
                                       ))}
                                     </select>
                                   )}
@@ -1661,46 +1665,55 @@ export function CampaignCreatePage() {
                       </div>
                     </div>
 
-                    {/* Selected preview */}
-                    {(selectedContactsPreview || []).length > 0 && (
+                    {/* Selected recipients — full, scrollable, each removable */}
+                    {selectedContactIds.length > 0 && (
                       <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 p-3">
                         <div className="flex items-center justify-between mb-2.5">
                           <p className="text-[11px] font-bold text-[var(--text-secondary)]">
-                            Preview ({Math.min(8, selectedContactIds.length)} of {selectedContactIds.length.toLocaleString()})
+                            Selected recipients ({selectedContactIds.length.toLocaleString()})
                           </p>
-                          <Button variant="secondary" size="sm" onClick={() => setShowContactModal(true)}>
-                            Modify recipients
-                          </Button>
+                          <div className="flex items-center gap-1.5">
+                            <Button variant="secondary" size="sm" onClick={() => setShowContactModal(true)}>
+                              Add more
+                            </Button>
+                            <button
+                              onClick={() => setSelectedContactIds([])}
+                              className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11.5px] font-medium text-[var(--text-tertiary)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                              title="Remove all recipients"
+                            >
+                              <X className="h-3 w-3" /> Clear all
+                            </button>
+                          </div>
                         </div>
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 max-h-[320px] overflow-y-auto pr-0.5">
                           {(selectedContactsPreview || []).map((c: any) => {
                             const fullName = [c.first_name, c.last_name].filter(Boolean).join(' ');
                             return (
-                              <div key={c.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
+                              <div key={c.id} className="group flex items-center gap-2.5 px-2 py-1.5 rounded-md bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
                                 <Avatar name={fullName || c.email} email={c.email} size="sm" />
                                 <div className="flex-1 min-w-0">
                                   <p className="text-[12px] font-medium text-[var(--text-primary)] truncate">{fullName || c.email}</p>
                                   {fullName && <p className="text-[10.5px] text-[var(--text-tertiary)] truncate">{c.email}</p>}
                                 </div>
                                 {c.company && (
-                                  <span className="flex items-center gap-1 text-[10.5px] text-[var(--text-tertiary)] flex-shrink-0">
+                                  <span className="hidden sm:flex items-center gap-1 text-[10.5px] text-[var(--text-tertiary)] flex-shrink-0">
                                     <Building2 className="h-3 w-3" />
                                     <span className="truncate max-w-[120px]">{c.company}</span>
                                   </span>
                                 )}
                                 <button
                                   onClick={() => toggleContact(c.id)}
-                                  className="text-[var(--text-tertiary)] hover:text-rose-500 p-0.5"
-                                  title="Remove"
+                                  className="flex items-center justify-center h-6 w-6 rounded-md text-[var(--text-tertiary)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors flex-shrink-0"
+                                  title="Remove from campaign"
                                 >
-                                  <X className="h-3 w-3" />
+                                  <X className="h-3.5 w-3.5" />
                                 </button>
                               </div>
                             );
                           })}
-                          {selectedContactIds.length > 8 && (
+                          {selectedContactIds.length > (selectedContactsPreview || []).length && (
                             <p className="text-[11px] text-[var(--text-tertiary)] text-center pt-1.5">
-                              and {(selectedContactIds.length - 8).toLocaleString()} more…
+                              {(selectedContactIds.length - (selectedContactsPreview || []).length).toLocaleString()} more not shown — use “Add more” to manage the full list.
                             </p>
                           )}
                         </div>
