@@ -589,32 +589,45 @@ function DelayChip({ step, onUpdate, onRemove, onMoveUp, onMoveDown, isFirst, is
 }
 
 export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, campaignId }: FlowBuilderProps) {
-  const addStep = useCallback((type: StepType, atIndex?: number) => {
-    const newStep: FlowStep = {
-      _clientKey: `step-${crypto.randomUUID()}`,
-      step_type: type,
-      step_order: steps.length,
-      subject: type === StepType.Email ? '' : undefined,
-      body_html: type === StepType.Email ? '' : undefined,
-      delay_days: type === StepType.Delay ? 1 : 0,
-      delay_hours: 0,
-      delay_minutes: 0,
-      skip_if_replied: type === StepType.Email ? true : undefined,
-      condition_field: type === StepType.Condition ? '' : undefined,
-      condition_operator: type === StepType.Condition ? '' : undefined,
-      condition_value: type === StepType.Condition ? '' : undefined,
-      webhook_event: type === StepType.WebhookWait ? '' : undefined,
-      webhook_timeout_hours: type === StepType.WebhookWait ? 72 : undefined,
-    };
+  const makeStep = (type: StepType): FlowStep => ({
+    _clientKey: `step-${crypto.randomUUID()}`,
+    step_type: type,
+    step_order: steps.length,
+    subject: type === StepType.Email ? '' : undefined,
+    body_html: type === StepType.Email ? '' : undefined,
+    delay_days: type === StepType.Delay ? 3 : 0,
+    delay_hours: 0,
+    delay_minutes: 0,
+    skip_if_replied: type === StepType.Email ? true : undefined,
+    condition_field: type === StepType.Condition ? '' : undefined,
+    condition_operator: type === StepType.Condition ? '' : undefined,
+    condition_value: type === StepType.Condition ? '' : undefined,
+    webhook_event: type === StepType.WebhookWait ? '' : undefined,
+    webhook_timeout_hours: type === StepType.WebhookWait ? 72 : undefined,
+  });
 
-    if (atIndex !== undefined) {
-      const newSteps = [...steps];
-      newSteps.splice(atIndex, 0, newStep);
-      onStepsChange(newSteps);
-      if (type === StepType.Email || type === StepType.Condition || type === StepType.WebhookWait) onEditStep(atIndex);
-    } else {
-      onStepsChange([...steps, newStep]);
-      if (type === StepType.Email || type === StepType.Condition || type === StepType.WebhookWait) onEditStep(steps.length);
+  const addStep = useCallback((type: StepType, atIndex?: number) => {
+    const newStep = makeStep(type);
+
+    // Built-in delay: a follow-up email should never fire the instant the
+    // previous one sends. When adding an Email after existing steps (and the
+    // step right before it isn't already a wait), auto-insert a 3-day delay —
+    // editable, and still on top of the standalone Delay step users can add.
+    const insertAt = atIndex ?? steps.length;
+    const prev = steps[insertAt - 1];
+    const wantsAutoDelay =
+      type === StepType.Email && insertAt > 0 && prev && prev.step_type !== StepType.Delay;
+
+    const toInsert: FlowStep[] = wantsAutoDelay
+      ? [{ ...makeStep(StepType.Delay), delay_days: 3 }, newStep]
+      : [newStep];
+    const emailIdx = insertAt + toInsert.length - 1; // index of the email step
+
+    const newSteps = [...steps];
+    newSteps.splice(insertAt, 0, ...toInsert);
+    onStepsChange(newSteps);
+    if (type === StepType.Email || type === StepType.Condition || type === StepType.WebhookWait) {
+      onEditStep(emailIdx);
     }
   }, [steps, onStepsChange, onEditStep]);
 
