@@ -4,6 +4,8 @@ export interface SmtpAccount {
   label: string;
   /** Human display name shown to recipients in the From header (e.g. "Thomas Vance"). Falls back to label when unset. */
   from_name: string | null;
+  /** Optional Reply-To address — replies go here instead of the From address */
+  reply_to?: string | null;
   email_address: string;
   smtp_host: string;
   smtp_port: number;
@@ -151,6 +153,8 @@ export interface SetWarmupInput {
 export interface CreateSmtpAccountInput {
   label: string;
   from_name?: string | null;
+  /** Optional Reply-To address — replies go here instead of the From address */
+  reply_to?: string | null;
   email_address: string;
   smtp_host: string;
   smtp_port: number;
@@ -176,11 +180,27 @@ export interface VerifySmtpInput {
   smtp_secure: boolean;
   smtp_user: string;
   smtp_pass: string;
+  /** Optional IMAP leg — when host is provided, "Check connection" logs in too. */
+  imap_host?: string;
+  imap_port?: number;
+  imap_secure?: boolean;
+  imap_user?: string;
+}
+
+/** Result of one leg (SMTP or IMAP) of a connection check. */
+export interface VerifyLegResult {
+  ok: boolean;
+  /** 'skipped' when no IMAP details were supplied */
+  status: 'ok' | 'fail' | 'skipped';
+  message: string;
 }
 
 export interface VerifySmtpResult {
   success: boolean;
   message: string;
+  /** Per-service detail so the UI can show SMTP and IMAP independently. */
+  smtp?: VerifyLegResult;
+  imap?: VerifyLegResult;
 }
 
 export interface SmtpPreset {

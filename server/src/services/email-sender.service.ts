@@ -26,6 +26,8 @@ interface SmtpSendParams {
   text?: string;
   messageId?: string;
   headers?: Record<string, string>;
+  /** Optional Reply-To header */
+  replyTo?: string;
   /** Override SMTP handshake/socket timeouts (ms). Interactive test sends use
    *  a short budget so the API replies well before the client's 30s timeout. */
   timeoutMs?: number;
@@ -97,6 +99,7 @@ async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
         smtp_pass: params.smtpPass,
         from: params.from,
         to: params.to,
+        reply_to: params.replyTo,
         subject: params.subject,
         html: params.html,
         text: params.text,
@@ -160,6 +163,7 @@ async function sendDirect(params: SmtpSendParams): Promise<SmtpSendResult> {
     info = await transporter.sendMail({
       from: params.from,
       to: params.to,
+      replyTo: params.replyTo || undefined,
       subject: params.subject,
       html: params.html || undefined,
       text: params.text || undefined,
@@ -334,6 +338,7 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
       smtpPass: smtpPassword,
       from: fromAddress,
       to,
+      replyTo: smtpAccount.reply_to || undefined,
       subject,
       html: finalHtml,
       text: bodyText,
