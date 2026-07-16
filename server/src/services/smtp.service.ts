@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
 import { sendViaSmtp, formatFromHeader, describeSmtpError } from './email-sender.service.js';
+import { resolveHostIp } from '../utils/dns-doh.js';
 import { billingService } from './billing.service.js';
 
 /** Log into IMAP to prove replies can be read. Bounded, never throws. */
@@ -13,10 +14,14 @@ async function verifyImapLogin(opts: { host: string; port: number; secure: boole
   } catch {
     return { ok: true, status: 'ok', message: 'IMAP check skipped (module unavailable) — SMTP verified.' };
   }
+  // Resolve via DoH so broken host DNS doesn't hang the IMAP connect (same
+  // reason SMTP sends time out on managed hosts).
+  const ip = await resolveHostIp(opts.host).catch(() => null);
   const client = new ImapFlow({
-    host: opts.host,
+    host: ip || opts.host,
     port: opts.port,
     secure: opts.secure,
+    servername: opts.host, // correct TLS SNI/cert validation when dialing an IP
     auth: { user: opts.user, pass: opts.pass },
     logger: false,
     // Keep the whole check snappy so the HTTP request replies well under 30s.
