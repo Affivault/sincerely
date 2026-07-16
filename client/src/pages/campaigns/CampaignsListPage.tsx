@@ -63,6 +63,7 @@ export function CampaignsListPage() {
   const [editingFolder, setEditingFolder] = useState<CampaignFolder | null>(null);
   const [folderAnalyticsId, setFolderAnalyticsId] = useState<string | null>(null);
   const [contextMenuFor, setContextMenuFor] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [showStartChooser, setShowStartChooser] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [draggingCampaignId, setDraggingCampaignId] = useState<string | null>(null);
   const [dropFolderKey, setDropFolderKey] = useState<string | null>(null);
@@ -255,7 +256,7 @@ export function CampaignsListPage() {
                 <BarChart3 className="h-3.5 w-3.5" /> Folder analytics
               </Button>
             )}
-            <Button size="sm" onClick={() => navigate('/campaigns/new')}>
+            <Button size="sm" onClick={() => setShowStartChooser(true)}>
               <Plus className="h-3.5 w-3.5" /> New campaign
             </Button>
           </>
@@ -397,7 +398,7 @@ export function CampaignsListPage() {
                 title={activeFolderId === 'all' ? 'No campaigns yet' : 'This folder is empty'}
                 description={activeFolderId === 'all' ? 'Build your first outbound sequence and start reaching prospects.' : 'Move campaigns into this folder or create a new one.'}
                 actionLabel="New campaign"
-                onAction={() => navigate('/campaigns/new')}
+                onAction={() => setShowStartChooser(true)}
               />
             </div>
           ) : (
@@ -527,6 +528,39 @@ export function CampaignsListPage() {
       {/* Folder analytics modal */}
       {folderAnalyticsId && (
         <FolderAnalyticsModal folderId={folderAnalyticsId} onClose={() => setFolderAnalyticsId(null)} />
+      )}
+
+      {/* Start-a-campaign chooser: from scratch or from a saved template */}
+      {showStartChooser && (
+        <Modal isOpen onClose={() => setShowStartChooser(false)} title="Create a campaign" description="Start from a blank sequence, or load one of your templates." size="md">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              onClick={() => { setShowStartChooser(false); navigate('/campaigns/new'); }}
+              className="group flex flex-col items-start gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 text-left hover:border-[var(--indigo)]/40 hover:bg-[var(--bg-hover)] transition-colors"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--indigo-subtle)]">
+                <Plus className="h-4.5 w-4.5 text-[var(--indigo)]" />
+              </span>
+              <span>
+                <span className="block text-[13.5px] font-semibold text-[var(--text-primary)]">Start from scratch</span>
+                <span className="block text-[11.5px] text-[var(--text-tertiary)] mt-0.5">A blank sequence — build your emails and delays step by step.</span>
+              </span>
+            </button>
+            <button
+              onClick={() => { setShowStartChooser(false); navigate('/templates'); }}
+              className="group flex flex-col items-start gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 text-left hover:border-[var(--indigo)]/40 hover:bg-[var(--bg-hover)] transition-colors"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
+                <Layers className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
+              </span>
+              <span>
+                <span className="block text-[13.5px] font-semibold text-[var(--text-primary)]">Use a template</span>
+                <span className="block text-[11.5px] text-[var(--text-tertiary)] mt-0.5">Pick a saved email or sequence template to pre-fill the builder.</span>
+              </span>
+            </button>
+          </div>
+          <p className="mt-3 text-[11px] text-[var(--text-muted)]">Tip: you can also load a template from inside the builder’s Sequence step.</p>
+        </Modal>
       )}
     </div>
   );
