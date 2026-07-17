@@ -136,6 +136,7 @@ export function CampaignDetailPage() {
     mutationFn: () => campaignsApi.retryErrors(id!),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['campaign-contacts', id] });
+      queryClient.invalidateQueries({ queryKey: ['campaigns', id] });
       toast.success(`Retried ${result.retried} errored contact${result.retried !== 1 ? 's' : ''}`);
     },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to retry errors'),
@@ -326,7 +327,7 @@ export function CampaignDetailPage() {
                 { label: 'Timezone', value: campaign.timezone },
                 { label: 'Send Window', value: `${campaign.send_window_start || '—'} – ${campaign.send_window_end || '—'}` },
                 { label: 'Send Days', value: campaign.send_days?.join(', ') || 'Weekdays' },
-                { label: 'Total Contacts', value: String(campaign.total_contacts ?? 0) },
+                { label: 'Total Contacts', value: String(campaign.contacts_count || campaign.total_contacts || 0) },
                 { label: 'Daily Limit', value: String(campaign.daily_limit || 'Unlimited') },
                 { label: 'Delay Between Emails', value: `${campaign.delay_between_emails_min ?? campaign.delay_between_emails ?? 50}s – ${campaign.delay_between_emails_max ?? campaign.delay_between_emails ?? 200}s` },
                 { label: 'Stop on Reply', value: campaign.stop_on_reply !== false ? 'Yes' : 'No' },

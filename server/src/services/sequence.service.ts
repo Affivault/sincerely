@@ -165,30 +165,6 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
     return;
   }
 
-  // Check daily limit — use the campaign's timezone so "today" matches the sender's business day
-  const dailyLimit = cc.campaigns.daily_limit || 0;
-  if (dailyLimit > 0) {
-    const tz = cc.campaigns.timezone || 'UTC';
-    const todayStart = startOfDayInTimezone(tz);
-    const { count: sentToday, error: countErr } = await supabaseAdmin
-      .from('campaign_activities')
-      .select('*', { count: 'exact', head: true })
-      .eq('campaign_id', cc.campaign_id)
-      .eq('activity_type', 'sent')
-      .gte('occurred_at', todayStart.toISOString());
-    if (countErr) throw new Error(`Failed to fetch daily send count: ${countErr.message}`);
-    if (sentToday !== null && sentToday >= dailyLimit) {
-      // Reschedule to next send window so the sequence worker doesn't
-      // re-pick this contact every 30 seconds until midnight.
-      const nextWindow = getNextSendWindowStart(cc.campaigns);
-      await supabaseAdmin
-        .from('campaign_contacts')
-        .update({ next_send_at: nextWindow.toISOString() })
-        .eq('id', campaignContactId);
-      return;
-    }
-  }
-
   // Check stop_on_reply — if contact already replied, mark completed
   if (cc.campaigns.stop_on_reply !== false) {
     const { count: replyCount } = await supabaseAdmin
@@ -242,6 +218,35 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
       }).catch(() => {});
       checkAndAutoCompleteCampaign(cc.campaign_id).catch(() => {});
       return;
+    }
+  }
+
+  // Check daily limit — only gates email sends; delay/condition/webhook_wait steps
+  // don't consume send quota and shouldn't stall a day behind schedule because the
+  // campaign happened to be at its email cap. Uses the campaign's timezone so
+  // "today" matches the sender's business day.
+  if (nextStep.step_type === 'email') {
+    const dailyLimit = cc.campaigns.daily_limit || 0;
+    if (dailyLimit > 0) {
+      const tz = cc.campaigns.timezone || 'UTC';
+      const todayStart = startOfDayInTimezone(tz);
+      const { count: sentToday, error: countErr } = await supabaseAdmin
+        .from('campaign_activities')
+        .select('*', { count: 'exact', head: true })
+        .eq('campaign_id', cc.campaign_id)
+        .eq('activity_type', 'sent')
+        .gte('occurred_at', todayStart.toISOString());
+      if (countErr) throw new Error(`Failed to fetch daily send count: ${countErr.message}`);
+      if (sentToday !== null && sentToday >= dailyLimit) {
+        // Reschedule to next send window so the sequence worker doesn't
+        // re-pick this contact every 30 seconds until midnight.
+        const nextWindow = getNextSendWindowStart(cc.campaigns);
+        await supabaseAdmin
+          .from('campaign_contacts')
+          .update({ next_send_at: nextWindow.toISOString() })
+          .eq('id', campaignContactId);
+        return;
+      }
     }
   }
 
@@ -798,7 +803,7 @@ async function markCompleted(campaignContactId: string): Promise<void> {
  * Terminal states: completed, bounced, unsubscribed, error, suppressed.
  * Prevents campaigns from staying "running" indefinitely after all work is done.
  */
-async function checkAndAutoCompleteCampaign(campaignId: string): Promise<void> {
+export async function checkAndAutoCompleteCampaign(campaignId: string): Promise<void> {
   const { data: campaign } = await supabaseAdmin
     .from('campaigns')
     .select('id, status, user_id')

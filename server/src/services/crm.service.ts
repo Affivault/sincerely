@@ -38,6 +38,12 @@ function sanitizeDealInput(input: Record<string, any>) {
   }
 }
 
+/** Reject a contact_id/deal_id that doesn't belong to this user before it's persisted. */
+async function assertOwned(userId: string, table: string, id: string, label: string) {
+  const { data } = await supabaseAdmin.from(table).select('id').eq('id', id).eq('user_id', userId).maybeSingle();
+  if (!data) throw new AppError(`${label} not found`, 404);
+}
+
 /**
  * Keep deals in sync with the contacts base: when a deal carries an email but
  * no linked lead, attach the matching contact (and backfill name/company).
@@ -86,6 +92,7 @@ export const crmService = {
     if (!body.title || !String(body.title).trim()) throw new AppError('Deal title is required', 400);
     const input = pick(body, DEAL_KEYS as any);
     sanitizeDealInput(input);
+    if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
     await autoLinkContact(userId, input);
     const { data, error } = await supabaseAdmin
       .from('deals')
@@ -99,6 +106,7 @@ export const crmService = {
   async updateDeal(userId: string, id: string, body: any) {
     const input = pick(body, DEAL_KEYS as any);
     sanitizeDealInput(input);
+    if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
     if (input.contact_email !== undefined && input.contact_id === undefined) {
       await autoLinkContact(userId, input);
     }
@@ -136,6 +144,7 @@ export const crmService = {
     if (!body.title || !String(body.title).trim()) throw new AppError('Task title is required', 400);
     const input = pick(body, TASK_KEYS as any);
     if (input.priority && !TASK_PRIORITIES.includes(input.priority)) throw new AppError('Invalid priority', 400);
+    if (input.deal_id) await assertOwned(userId, 'deals', input.deal_id, 'Deal');
     const { data, error } = await supabaseAdmin
       .from('crm_tasks')
       .insert({ ...input, user_id: userId })
@@ -148,6 +157,7 @@ export const crmService = {
   async updateTask(userId: string, id: string, body: any) {
     const input = pick(body, TASK_KEYS as any);
     if (input.priority && !TASK_PRIORITIES.includes(input.priority)) throw new AppError('Invalid priority', 400);
+    if (input.deal_id) await assertOwned(userId, 'deals', input.deal_id, 'Deal');
     const { data, error } = await supabaseAdmin
       .from('crm_tasks')
       .update(input)
@@ -180,6 +190,7 @@ export const crmService = {
     if (!body.starts_at) throw new AppError('Event start time is required', 400);
     const input = pick(body, EVENT_KEYS as any);
     if (input.type && !EVENT_TYPES.includes(input.type)) throw new AppError('Invalid event type', 400);
+    if (input.deal_id) await assertOwned(userId, 'deals', input.deal_id, 'Deal');
     const { data, error } = await supabaseAdmin
       .from('crm_events')
       .insert({ ...input, user_id: userId })
@@ -192,6 +203,7 @@ export const crmService = {
   async updateEvent(userId: string, id: string, body: any) {
     const input = pick(body, EVENT_KEYS as any);
     if (input.type && !EVENT_TYPES.includes(input.type)) throw new AppError('Invalid event type', 400);
+    if (input.deal_id) await assertOwned(userId, 'deals', input.deal_id, 'Deal');
     const { data, error } = await supabaseAdmin
       .from('crm_events')
       .update(input)

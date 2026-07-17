@@ -92,7 +92,14 @@ export function startInboxWorker() {
       });
 
       try {
-        await client.connect();
+        // Add connection timeout (15 seconds) — otherwise a stalled TCP/IMAP handshake
+        // ties up one of the worker's few concurrency slots indefinitely.
+        const connectPromise = client.connect();
+        let connectTimeoutId: ReturnType<typeof setTimeout>;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          connectTimeoutId = setTimeout(() => reject(new Error('IMAP connection timed out')), 15000);
+        });
+        await Promise.race([connectPromise, timeoutPromise]).finally(() => clearTimeout(connectTimeoutId));
         await client.mailboxOpen('INBOX');
 
         // 3. Fetch messages since last sync (or last 7 days)
@@ -134,13 +141,14 @@ export function startInboxWorker() {
 
           // Method 1: In-Reply-To header matches our sent message_id
           if (inReplyTo) {
-            const { data } = await supabaseAdmin
+            const { data, error: matchErr } = await supabaseAdmin
               .from('campaign_activities')
               .select('campaign_id, campaign_contact_id, contact_id, step_id, campaigns!inner(user_id)')
               .eq('activity_type', 'sent')
               .eq('message_id', inReplyTo)
               .eq('campaigns.user_id', userId)
               .maybeSingle();
+            if (matchErr) console.error(`[Inbox] Reply match lookup failed for message_id ${inReplyTo}:`, matchErr.message);
             matchedActivity = data;
           }
 

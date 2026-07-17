@@ -169,6 +169,17 @@ export const teamService = {
     if (new Date(invite.expires_at) < new Date()) throw new AppError('This invite has expired', 400);
     if (invite.email !== userEmail.toLowerCase()) throw new AppError('This invite is for a different email address', 403);
 
+    // Every lookup elsewhere (getOrg, getOrCreateOrg, listMembers, ...) assumes a user
+    // belongs to at most one org — joining a second one would permanently break those.
+    const { data: existingMembership } = await supabaseAdmin
+      .from('team_members')
+      .select('org_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (existingMembership && existingMembership.org_id !== invite.org_id) {
+      throw new AppError('You already belong to an organisation — leave it before accepting a different invite', 400);
+    }
+
     // Add as member
     await supabaseAdmin.from('team_members').upsert(
       { org_id: invite.org_id, user_id: userId, email: userEmail.toLowerCase(), role: invite.role },

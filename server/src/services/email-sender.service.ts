@@ -6,6 +6,7 @@ import { decrypt } from '../utils/encryption.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
 import { fireEvent } from './webhook.service.js';
 import * as sse from './sse.service.js';
+import { checkAndAutoCompleteCampaign } from './sequence.service.js';
 
 /**
  * Email Sender Service
@@ -443,10 +444,9 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
         .eq('id', campaignContactId);
       if (completeError) console.error(`[EmailSender] Sent OK but failed to complete contact ${campaignContactId}: ${completeError.message}`);
 
-      fireEvent(campaign.user_id, 'campaign.completed', {
-        campaign_id: campaignId,
-        contact_id: contactId,
-      }).catch(() => {});
+      // Flip the campaign itself to completed once every contact has finished, and
+      // fire the campaign-wide (not per-contact) 'campaign.completed' webhook exactly once.
+      checkAndAutoCompleteCampaign(campaignId).catch(() => {});
     }
   }
 }

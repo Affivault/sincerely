@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { type Session, type User, type Provider } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { queryClient } from '../lib/queryClient';
 
 interface AuthContextType {
   user: User | null;
@@ -87,6 +88,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setUser(null);
       setSession(null);
+      // Query keys aren't scoped by user id, so a stale cache would otherwise let the
+      // next account signed into this tab briefly see the previous user's cached data.
+      queryClient.clear();
     }
   };
 

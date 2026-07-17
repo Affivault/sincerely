@@ -14,7 +14,7 @@ import { cn } from '../../lib/utils';
 import {
   Radar, Search, MapPin, Building2, Briefcase, Users, Sparkles,
   Lock, Unlock, CheckCircle2, ChevronLeft, ChevronRight, X,
-  Linkedin, ArrowUpRight, Coins, KeyRound, FolderOpen, Plus, Megaphone,
+  Linkedin, ArrowUpRight, Coins, KeyRound, FolderOpen, Plus, Megaphone, AlertTriangle,
 } from 'lucide-react';
 import { CREDIT_PACKS } from '@lemlist/shared';
 import type {
@@ -180,7 +180,7 @@ export function ProspectorPage() {
   const [revealingId, setRevealingId] = useState<string | null>(null);
   const [campaignContactIds, setCampaignContactIds] = useState<string[] | null>(null);
 
-  const { data: status } = useQuery({ queryKey: ['prospecting', 'status'], queryFn: prospectingApi.status });
+  const { data: status, isError: statusError } = useQuery({ queryKey: ['prospecting', 'status'], queryFn: prospectingApi.status, meta: { silentError: true } });
   const { data: lists } = useQuery({ queryKey: ['lists'], queryFn: listsApi.list });
 
   const filters: ProspectSearchFilters = {
@@ -251,6 +251,21 @@ export function ProspectorPage() {
           />
         )}
       </div>
+
+      {/* Status fetch failed — the credits meter and provider banner below silently
+          don't render on error, so surface it explicitly instead of looking fine. */}
+      {statusError && (
+        <div className="rounded-xl border border-red-500/25 bg-red-500/5 p-4 mb-5 flex items-start gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-500/10 flex-shrink-0">
+            <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+          </span>
+          <div className="min-w-0 text-[12.5px] flex-1">
+            <p className="font-semibold text-[var(--text-primary)]">Couldn't load Prospector status</p>
+            <p className="text-[var(--text-secondary)]">Credit balance and provider connection couldn't be checked — this doesn't mean they're unavailable.</p>
+          </div>
+          <button onClick={() => qc.invalidateQueries({ queryKey: ['prospecting', 'status'] })} className="text-[12px] font-semibold text-[var(--indigo)] hover:underline flex-shrink-0">Retry</button>
+        </div>
+      )}
 
       {/* Provider not configured */}
       {status && !providerReady && (
