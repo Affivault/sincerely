@@ -31,6 +31,13 @@ import type {
   CreateCampaignInput, CreateStepInput, CampaignStep, SmtpAccount, ContactWithTags,
 } from '@lemlist/shared';
 
+// <input type="datetime-local"> reads/writes local wall-clock time, not UTC —
+// toISOString() would shift the value by the browser's UTC offset.
+function toDatetimeLocalValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -389,12 +396,21 @@ export function CampaignCreatePage() {
             step_type: s.step_type,
             step_order: s.step_order,
             subject: s.subject || '',
+            subject_b: s.subject_b || '',
             body_html: s.body_html || '',
+            body_html_b: s.body_html_b || '',
             body_text: s.body_text || '',
             delay_days: s.delay_days,
             delay_hours: s.delay_hours,
             delay_minutes: s.delay_minutes,
             skip_if_replied: s.skip_if_replied,
+            condition_field: s.condition_field || '',
+            condition_operator: s.condition_operator || '',
+            condition_value: s.condition_value || '',
+            true_branch_step: s.true_branch_step,
+            false_branch_step: s.false_branch_step,
+            webhook_event: s.webhook_event || '',
+            webhook_timeout_hours: s.webhook_timeout_hours,
           }))
         );
       }
@@ -1953,7 +1969,7 @@ export function CampaignCreatePage() {
                       <input
                         type="datetime-local"
                         value={scheduleAt}
-                        min={new Date(Date.now() + 5 * 60000).toISOString().slice(0, 16)}
+                        min={toDatetimeLocalValue(new Date(Date.now() + 5 * 60000))}
                         onChange={(e) => setScheduleAt(e.target.value)}
                         className="w-full sm:w-72 h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-[13px] text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)]"
                       />

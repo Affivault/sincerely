@@ -185,6 +185,11 @@ export const settingsService = {
       'api_keys',
       'usage_counters',
       'subscriptions',
+      'deals',
+      'crm_tasks',
+      'crm_events',
+      'prospect_credit_ledger',
+      'prospect_reveals',
     ];
 
     const failedTables: string[] = [];

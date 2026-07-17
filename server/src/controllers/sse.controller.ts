@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth.middleware.js';
 import * as sseService from '../services/sse.service.js';
 import { campaignsService } from '../services/campaigns.service.js';
 import { smtpService } from '../services/smtp.service.js';
+import { supabaseAdmin } from '../config/supabase.js';
 
 export const sseController = {
   async dashboard(req: AuthRequest, res: Response, next: NextFunction) {
@@ -37,6 +38,18 @@ export const sseController = {
         return;
       }
       await campaignsService.assertOwnership(req.userId!, req.params.campaignId);
+      if (account_ids.length > 0) {
+        const { count, error } = await supabaseAdmin
+          .from('smtp_accounts')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', req.userId!)
+          .in('id', account_ids);
+        if (error) throw error;
+        if ((count || 0) !== account_ids.length) {
+          res.status(404).json({ error: 'One or more SMTP accounts not found' });
+          return;
+        }
+      }
       await sseService.setCampaignPool(req.params.campaignId, account_ids);
       res.status(204).send();
     } catch (err) { next(err); }

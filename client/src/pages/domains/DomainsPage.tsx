@@ -350,9 +350,10 @@ export function DomainsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [addResult, setAddResult] = useState<DomainVerifyResponse | null>(null);
 
-  const { data: domains, isLoading } = useQuery({
+  const { data: domains, isLoading, isError } = useQuery({
     queryKey: ['domains'],
     queryFn: domainApi.list,
+    meta: { silentError: true }, // has its own inline error state below
   });
 
   const createMutation = useMutation({
@@ -393,6 +394,20 @@ export function DomainsPage() {
       <div className="max-w-3xl space-y-3">
         <SkeletonList rows={4} />
       </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <SettingsShell>
+        <EmptyState
+          icon={AlertTriangle}
+          title="Couldn't load your domains"
+          description="Something went wrong fetching your sending domains — this isn't necessarily an empty account. Try again."
+          actionLabel="Retry"
+          onAction={() => queryClient.invalidateQueries({ queryKey: ['domains'] })}
+        />
+      </SettingsShell>
     );
   }
 

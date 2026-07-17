@@ -16,12 +16,24 @@ export interface ApiKeyRequest extends Request {
 const RATE_WINDOW_MS = 60_000;
 const requestCounts = new Map<string, { count: number; windowStart: number }>();
 
+// Entries for keys that stop being used are never touched again after their window
+// closes — sweep them out periodically so the map doesn't grow for the life of the process.
+setInterval(() => {
+  const cutoff = Date.now() - RATE_WINDOW_MS;
+  for (const [keyId, entry] of requestCounts) {
+    if (entry.windowStart < cutoff) requestCounts.delete(keyId);
+  }
+}, RATE_WINDOW_MS).unref();
+
 function isRateLimited(keyId: string, limit: number): { limited: boolean; retryAfterSeconds: number } {
   const now = Date.now();
   const entry = requestCounts.get(keyId);
 
   if (!entry || now - entry.windowStart >= RATE_WINDOW_MS) {
     requestCounts.set(keyId, { count: 1, windowStart: now });
+    if (limit < 1) {
+      return { limited: true, retryAfterSeconds: Math.ceil(RATE_WINDOW_MS / 1000) };
+    }
     return { limited: false, retryAfterSeconds: 0 };
   }
 

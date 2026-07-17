@@ -13,17 +13,25 @@ const SEND_MS = 12 * 60 * 1000;    // send warm-up mail every 12 minutes
 const ENGAGE_MS = 10 * 60 * 1000;  // open / reply / rescue every 10 minutes
 let sendId: ReturnType<typeof setInterval> | null = null;
 let engageId: ReturnType<typeof setInterval> | null = null;
+let sendRunning = false;
+let engageRunning = false;
 
 async function sendTick() {
+  if (sendRunning) return; // never overlap — a slow SMTP batch just delays the next tick
+  sendRunning = true;
   try {
     const sent = await warmupService.runWarmupTick();
     if (sent > 0) console.log(`[Warmup] sent ${sent} warm-up email(s) this tick`);
   } catch (err: any) {
     console.error('[Warmup] send tick failed:', err.message);
+  } finally {
+    sendRunning = false;
   }
 }
 
 async function engageTick() {
+  if (engageRunning) return; // never overlap — sequential IMAP connects can run long
+  engageRunning = true;
   try {
     const r = await warmupService.runEngagementTick();
     if (r.opened + r.replied + r.rescued > 0) {
@@ -31,6 +39,8 @@ async function engageTick() {
     }
   } catch (err: any) {
     console.error('[Warmup] engage tick failed:', err.message);
+  } finally {
+    engageRunning = false;
   }
 }
 

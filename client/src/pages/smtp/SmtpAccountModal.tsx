@@ -181,6 +181,7 @@ export function SmtpAccountModal({
 
   const applyPreset = (presetName: string) => {
     const preset = SMTP_PRESETS.find((p) => p.name === presetName);
+    setVerify({ status: 'idle' });
     if (preset) {
       setActivePreset(preset);
       setForm((prev) => ({

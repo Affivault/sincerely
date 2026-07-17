@@ -420,7 +420,7 @@ export async function getSuppressedContacts(
 
   const { data } = await supabaseAdmin
     .from('campaign_contacts')
-    .select('contact_id, contacts(email, dcs_score)')
+    .select('contact_id, contacts!inner(email, dcs_score)')
     .eq('campaign_id', campaignId)
     .not('contacts.dcs_score', 'is', null)
     .lt('contacts.dcs_score', threshold);

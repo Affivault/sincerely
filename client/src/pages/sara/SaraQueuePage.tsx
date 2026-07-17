@@ -80,13 +80,14 @@ export function SaraQueuePage() {
     queryFn: saraApi.getStats,
   });
 
-  const { data: queue, isLoading } = useQuery({
+  const { data: queue, isLoading, isError } = useQuery({
     queryKey: ['sara-queue', statusFilter, intentFilter],
     queryFn: () => saraApi.getQueue({
       status: statusFilter,
       intent: intentFilter,
       limit: 50,
     }),
+    meta: { silentError: true }, // has its own inline error state below
   });
 
   const approveMutation = useMutation({
@@ -287,6 +288,20 @@ export function SaraQueuePage() {
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--indigo)] border-t-transparent" />
+        </div>
+      ) : isError ? (
+        <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-20 px-8 flex flex-col items-center justify-center text-center">
+          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 mb-5">
+            <XCircle className="h-7 w-7 text-red-600 dark:text-red-400" strokeWidth={1.5} />
+          </span>
+          <h3 className="text-[15px] font-semibold text-[var(--text-primary)] mb-1.5">Couldn't load the queue</h3>
+          <p className="text-[12.5px] text-[var(--text-secondary)] max-w-sm mb-4">Something went wrong fetching SARA's queue — this isn't necessarily an empty inbox. Try again.</p>
+          <button
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['sara-queue'] })}
+            className="h-8 px-3.5 rounded-lg bg-[var(--indigo)] text-white text-[12.5px] font-semibold hover:brightness-110 transition-all"
+          >
+            Retry
+          </button>
         </div>
       ) : messages.length === 0 ? (
         <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-20 px-8 flex flex-col items-center justify-center text-center">

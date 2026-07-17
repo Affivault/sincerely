@@ -42,9 +42,24 @@ export const campaignFoldersService = {
   },
 
   async update(userId: string, id: string, input: { name?: string; color?: string; icon?: string; position?: number; parent_id?: string | null }) {
-    // A folder can't be its own parent (prevents a trivial cycle)
-    if (input.parent_id && input.parent_id === id) {
-      throw new AppError('A folder cannot be moved into itself', 400);
+    if (input.parent_id) {
+      if (input.parent_id === id) {
+        throw new AppError('A folder cannot be moved into itself', 400);
+      }
+      // Walk the new parent's ancestor chain — if it leads back to `id`, this move creates a cycle.
+      const { data: allFolders } = await supabaseAdmin
+        .from('campaign_folders')
+        .select('id, parent_id')
+        .eq('user_id', userId);
+      const byId = new Map((allFolders || []).map((f: any) => [f.id, f.parent_id]));
+      let cursor: string | null | undefined = input.parent_id;
+      const seen = new Set<string>();
+      while (cursor) {
+        if (cursor === id) throw new AppError('Cannot move a folder into one of its own descendants', 400);
+        if (seen.has(cursor)) break;
+        seen.add(cursor);
+        cursor = byId.get(cursor);
+      }
     }
     const { data, error } = await supabaseAdmin
       .from('campaign_folders')

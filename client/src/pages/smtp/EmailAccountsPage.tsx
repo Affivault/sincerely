@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { SmtpAccount, SmtpPreset, SendingDomain } from '@lemlist/shared';
-import { SMTP_PRESETS } from '@lemlist/shared';
+import { SMTP_PRESETS, warmupAllowance } from '@lemlist/shared';
 import { SmtpAccountModal } from './SmtpAccountModal';
 import { WarmupPanel } from './WarmupPanel';
 import { StatusBadge, DomainDetailPanel } from '../domains/DomainsPage';
@@ -168,8 +168,8 @@ export function EmailAccountsPage() {
   const [newDomain, setNewDomain] = useState('');
   const [showExplainer, setShowExplainer] = useState(false);
 
-  const { data: accounts, isLoading } = useQuery({ queryKey: ['smtp-accounts'], queryFn: smtpApi.list });
-  const { data: domainsData, isLoading: loadingDomains } = useQuery({ queryKey: ['domains'], queryFn: domainApi.list });
+  const { data: accounts, isLoading, isError: accountsError } = useQuery({ queryKey: ['smtp-accounts'], queryFn: smtpApi.list, meta: { silentError: true } });
+  const { data: domainsData, isLoading: loadingDomains, isError: domainsError } = useQuery({ queryKey: ['domains'], queryFn: domainApi.list, meta: { silentError: true } });
   const domains = domainsData || [];
   const list = accounts || [];
 
@@ -283,6 +283,23 @@ export function EmailAccountsPage() {
         }
       />
 
+      {/* Fetch failures render the same "connect your first mailbox"/"add a domain" empty
+          states as a genuinely empty account below — surface the real cause instead. */}
+      {(accountsError || domainsError) && (
+        <div className="w-full mb-4 flex items-center gap-2.5 rounded-xl border border-red-500/25 bg-red-500/5 px-4 py-2.5">
+          <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 flex-shrink-0" />
+          <span className="text-[12.5px] text-[var(--text-secondary)] flex-1">
+            Couldn't load your {accountsError && domainsError ? 'mailboxes or domains' : accountsError ? 'mailboxes' : 'domains'} — this isn't necessarily empty, something went wrong fetching it.
+          </span>
+          <button
+            onClick={() => { if (accountsError) queryClient.invalidateQueries({ queryKey: ['smtp-accounts'] }); if (domainsError) queryClient.invalidateQueries({ queryKey: ['domains'] }); }}
+            className="text-[12px] font-semibold text-[var(--indigo)] hover:underline flex-shrink-0"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Guided setup — disappears once all three steps are done */}
       {!setupComplete && (
         <SetupProgress steps={setupSteps} onStep={(i) => setTab(stepTab[i])} />
@@ -377,7 +394,9 @@ export function EmailAccountsPage() {
                 </thead>
                 <tbody>
                   {filtered.map((account: SmtpAccount) => {
-                    const limit = account.warmup_mode ? account.warmup_daily_target : account.daily_send_limit;
+                    // During an active ramp the real enforced cap is the ramped allowance for
+                    // today, not the eventual target — matches the Warm-up tab's own number.
+                    const limit = warmupAllowance(account);
                     const displayName = account.from_name || account.label;
                     const dom = matchDomain(domains, account.email_address);
                     return (

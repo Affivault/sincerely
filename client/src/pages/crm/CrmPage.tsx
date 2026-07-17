@@ -702,8 +702,14 @@ function PipelineBoard({ deals, tasks, events, onEdit, dragDisabled }: { deals: 
     const all = qc.getQueryData<Deal[]>(['crm', 'deals']) || deals;
     const moving = all.find(d => d.id === id);
     if (!moving) return;
+    // `index` was measured against the on-screen column list, which still includes the
+    // dragged card when it's already in this stage. targetList has that card removed, so
+    // if the card started before the drop point, every slot after it shifts back by one.
+    const sameStageItems = all.filter(d => d.stage === stage);
+    const originalIndex = sameStageItems.findIndex(d => d.id === id);
+    const adjustedIndex = originalIndex !== -1 && originalIndex < index ? index - 1 : index;
     const targetList = all.filter(d => d.stage === stage && d.id !== id);
-    const insertAt = Math.max(0, Math.min(index, targetList.length));
+    const insertAt = Math.max(0, Math.min(adjustedIndex, targetList.length));
     const newOrder = [...targetList.slice(0, insertAt), moving, ...targetList.slice(insertAt)];
     const rebuilt = newOrder.map((d, i) => ({ ...d, stage, position: i }));
     const changed = rebuilt.filter((d, i) => d.id === id || newOrder[i].position !== i || newOrder[i].stage !== stage);

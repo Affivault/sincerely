@@ -41,7 +41,7 @@ export const campaignStepsService = {
   async delete(campaignId: string, stepId: string) {
     const { data: allSteps } = await supabaseAdmin
       .from('campaign_steps')
-      .select('id, step_order, false_branch_step')
+      .select('id, step_order, true_branch_step, false_branch_step')
       .eq('campaign_id', campaignId)
       .order('step_order');
 
@@ -63,10 +63,12 @@ export const campaignStepsService = {
     for (let i = 0; i < remaining.length; i++) {
       const s = remaining[i];
       const update: any = { step_order: i };
-      if (s.false_branch_step !== null && s.false_branch_step !== undefined) {
-        update.false_branch_step = oldOrderToNewOrder.has(s.false_branch_step)
-          ? oldOrderToNewOrder.get(s.false_branch_step)
-          : null; // branch target was the deleted step — clear it rather than point at the wrong step
+      for (const branch of ['true_branch_step', 'false_branch_step'] as const) {
+        if (s[branch] !== null && s[branch] !== undefined) {
+          update[branch] = oldOrderToNewOrder.has(s[branch])
+            ? oldOrderToNewOrder.get(s[branch])
+            : null; // branch target was the deleted step — clear it rather than point at the wrong step
+        }
       }
       const { error: reorderErr } = await supabaseAdmin
         .from('campaign_steps')
@@ -79,7 +81,7 @@ export const campaignStepsService = {
   async reorder(campaignId: string, stepIds: string[]) {
     const { data: allSteps } = await supabaseAdmin
       .from('campaign_steps')
-      .select('id, step_order, false_branch_step')
+      .select('id, step_order, true_branch_step, false_branch_step')
       .eq('campaign_id', campaignId);
 
     const oldOrderToNewOrder = new Map<number, number>(
@@ -91,9 +93,13 @@ export const campaignStepsService = {
     for (let i = 0; i < stepIds.length; i++) {
       const s = (allSteps || []).find((x: any) => x.id === stepIds[i]);
       const update: any = { step_order: i };
-      if (s && s.false_branch_step !== null && s.false_branch_step !== undefined) {
-        const mapped = oldOrderToNewOrder.get(s.false_branch_step);
-        update.false_branch_step = mapped !== undefined ? mapped : null;
+      if (s) {
+        for (const branch of ['true_branch_step', 'false_branch_step'] as const) {
+          if (s[branch] !== null && s[branch] !== undefined) {
+            const mapped = oldOrderToNewOrder.get(s[branch]);
+            update[branch] = mapped !== undefined ? mapped : null;
+          }
+        }
       }
       const { error } = await supabaseAdmin
         .from('campaign_steps')

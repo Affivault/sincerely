@@ -1260,6 +1260,26 @@ export async function processScheduledEmails(): Promise<number> {
         continue;
       }
 
+      // Atomically claim this message BEFORE sending — otherwise an overlapping run, or a
+      // retry after this same message's post-send status-clear fails, can pick it up again
+      // and resend the identical email. Conditioning on the still-'scheduled' state makes
+      // this a compare-and-swap: only the first claim wins.
+      const { data: claimed, error: claimErr } = await supabaseAdmin
+        .from('inbox_messages')
+        .update({ sara_status: 'sending' })
+        .eq('id', msg.id)
+        .eq('sara_status', 'scheduled')
+        .select('id')
+        .maybeSingle();
+      if (claimErr) {
+        console.error(`[ScheduledEmails] Failed to claim message ${msg.id}:`, claimErr.message);
+        continue;
+      }
+      if (!claimed) {
+        console.log(`[ScheduledEmails] Message ${msg.id} already claimed by a concurrent run — skipping`);
+        continue;
+      }
+
       const smtpPassword = decrypt(smtpAccount.smtp_pass_encrypted);
 
       const doSend = () => sendViaSmtp({
@@ -1280,25 +1300,30 @@ export async function processScheduledEmails(): Promise<number> {
       await (smtpAccount.user_id ? sendWithQuotaRefund(smtpAccount.user_id, doSend) : doSend());
 
       // Mark as sent by clearing the schedule markers
-      await supabaseAdmin
+      const { error: clearErr } = await supabaseAdmin
         .from('inbox_messages')
         .update({ sara_status: null, sara_action: null })
         .eq('id', msg.id);
+      if (clearErr) {
+        // The email already sent successfully — the row is now stuck with sara_status
+        // 'sending' rather than resent, since the claim above already ruled out a
+        // duplicate. Log loudly rather than silently leaving it unexplained.
+        console.error(`[ScheduledEmails] Sent ${msg.id} but failed to clear its schedule markers:`, clearErr.message);
+      }
 
       sent++;
       console.log(`[ScheduledEmails] Sent scheduled email ${msg.id} to ${msg.to_email}`);
     } catch (err: any) {
       console.error(`[ScheduledEmails] Failed to send message ${msg.id}:`, err.message);
       // Only wipe schedule markers for permanent failures (auth, config, envelope errors).
-      // Transient network errors keep the markers so the next scheduler run retries.
+      // Transient network errors revert the claim back to 'scheduled' (sara_action is
+      // untouched, so it's still due) so the next scheduler run retries.
       const TRANSIENT_CODES = new Set(['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'EAI_AGAIN']);
       const isTransient = TRANSIENT_CODES.has(err.code) || err.message?.includes('timeout') || err.message?.includes('ENOTFOUND');
-      if (!isTransient) {
-        await supabaseAdmin
-          .from('inbox_messages')
-          .update({ sara_status: null, sara_action: null })
-          .eq('id', msg.id);
-      }
+      await supabaseAdmin
+        .from('inbox_messages')
+        .update(isTransient ? { sara_status: 'scheduled' } : { sara_status: null, sara_action: null })
+        .eq('id', msg.id);
     }
   }
 
