@@ -248,6 +248,7 @@ function FlowNode({
   index,
   totalSteps,
   dayOffset,
+  timedByDelayNode,
   isEditing,
   onEdit,
   onRemove,
@@ -260,6 +261,8 @@ function FlowNode({
   index: number;
   totalSteps: number;
   dayOffset: number;
+  /** True when the step directly above is an explicit Wait node — it owns the timing. */
+  timedByDelayNode?: boolean;
   isEditing: boolean;
   onEdit: () => void;
   onRemove: () => void;
@@ -328,7 +331,7 @@ function FlowNode({
           title="When this step fires after a contact is enrolled"
         >
           <Clock className="h-2.5 w-2.5" strokeWidth={2.2} />
-          <span>{dayOffset === 0 ? 'Immediately' : `Day ${dayOffset}`}</span>
+          <span>{dayOffset === 0 ? (index === 0 ? 'At launch' : 'Immediately') : `Day ${dayOffset}`}</span>
         </div>
 
         <div className="p-4 pt-5">
@@ -356,6 +359,26 @@ function FlowNode({
                 )}
               </div>
               <p className="text-[12px] text-[var(--text-secondary)] truncate">{getStepSummary()}</p>
+
+              {/* Built-in send timing — lives on the email itself, no separate
+                  delay node needed. First email always goes out at launch, and
+                  when a Wait node sits directly above, that node owns the
+                  timing (matching the engine, which ignores the built-in wait
+                  after an explicit delay). */}
+              {step.step_type === 'email' && index > 0 && !timedByDelayNode && (
+                <div
+                  className="mt-2.5 inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 pl-2.5 pr-2.5 h-8"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Clock className="h-3 w-3 text-[var(--indigo)] flex-shrink-0" strokeWidth={2.2} />
+                  <span className="text-[11.5px] font-medium text-[var(--text-secondary)]">Sends</span>
+                  <DelayUnit value={step.delay_days || 0} unit="d" onChange={(v) => onUpdate({ delay_days: v })} />
+                  <DelayUnit value={step.delay_hours || 0} unit="h" onChange={(v) => onUpdate({ delay_hours: v })} />
+                  <span className="text-[11.5px] text-[var(--text-tertiary)] whitespace-nowrap">
+                    {stepDelayInDays(step) > 0 ? 'after the previous step' : '— immediately after previous'}
+                  </span>
+                </div>
+              )}
 
               {/* Email preview */}
               {step.step_type === 'email' && step.body_html && (
@@ -607,27 +630,21 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
   });
 
   const addStep = useCallback((type: StepType, atIndex?: number) => {
+    const insertAt = atIndex ?? steps.length;
     const newStep = makeStep(type);
 
-    // Built-in delay: a follow-up email should never fire the instant the
-    // previous one sends. When adding an Email after existing steps (and the
-    // step right before it isn't already a wait), auto-insert a 3-day delay —
-    // editable, and still on top of the standalone Delay step users can add.
-    const insertAt = atIndex ?? steps.length;
-    const prev = steps[insertAt - 1];
-    const wantsAutoDelay =
-      type === StepType.Email && insertAt > 0 && prev && prev.step_type !== StepType.Delay;
-
-    const toInsert: FlowStep[] = wantsAutoDelay
-      ? [{ ...makeStep(StepType.Delay), delay_days: 3 }, newStep]
-      : [newStep];
-    const emailIdx = insertAt + toInsert.length - 1; // index of the email step
+    // Built-in timing lives ON the email step itself: a follow-up defaults to
+    // "3 days after the previous step" (editable right on the card, down to 0
+    // for immediate). The first email always sends at launch.
+    if (type === StepType.Email && insertAt > 0) {
+      newStep.delay_days = 3;
+    }
 
     const newSteps = [...steps];
-    newSteps.splice(insertAt, 0, ...toInsert);
+    newSteps.splice(insertAt, 0, newStep);
     onStepsChange(newSteps);
     if (type === StepType.Email || type === StepType.Condition || type === StepType.WebhookWait) {
-      onEditStep(emailIdx);
+      onEditStep(insertAt);
     }
   }, [steps, onStepsChange, onEditStep]);
 
@@ -724,10 +741,17 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
   // overall sequence stats shown in the summary chip.
   const dayOffsets: number[] = [];
   let cumulative = 0;
-  for (const step of steps) {
+  // (email steps add their own built-in wait BEFORE they fire; delay nodes
+  // add theirs AFTER — both feed the Day-N badges below)
+  steps.forEach((step, i) => {
+    // Email built-in waits count only when no Wait node sits directly above
+    // (the engine gives explicit Wait nodes precedence over built-in timing).
+    if (step.step_type === 'email' && steps[i - 1]?.step_type !== 'delay') {
+      cumulative += stepDelayInDays(step);
+    }
     dayOffsets.push(Math.round(cumulative));
     if (step.step_type === 'delay') cumulative += stepDelayInDays(step);
-  }
+  });
   const emailCount = steps.filter((s) => s.step_type === 'email').length;
   const totalDays = Math.round(cumulative);
 
@@ -770,6 +794,7 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
               index={index}
               totalSteps={steps.length}
               dayOffset={dayOffsets[index]}
+              timedByDelayNode={steps[index - 1]?.step_type === 'delay'}
               isEditing={editingStep === index}
               onEdit={() => onEditStep(editingStep === index ? -1 : index)}
               onRemove={() => removeStep(index)}

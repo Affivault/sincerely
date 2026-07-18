@@ -762,14 +762,20 @@ async function advanceToNextStep(
   allSteps: any[]
 ): Promise<void> {
   const nextStepOrder = currentStepOrder + 1;
-  const hasMoreSteps = allSteps.some((s: any) => s.step_order === nextStepOrder);
+  const nextStep = allSteps.find((s: any) => s.step_order === nextStepOrder);
 
-  if (hasMoreSteps) {
+  if (nextStep) {
+    // Honor the next email step's built-in "send N after previous step"
+    // timing even when we got here by skipping a step (skip_if_replied,
+    // condition branch): the wait belongs to the email, not to the path.
+    const builtinMs = nextStep.step_type === 'email'
+      ? ((nextStep.delay_days || 0) * 86400000) + ((nextStep.delay_hours || 0) * 3600000) + ((nextStep.delay_minutes || 0) * 60000)
+      : 0;
     await supabaseAdmin
       .from('campaign_contacts')
       .update({
         current_step_order: nextStepOrder,
-        next_send_at: new Date().toISOString(),
+        next_send_at: new Date(Date.now() + builtinMs).toISOString(),
       })
       .eq('id', campaignContactId);
   } else {
