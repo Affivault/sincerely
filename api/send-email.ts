@@ -74,6 +74,7 @@ export default async function handler(req: VercelReq, res: VercelRes) {
     text,
     message_id,
     headers,
+    reply_to,
   } = body;
 
   // Validate required fields
@@ -123,6 +124,7 @@ export default async function handler(req: VercelReq, res: VercelRes) {
       text: text || undefined,
       messageId: message_id || undefined,
       headers: headers || undefined,
+      replyTo: reply_to || undefined,
     });
 
     return res.status(200).json({

@@ -5,6 +5,7 @@ import { contactsApi, listsApi } from '../../api/contacts.api';
 import { analyticsApi } from '../../api/analytics.api';
 import { crmApi } from '../../api/crm.api';
 import { inboxApi } from '../../api/inbox.api';
+import { suppressionApi } from '../../api/suppression.api';
 import { DealModal, EventModal } from '../crm/CrmPage';
 import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
 import { EmailBody } from '../../components/shared/EmailBody';
@@ -38,6 +39,7 @@ import {
   ArrowDownLeft,
   ChevronDown,
   MailOpen,
+  Ban,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -150,6 +152,15 @@ export function ContactDetailPage() {
     onError: () => toast.error('Failed to move contact'),
   });
 
+  const suppressMutation = useMutation({
+    mutationFn: () => suppressionApi.add(contact!.email, 'manual'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppression'] });
+      toast.success('Added to suppression list — this contact won’t receive campaign emails');
+    },
+    onError: () => toast.error('Failed to add to suppression list'),
+  });
+
   if (!id) {
     return <div className="text-center py-12 text-[var(--text-secondary)]">Invalid contact URL.</div>;
   }
@@ -251,6 +262,14 @@ export function ContactDetailPage() {
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo)] text-white text-[12.5px] font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]"
           >
             <Plus className="h-3.5 w-3.5" /> New deal
+          </button>
+          <button
+            onClick={() => { if (confirm(`Add ${contact.email} to the suppression list? They will no longer receive campaign emails.`)) suppressMutation.mutate(); }}
+            disabled={suppressMutation.isPending}
+            className="icon-btn hover:text-amber-500 hover:bg-amber-500/10 flex-shrink-0"
+            title="Add to suppression list"
+          >
+            <Ban className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={() => { if (confirm('Delete this contact?')) deleteMutation.mutate(); }}
