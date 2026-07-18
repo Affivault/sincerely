@@ -97,7 +97,7 @@ async function syncArchiveToImap(
   for (const [accountId, msgs] of byAccount) {
     const { data: account } = await supabaseAdmin
       .from('smtp_accounts')
-      .select('smtp_host, smtp_user, smtp_pass_encrypted, email_address')
+      .select('smtp_host, smtp_user, imap_user, smtp_pass_encrypted, email_address')
       .eq('id', accountId)
       .single();
     if (!account) continue;
@@ -132,7 +132,7 @@ async function syncArchiveToImap(
       port: 993,
       secure: true,
       servername: imapHost,
-      auth: { user: account.smtp_user || account.email_address, pass: password },
+      auth: { user: account.imap_user || account.smtp_user || account.email_address, pass: password },
       logger: false,
     });
 
@@ -949,7 +949,7 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
     try {
       const { data: accounts, error: dbError } = await supabaseAdmin
         .from('smtp_accounts')
-        .select('id, user_id, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass_encrypted, email_address, last_inbox_sync_at')
+        .select('id, user_id, smtp_host, smtp_port, smtp_secure, smtp_user, imap_user, smtp_pass_encrypted, email_address, last_inbox_sync_at')
         .eq('user_id', userId)
         .eq('is_active', true);
 
@@ -999,7 +999,7 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
             port: 993,
             secure: true,
             servername: imapHost,
-            auth: { user: account.smtp_user || account.email_address, pass: password },
+            auth: { user: account.imap_user || account.smtp_user || account.email_address, pass: password },
             logger: false,
             emitLogs: false,
           });
@@ -1276,6 +1276,9 @@ export async function processScheduledEmails(): Promise<number> {
         continue;
       }
       if (!claimed) {
+        // Lost the race to a concurrent run — give back the quota slot reserved
+        // above, or it's burned permanently even though no email was sent.
+        if (smtpAccount.user_id) await billingService.refundEmailQuota(smtpAccount.user_id);
         console.log(`[ScheduledEmails] Message ${msg.id} already claimed by a concurrent run — skipping`);
         continue;
       }

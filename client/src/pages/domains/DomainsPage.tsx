@@ -375,6 +375,9 @@ export function DomainsPage() {
       toast.success('Domain removed');
       setExpandedId(null);
     },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || 'Failed to remove domain');
+    },
   });
 
   const handleAdd = (e: React.FormEvent) => {

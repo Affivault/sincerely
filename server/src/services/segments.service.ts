@@ -19,6 +19,23 @@ function assertValidField(field: string): void {
   }
 }
 
+const CONTACT_PAGE_SIZE = 1000;
+
+// Supabase caps a single select at ~1000 rows (see lists.service.ts's
+// getContactsInList), so any contacts query backing a segment must page
+// through the full result or silently truncate past the first 1000 matches.
+async function fetchAllContactIds(buildQuery: (from: number, to: number) => any): Promise<string[]> {
+  const ids: string[] = [];
+  for (let from = 0; ; from += CONTACT_PAGE_SIZE) {
+    const { data, error } = await buildQuery(from, from + CONTACT_PAGE_SIZE - 1);
+    if (error) throw new AppError(error.message, 500);
+    const rows = data || [];
+    for (const row of rows) ids.push(row.id);
+    if (rows.length < CONTACT_PAGE_SIZE) break;
+  }
+  return ids;
+}
+
 export const segmentsService = {
   async list(userId: string) {
     const { data, error } = await supabaseAdmin
@@ -142,9 +159,9 @@ export const segmentsService = {
     const { conditions, logic } = filterConfig;
 
     if (!conditions || conditions.length === 0) {
-      const { data, error } = await supabaseAdmin.from('contacts').select('id').eq('user_id', userId);
-      if (error) throw new AppError(error.message, 500);
-      return (data || []).map((c: any) => c.id);
+      return fetchAllContactIds((from, to) =>
+        supabaseAdmin.from('contacts').select('id').eq('user_id', userId).range(from, to)
+      );
     }
 
     const tagConditions = conditions.filter((c) => c.field === 'tag');
@@ -155,9 +172,10 @@ export const segmentsService = {
         const ids = await this.getContactIdsWithTag(userId, String(c.value));
         const idSet = new Set(ids);
         if (c.operator === 'not_equals') {
-          const { data: all, error } = await supabaseAdmin.from('contacts').select('id').eq('user_id', userId);
-          if (error) throw new AppError(error.message, 500);
-          return new Set((all || []).map((row: any) => row.id).filter((id: string) => !idSet.has(id)));
+          const allIds = await fetchAllContactIds((from, to) =>
+            supabaseAdmin.from('contacts').select('id').eq('user_id', userId).range(from, to)
+          );
+          return new Set(allIds.filter((id: string) => !idSet.has(id)));
         }
         return idSet;
       })
@@ -165,22 +183,23 @@ export const segmentsService = {
 
     let otherIds: string[] | null = null;
     if (otherConditions.length > 0 || tagConditions.length === 0) {
-      let query = supabaseAdmin.from('contacts').select('id').eq('user_id', userId);
+      const buildBaseQuery = () => {
+        let query = supabaseAdmin.from('contacts').select('id').eq('user_id', userId);
 
-      if (logic === 'or' && otherConditions.length > 1) {
-        const orConditions = otherConditions.map((c) => this.buildConditionString(c)).filter(Boolean) as string[];
-        if (orConditions.length > 0) {
-          query = query.or(orConditions.join(','));
+        if (logic === 'or' && otherConditions.length > 1) {
+          const orConditions = otherConditions.map((c) => this.buildConditionString(c)).filter(Boolean) as string[];
+          if (orConditions.length > 0) {
+            query = query.or(orConditions.join(','));
+          }
+        } else {
+          for (const condition of otherConditions) {
+            query = this.applyCondition(query, condition);
+          }
         }
-      } else {
-        for (const condition of otherConditions) {
-          query = this.applyCondition(query, condition);
-        }
-      }
+        return query;
+      };
 
-      const { data, error } = await query;
-      if (error) throw new AppError(error.message, 500);
-      otherIds = (data || []).map((c: any) => c.id);
+      otherIds = await fetchAllContactIds((from, to) => buildBaseQuery().range(from, to));
     }
 
     if (tagIdSets.length === 0) {

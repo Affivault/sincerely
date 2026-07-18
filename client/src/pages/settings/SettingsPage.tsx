@@ -84,6 +84,14 @@ export function SettingsPage() {
     (TAB_IDS as string[]).includes(requestedTab || '') ? (requestedTab as Tab) : 'profile'
   );
 
+  // Re-sync when the URL's ?tab= changes on an already-mounted SettingsPage
+  // (e.g. clicking "Account" in the header dropdown while already on /settings).
+  useEffect(() => {
+    if (requestedTab && (TAB_IDS as string[]).includes(requestedTab) && requestedTab !== activeTab) {
+      setActiveTab(requestedTab as Tab);
+    }
+  }, [requestedTab]);
+
   // Form state
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');

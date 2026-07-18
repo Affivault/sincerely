@@ -16,7 +16,7 @@ import toast from 'react-hot-toast';
 import type { SmtpAccount, CreateSmtpAccountInput, SmtpPreset, VerifyLegResult } from '@lemlist/shared';
 import { SMTP_PRESETS, detectPresetFromEmail } from '@lemlist/shared';
 
-type Form = CreateSmtpAccountInput & { from_name?: string | null; imap_user?: string };
+type Form = CreateSmtpAccountInput & { from_name?: string | null };
 
 const emptyForm: Form = {
   label: '',

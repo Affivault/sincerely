@@ -189,6 +189,7 @@ export function EmailAccountsPage() {
   const deleteMutation = useMutation({
     mutationFn: smtpApi.delete,
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['smtp-accounts'] }); toast.success('Account removed'); },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to remove account'),
   });
 
   const testMutation = useMutation({
@@ -218,6 +219,7 @@ export function EmailAccountsPage() {
   const deleteDomainMutation = useMutation({
     mutationFn: domainApi.delete,
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['domains'] }); toast.success('Domain removed'); setExpandedDomain(null); },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to remove domain'),
   });
 
   if (isLoading || loadingDomains) return <div className="max-w-5xl space-y-3"><SkeletonList rows={5} /></div>;
