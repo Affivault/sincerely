@@ -17,6 +17,27 @@ function daysAgoISO(days: number): string {
   return d.toISOString();
 }
 
+const ACTIVITY_PAGE_SIZE = 1000;
+
+// Supabase caps a single select at ~1000 rows (see lists.service.ts's
+// getContactsInList / segments.service.ts's fetchAllContactIds). Every
+// analytics query below reads raw campaign_activities rows to aggregate
+// counts client-side, so without paging, any campaign/account that has
+// accumulated more than 1000 activity rows would silently undercount
+// sent/opened/clicked/replied — wrong rates, a wrong A/B winner, a
+// truncated CSV export, and an incomplete heatmap/funnel.
+async function fetchAllRows<T = any>(buildQuery: (from: number, to: number) => any): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += ACTIVITY_PAGE_SIZE) {
+    const { data, error } = await buildQuery(from, from + ACTIVITY_PAGE_SIZE - 1);
+    if (error) throw new AppError(error.message, 500);
+    const chunk: T[] = data || [];
+    rows.push(...chunk);
+    if (chunk.length < ACTIVITY_PAGE_SIZE) break;
+  }
+  return rows;
+}
+
 const MIN_AB_SAMPLE = 30;
 const MIN_AB_GAP = 2; // percentage points
 
@@ -180,12 +201,15 @@ export const analyticsService = {
     const campaignIds = (campaigns || []).map((c: any) => c.id);
     if (campaignIds.length === 0) return [];
 
-    const { data: activities } = await supabaseAdmin
-      .from('campaign_activities')
-      .select('activity_type, occurred_at')
-      .in('campaign_id', campaignIds)
-      .gte('occurred_at', daysAgoISO(days))
-      .order('occurred_at', { ascending: true });
+    const activities = await fetchAllRows<{ activity_type: string; occurred_at: string }>((from, to) =>
+      supabaseAdmin
+        .from('campaign_activities')
+        .select('activity_type, occurred_at')
+        .in('campaign_id', campaignIds)
+        .gte('occurred_at', daysAgoISO(days))
+        .order('occurred_at', { ascending: true })
+        .range(from, to)
+    );
 
     const byDate: Record<string, { sent: number; opened: number; clicked: number; replied: number }> = {};
 
@@ -196,7 +220,7 @@ export const analyticsService = {
       byDate[key] = { sent: 0, opened: 0, clicked: 0, replied: 0 };
     }
 
-    for (const a of activities || []) {
+    for (const a of activities) {
       const dateKey = a.occurred_at?.slice(0, 10);
       if (!dateKey || !byDate[dateKey]) continue;
       switch (a.activity_type) {
@@ -225,13 +249,16 @@ export const analyticsService = {
       .select('*', { count: 'exact', head: true })
       .eq('campaign_id', campaignId);
 
-    const { data: activities } = await supabaseAdmin
-      .from('campaign_activities')
-      .select('activity_type')
-      .eq('campaign_id', campaignId);
+    const activities = await fetchAllRows<{ activity_type: string }>((from, to) =>
+      supabaseAdmin
+        .from('campaign_activities')
+        .select('activity_type')
+        .eq('campaign_id', campaignId)
+        .range(from, to)
+    );
 
     const counts = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0, errors: 0 };
-    for (const a of activities || []) {
+    for (const a of activities) {
       switch (a.activity_type) {
         case 'sent': counts.sent++; break;
         case 'opened': counts.opened++; break;
@@ -263,18 +290,24 @@ export const analyticsService = {
 
     if (!campaign) throw new AppError('Campaign not found', 404);
 
-    const { data: campaignContacts } = await supabaseAdmin
-      .from('campaign_contacts')
-      .select('contact_id, status, contacts(email, first_name, last_name, dcs_score, is_bounced)')
-      .eq('campaign_id', campaignId);
+    const campaignContacts = await fetchAllRows<any>((from, to) =>
+      supabaseAdmin
+        .from('campaign_contacts')
+        .select('contact_id, status, contacts(email, first_name, last_name, dcs_score, is_bounced)')
+        .eq('campaign_id', campaignId)
+        .range(from, to)
+    );
 
-    const { data: allActivities } = await supabaseAdmin
-      .from('campaign_activities')
-      .select('contact_id, activity_type')
-      .eq('campaign_id', campaignId);
+    const allActivities = await fetchAllRows<{ contact_id: string; activity_type: string }>((from, to) =>
+      supabaseAdmin
+        .from('campaign_activities')
+        .select('contact_id, activity_type')
+        .eq('campaign_id', campaignId)
+        .range(from, to)
+    );
 
     const activityByContact = new Map<string, { sent: number; opened: number; clicked: number; replied: boolean }>();
-    for (const a of allActivities || []) {
+    for (const a of allActivities) {
       if (!activityByContact.has(a.contact_id)) {
         activityByContact.set(a.contact_id, { sent: 0, opened: 0, clicked: 0, replied: false });
       }
@@ -287,7 +320,7 @@ export const analyticsService = {
       }
     }
 
-    const contacts = (campaignContacts || []).map((cc: any) => {
+    const contacts = campaignContacts.map((cc: any) => {
       const counts = activityByContact.get(cc.contact_id) || { sent: 0, opened: 0, clicked: 0, replied: false };
       return {
         contact_id: cc.contact_id,
@@ -415,16 +448,19 @@ export const analyticsService = {
 
     const campaignIds = campaigns.map((c: any) => c.id);
 
-    const { data: activities } = await supabaseAdmin
-      .from('campaign_activities')
-      .select('campaign_id, activity_type')
-      .in('campaign_id', campaignIds);
+    const activities = await fetchAllRows<{ campaign_id: string; activity_type: string }>((from, to) =>
+      supabaseAdmin
+        .from('campaign_activities')
+        .select('campaign_id, activity_type')
+        .in('campaign_id', campaignIds)
+        .range(from, to)
+    );
 
     const stats = new Map<string, { sent: number; opened: number; clicked: number; replied: number; bounced: number }>();
     for (const id of campaignIds) {
       stats.set(id, { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 });
     }
-    for (const a of activities || []) {
+    for (const a of activities) {
       const s = stats.get(a.campaign_id);
       if (!s) continue;
       switch (a.activity_type) {
@@ -472,15 +508,18 @@ export const analyticsService = {
       .eq('campaign_id', campaignId)
       .order('step_order', { ascending: true });
 
-    const { data: activities } = await supabaseAdmin
-      .from('campaign_activities')
-      .select('contact_id, activity_type, step_id')
-      .eq('campaign_id', campaignId);
+    const activities = await fetchAllRows<{ contact_id: string; activity_type: string; step_id: string | null }>((from, to) =>
+      supabaseAdmin
+        .from('campaign_activities')
+        .select('contact_id, activity_type, step_id')
+        .eq('campaign_id', campaignId)
+        .range(from, to)
+    );
 
     if (!steps || steps.length === 0) {
       // No steps configured — aggregate across whole campaign
       const byType = new Map<string, Set<string>>();
-      for (const a of activities || []) {
+      for (const a of activities) {
         if (!byType.has(a.activity_type)) byType.set(a.activity_type, new Set());
         byType.get(a.activity_type)!.add(a.contact_id);
       }
@@ -509,7 +548,7 @@ export const analyticsService = {
       stepStats.set(step.id, { sent: new Set(), opened: new Set(), clicked: new Set(), replied: new Set(), bounced: new Set() });
     }
 
-    for (const a of activities || []) {
+    for (const a of activities) {
       if (!a.step_id) continue;
       const s = stepStats.get(a.step_id);
       if (!s) continue;
@@ -563,15 +602,18 @@ export const analyticsService = {
 
     const stepIds = steps.map((s: any) => s.id);
 
-    const { data: allActivities } = await supabaseAdmin
-      .from('campaign_activities')
-      .select('contact_id, step_id, activity_type, metadata')
-      .eq('campaign_id', campaignId)
-      .in('step_id', stepIds);
+    const allActivities = await fetchAllRows<{ contact_id: string; step_id: string; activity_type: string; metadata: any }>((from, to) =>
+      supabaseAdmin
+        .from('campaign_activities')
+        .select('contact_id, step_id, activity_type, metadata')
+        .eq('campaign_id', campaignId)
+        .in('step_id', stepIds)
+        .range(from, to)
+    );
 
     // Build variant lookup map from sent activities only (they're the only ones with ab_variant)
     const variantByContactStep = new Map<string, 'a' | 'b'>();
-    for (const a of allActivities || []) {
+    for (const a of allActivities) {
       if (a.activity_type !== 'sent') continue;
       const variant = (a.metadata as any)?.ab_variant === 'b' ? 'b' : 'a';
       variantByContactStep.set(`${a.contact_id}:${a.step_id}`, variant);
@@ -583,7 +625,7 @@ export const analyticsService = {
         b: { sent: 0, opened: 0, clicked: 0, replied: 0 },
       };
 
-      for (const a of allActivities || []) {
+      for (const a of allActivities) {
         if (a.step_id !== step.id) continue;
         const variant = variantByContactStep.get(`${a.contact_id}:${a.step_id}`);
         if (!variant) continue;
@@ -635,12 +677,15 @@ export const analyticsService = {
 
     if (!campaign) throw new AppError('Campaign not found', 404);
 
-    const { data: activities } = await supabaseAdmin
-      .from('campaign_activities')
-      .select('activity_type, occurred_at')
-      .eq('campaign_id', campaignId)
-      .gte('occurred_at', daysAgoISO(days))
-      .order('occurred_at', { ascending: true });
+    const activities = await fetchAllRows<{ activity_type: string; occurred_at: string }>((from, to) =>
+      supabaseAdmin
+        .from('campaign_activities')
+        .select('activity_type, occurred_at')
+        .eq('campaign_id', campaignId)
+        .gte('occurred_at', daysAgoISO(days))
+        .order('occurred_at', { ascending: true })
+        .range(from, to)
+    );
 
     const byDate: Record<string, { sent: number; opened: number; clicked: number; replied: number; bounced: number }> = {};
     for (let i = days - 1; i >= 0; i--) {
@@ -649,7 +694,7 @@ export const analyticsService = {
       byDate[d.toISOString().slice(0, 10)] = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
     }
 
-    for (const a of activities || []) {
+    for (const a of activities) {
       const dateKey = a.occurred_at?.slice(0, 10);
       if (!dateKey || !byDate[dateKey]) continue;
       switch (a.activity_type) {
@@ -674,15 +719,18 @@ export const analyticsService = {
 
     if (!campaign) throw new AppError('Campaign not found', 404);
 
-    const { data: activities } = await supabaseAdmin
-      .from('campaign_activities')
-      .select('activity_type, occurred_at')
-      .eq('campaign_id', campaignId)
-      .in('activity_type', ['opened', 'clicked', 'replied']);
+    const activities = await fetchAllRows<{ activity_type: string; occurred_at: string }>((from, to) =>
+      supabaseAdmin
+        .from('campaign_activities')
+        .select('activity_type, occurred_at')
+        .eq('campaign_id', campaignId)
+        .in('activity_type', ['opened', 'clicked', 'replied'])
+        .range(from, to)
+    );
 
     // 7 days × 24 hours engagement grid
     const grid: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
-    for (const a of activities || []) {
+    for (const a of activities) {
       if (!a.occurred_at) continue;
       const d = new Date(a.occurred_at);
       grid[d.getUTCDay()][d.getUTCHours()]++;
