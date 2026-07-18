@@ -38,19 +38,35 @@ interface SmtpSendParams {
 /** Turn a raw SMTP/relay error into a short, human, actionable message. */
 export function describeSmtpError(err: any): string {
   const raw = String(err?.message || err || '').toLowerCase();
+  // A timeout with no relay configured almost always means the hosting
+  // platform blocks outbound SMTP entirely (Render/Railway do) — no amount of
+  // host/port fiddling will fix that; the Vercel relay will.
+  const relayHint = !env.SMTP_RELAY_URL
+    ? ' If this keeps happening on every port, your hosting provider is blocking outbound SMTP — set SMTP_RELAY_URL + SMTP_RELAY_SECRET to route sends through the bundled Vercel relay (/api/send-email).'
+    : '';
   if (raw.includes('invalid login') || raw.includes('auth') || raw.includes('535') || raw.includes('credentials') || raw.includes('username and password'))
     return 'Authentication failed — check the username/password. Gmail & Outlook need an app password, not your normal login.';
   if (raw.includes('etimedout') || raw.includes('timeout') || raw.includes('timed out'))
-    return 'Connection timed out — the SMTP host/port may be wrong or your provider blocks this port. Try port 465 (SSL) or 587 (TLS).';
+    return `Connection timed out — the SMTP host/port may be wrong, or the port is blocked. Try 465 (SSL) or 587 (TLS).${relayHint}`;
   if (raw.includes('econnrefused'))
-    return 'Connection refused — double-check the SMTP host and port.';
+    return `Connection refused — double-check the SMTP host and port.${relayHint}`;
   if (raw.includes('enotfound') || raw.includes('getaddrinfo'))
     return 'SMTP host not found — check the server address (e.g. smtp.gmail.com).';
   if (raw.includes('certificate') || raw.includes('self signed') || raw.includes('self-signed'))
     return 'TLS certificate problem — try toggling SSL/TLS, or use port 465 with SSL.';
   if (raw.includes('greeting'))
-    return 'The server never sent a greeting — wrong port or SSL/TLS setting. Try 465 (SSL) or 587 (TLS).';
+    return `The server never sent a greeting — wrong port or SSL/TLS setting. Try 465 (SSL) or 587 (TLS).${relayHint}`;
   return err?.message || 'Could not connect to the mail server.';
+}
+
+// Loud, once, at boot: without the relay, hosts that block outbound SMTP
+// (Render, Railway) make every send fail with a timeout users can't fix.
+if (!env.SMTP_RELAY_URL || !env.SMTP_RELAY_SECRET) {
+  console.warn(
+    '[EmailSender] SMTP_RELAY_URL / SMTP_RELAY_SECRET not set — sends go DIRECT over SMTP ports. ' +
+    'If this host blocks outbound SMTP (Render/Railway do), every send will time out. ' +
+    'Deploy the bundled Vercel function (api/send-email.ts) and set both env vars to fix.',
+  );
 }
 
 interface SmtpSendResult {
@@ -414,12 +430,13 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
   if (currentStep) {
     const { data: allSteps } = await supabaseAdmin
       .from('campaign_steps')
-      .select('step_order')
+      .select('step_order, step_type, delay_days, delay_hours, delay_minutes')
       .eq('campaign_id', campaignId)
       .order('step_order');
 
     const nextStepOrder = currentStep.step_order + 1;
-    const hasMoreSteps = allSteps?.some((s: any) => s.step_order === nextStepOrder);
+    const nextStep = allSteps?.find((s: any) => s.step_order === nextStepOrder);
+    const hasMoreSteps = !!nextStep;
 
     if (hasMoreSteps) {
       const delayMin = campaign.delay_between_emails_min ?? campaign.delay_between_emails ?? 60;
@@ -427,8 +444,16 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
       const effectiveMin = Math.min(delayMin, delayMax);
       const effectiveMax = Math.max(delayMin, delayMax);
       const delaySecs = effectiveMin + Math.floor(Math.random() * (effectiveMax - effectiveMin + 1));
-      const nextSendAt = new Date(Date.now() + delaySecs * 1000);
-      console.log(`[EmailSender] Next step in ${delaySecs}s (range: ${delayMin}-${delayMax}s)`);
+
+      // Built-in per-email timing: an email step's own delay fields mean
+      // "send this long after the previous step" — no separate delay node
+      // needed. The anti-spam throttle still applies as a floor.
+      const builtinMs = nextStep.step_type === 'email'
+        ? ((nextStep.delay_days || 0) * 86400000) + ((nextStep.delay_hours || 0) * 3600000) + ((nextStep.delay_minutes || 0) * 60000)
+        : 0;
+      const waitMs = Math.max(delaySecs * 1000, builtinMs);
+      const nextSendAt = new Date(Date.now() + waitMs);
+      console.log(`[EmailSender] Next step in ${Math.round(waitMs / 1000)}s (throttle ${delaySecs}s, built-in ${Math.round(builtinMs / 1000)}s)`);
       const { error: advanceError } = await supabaseAdmin
         .from('campaign_contacts')
         .update({ current_step_order: nextStepOrder, next_send_at: nextSendAt.toISOString() })

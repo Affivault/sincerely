@@ -240,18 +240,21 @@ export function CampaignCreatePage() {
     queryFn: () => contactsApi.list({ limit: 50, search: contactSearch || undefined }),
   });
 
-  // Fetch full contact details for the selected IDs so the audience list can
-  // show — and let you remove — every recipient, not just the first handful.
-  const { data: selectedContactsPreview } = useQuery({
-    queryKey: ['contacts', 'selected-preview', [...selectedContactIds].sort().join(',')],
-    queryFn: async () => {
-      if (selectedContactIds.length === 0) return [];
-      const selected = new Set(selectedContactIds);
-      const list = await contactsApi.list({ limit: 1000 });
-      return (list.data || []).filter((c: any) => selected.has(c.id));
-    },
+  // Contact pool for the audience list. Fetched ONCE with a stable key, then
+  // filtered client-side against selectedContactIds — so adding/removing a
+  // recipient is a pure state change with zero refetch (no flicker where the
+  // whole list vanished and popped back while a keyed query reloaded).
+  const { data: contactPool } = useQuery({
+    queryKey: ['contacts', 'audience-pool'],
+    queryFn: async () => (await contactsApi.list({ limit: 1000 })).data || [],
+    staleTime: 60_000,
     enabled: selectedContactIds.length > 0,
   });
+  const selectedContactsPreview = useMemo(() => {
+    if (!contactPool || selectedContactIds.length === 0) return [];
+    const selected = new Set(selectedContactIds);
+    return contactPool.filter((c: any) => selected.has(c.id));
+  }, [contactPool, selectedContactIds]);
 
   const { data: allLists } = useQuery({
     queryKey: ['lists'],
@@ -407,10 +410,10 @@ export function CampaignCreatePage() {
             condition_field: s.condition_field || '',
             condition_operator: s.condition_operator || '',
             condition_value: s.condition_value || '',
-            true_branch_step: s.true_branch_step,
-            false_branch_step: s.false_branch_step,
+            true_branch_step: s.true_branch_step ?? undefined,
+            false_branch_step: s.false_branch_step ?? undefined,
             webhook_event: s.webhook_event || '',
-            webhook_timeout_hours: s.webhook_timeout_hours,
+            webhook_timeout_hours: s.webhook_timeout_hours ?? undefined,
           }))
         );
       }

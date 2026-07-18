@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { smtpApi } from '../../api/smtp.api';
@@ -16,7 +16,15 @@ import toast from 'react-hot-toast';
 import type { SmtpAccount, CreateSmtpAccountInput, SmtpPreset, VerifyLegResult } from '@lemlist/shared';
 import { SMTP_PRESETS, detectPresetFromEmail } from '@lemlist/shared';
 
-type Form = CreateSmtpAccountInput & { from_name?: string | null };
+/** Map the MX check's provider hint onto our connection presets. */
+const HINT_TO_PRESET: Record<string, string> = {
+  'Google Workspace': 'Gmail',
+  'Microsoft 365': 'Outlook / Microsoft 365',
+  'Zoho Mail': 'Zoho Mail',
+  'Fastmail': 'Fastmail',
+};
+
+type Form = CreateSmtpAccountInput & { from_name?: string | null; imap_user?: string };
 
 const emptyForm: Form = {
   label: '',
@@ -199,6 +207,71 @@ export function SmtpAccountModal({
     }
   };
 
+  /* ── MX auto-detection ─────────────────────────────────────────────
+     For custom domains (steven@yourcompany.com) the static domain map knows
+     nothing — so we look up the domain's real mail (MX) records server-side
+     and assign settings from what the domain actually uses. */
+  const [mxState, setMxState] = useState<{ status: 'idle' | 'checking' | 'done'; note: string }>({ status: 'idle', note: '' });
+  const mxTimer = useRef<ReturnType<typeof setTimeout>>();
+  const mxCheckedDomain = useRef('');
+  useEffect(() => () => clearTimeout(mxTimer.current), []);
+
+  const applyDetectedPreset = useCallback((preset: SmtpPreset, note: string) => {
+    setActivePreset(preset);
+    setAutoDetected(true);
+    setForm((prev) => ({
+      ...prev,
+      smtp_user: prev.smtp_user || prev.email_address,
+      label: prev.label || preset.name,
+      smtp_host: preset.smtp_host,
+      smtp_port: preset.smtp_port,
+      smtp_secure: preset.smtp_secure,
+      imap_host: preset.imap_host || undefined,
+      imap_port: preset.imap_port || undefined,
+      imap_secure: preset.imap_secure ?? undefined,
+      daily_send_limit: preset.recommended_daily_limit || prev.daily_send_limit,
+    }));
+    setMxState({ status: 'done', note });
+  }, []);
+
+  const scheduleMxDetect = useCallback((email: string) => {
+    clearTimeout(mxTimer.current);
+    const domain = (email.split('@')[1] || '').toLowerCase().trim();
+    if (!domain || !domain.includes('.') || domain === mxCheckedDomain.current) return;
+    mxTimer.current = setTimeout(async () => {
+      mxCheckedDomain.current = domain;
+      setMxState({ status: 'checking', note: '' });
+      try {
+        const result = await smtpApi.checkDomain(domain);
+        // The user may have typed a different domain while the lookup ran —
+        // never apply a stale result to the wrong address.
+        if (mxCheckedDomain.current !== domain) return;
+        const presetName = result.provider_hint ? HINT_TO_PRESET[result.provider_hint] : undefined;
+        const preset = presetName ? SMTP_PRESETS.find((p) => p.name === presetName) : undefined;
+        if (preset) {
+          applyDetectedPreset(preset, `Detected ${result.provider_hint} from ${domain}'s mail records — settings assigned.`);
+        } else if (result.mx?.found) {
+          // Unknown provider but real mail service: pre-fill sensible guesses,
+          // only into fields the user hasn't already set.
+          setForm((prev) => ({
+            ...prev,
+            smtp_host: prev.smtp_host || `smtp.${domain}`,
+            smtp_port: prev.smtp_host ? prev.smtp_port : 465,
+            smtp_secure: prev.smtp_host ? prev.smtp_secure : true,
+            imap_host: prev.imap_host || `imap.${domain}`,
+            imap_port: prev.imap_port || 993,
+            imap_secure: prev.imap_secure ?? true,
+          }));
+          setMxState({ status: 'done', note: `${domain} runs its own mail — pre-filled smtp.${domain} / imap.${domain} as a starting point. Check your provider's docs if the connection test fails.` });
+        } else {
+          setMxState({ status: 'done', note: `${domain} has no mail (MX) records — double-check the address.` });
+        }
+      } catch {
+        setMxState({ status: 'idle', note: '' });
+      }
+    }, 650);
+  }, [applyDetectedPreset]);
+
   /** Auto-detect provider from the email domain as the user types. */
   const handleEmailChange = useCallback((email: string) => {
     setVerify({ status: 'idle' });
@@ -208,6 +281,7 @@ export function SmtpAccountModal({
       if (detected) {
         setActivePreset(detected);
         setAutoDetected(true);
+        setMxState({ status: 'idle', note: '' });
         setForm((prev) => ({
           ...prev,
           email_address: email,
@@ -221,12 +295,16 @@ export function SmtpAccountModal({
           imap_secure: detected.imap_secure ?? undefined,
           daily_send_limit: detected.recommended_daily_limit || prev.daily_send_limit,
         }));
-      } else if (autoDetected) {
-        setActivePreset(null);
-        setAutoDetected(false);
+      } else {
+        if (autoDetected) {
+          setActivePreset(null);
+          setAutoDetected(false);
+        }
+        // Custom domain — ask the server what its MX records say.
+        scheduleMxDetect(email);
       }
     }
-  }, [activePreset, autoDetected, editId]);
+  }, [activePreset, autoDetected, editId, scheduleMxDetect]);
 
   const saveMutation = useMutation({
     mutationFn: (input: Form) => (editId ? smtpApi.update(editId, input) : smtpApi.create(input)),
@@ -314,6 +392,17 @@ export function SmtpAccountModal({
             <Input label="From email" type="email" value={form.email_address} onChange={(e) => handleEmailChange(e.target.value)} placeholder={activePreset?.username_hint || 'you@company.com'} required />
             <Input label={passwordLabel} type="password" value={form.smtp_pass} onChange={(e) => updateField('smtp_pass', e.target.value)} placeholder={passwordPlaceholder} required={!editId} autoComplete="new-password" />
           </div>
+          {/* MX-based auto-assignment for custom domains */}
+          {mxState.status === 'checking' && (
+            <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-[var(--text-tertiary)]">
+              <Loader2 className="h-3 w-3 animate-spin" /> Looking up your domain's mail service to assign settings…
+            </p>
+          )}
+          {mxState.status === 'done' && mxState.note && (
+            <p className="mt-2 flex items-start gap-1.5 text-[11.5px] text-[var(--text-secondary)]">
+              <Sparkles className="h-3 w-3 text-[var(--indigo)] mt-px shrink-0" /> {mxState.note}
+            </p>
+          )}
           {/* Reply-to */}
           <button
             type="button"
