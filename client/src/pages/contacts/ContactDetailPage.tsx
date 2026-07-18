@@ -176,10 +176,13 @@ export function ContactDetailPage() {
   const sentCount = emails.length - receivedCount;
   const activity = (timeline || []) as any[];
   const opens = activity.filter((a) => a.activity_type === 'opened').length;
-  const replies = activity.filter((a) => a.activity_type === 'replied').length + receivedCount;
+  // Every campaign 'replied' activity is recorded alongside an inbound inbox_messages
+  // row for the same event, so receivedCount alone already covers all replies —
+  // adding the activity count on top would double-count them.
+  const replies = receivedCount;
   const openDeals = (contactDeals || []).filter((d) => d.stage !== 'lost');
   const pipelineValue = openDeals.reduce((s, d) => s + (d.value || 0), 0);
-  const lastContactIso = sortedEmails[0]?.received_at || activity[0]?.created_at || null;
+  const lastContactIso = sortedEmails[0]?.received_at || activity[0]?.occurred_at || null;
   const relTime = (iso: string | null) => {
     if (!iso) return 'Never';
     const diff = Date.now() - new Date(iso).getTime();

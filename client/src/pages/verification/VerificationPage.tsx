@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { SettingsShell } from '../../components/shared/SettingsShell';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { verificationApi } from '../../api/verification.api';
 import { Spinner } from '../../components/ui/Spinner';
 import {
@@ -99,6 +99,7 @@ function HealthGauge({ score, size = 160 }: { score: number; size?: number }) {
 }
 
 export function VerificationPage() {
+  const queryClient = useQueryClient();
   const [emailInput, setEmailInput] = useState('');
   const [lastResult, setLastResult] = useState<DcsVerificationResult | null>(null);
   const [history, setHistory] = useState<DcsVerificationResult[]>([]);
@@ -120,7 +121,10 @@ export function VerificationPage() {
 
   const batchMut = useMutation({
     mutationFn: () => verificationApi.batchVerify(),
-    onSuccess: (res) => toast.success(`Verified ${res.verified} contact(s)`),
+    onSuccess: (res) => {
+      toast.success(`Verified ${res.verified} contact(s)`);
+      queryClient.invalidateQueries({ queryKey: ['verification-stats'] });
+    },
     onError: () => toast.error('Batch verification failed'),
   });
 

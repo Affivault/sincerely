@@ -100,6 +100,7 @@ export function DeveloperPage() {
       queryClient.invalidateQueries({ queryKey: ['webhook-endpoints'] });
       toast.success('Webhook deleted');
     },
+    onError: () => toast.error('Failed to delete webhook'),
   });
 
   const testEndpointMutation = useMutation({
@@ -128,6 +129,7 @@ export function DeveloperPage() {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
       toast.success('Key revoked');
     },
+    onError: () => toast.error('Failed to revoke key'),
   });
 
   const deleteKeyMutation = useMutation({
@@ -136,6 +138,7 @@ export function DeveloperPage() {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
       toast.success('Key deleted');
     },
+    onError: () => toast.error('Failed to delete key'),
   });
 
   function toggleEvent(event: WebhookEventType) {

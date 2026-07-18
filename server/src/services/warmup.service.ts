@@ -248,7 +248,7 @@ async function connectImap(account: any): Promise<any | null> {
     host,
     port: account.imap_port || 993,
     secure: account.imap_secure !== false,
-    auth: { user: account.smtp_user || account.email_address, pass: password },
+    auth: { user: account.imap_user || account.smtp_user || account.email_address, pass: password },
     logger: false,
   });
   let connectTimeoutId: ReturnType<typeof setTimeout>;

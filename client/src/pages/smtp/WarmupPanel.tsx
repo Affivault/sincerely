@@ -166,6 +166,7 @@ export function WarmupPanel({ onAddMailbox }: { onAddMailbox?: () => void }) {
   const pause = useMutation({
     mutationFn: (id: string) => smtpApi.setWarmup(id, { enabled: false }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['warmup'] }); qc.invalidateQueries({ queryKey: ['smtp-accounts'] }); toast.success('Warm-up paused'); },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to pause warm-up'),
   });
 
   if (!data) return null;
