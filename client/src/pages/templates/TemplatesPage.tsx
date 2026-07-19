@@ -140,7 +140,11 @@ function SequenceTimeline({ steps, compact }: { steps: SequenceTemplateStep[]; c
                   </span>
                 </div>
                 <p className={`${compact ? 'text-[10px] line-clamp-2' : 'text-xs line-clamp-3'} text-[var(--text-secondary)]`}>
-                  {step.body_html.replace(/<[^>]*>/g, '').substring(0, compact ? 80 : 150)}...
+                  {(() => {
+                    const text = step.body_html.replace(/<[^>]*>/g, '');
+                    const limit = compact ? 80 : 150;
+                    return text.length > limit ? `${text.substring(0, limit)}...` : text;
+                  })()}
                 </p>
               </div>
             </div>

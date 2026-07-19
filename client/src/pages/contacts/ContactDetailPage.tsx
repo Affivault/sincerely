@@ -191,7 +191,7 @@ export function ContactDetailPage() {
   // row for the same event, so receivedCount alone already covers all replies —
   // adding the activity count on top would double-count them.
   const replies = receivedCount;
-  const openDeals = (contactDeals || []).filter((d) => d.stage !== 'lost');
+  const openDeals = (contactDeals || []).filter((d) => d.stage !== 'lost' && d.stage !== 'won');
   const pipelineValue = openDeals.reduce((s, d) => s + (d.value || 0), 0);
   const lastContactIso = sortedEmails[0]?.received_at || activity[0]?.occurred_at || null;
   const relTime = (iso: string | null) => {

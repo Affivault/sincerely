@@ -488,22 +488,23 @@ export function ContactsListPage() {
 
   const activeListId = searchParams.get('list') || null;
 
-  // Reset to page 1 and clear the status filter whenever the active list
-  // changes so stale state doesn't cause empty results on smaller lists.
-  useEffect(() => {
+  // Reset to page 1 (and, when the active list changes, clear the status
+  // filter) whenever a filter changes. This adjusts state during render
+  // rather than in a useEffect so the reset lands in the SAME render as the
+  // filter change — an effect-based reset lags one render behind, letting a
+  // request for the old (now out-of-range) page fire against the new filters
+  // before the corrective effect runs, producing a wrong/empty flash.
+  const filterResetKey = `${activeListId}||${debouncedSearch}||${companyFilter}`;
+  const [prevFilterResetKey, setPrevFilterResetKey] = useState(filterResetKey);
+  if (filterResetKey !== prevFilterResetKey) {
+    setPrevFilterResetKey(filterResetKey);
     setPage(1);
+  }
+  const [prevActiveListId, setPrevActiveListId] = useState(activeListId);
+  if (activeListId !== prevActiveListId) {
+    setPrevActiveListId(activeListId);
     setStatusFilter('');
-  }, [activeListId]);
-
-  // Reset to page 1 when the debounced search term settles
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch]);
-
-  // Reset to page 1 whenever the company filter changes
-  useEffect(() => {
-    setPage(1);
-  }, [companyFilter]);
+  }
 
   // Distinct companies (with counts) for the "view by company" filter
   const { data: companyOptions } = useQuery({
@@ -695,8 +696,11 @@ export function ContactsListPage() {
   const bulkMoveMutation = useMutation({
     mutationFn: async (toListId: string) => {
       const ids = Array.from(selectedContacts);
-      if (activeListId) await listsApi.removeContacts(activeListId, ids);
+      // Add to the destination list before removing from the source: if
+      // addContacts fails, the contacts simply stay put in the source list
+      // instead of being orphaned in neither list.
       await listsApi.addContacts(toListId, ids);
+      if (activeListId) await listsApi.removeContacts(activeListId, ids);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
