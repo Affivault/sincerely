@@ -7,6 +7,7 @@ import { resolveHostIp } from '../utils/dns-doh.js';
 import { fireEvent } from './webhook.service.js';
 import * as sse from './sse.service.js';
 import { checkAndAutoCompleteCampaign } from './sequence.service.js';
+import { warmupAllowance } from '@lemlist/shared';
 
 /**
  * Email Sender Service
@@ -276,14 +277,27 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
     smtpAccount = sseResult.account;
     console.log(`[EmailSender] SSE selected: ${sseResult.reason}`);
   } else if (campaign.smtp_account_id) {
+    // Enforce the same is_active/is_verified/warm-up-capacity checks SSE
+    // already applies — otherwise a campaign bound directly to one mailbox
+    // (the most common setup) would bypass warm-up throttling entirely, and
+    // deactivating that account wouldn't actually stop a running campaign.
     const { data: fallback } = await supabaseAdmin
       .from('smtp_accounts')
       .select('*')
       .eq('id', campaign.smtp_account_id)
       .eq('user_id', campaign.user_id)
-      .single();
-    smtpAccount = fallback;
-    console.log(`[EmailSender] Using campaign default SMTP: ${smtpAccount?.label || smtpAccount?.id}`);
+      .eq('is_active', true)
+      .eq('is_verified', true)
+      .maybeSingle();
+    if (fallback) {
+      const limit = warmupAllowance(fallback);
+      if (limit === 0 || fallback.sends_today < limit) {
+        smtpAccount = fallback;
+        console.log(`[EmailSender] Using campaign default SMTP: ${smtpAccount?.label || smtpAccount?.id}`);
+      } else {
+        console.log(`[EmailSender] Campaign default SMTP ${fallback.label || fallback.id} at warm-up capacity, skipping`);
+      }
+    }
   }
 
   // Last resort: any active AND verified SMTP account for this user. We require

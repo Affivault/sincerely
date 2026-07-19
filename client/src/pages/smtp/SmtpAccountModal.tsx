@@ -167,6 +167,7 @@ export function SmtpAccountModal({
         imap_host: editAccount.imap_host || undefined,
         imap_port: editAccount.imap_port || undefined,
         imap_secure: editAccount.imap_secure ?? undefined,
+        imap_user: editAccount.imap_user || undefined,
         daily_send_limit: editAccount.daily_send_limit,
         signature_html: editAccount.signature_html || '',
         signature_auto: editAccount.signature_auto || false,

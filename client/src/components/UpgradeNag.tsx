@@ -103,6 +103,7 @@ export function UpgradeNag() {
     setBusy(plan);
     try {
       const { url } = await billingApi.checkout(plan, interval);
+      if (typeof url !== 'string' || !url) throw new Error('No checkout URL returned');
       window.location.href = url;
     } catch (err: any) {
       toast.error(err?.response?.data?.error || 'Could not start checkout.');

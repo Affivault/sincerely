@@ -461,7 +461,7 @@ export function DealDrawer({
     qc.setQueryData<CrmTask[]>(['crm', 'tasks'], (old) => (old || []).map(x => x.id === t.id ? { ...x, is_done: !x.is_done } : x));
     crmApi.updateTask(t.id, { is_done: !t.is_done })
       .then(() => qc.invalidateQueries({ queryKey: ['crm', 'tasks'] }))
-      .catch(() => qc.invalidateQueries({ queryKey: ['crm', 'tasks'] }));
+      .catch(() => { toast.error('Failed to update task'); qc.invalidateQueries({ queryKey: ['crm', 'tasks'] }); });
   };
 
   const close_ = relDay(deal.expected_close_date);
@@ -831,7 +831,7 @@ function TasksPanel({ tasks, deals, onEdit }: { tasks: CrmTask[]; deals: Deal[];
       qc.setQueryData<CrmTask[]>(['crm', 'tasks'], (old) => (old || []).map(t => t.id === id ? { ...t, is_done } : t));
       return { prev };
     },
-    onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(['crm', 'tasks'], ctx.prev); },
+    onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(['crm', 'tasks'], ctx.prev); toast.error('Failed to update task'); },
     onSettled: () => qc.invalidateQueries({ queryKey: ['crm', 'tasks'] }),
   });
 

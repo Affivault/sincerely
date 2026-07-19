@@ -406,13 +406,16 @@ export const inboxService = {
     }
 
     // Step 3: Find ALL messages with this contact (both directions)
+    // Case-insensitive match ("John@X.com" vs "john@x.com" are the same
+    // mailbox) — ilike with escaped wildcards is equality, ignoring case.
     // Quote the email so values containing commas/parens don't break PostgREST OR parsing
-    const emailQ = `"${contactEmail.replace(/"/g, '""')}"`;
+    const emailPattern = contactEmail.replace(/([%_\\])/g, '\\$1');
+    const emailQ = `"${emailPattern.replace(/"/g, '""')}"`;
     const { data, error } = await supabaseAdmin
       .from('inbox_messages')
       .select('*, contacts(first_name, last_name, email), smtp_accounts(id, email_address, label)')
       .eq('user_id', userId)
-      .or(`from_email.eq.${emailQ},to_email.eq.${emailQ}`)
+      .or(`from_email.ilike.${emailQ},to_email.ilike.${emailQ}`)
       .order('received_at', { ascending: true });
 
     if (error) throw new AppError(error.message, 500);
@@ -518,18 +521,20 @@ export const inboxService = {
   async archiveThread(userId: string, messageId: string) {
     const contactEmail = await resolveContactEmail(userId, messageId);
     if (!contactEmail) return inboxService.archive(userId, messageId);
-    const emailQ = `"${contactEmail.replace(/"/g, '""')}"`;
+    // Case-insensitive match — see markThreadRead for why.
+    const emailPattern = contactEmail.replace(/([%_\\])/g, '\\$1');
+    const emailQ = `"${emailPattern.replace(/"/g, '""')}"`;
     const { data: affected } = await supabaseAdmin
       .from('inbox_messages')
       .select('id')
       .eq('user_id', userId)
-      .or(`from_email.eq.${emailQ},to_email.eq.${emailQ}`);
+      .or(`from_email.ilike.${emailQ},to_email.ilike.${emailQ}`);
     const ids = (affected || []).map((r: any) => r.id);
     const { error } = await supabaseAdmin
       .from('inbox_messages')
       .update({ is_archived: true })
       .eq('user_id', userId)
-      .or(`from_email.eq.${emailQ},to_email.eq.${emailQ}`);
+      .or(`from_email.ilike.${emailQ},to_email.ilike.${emailQ}`);
     if (error) throw new AppError(error.message, 500);
     if (ids.length > 0) {
       syncArchiveToImap(userId, ids, true).catch((e) =>
@@ -541,18 +546,20 @@ export const inboxService = {
   async unarchiveThread(userId: string, messageId: string) {
     const contactEmail = await resolveContactEmail(userId, messageId);
     if (!contactEmail) return inboxService.unarchive(userId, messageId);
-    const emailQ = `"${contactEmail.replace(/"/g, '""')}"`;
+    // Case-insensitive match — see markThreadRead for why.
+    const emailPattern = contactEmail.replace(/([%_\\])/g, '\\$1');
+    const emailQ = `"${emailPattern.replace(/"/g, '""')}"`;
     const { data: affected } = await supabaseAdmin
       .from('inbox_messages')
       .select('id')
       .eq('user_id', userId)
-      .or(`from_email.eq.${emailQ},to_email.eq.${emailQ}`);
+      .or(`from_email.ilike.${emailQ},to_email.ilike.${emailQ}`);
     const ids = (affected || []).map((r: any) => r.id);
     const { error } = await supabaseAdmin
       .from('inbox_messages')
       .update({ is_archived: false })
       .eq('user_id', userId)
-      .or(`from_email.eq.${emailQ},to_email.eq.${emailQ}`);
+      .or(`from_email.ilike.${emailQ},to_email.ilike.${emailQ}`);
     if (error) throw new AppError(error.message, 500);
     if (ids.length > 0) {
       syncArchiveToImap(userId, ids, false).catch((e) =>
@@ -650,6 +657,7 @@ export const inboxService = {
   },
 
   async forward(userId: string, messageId: string, toEmail: string, note?: string, smtpAccountId?: string, noteHtmlRaw?: string) {
+    toEmail = toEmail.trim();
     const { data: original } = await supabaseAdmin
       .from('inbox_messages')
       .select('*')

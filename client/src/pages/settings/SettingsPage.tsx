@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -79,6 +79,7 @@ export function SettingsPage() {
   const { mode: themeMode, setMode: setThemeMode } = useTheme();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const requestedTab = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState<Tab>(
     (TAB_IDS as string[]).includes(requestedTab || '') ? (requestedTab as Tab) : 'profile'
@@ -86,11 +87,15 @@ export function SettingsPage() {
 
   // Re-sync when the URL's ?tab= changes on an already-mounted SettingsPage
   // (e.g. clicking "Account" in the header dropdown while already on /settings).
+  // Keyed on location.key (not just requestedTab) so this still fires when the
+  // header re-navigates to the same ?tab= value after the user has since
+  // clicked a different in-page tab — otherwise the string comparison sees no
+  // change and the resync silently no-ops.
   useEffect(() => {
-    if (requestedTab && (TAB_IDS as string[]).includes(requestedTab) && requestedTab !== activeTab) {
+    if (requestedTab && (TAB_IDS as string[]).includes(requestedTab)) {
       setActiveTab(requestedTab as Tab);
     }
-  }, [requestedTab]);
+  }, [requestedTab, location.key]);
 
   // Form state
   const [firstName, setFirstName] = useState('');

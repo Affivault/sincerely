@@ -2612,7 +2612,7 @@ export function InboxPage() {
                                 replyMut.mutate({ id: currentMsg.id, body: b.body, body_html: b.body_html, smtp_account_id: sid });
                               } else if (replyMode === 'forward' && forwardTo.trim()) {
                                 const b = withSignature(replyEditor.html || '', replyEditor.text || '', replySig.sigHtml, replySig.on);
-                                forwardMut.mutate({ id: currentMsg.id, to: forwardTo, note: b.body || undefined, body_html: b.body_html || undefined, smtp_account_id: sid });
+                                forwardMut.mutate({ id: currentMsg.id, to: forwardTo.trim(), note: b.body || undefined, body_html: b.body_html || undefined, smtp_account_id: sid });
                               }
                             }}
                             disabled={

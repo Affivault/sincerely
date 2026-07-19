@@ -296,13 +296,17 @@ export function CampaignCreatePage() {
     if (!isEdit && savedSchedules.length > 0) {
       const def = savedSchedules.find((s) => s.is_default);
       if (def) {
-        setCampaignForm((prev: any) => ({
-          ...prev,
-          timezone: prev.timezone === 'UTC' ? def.timezone : prev.timezone,
-          send_window_start: prev.send_window_start === '09:00' ? def.send_window_start : prev.send_window_start,
-          send_window_end:   prev.send_window_end   === '17:00' ? def.send_window_end   : prev.send_window_end,
-          send_days: (def.send_days || []).map(expandDayCode),
-        }));
+        setCampaignForm((prev: any) => {
+          const isDefaultSendDays =
+            JSON.stringify(prev.send_days) === JSON.stringify(['monday', 'tuesday', 'wednesday', 'thursday', 'friday']);
+          return {
+            ...prev,
+            timezone: prev.timezone === 'UTC' ? def.timezone : prev.timezone,
+            send_window_start: prev.send_window_start === '09:00' ? def.send_window_start : prev.send_window_start,
+            send_window_end:   prev.send_window_end   === '17:00' ? def.send_window_end   : prev.send_window_end,
+            send_days: isDefaultSendDays ? (def.send_days || []).map(expandDayCode) : prev.send_days,
+          };
+        });
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

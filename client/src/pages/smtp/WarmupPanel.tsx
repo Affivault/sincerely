@@ -16,6 +16,11 @@ function ConfigModal({ account, onClose }: { account: WarmupAccountStatus; onClo
   const [rampDays, setRampDays] = useState(account.ramp_days || 30);
   const [startVolume, setStartVolume] = useState(account.start_volume || 4);
 
+  // A ramp that targets fewer sends/day than it starts at isn't a ramp — it
+  // would hold at `startVolume` for the whole ramp then drop the moment
+  // warm-up "completes". Catch it here instead of letting it silently ship.
+  const targetBelowStart = Number(target) < Number(startVolume);
+
   const save = useMutation({
     mutationFn: () => smtpApi.setWarmup(account.id, {
       enabled: true,
@@ -40,7 +45,14 @@ function ConfigModal({ account, onClose }: { account: WarmupAccountStatus; onClo
         </p>
         <div className="grid grid-cols-3 gap-4">
           <Input label="Start / day" type="number" value={String(startVolume)} onChange={(e) => setStartVolume(parseInt(e.target.value) || 1)} hint="Day 1" />
-          <Input label="Target / day" type="number" value={String(target)} onChange={(e) => setTarget(parseInt(e.target.value) || 1)} hint="Ramp goal" />
+          <Input
+            label="Target / day"
+            type="number"
+            value={String(target)}
+            onChange={(e) => setTarget(parseInt(e.target.value) || 1)}
+            hint={targetBelowStart ? undefined : 'Ramp goal'}
+            error={targetBelowStart ? 'Target must be at least the start volume' : undefined}
+          />
           <Input label="Ramp days" type="number" value={String(rampDays)} onChange={(e) => setRampDays(parseInt(e.target.value) || 1)} hint="To reach target" />
         </div>
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-muted)]/40 px-3 py-2.5 text-[11.5px] text-[var(--text-tertiary)]">
@@ -48,7 +60,7 @@ function ConfigModal({ account, onClose }: { account: WarmupAccountStatus; onClo
         </div>
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={() => save.mutate()} disabled={save.isPending}>{save.isPending ? 'Saving…' : account.warmup_mode ? 'Save changes' : 'Start warm-up'}</Button>
+          <Button variant="primary" onClick={() => save.mutate()} disabled={save.isPending || targetBelowStart}>{save.isPending ? 'Saving…' : account.warmup_mode ? 'Save changes' : 'Start warm-up'}</Button>
         </div>
       </div>
     </Modal>
