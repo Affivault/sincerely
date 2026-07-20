@@ -300,20 +300,27 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
     }
   }
 
-  // Last resort: any active AND verified SMTP account for this user. We require
-  // is_verified so we never try to send from an unverified/dead mailbox (which
-  // would just fail every send); SSE selection already enforces the same.
+  // Last resort: any active AND verified SMTP account for this user that still
+  // has warm-up capacity today. We require is_verified so we never try to send
+  // from an unverified/dead mailbox (which would just fail every send); SSE
+  // selection already enforces the same. Re-checking warmupAllowance here too
+  // is essential — without it, this branch would just re-fetch and reuse the
+  // exact same over-cap mailbox the campaign-default branch above just skipped
+  // for being over its ramp, silently defeating warm-up throttling for the
+  // common single-mailbox setup.
   if (!smtpAccount) {
-    const { data: anyAccount } = await supabaseAdmin
+    const { data: candidates } = await supabaseAdmin
       .from('smtp_accounts')
       .select('*')
       .eq('user_id', campaign.user_id)
       .eq('is_active', true)
-      .eq('is_verified', true)
-      .limit(1)
-      .maybeSingle();
-    if (anyAccount) {
-      smtpAccount = anyAccount;
+      .eq('is_verified', true);
+    const withCapacity = (candidates || []).find((acc: any) => {
+      const limit = warmupAllowance(acc);
+      return limit === 0 || acc.sends_today < limit;
+    });
+    if (withCapacity) {
+      smtpAccount = withCapacity;
       console.log(`[EmailSender] Last resort SMTP: ${smtpAccount.label || smtpAccount.id}`);
     }
   }

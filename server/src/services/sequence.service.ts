@@ -901,8 +901,14 @@ export const SAMPLE_PREVIEW_CONTACT = {
   custom_field_2: 'Sample 2',
 };
 
-/** Fill merge tags with sample data and strip any leftover unknown tags. */
+/**
+ * Fill merge tags with sample data and strip any leftover unknown tags.
+ * {{unsubscribe_link}} is resolved to a sample URL first (it isn't a contact
+ * field, so interpolateMergeTags never touches it) so previews/test sends
+ * don't silently blank out the unsubscribe link.
+ */
 export function previewWithSampleData(text: string): string {
   return interpolateMergeTags(text || '', SAMPLE_PREVIEW_CONTACT)
+    .replace(/\{\{\s*unsubscribe_link\s*\}\}/gi, 'https://example.com/unsubscribe/preview')
     .replace(/\{\{\s*[\w.-]+\s*\}\}/g, '');
 }

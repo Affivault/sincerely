@@ -165,6 +165,19 @@ export function SettingsPage() {
   // Track changes
   const markChanged = () => setHasChanges(true);
 
+  // Warn before the tab closes/refreshes with unsaved edits — otherwise they're
+  // lost silently, since the "unsaved changes" label is easy to miss unless
+  // you're already looking at the Save button.
+  useEffect(() => {
+    if (!hasChanges) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasChanges]);
+
   // ── Save settings mutation ──
   const saveMutation = useMutation({
     mutationFn: (updates: Partial<UserSettings>) => settingsApi.update(updates),
