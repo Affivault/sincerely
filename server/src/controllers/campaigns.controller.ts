@@ -10,6 +10,7 @@ import { billingService } from '../services/billing.service.js';
 import * as sse from '../services/sse.service.js';
 import { getInboundWebhookToken } from '../utils/inbound-webhook-token.js';
 import { env } from '../config/env.js';
+import { previewWithSampleData } from '../services/sequence.service.js';
 
 export const campaignsController = {
   // Campaign CRUD
@@ -196,6 +197,11 @@ export const campaignsController = {
       const fromAddress = account.label
         ? `"${account.label.replace(/"/g, "'")}" <${account.email_address}>`
         : account.email_address;
+      // Fill merge tags with sample data, matching the SMTP-account-level test
+      // endpoint — otherwise this would ship raw literal {{first_name}}-style
+      // tags to the test recipient instead of a readable preview.
+      const previewSubject = previewWithSampleData(subject);
+      const previewHtml = previewWithSampleData(body_html);
       try {
         await sendViaSmtp({
           smtpHost: account.smtp_host,
@@ -205,9 +211,9 @@ export const campaignsController = {
           smtpPass: password,
           from: fromAddress,
           to,
-          subject: `[TEST] ${subject}`,
-          html: body_html,
-          text: body_html.replace(/<[^>]*>/g, ''),
+          subject: `[TEST] ${previewSubject}`,
+          html: previewHtml,
+          text: previewHtml.replace(/<[^>]*>/g, ''),
         });
       } catch (sendErr) {
         await billingService.refundEmailQuota(req.userId!);
