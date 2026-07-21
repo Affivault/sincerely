@@ -724,10 +724,17 @@ export async function processWebhookTimeouts(): Promise<number> {
  * Should be called periodically (e.g., every 30 seconds via cron/scheduler).
  */
 export async function processDueSteps(): Promise<number> {
+  // Join on campaigns.status so a paused campaign's still-"active" contacts
+  // (pause() intentionally leaves their next_send_at untouched so resume()
+  // can pick them up immediately) don't keep occupying slots in the 50-row
+  // cap every poll, which would starve genuinely due contacts in other
+  // running campaigns. processNextStep() re-checks this too, but skipping
+  // here avoids the wasted fetch and the crowding.
   const { data: dueContacts, error: dueError } = await supabaseAdmin
     .from('campaign_contacts')
-    .select('id')
+    .select('id, campaigns!inner(status)')
     .eq('status', 'active')
+    .eq('campaigns.status', 'running')
     .not('next_send_at', 'is', null)
     .lte('next_send_at', new Date().toISOString())
     .limit(50);

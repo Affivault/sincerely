@@ -23,7 +23,7 @@ export const suppressionApi = {
   },
 
   addBulk: async (emails: string[], reason = 'manual') => {
-    const { data } = await apiClient.post<{ added: number }>('/suppression/bulk', { emails, reason });
+    const { data } = await apiClient.post<{ added: number; duplicates_collapsed: number }>('/suppression/bulk', { emails, reason });
     return data;
   },
 

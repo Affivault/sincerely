@@ -44,17 +44,23 @@ export const suppressionService = {
   },
 
   async addBulk(userId: string, emails: string[], reason: SuppressionReason = 'manual') {
-    const rows = emails.map((e) => ({
-      user_id: userId,
-      email: e.toLowerCase().trim(),
-      reason,
-      updated_at: new Date().toISOString(),
-    }));
+    // Dedup within the batch (last occurrence wins), same rule bulkCreate
+    // uses — Postgres upsert errors ("ON CONFLICT DO UPDATE command cannot
+    // affect row a second time") if two rows in one call share a conflict key.
+    const rowsByEmail = new Map<string, { user_id: string; email: string; reason: SuppressionReason; updated_at: string }>();
+    for (const e of emails) {
+      const email = e.toLowerCase().trim();
+      if (!email) continue;
+      rowsByEmail.set(email, { user_id: userId, email, reason, updated_at: new Date().toISOString() });
+    }
+    const rows = Array.from(rowsByEmail.values());
+    if (rows.length === 0) return { added: 0, duplicates_collapsed: 0 };
+
     const { error } = await supabaseAdmin
       .from('suppression_list')
       .upsert(rows, { onConflict: 'user_id,email', ignoreDuplicates: false });
     if (error) throw new AppError(error.message, 500);
-    return { added: rows.length };
+    return { added: rows.length, duplicates_collapsed: emails.length - rows.length };
   },
 
   async remove(userId: string, email: string) {
