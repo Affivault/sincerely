@@ -67,7 +67,11 @@ export function SuppressionPage() {
     },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['suppression'] });
-      toast.success(`${res.added} emails added to suppression list`);
+      toast.success(
+        res.duplicates_collapsed > 0
+          ? `${res.added} emails added (${res.duplicates_collapsed} duplicate${res.duplicates_collapsed === 1 ? '' : 's'} skipped)`
+          : `${res.added} emails added to suppression list`
+      );
       setShowBulkModal(false);
       setBulkText('');
     },
