@@ -258,9 +258,9 @@ export const segmentsService = {
       case 'is_not_empty':
         return `${field}.not.is.null`;
       case 'greater_than':
-        return `${field}.gt.${value}`;
+        return `${field}.gt.${q(value)}`;
       case 'less_than':
-        return `${field}.lt.${value}`;
+        return `${field}.lt.${q(value)}`;
       case 'is_true':
         return `${field}.eq.true`;
       case 'is_false':

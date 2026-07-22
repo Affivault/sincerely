@@ -83,7 +83,9 @@ export interface WarmupPlanFields {
 /** Whole days elapsed since the ramp began (day 0 = the first day). */
 export function warmupDayNumber(startedAt: string | null): number {
   if (!startedAt) return 0;
-  const ms = Date.now() - new Date(startedAt).getTime();
+  const started = new Date(startedAt).getTime();
+  if (Number.isNaN(started)) return 0;
+  const ms = Date.now() - started;
   return Math.max(0, Math.floor(ms / 86_400_000));
 }
 
@@ -377,7 +379,8 @@ export const SMTP_PRESETS: SmtpPreset[] = [
 
 /** Auto-detect SMTP preset from email domain */
 export function detectPresetFromEmail(email: string): SmtpPreset | null {
-  const domain = email.split('@')[1]?.toLowerCase();
+  const parts = email.trim().split('@');
+  const domain = parts.length >= 2 ? parts[parts.length - 1]?.trim().toLowerCase() : undefined;
   if (!domain) return null;
 
   // Check exact domain match first

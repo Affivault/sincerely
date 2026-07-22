@@ -1262,16 +1262,9 @@ export async function processScheduledEmails(): Promise<number> {
         continue;
       }
 
-      // Monthly cap — skip (leave scheduled) if the owner is out of quota.
-      if (smtpAccount.user_id && !(await billingService.reserveEmailQuota(smtpAccount.user_id))) {
-        console.log(`[ScheduledEmails] User ${smtpAccount.user_id} over quota — leaving message ${msg.id} scheduled`);
-        continue;
-      }
-
-      // Atomically claim this message BEFORE sending — otherwise an overlapping run, or a
-      // retry after this same message's post-send status-clear fails, can pick it up again
-      // and resend the identical email. Conditioning on the still-'scheduled' state makes
-      // this a compare-and-swap: only the first claim wins.
+      // Atomically claim this message BEFORE sending to prevent a duplicate send if
+      // an overlapping/concurrent tick picks up the same due row (same compare-and-swap
+      // pattern as sequence.service.ts's processEmailStep).
       const { data: claimed, error: claimErr } = await supabaseAdmin
         .from('inbox_messages')
         .update({ sara_status: 'sending' })
@@ -1284,10 +1277,14 @@ export async function processScheduledEmails(): Promise<number> {
         continue;
       }
       if (!claimed) {
-        // Lost the race to a concurrent run — give back the quota slot reserved
-        // above, or it's burned permanently even though no email was sent.
-        if (smtpAccount.user_id) await billingService.refundEmailQuota(smtpAccount.user_id);
         console.log(`[ScheduledEmails] Message ${msg.id} already claimed by a concurrent run — skipping`);
+        continue;
+      }
+
+      // Monthly cap — skip (leave scheduled) if the owner is out of quota.
+      if (smtpAccount.user_id && !(await billingService.reserveEmailQuota(smtpAccount.user_id))) {
+        console.log(`[ScheduledEmails] User ${smtpAccount.user_id} over quota — leaving message ${msg.id} scheduled`);
+        await supabaseAdmin.from('inbox_messages').update({ sara_status: 'scheduled' }).eq('id', msg.id);
         continue;
       }
 

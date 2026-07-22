@@ -67,8 +67,10 @@ export const contactsService = {
     }
 
     if (params.search) {
-      // Strip ILIKE wildcard characters so user input can't match unintended rows
-      const safeSearch = params.search.replace(/[%_]/g, '');
+      // Strip ILIKE wildcard characters, and PostgREST filter-syntax characters
+      // (comma separates .or() conditions, parens group them) so user input can't
+      // break out of the intended ilike value and inject extra filter clauses.
+      const safeSearch = params.search.replace(/[%_,()]/g, '');
       if (safeSearch) {
         query = query.or(`email.ilike.%${safeSearch}%,first_name.ilike.%${safeSearch}%,last_name.ilike.%${safeSearch}%,company.ilike.%${safeSearch}%`);
       }

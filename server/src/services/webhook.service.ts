@@ -1,5 +1,8 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import { AppError } from '../middleware/error.middleware.js';
 import crypto from 'crypto';
+import dns from 'dns';
+import net from 'net';
 import type {
   WebhookEndpoint,
   CreateWebhookEndpointInput,
@@ -12,6 +15,63 @@ import type {
  * Webhook Event Bus Service
  * Fires outbound webhooks on every system state change.
  */
+
+/** True for loopback, private, link-local (incl. the cloud metadata address), and other non-routable ranges. */
+function isPrivateOrReservedIp(ip: string): boolean {
+  if (net.isIPv6(ip)) {
+    const lower = ip.toLowerCase();
+    if (lower === '::1' || lower === '::') return true;
+    if (lower.startsWith('fe80:') || lower.startsWith('fc') || lower.startsWith('fd')) return true; // link-local / unique-local
+    if (lower.startsWith('::ffff:')) return isPrivateOrReservedIp(lower.slice(7)); // IPv4-mapped
+    return false;
+  }
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n))) return false;
+  const [a, b] = parts;
+  if (a === 127) return true; // loopback
+  if (a === 10) return true; // private
+  if (a === 172 && b >= 16 && b <= 31) return true; // private
+  if (a === 192 && b === 168) return true; // private
+  if (a === 169 && b === 254) return true; // link-local incl. cloud metadata (169.254.169.254)
+  if (a === 0) return true; // "this network"
+  if (a >= 224) return true; // multicast/reserved
+  return false;
+}
+
+/**
+ * Reject webhook URLs that aren't safe for the server to fetch: non-HTTP(S)
+ * schemes, and hosts that resolve to loopback/private/link-local addresses
+ * (including the cloud metadata IP) — otherwise a user can turn the webhook
+ * delivery pipeline into an SSRF proxy against internal infrastructure.
+ */
+export async function assertSafeWebhookUrl(rawUrl: string): Promise<void> {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new AppError('Invalid webhook URL', 400);
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new AppError('Webhook URL must use http or https', 400);
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
+    throw new AppError('Webhook URL may not target localhost', 400);
+  }
+  if (net.isIP(hostname)) {
+    if (isPrivateOrReservedIp(hostname)) throw new AppError('Webhook URL may not target a private or internal address', 400);
+    return;
+  }
+  let addresses: string[];
+  try {
+    addresses = (await dns.promises.lookup(hostname, { all: true })).map((a) => a.address);
+  } catch {
+    throw new AppError('Webhook URL host could not be resolved', 400);
+  }
+  if (addresses.some(isPrivateOrReservedIp)) {
+    throw new AppError('Webhook URL may not target a private or internal address', 400);
+  }
+}
 
 // ============================================
 // Endpoint CRUD
@@ -43,6 +103,7 @@ export async function createEndpoint(
   userId: string,
   input: CreateWebhookEndpointInput
 ): Promise<WebhookEndpoint> {
+  await assertSafeWebhookUrl(input.url);
   const { data, error } = await supabaseAdmin
     .from('webhook_endpoints')
     .insert({
@@ -70,6 +131,7 @@ export async function updateEndpoint(
   const { secret, ...rest } = input as UpdateWebhookEndpointInput & { secret?: string };
   const update: UpdateWebhookEndpointInput & { secret?: string } = { ...rest };
   if (secret) update.secret = secret;
+  if (update.url) await assertSafeWebhookUrl(update.url);
 
   const { data, error } = await supabaseAdmin
     .from('webhook_endpoints')
@@ -284,6 +346,7 @@ export async function testEndpoint(userId: string, endpointId: string): Promise<
   }
 
   try {
+    await assertSafeWebhookUrl(endpoint.url);
     const response = await fetch(endpoint.url, {
       method: 'POST',
       headers,
