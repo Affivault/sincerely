@@ -51,11 +51,10 @@ export const adminService = {
       };
     });
 
-    const total = rows.length;
     if (q) rows = rows.filter((r) => r.email.toLowerCase().includes(q));
     rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-    return { users: rows.slice(0, 200), total };
+    return { users: rows.slice(0, 200), total: rows.length };
   },
 
   async stats(): Promise<AdminStats> {

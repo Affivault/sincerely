@@ -21,7 +21,7 @@ export function scheduleInboxSync() {
       // Get all verified, active SMTP accounts
       const { data: accounts } = await supabaseAdmin
         .from('smtp_accounts')
-        .select('id, user_id, smtp_host, email_address')
+        .select('id, user_id, smtp_host, smtp_user, imap_user, email_address')
         .eq('is_active', true)
         .eq('is_verified', true);
 
@@ -36,7 +36,7 @@ export function scheduleInboxSync() {
             imapHost: '', // Worker will derive from SMTP host
             imapPort: 993,
             imapSecure: true,
-            imapUser: account.email_address,
+            imapUser: account.imap_user || account.smtp_user || account.email_address,
           },
           {
             // Deduplicate: don't enqueue if already pending for this account

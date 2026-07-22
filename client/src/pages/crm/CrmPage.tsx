@@ -461,7 +461,7 @@ export function DealDrawer({
     qc.setQueryData<CrmTask[]>(['crm', 'tasks'], (old) => (old || []).map(x => x.id === t.id ? { ...x, is_done: !x.is_done } : x));
     crmApi.updateTask(t.id, { is_done: !t.is_done })
       .then(() => qc.invalidateQueries({ queryKey: ['crm', 'tasks'] }))
-      .catch(() => qc.invalidateQueries({ queryKey: ['crm', 'tasks'] }));
+      .catch(() => { toast.error('Failed to update task'); qc.invalidateQueries({ queryKey: ['crm', 'tasks'] }); });
   };
 
   const close_ = relDay(deal.expected_close_date);
@@ -702,8 +702,14 @@ function PipelineBoard({ deals, tasks, events, onEdit, dragDisabled }: { deals: 
     const all = qc.getQueryData<Deal[]>(['crm', 'deals']) || deals;
     const moving = all.find(d => d.id === id);
     if (!moving) return;
+    // `index` was measured against the on-screen column list, which still includes the
+    // dragged card when it's already in this stage. targetList has that card removed, so
+    // if the card started before the drop point, every slot after it shifts back by one.
+    const sameStageItems = all.filter(d => d.stage === stage);
+    const originalIndex = sameStageItems.findIndex(d => d.id === id);
+    const adjustedIndex = originalIndex !== -1 && originalIndex < index ? index - 1 : index;
     const targetList = all.filter(d => d.stage === stage && d.id !== id);
-    const insertAt = Math.max(0, Math.min(index, targetList.length));
+    const insertAt = Math.max(0, Math.min(adjustedIndex, targetList.length));
     const newOrder = [...targetList.slice(0, insertAt), moving, ...targetList.slice(insertAt)];
     const rebuilt = newOrder.map((d, i) => ({ ...d, stage, position: i }));
     const changed = rebuilt.filter((d, i) => d.id === id || newOrder[i].position !== i || newOrder[i].stage !== stage);
@@ -825,7 +831,7 @@ function TasksPanel({ tasks, deals, onEdit }: { tasks: CrmTask[]; deals: Deal[];
       qc.setQueryData<CrmTask[]>(['crm', 'tasks'], (old) => (old || []).map(t => t.id === id ? { ...t, is_done } : t));
       return { prev };
     },
-    onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(['crm', 'tasks'], ctx.prev); },
+    onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(['crm', 'tasks'], ctx.prev); toast.error('Failed to update task'); },
     onSettled: () => qc.invalidateQueries({ queryKey: ['crm', 'tasks'] }),
   });
 

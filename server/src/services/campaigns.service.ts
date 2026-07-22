@@ -87,17 +87,42 @@ export const campaignsService = {
     const { data: campaigns, count, error } = await query;
     if (error) throw new AppError(error.message, 500);
 
-    // Compute stats for each campaign; isolate failures so one bad campaign doesn't break the list
-    const withStats = await Promise.all(
-      (campaigns || []).map(async (campaign: any) => {
-        try {
-          const stats = await this.getStats(campaign.id);
-          return { ...campaign, ...stats };
-        } catch {
-          return campaign;
-        }
-      })
-    );
+    // Batch-fetch stats for the whole page in one round-trip instead of the
+    // old per-campaign getStats() fan-out (13 count queries x page size —
+    // up to 325 queries for a full page). Isolate failure so a stats outage
+    // doesn't break the list itself.
+    let statsById = new Map<string, any>();
+    if (campaigns && campaigns.length > 0) {
+      try {
+        const { data: statsRows, error: statsError } = await supabaseAdmin.rpc('get_campaigns_stats', {
+          p_campaign_ids: campaigns.map((c: any) => c.id),
+        });
+        if (statsError) throw statsError;
+        statsById = new Map((statsRows || []).map((row: any) => [row.campaign_id, row]));
+      } catch {
+        // fall through with an empty map; campaigns still render without stats
+      }
+    }
+
+    const calcRate = (v: number, t: number) => (t === 0 ? 0 : Math.round((v / t) * 100 * 10) / 10);
+    const withStats = (campaigns || []).map((campaign: any) => {
+      const stats = statsById.get(campaign.id);
+      if (!stats) return campaign;
+      const { campaign_id, sent_count, opened_count, clicked_count, replied_count, bounced_count, ...rest } = stats;
+      return {
+        ...campaign,
+        ...rest,
+        sent_count,
+        opened_count,
+        clicked_count,
+        replied_count,
+        bounced_count,
+        open_rate: calcRate(opened_count, sent_count),
+        click_rate: calcRate(clicked_count, sent_count),
+        reply_rate: calcRate(replied_count, sent_count),
+        bounce_rate: calcRate(bounced_count, sent_count),
+      };
+    });
 
     return formatPaginatedResponse(withStats, count || 0, page, limit);
   },

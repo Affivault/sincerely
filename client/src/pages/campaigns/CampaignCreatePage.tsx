@@ -31,6 +31,13 @@ import type {
   CreateCampaignInput, CreateStepInput, CampaignStep, SmtpAccount, ContactWithTags,
 } from '@lemlist/shared';
 
+// <input type="datetime-local"> reads/writes local wall-clock time, not UTC —
+// toISOString() would shift the value by the browser's UTC offset.
+function toDatetimeLocalValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -233,18 +240,21 @@ export function CampaignCreatePage() {
     queryFn: () => contactsApi.list({ limit: 50, search: contactSearch || undefined }),
   });
 
-  // Fetch full contact details for the selected IDs so the audience list can
-  // show — and let you remove — every recipient, not just the first handful.
-  const { data: selectedContactsPreview } = useQuery({
-    queryKey: ['contacts', 'selected-preview', [...selectedContactIds].sort().join(',')],
-    queryFn: async () => {
-      if (selectedContactIds.length === 0) return [];
-      const selected = new Set(selectedContactIds);
-      const list = await contactsApi.list({ limit: 1000 });
-      return (list.data || []).filter((c: any) => selected.has(c.id));
-    },
+  // Contact pool for the audience list. Fetched ONCE with a stable key, then
+  // filtered client-side against selectedContactIds — so adding/removing a
+  // recipient is a pure state change with zero refetch (no flicker where the
+  // whole list vanished and popped back while a keyed query reloaded).
+  const { data: contactPool } = useQuery({
+    queryKey: ['contacts', 'audience-pool'],
+    queryFn: async () => (await contactsApi.list({ limit: 1000 })).data || [],
+    staleTime: 60_000,
     enabled: selectedContactIds.length > 0,
   });
+  const selectedContactsPreview = useMemo(() => {
+    if (!contactPool || selectedContactIds.length === 0) return [];
+    const selected = new Set(selectedContactIds);
+    return contactPool.filter((c: any) => selected.has(c.id));
+  }, [contactPool, selectedContactIds]);
 
   const { data: allLists } = useQuery({
     queryKey: ['lists'],
@@ -286,13 +296,17 @@ export function CampaignCreatePage() {
     if (!isEdit && savedSchedules.length > 0) {
       const def = savedSchedules.find((s) => s.is_default);
       if (def) {
-        setCampaignForm((prev: any) => ({
-          ...prev,
-          timezone: prev.timezone === 'UTC' ? def.timezone : prev.timezone,
-          send_window_start: prev.send_window_start === '09:00' ? def.send_window_start : prev.send_window_start,
-          send_window_end:   prev.send_window_end   === '17:00' ? def.send_window_end   : prev.send_window_end,
-          send_days: (def.send_days || []).map(expandDayCode),
-        }));
+        setCampaignForm((prev: any) => {
+          const isDefaultSendDays =
+            JSON.stringify(prev.send_days) === JSON.stringify(['monday', 'tuesday', 'wednesday', 'thursday', 'friday']);
+          return {
+            ...prev,
+            timezone: prev.timezone === 'UTC' ? def.timezone : prev.timezone,
+            send_window_start: prev.send_window_start === '09:00' ? def.send_window_start : prev.send_window_start,
+            send_window_end:   prev.send_window_end   === '17:00' ? def.send_window_end   : prev.send_window_end,
+            send_days: isDefaultSendDays ? (def.send_days || []).map(expandDayCode) : prev.send_days,
+          };
+        });
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -389,12 +403,21 @@ export function CampaignCreatePage() {
             step_type: s.step_type,
             step_order: s.step_order,
             subject: s.subject || '',
+            subject_b: s.subject_b || '',
             body_html: s.body_html || '',
+            body_html_b: s.body_html_b || '',
             body_text: s.body_text || '',
             delay_days: s.delay_days,
             delay_hours: s.delay_hours,
             delay_minutes: s.delay_minutes,
             skip_if_replied: s.skip_if_replied,
+            condition_field: s.condition_field || '',
+            condition_operator: s.condition_operator || '',
+            condition_value: s.condition_value || '',
+            true_branch_step: s.true_branch_step ?? undefined,
+            false_branch_step: s.false_branch_step ?? undefined,
+            webhook_event: s.webhook_event || '',
+            webhook_timeout_hours: s.webhook_timeout_hours ?? undefined,
           }))
         );
       }
@@ -1953,7 +1976,7 @@ export function CampaignCreatePage() {
                       <input
                         type="datetime-local"
                         value={scheduleAt}
-                        min={new Date(Date.now() + 5 * 60000).toISOString().slice(0, 16)}
+                        min={toDatetimeLocalValue(new Date(Date.now() + 5 * 60000))}
                         onChange={(e) => setScheduleAt(e.target.value)}
                         className="w-full sm:w-72 h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-[13px] text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)]"
                       />

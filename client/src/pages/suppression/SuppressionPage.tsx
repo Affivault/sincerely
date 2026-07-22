@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { suppressionApi } from '../../api/suppression.api';
+import { useDebounce } from '../../hooks/useDebounce';
 import { SkeletonList } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
@@ -27,8 +28,8 @@ const REASON_LABELS: Record<string, { label: string; color: string; dot: string 
 export function SuppressionPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const search = useDebounce(searchInput, 300);
   const [reasonFilter, setReasonFilter] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -41,6 +42,11 @@ export function SuppressionPage() {
     queryKey: ['suppression', page, search, reasonFilter],
     queryFn: () => suppressionApi.list({ page, limit: DEFAULT_PAGE_SIZE, search: search || undefined, reason: reasonFilter || undefined }),
   });
+
+  // Reset to page 1 whenever the debounced search term settles on a new value
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
 
   const addMut = useMutation({
     mutationFn: () => suppressionApi.add(addEmail, addReason as any, addNotes || undefined),
@@ -61,7 +67,11 @@ export function SuppressionPage() {
     },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['suppression'] });
-      toast.success(`${res.added} emails added to suppression list`);
+      toast.success(
+        res.duplicates_collapsed > 0
+          ? `${res.added} emails added (${res.duplicates_collapsed} duplicate${res.duplicates_collapsed === 1 ? '' : 's'} skipped)`
+          : `${res.added} emails added to suppression list`
+      );
       setShowBulkModal(false);
       setBulkText('');
     },
@@ -115,11 +125,10 @@ export function SuppressionPage() {
             placeholder="Search emails…"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { setSearch(searchInput); setPage(1); } }}
             className="w-full h-8 pl-8 pr-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[12.5px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[rgba(91,91,245,0.4)] focus:bg-[var(--bg-surface)] focus:shadow-[0_0_0_3px_rgba(91,91,245,0.12)] outline-none transition"
           />
           {searchInput && (
-            <button onClick={() => { setSearchInput(''); setSearch(''); }} className="absolute right-2 top-1/2 -translate-y-1/2">
+            <button onClick={() => setSearchInput('')} className="absolute right-2 top-1/2 -translate-y-1/2">
               <X className="h-3 w-3 text-[var(--text-tertiary)]" />
             </button>
           )}

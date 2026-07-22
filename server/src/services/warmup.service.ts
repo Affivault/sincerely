@@ -37,7 +37,7 @@ const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 async function setWarmup(userId: string, id: string, input: SetWarmupInput) {
   const { data: existing, error: fetchErr } = await supabaseAdmin
     .from('smtp_accounts')
-    .select('id, warmup_started_at')
+    .select('id, warmup_started_at, warmup_start_volume, warmup_daily_target')
     .eq('id', id)
     .eq('user_id', userId)
     .maybeSingle();
@@ -48,6 +48,16 @@ async function setWarmup(userId: string, id: string, input: SetWarmupInput) {
   if (input.warmup_daily_target != null) update.warmup_daily_target = Math.max(1, input.warmup_daily_target);
   if (input.warmup_start_volume != null) update.warmup_start_volume = Math.max(1, input.warmup_start_volume);
   if (input.warmup_ramp_days != null) update.warmup_ramp_days = Math.max(1, input.warmup_ramp_days);
+
+  // A ramp that decreases volume over time isn't meaningful and produces a
+  // sudden allowance drop on the day warm-up completes (warmupAllowance
+  // clamps to `start` throughout the ramp, then jumps straight to `target`).
+  // Keep target >= start whenever either changes.
+  const resolvedStart = update.warmup_start_volume ?? (existing as any).warmup_start_volume;
+  const resolvedTarget = update.warmup_daily_target ?? (existing as any).warmup_daily_target;
+  if (resolvedStart != null && resolvedTarget != null && resolvedTarget < resolvedStart) {
+    update.warmup_daily_target = resolvedStart;
+  }
   // Starting warm-up (re)sets the ramp clock only when it wasn't already running.
   if (input.enabled && !(existing as any).warmup_started_at) {
     update.warmup_started_at = new Date().toISOString();
@@ -248,7 +258,7 @@ async function connectImap(account: any): Promise<any | null> {
     host,
     port: account.imap_port || 993,
     secure: account.imap_secure !== false,
-    auth: { user: account.smtp_user || account.email_address, pass: password },
+    auth: { user: account.imap_user || account.smtp_user || account.email_address, pass: password },
     logger: false,
   });
   let connectTimeoutId: ReturnType<typeof setTimeout>;

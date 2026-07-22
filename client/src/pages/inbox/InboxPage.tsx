@@ -1747,6 +1747,16 @@ export function InboxPage() {
   // Signature state for the reply/forward composer — follows the chosen sender.
   const replySig = useSignatureState(smtpAccounts, replySenderId);
 
+  // smtpAccounts is fetched async and can still be empty when a reply/forward is first
+  // opened (message has no smtp_account_id yet); resync once accounts arrive so the
+  // selected sender always matches what's actually shown in <SenderSelect> — same fix
+  // as ComposeModal's applyPreset/mount resync.
+  useEffect(() => {
+    if (!replySenderId && smtpAccounts[0]) {
+      setReplySenderId(smtpAccounts[0].id);
+    }
+  }, [smtpAccounts, replySenderId]);
+
   /* ── Email templates for insertion ── */
   const { data: emailTemplates } = useQuery({
     queryKey: ['templates', 'emails'],
@@ -2169,18 +2179,21 @@ export function InboxPage() {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
       e.preventDefault();
-      const idx = conversations.findIndex(c => c.latestMessage.id === selectedId);
+      // Navigate within the currently displayed (filtered) list, not the raw list —
+      // same reasoning as handleArchiveToggle: never jump to a conversation outside
+      // the active filter (e.g. "Unread only" or a quick filter).
+      const idx = visibleConversations.findIndex(c => c.latestMessage.id === selectedId);
       const nextIdx = e.key === 'j'
-        ? Math.min(idx + 1, conversations.length - 1)
+        ? Math.min(idx + 1, visibleConversations.length - 1)
         : Math.max(idx - 1, 0);
-      const next = conversations[nextIdx];
+      const next = visibleConversations[nextIdx];
       if (next && next.latestMessage.id !== selectedId) {
         setSelectedId(next.latestMessage.id);
       }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [conversations, selectedId, showCompose, replyMode]);
+  }, [visibleConversations, selectedId, showCompose, replyMode]);
 
   // r → reply, e → archive/unarchive current message (Gmail-style shortcuts)
   useEffect(() => {
@@ -2303,7 +2316,7 @@ export function InboxPage() {
             {/* ── Focus toolbar: back + position + actions ── */}
             <div className="flex items-center gap-2 px-3 h-[50px] border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-shrink-0">
               <button
-                onClick={() => setSelectedId(null)}
+                onClick={() => { setSelectedId(null); setReplyMode(null); }}
                 className="flex items-center gap-1.5 h-8 px-2.5 rounded-[8px] text-[12.5px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
               >
                 <ArrowLeft className="h-3.5 w-3.5" /> {foldersList.find(f => f.id === folder)?.label || 'Inbox'}
@@ -2605,7 +2618,7 @@ export function InboxPage() {
                                 replyMut.mutate({ id: currentMsg.id, body: b.body, body_html: b.body_html, smtp_account_id: sid });
                               } else if (replyMode === 'forward' && forwardTo.trim()) {
                                 const b = withSignature(replyEditor.html || '', replyEditor.text || '', replySig.sigHtml, replySig.on);
-                                forwardMut.mutate({ id: currentMsg.id, to: forwardTo, note: b.body || undefined, body_html: b.body_html || undefined, smtp_account_id: sid });
+                                forwardMut.mutate({ id: currentMsg.id, to: forwardTo.trim(), note: b.body || undefined, body_html: b.body_html || undefined, smtp_account_id: sid });
                               }
                             }}
                             disabled={

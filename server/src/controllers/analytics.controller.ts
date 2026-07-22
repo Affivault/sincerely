@@ -56,7 +56,7 @@ export const analyticsController = {
 
   async campaignTrend(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const days = req.query.days ? parseInt(req.query.days as string, 10) : 14;
+      const days = req.query.days ? (parseInt(req.query.days as string, 10) || 14) : 14;
       const data = await analyticsService.campaignTrend(req.userId!, req.params.campaignId, days);
       res.json(data);
     } catch (err) { next(err); }

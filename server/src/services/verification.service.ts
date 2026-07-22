@@ -203,7 +203,7 @@ function calculateDcs(
 /**
  * Verify a single email address through the triple-layer pipeline.
  */
-export async function verifyEmail(email: string): Promise<DcsVerificationResult> {
+export async function verifyEmail(email: string, historicalBounceRate = 0): Promise<DcsVerificationResult> {
   const syntaxOk = checkSyntax(email);
 
   if (!syntaxOk) {
@@ -216,7 +216,7 @@ export async function verifyEmail(email: string): Promise<DcsVerificationResult>
   }
 
   const smtpResult = await checkSmtp(email);
-  const score = calculateDcs(syntaxOk, domainOk, smtpResult.ok);
+  const score = calculateDcs(syntaxOk, domainOk, smtpResult.ok, historicalBounceRate);
 
   return {
     email,
@@ -234,14 +234,14 @@ export async function verifyEmail(email: string): Promise<DcsVerificationResult>
 export async function verifyContact(contactId: string, userId: string): Promise<DcsVerificationResult> {
   const { data: contact } = await supabaseAdmin
     .from('contacts')
-    .select('email, user_id')
+    .select('email, user_id, is_bounced')
     .eq('id', contactId)
     .eq('user_id', userId)
     .maybeSingle();
 
   if (!contact) throw new Error('Contact not found');
 
-  const result = await verifyEmail(contact.email);
+  const result = await verifyEmail(contact.email, contact.is_bounced ? 1 : 0);
 
   const { error: updateErr } = await supabaseAdmin
     .from('contacts')
@@ -279,7 +279,7 @@ export async function batchVerify(
 ): Promise<{ verified: number; failed: number }> {
   let query = supabaseAdmin
     .from('contacts')
-    .select('id, email')
+    .select('id, email, is_bounced')
     .eq('user_id', userId)
     .is('dcs_verified_at', null);
 
@@ -294,7 +294,7 @@ export async function batchVerify(
   let failed = 0;
 
   for (const contact of contacts) {
-    const result = await verifyEmail(contact.email);
+    const result = await verifyEmail(contact.email, contact.is_bounced ? 1 : 0);
 
     const { error: batchUpdateErr } = await supabaseAdmin
       .from('contacts')
@@ -338,7 +338,7 @@ export async function autoVerifyPending(maxContacts = 10): Promise<number> {
 
   const { data: contacts } = await supabaseAdmin
     .from('contacts')
-    .select('id, email')
+    .select('id, email, is_bounced')
     .is('dcs_verified_at', null)
     .in('user_id', userIds)
     .limit(maxContacts);
@@ -349,7 +349,7 @@ export async function autoVerifyPending(maxContacts = 10): Promise<number> {
   for (const contact of contacts) {
     // verifyEmail handles its own errors and always resolves to a result,
     // so dcs_verified_at always gets stamped — no infinite retry loop.
-    const result = await verifyEmail(contact.email);
+    const result = await verifyEmail(contact.email, contact.is_bounced ? 1 : 0);
     await supabaseAdmin
       .from('contacts')
       .update({
@@ -420,7 +420,7 @@ export async function getSuppressedContacts(
 
   const { data } = await supabaseAdmin
     .from('campaign_contacts')
-    .select('contact_id, contacts(email, dcs_score)')
+    .select('contact_id, contacts!inner(email, dcs_score)')
     .eq('campaign_id', campaignId)
     .not('contacts.dcs_score', 'is', null)
     .lt('contacts.dcs_score', threshold);

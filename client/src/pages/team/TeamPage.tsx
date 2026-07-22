@@ -21,6 +21,7 @@ import {
   Copy,
   Pencil,
   X,
+  XCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -52,7 +53,7 @@ export function TeamPage() {
   const [editingOrgName, setEditingOrgName] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
-  const { data: org, isLoading: orgLoading } = useQuery({
+  const { data: org, isLoading: orgLoading, isError: orgError } = useQuery({
     queryKey: ['team-org'],
     queryFn: teamApi.getOrg,
   });
@@ -131,6 +132,28 @@ export function TeamPage() {
   const isOwner = org?.owner_id === user?.id;
 
   if (orgLoading) return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>;
+
+  if (orgError) {
+    return (
+      <SettingsShell>
+        <div className="max-w-3xl">
+          <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-20 px-8 flex flex-col items-center justify-center text-center">
+            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 mb-5">
+              <XCircle className="h-7 w-7 text-red-600 dark:text-red-400" strokeWidth={1.5} />
+            </span>
+            <h3 className="text-[15px] font-semibold text-[var(--text-primary)] mb-1.5">Couldn't load your team</h3>
+            <p className="text-[12.5px] text-[var(--text-secondary)] max-w-sm mb-4">Something went wrong fetching your organisation. Try again.</p>
+            <button
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['team-org'] })}
+              className="h-8 px-3.5 rounded-lg bg-[var(--indigo)] text-white text-[12.5px] font-semibold hover:brightness-110 transition-all"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </SettingsShell>
+    );
+  }
 
   return (
     <SettingsShell>

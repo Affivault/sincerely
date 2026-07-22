@@ -14,6 +14,8 @@ export interface SmtpAccount {
   imap_host: string | null;
   imap_port: number | null;
   imap_secure: boolean | null;
+  /** IMAP login, when it differs from smtp_user/email_address (e.g. a custom mail server). */
+  imap_user: string | null;
   daily_send_limit: number;
   sends_today: number;
   last_send_reset_at: string;
@@ -166,6 +168,7 @@ export interface CreateSmtpAccountInput {
   imap_host?: string;
   imap_port?: number;
   imap_secure?: boolean;
+  imap_user?: string;
   daily_send_limit?: number;
   signature_html?: string | null;
   signature_auto?: boolean;

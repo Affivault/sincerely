@@ -1,6 +1,25 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 
+const PAGE_SIZE = 1000;
+
+// Supabase caps a single select at ~1000 rows (see lists.service.ts's
+// getContactsInList / segments.service.ts's fetchAllContactIds), so any
+// query here that can grow past that — campaigns assigned to folders,
+// campaign_activities rows for a folder's analytics — must page through
+// the full result or silently under-report.
+async function fetchAllRows<T = any>(buildQuery: (from: number, to: number) => any): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await buildQuery(from, from + PAGE_SIZE - 1);
+    if (error) throw new AppError(error.message, 500);
+    const chunk: T[] = data || [];
+    rows.push(...chunk);
+    if (chunk.length < PAGE_SIZE) break;
+  }
+  return rows;
+}
+
 export const campaignFoldersService = {
   async list(userId: string) {
     const { data, error } = await supabaseAdmin
@@ -14,14 +33,17 @@ export const campaignFoldersService = {
     const folders = data || [];
     if (folders.length === 0) return [];
 
-    const { data: campaigns } = await supabaseAdmin
-      .from('campaigns')
-      .select('id, folder_id')
-      .eq('user_id', userId)
-      .not('folder_id', 'is', null);
+    const campaigns = await fetchAllRows<{ id: string; folder_id: string | null }>((from, to) =>
+      supabaseAdmin
+        .from('campaigns')
+        .select('id, folder_id')
+        .eq('user_id', userId)
+        .not('folder_id', 'is', null)
+        .range(from, to)
+    );
 
     const counts: Record<string, number> = {};
-    for (const c of campaigns || []) {
+    for (const c of campaigns) {
       if (c.folder_id) counts[c.folder_id] = (counts[c.folder_id] || 0) + 1;
     }
 
@@ -42,9 +64,24 @@ export const campaignFoldersService = {
   },
 
   async update(userId: string, id: string, input: { name?: string; color?: string; icon?: string; position?: number; parent_id?: string | null }) {
-    // A folder can't be its own parent (prevents a trivial cycle)
-    if (input.parent_id && input.parent_id === id) {
-      throw new AppError('A folder cannot be moved into itself', 400);
+    if (input.parent_id) {
+      if (input.parent_id === id) {
+        throw new AppError('A folder cannot be moved into itself', 400);
+      }
+      // Walk the new parent's ancestor chain — if it leads back to `id`, this move creates a cycle.
+      const { data: allFolders } = await supabaseAdmin
+        .from('campaign_folders')
+        .select('id, parent_id')
+        .eq('user_id', userId);
+      const byId = new Map((allFolders || []).map((f: any) => [f.id, f.parent_id]));
+      let cursor: string | null | undefined = input.parent_id;
+      const seen = new Set<string>();
+      while (cursor) {
+        if (cursor === id) throw new AppError('Cannot move a folder into one of its own descendants', 400);
+        if (seen.has(cursor)) break;
+        seen.add(cursor);
+        cursor = byId.get(cursor);
+      }
     }
     const { data, error } = await supabaseAdmin
       .from('campaign_folders')
@@ -97,16 +134,19 @@ export const campaignFoldersService = {
       return { folder, campaigns: [], totals: { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 } };
     }
 
-    const { data: activities } = await supabaseAdmin
-      .from('campaign_activities')
-      .select('activity_type, campaign_id')
-      .in('campaign_id', campaignIds);
+    const activities = await fetchAllRows<{ activity_type: string; campaign_id: string }>((from, to) =>
+      supabaseAdmin
+        .from('campaign_activities')
+        .select('activity_type, campaign_id')
+        .in('campaign_id', campaignIds)
+        .range(from, to)
+    );
 
     const byCampaign: Record<string, any> = {};
     const totals = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
     for (const id of campaignIds) byCampaign[id] = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
 
-    for (const a of activities || []) {
+    for (const a of activities) {
       const c = byCampaign[a.campaign_id];
       if (!c) continue;
       if (a.activity_type in c) {

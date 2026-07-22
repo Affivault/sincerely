@@ -165,30 +165,6 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
     return;
   }
 
-  // Check daily limit — use the campaign's timezone so "today" matches the sender's business day
-  const dailyLimit = cc.campaigns.daily_limit || 0;
-  if (dailyLimit > 0) {
-    const tz = cc.campaigns.timezone || 'UTC';
-    const todayStart = startOfDayInTimezone(tz);
-    const { count: sentToday, error: countErr } = await supabaseAdmin
-      .from('campaign_activities')
-      .select('*', { count: 'exact', head: true })
-      .eq('campaign_id', cc.campaign_id)
-      .eq('activity_type', 'sent')
-      .gte('occurred_at', todayStart.toISOString());
-    if (countErr) throw new Error(`Failed to fetch daily send count: ${countErr.message}`);
-    if (sentToday !== null && sentToday >= dailyLimit) {
-      // Reschedule to next send window so the sequence worker doesn't
-      // re-pick this contact every 30 seconds until midnight.
-      const nextWindow = getNextSendWindowStart(cc.campaigns);
-      await supabaseAdmin
-        .from('campaign_contacts')
-        .update({ next_send_at: nextWindow.toISOString() })
-        .eq('id', campaignContactId);
-      return;
-    }
-  }
-
   // Check stop_on_reply — if contact already replied, mark completed
   if (cc.campaigns.stop_on_reply !== false) {
     const { count: replyCount } = await supabaseAdmin
@@ -242,6 +218,35 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
       }).catch(() => {});
       checkAndAutoCompleteCampaign(cc.campaign_id).catch(() => {});
       return;
+    }
+  }
+
+  // Check daily limit — only gates email sends; delay/condition/webhook_wait steps
+  // don't consume send quota and shouldn't stall a day behind schedule because the
+  // campaign happened to be at its email cap. Uses the campaign's timezone so
+  // "today" matches the sender's business day.
+  if (nextStep.step_type === 'email') {
+    const dailyLimit = cc.campaigns.daily_limit || 0;
+    if (dailyLimit > 0) {
+      const tz = cc.campaigns.timezone || 'UTC';
+      const todayStart = startOfDayInTimezone(tz);
+      const { count: sentToday, error: countErr } = await supabaseAdmin
+        .from('campaign_activities')
+        .select('*', { count: 'exact', head: true })
+        .eq('campaign_id', cc.campaign_id)
+        .eq('activity_type', 'sent')
+        .gte('occurred_at', todayStart.toISOString());
+      if (countErr) throw new Error(`Failed to fetch daily send count: ${countErr.message}`);
+      if (sentToday !== null && sentToday >= dailyLimit) {
+        // Reschedule to next send window so the sequence worker doesn't
+        // re-pick this contact every 30 seconds until midnight.
+        const nextWindow = getNextSendWindowStart(cc.campaigns);
+        await supabaseAdmin
+          .from('campaign_contacts')
+          .update({ next_send_at: nextWindow.toISOString() })
+          .eq('id', campaignContactId);
+        return;
+      }
     }
   }
 
@@ -719,10 +724,17 @@ export async function processWebhookTimeouts(): Promise<number> {
  * Should be called periodically (e.g., every 30 seconds via cron/scheduler).
  */
 export async function processDueSteps(): Promise<number> {
+  // Join on campaigns.status so a paused campaign's still-"active" contacts
+  // (pause() intentionally leaves their next_send_at untouched so resume()
+  // can pick them up immediately) don't keep occupying slots in the 50-row
+  // cap every poll, which would starve genuinely due contacts in other
+  // running campaigns. processNextStep() re-checks this too, but skipping
+  // here avoids the wasted fetch and the crowding.
   const { data: dueContacts, error: dueError } = await supabaseAdmin
     .from('campaign_contacts')
-    .select('id')
+    .select('id, campaigns!inner(status)')
     .eq('status', 'active')
+    .eq('campaigns.status', 'running')
     .not('next_send_at', 'is', null)
     .lte('next_send_at', new Date().toISOString())
     .limit(50);
@@ -757,14 +769,20 @@ async function advanceToNextStep(
   allSteps: any[]
 ): Promise<void> {
   const nextStepOrder = currentStepOrder + 1;
-  const hasMoreSteps = allSteps.some((s: any) => s.step_order === nextStepOrder);
+  const nextStep = allSteps.find((s: any) => s.step_order === nextStepOrder);
 
-  if (hasMoreSteps) {
+  if (nextStep) {
+    // Honor the next email step's built-in "send N after previous step"
+    // timing even when we got here by skipping a step (skip_if_replied,
+    // condition branch): the wait belongs to the email, not to the path.
+    const builtinMs = nextStep.step_type === 'email'
+      ? ((nextStep.delay_days || 0) * 86400000) + ((nextStep.delay_hours || 0) * 3600000) + ((nextStep.delay_minutes || 0) * 60000)
+      : 0;
     await supabaseAdmin
       .from('campaign_contacts')
       .update({
         current_step_order: nextStepOrder,
-        next_send_at: new Date().toISOString(),
+        next_send_at: new Date(Date.now() + builtinMs).toISOString(),
       })
       .eq('id', campaignContactId);
   } else {
@@ -798,7 +816,7 @@ async function markCompleted(campaignContactId: string): Promise<void> {
  * Terminal states: completed, bounced, unsubscribed, error, suppressed.
  * Prevents campaigns from staying "running" indefinitely after all work is done.
  */
-async function checkAndAutoCompleteCampaign(campaignId: string): Promise<void> {
+export async function checkAndAutoCompleteCampaign(campaignId: string): Promise<void> {
   const { data: campaign } = await supabaseAdmin
     .from('campaigns')
     .select('id, status, user_id')
@@ -890,8 +908,14 @@ export const SAMPLE_PREVIEW_CONTACT = {
   custom_field_2: 'Sample 2',
 };
 
-/** Fill merge tags with sample data and strip any leftover unknown tags. */
+/**
+ * Fill merge tags with sample data and strip any leftover unknown tags.
+ * {{unsubscribe_link}} is resolved to a sample URL first (it isn't a contact
+ * field, so interpolateMergeTags never touches it) so previews/test sends
+ * don't silently blank out the unsubscribe link.
+ */
 export function previewWithSampleData(text: string): string {
   return interpolateMergeTags(text || '', SAMPLE_PREVIEW_CONTACT)
+    .replace(/\{\{\s*unsubscribe_link\s*\}\}/gi, 'https://example.com/unsubscribe/preview')
     .replace(/\{\{\s*[\w.-]+\s*\}\}/g, '');
 }

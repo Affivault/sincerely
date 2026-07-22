@@ -59,22 +59,30 @@ export async function listKeys(userId: string): Promise<ApiKey[]> {
  * Revoke (deactivate) an API key.
  */
 export async function revokeKey(userId: string, keyId: string): Promise<void> {
-  await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('api_keys')
     .update({ is_active: false })
     .eq('id', keyId)
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .select('id')
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('API key not found');
 }
 
 /**
  * Delete an API key permanently.
  */
 export async function deleteKey(userId: string, keyId: string): Promise<void> {
-  await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('api_keys')
     .delete()
     .eq('id', keyId)
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .select('id')
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('API key not found');
 }
 
 /**

@@ -32,13 +32,16 @@ function pruneCache() {
   }
 }
 
+// UTC, not local time — matches billing.service.ts's currentPeriodStart(), so
+// the prospect-credit reset boundary and the billing period boundary agree
+// regardless of the server process's TZ.
 function monthStartIso(): string {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 }
 function nextMonthIso(): string {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
 }
 
 async function creditsSummary(userId: string): Promise<ProspectCreditsSummary> {

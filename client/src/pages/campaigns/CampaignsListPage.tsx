@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { campaignsApi } from '../../api/campaigns.api';
 import { campaignFoldersApi, type CampaignFolder } from '../../api/campaign-folders.api';
+import { templateApi } from '../../api/template.api';
 import { Spinner } from '../../components/ui/Spinner';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
@@ -530,37 +531,9 @@ export function CampaignsListPage() {
         <FolderAnalyticsModal folderId={folderAnalyticsId} onClose={() => setFolderAnalyticsId(null)} />
       )}
 
-      {/* Start-a-campaign chooser: from scratch or from a saved template */}
+      {/* Start-a-campaign chooser: from scratch or straight from a template */}
       {showStartChooser && (
-        <Modal isOpen onClose={() => setShowStartChooser(false)} title="Create a campaign" description="Start from a blank sequence, or load one of your templates." size="md">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button
-              onClick={() => { setShowStartChooser(false); navigate('/campaigns/new'); }}
-              className="group flex flex-col items-start gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 text-left hover:border-[var(--indigo)]/40 hover:bg-[var(--bg-hover)] transition-colors"
-            >
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--indigo-subtle)]">
-                <Plus className="h-4.5 w-4.5 text-[var(--indigo)]" />
-              </span>
-              <span>
-                <span className="block text-[13.5px] font-semibold text-[var(--text-primary)]">Start from scratch</span>
-                <span className="block text-[11.5px] text-[var(--text-tertiary)] mt-0.5">A blank sequence — build your emails and delays step by step.</span>
-              </span>
-            </button>
-            <button
-              onClick={() => { setShowStartChooser(false); navigate('/templates'); }}
-              className="group flex flex-col items-start gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 text-left hover:border-[var(--indigo)]/40 hover:bg-[var(--bg-hover)] transition-colors"
-            >
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
-                <Layers className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
-              </span>
-              <span>
-                <span className="block text-[13.5px] font-semibold text-[var(--text-primary)]">Use a template</span>
-                <span className="block text-[11.5px] text-[var(--text-tertiary)] mt-0.5">Pick a saved email or sequence template to pre-fill the builder.</span>
-              </span>
-            </button>
-          </div>
-          <p className="mt-3 text-[11px] text-[var(--text-muted)]">Tip: you can also load a template from inside the builder’s Sequence step.</p>
-        </Modal>
+        <StartCampaignModal onClose={() => setShowStartChooser(false)} />
       )}
     </div>
   );
@@ -1080,6 +1053,124 @@ function FolderAnalyticsModal({ folderId, onClose }: { folderId: string; onClose
           </table>
         </>
       )}
+    </Modal>
+  );
+}
+
+/* ─── Start-a-campaign chooser ──────────────────────────────────────
+   Blank start, or pick a template right here — the template list loads
+   inline (sequences with step counts, single emails with subjects) and
+   drops the choice straight into the builder pre-filled. */
+function StartCampaignModal({ onClose }: { onClose: () => void }) {
+  const navigate = useNavigate();
+  const [search, setSearch] = useState('');
+
+  const { data: sequences = [], isLoading: loadingSeq } = useQuery({
+    queryKey: ['templates', 'sequences'],
+    queryFn: templateApi.listSequences,
+  });
+  const { data: emails = [], isLoading: loadingEmails } = useQuery({
+    queryKey: ['templates', 'emails'],
+    queryFn: templateApi.listEmails,
+  });
+
+  const q = search.trim().toLowerCase();
+  const visibleSequences = q ? sequences.filter((t: any) => t.name.toLowerCase().includes(q)) : sequences;
+  const visibleEmails = q ? emails.filter((t: any) => `${t.name} ${t.subject}`.toLowerCase().includes(q)) : emails;
+  const loading = loadingSeq || loadingEmails;
+  const hasTemplates = sequences.length + emails.length > 0;
+
+  const useSequence = (t: any) => { onClose(); navigate('/campaigns/new', { state: { templateSequence: t } }); };
+  const useEmail = (t: any) => { onClose(); navigate('/campaigns/new', { state: { templateEmail: t } }); };
+
+  return (
+    <Modal isOpen onClose={onClose} title="Create a campaign" description="Start blank, or pick a template and land in the builder pre-filled." size="lg">
+      {/* Blank start — always first */}
+      <button
+        onClick={() => { onClose(); navigate('/campaigns/new'); }}
+        className="w-full flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3.5 text-left hover:border-[var(--indigo)]/40 hover:bg-[var(--bg-hover)] transition-colors"
+      >
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] flex-shrink-0">
+          <Plus className="h-4 w-4 text-[var(--indigo)]" />
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-[13.5px] font-semibold text-[var(--text-primary)]">Start from scratch</span>
+          <span className="block text-[11.5px] text-[var(--text-tertiary)]">A blank sequence — build your emails and timing step by step.</span>
+        </span>
+        <ChevronRight className="h-4 w-4 text-[var(--text-muted)] flex-shrink-0" />
+      </button>
+
+      {/* Templates */}
+      <div className="mt-4">
+        <div className="flex items-center gap-2 mb-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Or use a template</p>
+          <span className="flex-1" />
+          {hasTemplates && (
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-[var(--text-muted)] pointer-events-none" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search templates…"
+                className="h-7 w-44 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] pr-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--indigo)] focus:outline-none"
+                style={{ paddingLeft: '1.6rem' }}
+              />
+            </div>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-8"><Spinner size="md" /></div>
+        ) : !hasTemplates ? (
+          <div className="rounded-xl border border-dashed border-[var(--border-default)] py-8 text-center">
+            <Layers className="h-6 w-6 text-[var(--text-muted)] mx-auto mb-2" />
+            <p className="text-[12.5px] text-[var(--text-secondary)]">No templates saved yet.</p>
+            <button onClick={() => { onClose(); navigate('/templates'); }} className="mt-1 text-[12px] font-medium text-[var(--indigo)] hover:underline">
+              Browse the template library →
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-1.5 max-h-[320px] overflow-y-auto pr-0.5">
+            {visibleSequences.map((t: any) => (
+              <button
+                key={`seq-${t.id}`}
+                onClick={() => useSequence(t)}
+                className="w-full flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2.5 text-left hover:border-[var(--indigo)]/40 hover:bg-[var(--bg-hover)] transition-colors"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 flex-shrink-0">
+                  <Layers className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[13px] font-medium text-[var(--text-primary)] truncate">{t.name}</span>
+                  <span className="block text-[11px] text-[var(--text-tertiary)] truncate">
+                    Sequence · {(t.steps || []).length} email{(t.steps || []).length === 1 ? '' : 's'}{t.category ? ` · ${t.category}` : ''}
+                  </span>
+                </span>
+                <span className="text-[11.5px] font-medium text-[var(--indigo)] flex-shrink-0">Use →</span>
+              </button>
+            ))}
+            {visibleEmails.map((t: any) => (
+              <button
+                key={`em-${t.id}`}
+                onClick={() => useEmail(t)}
+                className="w-full flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2.5 text-left hover:border-[var(--indigo)]/40 hover:bg-[var(--bg-hover)] transition-colors"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] flex-shrink-0">
+                  <Mail className="h-3.5 w-3.5 text-[var(--indigo)]" />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[13px] font-medium text-[var(--text-primary)] truncate">{t.name}</span>
+                  <span className="block text-[11px] text-[var(--text-tertiary)] truncate">Single email · {t.subject || 'No subject'}</span>
+                </span>
+                <span className="text-[11.5px] font-medium text-[var(--indigo)] flex-shrink-0">Use →</span>
+              </button>
+            ))}
+            {visibleSequences.length + visibleEmails.length === 0 && (
+              <p className="py-6 text-center text-[12px] text-[var(--text-tertiary)]">No templates match “{search}”.</p>
+            )}
+          </div>
+        )}
+      </div>
     </Modal>
   );
 }

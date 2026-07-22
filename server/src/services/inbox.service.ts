@@ -97,7 +97,7 @@ async function syncArchiveToImap(
   for (const [accountId, msgs] of byAccount) {
     const { data: account } = await supabaseAdmin
       .from('smtp_accounts')
-      .select('smtp_host, smtp_user, smtp_pass_encrypted, email_address')
+      .select('smtp_host, smtp_user, imap_user, smtp_pass_encrypted, email_address')
       .eq('id', accountId)
       .single();
     if (!account) continue;
@@ -132,7 +132,7 @@ async function syncArchiveToImap(
       port: 993,
       secure: true,
       servername: imapHost,
-      auth: { user: account.smtp_user || account.email_address, pass: password },
+      auth: { user: account.imap_user || account.smtp_user || account.email_address, pass: password },
       logger: false,
     });
 
@@ -406,13 +406,16 @@ export const inboxService = {
     }
 
     // Step 3: Find ALL messages with this contact (both directions)
+    // Case-insensitive match ("John@X.com" vs "john@x.com" are the same
+    // mailbox) — ilike with escaped wildcards is equality, ignoring case.
     // Quote the email so values containing commas/parens don't break PostgREST OR parsing
-    const emailQ = `"${contactEmail.replace(/"/g, '""')}"`;
+    const emailPattern = contactEmail.replace(/([%_\\])/g, '\\$1');
+    const emailQ = `"${emailPattern.replace(/"/g, '""')}"`;
     const { data, error } = await supabaseAdmin
       .from('inbox_messages')
       .select('*, contacts(first_name, last_name, email), smtp_accounts(id, email_address, label)')
       .eq('user_id', userId)
-      .or(`from_email.eq.${emailQ},to_email.eq.${emailQ}`)
+      .or(`from_email.ilike.${emailQ},to_email.ilike.${emailQ}`)
       .order('received_at', { ascending: true });
 
     if (error) throw new AppError(error.message, 500);
@@ -518,18 +521,20 @@ export const inboxService = {
   async archiveThread(userId: string, messageId: string) {
     const contactEmail = await resolveContactEmail(userId, messageId);
     if (!contactEmail) return inboxService.archive(userId, messageId);
-    const emailQ = `"${contactEmail.replace(/"/g, '""')}"`;
+    // Case-insensitive match — see markThreadRead for why.
+    const emailPattern = contactEmail.replace(/([%_\\])/g, '\\$1');
+    const emailQ = `"${emailPattern.replace(/"/g, '""')}"`;
     const { data: affected } = await supabaseAdmin
       .from('inbox_messages')
       .select('id')
       .eq('user_id', userId)
-      .or(`from_email.eq.${emailQ},to_email.eq.${emailQ}`);
+      .or(`from_email.ilike.${emailQ},to_email.ilike.${emailQ}`);
     const ids = (affected || []).map((r: any) => r.id);
     const { error } = await supabaseAdmin
       .from('inbox_messages')
       .update({ is_archived: true })
       .eq('user_id', userId)
-      .or(`from_email.eq.${emailQ},to_email.eq.${emailQ}`);
+      .or(`from_email.ilike.${emailQ},to_email.ilike.${emailQ}`);
     if (error) throw new AppError(error.message, 500);
     if (ids.length > 0) {
       syncArchiveToImap(userId, ids, true).catch((e) =>
@@ -541,18 +546,20 @@ export const inboxService = {
   async unarchiveThread(userId: string, messageId: string) {
     const contactEmail = await resolveContactEmail(userId, messageId);
     if (!contactEmail) return inboxService.unarchive(userId, messageId);
-    const emailQ = `"${contactEmail.replace(/"/g, '""')}"`;
+    // Case-insensitive match — see markThreadRead for why.
+    const emailPattern = contactEmail.replace(/([%_\\])/g, '\\$1');
+    const emailQ = `"${emailPattern.replace(/"/g, '""')}"`;
     const { data: affected } = await supabaseAdmin
       .from('inbox_messages')
       .select('id')
       .eq('user_id', userId)
-      .or(`from_email.eq.${emailQ},to_email.eq.${emailQ}`);
+      .or(`from_email.ilike.${emailQ},to_email.ilike.${emailQ}`);
     const ids = (affected || []).map((r: any) => r.id);
     const { error } = await supabaseAdmin
       .from('inbox_messages')
       .update({ is_archived: false })
       .eq('user_id', userId)
-      .or(`from_email.eq.${emailQ},to_email.eq.${emailQ}`);
+      .or(`from_email.ilike.${emailQ},to_email.ilike.${emailQ}`);
     if (error) throw new AppError(error.message, 500);
     if (ids.length > 0) {
       syncArchiveToImap(userId, ids, false).catch((e) =>
@@ -650,6 +657,7 @@ export const inboxService = {
   },
 
   async forward(userId: string, messageId: string, toEmail: string, note?: string, smtpAccountId?: string, noteHtmlRaw?: string) {
+    toEmail = toEmail.trim();
     const { data: original } = await supabaseAdmin
       .from('inbox_messages')
       .select('*')
@@ -949,7 +957,7 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
     try {
       const { data: accounts, error: dbError } = await supabaseAdmin
         .from('smtp_accounts')
-        .select('id, user_id, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass_encrypted, email_address, last_inbox_sync_at')
+        .select('id, user_id, smtp_host, smtp_port, smtp_secure, smtp_user, imap_user, smtp_pass_encrypted, email_address, last_inbox_sync_at')
         .eq('user_id', userId)
         .eq('is_active', true);
 
@@ -999,7 +1007,7 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
             port: 993,
             secure: true,
             servername: imapHost,
-            auth: { user: account.smtp_user || account.email_address, pass: password },
+            auth: { user: account.imap_user || account.smtp_user || account.email_address, pass: password },
             logger: false,
             emitLogs: false,
           });
@@ -1300,17 +1308,24 @@ export async function processScheduledEmails(): Promise<number> {
       await (smtpAccount.user_id ? sendWithQuotaRefund(smtpAccount.user_id, doSend) : doSend());
 
       // Mark as sent by clearing the schedule markers
-      await supabaseAdmin
+      const { error: clearErr } = await supabaseAdmin
         .from('inbox_messages')
         .update({ sara_status: null, sara_action: null })
         .eq('id', msg.id);
+      if (clearErr) {
+        // The email already sent successfully — the row is now stuck with sara_status
+        // 'sending' rather than resent, since the claim above already ruled out a
+        // duplicate. Log loudly rather than silently leaving it unexplained.
+        console.error(`[ScheduledEmails] Sent ${msg.id} but failed to clear its schedule markers:`, clearErr.message);
+      }
 
       sent++;
       console.log(`[ScheduledEmails] Sent scheduled email ${msg.id} to ${msg.to_email}`);
     } catch (err: any) {
       console.error(`[ScheduledEmails] Failed to send message ${msg.id}:`, err.message);
       // Only wipe schedule markers for permanent failures (auth, config, envelope errors).
-      // Transient network errors keep the markers so the next scheduler run retries.
+      // Transient network errors revert the claim back to 'scheduled' (sara_action is
+      // untouched, so it's still due) so the next scheduler run retries.
       const TRANSIENT_CODES = new Set(['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'EAI_AGAIN']);
       const isTransient = TRANSIENT_CODES.has(err.code) || err.message?.includes('timeout') || err.message?.includes('ENOTFOUND');
       await supabaseAdmin

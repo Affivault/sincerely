@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -79,10 +79,23 @@ export function SettingsPage() {
   const { mode: themeMode, setMode: setThemeMode } = useTheme();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const requestedTab = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState<Tab>(
     (TAB_IDS as string[]).includes(requestedTab || '') ? (requestedTab as Tab) : 'profile'
   );
+
+  // Re-sync when the URL's ?tab= changes on an already-mounted SettingsPage
+  // (e.g. clicking "Account" in the header dropdown while already on /settings).
+  // Keyed on location.key (not just requestedTab) so this still fires when the
+  // header re-navigates to the same ?tab= value after the user has since
+  // clicked a different in-page tab — otherwise the string comparison sees no
+  // change and the resync silently no-ops.
+  useEffect(() => {
+    if (requestedTab && (TAB_IDS as string[]).includes(requestedTab)) {
+      setActiveTab(requestedTab as Tab);
+    }
+  }, [requestedTab, location.key]);
 
   // Form state
   const [firstName, setFirstName] = useState('');
@@ -151,6 +164,19 @@ export function SettingsPage() {
 
   // Track changes
   const markChanged = () => setHasChanges(true);
+
+  // Warn before the tab closes/refreshes with unsaved edits — otherwise they're
+  // lost silently, since the "unsaved changes" label is easy to miss unless
+  // you're already looking at the Save button.
+  useEffect(() => {
+    if (!hasChanges) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasChanges]);
 
   // ── Save settings mutation ──
   const saveMutation = useMutation({
