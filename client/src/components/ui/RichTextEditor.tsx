@@ -435,5 +435,13 @@ export function useRichTextEditorRef() {
     setText(newText);
   }, []);
 
-  return { html, text, handleChange, isEmpty: !text.trim() };
+  // Clears the tracked html/text independently of the mounted <RichTextEditor>.
+  // Needed because this hook's state lives in the parent and is NOT reset just
+  // by remounting/unmounting the editor element (e.g. via a changing `key`).
+  const reset = useCallback(() => {
+    setHtml('');
+    setText('');
+  }, []);
+
+  return { html, text, handleChange, reset, isEmpty: !text.trim() };
 }

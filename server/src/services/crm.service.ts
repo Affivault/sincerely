@@ -42,6 +42,17 @@ function sanitizeDealInput(input: Record<string, any>) {
  * Keep deals in sync with the contacts base: when a deal carries an email but
  * no linked lead, attach the matching contact (and backfill name/company).
  */
+/** Reject a caller-supplied contact_id that doesn't belong to this user (cross-tenant IDOR guard). */
+async function assertContactOwnership(userId: string, contactId: string) {
+  const { data } = await supabaseAdmin
+    .from('contacts')
+    .select('id')
+    .eq('id', contactId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (!data) throw new AppError('Contact not found', 404);
+}
+
 async function autoLinkContact(userId: string, input: Record<string, any>) {
   if (input.contact_id || !input.contact_email) return;
   const pattern = String(input.contact_email).replace(/([%_\\])/g, '\\$1');
@@ -86,6 +97,7 @@ export const crmService = {
     if (!body.title || !String(body.title).trim()) throw new AppError('Deal title is required', 400);
     const input = pick(body, DEAL_KEYS as any);
     sanitizeDealInput(input);
+    if (input.contact_id) await assertContactOwnership(userId, input.contact_id);
     await autoLinkContact(userId, input);
     const { data, error } = await supabaseAdmin
       .from('deals')
@@ -99,6 +111,7 @@ export const crmService = {
   async updateDeal(userId: string, id: string, body: any) {
     const input = pick(body, DEAL_KEYS as any);
     sanitizeDealInput(input);
+    if (input.contact_id) await assertContactOwnership(userId, input.contact_id);
     if (input.contact_email !== undefined && input.contact_id === undefined) {
       await autoLinkContact(userId, input);
     }

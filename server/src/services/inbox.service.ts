@@ -1254,9 +1254,29 @@ export async function processScheduledEmails(): Promise<number> {
         continue;
       }
 
+      // Atomically claim this message BEFORE sending to prevent a duplicate send if
+      // an overlapping/concurrent tick picks up the same due row (same compare-and-swap
+      // pattern as sequence.service.ts's processEmailStep).
+      const { data: claimed, error: claimErr } = await supabaseAdmin
+        .from('inbox_messages')
+        .update({ sara_status: 'sending' })
+        .eq('id', msg.id)
+        .eq('sara_status', 'scheduled')
+        .select('id')
+        .maybeSingle();
+      if (claimErr) {
+        console.error(`[ScheduledEmails] Failed to claim message ${msg.id}:`, claimErr.message);
+        continue;
+      }
+      if (!claimed) {
+        console.log(`[ScheduledEmails] Message ${msg.id} already claimed by a concurrent run — skipping`);
+        continue;
+      }
+
       // Monthly cap — skip (leave scheduled) if the owner is out of quota.
       if (smtpAccount.user_id && !(await billingService.reserveEmailQuota(smtpAccount.user_id))) {
         console.log(`[ScheduledEmails] User ${smtpAccount.user_id} over quota — leaving message ${msg.id} scheduled`);
+        await supabaseAdmin.from('inbox_messages').update({ sara_status: 'scheduled' }).eq('id', msg.id);
         continue;
       }
 
@@ -1293,12 +1313,10 @@ export async function processScheduledEmails(): Promise<number> {
       // Transient network errors keep the markers so the next scheduler run retries.
       const TRANSIENT_CODES = new Set(['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'EAI_AGAIN']);
       const isTransient = TRANSIENT_CODES.has(err.code) || err.message?.includes('timeout') || err.message?.includes('ENOTFOUND');
-      if (!isTransient) {
-        await supabaseAdmin
-          .from('inbox_messages')
-          .update({ sara_status: null, sara_action: null })
-          .eq('id', msg.id);
-      }
+      await supabaseAdmin
+        .from('inbox_messages')
+        .update(isTransient ? { sara_status: 'scheduled' } : { sara_status: null, sara_action: null })
+        .eq('id', msg.id);
     }
   }
 

@@ -2079,6 +2079,12 @@ export function InboxPage() {
   useEffect(() => {
     if (!replyMode) {
       setForwardTo('');
+      // The rich-text editor's html/text state lives in this component (via
+      // useRichTextEditorRef), not in the <RichTextEditor> element itself, so
+      // remounting it on the next open doesn't clear a previous draft. Without
+      // this, Discard (or a successful send, which also sets replyMode null)
+      // could leave stale content that gets sent on the next reply/forward.
+      replyEditor.reset();
     } else {
       setTimeout(() => replyComposerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
     }

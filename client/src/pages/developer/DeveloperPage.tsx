@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { webhookApi } from '../../api/webhook.api';
 import { apikeyApi } from '../../api/apikey.api';
-import { WebhookEventType } from '@lemlist/shared';
+import { WebhookEventType, type WebhookDelivery } from '@lemlist/shared';
 import {
   Code2,
   Webhook,
@@ -64,6 +64,18 @@ export function DeveloperPage() {
     enabled: !!showDeliveries,
   });
 
+  // Recent deliveries across every endpoint, so each row can show an at-a-glance
+  // health badge without the user having to open "Logs" on each one individually.
+  const { data: recentDeliveries } = useQuery({
+    queryKey: ['webhook-deliveries', 'recent'],
+    queryFn: () => webhookApi.getDeliveries(undefined, 100),
+    enabled: tab === 'webhooks' && !!endpoints && endpoints.length > 0,
+  });
+  const latestDeliveryByEndpoint = new Map<string, WebhookDelivery>();
+  for (const d of recentDeliveries || []) {
+    if (!latestDeliveryByEndpoint.has(d.endpoint_id)) latestDeliveryByEndpoint.set(d.endpoint_id, d);
+  }
+
   const { data: apiKeys, isLoading: loadingKeys } = useQuery({
     queryKey: ['api-keys'],
     queryFn: apikeyApi.list,
@@ -81,7 +93,7 @@ export function DeveloperPage() {
       setWebhookEvents([]);
       if (endpoint.secret) setRevealedSecret({ label: endpoint.label, secret: endpoint.secret });
     },
-    onError: () => toast.error('Failed to create webhook'),
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to create webhook'),
   });
 
   const regenerateSecretMutation = useMutation({
@@ -91,7 +103,7 @@ export function DeveloperPage() {
       if (endpoint.secret) setRevealedSecret({ label: endpoint.label, secret: endpoint.secret });
       toast.success('Secret regenerated');
     },
-    onError: () => toast.error('Failed to regenerate secret'),
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to regenerate secret'),
   });
 
   const deleteEndpointMutation = useMutation({
@@ -100,14 +112,17 @@ export function DeveloperPage() {
       queryClient.invalidateQueries({ queryKey: ['webhook-endpoints'] });
       toast.success('Webhook deleted');
     },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to delete webhook'),
   });
 
   const testEndpointMutation = useMutation({
     mutationFn: webhookApi.testEndpoint,
     onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['webhook-deliveries'] });
       if (result.success) toast.success(`Test passed (${result.status_code})`);
       else toast.error(`Test failed (${result.status_code || 'no response'})`);
     },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to test webhook'),
   });
 
   const createKeyMutation = useMutation({
@@ -119,7 +134,7 @@ export function DeveloperPage() {
       setKeyRateLimit(100);
       toast.success('API key created');
     },
-    onError: () => toast.error('Failed to create key'),
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to create key'),
   });
 
   const revokeKeyMutation = useMutation({
@@ -128,6 +143,7 @@ export function DeveloperPage() {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
       toast.success('Key revoked');
     },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to revoke key'),
   });
 
   const deleteKeyMutation = useMutation({
@@ -136,6 +152,7 @@ export function DeveloperPage() {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
       toast.success('Key deleted');
     },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to delete key'),
   });
 
   function toggleEvent(event: WebhookEventType) {
@@ -289,12 +306,28 @@ export function DeveloperPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {endpoints.map((ep) => (
+              {endpoints.map((ep) => {
+                const lastDelivery = latestDeliveryByEndpoint.get(ep.id);
+                return (
                 <div key={ep.id} className="rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-4">
                   <div className="flex items-center gap-3">
                     <div className={cn('h-2.5 w-2.5 rounded-full', ep.is_active ? 'bg-[var(--indigo)]' : 'bg-[var(--text-tertiary)]')} />
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-medium text-[var(--text-primary)]">{ep.label}</h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-medium text-[var(--text-primary)]">{ep.label}</h4>
+                        {lastDelivery && (
+                          <span
+                            className={cn(
+                              'inline-flex items-center gap-1 h-[18px] px-1.5 rounded-[4px] text-[10.5px] font-medium',
+                              lastDelivery.success ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
+                            )}
+                            title={`Last delivery ${formatDateTime(lastDelivery.created_at)} · ${lastDelivery.status_code ?? 'no response'}`}
+                          >
+                            {lastDelivery.success ? <CheckCircle2 className="h-2.5 w-2.5" /> : <XCircle className="h-2.5 w-2.5" />}
+                            {lastDelivery.success ? 'Delivering' : 'Failing'}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-[var(--text-tertiary)] truncate font-mono">{ep.url}</p>
                     </div>
                     <span className="text-xs text-[var(--text-tertiary)]">{ep.events.length} events</span>
@@ -337,7 +370,7 @@ export function DeveloperPage() {
                     </div>
                   )}
                 </div>
-              ))}
+              );})}
             </div>
           )}
         </div>

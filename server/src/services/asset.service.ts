@@ -10,6 +10,7 @@ import crypto from 'crypto';
 // In-memory cache for rendered assets
 const renderCache = new Map<string, { buffer: Buffer; expires: number }>();
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const CACHE_MAX_ENTRIES = 500;
 
 /**
  * Generate a personalized asset URL for email embedding.
@@ -138,13 +139,22 @@ export function getCachedRender(cacheKey: string): Buffer | null {
  * Cache a rendered asset.
  */
 export function cacheRender(cacheKey: string, buffer: Buffer): void {
+  renderCache.delete(cacheKey); // re-insert at the end so eviction order reflects recency
   renderCache.set(cacheKey, { buffer, expires: Date.now() + CACHE_TTL });
 
-  // Evict old entries if cache gets too large (>500 items)
-  if (renderCache.size > 500) {
+  // Evict over the cap: expired entries first, then oldest-inserted (a public,
+  // attacker-controlled query-param cache key means this cap must hold even
+  // when nothing has expired yet, or the cache grows unbounded for 24h).
+  if (renderCache.size > CACHE_MAX_ENTRIES) {
     const now = Date.now();
     for (const [key, value] of renderCache) {
+      if (renderCache.size <= CACHE_MAX_ENTRIES) break;
       if (value.expires < now) renderCache.delete(key);
+    }
+    while (renderCache.size > CACHE_MAX_ENTRIES) {
+      const oldestKey = renderCache.keys().next().value;
+      if (oldestKey === undefined) break;
+      renderCache.delete(oldestKey);
     }
   }
 }
