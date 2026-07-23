@@ -124,6 +124,7 @@ async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
         text: params.text,
         message_id: params.messageId,
         headers: params.headers,
+        timeout_ms: params.timeoutMs,
       }),
     });
   } catch (err: any) {

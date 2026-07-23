@@ -91,7 +91,7 @@ export async function deleteKey(userId: string, keyId: string): Promise<void> {
  */
 export async function validateKey(
   rawKey: string
-): Promise<{ keyId: string; userId: string; scopes: string[]; rateLimit: number } | null> {
+): Promise<{ keyId: string; userId: string; userEmail: string | null; scopes: string[]; rateLimit: number } | null> {
   const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
 
   const { data } = await supabaseAdmin
@@ -110,9 +110,15 @@ export async function validateKey(
     .update({ last_used_at: new Date().toISOString() })
     .eq('id', data.id);
 
+  // API keys carry no email of their own — resolve the owning auth user's
+  // email so downstream code (e.g. Stripe checkout) has it, same as a JWT
+  // session would. Best-effort: a lookup failure shouldn't block the request.
+  const { data: owner } = await supabaseAdmin.auth.admin.getUserById(data.user_id).catch(() => ({ data: null }) as any);
+
   return {
     keyId: data.id,
     userId: data.user_id,
+    userEmail: owner?.user?.email ?? null,
     scopes: data.scopes,
     rateLimit: data.rate_limit,
   };

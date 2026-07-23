@@ -81,6 +81,7 @@ export async function apiKeyMiddleware(req: ApiKeyRequest, res: Response, next: 
     }
 
     req.userId = result.userId;
+    req.userEmail = result.userEmail ?? undefined;
     req.authMethod = 'apikey';
     req.apiKeyId = result.keyId;
     req.apiKeyScopes = result.scopes;

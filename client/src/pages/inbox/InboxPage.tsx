@@ -225,7 +225,7 @@ function withSignature(
 }
 
 /** Signature on/off state for a composer, following the selected sender inbox. */
-function useSignatureState(accounts: SmtpAccount[], senderId: string) {
+function useSignatureState(accounts: SmtpAccount[], senderId: string, resetKey?: string | null) {
   const acct = accounts.find(a => a.id === senderId);
   const sigHtml = acct?.signature_html || null;
   const available = hasSignature(sigHtml);
@@ -233,9 +233,13 @@ function useSignatureState(accounts: SmtpAccount[], senderId: string) {
   const [on, setOn] = useState(false);
   // Whenever the sender changes (or accounts finish loading), follow that
   // inbox's "always add" default — so the signature swaps with the sender.
+  // Also re-derive on resetKey (the open conversation): without it, manually
+  // toggling the signature off for one thread then opening a reply on a
+  // different thread that happens to route through the same sender account
+  // would carry the "off" state over silently, since senderId never changed.
   useEffect(() => {
     setOn(available && auto);
-  }, [senderId, available, auto]);
+  }, [senderId, available, auto, resetKey]);
   return { sigHtml, available, on: on && available, toggle: () => setOn(o => !o), setOn };
 }
 
@@ -1726,6 +1730,13 @@ export function InboxPage() {
   const [showContext, setShowContext] = useState(true);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  // How many messages to fetch for the current folder/filter/search — grows via
+  // "Load more" so a mailbox with >50 threads in a view stays reachable instead
+  // of the older conversations being silently and permanently hidden.
+  const [messageLimit, setMessageLimit] = useState(50);
+  useEffect(() => {
+    setMessageLimit(50);
+  }, [folder, tagFilter, search]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCompose, setShowCompose] = useState(false);
   const [replyMode, setReplyMode] = useState<'reply' | 'forward' | null>(null);
@@ -1745,7 +1756,10 @@ export function InboxPage() {
   const smtpAccounts: SmtpAccount[] = (smtpAccountsRaw || []).filter((a: any) => a.is_active);
 
   // Signature state for the reply/forward composer — follows the chosen sender.
-  const replySig = useSignatureState(smtpAccounts, replySenderId);
+  // Also keyed on selectedId so switching to a different conversation always
+  // re-derives the default instead of carrying over a manual toggle (see
+  // useSignatureState above).
+  const replySig = useSignatureState(smtpAccounts, replySenderId, selectedId);
 
   // smtpAccounts is fetched async and can still be empty when a reply/forward is first
   // opened (message has no smtp_account_id yet); resync once accounts arrive so the
@@ -1771,17 +1785,19 @@ export function InboxPage() {
 
   /* ── Queries ── */
   const { data: messagesData, isLoading, isFetching } = useQuery({
-    queryKey: ['inbox', folder, tagFilter, search],
+    queryKey: ['inbox', folder, tagFilter, search, messageLimit],
     queryFn: () => inboxApi.list({
-      limit: 50,
+      limit: messageLimit,
       folder: folder === 'scheduled' ? 'inbox' : folder,
       sara_intent: tagFilter !== 'all' ? tagFilter : undefined,
       search: search || undefined,
     }),
     enabled: folder !== 'scheduled',
+    placeholderData: (prev) => prev,
   });
 
   const messages: Message[] = Array.isArray(messagesData?.data) ? messagesData.data : [];
+  const hasMoreMessages = typeof messagesData?.total === 'number' && messages.length < messagesData.total;
 
   /* ── Sidebar badge counts — computed server-side over the whole mailbox
         (exact head-counts, uncapped) so smart-view / tag badges stay accurate
@@ -2874,6 +2890,17 @@ export function InboxPage() {
                   </button>
                 );
               })
+            )}
+            {!isLoading && hasMoreMessages && (
+              <div className="flex items-center justify-center py-3">
+                <button
+                  onClick={() => setMessageLimit(l => l + 50)}
+                  disabled={isFetching}
+                  className="text-[12px] font-medium text-[var(--indigo)] hover:underline disabled:opacity-50 disabled:no-underline"
+                >
+                  {isFetching ? 'Loading…' : `Load more (${messagesData?.total! - messages.length} remaining)`}
+                </button>
+              </div>
             )}
           </div>
         )}

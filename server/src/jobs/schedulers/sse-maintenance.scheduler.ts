@@ -15,9 +15,14 @@ let intervalId: ReturnType<typeof setInterval> | null = null;
 async function tick() {
   const today = new Date().toISOString().slice(0, 10);
   if (today !== lastResetDay) {
-    lastResetDay = today;
     try {
       const count = await resetDailySendCounts();
+      // Only commit the guard once the reset actually succeeds — otherwise a
+      // transient DB/network error on one tick permanently skips the reset
+      // for the rest of the day (every hourly tick after would see
+      // today === lastResetDay and never retry), leaving every tenant's
+      // sends_today/warmup_sent_today counters un-zeroed for up to 24h.
+      lastResetDay = today;
       if (count > 0) console.log(`[SSE Maintenance] Reset daily send counts for ${count} account(s)`);
     } catch (err: any) {
       console.error('[SSE Maintenance] resetDailySendCounts failed:', err.message);

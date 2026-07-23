@@ -49,6 +49,7 @@ export function SchedulesPage() {
   const deleteMut = useMutation({
     mutationFn: (id: string) => sendingSchedulesApi.delete(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['sending-schedules'] }); toast.success('Deleted'); },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to delete'),
   });
 
   return (

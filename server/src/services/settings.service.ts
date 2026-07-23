@@ -162,15 +162,13 @@ export const settingsService = {
     }
 
     // Delete user data from all tables (order matters for foreign keys).
-    // campaign_smtp_accounts, contact_tags, and list_contacts are join tables
-    // with no user_id column of their own — they cascade automatically via
-    // their campaign_id/contact_id/tag_id/list_id FKs when the rows below
-    // (campaigns, contacts, tags, contact_lists) are deleted, so they must
-    // NOT be queried by user_id here (that query errors on every call).
+    // campaign_smtp_accounts, contact_tags, list_contacts, campaign_activities,
+    // campaign_contacts, and campaign_steps are all join/child tables with no
+    // user_id column of their own — they cascade automatically via their
+    // campaign_id/contact_id/tag_id/list_id FKs when the rows below (campaigns,
+    // contacts, tags, contact_lists) are deleted, so they must NOT be queried
+    // by user_id here (that query errors on every call).
     const tables = [
-      'campaign_activities',
-      'campaign_contacts',
-      'campaign_steps',
       'campaigns',
       'contact_lists',
       'saved_segments',

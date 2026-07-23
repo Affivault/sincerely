@@ -12,7 +12,7 @@ import { Avatar } from '../../components/shared/Avatar';
 import {
   Plus, Send, MailOpen, MousePointerClick, MessageSquare, Inbox,
   ChevronRight, ArrowUp, ArrowDown, Download, Megaphone, Activity,
-  AlertTriangle, Reply, Flame, Clock, CheckCircle2,
+  AlertTriangle, Reply, Flame, Clock, CheckCircle2, X,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -137,9 +137,11 @@ function Delta({ value, className }: { value: number | null | undefined; classNa
 /* ─── Attention row — one work item in the "Needs attention" queue ────
    Quiet list rows, not stat cards: the count is a neutral chip on the
    right, urgency is a small tinted icon, the row is the tap target. */
-function AttentionRow({ icon: Icon, count, label, sub, to, tone = 'default' }: {
+function AttentionRow({ icon: Icon, count, label, sub, to, tone = 'default', onDismiss }: {
   icon: any; count: number; label: string; sub: string; to: string;
   tone?: 'default' | 'warn' | 'hot';
+  /** Shows a hover-revealed dismiss control instead of the row always being permanent. */
+  onDismiss?: () => void;
 }) {
   const navigate = useNavigate();
   const iconCls =
@@ -162,7 +164,20 @@ function AttentionRow({ icon: Icon, count, label, sub, to, tone = 'default' }: {
       )}>
         {fmtNum(count)}
       </span>
-      <ChevronRight className="h-3.5 w-3.5 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+      {onDismiss ? (
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); onDismiss(); } }}
+          title="Dismiss"
+          className="flex h-5 w-5 items-center justify-center rounded-md text-[var(--text-muted)] opacity-0 group-hover:opacity-100 hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)] transition-opacity flex-shrink-0"
+        >
+          <X className="h-3 w-3" />
+        </span>
+      ) : (
+        <ChevronRight className="h-3.5 w-3.5 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+      )}
     </button>
   );
 }
@@ -545,6 +560,7 @@ export function DashboardPage() {
                   sub={unhealthySmtpAccounts.map((a) => a.label || a.email_address).join(', ')}
                   to="/email-accounts"
                   tone="warn"
+                  onDismiss={() => setSmtpBannerDismissed(true)}
                 />
               )}
             </div>

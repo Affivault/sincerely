@@ -725,18 +725,22 @@ export function TemplatesPage() {
   const deleteEmailMut = useMutation({
     mutationFn: templateApi.deleteEmail,
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['email-templates'] }); toast.success('Deleted'); setSelectedId(null); },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to delete'),
   });
   const duplicateEmailMut = useMutation({
     mutationFn: templateApi.duplicateEmail,
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['email-templates'] }); toast.success('Duplicated'); },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to duplicate'),
   });
   const deleteSequenceMut = useMutation({
     mutationFn: templateApi.deleteSequence,
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['sequence-templates'] }); toast.success('Deleted'); setSelectedId(null); },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to delete'),
   });
   const duplicateSequenceMut = useMutation({
     mutationFn: templateApi.duplicateSequence,
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['sequence-templates'] }); toast.success('Duplicated'); },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to duplicate'),
   });
 
   // Filtering (same rules as before: category + name/subject/description search)

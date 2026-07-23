@@ -282,12 +282,18 @@ export const campaignsService = {
       .select('id');
     if (pendErr) console.error('[Campaign] Error activating pending contacts:', pendErr.message);
 
-    // Also reset any stuck 'active' contacts (from failed previous launches)
+    // Also reset any stuck 'active' contacts (from failed previous launches) —
+    // scoped to contacts with no next_send_at at all. launch() is reachable on
+    // an already-running/paused campaign (e.g. via the API), and without this
+    // scope it would force-reset every contact's next_send_at to "now",
+    // including ones correctly waiting out a legitimate multi-day delay step,
+    // firing their next step immediately and blowing up the send cadence.
     const { data: resetActive, error: actErr } = await supabaseAdmin
       .from('campaign_contacts')
       .update({ next_send_at: firstSendAt, error_message: null })
       .eq('campaign_id', id)
       .eq('status', 'active')
+      .is('next_send_at', null)
       .select('id');
     if (actErr) console.error('[Campaign] Error resetting active contacts:', actErr.message);
 

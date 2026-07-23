@@ -221,13 +221,30 @@ export const prospectingService = {
       .single();
     if (contactError) throw new AppError(contactError.message, 500);
 
-    await supabaseAdmin.from('prospect_reveals').insert({
+    const { error: revealInsertError } = await supabaseAdmin.from('prospect_reveals').insert({
       user_id: userId,
       provider: provider.id,
       provider_person_id: personId,
       contact_id: contact.id,
       email: contactRow.email,
     });
+
+    let alreadyRevealed = false;
+    if (revealInsertError) {
+      if (revealInsertError.code === '23505') {
+        // A concurrent duplicate request (e.g. a double-click) already recorded
+        // this exact reveal under the unique (user_id, provider, provider_person_id)
+        // constraint — refund the credit we just spent so the user isn't charged
+        // twice for one reveal.
+        await supabaseAdmin.from('prospect_credit_ledger').insert({
+          user_id: userId, delta: 1, kind: 'refund', reason: 'concurrent_reveal',
+          provider: provider.id, provider_person_id: personId, bucket: spentBucket,
+        });
+        alreadyRevealed = true;
+      } else {
+        throw new AppError(revealInsertError.message, 500);
+      }
+    }
 
     if (input.list_id) {
       await listsService.addContacts(userId, input.list_id, [contact.id]).catch(() => {});
@@ -237,7 +254,7 @@ export const prospectingService = {
       found: true,
       email: contactRow.email,
       contact_id: contact.id,
-      already_revealed: false,
+      already_revealed: alreadyRevealed,
       credits: await creditsSummary(userId),
     };
   },
