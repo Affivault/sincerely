@@ -206,12 +206,15 @@ export function SettingsPage() {
       theme: themeMode,
       sara_enabled: aiTaggingEnabled,
       sara_auto_classify: aiAutoClassify,
-      sara_auto_execute: true,
-      sara_confidence_threshold: 85,
+      // These three have no UI control on this page yet — preserve whatever
+      // is already saved instead of clobbering it with a hardcoded default
+      // on every unrelated save (e.g. just editing First Name).
+      sara_auto_execute: settings?.sara_auto_execute ?? true,
+      sara_confidence_threshold: settings?.sara_confidence_threshold ?? 85,
+      sara_draft_replies: (settings as any)?.sara_draft_replies ?? false,
       sara_auto_unsubscribe: aiAutoUnsubscribe,
       sara_auto_bounce: aiAutoBounce,
       crm_auto_deals: crmAutoDeals,
-      sara_draft_replies: false,
       ai_tagging_enabled: aiTaggingEnabled,
       auto_verify_contacts: autoVerifyContacts,
     });

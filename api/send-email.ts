@@ -75,6 +75,7 @@ export default async function handler(req: VercelReq, res: VercelRes) {
     message_id,
     headers,
     reply_to,
+    timeout_ms,
   } = body;
 
   // Validate required fields
@@ -97,35 +98,50 @@ export default async function handler(req: VercelReq, res: VercelRes) {
     return res.status(400).json({ error: 'smtp_port must be a valid port number' });
   }
 
+  // This function's Vercel maxDuration is 30s (vercel.json). socketTimeout is
+  // an *inactivity* timer that resets on every byte exchanged with a slow or
+  // greylisting destination server, so per-phase nodemailer timeouts alone
+  // can't guarantee we return before Vercel kills the function mid-flight —
+  // and a kill after the destination already accepted the message causes the
+  // caller (email-sender.service.ts) to treat it as a 5xx and resend via
+  // direct SMTP, duplicating the send. Budget a real, enforced hard deadline
+  // with headroom under 30s regardless of caller-supplied timeout_ms.
+  const HARD_DEADLINE_MS = 24000;
+  const budget = Math.min(Math.max(Number(timeout_ms) || 8000, 3000), 15000);
+
   try {
-    // Timeouts are sized to leave headroom under this function's 30s
-    // maxDuration (vercel.json) — connectionTimeout + socketTimeout must stay
-    // safely below that, since sendMail() alone can hit both in sequence.
     const transporter = nodemailer.createTransport({
       host: smtp_host,
       port,
       secure: smtp_secure ?? false,
       auth: { user: smtp_user, pass: smtp_pass },
-      connectionTimeout: 8000,
+      connectionTimeout: budget,
       // Without greetingTimeout a wrong port/SSL combo waits the full socket
       // timeout for a banner that never comes — fail fast instead.
-      greetingTimeout: 8000,
-      socketTimeout: 15000,
+      greetingTimeout: budget,
+      socketTimeout: budget,
     });
 
     // sendMail() establishes and validates the connection itself, so a
     // separate verify() call (which was doubling our exposure to the same
-    // timeout budget) is redundant.
-    const info = await transporter.sendMail({
-      from,
-      to,
-      subject,
-      html: html || undefined,
-      text: text || undefined,
-      messageId: message_id || undefined,
-      headers: headers || undefined,
-      replyTo: reply_to || undefined,
-    });
+    // timeout budget) is redundant. Race it against the hard deadline so a
+    // slow-but-still-active destination server can't push us past Vercel's
+    // own function timeout.
+    const info = await Promise.race([
+      transporter.sendMail({
+        from,
+        to,
+        subject,
+        html: html || undefined,
+        text: text || undefined,
+        messageId: message_id || undefined,
+        headers: headers || undefined,
+        replyTo: reply_to || undefined,
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(Object.assign(new Error('SMTP send exceeded relay deadline'), { code: 'ERELAYDEADLINE' })), HARD_DEADLINE_MS)
+      ),
+    ]);
 
     return res.status(200).json({
       success: true,

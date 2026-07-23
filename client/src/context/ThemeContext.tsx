@@ -29,9 +29,15 @@ function resolveTheme(mode: ThemeMode): ResolvedTheme {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>(() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(THEME_STORAGE_KEY);
-      if (stored === 'dark' || stored === 'light' || stored === 'system') {
-        return stored;
+      try {
+        const stored = localStorage.getItem(THEME_STORAGE_KEY);
+        if (stored === 'dark' || stored === 'light' || stored === 'system') {
+          return stored;
+        }
+      } catch {
+        // Storage access can throw (Safari private mode, cookie-blocking
+        // extensions) — this runs during render, so an uncaught throw here
+        // would white-screen the whole app since ThemeProvider wraps it.
       }
     }
     return 'light';
@@ -50,7 +56,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     } else {
       root.classList.remove('dark');
     }
-    localStorage.setItem(THEME_STORAGE_KEY, mode);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, mode);
+    } catch {
+      // Storage unavailable — theme still applies for this session, it just
+      // won't persist across reloads.
+    }
   }, [mode]);
 
   // Listen for system theme changes when in 'system' mode

@@ -255,6 +255,26 @@ async function deliverWebhook(
   eventType: string,
   payloadStr: string
 ): Promise<void> {
+  // Endpoint URLs are only host-validated at create/update/test time. Re-validate
+  // on every delivery too, so a hostname that resolved to a public IP back then
+  // can't be silently re-pointed at an internal/metadata address later (DNS
+  // rebinding) and have every future event delivered there unchecked.
+  try {
+    await assertSafeWebhookUrl(endpoint.url);
+  } catch (err: any) {
+    await supabaseAdmin.from('webhook_deliveries').insert({
+      endpoint_id: endpoint.id,
+      event_type: eventType,
+      payload: JSON.parse(payloadStr),
+      status_code: null,
+      response_body: `Blocked: ${err.message || 'unsafe destination'}`.substring(0, 1000),
+      success: false,
+      attempts: 0,
+      last_attempt_at: new Date().toISOString(),
+    });
+    return;
+  }
+
   const signature = endpoint.secret ? signPayload(payloadStr, endpoint.secret) : undefined;
 
   const headers: Record<string, string> = {
