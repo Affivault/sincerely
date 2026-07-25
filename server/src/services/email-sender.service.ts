@@ -36,13 +36,19 @@ interface SmtpSendParams {
   timeoutMs?: number;
 }
 
-/** Turn a raw SMTP/relay error into a short, human, actionable message. */
-export function describeSmtpError(err: any): string {
+/**
+ * Turn a raw SMTP/relay error into a short, human, actionable message.
+ *
+ * `withRelayHint: false` suppresses the "your host may be blocking SMTP"
+ * advice — callers that have already proven the port is reachable (e.g. the
+ * staged diagnostics) would otherwise print misleading guidance.
+ */
+export function describeSmtpError(err: any, opts?: { withRelayHint?: boolean }): string {
   const raw = String(err?.message || err || '').toLowerCase();
   // A timeout with no relay configured almost always means the hosting
   // platform blocks outbound SMTP entirely (Render/Railway do) — no amount of
   // host/port fiddling will fix that; the Vercel relay will.
-  const relayHint = !env.SMTP_RELAY_URL
+  const relayHint = !env.SMTP_RELAY_URL && opts?.withRelayHint !== false
     ? ' If this keeps happening on every port, your hosting provider is blocking outbound SMTP — set SMTP_RELAY_URL + SMTP_RELAY_SECRET to route sends through the bundled Vercel relay (/api/send-email).'
     : '';
   if (raw.includes('invalid login') || raw.includes('auth') || raw.includes('535') || raw.includes('credentials') || raw.includes('username and password'))

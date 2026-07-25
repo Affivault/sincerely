@@ -1,0 +1,209 @@
+import net from 'net';
+import nodemailer from 'nodemailer';
+import { env } from '../config/env.js';
+import { resolveHostIp } from '../utils/dns-doh.js';
+import { describeSmtpError } from './email-sender.service.js';
+import type { DiagStage, SmtpDiagnostics } from '@lemlist/shared';
+
+/**
+ * Staged SMTP connection diagnostics.
+ *
+ * "Connection timed out" is useless on its own — it's the same message whether
+ * the hostname is wrong, the credentials are bad, or (most often on managed
+ * hosts like Render/Railway) the platform blocks outbound SMTP ports entirely.
+ *
+ * Running the connection in stages tells them apart definitively:
+ *   1. DNS  — can we resolve the host at all? (over DoH, since host DNS is unreliable)
+ *   2. TCP  — can a raw socket reach host:port? A timeout HERE, with DNS fine,
+ *             is proof the port is blocked — no SMTP setting can fix it.
+ *   3. TLS/greeting — does a mail server actually answer and say hello?
+ *   4. Auth — do the credentials work?
+ */
+
+/** Raw TCP reachability probe. This is the stage that proves port blocking. */
+function probeTcp(host: string, port: number, timeoutMs: number): Promise<{ ok: boolean; error?: string; code?: string }> {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+    const done = (result: { ok: boolean; error?: string; code?: string }) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(result);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => done({ ok: true }));
+    socket.once('timeout', () => done({ ok: false, error: 'timed out', code: 'ETIMEDOUT' }));
+    socket.once('error', (err: any) => done({ ok: false, error: err.message, code: err.code }));
+    socket.connect(port, host);
+  });
+}
+
+export const smtpDiagnosticsService = {
+  async diagnose(input: {
+    smtp_host: string;
+    smtp_port: number;
+    smtp_secure?: boolean;
+    smtp_user?: string;
+    smtp_pass?: string;
+  }): Promise<SmtpDiagnostics> {
+    const host = String(input.smtp_host || '').trim();
+    const port = Number(input.smtp_port) || 587;
+    const secure = input.smtp_secure ?? port === 465;
+    const stages: DiagStage[] = [];
+    const relayConfigured = !!(env.SMTP_RELAY_URL && env.SMTP_RELAY_SECRET);
+
+    if (!host) {
+      return {
+        host, port, stages,
+        verdict: 'No SMTP host given.',
+        portBlocked: false,
+        relayConfigured,
+        fix: 'Enter the SMTP server address (e.g. smtp.gmail.com) and run the check again.',
+      };
+    }
+
+    // ── Stage 1: DNS ──
+    let t0 = Date.now();
+    const ip = await resolveHostIp(host).catch(() => null);
+    stages.push({
+      id: 'dns',
+      label: 'Resolve host',
+      status: ip ? 'ok' : 'fail',
+      detail: ip ? `${host} → ${ip}` : `Could not resolve ${host}`,
+      ms: Date.now() - t0,
+    });
+
+    if (!ip) {
+      stages.push(
+        { id: 'tcp', label: 'Reach port', status: 'skipped', detail: 'Skipped — host could not be resolved' },
+        { id: 'tls', label: 'Mail server handshake', status: 'skipped', detail: 'Skipped' },
+        { id: 'auth', label: 'Sign in', status: 'skipped', detail: 'Skipped' },
+      );
+      return {
+        host, port, stages,
+        verdict: `The hostname "${host}" doesn't exist in DNS.`,
+        portBlocked: false,
+        relayConfigured,
+        fix: 'Check the SMTP server address for typos — most providers use something like smtp.yourprovider.com.',
+      };
+    }
+
+    // ── Stage 2: raw TCP reachability ──
+    // 6s is ample to tell "silently dropped" from "answered", and keeps the
+    // whole staged probe (DNS + TCP + handshake) inside the client's 30s HTTP
+    // budget even when every stage runs long.
+    t0 = Date.now();
+    const tcp = await probeTcp(ip, port, 6000);
+    const tcpBlocked = !tcp.ok && (tcp.code === 'ETIMEDOUT' || tcp.error === 'timed out');
+    stages.push({
+      id: 'tcp',
+      label: 'Reach port',
+      status: tcp.ok ? 'ok' : 'fail',
+      detail: tcp.ok
+        ? `Port ${port} is open and reachable`
+        : tcpBlocked
+          ? `No response from port ${port} — the connection was silently dropped`
+          : `Port ${port} refused the connection (${tcp.code || tcp.error})`,
+      ms: Date.now() - t0,
+    });
+
+    if (!tcp.ok) {
+      stages.push(
+        { id: 'tls', label: 'Mail server handshake', status: 'skipped', detail: 'Skipped — port unreachable' },
+        { id: 'auth', label: 'Sign in', status: 'skipped', detail: 'Skipped' },
+      );
+      // A silent drop (rather than an active refusal) after DNS resolved is the
+      // signature of an egress firewall — i.e. the hosting platform, not the
+      // mail provider, is the problem.
+      if (tcpBlocked) {
+        return {
+          host, port, stages,
+          verdict: `DNS resolved fine, but nothing answered on port ${port} — this server's network is blocking outbound SMTP.`,
+          portBlocked: true,
+          relayConfigured,
+          fix: relayConfigured
+            ? 'An SMTP relay is configured, so sends should route around this automatically. If sends still fail, check that the relay URL is reachable and its secret matches.'
+            : 'Set SMTP_RELAY_URL and SMTP_RELAY_SECRET on this server to route sends through the bundled Vercel relay (api/send-email.ts) — Vercel allows outbound SMTP, your current host does not. No mailbox setting can fix this on its own.',
+        };
+      }
+      return {
+        host, port, stages,
+        verdict: `Port ${port} actively refused the connection.`,
+        portBlocked: false,
+        relayConfigured,
+        fix: `The server is reachable but isn't listening on ${port}. Try 465 (SSL) or 587 (TLS) instead.`,
+      };
+    }
+
+    // ── Stage 3 + 4: SMTP handshake and authentication ──
+    const canAuth = !!(input.smtp_user && input.smtp_pass);
+    const transporter = nodemailer.createTransport({
+      host: ip,
+      port,
+      secure,
+      tls: { servername: host },
+      auth: canAuth ? { user: input.smtp_user!, pass: input.smtp_pass! } : undefined,
+      connectionTimeout: 7000,
+      greetingTimeout: 7000,
+      socketTimeout: 9000,
+    });
+
+    t0 = Date.now();
+    try {
+      // verify() performs connect + greeting + (when auth is supplied) login.
+      await transporter.verify();
+      stages.push(
+        { id: 'tls', label: 'Mail server handshake', status: 'ok', detail: `Mail server answered over ${secure ? 'SSL' : 'STARTTLS/plain'}`, ms: Date.now() - t0 },
+        canAuth
+          ? { id: 'auth', label: 'Sign in', status: 'ok', detail: 'Credentials accepted' }
+          : { id: 'auth', label: 'Sign in', status: 'skipped', detail: 'No password supplied — connection reachable, credentials untested' },
+      );
+      return {
+        host, port, stages,
+        verdict: canAuth
+          ? 'Everything works — this mailbox can send.'
+          : 'The mail server is reachable. Add the password to test sign-in.',
+        portBlocked: false,
+        relayConfigured,
+        fix: canAuth ? 'No action needed.' : 'Enter the mailbox password and run the check again.',
+      };
+    } catch (err: any) {
+      const raw = String(err?.message || '').toLowerCase();
+      const isAuthError = raw.includes('auth') || raw.includes('535') || raw.includes('invalid login') || raw.includes('credentials') || raw.includes('username and password');
+      // TCP already succeeded here, so the generic "your host may block SMTP"
+      // advice would be actively misleading.
+      const friendly = describeSmtpError(err, { withRelayHint: false });
+
+      if (isAuthError) {
+        stages.push(
+          { id: 'tls', label: 'Mail server handshake', status: 'ok', detail: 'Mail server answered', ms: Date.now() - t0 },
+          { id: 'auth', label: 'Sign in', status: 'fail', detail: friendly },
+        );
+        return {
+          host, port, stages,
+          verdict: 'The server is reachable, but the username/password was rejected.',
+          portBlocked: false,
+          relayConfigured,
+          fix: 'Gmail and Outlook require an app password (not your normal login). Check the username is the full email address.',
+        };
+      }
+
+      stages.push(
+        { id: 'tls', label: 'Mail server handshake', status: 'fail', detail: friendly, ms: Date.now() - t0 },
+        { id: 'auth', label: 'Sign in', status: 'skipped', detail: 'Skipped — handshake failed' },
+      );
+      return {
+        host, port, stages,
+        verdict: `The port is open but the mail handshake failed — usually an SSL/TLS mismatch on port ${port}.`,
+        portBlocked: false,
+        relayConfigured,
+        fix: port === 465
+          ? 'Port 465 requires SSL — make sure SSL (not STARTTLS) is selected.'
+          : 'Port 587 requires STARTTLS — make sure SSL is switched off, or use port 465 with SSL.',
+      };
+    } finally {
+      transporter.close();
+    }
+  },
+};

@@ -208,6 +208,45 @@ export interface VerifySmtpResult {
   imap?: VerifyLegResult;
 }
 
+/* ── Connection diagnostics ──────────────────────────────────────────
+   A staged probe that pinpoints WHERE a connection fails, so "timed out"
+   becomes an actionable verdict instead of a dead end. */
+
+export type DiagStageStatus = 'ok' | 'fail' | 'skipped';
+
+export interface DiagStage {
+  /** dns | tcp | tls | auth */
+  id: string;
+  label: string;
+  status: DiagStageStatus;
+  /** What happened, in plain language */
+  detail: string;
+  /** Milliseconds the stage took */
+  ms?: number;
+}
+
+export interface SmtpDiagnostics {
+  host: string;
+  port: number;
+  stages: DiagStage[];
+  /** Plain-language conclusion: what is actually wrong */
+  verdict: string;
+  /** True when the host itself is blocking the outbound port (relay required) */
+  portBlocked: boolean;
+  /** Whether an SMTP relay is configured on this server */
+  relayConfigured: boolean;
+  /** Concrete next step for the user */
+  fix: string;
+}
+
+export interface DiagnoseSmtpInput {
+  smtp_host: string;
+  smtp_port: number;
+  smtp_secure?: boolean;
+  smtp_user?: string;
+  smtp_pass?: string;
+}
+
 export interface SmtpPreset {
   name: string;
   smtp_host: string;

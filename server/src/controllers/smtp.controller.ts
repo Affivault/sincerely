@@ -8,6 +8,7 @@ import { decrypt } from '../utils/encryption.js';
 import { sendViaSmtp, formatFromHeader, describeSmtpError } from '../services/email-sender.service.js';
 import { previewWithSampleData } from '../services/sequence.service.js';
 import { resolveDoh } from '../utils/dns-doh.js';
+import { smtpDiagnosticsService } from '../services/smtp-diagnostics.service.js';
 import { billingService } from '../services/billing.service.js';
 import { warmupService } from '../services/warmup.service.js';
 
@@ -178,6 +179,27 @@ export const smtpController = {
       console.error('[TestEmail] Send error:', err.message);
       res.status(500).json({ success: false, error: describeSmtpError(err) });
     }
+  },
+
+  /**
+   * POST /smtp-accounts/diagnose
+   * Staged connection probe (DNS → TCP → handshake → auth) that pinpoints
+   * exactly where a mailbox connection fails, including whether this host
+   * blocks outbound SMTP entirely.
+   */
+  async diagnose(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { smtp_host, smtp_port } = req.body || {};
+      if (!smtp_host) return res.status(400).json({ error: 'smtp_host is required' });
+      const result = await smtpDiagnosticsService.diagnose({
+        smtp_host,
+        smtp_port: Number(smtp_port) || 587,
+        smtp_secure: req.body?.smtp_secure,
+        smtp_user: req.body?.smtp_user,
+        smtp_pass: req.body?.smtp_pass,
+      });
+      res.json(result);
+    } catch (err) { next(err); }
   },
 
   /**
