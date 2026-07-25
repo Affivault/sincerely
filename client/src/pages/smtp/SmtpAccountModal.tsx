@@ -575,20 +575,28 @@ export function SmtpAccountModal({
               ))}
             </ol>
 
-            <div className={cn(
-              'mt-3 rounded-lg px-3 py-2.5 border',
-              diagnostics.portBlocked
-                ? 'border-amber-500/30 bg-amber-500/8'
-                : 'border-[var(--border-subtle)] bg-[var(--bg-surface)]',
-            )}>
-              <p className="text-[12px] font-medium text-[var(--text-primary)]">{diagnostics.verdict}</p>
-              <p className="text-[11.5px] text-[var(--text-secondary)] mt-1 leading-relaxed">{diagnostics.fix}</p>
-              {diagnostics.portBlocked && !diagnostics.relayConfigured && (
-                <p className="text-[11px] text-[var(--text-tertiary)] mt-1.5">
-                  This is a server-side setting, not something to change on this mailbox.
-                </p>
-              )}
-            </div>
+            {(() => {
+              // A blocked direct port is only a problem when no relay is
+              // covering it — with a healthy relay this is a normal, working
+              // setup and should read that way.
+              const blocking = diagnostics.portBlocked && !diagnostics.relayHealthy;
+              return (
+                <div className={cn(
+                  'mt-3 rounded-lg px-3 py-2.5 border',
+                  blocking ? 'border-amber-500/30 bg-amber-500/8'
+                    : diagnostics.relayHealthy ? 'border-emerald-500/30 bg-emerald-500/8'
+                    : 'border-[var(--border-subtle)] bg-[var(--bg-surface)]',
+                )}>
+                  <p className="text-[12px] font-medium text-[var(--text-primary)]">{diagnostics.verdict}</p>
+                  <p className="text-[11.5px] text-[var(--text-secondary)] mt-1 leading-relaxed">{diagnostics.fix}</p>
+                  {blocking && (
+                    <p className="text-[11px] text-[var(--text-tertiary)] mt-1.5">
+                      This is a server-side setting, not something to change on this mailbox.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
 
