@@ -9,6 +9,7 @@ smtpRoutes.get('/', smtpController.list);
 smtpRoutes.get('/warmup', smtpController.warmupSummary);
 smtpRoutes.post('/verify', smtpController.verify);
 smtpRoutes.post('/check-domain', smtpController.checkDomain);
+smtpRoutes.post('/diagnose', smtpController.diagnose);
 smtpRoutes.post('/', smtpController.create);
 
 smtpRoutes.get('/:id', smtpController.get);

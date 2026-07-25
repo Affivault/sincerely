@@ -11,9 +11,10 @@ import { cn } from '../../lib/utils';
 import {
   CheckCircle2, XCircle, HelpCircle, Globe, Server, Loader2, Plug, Inbox,
   ChevronDown, Send, ShieldCheck, Signature, Gauge, Sparkles, Mail, MinusCircle,
+  Stethoscope,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import type { SmtpAccount, CreateSmtpAccountInput, SmtpPreset, VerifyLegResult } from '@lemlist/shared';
+import type { SmtpAccount, CreateSmtpAccountInput, SmtpPreset, VerifyLegResult, SmtpDiagnostics } from '@lemlist/shared';
 import { SMTP_PRESETS, detectPresetFromEmail } from '@lemlist/shared';
 
 /** Map the MX check's provider hint onto our connection presets. */
@@ -333,13 +334,28 @@ export function SmtpAccountModal({
       imap_secure: form.imap_secure,
       imap_user: form.imap_user || form.smtp_user || form.email_address,
     }),
-    onMutate: () => setVerify({ status: 'checking' }),
+    onMutate: () => { setVerify({ status: 'checking' }); setDiagnostics(null); },
     onSuccess: (res) => setVerify({ status: 'done', smtp: res.smtp, imap: res.imap, message: res.message }),
     onError: (err: any) => setVerify({
       status: 'done',
       smtp: { ok: false, status: 'fail', message: err.response?.data?.error || err.message || 'Connection failed' },
       message: err.response?.data?.error || 'Connection failed',
     }),
+  });
+
+  /* Staged probe (DNS → port → handshake → sign-in) run on demand after a
+     failed check, so the user learns which layer is actually broken. */
+  const [diagnostics, setDiagnostics] = useState<SmtpDiagnostics | null>(null);
+  const diagnoseMutation = useMutation({
+    mutationFn: () => smtpApi.diagnose({
+      smtp_host: form.smtp_host,
+      smtp_port: Number(form.smtp_port),
+      smtp_secure: !!form.smtp_secure,
+      smtp_user: form.smtp_user || form.email_address,
+      smtp_pass: form.smtp_pass,
+    }),
+    onSuccess: (res) => setDiagnostics(res),
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Could not run diagnostics'),
   });
 
   const canVerify = !!form.email_address && !!form.smtp_host && !!form.smtp_user && !!form.smtp_pass;
@@ -511,8 +527,68 @@ export function SmtpAccountModal({
               <>
                 <LegRow label="SMTP (sending)" leg={verify.smtp} />
                 <LegRow label="IMAP (receiving)" leg={verify.imap} />
+                {!verifyOk && !diagnostics && (
+                  <button
+                    type="button"
+                    onClick={() => diagnoseMutation.mutate()}
+                    disabled={diagnoseMutation.isPending}
+                    className="mt-1 inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-[var(--indigo)] hover:underline disabled:opacity-60"
+                  >
+                    {diagnoseMutation.isPending
+                      ? <><Loader2 className="h-3 w-3 animate-spin" /> Pinpointing the failure…</>
+                      : <><Stethoscope className="h-3 w-3" /> Find out exactly why</>}
+                  </button>
+                )}
               </>
             )}
+          </div>
+        )}
+
+        {/* Staged diagnosis — turns "timed out" into a specific, fixable cause */}
+        {diagnostics && (
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 p-3.5">
+            <div className="flex items-center gap-1.5 mb-2.5">
+              <Stethoscope className="h-3.5 w-3.5 text-[var(--indigo)]" />
+              <p className="text-[12px] font-semibold text-[var(--text-primary)]">
+                Diagnosis — {diagnostics.host}:{diagnostics.port}
+              </p>
+              <span className="flex-1" />
+              <button type="button" onClick={() => setDiagnostics(null)} className="text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">
+                Hide
+              </button>
+            </div>
+
+            <ol className="space-y-1">
+              {diagnostics.stages.map((s) => (
+                <li key={s.id} className="flex items-start gap-2 text-[11.5px]">
+                  <span className="mt-px flex-shrink-0">
+                    {s.status === 'ok' && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
+                    {s.status === 'fail' && <XCircle className="h-3.5 w-3.5 text-rose-500" />}
+                    {s.status === 'skipped' && <MinusCircle className="h-3.5 w-3.5 text-[var(--text-muted)]" />}
+                  </span>
+                  <span className="min-w-0">
+                    <span className={cn('font-medium', s.status === 'fail' ? 'text-rose-600 dark:text-rose-400' : 'text-[var(--text-primary)]')}>{s.label}</span>
+                    <span className="text-[var(--text-secondary)]"> — {s.detail}</span>
+                    {s.ms != null && <span className="text-[var(--text-muted)]"> ({s.ms}ms)</span>}
+                  </span>
+                </li>
+              ))}
+            </ol>
+
+            <div className={cn(
+              'mt-3 rounded-lg px-3 py-2.5 border',
+              diagnostics.portBlocked
+                ? 'border-amber-500/30 bg-amber-500/8'
+                : 'border-[var(--border-subtle)] bg-[var(--bg-surface)]',
+            )}>
+              <p className="text-[12px] font-medium text-[var(--text-primary)]">{diagnostics.verdict}</p>
+              <p className="text-[11.5px] text-[var(--text-secondary)] mt-1 leading-relaxed">{diagnostics.fix}</p>
+              {diagnostics.portBlocked && !diagnostics.relayConfigured && (
+                <p className="text-[11px] text-[var(--text-tertiary)] mt-1.5">
+                  This is a server-side setting, not something to change on this mailbox.
+                </p>
+              )}
+            </div>
           </div>
         )}
 
