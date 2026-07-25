@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import * as webhookService from '../services/webhook.service.js';
+import { getPagination } from '../utils/pagination.js';
 
 export const webhookController = {
   async list(req: AuthRequest, res: Response, next: NextFunction) {
@@ -59,7 +60,11 @@ export const webhookController = {
   async deliveries(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const endpointId = req.query.endpoint_id as string | undefined;
-      const limit = parseInt(req.query.limit as string, 10) || 50;
+      // Unlike every other list endpoint, this took the raw query param
+      // straight through to the DB query with no bound — `limit=5000000`
+      // forced an unbounded scan, and `limit=-1` (truthy, so `|| 50` never
+      // kicked in) passed a negative limit straight to Supabase.
+      const { limit } = getPagination({ limit: req.query.limit ? Number(req.query.limit) : 50 });
       const deliveries = await webhookService.getDeliveries(req.userId!, endpointId, limit);
       res.json(deliveries);
     } catch (err) { next(err); }

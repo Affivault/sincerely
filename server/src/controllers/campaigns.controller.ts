@@ -184,6 +184,16 @@ export const campaignsController = {
         .single();
       if (!account) return res.status(404).json({ error: 'SMTP account not found' });
 
+      // Decrypt before reserving quota — an undecryptable password (rotated
+      // ENCRYPTION_KEY, corrupted ciphertext) must fail before a quota unit
+      // is spent, not after, or every retry burns quota for zero emails sent.
+      let password: string;
+      try {
+        password = decrypt(account.smtp_pass_encrypted);
+      } catch (decryptErr: any) {
+        return res.status(500).json({ error: `Failed to decrypt SMTP password: ${decryptErr.message}` });
+      }
+
       // Test sends deliver real email to arbitrary recipients — they count
       // against the monthly cap like any other send.
       if (!(await billingService.reserveEmailQuota(req.userId!))) {
@@ -192,8 +202,6 @@ export const campaignsController = {
           code: 'UPGRADE_REQUIRED',
         });
       }
-
-      const password = decrypt(account.smtp_pass_encrypted);
       const fromAddress = account.label
         ? `"${account.label.replace(/"/g, "'")}" <${account.email_address}>`
         : account.email_address;
