@@ -95,8 +95,8 @@ export const contactsApi = {
     return data;
   },
 
-  export: async (contactIds?: string[], format: 'csv' | 'json' = 'csv') => {
-    const { data } = await apiClient.post('/contacts/export', { contact_ids: contactIds, format }, {
+  export: async (contactIds?: string[], format: 'csv' | 'json' = 'csv', listId?: string, segmentId?: string) => {
+    const { data } = await apiClient.post('/contacts/export', { contact_ids: contactIds, format, list_id: listId, segment_id: segmentId }, {
       responseType: format === 'csv' ? 'blob' : 'json',
     });
     return data;

@@ -209,6 +209,11 @@ export const listsService = {
   },
 
   async moveContact(userId: string, contactId: string, fromListId: string, toListId: string) {
+    // Validate the target list up front — addContacts() would do this too,
+    // but only after removeContacts() below has already committed, which
+    // would leave the contact removed from the source list and never added
+    // to an invalid target (vanishing from both).
+    await this.get(userId, toListId);
     // Remove from source list
     await this.removeContacts(userId, fromListId, [contactId]);
     // Add to target list

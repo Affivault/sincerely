@@ -51,6 +51,11 @@ export const campaignFoldersService = {
   },
 
   async create(userId: string, input: { name: string; color?: string; icon?: string; parent_id?: string | null }) {
+    if (input.parent_id) {
+      const { data: parent } = await supabaseAdmin
+        .from('campaign_folders').select('id').eq('id', input.parent_id).eq('user_id', userId).single();
+      if (!parent) throw new AppError('Parent folder not found', 404);
+    }
     const { data, error } = await supabaseAdmin
       .from('campaign_folders')
       .insert({ user_id: userId, ...input })
@@ -74,6 +79,15 @@ export const campaignFoldersService = {
         .select('id, parent_id')
         .eq('user_id', userId);
       const byId = new Map((allFolders || []).map((f: any) => [f.id, f.parent_id]));
+      // byId is scoped to this user's folders only — a parent_id belonging to
+      // another tenant is simply absent from it, which the cycle walk below
+      // can't distinguish from "no parent". Check ownership explicitly so a
+      // cross-tenant parent_id is rejected instead of silently accepted (it
+      // would otherwise make this folder cascade-delete when the other
+      // tenant deletes theirs).
+      if (!byId.has(input.parent_id)) {
+        throw new AppError('Parent folder not found', 404);
+      }
       let cursor: string | null | undefined = input.parent_id;
       const seen = new Set<string>();
       while (cursor) {

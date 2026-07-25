@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { contactsService } from '../services/contacts.service.js';
@@ -49,6 +50,10 @@ export const contactsController = {
       try {
         columnMapping = JSON.parse(req.body.columnMapping || '{}');
       } catch {
+        // Multer already wrote the upload to disk before this handler ran;
+        // the service's own cleanup never runs on this early-return path,
+        // so without this the temp file is orphaned permanently.
+        fs.unlink(file.path, () => {});
         res.status(400).json({ error: 'columnMapping must be valid JSON' });
         return;
       }
@@ -100,8 +105,8 @@ export const contactsController = {
 
   async export(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { contact_ids, format } = req.body;
-      const result = await contactsService.export(req.userId!, contact_ids, format);
+      const { contact_ids, format, list_id, segment_id } = req.body;
+      const result = await contactsService.export(req.userId!, contact_ids, format, list_id, segment_id);
 
       if (result.format === 'csv') {
         res.setHeader('Content-Type', 'text/csv');

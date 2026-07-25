@@ -1908,8 +1908,8 @@ export function InboxPage() {
     mutationFn: inboxApi.toggleStar,
     onMutate: async (id: string) => {
       await qc.cancelQueries({ queryKey: ['inbox'] });
-      const prevList = qc.getQueryData(['inbox', folder, tagFilter, search]);
-      qc.setQueryData(['inbox', folder, tagFilter, search], (old: any) => {
+      const prevList = qc.getQueryData(['inbox', folder, tagFilter, search, messageLimit]);
+      qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit], (old: any) => {
         if (!old?.data) return old;
         return {
           ...old,
@@ -1927,7 +1927,7 @@ export function InboxPage() {
       return { prevList, prevDetail };
     },
     onError: (_err, id, context) => {
-      if (context?.prevList) qc.setQueryData(['inbox', folder, tagFilter, search], context.prevList);
+      if (context?.prevList) qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit], context.prevList);
       if (context?.prevDetail) qc.setQueryData(['inbox', 'detail', id], context.prevDetail);
       toast.error('Failed to toggle star');
     },
@@ -1964,10 +1964,10 @@ export function InboxPage() {
   const archiveMut = useMutation({
     mutationFn: ({ id }: { id: string; contactEmail: string | null }) => inboxApi.archiveThread(id),
     onMutate: async ({ contactEmail }: { id: string; contactEmail: string | null }) => {
-      await qc.cancelQueries({ queryKey: ['inbox', folder, tagFilter, search] });
-      const prevData = qc.getQueryData(['inbox', folder, tagFilter, search]);
+      await qc.cancelQueries({ queryKey: ['inbox', folder, tagFilter, search, messageLimit] });
+      const prevData = qc.getQueryData(['inbox', folder, tagFilter, search, messageLimit]);
       if (contactEmail) {
-        qc.setQueryData(['inbox', folder, tagFilter, search], (old: any) => {
+        qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit], (old: any) => {
           if (!old?.data) return old;
           return {
             ...old,
@@ -1978,7 +1978,7 @@ export function InboxPage() {
       return { prevData };
     },
     onError: (_err: any, _id: any, context: any) => {
-      if (context?.prevData) qc.setQueryData(['inbox', folder, tagFilter, search], context.prevData);
+      if (context?.prevData) qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit], context.prevData);
       toast.error('Failed to archive');
     },
     onSuccess: () => {
@@ -1990,10 +1990,10 @@ export function InboxPage() {
   const unarchiveMut = useMutation({
     mutationFn: ({ id }: { id: string; contactEmail: string | null }) => inboxApi.unarchiveThread(id),
     onMutate: async ({ contactEmail }: { id: string; contactEmail: string | null }) => {
-      await qc.cancelQueries({ queryKey: ['inbox', folder, tagFilter, search] });
-      const prevData = qc.getQueryData(['inbox', folder, tagFilter, search]);
+      await qc.cancelQueries({ queryKey: ['inbox', folder, tagFilter, search, messageLimit] });
+      const prevData = qc.getQueryData(['inbox', folder, tagFilter, search, messageLimit]);
       if (contactEmail) {
-        qc.setQueryData(['inbox', folder, tagFilter, search], (old: any) => {
+        qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit], (old: any) => {
           if (!old?.data) return old;
           return {
             ...old,
@@ -2004,7 +2004,7 @@ export function InboxPage() {
       return { prevData };
     },
     onError: (_err: any, _id: any, context: any) => {
-      if (context?.prevData) qc.setQueryData(['inbox', folder, tagFilter, search], context.prevData);
+      if (context?.prevData) qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit], context.prevData);
       toast.error('Failed to unarchive');
     },
     onSuccess: () => {
@@ -2749,7 +2749,22 @@ export function InboxPage() {
           <button onClick={handleRefresh} disabled={isRefreshing || isFetching} title="Sync inboxes" className="icon-btn flex-shrink-0 disabled:opacity-40">
             <RefreshCw className={cn('h-3.5 w-3.5', (isRefreshing || isFetching) && 'animate-spin')} />
           </button>
-          <button onClick={() => markAllReadMut.mutate()} disabled={markAllReadMut.isPending} title="Mark all read" className="icon-btn flex-shrink-0">
+          <button
+            onClick={() => {
+              // Sits next to the folder/tag/search controls, which makes it look
+              // scoped to the current view — it isn't: markAllRead has no
+              // folder/tag/search filter server-side and clears unread state
+              // across the whole mailbox. Confirm with that made explicit so a
+              // click meant for "this view" doesn't silently wipe unread status
+              // on messages the user hasn't even looked at yet.
+              if (confirm('Mark every unread message in your mailbox as read — not just this view?')) {
+                markAllReadMut.mutate();
+              }
+            }}
+            disabled={markAllReadMut.isPending}
+            title="Mark all read (entire mailbox)"
+            className="icon-btn flex-shrink-0"
+          >
             <CheckCheck className="h-4 w-4" />
           </button>
           <button

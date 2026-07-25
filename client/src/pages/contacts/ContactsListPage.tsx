@@ -831,14 +831,19 @@ export function ContactsListPage() {
   const handleExport = async () => {
     try {
       const ids = selectedContacts.size > 0 ? Array.from(selectedContacts) : undefined;
-      const blob = await contactsApi.export(ids, 'csv');
+      // With nothing individually checked, scope the export to whatever list
+      // is currently open instead of silently dumping every contact — that
+      // was surprising when a user opened one list and expected "Export" to
+      // mean "this list".
+      const listId = ids ? undefined : activeListId || undefined;
+      const blob = await contactsApi.export(ids, 'csv', listId);
       const url = URL.createObjectURL(blob as Blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = 'contacts.csv';
       a.click();
       URL.revokeObjectURL(url);
-      toast.success('Contacts exported');
+      toast.success(listId ? `Exported "${currentListName}"` : 'Contacts exported');
     } catch {
       toast.error('Export failed');
     }

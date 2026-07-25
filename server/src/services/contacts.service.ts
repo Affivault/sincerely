@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { fireEvent } from './webhook.service.js';
+import { segmentsService } from './segments.service.js';
 import Papa from 'papaparse';
 import fs from 'node:fs';
 
@@ -527,7 +528,7 @@ export const contactsService = {
     return { deleted: validIds.length };
   },
 
-  async export(userId: string, contactIds?: string[], format: 'csv' | 'json' = 'csv') {
+  async export(userId: string, contactIds?: string[], format: 'csv' | 'json' = 'csv', listId?: string, segmentId?: string) {
     let query = supabaseAdmin
       .from('contacts')
       .select('email, first_name, last_name, company, job_title, phone, linkedin_url, website, location, source, is_unsubscribed, is_bounced, dcs_score, custom_fields, created_at')
@@ -535,6 +536,18 @@ export const contactsService = {
 
     if (contactIds && contactIds.length > 0) {
       query = query.in('id', contactIds);
+    } else if (listId) {
+      // No explicit selection — the caller is exporting whatever list they're
+      // currently viewing, so scope to it instead of the whole account.
+      const { data: listContacts } = await supabaseAdmin
+        .from('list_contacts')
+        .select('contact_id')
+        .eq('list_id', listId);
+      query = query.in('id', (listContacts || []).map((lc: any) => lc.contact_id));
+    } else if (segmentId) {
+      const segment = await segmentsService.get(userId, segmentId);
+      const ids = await segmentsService.getMatchingContactIds(userId, segment.filter_config);
+      query = query.in('id', ids);
     }
 
     const { data, error } = await query;
