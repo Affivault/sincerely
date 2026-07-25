@@ -39,6 +39,47 @@ function probeTcp(host: string, port: number, timeoutMs: number): Promise<{ ok: 
   });
 }
 
+/**
+ * Probe the SMTP relay without sending anything.
+ *
+ * The relay checks the bearer secret BEFORE it validates the payload, so an
+ * authenticated POST with an empty body must come back 400 ("missing required
+ * fields") — which proves the endpoint is deployed AND the secret matches. A
+ * 401 means the two secrets differ; 404/HTML means the URL is wrong.
+ */
+async function probeRelay(): Promise<{ ok: boolean; detail: string }> {
+  const url = env.SMTP_RELAY_URL!;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${env.SMTP_RELAY_SECRET}`,
+      },
+      body: '{}',
+      signal: controller.signal,
+    });
+    if (res.status === 400) return { ok: true, detail: `Relay is live and the secret matches (${url})` };
+    if (res.status === 401) return { ok: false, detail: 'Relay rejected the secret — SMTP_RELAY_SECRET differs between this server and the relay host' };
+    if (res.status === 404) return { ok: false, detail: `Nothing deployed at ${url} — check SMTP_RELAY_URL points at /api/send-email` };
+    if (res.status === 405) return { ok: false, detail: `${url} exists but doesn't accept POST — check the URL points at /api/send-email` };
+    if (res.status === 500) {
+      // The relay returns 500 specifically when its own secret env var is unset.
+      const body = await res.text().catch(() => '');
+      if (body.includes('SMTP_RELAY_SECRET')) return { ok: false, detail: 'Relay is deployed but has no SMTP_RELAY_SECRET set on its own host' };
+      return { ok: false, detail: `Relay returned HTTP 500 (${url})` };
+    }
+    return { ok: false, detail: `Relay returned an unexpected HTTP ${res.status}` };
+  } catch (err: any) {
+    const aborted = err?.name === 'AbortError';
+    return { ok: false, detail: aborted ? `Relay did not respond within 8s (${url})` : `Relay unreachable: ${err?.message || 'network error'}` };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export const smtpDiagnosticsService = {
   async diagnose(input: {
     smtp_host: string;
@@ -53,12 +94,30 @@ export const smtpDiagnosticsService = {
     const stages: DiagStage[] = [];
     const relayConfigured = !!(env.SMTP_RELAY_URL && env.SMTP_RELAY_SECRET);
 
+    // ── Stage 0: relay health ──
+    // When a relay is configured it IS the send path, so its health matters
+    // more than whether this box can reach port 587 directly.
+    let relayHealthy: boolean | null = null;
+    if (relayConfigured) {
+      const t = Date.now();
+      const relay = await probeRelay();
+      relayHealthy = relay.ok;
+      stages.push({
+        id: 'relay',
+        label: 'SMTP relay',
+        status: relay.ok ? 'ok' : 'fail',
+        detail: relay.detail,
+        ms: Date.now() - t,
+      });
+    }
+
     if (!host) {
       return {
         host, port, stages,
         verdict: 'No SMTP host given.',
         portBlocked: false,
         relayConfigured,
+        relayHealthy,
         fix: 'Enter the SMTP server address (e.g. smtp.gmail.com) and run the check again.',
       };
     }
@@ -85,6 +144,7 @@ export const smtpDiagnosticsService = {
         verdict: `The hostname "${host}" doesn't exist in DNS.`,
         portBlocked: false,
         relayConfigured,
+        relayHealthy,
         fix: 'Check the SMTP server address for typos — most providers use something like smtp.yourprovider.com.',
       };
     }
@@ -117,13 +177,29 @@ export const smtpDiagnosticsService = {
       // signature of an egress firewall — i.e. the hosting platform, not the
       // mail provider, is the problem.
       if (tcpBlocked) {
+        // With a healthy relay this is expected and harmless — the relay, not
+        // this box, opens the SMTP connection. Say so plainly rather than
+        // reporting a scary "blocked" verdict for a working setup.
+        if (relayHealthy) {
+          return {
+            host, port, stages,
+            verdict: `This server can't reach port ${port} directly, but that no longer matters — the relay is live and sends route through it.`,
+            portBlocked: true,
+            relayConfigured,
+            relayHealthy,
+            fix: 'Nothing to fix. If a send still fails, it will be the mailbox credentials or the provider, not the network.',
+          };
+        }
         return {
           host, port, stages,
-          verdict: `DNS resolved fine, but nothing answered on port ${port} — this server's network is blocking outbound SMTP.`,
+          verdict: relayConfigured
+            ? `Nothing answered on port ${port}, and the relay isn't working either — so there's currently no way out for mail.`
+            : `DNS resolved fine, but nothing answered on port ${port} — this server's network is blocking outbound SMTP.`,
           portBlocked: true,
           relayConfigured,
+          relayHealthy,
           fix: relayConfigured
-            ? 'An SMTP relay is configured, so sends should route around this automatically. If sends still fail, check that the relay URL is reachable and its secret matches.'
+            ? 'Fix the relay (see the SMTP relay line above) — it is the only send path while this host blocks the SMTP ports.'
             : 'Set SMTP_RELAY_URL and SMTP_RELAY_SECRET on this server to route sends through the bundled Vercel relay (api/send-email.ts) — Vercel allows outbound SMTP, your current host does not. No mailbox setting can fix this on its own.',
         };
       }
@@ -132,6 +208,7 @@ export const smtpDiagnosticsService = {
         verdict: `Port ${port} actively refused the connection.`,
         portBlocked: false,
         relayConfigured,
+        relayHealthy,
         fix: `The server is reachable but isn't listening on ${port}. Try 465 (SSL) or 587 (TLS) instead.`,
       };
     }
@@ -166,6 +243,7 @@ export const smtpDiagnosticsService = {
           : 'The mail server is reachable. Add the password to test sign-in.',
         portBlocked: false,
         relayConfigured,
+        relayHealthy,
         fix: canAuth ? 'No action needed.' : 'Enter the mailbox password and run the check again.',
       };
     } catch (err: any) {
@@ -185,6 +263,7 @@ export const smtpDiagnosticsService = {
           verdict: 'The server is reachable, but the username/password was rejected.',
           portBlocked: false,
           relayConfigured,
+        relayHealthy,
           fix: 'Gmail and Outlook require an app password (not your normal login). Check the username is the full email address.',
         };
       }
@@ -198,6 +277,7 @@ export const smtpDiagnosticsService = {
         verdict: `The port is open but the mail handshake failed — usually an SSL/TLS mismatch on port ${port}.`,
         portBlocked: false,
         relayConfigured,
+        relayHealthy,
         fix: port === 465
           ? 'Port 465 requires SSL — make sure SSL (not STARTTLS) is selected.'
           : 'Port 587 requires STARTTLS — make sure SSL is switched off, or use port 465 with SSL.',

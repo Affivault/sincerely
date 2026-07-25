@@ -235,6 +235,9 @@ export interface SmtpDiagnostics {
   portBlocked: boolean;
   /** Whether an SMTP relay is configured on this server */
   relayConfigured: boolean;
+  /** When a relay is configured: is it actually reachable and authenticating?
+   *  null when no relay is configured (nothing to test). */
+  relayHealthy: boolean | null;
   /** Concrete next step for the user */
   fix: string;
 }
