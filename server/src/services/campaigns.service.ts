@@ -288,12 +288,17 @@ export const campaignsService = {
     // scope it would force-reset every contact's next_send_at to "now",
     // including ones correctly waiting out a legitimate multi-day delay step,
     // firing their next step immediately and blowing up the send cadence.
+    // Contacts parked in a webhook_wait step also have next_send_at null while
+    // waiting (by design — see processWebhookWaitStep), so they're excluded
+    // here too: resetting next_send_at would re-run that same webhook_wait
+    // step and restart its timeout window from scratch on every relaunch.
     const { data: resetActive, error: actErr } = await supabaseAdmin
       .from('campaign_contacts')
       .update({ next_send_at: firstSendAt, error_message: null })
       .eq('campaign_id', id)
       .eq('status', 'active')
       .is('next_send_at', null)
+      .is('waiting_for_webhook', null)
       .select('id');
     if (actErr) console.error('[Campaign] Error resetting active contacts:', actErr.message);
 
