@@ -18,6 +18,7 @@ import { PersonalizationDropdown } from '../../components/campaigns/Personalizat
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import type { FlowStep } from '../../components/campaigns/FlowBuilder';
 import { cn } from '../../lib/utils';
+import { parseDatetimeLocalInTimezone } from '../../lib/timezone';
 import {
   ArrowLeft, Mail, Clock, Save, Users, Check, Settings, Layers, UserPlus,
   CheckCircle2, Search, Building2, ChevronRight, SkipForward, Gauge, Shield,
@@ -604,7 +605,11 @@ export function CampaignCreatePage() {
     let scheduledIso: string | null = null;
     if (sendMode === 'schedule') {
       if (!scheduleAt) { toast.error('Pick a date and time to schedule the start.'); return; }
-      const when = new Date(scheduleAt);
+      // scheduleAt is entered in the campaign's timezone (per the field label),
+      // not the browser's — parse it against campaignForm.timezone so the
+      // launch fires at the intended wall-clock time regardless of where the
+      // user is sitting.
+      const when = parseDatetimeLocalInTimezone(scheduleAt, campaignForm.timezone || 'UTC');
       if (isNaN(when.getTime()) || when.getTime() <= Date.now()) {
         toast.error('Scheduled start must be in the future.');
         return;

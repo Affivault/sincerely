@@ -554,11 +554,14 @@ async function evaluateCondition(cc: any, step: any): Promise<boolean> {
     }
 
     case 'sara_intent': {
-      // Get the latest SARA classification for this contact's replies
+      // Get the latest SARA classification for this contact's replies. Scoped to
+      // this campaign_contact_id (not just contact_id) so a contact enrolled in
+      // multiple campaigns at once can't have one campaign's branch fire off a
+      // reply that only happened in a different campaign.
       const { data: messages, error: intentErr } = await supabaseAdmin
         .from('inbox_messages')
         .select('sara_intent')
-        .eq('contact_id', cc.contact_id)
+        .eq('campaign_contact_id', cc.id)
         .not('sara_intent', 'is', null)
         .order('created_at', { ascending: false })
         .limit(1);

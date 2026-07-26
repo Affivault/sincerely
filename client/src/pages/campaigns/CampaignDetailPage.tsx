@@ -472,6 +472,14 @@ export function CampaignDetailPage() {
                             <span className="text-[12px] text-[var(--text-secondary)]" title={formatDateTime(cc.next_send_at)}>
                               {formatTimeUntil(cc.next_send_at)}
                             </span>
+                          ) : cc.waiting_for_webhook ? (
+                            <span
+                              className="inline-flex items-center gap-1 text-[12px] text-amber-500"
+                              title={`Waiting for "${cc.waiting_for_webhook}"${cc.webhook_wait_until ? ` — times out ${formatDateTime(cc.webhook_wait_until)}` : ''}`}
+                            >
+                              <Webhook className="w-3 h-3" />
+                              {cc.webhook_wait_until ? `Until ${formatTimeUntil(cc.webhook_wait_until)}` : 'Waiting for webhook'}
+                            </span>
                           ) : <span className="text-[12px] text-[var(--text-tertiary)]">—</span>}
                         </td>
                         <td className="px-4 py-2.5 text-[11px] text-rose-500">{cc.error_message || '—'}</td>
