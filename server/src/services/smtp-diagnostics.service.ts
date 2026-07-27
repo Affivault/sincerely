@@ -2,7 +2,7 @@ import net from 'net';
 import nodemailer from 'nodemailer';
 import { env } from '../config/env.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
-import { describeSmtpError } from './email-sender.service.js';
+import { describeSmtpError, postToRelay } from './email-sender.service.js';
 import type { DiagStage, SmtpDiagnostics } from '@lemlist/shared';
 
 /**
@@ -75,26 +75,29 @@ async function probeRelay(): Promise<{ ok: boolean; detail: string }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${env.SMTP_RELAY_SECRET}`,
-      },
-      body: '{}',
-      signal: controller.signal,
-    });
-    if (res.status === 400) return { ok: true, detail: `Relay is live and the secret matches (${url})` };
-    if (res.status === 401) return { ok: false, detail: 'Relay rejected the secret — SMTP_RELAY_SECRET differs between this server and the relay host' };
+    const { response: res, finalUrl, redirected } = await postToRelay(url, '{}', controller.signal);
+    // Redirects matter enough to name in every verdict: a *.vercel.app alias
+    // 308s to the project's custom domain, which is an origin change, which
+    // means a browser-spec fetch would have silently dropped the bearer token.
+    const hop = redirected ? ` (SMTP_RELAY_URL redirects to ${finalUrl})` : '';
+    if (res.status === 400) {
+      return {
+        ok: true,
+        detail: redirected
+          ? `Relay is live and the secret matches, but SMTP_RELAY_URL redirects to ${finalUrl} — set it to that address directly.`
+          : `Relay is live and the secret matches (${url})`,
+      };
+    }
+    if (res.status === 401) return { ok: false, detail: `Relay rejected the secret — SMTP_RELAY_SECRET differs between this server and the relay host${hop}` };
     if (res.status === 404) {
-      const health = await probeRelayHealth(url);
+      const health = await probeRelayHealth(finalUrl);
       if (health === true) {
-        return { ok: false, detail: `/api/health answers on that deployment but ${url} is a 404 — SMTP_RELAY_URL has the wrong path. It must end in /api/send-email.` };
+        return { ok: false, detail: `/api/health answers on that deployment but ${finalUrl} is a 404 — SMTP_RELAY_URL has the wrong path. It must end in /api/send-email.` };
       }
       if (health === false) {
-        return { ok: false, detail: `Neither ${url} nor /api/health exists on that deployment — no serverless functions are live there. Confirm SMTP_RELAY_URL points at the Vercel project holding this repo, and that its Root Directory is the repository root (not client/), then redeploy.` };
+        return { ok: false, detail: `Neither ${finalUrl} nor /api/health exists on that deployment — no serverless functions are live there. Confirm SMTP_RELAY_URL points at the Vercel project holding this repo, and that its latest production build succeeded, then redeploy.` };
       }
-      return { ok: false, detail: `Nothing deployed at ${url} — check SMTP_RELAY_URL points at /api/send-email` };
+      return { ok: false, detail: `Nothing deployed at ${finalUrl} — check SMTP_RELAY_URL points at /api/send-email${hop}` };
     }
     if (res.status === 405) return { ok: false, detail: `${url} exists but doesn't accept POST — check the URL points at /api/send-email` };
     if (res.status === 500) {
