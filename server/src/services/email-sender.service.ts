@@ -114,18 +114,53 @@ export async function sendViaSmtp(params: SmtpSendParams): Promise<SmtpSendResul
   return sendDirect(params);
 }
 
+/**
+ * POST to the relay, following any redirect ourselves.
+ *
+ * Attaching a custom domain to a Vercel project makes the project's
+ * `*.vercel.app` alias 308-redirect to it — and the fetch spec strips the
+ * Authorization header when a redirect crosses origins, so an auto-followed
+ * hop arrives at the relay unauthenticated and comes back 401. That reads as
+ * "your secret is wrong" when the secret is fine. Re-issuing the request
+ * ourselves keeps the bearer token attached across the hop.
+ *
+ * Every hop is re-sent as a POST regardless of the redirect status: the target
+ * is an API endpoint, so downgrading to GET (what 301/302/303 nominally mean)
+ * would be useless anyway.
+ */
+export async function postToRelay(url: string, body: string, signal?: AbortSignal):
+  Promise<{ response: Response; finalUrl: string; redirected: boolean }> {
+  let target = url;
+  let redirected = false;
+  for (let hop = 0; hop < 4; hop++) {
+    const response = await fetch(target, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${env.SMTP_RELAY_SECRET}`,
+      },
+      body,
+      redirect: 'manual',
+      signal,
+    });
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      if (!location) return { response, finalUrl: target, redirected };
+      target = new URL(location, target).toString();
+      redirected = true;
+      continue;
+    }
+    return { response, finalUrl: target, redirected };
+  }
+  throw new Error(`SMTP relay redirected more than 3 times (last hop: ${target})`);
+}
+
 async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
   console.log(`[SMTP Relay] Sending to ${params.to} via ${env.SMTP_RELAY_URL}`);
 
   let response: Response;
   try {
-    response = await fetch(env.SMTP_RELAY_URL!, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${env.SMTP_RELAY_SECRET}`,
-      },
-      body: JSON.stringify({
+    const result = await postToRelay(env.SMTP_RELAY_URL!, JSON.stringify({
         smtp_host: params.smtpHost,
         smtp_port: params.smtpPort,
         smtp_secure: params.smtpSecure,
@@ -137,11 +172,17 @@ async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
         subject: params.subject,
         html: params.html,
         text: params.text,
-        message_id: params.messageId,
-        headers: params.headers,
-        timeout_ms: params.timeoutMs,
-      }),
-    });
+      message_id: params.messageId,
+      headers: params.headers,
+      timeout_ms: params.timeoutMs,
+    }));
+    response = result.response;
+    if (result.redirected) {
+      console.warn(
+        `[SMTP Relay] SMTP_RELAY_URL redirects to ${result.finalUrl} — point it there directly ` +
+        'to avoid the extra hop on every send.',
+      );
+    }
   } catch (err: any) {
     // Relay host unreachable (DNS/network) — fall back to a direct SMTP attempt
     // rather than hard-failing the send.
