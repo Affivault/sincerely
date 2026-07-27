@@ -172,7 +172,9 @@ export const contactsService = {
       .select('*, contact_tags(tag_id, tags(*))')
       .eq('id', id)
       .eq('user_id', userId)
-      .single();
+      // maybeSingle, not single: .single() turns "no such contact" into a
+      // PostgREST error, which surfaced as a 500 instead of the 404 below.
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Contact not found', 404);
@@ -182,6 +184,57 @@ export const contactsService = {
       tags: (data.contact_tags || []).map((ct: any) => ct.tags).filter(Boolean),
       contact_tags: undefined,
     };
+  },
+
+  /**
+   * Every campaign this contact is currently enrolled in, with their
+   * per-campaign progress. Answers "where does this person already stand?"
+   * before you enrol them again — the campaign-side counterpart to
+   * listsService.getListsForContact.
+   *
+   * Only campaigns owned by `userId` are ever returned, and the contact
+   * itself is ownership-checked first, so one tenant can't probe another's
+   * enrolments by guessing contact ids.
+   */
+  async getCampaignsForContact(userId: string, contactId: string) {
+    const { data: contact, error: contactError } = await supabaseAdmin
+      .from('contacts')
+      .select('id')
+      .eq('id', contactId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (contactError) throw new AppError(contactError.message, 500);
+    if (!contact) throw new AppError('Contact not found', 404);
+
+    // !inner so a campaign belonging to another user can't come back with a
+    // null join row attached.
+    const { data, error } = await supabaseAdmin
+      .from('campaign_contacts')
+      .select(
+        'id, campaign_id, status, current_step_order, next_send_at, completed_at, error_message, created_at, campaigns!inner(id, name, status, user_id)'
+      )
+      .eq('contact_id', contactId)
+      .eq('campaigns.user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new AppError(error.message, 500);
+
+    return (data || []).map((row: any) => ({
+      campaign_contact_id: row.id,
+      campaign_id: row.campaign_id,
+      campaign_name: row.campaigns?.name ?? null,
+      campaign_status: row.campaigns?.status ?? null,
+      status: row.status,
+      current_step_order: row.current_step_order,
+      next_send_at: row.next_send_at,
+      completed_at: row.completed_at,
+      error_message: row.error_message,
+      enrolled_at: row.created_at,
+      // A campaign still in flight is one that removing someone from actually
+      // changes anything for — the client uses this to decide what to offer.
+      is_active: ['draft', 'scheduled', 'running', 'paused'].includes(row.campaigns?.status),
+    }));
   },
 
   async create(userId: string, input: any) {

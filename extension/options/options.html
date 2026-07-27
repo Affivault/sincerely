@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sincerely extension settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <header>
+        <img src="../icons/icon-48.png" alt="" width="34" height="34" />
+        <div>
+          <h1>Sincerely extension</h1>
+          <p class="sub">Connect the extension to your Sincerely account.</p>
+        </div>
+      </header>
+
+      <section class="card">
+        <h2>1. Where is your API?</h2>
+        <div class="field">
+          <label for="api-url">API URL</label>
+          <input id="api-url" type="text" spellcheck="false" placeholder="https://api.usesincerely.com" />
+          <p class="help">
+            Paste the host and we'll add <code>/api/v1</code> for you. Use
+            <button class="inline-link" id="use-production" type="button">production</button> or
+            <button class="inline-link" id="use-local" type="button">localhost:3001</button>.
+          </p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>2. API key</h2>
+        <div class="field">
+          <label for="api-key">Key</label>
+          <input id="api-key" type="password" spellcheck="false" autocomplete="off" placeholder="sk_live_…" />
+          <p class="help">
+            Create one in the app under <strong>Developer → API keys</strong>. It needs both
+            <code>read</code> and <code>write</code> scopes. The key is shown only once, so copy it
+            when you create it. It is stored on this machine only.
+          </p>
+        </div>
+        <div class="row">
+          <button id="save" class="btn primary" type="button">Save &amp; test connection</button>
+          <button id="forget" class="btn" type="button">Forget key</button>
+        </div>
+        <div id="result" class="result hidden" role="status" aria-live="polite"></div>
+      </section>
+
+      <section class="card">
+        <h2>3. Preferences</h2>
+        <label class="check">
+          <input id="verify-before-add" type="checkbox" />
+          <span>
+            <strong>Verify addresses before adding</strong>
+            <em
+              >Runs a deliverability check first and refuses obviously bad addresses. Slower, but
+              protects your sending reputation.</em
+            >
+          </span>
+        </label>
+      </section>
+
+      <section class="card muted-card">
+        <h2>How it works</h2>
+        <ul class="notes">
+          <li>
+            <strong>Add</strong> puts someone on the campaign's lead list and enrols them. A contact
+            is created first if your account has never seen them.
+          </li>
+          <li>
+            <strong>Remove</strong> ends that one sequence. They stay on the lead list, so a future
+            import can re-enrol them.
+          </li>
+          <li>
+            <strong>Never contact again</strong> suppresses the address account-wide and pulls them
+            out of every campaign still running. This is the one that sticks.
+          </li>
+          <li>
+            Someone already in another <em>active</em> campaign bound to a different lead list can't
+            be added — the server blocks it and the extension shows you why.
+          </li>
+        </ul>
+      </section>
+    </main>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

@@ -46,6 +46,25 @@ export interface ContactWithTags extends Contact {
   lists?: { id: string; name: string }[];
 }
 
+/**
+ * One campaign a contact is enrolled in, flattened for display.
+ * Returned by GET /contacts/:id/campaigns.
+ */
+export interface ContactCampaignMembership {
+  campaign_contact_id: string;
+  campaign_id: string;
+  campaign_name: string | null;
+  campaign_status: string | null;
+  status: string;
+  current_step_order: number;
+  next_send_at: string | null;
+  completed_at: string | null;
+  error_message: string | null;
+  enrolled_at: string;
+  /** Campaign is draft/scheduled/running/paused — i.e. removal still matters. */
+  is_active: boolean;
+}
+
 export interface CreateContactInput {
   email: string;
   first_name?: string;

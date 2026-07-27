@@ -18,6 +18,13 @@ export const contactsController = {
     } catch (err) { next(err); }
   },
 
+  async campaignsForContact(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const campaigns = await contactsService.getCampaignsForContact(req.userId!, req.params.id);
+      res.json(campaigns);
+    } catch (err) { next(err); }
+  },
+
   async create(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const contact = await contactsService.create(req.userId!, req.body);
