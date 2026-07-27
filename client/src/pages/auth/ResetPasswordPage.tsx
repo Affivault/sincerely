@@ -46,6 +46,7 @@ export function ResetPasswordPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (loading) return;
 
     if (password !== confirm) {
       toast.error('Passwords do not match');

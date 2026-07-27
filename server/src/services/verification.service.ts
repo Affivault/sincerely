@@ -1,8 +1,8 @@
 import { supabaseAdmin } from '../config/supabase.js';
-import dns from 'dns';
 import net from 'net';
 import type { DcsVerificationResult } from '@lemlist/shared';
 import { fireEvent } from './webhook.service.js';
+import { resolveDoh, resolveHostIp } from '../utils/dns-doh.js';
 
 /**
  * Triple-Layer Verification Pipeline + Deliverability Confidence Score (DCS)
@@ -31,36 +31,21 @@ function checkSyntax(email: string): boolean {
 // ============================================
 // Layer 2: Domain DNS Check
 // ============================================
-const DNS_TIMEOUT_MS = 8000;
 
+// Resolves via DoH (Cloudflare → Google → OS resolver), same as domain.service.ts
+// and smtp.service.ts — classic UDP/TCP port-53 DNS is blocked on the deployed
+// host, so a plain dns.promises.resolveMx() here would fail every lookup and
+// score every contact as having no mail records regardless of validity.
 async function checkDomain(email: string): Promise<boolean> {
   const domain = email.split('@')[1];
   if (!domain) return false;
 
-  // Always clear the timer once the race settles — otherwise every call leaves
-  // a live 8s timeout running even after the DNS lookup resolves first, which
-  // adds up fast across a batch/auto-verify run (each contact triggers this
-  // up to twice: MX then the A-record fallback).
-  const withTimeout = <T>(promise: Promise<T>): Promise<T> =>
-    new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('DNS timeout')), DNS_TIMEOUT_MS);
-      promise
-        .then((value) => { clearTimeout(timer); resolve(value); })
-        .catch((err) => { clearTimeout(timer); reject(err); });
-    });
+  const mxRecords = await resolveDoh(domain, 'MX');
+  if (mxRecords.length > 0) return true;
 
-  try {
-    const mxRecords = await withTimeout(dns.promises.resolveMx(domain));
-    return mxRecords.length > 0;
-  } catch {
-    // MX failed — fall back to A record
-    try {
-      const aRecords = await withTimeout(dns.promises.resolve4(domain));
-      return aRecords.length > 0;
-    } catch {
-      return false;
-    }
-  }
+  // MX failed — fall back to A record
+  const aRecords = await resolveDoh(domain, 'A');
+  return aRecords.length > 0;
 }
 
 // ============================================
@@ -70,97 +55,104 @@ async function checkSmtp(email: string): Promise<{ ok: boolean; reason?: string 
   const domain = email.split('@')[1];
   if (!domain) return { ok: false, reason: 'Invalid domain' };
 
+  const mxAnswers = await resolveDoh(domain, 'MX');
+  const sorted = mxAnswers
+    .map((d) => {
+      const m = d.trim().match(/^(\d+)\s+(\S+)$/);
+      return m ? { priority: Number(m[1]), exchange: m[2].replace(/\.$/, '') } : null;
+    })
+    .filter((r): r is { priority: number; exchange: string } => r !== null)
+    .sort((a, b) => a.priority - b.priority);
+
+  if (sorted.length === 0) {
+    return { ok: false, reason: 'No MX records' };
+  }
+
+  const mxHost = sorted[0].exchange;
+  // Dial by resolved IP — net.Socket.connect(port, hostname) does its own DNS
+  // lookup via the OS resolver, which is the exact resolver DoH exists to avoid.
+  const mxIp = await resolveHostIp(mxHost);
+
   return new Promise((resolve) => {
-    dns.resolveMx(domain, (err, addresses) => {
-      if (err || !addresses || addresses.length === 0) {
-        resolve({ ok: false, reason: 'No MX records' });
-        return;
-      }
+    const socket = new net.Socket();
+    let lineBuf = '';
+    let step = 0;
 
-      // Sort by priority (lowest = highest priority)
-      const sorted = addresses.sort((a, b) => a.priority - b.priority);
-      const mxHost = sorted[0].exchange;
+    const timeout = setTimeout(() => {
+      socket.destroy();
+      // Timeout is not necessarily a failure - many servers are slow
+      resolve({ ok: true, reason: 'SMTP timeout (assumed valid)' });
+    }, 10000);
 
-      const socket = new net.Socket();
-      let lineBuf = '';
-      let step = 0;
+    socket.connect(25, mxIp || mxHost, () => {
+      // Connected, wait for greeting
+    });
 
-      const timeout = setTimeout(() => {
-        socket.destroy();
-        // Timeout is not necessarily a failure - many servers are slow
-        resolve({ ok: true, reason: 'SMTP timeout (assumed valid)' });
-      }, 10000);
+    socket.on('data', (data) => {
+      lineBuf += data.toString();
+      // Parse complete lines; a final response line has a space at position 3, not '-'
+      const lines = lineBuf.split('\r\n');
+      lineBuf = lines.pop() ?? '';
+      for (const line of lines) {
+        if (line.length < 4) continue;
+        if (line[3] === '-') continue; // multi-line continuation, skip
+        const code = parseInt(line.substring(0, 3), 10);
 
-      socket.connect(25, mxHost, () => {
-        // Connected, wait for greeting
-      });
-
-      socket.on('data', (data) => {
-        lineBuf += data.toString();
-        // Parse complete lines; a final response line has a space at position 3, not '-'
-        const lines = lineBuf.split('\r\n');
-        lineBuf = lines.pop() ?? '';
-        for (const line of lines) {
-          if (line.length < 4) continue;
-          if (line[3] === '-') continue; // multi-line continuation, skip
-          const code = parseInt(line.substring(0, 3), 10);
-
-          if (step === 0) {
-            // Server greeting
-            if (code === 220) {
-              socket.write('EHLO usesincerely.com\r\n');
-              step = 1;
-            } else {
-              clearTimeout(timeout);
-              socket.destroy();
-              resolve({ ok: false, reason: `Bad greeting: ${code}` });
-            }
-          } else if (step === 1) {
-            // EHLO response
-            if (code === 250) {
-              socket.write(`MAIL FROM:<verify@usesincerely.com>\r\n`);
-              step = 2;
-            } else {
-              clearTimeout(timeout);
-              socket.destroy();
-              resolve({ ok: false, reason: `EHLO rejected: ${code}` });
-            }
-          } else if (step === 2) {
-            // MAIL FROM response
-            if (code === 250) {
-              socket.write(`RCPT TO:<${email}>\r\n`);
-              step = 3;
-            } else {
-              clearTimeout(timeout);
-              socket.destroy();
-              resolve({ ok: false, reason: `MAIL FROM rejected: ${code}` });
-            }
-          } else if (step === 3) {
-            // RCPT TO response - this is the key check
+        if (step === 0) {
+          // Server greeting
+          if (code === 220) {
+            socket.write('EHLO usesincerely.com\r\n');
+            step = 1;
+          } else {
             clearTimeout(timeout);
-            socket.write('QUIT\r\n');
             socket.destroy();
+            resolve({ ok: false, reason: `Bad greeting: ${code}` });
+          }
+        } else if (step === 1) {
+          // EHLO response
+          if (code === 250) {
+            socket.write(`MAIL FROM:<verify@usesincerely.com>\r\n`);
+            step = 2;
+          } else {
+            clearTimeout(timeout);
+            socket.destroy();
+            resolve({ ok: false, reason: `EHLO rejected: ${code}` });
+          }
+        } else if (step === 2) {
+          // MAIL FROM response
+          if (code === 250) {
+            socket.write(`RCPT TO:<${email}>\r\n`);
+            step = 3;
+          } else {
+            clearTimeout(timeout);
+            socket.destroy();
+            resolve({ ok: false, reason: `MAIL FROM rejected: ${code}` });
+          }
+        } else if (step === 3) {
+          // RCPT TO response - this is the key check
+          clearTimeout(timeout);
+          socket.write('QUIT\r\n');
+          socket.destroy();
 
-            if (code === 250 || code === 251) {
-              resolve({ ok: true });
-            } else if (code === 550 || code === 551 || code === 553) {
-              resolve({ ok: false, reason: `Mailbox does not exist (${code})` });
-            } else if (code === 452 || code === 552) {
-              resolve({ ok: true, reason: 'Mailbox full but exists' });
-            } else {
-              // Catch-all domains or greylisting - assume valid
-              resolve({ ok: true, reason: `Ambiguous response (${code})` });
-            }
+          if (code === 250 || code === 251) {
+            resolve({ ok: true });
+          } else if (code === 550 || code === 551 || code === 553) {
+            resolve({ ok: false, reason: `Mailbox does not exist (${code})` });
+          } else if (code === 452 || code === 552) {
+            resolve({ ok: true, reason: 'Mailbox full but exists' });
+          } else {
+            // Catch-all domains or greylisting - assume valid
+            resolve({ ok: true, reason: `Ambiguous response (${code})` });
           }
         }
-      });
+      }
+    });
 
-      socket.on('error', () => {
-        clearTimeout(timeout);
-        socket.destroy();
-        // Connection error - server exists but refused, assume valid
-        resolve({ ok: true, reason: 'Connection error (assumed valid)' });
-      });
+    socket.on('error', () => {
+      clearTimeout(timeout);
+      socket.destroy();
+      // Connection error - server exists but refused, assume valid
+      resolve({ ok: true, reason: 'Connection error (assumed valid)' });
     });
   });
 }

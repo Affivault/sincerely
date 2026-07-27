@@ -13,6 +13,7 @@ export function ForgotPasswordPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {

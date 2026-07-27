@@ -23,6 +23,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useCommandPalette } from '../../context/CommandPaletteContext';
 import { useSidebar } from '../../context/SidebarContext';
+import { useUnreadCount } from '../../hooks/useUnreadCount';
 import { SincerelyLogo } from '../SincerelyLogo';
 import { billingApi } from '../../api/billing.api';
 import { isUnlimited } from '@lemlist/shared';
@@ -43,6 +44,7 @@ export function Header() {
   const [createOpen, setCreateOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const unreadCount = useUnreadCount();
 
   // Close the header dropdowns on scroll, route change or Escape — not just click
   useEffect(() => {
@@ -133,10 +135,17 @@ export function Header() {
           )}
         </div>
 
-        {/* Notifications */}
-        <button className="relative flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
+        {/* Notifications — mirrors the sidebar's unread inbox count so it's not a
+            permanently-lit dead control */}
+        <button
+          onClick={() => navigate('/inbox')}
+          className="relative flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+          title={unreadCount > 0 ? `${unreadCount} unread message${unreadCount === 1 ? '' : 's'}` : 'Inbox'}
+        >
           <Bell className="h-[15px] w-[15px]" strokeWidth={1.9} />
-          <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-[var(--indigo)] ring-2 ring-[var(--bg-surface)]" />
+          {unreadCount > 0 && (
+            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-[var(--indigo)] ring-2 ring-[var(--bg-surface)]" />
+          )}
         </button>
 
         {/* Theme */}
