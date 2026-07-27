@@ -15,7 +15,14 @@ const envSchema = z.object({
   TRACKING_BASE_URL: z.string().default('http://localhost:3001'),
   TRACKING_SECRET: z.string().min(16),
   ENCRYPTION_KEY: z.string().length(64),
-  SMTP_RELAY_URL: z.string().optional().default(''),
+  // Accepts either the full endpoint or just the deployment origin — a bare
+  // "https://app.vercel.app" is the single most common way this gets set, and
+  // silently posting to the site root looks identical to a broken relay.
+  SMTP_RELAY_URL: z.string().optional().default('').transform((raw) => {
+    const url = (raw || '').trim().replace(/\/+$/, '');
+    if (!url) return '';
+    return /\/api\//.test(url) ? url : `${url}/api/send-email`;
+  }),
   SMTP_RELAY_SECRET: z.string().optional().default(''),
   STRIPE_SECRET_KEY: z.string().optional().default(''),
   STRIPE_WEBHOOK_SECRET: z.string().optional().default(''),

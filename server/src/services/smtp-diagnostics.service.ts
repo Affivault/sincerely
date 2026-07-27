@@ -47,6 +47,29 @@ function probeTcp(host: string, port: number, timeoutMs: number): Promise<{ ok: 
  * fields") — which proves the endpoint is deployed AND the secret matches. A
  * 401 means the two secrets differ; 404/HTML means the URL is wrong.
  */
+/**
+ * Is the relay's sibling /api/health function deployed?
+ *
+ * This is what separates "SMTP_RELAY_URL has the wrong path" from "no
+ * serverless functions are deployed at all" — the latter is what happens when
+ * the Vercel project's Root Directory points at a subfolder, so the repo-root
+ * api/ folder is never part of the build.
+ */
+async function probeRelayHealth(url: string): Promise<boolean | null> {
+  const healthUrl = url.replace(/\/api\/send-email\/?$/, '/api/health');
+  if (healthUrl === url) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const res = await fetch(healthUrl, { method: 'GET', signal: controller.signal });
+    return res.status === 200;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function probeRelay(): Promise<{ ok: boolean; detail: string }> {
   const url = env.SMTP_RELAY_URL!;
   const controller = new AbortController();
@@ -63,7 +86,16 @@ async function probeRelay(): Promise<{ ok: boolean; detail: string }> {
     });
     if (res.status === 400) return { ok: true, detail: `Relay is live and the secret matches (${url})` };
     if (res.status === 401) return { ok: false, detail: 'Relay rejected the secret — SMTP_RELAY_SECRET differs between this server and the relay host' };
-    if (res.status === 404) return { ok: false, detail: `Nothing deployed at ${url} — check SMTP_RELAY_URL points at /api/send-email` };
+    if (res.status === 404) {
+      const health = await probeRelayHealth(url);
+      if (health === true) {
+        return { ok: false, detail: `/api/health answers on that deployment but ${url} is a 404 — SMTP_RELAY_URL has the wrong path. It must end in /api/send-email.` };
+      }
+      if (health === false) {
+        return { ok: false, detail: `Neither ${url} nor /api/health exists on that deployment — no serverless functions are live there. Confirm SMTP_RELAY_URL points at the Vercel project holding this repo, and that its Root Directory is the repository root (not client/), then redeploy.` };
+      }
+      return { ok: false, detail: `Nothing deployed at ${url} — check SMTP_RELAY_URL points at /api/send-email` };
+    }
     if (res.status === 405) return { ok: false, detail: `${url} exists but doesn't accept POST — check the URL points at /api/send-email` };
     if (res.status === 500) {
       // The relay returns 500 specifically when its own secret env var is unset.

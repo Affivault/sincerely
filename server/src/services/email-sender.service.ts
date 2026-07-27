@@ -45,16 +45,25 @@ interface SmtpSendParams {
  */
 export function describeSmtpError(err: any, opts?: { withRelayHint?: boolean }): string {
   const raw = String(err?.message || err || '').toLowerCase();
+  const wantHint = opts?.withRelayHint !== false;
+  const relayActive = !!(env.SMTP_RELAY_URL && env.SMTP_RELAY_SECRET);
   // A timeout with no relay configured almost always means the hosting
   // platform blocks outbound SMTP entirely (Render/Railway do) — no amount of
   // host/port fiddling will fix that; the Vercel relay will.
-  const relayHint = !env.SMTP_RELAY_URL && opts?.withRelayHint !== false
-    ? ' If this keeps happening on every port, your hosting provider is blocking outbound SMTP — set SMTP_RELAY_URL + SMTP_RELAY_SECRET to route sends through the bundled Vercel relay (/api/send-email).'
-    : '';
+  const relayHint = !wantHint ? ''
+    : relayActive
+      ? ' Sends are meant to route through your SMTP relay, so a direct timeout means the relay didn’t handle this one — check it is deployed and its secret matches.'
+      : env.SMTP_RELAY_URL
+        ? ' SMTP_RELAY_URL is set but SMTP_RELAY_SECRET is not, so the relay is inactive and sends are going direct. Set both to activate it.'
+        : ' If this keeps happening on every port, your hosting provider is blocking outbound SMTP — set SMTP_RELAY_URL + SMTP_RELAY_SECRET to route sends through the bundled Vercel relay (/api/send-email).';
   if (raw.includes('invalid login') || raw.includes('auth') || raw.includes('535') || raw.includes('credentials') || raw.includes('username and password'))
     return 'Authentication failed — check the username/password. Gmail & Outlook need an app password, not your normal login.';
   if (raw.includes('etimedout') || raw.includes('timeout') || raw.includes('timed out'))
-    return `Connection timed out — the SMTP host/port may be wrong, or the port is blocked. Try 465 (SSL) or 587 (TLS).${relayHint}`;
+    // Suggesting a different port is actively misleading once a relay is in
+    // play — the port isn't the thing that's broken.
+    return relayActive && wantHint
+      ? `Connection timed out.${relayHint}`
+      : `Connection timed out — the SMTP host/port may be wrong, or the port is blocked. Try 465 (SSL) or 587 (TLS).${relayHint}`;
   if (raw.includes('econnrefused'))
     return `Connection refused — double-check the SMTP host and port.${relayHint}`;
   if (raw.includes('enotfound') || raw.includes('getaddrinfo'))
