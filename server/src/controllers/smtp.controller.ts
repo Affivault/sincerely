@@ -189,14 +189,29 @@ export const smtpController = {
    */
   async diagnose(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { smtp_host, smtp_port } = req.body || {};
+      const { smtp_host, smtp_port, account_id } = req.body || {};
       if (!smtp_host) return res.status(400).json({ error: 'smtp_host is required' });
+
+      // Diagnosing a saved account shouldn't require retyping its password.
+      let password: string | undefined = req.body?.smtp_pass || undefined;
+      if (!password && account_id) {
+        const { data: account } = await supabaseAdmin
+          .from('smtp_accounts')
+          .select('smtp_pass_encrypted')
+          .eq('id', account_id)
+          .eq('user_id', req.userId!)
+          .maybeSingle();
+        if (account) {
+          try { password = decrypt(account.smtp_pass_encrypted); } catch { /* probe without auth */ }
+        }
+      }
+
       const result = await smtpDiagnosticsService.diagnose({
         smtp_host,
         smtp_port: Number(smtp_port) || 587,
         smtp_secure: req.body?.smtp_secure,
         smtp_user: req.body?.smtp_user,
-        smtp_pass: req.body?.smtp_pass,
+        smtp_pass: password,
       });
       res.json(result);
     } catch (err) { next(err); }
