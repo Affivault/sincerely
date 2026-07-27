@@ -199,7 +199,30 @@ export const smtpService = {
    * logs into IMAP too. Both legs report independently so the UI can show
    * exactly which side failed and why.
    */
-  async verifyCredentials(_userId: string, input: any) {
+  async verifyCredentials(userId: string, rawInput: any) {
+    // Testing a SAVED account must not require retyping the password — the
+    // edit form deliberately leaves it blank to keep the stored one. Fill it
+    // from the encrypted column when an owned account id is supplied.
+    const input = { ...rawInput };
+    if (!input.smtp_pass && input.account_id) {
+      const { data: account } = await supabaseAdmin
+        .from('smtp_accounts')
+        .select('smtp_pass_encrypted')
+        .eq('id', input.account_id)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!account) throw new AppError('SMTP account not found', 404);
+      try {
+        input.smtp_pass = decrypt(account.smtp_pass_encrypted);
+      } catch {
+        return {
+          success: false,
+          message: 'Stored password could not be decrypted — re-enter it and save.',
+          smtp: { ok: false, status: 'fail' as const, message: 'Stored password could not be decrypted — re-enter it and save.' },
+        };
+      }
+    }
+
     const required = ['email_address', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass'];
     for (const key of required) {
       if (!input?.[key]) {
@@ -246,6 +269,15 @@ export const smtpService = {
     }
 
     const success = smtp.ok && imap.status !== 'fail';
+    // A passing check on a saved mailbox is proof enough to mark it verified,
+    // so the account card reflects reality without a second "test" round-trip.
+    if (success && input.account_id) {
+      await supabaseAdmin
+        .from('smtp_accounts')
+        .update({ is_verified: true })
+        .eq('id', input.account_id)
+        .eq('user_id', userId);
+    }
     const message = success
       ? (imap.status === 'ok' ? 'Connection successful — sending and receiving both work.' : 'SMTP works — this mailbox can send.')
       : (!smtp.ok ? smtp.message : imap.message);

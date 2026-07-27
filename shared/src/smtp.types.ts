@@ -184,7 +184,11 @@ export interface VerifySmtpInput {
   smtp_port: number;
   smtp_secure: boolean;
   smtp_user: string;
-  smtp_pass: string;
+  /** Optional when `account_id` is supplied — the saved password is used instead. */
+  smtp_pass?: string;
+  /** Testing an already-connected mailbox: the server fills the password from
+   *  the stored (encrypted) one, so the user never has to retype it. */
+  account_id?: string;
   /** Optional IMAP leg — when host is provided, "Check connection" logs in too. */
   imap_host?: string;
   imap_port?: number;
@@ -248,6 +252,8 @@ export interface DiagnoseSmtpInput {
   smtp_secure?: boolean;
   smtp_user?: string;
   smtp_pass?: string;
+  /** Diagnose a saved mailbox without retyping its password. */
+  account_id?: string;
 }
 
 export interface SmtpPreset {
