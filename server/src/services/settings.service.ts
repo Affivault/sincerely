@@ -133,6 +133,36 @@ export const settingsService = {
   },
 
   async deleteAccount(userId: string): Promise<void> {
+    // Block deletion for an org owner with real teammates — organizations.owner_id
+    // is ON DELETE CASCADE, so deleting the owner's auth user would silently
+    // dissolve the whole team's membership (and pending invites) with no
+    // reassignment or warning. A solo/personal org (no other members) is fine —
+    // the cascade cleans it up with nothing left to reassign.
+    const { data: membership } = await supabaseAdmin
+      .from('team_members')
+      .select('id, org_id, role')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (membership?.role === 'owner') {
+      const { count } = await supabaseAdmin
+        .from('team_members')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', membership.org_id)
+        .neq('user_id', userId);
+      if (count && count > 0) {
+        throw new AppError(
+          'You own a team with other members. Transfer ownership or remove all teammates before deleting your account.',
+          400,
+        );
+      }
+    } else if (membership) {
+      // team_members.user_id is ON DELETE SET NULL (not CASCADE), so leaving it
+      // to the FK would leave a permanent orphaned row — nulled user_id, stale
+      // email/role — visible forever in the remaining team's member list.
+      await supabaseAdmin.from('team_members').delete().eq('id', membership.id);
+    }
+
     // Cancel any live Stripe subscription BEFORE wiping billing rows — once the
     // subscriptions row is gone the customer→user mapping is lost, and a still-
     // active Stripe subscription would keep charging someone with no account.

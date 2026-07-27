@@ -16,6 +16,7 @@ export function SignupPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (loading) return;
 
     if (password !== confirmPassword) {
       toast.error('Passwords do not match');
