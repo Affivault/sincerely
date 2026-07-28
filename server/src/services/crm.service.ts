@@ -72,10 +72,11 @@ export const crmService = {
     let query = supabaseAdmin.from('deals').select(DEAL_SELECT).eq('user_id', userId);
     // Scope to a specific lead (used by the contact page) — match either the
     // linked contact_id or the captured contact_email. Values are quoted so
-    // emails with reserved characters can't break the filter expression.
+    // reserved characters (commas, parens, quotes) in either can't break out
+    // of the filter expression and inject extra OR conditions.
     const quote = (v: string) => `"${v.replace(/"/g, '')}"`;
     if (filters?.contactId && filters?.contactEmail) {
-      query = query.or(`contact_id.eq.${filters.contactId},contact_email.eq.${quote(filters.contactEmail)}`);
+      query = query.or(`contact_id.eq.${quote(filters.contactId)},contact_email.eq.${quote(filters.contactEmail)}`);
     } else if (filters?.contactId) {
       query = query.eq('contact_id', filters.contactId);
     } else if (filters?.contactEmail) {
