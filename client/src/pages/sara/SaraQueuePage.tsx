@@ -339,6 +339,7 @@ export function SaraQueuePage() {
                   ? `${msg.contacts.first_name} ${msg.contacts.last_name || ''}`.trim()
                   : msg.from_email;
                 const conf = Math.round((msg.sara_confidence || 0) * 100);
+                const autoHandled = msg.sara_status === 'approved' && !msg.sara_reviewed_by;
                 return (
                   <button
                     key={msg.id}
@@ -381,6 +382,12 @@ export function SaraQueuePage() {
                               {conf}%
                             </span>
                           )}
+                          {autoHandled && (
+                            <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10px] font-semibold bg-[#5B5BF5]/8 text-[var(--indigo)]" title="Handled automatically by SARA — no human review">
+                              <Bot className="h-2.5 w-2.5" />
+                              Auto
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -407,6 +414,7 @@ export function SaraQueuePage() {
                 ? `${msg.contacts.first_name} ${msg.contacts.last_name || ''}`.trim()
                 : msg.from_email;
               const conf = Math.round((msg.sara_confidence || 0) * 100);
+              const autoHandled = msg.sara_status === 'approved' && !msg.sara_reviewed_by;
               return (
                 <>
                   {/* Thread header */}
@@ -442,6 +450,12 @@ export function SaraQueuePage() {
                       {conf > 0 && (
                         <span className="text-[10px] tabular font-semibold text-[var(--text-tertiary)]">
                           {conf}% confidence
+                        </span>
+                      )}
+                      {autoHandled && (
+                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10px] font-semibold bg-[#5B5BF5]/8 text-[var(--indigo)]" title="SARA acted on this automatically based on your auto-execute settings">
+                          <Bot className="h-2.5 w-2.5" />
+                          Auto-handled
                         </span>
                       )}
                     </div>
