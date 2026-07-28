@@ -48,11 +48,25 @@ export class ApiError extends Error {
   }
 }
 
+/** Comfortable ceiling for a server that's already awake. */
 const REQUEST_TIMEOUT_MS = 20000;
 
 /**
+ * Second-chance timeout for a host that didn't answer the first time.
+ *
+ * Free-tier hosts (Render, Fly, Heroku-likes) spin the process down after a
+ * few minutes idle and cold-start it on the next request, which regularly
+ * takes 50-60s. Failing at 20s would make the extension look broken every
+ * morning, so a timeout buys one longer retry rather than an error.
+ */
+const COLD_START_TIMEOUT_MS = 75000;
+
+/** Thrown internally so the retry logic can tell a timeout from a dead host. */
+class TimeoutError extends Error {}
+
+/**
  * @param {string} path Path below the API root, e.g. "/campaigns".
- * @param {{method?: string, body?: unknown, query?: Record<string, string|number|undefined>}} [opts]
+ * @param {{method?: string, body?: unknown, query?: Record<string, string|number|undefined>, timeoutMs?: number, retryOnTimeout?: boolean}} [opts]
  * @returns {Promise<any>} Parsed JSON, or null for 204.
  */
 async function request(path, opts = {}) {
@@ -71,33 +85,62 @@ async function request(path, opts = {}) {
     }
   }
 
-  // AbortSignal.timeout would be terser, but an explicit controller lets us
-  // tell a timeout apart from a network failure in the catch below.
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const origin = new URL(apiBaseUrl).origin;
 
+  /**
+   * One fetch attempt.
+   * AbortSignal.timeout would be terser, but an explicit controller lets us
+   * tell a timeout apart from a network failure.
+   * @param {number} timeoutMs
+   */
+  const attempt = async (timeoutMs) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, {
+        method: opts.method || 'GET',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (controller.signal.aborted) throw new TimeoutError();
+      // DNS failure, refused connection, blocked origin — no point retrying
+      // with a longer clock, so surface it straight away.
+      throw new ApiError(
+        `Couldn't reach ${origin}. Check the API URL in options, and that the server is running.`,
+        { code: 'NETWORK' }
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  const firstTimeout = opts.timeoutMs ?? REQUEST_TIMEOUT_MS;
   let response;
   try {
-    response = await fetch(url, {
-      method: opts.method || 'GET',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
-      signal: controller.signal,
-    });
+    response = await attempt(firstTimeout);
   } catch (err) {
-    if (controller.signal.aborted) {
-      throw new ApiError(`The API didn't respond within ${REQUEST_TIMEOUT_MS / 1000}s. Is ${new URL(apiBaseUrl).origin} reachable?`, {
-        code: 'TIMEOUT',
-      });
+    if (!(err instanceof TimeoutError)) throw err;
+    if (opts.retryOnTimeout === false) {
+      throw new ApiError(`${origin} didn't respond within ${Math.round(firstTimeout / 1000)}s.`, { code: 'TIMEOUT' });
     }
-    throw new ApiError(`Couldn't reach ${new URL(apiBaseUrl).origin}. Check the API URL in options, and that the server is running.`, {
-      code: 'NETWORK',
-    });
-  } finally {
-    clearTimeout(timer);
+
+    // Nothing came back in time. Most likely the host is cold-starting, so
+    // give it one long attempt before calling it dead.
+    try {
+      response = await attempt(COLD_START_TIMEOUT_MS);
+    } catch (retryErr) {
+      if (!(retryErr instanceof TimeoutError)) throw retryErr;
+      throw new ApiError(
+        `${origin} didn't respond within ${Math.round(COLD_START_TIMEOUT_MS / 1000)}s, even after waiting for a cold start.\n\n` +
+          `If it's on a free hosting tier it may be suspended rather than merely asleep — open ${origin}/health in a tab and see whether it eventually loads.`,
+        { code: 'TIMEOUT' }
+      );
+    }
   }
 
   if (response.status === 204) return null;
@@ -392,7 +435,9 @@ export async function verifyEmail(email) {
  * @returns {Promise<{ok: true, campaignCount: number, canWrite: boolean}>}
  */
 export async function testConnection() {
-  const result = await request('/campaigns', { query: { limit: 1 } });
+  // Generous from the outset: this is usually the first request of the
+  // session, so it's the one that pays for waking a sleeping host.
+  const result = await request('/campaigns', { query: { limit: 1 }, timeoutMs: COLD_START_TIMEOUT_MS });
 
   // Read worked. Probe write scope without changing anything: enrolling an
   // empty contact list is rejected by validation (400) but still passes
@@ -402,6 +447,9 @@ export async function testConnection() {
     await request('/campaigns/00000000-0000-0000-0000-000000000000/enroll', {
       method: 'POST',
       body: { contact_ids: [] },
+      // The server is demonstrably awake by now, so don't let this probe
+      // stall the whole test if something else is wrong.
+      retryOnTimeout: false,
     });
   } catch (err) {
     if (err instanceof ApiError && err.code === 'SCOPE') canWrite = false;

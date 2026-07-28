@@ -105,6 +105,10 @@ async function save() {
 
     await setSettings({ apiBaseUrl, apiKey, verifyBeforeAdd: el.verifyBeforeAdd.checked });
 
+    // A free-tier host that has spun down takes the better part of a minute to
+    // answer. Say so, or a slow first connect looks like a hang.
+    showResult(`Contacting ${new URL(apiBaseUrl).origin}…\n\nIf the server is on a free tier and has gone to sleep, waking it can take up to a minute. Leave this page open.`);
+
     const response = await chrome.runtime.sendMessage({ type: 'TEST_CONNECTION' });
 
     if (!response?.ok) {

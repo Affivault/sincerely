@@ -50,6 +50,19 @@ The test tells you which of the three setup failures you've hit, if any:
 - **Read-only key** — connects fine but add/remove will fail. Create a key with
   the `write` scope too.
 
+### If your API is on a free hosting tier
+
+Free tiers (Render, Fly, and similar) spin the server down after a few minutes
+idle and cold-start it on the next request, which routinely takes 50–60 seconds.
+The extension handles this: the connection test waits up to 75s, and ordinary
+requests that time out at 20s are retried once with the longer budget. So the
+first action after a quiet spell may take up to a minute, and everything after
+it is fast.
+
+If it still times out after the long wait, the server is suspended rather than
+asleep. Open `<your-api-host>/health` in a browser tab and leave it — if that
+never loads either, the problem is the deployment, not the extension.
+
 For a self-hosted API on some other domain, Chrome will ask for permission to
 talk to that origin when you save. Accept it, or requests will be blocked.
 
