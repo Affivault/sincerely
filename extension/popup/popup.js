@@ -108,6 +108,8 @@ const state = {
   filtered: [],
   activeIndex: 0,
   selectedCampaignId: null,
+  /** Web app origin, for "open in Sincerely" links. Empty disables them. */
+  appUrl: '',
   /**
    * Form fields filled from an API result rather than typed or scraped. Only
    * these get cleared when the address changes.
@@ -252,12 +254,45 @@ function verificationFor(contact) {
   return { label: 'Undeliverable', variant: 'pill-invalid' };
 }
 
+/**
+ * A link that opens somewhere in the web app, or plain text when no app URL is
+ * configured — a link to nowhere is worse than no link.
+ *
+ * @param {string} path Path within the app, e.g. "/campaigns/abc".
+ * @param {string} label
+ * @param {string} [title]
+ * @returns {HTMLElement}
+ */
+function openInAppLink(path, label, title) {
+  if (!state.appUrl) {
+    const span = document.createElement('span');
+    span.textContent = label;
+    return span;
+  }
+
+  const link = document.createElement('a');
+  link.className = 'app-link';
+  link.href = `${state.appUrl}${path}`;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = label;
+  if (title) link.title = title;
+  return link;
+}
+
 function renderIdentity() {
   const form = readForm();
   const name = [form.first_name, form.last_name].filter(Boolean).join(' ');
   const display = name || form.email || 'Nobody detected';
 
-  el.personName.textContent = display;
+  // Once they're a real contact, their name is the doorway to their full
+  // record in the app.
+  el.personName.textContent = '';
+  el.personName.appendChild(
+    state.contact
+      ? openInAppLink(`/contacts/${state.contact.id}`, display, 'Open this contact in Sincerely')
+      : document.createTextNode(display)
+  );
 
   const seed = (name || form.email || '?').toLowerCase();
   const [from, to] = AVATAR_GRADIENTS[hashCode(seed) % AVATAR_GRADIENTS.length];
@@ -595,9 +630,14 @@ function renderStanding() {
     const main = document.createElement('div');
     main.className = 'enrolment-main';
 
-    const name = document.createElement('div');
-    name.className = 'enrolment-name';
-    name.textContent = membership.campaign_name || 'Untitled campaign';
+    // The campaign name doubles as the way back into the app — the popup can
+    // tell you where someone stands, but anything deeper belongs in Sincerely.
+    const name = openInAppLink(
+      `/campaigns/${membership.campaign_id}`,
+      membership.campaign_name || 'Untitled campaign',
+      `Open "${membership.campaign_name}" in Sincerely`
+    );
+    name.classList.add('enrolment-name');
     main.appendChild(name);
 
     const meta = document.createElement('div');
@@ -1177,6 +1217,7 @@ async function init() {
 
   el.main.classList.remove('hidden');
   state.person = context.data.person;
+  state.appUrl = String(context.data.appUrl || '').replace(/\/+$/, '');
   fillForm(context.data.person);
   renderAll();
 

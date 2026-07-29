@@ -8,7 +8,10 @@
 
 import {
   DEFAULT_API_BASE,
+  DEFAULT_APP_URL,
   LOCAL_API_BASE,
+  LOCAL_APP_URL,
+  guessAppUrl,
   getSettings,
   normaliseBaseUrl,
   originPatternFor,
@@ -19,6 +22,8 @@ import { getThemeMode, initTheme, setThemeMode } from '../lib/theme.js';
 
 const el = {
   theme: document.getElementById('theme'),
+  appUrl: document.getElementById('app-url'),
+  showBadge: document.getElementById('show-badge'),
   autoTag: document.getElementById('auto-tag'),
   autoTagName: document.getElementById('auto-tag-name'),
   apiUrl: document.getElementById('api-url'),
@@ -49,6 +54,8 @@ async function load() {
   el.apiKey.value = '';
   el.apiKey.placeholder = settings.apiKey ? `${settings.apiKey.slice(0, 12)}… (saved)` : 'sk_live_…';
   el.verifyBeforeAdd.checked = Boolean(settings.verifyBeforeAdd);
+  el.appUrl.value = settings.appUrl || '';
+  el.showBadge.checked = Boolean(settings.showBadge);
   el.autoTag.checked = Boolean(settings.autoTag);
   el.autoTagName.value = settings.autoTagName || '';
   el.autoTagName.disabled = !settings.autoTag;
@@ -111,7 +118,11 @@ async function save() {
       return;
     }
 
-    await setSettings({ apiBaseUrl, apiKey, verifyBeforeAdd: el.verifyBeforeAdd.checked });
+    // Trailing slashes would double up in every deep link.
+    const appUrl = el.appUrl.value.trim().replace(/\/+$/, '');
+    el.appUrl.value = appUrl;
+
+    await setSettings({ apiBaseUrl, apiKey, appUrl, verifyBeforeAdd: el.verifyBeforeAdd.checked });
 
     // A free-tier host that has spun down takes the better part of a minute to
     // answer. Say so, or a slow first connect looks like a hang.
@@ -159,9 +170,23 @@ el.forget.addEventListener('click', () => {
 });
 el.useProduction.addEventListener('click', () => {
   el.apiUrl.value = DEFAULT_API_BASE;
+  el.appUrl.value = DEFAULT_APP_URL;
 });
 el.useLocal.addEventListener('click', () => {
   el.apiUrl.value = LOCAL_API_BASE;
+  el.appUrl.value = LOCAL_APP_URL;
+});
+
+// Offer a guess when the app URL is blank but the API URL implies one, so the
+// common api.<domain> setup needs no typing.
+el.apiUrl.addEventListener('change', () => {
+  if (el.appUrl.value.trim()) return;
+  const guess = guessAppUrl(normaliseBaseUrl(el.apiUrl.value));
+  if (guess) el.appUrl.value = guess;
+});
+
+el.showBadge.addEventListener('change', () => {
+  setSettings({ showBadge: el.showBadge.checked });
 });
 el.verifyBeforeAdd.addEventListener('change', () => {
   setSettings({ verifyBeforeAdd: el.verifyBeforeAdd.checked });

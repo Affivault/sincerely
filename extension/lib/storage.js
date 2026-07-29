@@ -6,10 +6,14 @@
  * a credential should stay on the machine it was entered on.
  */
 
-/** @typedef {{apiBaseUrl: string, apiKey: string, lastCampaignId: string|null, verifyBeforeAdd: boolean, autoTag: boolean, autoTagName: string}} Settings */
+/** @typedef {{apiBaseUrl: string, apiKey: string, lastCampaignId: string|null, verifyBeforeAdd: boolean, autoTag: boolean, autoTagName: string, appUrl: string, showBadge: boolean}} Settings */
 
 export const DEFAULT_API_BASE = 'https://api.usesincerely.com/api/v1';
 export const LOCAL_API_BASE = 'http://localhost:3001/api/v1';
+
+/** Where the web app lives — used for "open in Sincerely" links. */
+export const DEFAULT_APP_URL = 'https://usesincerely.com';
+export const LOCAL_APP_URL = 'http://localhost:5173';
 
 /** @type {Settings} */
 const DEFAULTS = {
@@ -20,7 +24,30 @@ const DEFAULTS = {
   /** Tag everything added from the extension, so the channel is measurable. */
   autoTag: true,
   autoTagName: 'chrome-extension',
+  appUrl: DEFAULT_APP_URL,
+  /** Mark the toolbar icon when the current tab's person is already known. */
+  showBadge: true,
 };
+
+/**
+ * Best guess at the web app's URL from the API URL, used only to prefill the
+ * setting. The hosted setup is api.<domain> → <domain>, but a self-hosted API
+ * on an unrelated host (a Render subdomain, say) isn't derivable at all — hence
+ * a real setting rather than deriving it at call time.
+ *
+ * @param {string} apiBaseUrl
+ * @returns {string|null} null when no confident guess is possible.
+ */
+export function guessAppUrl(apiBaseUrl) {
+  try {
+    const { protocol, host } = new URL(apiBaseUrl);
+    if (host.startsWith('api.')) return `${protocol}//${host.slice(4)}`;
+    if (host.startsWith('localhost') || host.startsWith('127.0.0.1')) return LOCAL_APP_URL;
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Accepts whatever the user pasted and returns a usable API root.

@@ -49,6 +49,15 @@
             </p>
           </div>
 
+          <div class="field">
+            <label class="field-label" for="app-url">Web app URL</label>
+            <input id="app-url" class="input-field mono" type="text" spellcheck="false" placeholder="https://usesincerely.com" />
+            <p class="help">
+              Used for the "open in Sincerely" links on contacts and campaigns. Leave blank
+              to turn those links off.
+            </p>
+          </div>
+
           <div class="actions">
             <button id="save" class="btn-primary" type="button">Save &amp; test connection</button>
             <button id="forget" class="btn-secondary" type="button">Forget key</button>
@@ -79,6 +88,17 @@
               <span class="check-sub"
                 >Runs a deliverability check first and refuses obviously bad addresses.
                 Slower, but protects your sending reputation.</span
+              >
+            </span>
+          </label>
+
+          <label class="check check-spaced">
+            <input id="show-badge" type="checkbox" />
+            <span class="check-body">
+              <span class="check-title">Mark the toolbar icon on LinkedIn and Gmail</span>
+              <span class="check-sub"
+                >Shows how many active campaigns the person on the page is already in, or a
+                cross if they're suppressed — without opening the extension.</span
               >
             </span>
           </label>

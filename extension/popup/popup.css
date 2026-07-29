@@ -105,6 +105,19 @@ body {
   text-overflow: ellipsis;
 }
 
+/* Links back into the web app — underlined only on hover, so a panel full of
+   campaign names doesn't read as a wall of links. */
+.app-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.app-link:hover {
+  color: var(--indigo);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .person-sub {
   margin: 1px 0 0;
   font-size: 12px;

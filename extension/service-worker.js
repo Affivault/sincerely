@@ -80,6 +80,110 @@ async function refreshBadge() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Per-tab status badge                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Cache of email → standing, so browsing a list of profiles doesn't spend the
+ * per-key rate limit re-asking about the same people. Short-lived on purpose:
+ * enrolments change, and a stale badge is worse than no badge.
+ */
+const standingCache = new Map();
+const STANDING_TTL_MS = 5 * 60_000;
+
+/**
+ * Drop the cache after anything that changes an enrolment. The cache exists to
+ * spare the rate limit on repeated reads, not to survive our own writes — a
+ * badge still reading "1" after the user just removed someone is a bug.
+ */
+function invalidateStandingCache() {
+  standingCache.clear();
+}
+
+/** Only sites with a declared content script can be badged without a click. */
+function canBadge(url) {
+  return /^https:\/\/(www\.linkedin\.com|mail\.google\.com)\//.test(String(url || ''));
+}
+
+/**
+ * @param {string} email
+ * @returns {Promise<{enrolled: number, suppressed: boolean}|null>}
+ */
+async function standingFor(email) {
+  const cached = standingCache.get(email);
+  if (cached && Date.now() - cached.at < STANDING_TTL_MS) return cached.value;
+
+  try {
+    const contact = await api.findContactByEmail(email);
+    let value = { enrolled: 0, suppressed: false };
+
+    if (contact) {
+      const [memberships, suppressed] = await Promise.all([
+        api.getContactCampaigns(contact.id),
+        api.isSuppressed(email).catch(() => false),
+      ]);
+      value = {
+        enrolled: memberships.filter((m) => m.is_active).length,
+        suppressed: Boolean(suppressed),
+      };
+    }
+
+    standingCache.set(email, { value, at: Date.now() });
+    return value;
+  } catch {
+    // A failed lookup should leave the badge blank, not show a wrong number.
+    return null;
+  }
+}
+
+/**
+ * Mark the toolbar icon with what we already know about the person on this
+ * tab, so "are they already in a sequence?" doesn't need a click.
+ *
+ * @param {number} tabId
+ * @param {string} url
+ */
+async function updateTabBadge(tabId, url) {
+  const { apiKey, showBadge } = await getSettings();
+  if (!apiKey || !showBadge || !canBadge(url)) {
+    // Leave the global "no key" badge alone; only clear per-tab marks.
+    if (apiKey) await chrome.action.setBadgeText({ tabId, text: '' }).catch(() => {});
+    return;
+  }
+
+  const person = await scrapeTab(tabId).catch(() => null);
+  if (!person?.email) {
+    await chrome.action.setBadgeText({ tabId, text: '' }).catch(() => {});
+    return;
+  }
+
+  const standing = await standingFor(person.email);
+  if (!standing) return;
+
+  const text = standing.suppressed ? '✕' : standing.enrolled > 0 ? String(standing.enrolled) : '';
+  const colour = standing.suppressed ? '#EF4444' : '#5B5BF5';
+
+  await chrome.action.setBadgeText({ tabId, text }).catch(() => {});
+  if (text) await chrome.action.setBadgeBackgroundColor({ tabId, color: colour }).catch(() => {});
+}
+
+/**
+ * Badge updates are debounced per tab: LinkedIn fires many navigation events
+ * for a single profile view, and each one would otherwise cost an API call.
+ */
+const badgeTimers = new Map();
+function scheduleBadge(tabId, url) {
+  clearTimeout(badgeTimers.get(tabId));
+  badgeTimers.set(
+    tabId,
+    setTimeout(() => {
+      badgeTimers.delete(tabId);
+      updateTabBadge(tabId, url).catch(() => {});
+    }, 1200)
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Context menus                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -311,6 +415,7 @@ async function handleGetContext(payload) {
       keyPrefix: settings.apiKey ? `${settings.apiKey.slice(0, 12)}…` : null,
       lastCampaignId: settings.lastCampaignId,
       verifyBeforeAdd: settings.verifyBeforeAdd,
+      appUrl: settings.appUrl,
       person,
     },
   };
@@ -428,6 +533,7 @@ async function handleAddToCampaign(payload) {
     }
 
     await setSettings({ lastCampaignId: campaignId });
+    invalidateStandingCache();
 
     const { cachedCampaigns = [] } = await chrome.storage.local.get({ cachedCampaigns: [] });
     const campaignName = cachedCampaigns.find((c) => c.id === campaignId)?.name || 'the campaign';
@@ -499,6 +605,7 @@ async function handleMoveToCampaign(payload) {
 
     const result = await api.enrollContacts(campaignId, [contactId]);
     await setSettings({ lastCampaignId: campaignId });
+    invalidateStandingCache();
 
     const { cachedCampaigns = [] } = await chrome.storage.local.get({ cachedCampaigns: [] });
     const campaignName = cachedCampaigns.find((c) => c.id === campaignId)?.name || 'the campaign';
@@ -523,6 +630,7 @@ async function handleMoveToCampaign(payload) {
 async function handleRemoveFromCampaign(payload) {
   try {
     await api.removeFromCampaign(payload.campaignId, [payload.contactId]);
+    invalidateStandingCache();
     return { ok: true, data: { removed: true } };
   } catch (err) {
     return toErrorPayload(err);
@@ -569,6 +677,7 @@ async function handleSuppress(payload) {
       }
     }
 
+    invalidateStandingCache();
     return { ok: true, data: { suppressed: true, removedFrom } };
   } catch (err) {
     return toErrorPayload(err);
@@ -792,4 +901,22 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== 'local') return;
   if (changes.apiKey) refreshBadge();
   if (changes.lastCampaignId) rebuildContextMenus();
+});
+
+// Badge the tab the user is actually looking at, on switch and on navigation.
+chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  if (tab) scheduleBadge(tabId, tab.url);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  // SPA navigations arrive as a url change with no status transition, so watch
+  // both rather than waiting for 'complete'.
+  if (!changeInfo.url && changeInfo.status !== 'complete') return;
+  if (tab.active) scheduleBadge(tabId, changeInfo.url || tab.url);
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  clearTimeout(badgeTimers.get(tabId));
+  badgeTimers.delete(tabId);
 });
