@@ -477,6 +477,46 @@ export async function verifyEmail(email) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Prospector                                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Whether a data provider is configured, and how many credits are left.
+ * Returns {provider: null} when the account has no provider — the search and
+ * reveal endpoints 503 in that case.
+ */
+export async function prospectorStatus() {
+  return request('/prospecting/status');
+}
+
+/**
+ * Search the people database. Never returns emails — that's what a reveal is
+ * for — so this call is free.
+ *
+ * @param {{keywords?: string, companies?: string[], titles?: string[]}} filters
+ */
+export async function prospectSearch(filters) {
+  return request('/prospecting/search', { method: 'POST', body: { filters, page: 1 } });
+}
+
+/**
+ * Spend a credit to get someone's work email and save them as a contact.
+ *
+ * Per docs/PROSPECTOR.md the spend is atomic and automatically refunded when
+ * no email is found, so a caller can honestly promise "only charged if we
+ * find it". Revealing the same person twice is free.
+ *
+ * @param {string} providerPersonId
+ * @returns {Promise<{found: boolean, email: string|null, contact_id: string|null, already_revealed?: boolean, credits: object}>}
+ */
+export async function prospectReveal(providerPersonId) {
+  return request('/prospecting/reveal', {
+    method: 'POST',
+    body: { provider_person_id: providerPersonId },
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /* Connection test                                                    */
 /* ------------------------------------------------------------------ */
 

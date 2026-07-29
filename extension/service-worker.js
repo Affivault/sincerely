@@ -600,6 +600,134 @@ async function handleSearchContacts(payload) {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* Prospector                                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * LinkedIn URLs vary by locale subdomain, tracking query, and trailing slash.
+ * Reduce to the part that identifies the person: the /in/<slug> path.
+ * @param {string|null|undefined} url
+ */
+function linkedinSlug(url) {
+  if (!url) return null;
+  const match = String(url).match(/linkedin\.com\/in\/([^/?#]+)/i);
+  return match ? decodeURIComponent(match[1]).toLowerCase() : null;
+}
+
+/**
+ * Pick the search result that is actually the person on screen.
+ *
+ * A profile-URL match is proof. A name-and-company match is a strong guess,
+ * and is reported as such so the UI can say so before spending a credit —
+ * revealing the wrong person still costs money.
+ *
+ * @param {Array<object>} results
+ * @param {object} person
+ * @returns {{match: object, confidence: 'exact'|'likely'}|null}
+ */
+function matchProspect(results, person) {
+  const slug = linkedinSlug(person.linkedin_url);
+  if (slug) {
+    const byUrl = results.find((r) => linkedinSlug(r.linkedin_url) === slug);
+    if (byUrl) return { match: byUrl, confidence: 'exact' };
+  }
+
+  const wantedName = [person.first_name, person.last_name].filter(Boolean).join(' ').trim().toLowerCase();
+  if (!wantedName) return null;
+  const wantedCompany = String(person.company || '').trim().toLowerCase();
+
+  const byName = results.find((r) => {
+    if (String(r.full_name || '').trim().toLowerCase() !== wantedName) return false;
+    if (!wantedCompany) return true;
+    const company = String(r.company || '').toLowerCase();
+    return company.includes(wantedCompany) || wantedCompany.includes(company);
+  });
+
+  return byName ? { match: byName, confidence: 'likely' } : null;
+}
+
+/**
+ * Find the person on screen in the prospect database, without spending
+ * anything. Reveal is a separate, explicit step.
+ *
+ * @param {{person: object}} payload
+ */
+async function handleProspectFind(payload) {
+  try {
+    const person = payload.person || {};
+    const name = [person.first_name, person.last_name].filter(Boolean).join(' ').trim();
+    if (!name) throw new ApiError('Need at least a name to search the prospect database.', { code: 'NO_NAME' });
+
+    const status = await api.prospectorStatus();
+    if (!status?.provider) {
+      throw new ApiError(
+        'Prospector is not set up on this account — no data provider is configured.',
+        { code: 'NO_PROVIDER' }
+      );
+    }
+
+    const filters = { keywords: name };
+    if (person.company) filters.companies = [person.company];
+    if (person.job_title) filters.titles = [person.job_title];
+
+    const results = (await api.prospectSearch(filters))?.results || [];
+    const found = matchProspect(results, person);
+
+    if (!found) {
+      return {
+        ok: true,
+        data: { match: null, credits: status.credits, provider: status.provider, searched: results.length },
+      };
+    }
+
+    return {
+      ok: true,
+      data: {
+        match: {
+          id: found.match.id,
+          full_name: found.match.full_name,
+          job_title: found.match.job_title,
+          company: found.match.company,
+          location: found.match.location,
+          has_email: found.match.has_email !== false,
+          already_revealed: Boolean(found.match.already_revealed),
+        },
+        confidence: found.confidence,
+        credits: status.credits,
+        provider: status.provider,
+      },
+    };
+  } catch (err) {
+    return toErrorPayload(err);
+  }
+}
+
+/**
+ * Spend the credit. Only ever called after the user has seen who they're
+ * revealing and what it costs.
+ *
+ * @param {{providerPersonId: string}} payload
+ */
+async function handleProspectReveal(payload) {
+  try {
+    if (!payload.providerPersonId) throw new ApiError('Nothing to reveal.', { code: 'BAD_REVEAL' });
+    const result = await api.prospectReveal(payload.providerPersonId);
+    return {
+      ok: true,
+      data: {
+        found: Boolean(result?.found),
+        email: result?.email ?? null,
+        contactId: result?.contact_id ?? null,
+        alreadyRevealed: Boolean(result?.already_revealed),
+        credits: result?.credits ?? null,
+      },
+    };
+  } catch (err) {
+    return toErrorPayload(err);
+  }
+}
+
 async function handleTestConnection() {
   try {
     const result = await api.testConnection();
@@ -620,6 +748,8 @@ const HANDLERS = {
   LIST_CAMPAIGNS: handleListCampaigns,
   LOOKUP_PERSON: handleLookupPerson,
   SEARCH_CONTACTS: handleSearchContacts,
+  PROSPECT_FIND: handleProspectFind,
+  PROSPECT_REVEAL: handleProspectReveal,
   ADD_TO_CAMPAIGN: handleAddToCampaign,
   REMOVE_FROM_CAMPAIGN: handleRemoveFromCampaign,
   MOVE_TO_CAMPAIGN: handleMoveToCampaign,

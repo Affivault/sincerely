@@ -89,11 +89,20 @@ is never ambiguous. The confirmation toast has an **Undo**.
 
 ### On LinkedIn, there's usually no email
 
-LinkedIn almost never exposes addresses. The extension scrapes the name,
-company, title, and profile URL, then offers **Search contacts by name** so you
-can find someone you already have — which is what makes *removal* work there.
-To go from a LinkedIn profile to a new contact you need an address from
-somewhere else (paste it in, or use Prospector in the app).
+LinkedIn almost never exposes addresses, so the extension offers two ways
+forward when it can't find one:
+
+- **Find their email** searches the Prospector database using the profile URL
+  first and name + company as a fallback, then shows you the match, how
+  confident it is, and what a reveal costs *before* spending anything. Revealing
+  costs one credit and is refunded automatically when no address is found;
+  someone you've already revealed is free. If no data provider is configured on
+  the account the API returns 503 and the extension says so plainly.
+- **Search my contacts** finds someone you already have by name — which is what
+  makes *removal* work on LinkedIn, where there's no address to look up.
+
+A match on the profile URL is proof. A match on name and company is a guess, and
+the extension labels it as one, because a wrong guess still costs a credit.
 
 ## Add vs. remove vs. suppress
 
@@ -247,6 +256,9 @@ All under `/api/v1`, all with `Authorization: Bearer sk_live_…`:
 | Remove from campaign | `DELETE /campaigns/:id/contacts` |
 | Suppress | `POST /suppression`, `GET /suppression/check` |
 | Verify (optional) | `POST /verification/email` |
+| Engagement | `GET /analytics/contacts/:id/timeline` |
+| Source tag | `GET`/`POST /tags`, `POST /contacts/bulk-tag` |
+| Find an email | `GET /prospecting/status`, `POST /prospecting/search`, `POST /prospecting/reveal` |
 
 `POST /campaigns/:id/enroll` is used rather than `POST /campaigns/:id/contacts`
 because campaigns are bound to a lead list: `/enroll` adds someone to that list

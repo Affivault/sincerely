@@ -83,6 +83,8 @@ const el = {
   suppress: document.getElementById('suppress'),
 
   noEmailHelp: document.getElementById('no-email-help'),
+  prospectFind: document.getElementById('prospect-find'),
+  prospectResult: document.getElementById('prospect-result'),
   searchByName: document.getElementById('search-by-name'),
   nameMatches: document.getElementById('name-matches'),
 
@@ -857,6 +859,151 @@ async function suppressPerson() {
   await refreshStanding();
 }
 
+/* ------------------------------------------------------------------ */
+/* Prospector                                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Look the person up in the prospect database. Free — this only finds the
+ * record; getting the address is a separate, explicit spend.
+ */
+async function prospectFind() {
+  const person = readForm();
+  if (!person.first_name && !person.last_name) {
+    setStatus('Add a name first — the prospect database searches on the person, not the page.', {
+      variant: 'error',
+    });
+    return;
+  }
+
+  el.prospectFind.disabled = true;
+  el.prospectFind.textContent = 'Searching…';
+  el.prospectResult.classList.add('hidden');
+  clearStatus();
+
+  const response = await send('PROSPECT_FIND', { person });
+
+  el.prospectFind.disabled = false;
+  el.prospectFind.textContent = 'Find their email';
+
+  if (!response.ok) {
+    showError(response.error);
+    return;
+  }
+
+  renderProspect(response.data, person);
+}
+
+/**
+ * @param {{match: object|null, confidence?: string, credits?: object, searched?: number}} data
+ * @param {object} person
+ */
+function renderProspect(data, person) {
+  el.prospectResult.textContent = '';
+  el.prospectResult.classList.remove('hidden');
+
+  if (!data.match) {
+    const note = document.createElement('p');
+    note.className = 'prospect-note';
+    note.style.marginTop = '0';
+    note.textContent =
+      `No match for ${[person.first_name, person.last_name].filter(Boolean).join(' ')}` +
+      `${person.company ? ` at ${person.company}` : ''} in the prospect database. Nothing was charged.`;
+    el.prospectResult.appendChild(note);
+    return;
+  }
+
+  const { match } = data;
+
+  const name = document.createElement('div');
+  name.className = 'prospect-name';
+  name.textContent = match.full_name;
+  el.prospectResult.appendChild(name);
+
+  const metaBits = [match.job_title, match.company, match.location].filter(Boolean);
+  if (metaBits.length > 0) {
+    const meta = document.createElement('div');
+    meta.className = 'prospect-meta';
+    meta.textContent = metaBits.join(' · ');
+    el.prospectResult.appendChild(meta);
+  }
+
+  // A name-and-company match is a guess, and the guess costs money if it's
+  // wrong — so say so rather than presenting it as certain.
+  if (data.confidence === 'likely') {
+    const note = document.createElement('span');
+    note.className = 'prospect-note';
+    note.textContent = 'Matched on name and company, not the profile URL — check this is the right person.';
+    el.prospectResult.appendChild(note);
+  }
+
+  if (!match.has_email) {
+    const note = document.createElement('span');
+    note.className = 'prospect-note';
+    note.textContent = 'The provider has no work email on record for them, so revealing would find nothing.';
+    el.prospectResult.appendChild(note);
+    return;
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'prospect-actions';
+
+  const revealButton = document.createElement('button');
+  revealButton.type = 'button';
+  revealButton.className = 'btn-primary btn-xs';
+  revealButton.textContent = match.already_revealed ? 'Get email (free)' : 'Reveal email';
+  revealButton.addEventListener('click', () => prospectReveal(match, revealButton));
+  actions.appendChild(revealButton);
+
+  const cost = document.createElement('span');
+  cost.className = 'prospect-cost';
+  const remaining = data.credits?.remaining;
+  cost.textContent = match.already_revealed
+    ? 'Already revealed — no credit'
+    : `1 credit${Number.isFinite(remaining) ? ` · ${remaining} left` : ''}, refunded if no email is found`;
+  actions.appendChild(cost);
+
+  el.prospectResult.appendChild(actions);
+}
+
+/**
+ * @param {object} match
+ * @param {HTMLButtonElement} button
+ */
+async function prospectReveal(match, button) {
+  button.disabled = true;
+  button.textContent = 'Revealing…';
+
+  const response = await send('PROSPECT_REVEAL', { providerPersonId: match.id });
+
+  if (!response.ok) {
+    button.disabled = false;
+    button.textContent = 'Reveal email';
+    showError(response.error);
+    return;
+  }
+
+  const { found, email, credits } = response.data;
+
+  if (!found || !email) {
+    button.disabled = true;
+    button.textContent = 'No email found';
+    setStatus(
+      `No work email on record for ${match.full_name}. The credit was refunded automatically${
+        Number.isFinite(credits?.remaining) ? ` — ${credits.remaining} left` : ''
+      }.`
+    );
+    return;
+  }
+
+  // Straight into the flow: the address is now the thing to act on.
+  el.email.value = email;
+  el.prospectResult.classList.add('hidden');
+  setStatus(`Found ${email}. Pick a campaign and add them.`, { variant: 'success' });
+  await refreshStanding();
+  el.campaignSearch.focus();
+}
+
 /** Name-based lookup for pages with no address (LinkedIn, mostly). */
 async function searchByName() {
   const form = readForm();
@@ -954,8 +1101,13 @@ function wireEvents() {
     }, 450)
   );
 
-  for (const field of [el.firstName, el.lastName, el.company, el.jobTitle]) {
-    field.addEventListener('input', renderIdentity);
+  for (const key of ['firstName', 'lastName', 'company', 'jobTitle']) {
+    el[key].addEventListener('input', () => {
+      // Once the user types into a field it's theirs, not the API's — drop the
+      // backfill mark so the next lookup doesn't clear what they just wrote.
+      state.backfilled.delete(key);
+      renderIdentity();
+    });
   }
 
   el.candidates.addEventListener('change', () => {
@@ -986,6 +1138,7 @@ function wireEvents() {
   el.add.addEventListener('click', addToCampaign);
   el.suppress.addEventListener('click', suppressPerson);
   el.searchByName.addEventListener('click', searchByName);
+  el.prospectFind.addEventListener('click', prospectFind);
   el.detailsToggle.addEventListener('click', () => toggleDetails());
 
   // Enter adds from anywhere except a textarea or the details fields, where

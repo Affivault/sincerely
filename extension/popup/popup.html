@@ -143,10 +143,14 @@
 
       <!-- LinkedIn rarely exposes an email; offer name matches instead. -->
       <section id="no-email-help" class="callout hidden">
-        <p class="callout-text">No email on this page. Find someone you already have:</p>
-        <button id="search-by-name" class="btn-secondary btn-xs" type="button">
-          Search contacts by name
-        </button>
+        <p class="callout-text">No email on this page.</p>
+        <div class="callout-actions">
+          <button id="prospect-find" class="btn-secondary btn-xs" type="button">Find their email</button>
+          <button id="search-by-name" class="btn-secondary btn-xs" type="button">
+            Search my contacts
+          </button>
+        </div>
+        <div id="prospect-result" class="prospect hidden"></div>
         <ul id="name-matches" class="matches hidden"></ul>
       </section>
     </main>
