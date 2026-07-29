@@ -564,6 +564,187 @@ async function handleAddToCampaign(payload) {
 }
 
 /* ------------------------------------------------------------------ */
+/* List pages: who do we already have, and bulk enrol                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Work out which of these people we already hold, and — the part that
+ * matters — which are already being emailed.
+ *
+ * Apollo's "Net New" means "not in my database". That's the wrong question
+ * for an outreach tool: a duplicate contact record is untidy, but a second
+ * sequence landing on someone mid-conversation is what loses the reply. So
+ * this reports active enrolment and suppression, not mere existence.
+ *
+ * LinkedIn rows carry no address, so matching is by name and company. That's
+ * fuzzy, which is exactly why the result is a *selection the user can see and
+ * correct* rather than an automatic action.
+ *
+ * @param {{people: Array<{full_name?: string, first_name?: string, last_name?: string, company?: string, linkedin_url: string}>}} payload
+ */
+async function handleCheckKnown(payload) {
+  try {
+    const people = (payload.people || []).slice(0, 60);
+    /** @type {Record<string, {contactId: string|null, enrolledActive: number, suppressed: boolean}>} */
+    const byProfile = {};
+
+    // One search per distinct surname rather than per person: a page of
+    // results shares few surnames, and the per-key limit is 100/minute.
+    const surnames = [...new Set(people.map((p) => p.last_name).filter(Boolean))].slice(0, 25);
+    /** @type {object[]} */
+    const pool = [];
+    for (const surname of surnames) {
+      try {
+        pool.push(...(await api.searchContacts(surname, 25)));
+      } catch {
+        // Partial knowledge is still useful; carry on with what we have.
+      }
+    }
+
+    const norm = (value) => String(value || '').trim().toLowerCase();
+
+    for (const person of people) {
+      const wantedName = norm([person.first_name, person.last_name].filter(Boolean).join(' ')) ||
+        norm(person.full_name);
+      const wantedCompany = norm(person.company);
+
+      const contact = pool.find((c) => {
+        const name = norm([c.first_name, c.last_name].filter(Boolean).join(' '));
+        if (!name || name !== wantedName) return false;
+        // With no company on either side, the name alone has to do; where both
+        // sides have one, they must agree, or two people who share a name get
+        // conflated.
+        if (!wantedCompany || !c.company) return true;
+        const company = norm(c.company);
+        return company.includes(wantedCompany) || wantedCompany.includes(company);
+      });
+
+      if (!contact) {
+        byProfile[person.linkedin_url] = { contactId: null, enrolledActive: 0, suppressed: false };
+        continue;
+      }
+
+      const [memberships, suppressed] = await Promise.all([
+        api.getContactCampaigns(contact.id).catch(() => []),
+        api.isSuppressed(contact.email).catch(() => false),
+      ]);
+
+      byProfile[person.linkedin_url] = {
+        contactId: contact.id,
+        enrolledActive: memberships.filter((m) => m.is_active).length,
+        suppressed: Boolean(suppressed),
+      };
+    }
+
+    return { ok: true, data: { byProfile } };
+  } catch (err) {
+    return toErrorPayload(err);
+  }
+}
+
+/**
+ * Enrol people picked off a LinkedIn list.
+ *
+ * These rows have no address, so anyone we don't already hold needs a
+ * Prospector reveal — which costs a credit each. The rule here is that a
+ * credit is only ever spent on someone the user explicitly ticked, and the
+ * result reports exactly how many were spent and what's left.
+ *
+ * @param {{campaignId: string, people: object[]}} payload
+ */
+async function handleBulkEnrolProfiles(payload) {
+  try {
+    const { campaignId } = payload;
+    if (!campaignId) throw new ApiError('Pick a campaign first.', { code: 'NO_CAMPAIGN' });
+
+    const people = (payload.people || []).slice(0, BULK_LIMIT);
+    if (people.length === 0) throw new ApiError('Nobody selected.', { code: 'NO_PEOPLE' });
+
+    /** @type {string[]} */
+    const contactIds = [];
+    let revealed = 0;
+    let noEmail = 0;
+    let creditsRemaining = null;
+
+    for (const person of people) {
+      // Already a contact? Then no reveal, no credit.
+      const name = [person.first_name, person.last_name].filter(Boolean).join(' ');
+      const existing = name
+        ? (await api.searchContacts(name, 10).catch(() => [])).find((c) => {
+            const company = String(c.company || '').toLowerCase();
+            const wanted = String(person.company || '').toLowerCase();
+            return !wanted || !company || company.includes(wanted) || wanted.includes(company);
+          })
+        : null;
+
+      if (existing) {
+        contactIds.push(existing.id);
+        continue;
+      }
+
+      const found = await handleProspectFind({ person });
+      if (!found.ok || !found.data.match?.has_email) {
+        noEmail += 1;
+        continue;
+      }
+
+      const reveal = await handleProspectReveal({ providerPersonId: found.data.match.id });
+      if (!reveal.ok || !reveal.data.found || !reveal.data.email) {
+        noEmail += 1;
+        continue;
+      }
+
+      revealed += 1;
+      if (Number.isFinite(reveal.data.credits?.remaining)) {
+        creditsRemaining = reveal.data.credits.remaining;
+      }
+
+      // The reveal saves the contact itself; fall back to a lookup if the
+      // provider adapter didn't return an id.
+      const contactId =
+        reveal.data.contactId || (await api.findContactByEmail(reveal.data.email))?.id || null;
+      if (contactId) contactIds.push(contactId);
+      else noEmail += 1;
+    }
+
+    if (contactIds.length === 0) {
+      throw new ApiError(
+        `No addresses could be found for the ${people.length} selected. Nothing was enrolled.`,
+        { code: 'NO_CONTACTS' }
+      );
+    }
+
+    const result = await api.enrollContacts(campaignId, contactIds);
+    await setSettings({ lastCampaignId: campaignId });
+    invalidateStandingCache();
+
+    const settings = await getSettings();
+    if (settings.autoTag && settings.autoTagName) {
+      try {
+        const tag = await api.ensureTag(settings.autoTagName);
+        await api.tagContacts(contactIds, [tag.id]);
+      } catch (tagErr) {
+        console.warn('[Sincerely] Could not tag enrolled profiles:', tagErr?.message);
+      }
+    }
+
+    return {
+      ok: true,
+      data: {
+        requested: people.length,
+        added: result?.added ?? 0,
+        skipped: result?.skipped ?? 0,
+        revealed,
+        noEmail,
+        creditsRemaining,
+      },
+    };
+  } catch (err) {
+    return toErrorPayload(err);
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Site harvest                                                       */
 /* ------------------------------------------------------------------ */
 
@@ -1146,6 +1327,8 @@ const HANDLERS = {
   MOVE_TO_CAMPAIGN: handleMoveToCampaign,
   BULK_ADD: handleBulkAdd,
   SCAN_SITE: handleScanSite,
+  CHECK_KNOWN: handleCheckKnown,
+  BULK_ENROL_PROFILES: handleBulkEnrolProfiles,
   SUPPRESS_PERSON: handleSuppress,
   TEST_CONNECTION: handleTestConnection,
 };

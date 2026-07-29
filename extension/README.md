@@ -111,6 +111,23 @@ multiple participants — the popup offers **Add all N addresses on this page**.
 It's two-click, like suppression: the first click lists exactly who is about to
 be enrolled and where, the second does it. Capped at 25 per action.
 
+**On LinkedIn search results and a company's People tab** — every row gets a
+checkbox and a bar appears at the bottom with **Select all**, **Net new**, a
+campaign picker and the count.
+
+**Net new** is where this differs from Apollo. Theirs means "not already in my
+database". Ours means **not already being emailed** — it excludes anyone in an
+active campaign or on the suppression list, not merely anyone missing from your
+contacts. A duplicate contact record is untidy; a second sequence landing on
+someone mid-conversation is what loses the reply.
+
+Rows carry no address, so anyone you don't already hold needs a Prospector
+reveal. A credit is only ever spent on someone you explicitly ticked, and the
+bar reports what it added, how many it revealed, how many had no address on
+record, and what your balance is afterwards. Matching by name and company is
+fuzzy, which is exactly why Net new produces a *selection you can see and
+correct* rather than an automatic send.
+
 **From the right-click menu** — select an email address (or right-click a
 `mailto:` link) → **Sincerely** → *Add to "<campaign>"*. The menu lists your
 last-used campaign first, then up to ten others. Results come back as a
