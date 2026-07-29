@@ -20,6 +20,13 @@ const MENU_CAMPAIGN_PREFIX = 'sincerely-campaign:';
 const MENU_SUPPRESS = 'sincerely-suppress';
 const MAX_MENU_CAMPAIGNS = 10;
 
+/**
+ * Ceiling on one bulk action. Not a server limit — a judgement one: enrolling
+ * a hundred scraped addresses in a click is more likely to be a mistake than
+ * an intention, and the user can always run it twice.
+ */
+const BULK_LIMIT = 25;
+
 const EMAIL_PATTERN = /[a-z0-9._%+'-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
 
 /* ------------------------------------------------------------------ */
@@ -556,6 +563,92 @@ async function handleAddToCampaign(payload) {
 }
 
 /**
+ * Add every address found on a page to one campaign.
+ *
+ * Prospecting happens on list pages — a team page, a directory, a thread with
+ * several participants — and doing those one at a time is the difference
+ * between the extension being useful and being a demo.
+ *
+ * Deliberately frugal with requests, because the per-key limit is 100/minute:
+ * one search per distinct domain rather than per person, one bulk create for
+ * everyone missing, and a single enrol for the whole set.
+ *
+ * @param {{campaignId: string, emails: string[]}} payload
+ */
+async function handleBulkAdd(payload) {
+  try {
+    const { campaignId } = payload;
+    if (!campaignId) throw new ApiError('Pick a campaign first.', { code: 'NO_CAMPAIGN' });
+
+    const emails = [...new Set((payload.emails || []).map((e) => String(e).trim().toLowerCase()))]
+      .filter((e) => EMAIL_PATTERN.test(e))
+      .slice(0, BULK_LIMIT);
+
+    if (emails.length === 0) throw new ApiError('No usable addresses on this page.', { code: 'NO_EMAILS' });
+
+    const domains = [...new Set(emails.map((e) => e.split('@')[1]).filter(Boolean))];
+
+    /** @type {Map<string, object>} */
+    const known = new Map();
+    for (const domain of domains) {
+      const found = await api.contactsByDomain(domain);
+      for (const [email, contact] of found) known.set(email, contact);
+    }
+
+    const missing = emails.filter((e) => !known.has(e));
+    let created = 0;
+
+    if (missing.length > 0) {
+      const result = await api.bulkCreateContacts(missing.map((email) => ({ email })));
+      created = result?.imported ?? 0;
+
+      // The bulk endpoint returns counts, not ids, so re-read the domains we
+      // just wrote to. Still one call per domain rather than one per person.
+      for (const domain of [...new Set(missing.map((e) => e.split('@')[1]))]) {
+        const found = await api.contactsByDomain(domain);
+        for (const [email, contact] of found) known.set(email, contact);
+      }
+    }
+
+    const contactIds = emails.map((e) => known.get(e)?.id).filter(Boolean);
+    if (contactIds.length === 0) {
+      throw new ApiError('None of these addresses could be turned into contacts.', { code: 'NO_CONTACTS' });
+    }
+
+    const result = await api.enrollContacts(campaignId, contactIds);
+    await setSettings({ lastCampaignId: campaignId });
+    invalidateStandingCache();
+
+    const settings = await getSettings();
+    if (settings.autoTag && settings.autoTagName) {
+      try {
+        const tag = await api.ensureTag(settings.autoTagName);
+        await api.tagContacts(contactIds, [tag.id]);
+      } catch (tagErr) {
+        console.warn('[Sincerely] Could not tag bulk contacts:', tagErr?.message);
+      }
+    }
+
+    const { cachedCampaigns = [] } = await chrome.storage.local.get({ cachedCampaigns: [] });
+    const campaignName = cachedCampaigns.find((c) => c.id === campaignId)?.name || 'the campaign';
+
+    return {
+      ok: true,
+      data: {
+        requested: emails.length,
+        created,
+        added: result?.added ?? 0,
+        skipped: result?.skipped ?? 0,
+        campaignId,
+        campaignName,
+      },
+    };
+  } catch (err) {
+    return toErrorPayload(err);
+  }
+}
+
+/**
  * Which existing enrolments stand in the way of enrolling into `targetId`.
  *
  * The server refuses a contact who's already in another *active* campaign
@@ -862,6 +955,7 @@ const HANDLERS = {
   ADD_TO_CAMPAIGN: handleAddToCampaign,
   REMOVE_FROM_CAMPAIGN: handleRemoveFromCampaign,
   MOVE_TO_CAMPAIGN: handleMoveToCampaign,
+  BULK_ADD: handleBulkAdd,
   SUPPRESS_PERSON: handleSuppress,
   TEST_CONNECTION: handleTestConnection,
 };

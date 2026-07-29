@@ -78,6 +78,11 @@ talk to that origin when you save. Accept it, or requests will be blocked.
 - **Never contact again** suppresses the address account-wide and pulls them out
   of every campaign still running. Two clicks, deliberately.
 
+**On a page with several people** — a team page, a directory, a thread with
+multiple participants — the popup offers **Add all N addresses on this page**.
+It's two-click, like suppression: the first click lists exactly who is about to
+be enrolled and where, the second does it. Capped at 25 per action.
+
 **From the right-click menu** — select an email address (or right-click a
 `mailto:` link) → **Sincerely** → *Add to "<campaign>"*. The menu lists your
 last-used campaign first, then up to ten others. Results come back as a

@@ -285,6 +285,35 @@ export async function findContactByEmail(email) {
 }
 
 /**
+ * Every contact this account has at a given domain, in one call.
+ *
+ * Bulk work on a team or directory page is overwhelmingly same-domain, so one
+ * search per domain resolves the whole page instead of one lookup per person —
+ * which would burn the per-key rate limit for no reason.
+ *
+ * @param {string} domain e.g. "acme.com"
+ * @returns {Promise<Map<string, object>>} lowercased email → contact
+ */
+export async function contactsByDomain(domain) {
+  const result = await request('/contacts', { query: { search: `@${domain}`, limit: 100 } });
+  const byEmail = new Map();
+  for (const contact of result?.data || []) {
+    byEmail.set(String(contact.email || '').toLowerCase(), contact);
+  }
+  return byEmail;
+}
+
+/**
+ * Create many contacts in one request. Returns counts, not ids — callers that
+ * need ids re-read afterwards.
+ *
+ * @param {Array<object>} contacts Server caps this at 1000 per request.
+ */
+export async function bulkCreateContacts(contacts) {
+  return request('/contacts/bulk', { method: 'POST', body: { contacts } });
+}
+
+/**
  * @param {{email: string, first_name?: string, last_name?: string, company?: string, job_title?: string, linkedin_url?: string}} person
  */
 export async function createContact(person) {

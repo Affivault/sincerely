@@ -357,6 +357,10 @@ body {
   height: 34px;
 }
 
+.actions #bulk-add {
+  margin-top: 7px;
+}
+
 /* ── Collapsible details ── */
 
 .details {

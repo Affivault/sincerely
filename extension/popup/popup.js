@@ -68,6 +68,8 @@ const el = {
   campaignList: document.getElementById('campaign-list'),
   add: document.getElementById('add'),
   addLabel: document.getElementById('add-label'),
+  bulkAdd: document.getElementById('bulk-add'),
+  bulkLabel: document.getElementById('bulk-label'),
 
   detailsToggle: document.getElementById('details-toggle'),
   detailsBody: document.getElementById('details-body'),
@@ -101,6 +103,7 @@ const state = {
   engagement: null,
   suppressed: false,
   suppressArmed: false,
+  bulkArmed: false,
   looking: false,
   /** All enrollable campaigns, and the filtered subset currently listed. */
   campaigns: [],
@@ -426,6 +429,22 @@ function fillForm(person) {
   }
 }
 
+/**
+ * Every address the page offered, including the one in the form.
+ *
+ * Read from the DOM rather than from the scrape that produced it: the
+ * candidates list is rendered from exactly the same data, and deriving from
+ * what's on screen means the button can never disagree with what the user can
+ * see. Deduplicated, since a page often lists the same person twice.
+ *
+ * @returns {string[]}
+ */
+function pageEmails() {
+  const fromSelect = [...el.candidates.options].map((option) => option.value);
+  const all = [el.email.value, ...fromSelect];
+  return [...new Set(all.map((e) => String(e).trim().toLowerCase()).filter((e) => EMAIL_PATTERN.test(e)))];
+}
+
 function currentEmailIsValid() {
   return EMAIL_PATTERN.test(el.email.value.trim());
 }
@@ -442,6 +461,13 @@ function syncButtons() {
 
   const target = state.campaigns.find((c) => c.id === state.selectedCampaignId);
   el.addLabel.textContent = target ? `Add to ${target.name}` : 'Add to campaign';
+
+  // Bulk is offered only when the page really does hold several people —
+  // otherwise it's a button that does the same as the one above it.
+  const bulk = pageEmails();
+  el.bulkAdd.classList.toggle('hidden', bulk.length < 2);
+  el.bulkAdd.disabled = !state.selectedCampaignId;
+  el.bulkLabel.textContent = `Add all ${bulk.length} addresses on this page`;
 
   el.noEmailHelp.classList.toggle('hidden', hasEmail);
 
@@ -830,6 +856,51 @@ async function addToCampaign() {
 }
 
 /**
+ * Enrol every address on the page into the selected campaign.
+ *
+ * Two-step, like suppression: the first click says exactly what is about to
+ * happen and to how many people, the second does it. Enrolling a page's worth
+ * of strangers into a live sequence is not an undo-able-by-one-click action.
+ */
+async function bulkAdd() {
+  const emails = pageEmails();
+  const target = state.campaigns.find((c) => c.id === state.selectedCampaignId);
+  if (!target || emails.length < 2) return;
+
+  if (!state.bulkArmed) {
+    state.bulkArmed = true;
+    el.bulkLabel.textContent = `Add these ${emails.length}? Click again`;
+    setStatus(
+      `About to add ${emails.length} address${emails.length > 1 ? 'es' : ''} to "${target.name}":\n` +
+        `${emails.slice(0, 8).join(', ')}${emails.length > 8 ? `, and ${emails.length - 8} more` : ''}`
+    );
+    return;
+  }
+
+  state.bulkArmed = false;
+  el.bulkAdd.disabled = true;
+  el.bulkLabel.textContent = 'Adding…';
+
+  const response = await send('BULK_ADD', { campaignId: target.id, emails });
+
+  el.bulkAdd.disabled = false;
+  syncButtons();
+
+  if (!response.ok) {
+    showError(response.error);
+    return;
+  }
+
+  const { requested, created, added, skipped, campaignName } = response.data;
+  const parts = [`Added ${added} of ${requested} to "${campaignName}".`];
+  if (created > 0) parts.push(`${created} new contact${created === 1 ? '' : 's'} created.`);
+  if (skipped > 0) parts.push(`${skipped} skipped — already enrolled, or held by another campaign.`);
+  setStatus(parts.join(' '), { variant: added > 0 ? 'success' : undefined });
+
+  await refreshStanding();
+}
+
+/**
  * Resolve the exclusivity block: pull them out of the campaigns holding them,
  * then enrol here.
  *
@@ -1176,6 +1247,7 @@ function wireEvents() {
   });
 
   el.add.addEventListener('click', addToCampaign);
+  el.bulkAdd.addEventListener('click', bulkAdd);
   el.suppress.addEventListener('click', suppressPerson);
   el.searchByName.addEventListener('click', searchByName);
   el.prospectFind.addEventListener('click', prospectFind);
