@@ -37,6 +37,38 @@ const el = {
 };
 
 /**
+ * A real key is "sk_live_" followed by 64 hex characters — 72 in total.
+ *
+ * Checking the shape here turns the server's flat "Invalid or expired API key"
+ * into something actionable. The common mistake is copying the *masked*
+ * display from the Developer page (`sk_live_1234abcd••••••••`) instead of
+ * using its copy button: it starts with sk_live_, so a prefix-only check waves
+ * it through and the server rejects it with no explanation.
+ *
+ * @param {string} key
+ * @returns {string|null} A description of the problem, or null if it looks right.
+ */
+function describeKeyProblem(key) {
+  if (!key.startsWith('sk_live_')) {
+    return 'That does not look like a Sincerely API key. Keys start with "sk_live_" and come from Developer → API keys — a Supabase session token or anon key will not work here.';
+  }
+  if (/[•·*…]/.test(key)) {
+    return 'That key is still masked — it contains the dots used to hide it on screen. Use the copy button next to the key rather than selecting the text, then paste again.';
+  }
+  const body = key.slice('sk_live_'.length);
+  if (body.length < 64) {
+    return `That key looks truncated: ${key.length} characters, but a full key is 72. Create a new key and use the copy button beside it — the key is only shown once.`;
+  }
+  if (body.length > 64) {
+    return `That key is ${key.length} characters, but a full key is 72. Check nothing extra was pasted along with it.`;
+  }
+  if (!/^[0-9a-f]{64}$/i.test(body)) {
+    return 'That key contains characters a real key never has. Copy it again with the copy button on the Developer page.';
+  }
+  return null;
+}
+
+/**
  * @param {string} message
  * @param {'success'|'error'|'warn'|null} [variant]
  */
@@ -74,11 +106,12 @@ async function ensureHostPermission(baseUrl) {
   const pattern = originPatternFor(baseUrl);
   if (!pattern) return true;
 
-  const origins = [pattern];
-  if (await chrome.permissions.contains({ origins })) return true;
-
+  // Requested with nothing awaited beforehand: chrome.permissions.request has
+  // to run inside the click that triggered it, and an earlier `await` — even a
+  // permissions.contains() check — breaks the gesture chain and makes it throw.
+  // Requesting something already granted resolves true immediately.
   try {
-    return await chrome.permissions.request({ origins });
+    return await chrome.permissions.request({ origins: [pattern] });
   } catch {
     return false;
   }
@@ -101,12 +134,12 @@ async function save() {
       return;
     }
 
-    if (typedKey && !typedKey.startsWith('sk_live_')) {
-      showResult(
-        'That does not look like a Sincerely API key. Keys start with "sk_live_" and come from Developer → API keys — a Supabase session token or anon key will not work here.',
-        'error'
-      );
-      return;
+    if (typedKey) {
+      const problem = describeKeyProblem(typedKey);
+      if (problem) {
+        showResult(problem, 'error');
+        return;
+      }
     }
 
     const granted = await ensureHostPermission(apiBaseUrl);
@@ -131,7 +164,13 @@ async function save() {
     const response = await chrome.runtime.sendMessage({ type: 'TEST_CONNECTION' });
 
     if (!response?.ok) {
-      showResult(response?.error?.message || 'Connection test failed.', 'error');
+      let message = response?.error?.message || 'Connection test failed.';
+      if (response?.error?.status === 401) {
+        message +=
+          `\n\nThe key being sent starts ${apiKey.slice(0, 16)}… — compare that with the list on your Developer page. ` +
+          'If it is not there, or shows as Revoked, create a new one. If it is there and active, check the API URL above points at the same environment the key was created in.';
+      }
+      showResult(message, 'error');
       return;
     }
 

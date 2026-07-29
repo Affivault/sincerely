@@ -50,6 +50,20 @@ The test tells you which of the three setup failures you've hit, if any:
 - **Read-only key** — connects fine but add/remove will fail. Create a key with
   the `write` scope too.
 
+### "Invalid or expired API key"
+
+Almost always the key itself. The extension checks the shape before sending, so
+it can tell you which:
+
+- **"still masked"** — you copied the on-screen `sk_live_1234abcd••••••••`
+  rather than using the copy button beside it. Copy it again with the button.
+- **"looks truncated"** — a partial copy. A full key is exactly 72 characters:
+  `sk_live_` plus 64 hex.
+- **Rejected by the server** — the message names the prefix being sent. Compare
+  it with the list on your Developer page. If it isn't there or shows Revoked,
+  make a new one. If it is there and active, check the API URL points at the
+  same environment the key was created in.
+
 ### If your API is on a free hosting tier
 
 Free tiers (Render, Fly, and similar) spin the server down after a few minutes
@@ -79,9 +93,10 @@ is where you scan a website or type someone in by hand:
 - **Never contact again** suppresses the address account-wide and pulls them out
   of every campaign still running. Two clicks, deliberately.
 
-**On any company website** — press **Scan** in the popup. It reads that site's
-own contact, about and team pages, lists every address it finds, and enrols the
-ones you tick. This costs nothing to run: enrichment vendors charge because they
+**On any website** — open the popup and the addresses on that page are already
+listed, no permission prompt and no waiting. Tick the ones you want and add
+them. Press **Scan site** to go further and read the site's own contact, about
+and team pages too. This costs nothing to run: enrichment vendors charge because they
 licence a people database, but a company's `/contact` page is public HTML, so the
 only cost is a handful of requests the extension makes itself. No credits, no
 server.

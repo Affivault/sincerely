@@ -11,6 +11,7 @@
  */
 
 import { initTheme } from '../lib/theme.js';
+import { classifyEmail, rankResults } from '../lib/harvest.js';
 
 const EMAIL_PATTERN = /^[a-z0-9._%+'-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
 
@@ -129,6 +130,8 @@ const state = {
   /** Harvest results, and which of them are ticked. */
   scanResults: [],
   scanSelected: new Set(),
+  /** True once the whole site has been crawled, not just the open page. */
+  scannedSite: false,
   /**
    * Form fields filled from an API result rather than typed or scraped. Only
    * these get cleared when the address changes.
@@ -1007,9 +1010,51 @@ function renderScanSub() {
   const origin = scannableOrigin();
   el.scanBlock.classList.toggle('hidden', !origin);
   if (!origin) return;
+
+  const host = origin.replace(/^https?:\/\//, '');
   el.scanSub.textContent = state.scanResults.length
-    ? `${state.scanResults.length} found on ${origin.replace(/^https?:\/\//, '')}`
-    : `Read ${origin.replace(/^https?:\/\//, '')} for addresses.`;
+    ? `${state.scanResults.length} found${state.scannedSite ? ` across ${host}` : ' on this page'}`
+    : `Nothing on this page — scan ${host} for its contact and team pages.`;
+  el.scan.textContent = state.scannedSite ? 'Rescan' : 'Scan site';
+}
+
+/**
+ * Show what's on the page the moment the popup opens, the way the free
+ * scrapers do — no permission prompt and no crawl, because the content script
+ * has already read this tab under activeTab. Scanning the rest of the site is
+ * then an obvious next step rather than the only one.
+ */
+function showPageEmails() {
+  const found = (state.person?.email_candidates || []).map((email) => email.toLowerCase());
+  if (found.length === 0) {
+    renderScanSub();
+    return;
+  }
+
+  const person = state.person || {};
+  state.scanResults = rankResults(
+    [...new Set(found)]
+      .map((email) => {
+        const kind = classifyEmail(email);
+        if (!kind) return null;
+        // The page's own person gets their scraped name; the rest are bare
+        // addresses until a scan or the user fills them in.
+        const isFocus = email === String(person.email || '').toLowerCase();
+        return {
+          email,
+          kind,
+          first_name: isFocus ? person.first_name || null : null,
+          last_name: isFocus ? person.last_name || null : null,
+          company: person.company || null,
+          source_url: person.source_url || state.tabUrl,
+          alreadyAContact: false,
+        };
+      })
+      .filter(Boolean)
+  );
+
+  state.scanSelected = new Set(state.scanResults.filter((r) => r.kind === 'person').map((r) => r.email));
+  renderScan({ pagesScanned: 1, origin: scannableOrigin() || '' });
 }
 
 /**
@@ -1023,11 +1068,14 @@ async function scanSite() {
   const origin = scannableOrigin();
   if (!origin) return;
 
+  // Ask first, with nothing awaited before it. chrome.permissions.request must
+  // run inside the user gesture that triggered it, and any prior `await`
+  // breaks that chain — a permissions.contains() pre-check made every request
+  // throw, which is why scanning a new site silently did nothing. Requesting a
+  // permission already held resolves true straight away, so the pre-check
+  // bought nothing anyway.
   const origins = [`${origin}/*`];
-  let granted = await chrome.permissions.contains({ origins }).catch(() => false);
-  if (!granted) {
-    granted = await chrome.permissions.request({ origins }).catch(() => false);
-  }
+  const granted = await chrome.permissions.request({ origins }).catch(() => false);
   if (!granted) {
     setStatus(`Sincerely needs your permission to read ${origin}. Press Scan again to allow it.`, {
       variant: 'error',
@@ -1050,6 +1098,7 @@ async function scanSite() {
   }
 
   state.scanResults = response.data.results || [];
+  state.scannedSite = true;
   // Pre-tick the ones worth having: real people this account doesn't hold yet.
   state.scanSelected = new Set(
     state.scanResults.filter((r) => r.kind === 'person' && !r.alreadyAContact).map((r) => r.email)
@@ -1069,7 +1118,9 @@ function renderScan(meta) {
     el.scanAdd.classList.add('hidden');
     const empty = document.createElement('li');
     empty.className = 'scan-empty';
-    empty.textContent = `No addresses found across ${meta.pagesScanned} page${meta.pagesScanned === 1 ? '' : 's'}. Many sites only show them behind a form.`;
+    empty.textContent = state.scannedSite
+      ? `No addresses found across ${meta.pagesScanned} page${meta.pagesScanned === 1 ? '' : 's'}. Many sites only publish them behind a contact form.`
+      : 'No addresses on this page. Try scanning the whole site.';
     el.scanResults.appendChild(empty);
     return;
   }
@@ -1516,7 +1567,7 @@ async function init() {
   state.person = context.data.person;
   state.appUrl = String(context.data.appUrl || '').replace(/\/+$/, '');
   state.tabUrl = tab?.url || '';
-  renderScanSub();
+  showPageEmails();
   fillForm(context.data.person);
   renderAll();
 

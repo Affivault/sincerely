@@ -727,6 +727,33 @@
     mountIfRelevant();
   }, 1200);
 
+  /**
+   * Watch for an address appearing after the panel has already loaded.
+   *
+   * On LinkedIn the address usually lives behind the "Contact info" link, so
+   * it simply isn't in the DOM when the panel first reads the page. Without
+   * this, opening that panel changes nothing and the extension looks broken on
+   * exactly the profiles where the email *is* available.
+   *
+   * Only runs while no address is known, and only re-renders when the scrape
+   * actually produces one — so it costs nothing on a page that never has one.
+   */
+  let rescanTimer = null;
+  const watcher = new MutationObserver(() => {
+    if (state.loading || state.person?.email) return;
+    clearTimeout(rescanTimer);
+    rescanTimer = setTimeout(() => {
+      if (state.person?.email || !sincerely.scrape) return;
+      const fresh = sincerely.scrape();
+      if (!fresh?.email) return;
+      state.person = { ...state.person, ...fresh };
+      state.prospect = undefined;
+      setMessage(`Found ${fresh.email} on this profile.`, 'success');
+      refresh().catch(() => {});
+    }, 500);
+  });
+  watcher.observe(document.documentElement, { childList: true, subtree: true });
+
   sincerely.reloadPanel = mountIfRelevant;
   mountIfRelevant();
 })();
