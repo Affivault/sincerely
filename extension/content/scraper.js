@@ -23,6 +23,15 @@
 
   const EMAIL_PATTERN = /[a-z0-9._%+'-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
 
+  /**
+   * Non-global twin of the pattern above, for one-off tests.
+   *
+   * A /g regex carries lastIndex between calls, so reusing EMAIL_PATTERN with
+   * .test() in a loop silently skips every other match — addresses would
+   * disappear at random from pages with several of them.
+   */
+  const EMAIL_TEST = /[a-z0-9._%+'-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
+
   // Role accounts — never the person you're prospecting.
   const NOISE_EMAIL = /^(no-?reply|do-?not-?reply|postmaster|mailer-daemon|abuse|support|info|hello|admin|webmaster|notifications?|bounce)@/i;
 
@@ -110,7 +119,7 @@
     // Gmail and several CRMs stash the real address in an attribute.
     for (const node of document.querySelectorAll('[email], [data-email]')) {
       const value = (node.getAttribute('email') || node.getAttribute('data-email') || '').toLowerCase();
-      if (EMAIL_PATTERN.test(value) && isPlausibleEmail(value)) found.add(value);
+      if (EMAIL_TEST.test(value) && isPlausibleEmail(value)) found.add(value);
     }
 
     // Body text last, and capped — innerText on a huge page is expensive and

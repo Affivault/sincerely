@@ -17,6 +17,12 @@
 /** Matches an address, permissively — filtering happens afterwards. */
 const EMAIL = /[a-z0-9._%+'-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
 
+/**
+ * Non-global twin, for one-off tests. A /g regex carries lastIndex between
+ * calls, so .test() in a loop silently skips alternate matches.
+ */
+const EMAIL_TEST = /[a-z0-9._%+'-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
+
 /** Role accounts. Kept, but ranked below a named person. */
 const ROLE_LOCAL = /^(no-?reply|do-?not-?reply|postmaster|mailer-daemon|abuse|privacy|legal|jobs|careers|press|marketing|newsletter|unsubscribe|bounce|webmaster|notifications?)$/i;
 
@@ -75,7 +81,7 @@ export function decodeCfEmail(hex) {
   for (let i = 2; i < hex.length; i += 2) {
     out += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16) ^ key);
   }
-  return EMAIL.test(out) ? ((EMAIL.lastIndex = 0), out.toLowerCase()) : null;
+  return EMAIL_TEST.test(out) ? out.toLowerCase() : null;
 }
 
 /**

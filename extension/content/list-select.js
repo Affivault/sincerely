@@ -447,6 +447,16 @@
   function teardown() {
     document.getElementById(BAR_ID)?.remove();
     barRoot = null;
+
+    // Un-mark the rows and pull our checkboxes out. LinkedIn reuses DOM nodes
+    // across an SPA navigation, so leaving the marker attribute behind makes
+    // decorateRows skip those rows forever — the bar would never come back
+    // after moving from one search to the next.
+    for (const row of document.querySelectorAll(`[${MARK}]`)) {
+      row.removeAttribute(MARK);
+      row.querySelector('.sincerely-box-host')?.remove();
+    }
+
     rows.clear();
     selected.clear();
     barState.message = null;
@@ -468,7 +478,12 @@
       teardown();
       return;
     }
-    if (rows.size === 0) await loadCampaigns();
+    if (rows.size === 0) {
+      await loadCampaigns();
+      // The observer may have drawn the bar while the campaigns were still in
+      // flight; repaint so the picker isn't stuck on "No campaigns".
+      if (rows.size > 0) renderBar();
+    }
     scheduleDecorate();
   }
 

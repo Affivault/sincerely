@@ -582,6 +582,42 @@ async function handleAddToCampaign(payload) {
  *
  * @param {{people: Array<{full_name?: string, first_name?: string, last_name?: string, company?: string, linkedin_url: string}>}} payload
  */
+/**
+ * Does this account already hold this person?
+ *
+ * Searching on the *surname* is the whole trick. The server builds its filter
+ * as `first_name ILIKE %q% OR last_name ILIKE %q% OR company ILIKE %q%`, so
+ * searching a full name matches nothing — no single column contains
+ * "Sam Rivera". Getting this wrong doesn't just fail to find people, it spends
+ * a Prospector credit revealing someone already in the database, so both the
+ * Net-new check and the enrol path go through here rather than each rolling
+ * their own.
+ *
+ * @param {{first_name?: string, last_name?: string, full_name?: string, company?: string}} person
+ * @param {object[]} [pool] Pre-fetched candidates, to avoid a search per person.
+ * @returns {Promise<object|null>}
+ */
+async function findContactForPerson(person, pool) {
+  const norm = (value) => String(value || '').trim().toLowerCase();
+  const wantedName = norm([person.first_name, person.last_name].filter(Boolean).join(' ')) || norm(person.full_name);
+  if (!wantedName) return null;
+
+  const candidates = pool ?? (person.last_name ? await api.searchContacts(person.last_name, 25).catch(() => []) : []);
+  const wantedCompany = norm(person.company);
+
+  return (
+    candidates.find((c) => {
+      const name = norm([c.first_name, c.last_name].filter(Boolean).join(' '));
+      if (!name || name !== wantedName) return false;
+      // With no company on either side the name alone has to do; where both
+      // carry one they must agree, or two people who share a name get merged.
+      if (!wantedCompany || !c.company) return true;
+      const company = norm(c.company);
+      return company.includes(wantedCompany) || wantedCompany.includes(company);
+    }) || null
+  );
+}
+
 async function handleCheckKnown(payload) {
   try {
     const people = (payload.people || []).slice(0, 60);
@@ -601,23 +637,8 @@ async function handleCheckKnown(payload) {
       }
     }
 
-    const norm = (value) => String(value || '').trim().toLowerCase();
-
     for (const person of people) {
-      const wantedName = norm([person.first_name, person.last_name].filter(Boolean).join(' ')) ||
-        norm(person.full_name);
-      const wantedCompany = norm(person.company);
-
-      const contact = pool.find((c) => {
-        const name = norm([c.first_name, c.last_name].filter(Boolean).join(' '));
-        if (!name || name !== wantedName) return false;
-        // With no company on either side, the name alone has to do; where both
-        // sides have one, they must agree, or two people who share a name get
-        // conflated.
-        if (!wantedCompany || !c.company) return true;
-        const company = norm(c.company);
-        return company.includes(wantedCompany) || wantedCompany.includes(company);
-      });
+      const contact = await findContactForPerson(person, pool);
 
       if (!contact) {
         byProfile[person.linkedin_url] = { contactId: null, enrolledActive: 0, suppressed: false };
@@ -660,6 +681,16 @@ async function handleBulkEnrolProfiles(payload) {
     const people = (payload.people || []).slice(0, BULK_LIMIT);
     if (people.length === 0) throw new ApiError('Nobody selected.', { code: 'NO_PEOPLE' });
 
+    // One search per distinct surname up front, rather than one per person
+    // inside the loop: 25 people would otherwise cost 25 searches on top of
+    // the reveals, and the per-key limit is 100/minute.
+    const surnames = [...new Set(people.map((p) => p.last_name).filter(Boolean))];
+    /** @type {object[]} */
+    const pool = [];
+    for (const surname of surnames) {
+      pool.push(...(await api.searchContacts(surname, 25).catch(() => [])));
+    }
+
     /** @type {string[]} */
     const contactIds = [];
     let revealed = 0;
@@ -667,15 +698,9 @@ async function handleBulkEnrolProfiles(payload) {
     let creditsRemaining = null;
 
     for (const person of people) {
-      // Already a contact? Then no reveal, no credit.
-      const name = [person.first_name, person.last_name].filter(Boolean).join(' ');
-      const existing = name
-        ? (await api.searchContacts(name, 10).catch(() => [])).find((c) => {
-            const company = String(c.company || '').toLowerCase();
-            const wanted = String(person.company || '').toLowerCase();
-            return !wanted || !company || company.includes(wanted) || wanted.includes(company);
-          })
-        : null;
+      // Already a contact? Then no reveal, no credit. Same matcher as the
+      // Net-new check, so the two can never disagree about who we hold.
+      const existing = await findContactForPerson(person, pool);
 
       if (existing) {
         contactIds.push(existing.id);
