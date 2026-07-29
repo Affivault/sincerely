@@ -68,7 +68,8 @@ talk to that origin when you save. Accept it, or requests will be blocked.
 
 ## Use it
 
-**From the popup** (extension icon, or `Alt+Shift+S`) — the main surface:
+**From the popup** (extension icon, or `Alt+Shift+S`) — works on any page, and
+is where you scan a website or type someone in by hand:
 
 - The person on the current page is detected and pre-filled. Every field is
   editable, so you can correct a bad scrape or type someone in by hand.
@@ -133,9 +134,11 @@ correct* rather than an automatic send.
 last-used campaign first, then up to ten others. Results come back as a
 notification. Open the popup once after installing to populate the list.
 
-**From the floating button** on LinkedIn and Gmail — appears only once you've
-picked a campaign in the popup, and it names that campaign so a one-click add
-is never ambiguous. The confirmation toast has an **Undo**.
+**From the panel on a LinkedIn profile** — this is the main surface, and it
+opens by itself. It shows who the profile is, one line of what's already
+happened with them (suppressed, replied, engagement, or which campaigns they're
+in), the address or the way to get one, and the campaign picker. Collapse it
+with the × and it stays collapsed until you reopen it.
 
 ### On LinkedIn, there's usually no email
 
