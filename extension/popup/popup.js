@@ -4,6 +4,10 @@
  * Holds no credentials and talks to no API — every operation goes through the
  * service worker, which replies with {ok, data} or {ok, error}. All text from
  * the server or the page is written with textContent, never innerHTML.
+ *
+ * The layout answers three questions in order: who is this, what has already
+ * happened with them, and which campaign should they go into. Editing their
+ * details is a rarer job, so it lives behind a disclosure.
  */
 
 import { initTheme } from '../lib/theme.js';
@@ -25,18 +29,49 @@ const STATUS_VARIANT = {
   error: 'badge-error',
 };
 
-/** Where the details came from, shown as a small badge in the panel header. */
+/** Where the details came from, for the sub-line under the name. */
 const SOURCE_LABEL = {
   linkedin: 'LinkedIn',
   gmail: 'Gmail',
-  generic: 'This page',
+  generic: 'this page',
 };
+
+/**
+ * The app's eight avatar gradients and hash, copied from
+ * client/src/components/shared/Avatar.tsx so the same person gets the same
+ * colour in both places.
+ */
+const AVATAR_GRADIENTS = [
+  ['#5B5BF5', '#8B5CF6'],
+  ['#8B5CF6', '#EC4899'],
+  ['#06B6D4', '#5B5BF5'],
+  ['#10B981', '#06B6D4'],
+  ['#F59E0B', '#EF4444'],
+  ['#EF4444', '#EC4899'],
+  ['#5B5BF5', '#06B6D4'],
+  ['#8B5CF6', '#5B5BF5'],
+];
 
 const el = {
   setup: document.getElementById('setup'),
   main: document.getElementById('main'),
   openOptions: document.getElementById('open-options'),
   setupOpenOptions: document.getElementById('setup-open-options'),
+
+  avatar: document.getElementById('avatar'),
+  personName: document.getElementById('person-name'),
+  personSub: document.getElementById('person-sub'),
+  verification: document.getElementById('verification'),
+  standingStrip: document.getElementById('standing-strip'),
+
+  campaignSearch: document.getElementById('campaign-search'),
+  campaignList: document.getElementById('campaign-list'),
+  add: document.getElementById('add'),
+  addLabel: document.getElementById('add-label'),
+
+  detailsToggle: document.getElementById('details-toggle'),
+  detailsBody: document.getElementById('details-body'),
+  detailsSummary: document.getElementById('details-summary'),
 
   email: document.getElementById('email'),
   candidatesWrap: document.getElementById('candidates-wrap'),
@@ -45,9 +80,8 @@ const el = {
   lastName: document.getElementById('last-name'),
   company: document.getElementById('company'),
   jobTitle: document.getElementById('job-title'),
+  suppress: document.getElementById('suppress'),
 
-  sourceBadge: document.getElementById('source-badge'),
-  sourceHint: document.getElementById('source-hint'),
   noEmailHelp: document.getElementById('no-email-help'),
   searchByName: document.getElementById('search-by-name'),
   nameMatches: document.getElementById('name-matches'),
@@ -55,46 +89,38 @@ const el = {
   standing: document.getElementById('standing'),
   standingBody: document.getElementById('standing-body'),
 
-  campaign: document.getElementById('campaign'),
-  add: document.getElementById('add'),
-  suppress: document.getElementById('suppress'),
   status: document.getElementById('status'),
 };
 
-/** Mirrors what the page gave us, plus whatever the user edits on top. */
 const state = {
   person: null,
   contact: null,
   memberships: [],
+  engagement: null,
   suppressed: false,
   suppressArmed: false,
-  /** True while a lookup is in flight, so we don't flash a misleading verdict. */
   looking: false,
+  /** All enrollable campaigns, and the filtered subset currently listed. */
+  campaigns: [],
+  finished: [],
+  filtered: [],
+  activeIndex: 0,
+  selectedCampaignId: null,
   /**
    * Form fields filled from an API result rather than typed or scraped. Only
-   * these get cleared when the address changes — a name the user typed
-   * themselves shouldn't vanish because they fixed a typo in the email.
+   * these get cleared when the address changes.
    * @type {Set<'firstName'|'lastName'|'company'|'jobTitle'>}
    */
   backfilled: new Set(),
 };
 
-/**
- * Monotonic lookup counter. Typing is debounced but responses can still land
- * out of order, and applying a stale one would attribute one person's
- * enrolments to another address.
- */
+/** Guards against an out-of-order lookup repainting a newer one's result. */
 let lookupSeq = 0;
 
 /* ------------------------------------------------------------------ */
 /* Messaging                                                          */
 /* ------------------------------------------------------------------ */
 
-/**
- * @param {string} type
- * @param {object} [payload]
- * @returns {Promise<{ok: boolean, data?: any, error?: {message: string, isAuthProblem?: boolean}}>}
- */
 async function send(type, payload = {}) {
   try {
     const response = await chrome.runtime.sendMessage({ type, payload });
@@ -110,7 +136,7 @@ async function send(type, payload = {}) {
 
 /**
  * @param {string} message
- * @param {{variant?: 'error'|'success', actionLabel?: string, onAction?: () => void}} [opts]
+ * @param {{variant?: 'error'|'success', actions?: Array<{label: string, primary?: boolean, onClick: () => void}>}} [opts]
  */
 function setStatus(message, opts = {}) {
   el.status.textContent = '';
@@ -121,13 +147,20 @@ function setStatus(message, opts = {}) {
   line.textContent = message;
   el.status.appendChild(line);
 
-  if (opts.actionLabel && opts.onAction) {
-    const button = document.createElement('button');
-    button.className = 'status-action';
-    button.type = 'button';
-    button.textContent = opts.actionLabel;
-    button.addEventListener('click', opts.onAction);
-    el.status.appendChild(button);
+  if (opts.actions?.length) {
+    const row = document.createElement('div');
+    row.className = 'status-actions';
+    for (const action of opts.actions) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `status-action${action.primary ? ' primary' : ''}`;
+      const label = document.createElement('span');
+      label.textContent = action.label;
+      button.appendChild(label);
+      button.addEventListener('click', action.onClick);
+      row.appendChild(button);
+    }
+    el.status.appendChild(row);
   }
 }
 
@@ -137,24 +170,185 @@ function clearStatus() {
 }
 
 /**
- * Auth failures are a settings problem, so point at settings rather than
- * leaving the user to guess.
- * @param {{message: string, isAuthProblem?: boolean}} error
+ * @param {{message: string, isAuthProblem?: boolean, code?: string, blocking?: Array<{campaign_id: string, campaign_name: string}>, contactId?: string}} error
  */
 function showError(error) {
-  setStatus(
-    error.message,
-    error.isAuthProblem
-      ? { variant: 'error', actionLabel: 'Open settings', onAction: () => chrome.runtime.openOptionsPage() }
-      : { variant: 'error' }
-  );
+  // The exclusivity rule is resolvable, so offer the resolution rather than
+  // leaving the user staring at a refusal.
+  if (error.code === 'BLOCKED_BY_CAMPAIGN' && error.blocking?.length) {
+    const names = error.blocking.map((b) => `"${b.campaign_name}"`).join(', ');
+    const target = state.campaigns.find((c) => c.id === state.selectedCampaignId);
+    setStatus(
+      `Already in ${names}, on a different lead list. A contact can only be in one active campaign per list.`,
+      {
+        variant: 'error',
+        actions: [
+          {
+            label: `Move to "${target?.name ?? 'this campaign'}"`,
+            primary: true,
+            onClick: () =>
+              moveToCampaign(
+                error.contactId,
+                error.blocking.map((b) => b.campaign_id)
+              ),
+          },
+        ],
+      }
+    );
+    return;
+  }
+
+  setStatus(error.message, {
+    variant: 'error',
+    actions: error.isAuthProblem
+      ? [{ label: 'Open settings', onClick: () => chrome.runtime.openOptionsPage() }]
+      : [],
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Identity                                                           */
+/* ------------------------------------------------------------------ */
+
+function hashCode(value) {
+  let h = 0;
+  for (let i = 0; i < value.length; i += 1) h = ((h << 5) - h + value.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+/** @param {string} [name] @param {string} [email] */
+function initialsFor(name, email) {
+  if (name) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  }
+  if (email) return email.slice(0, 2).toUpperCase();
+  return '··';
+}
+
+/**
+ * Deliverability state, using the same thresholds as the contacts table
+ * (emailStatus in client/src/pages/contacts/ContactsListPage.tsx) so a contact
+ * never reads as Valid in one place and Risky in the other.
+ *
+ * @param {object|null} contact
+ * @returns {{label: string, variant: string}|null}
+ */
+function verificationFor(contact) {
+  if (!contact) return null;
+  if (contact.is_bounced) return { label: 'Bounced', variant: 'pill-invalid' };
+
+  const verified = Boolean(contact.dcs_verified_at) || contact.dcs_score != null;
+  if (!verified) return { label: 'Unverified', variant: 'pill-neutral' };
+  if (contact.dcs_syntax_ok === false) return { label: 'Invalid', variant: 'pill-invalid' };
+  if (contact.dcs_domain_ok === false) return { label: 'Not found', variant: 'pill-neutral' };
+
+  const score = contact.dcs_score ?? 0;
+  if (contact.dcs_smtp_ok === true || score >= 80) return { label: 'Valid', variant: 'pill-valid' };
+  if (score >= 50) return { label: 'Risky', variant: 'pill-risky' };
+  return { label: 'Undeliverable', variant: 'pill-invalid' };
+}
+
+function renderIdentity() {
+  const form = readForm();
+  const name = [form.first_name, form.last_name].filter(Boolean).join(' ');
+  const display = name || form.email || 'Nobody detected';
+
+  el.personName.textContent = display;
+
+  const seed = (name || form.email || '?').toLowerCase();
+  const [from, to] = AVATAR_GRADIENTS[hashCode(seed) % AVATAR_GRADIENTS.length];
+  el.avatar.style.background = `linear-gradient(135deg, ${from} 0%, ${to} 100%)`;
+  el.avatar.textContent = initialsFor(name, form.email);
+
+  const bits = [];
+  if (form.job_title) bits.push(form.job_title);
+  if (form.company) bits.push(form.company);
+  if (bits.length === 0 && form.email && name) bits.push(form.email);
+  if (bits.length === 0) {
+    const source = SOURCE_LABEL[state.person?.source];
+    bits.push(source ? `Detected from ${source}` : 'Open a profile or an email, or type an address below.');
+  }
+  el.personSub.textContent = bits.join(' · ');
+
+  const verification = verificationFor(state.contact);
+  if (verification) {
+    el.verification.textContent = verification.label;
+    el.verification.className = `pill ${verification.variant}`;
+    el.verification.classList.remove('hidden');
+  } else {
+    el.verification.classList.add('hidden');
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Standing strip                                                     */
+/* ------------------------------------------------------------------ */
+
+/** @param {string} isoDate */
+function formatDate(isoDate) {
+  if (!isoDate) return null;
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+/**
+ * The one-line history above the picker. Ordered by what would change your
+ * mind: suppressed first, then a reply, then engagement, then bare enrolment.
+ */
+function renderStandingStrip() {
+  el.standingStrip.textContent = '';
+  el.standingStrip.className = 'standing-strip';
+
+  if (state.looking || !currentEmailIsValid()) {
+    el.standingStrip.classList.add('hidden');
+    return;
+  }
+
+  const engagement = state.engagement;
+  const activeCount = state.memberships.filter((m) => m.is_active).length;
+  let text = null;
+  let tone = '';
+
+  if (state.suppressed) {
+    text = 'Suppressed — no campaign will email this address.';
+    tone = 'suppressed';
+  } else if (engagement?.hasReplied) {
+    const when = formatDate(engagement.lastActivityAt);
+    text = `Replied${engagement.lastCampaignName ? ` to "${engagement.lastCampaignName}"` : ''}${when ? ` · ${when}` : ''}`;
+    tone = 'replied';
+  } else if (engagement && (engagement.opened > 0 || engagement.clicked > 0)) {
+    const parts = [];
+    if (engagement.sent > 0) parts.push(`${engagement.sent} sent`);
+    if (engagement.opened > 0) parts.push(`opened ${engagement.opened}×`);
+    if (engagement.clicked > 0) parts.push(`clicked ${engagement.clicked}×`);
+    text = parts.join(' · ');
+  } else if (activeCount > 0) {
+    text = `In ${activeCount} active campaign${activeCount > 1 ? 's' : ''}`;
+  } else if (state.contact) {
+    text = 'Known contact · no campaign activity yet';
+  } else if (currentEmailIsValid()) {
+    text = 'New contact — adding will create them';
+  }
+
+  if (!text) {
+    el.standingStrip.classList.add('hidden');
+    return;
+  }
+
+  if (tone) el.standingStrip.classList.add(tone);
+  const label = document.createElement('span');
+  label.textContent = text;
+  el.standingStrip.appendChild(label);
+  el.standingStrip.classList.remove('hidden');
 }
 
 /* ------------------------------------------------------------------ */
 /* Form <-> state                                                     */
 /* ------------------------------------------------------------------ */
 
-/** @returns {{email: string, first_name: string, last_name: string, company: string, job_title: string, linkedin_url: string|null, source_url: string|null}} */
 function readForm() {
   return {
     email: el.email.value.trim().toLowerCase(),
@@ -169,18 +363,7 @@ function readForm() {
 
 /** @param {object|null} person */
 function fillForm(person) {
-  if (!person) {
-    el.sourceHint.textContent = "Couldn't read this tab — enter the details yourself";
-    return;
-  }
-
-  const label = SOURCE_LABEL[person.source];
-  if (label) {
-    el.sourceBadge.textContent = label;
-    el.sourceBadge.classList.remove('hidden');
-    el.sourceHint.textContent = 'Detected from the current tab';
-  }
-
+  if (!person) return;
   el.email.value = person.email || '';
   el.firstName.value = person.first_name || '';
   el.lastName.value = person.last_name || '';
@@ -212,48 +395,181 @@ function currentEmailIsValid() {
 
 function syncButtons() {
   const hasEmail = currentEmailIsValid();
-  el.add.disabled = !hasEmail || !el.campaign.value;
+  el.add.disabled = !hasEmail || !state.selectedCampaignId;
   el.suppress.disabled = !hasEmail || state.suppressed;
   el.suppress.textContent = state.suppressed
     ? 'Already suppressed'
     : state.suppressArmed
       ? 'Click again to confirm'
       : 'Never contact again';
+
+  const target = state.campaigns.find((c) => c.id === state.selectedCampaignId);
+  el.addLabel.textContent = target ? `Add to ${target.name}` : 'Add to campaign';
+
   el.noEmailHelp.classList.toggle('hidden', hasEmail);
+
+  // Nudge the user into the details when there's nothing to act on yet.
+  const summary = hasEmail ? 'Edit details' : 'Enter an email address';
+  el.detailsSummary.textContent = summary;
 }
 
 /* ------------------------------------------------------------------ */
-/* Rendering: where they stand                                        */
+/* Campaign picker                                                    */
 /* ------------------------------------------------------------------ */
 
-/** @param {string} isoDate */
-function formatDate(isoDate) {
-  if (!isoDate) return null;
-  const date = new Date(isoDate);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+/**
+ * Draw the filtered campaign list and keep the active row in view.
+ * Finished campaigns are listed but disabled — hiding them makes the picker
+ * look broken when a campaign the user expects is missing.
+ */
+function renderPicker() {
+  el.campaignList.textContent = '';
+
+  if (state.campaigns.length === 0 && state.finished.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'campaign-empty';
+    empty.textContent = 'No campaigns on this account yet.';
+    el.campaignList.appendChild(empty);
+    return;
+  }
+
+  if (state.filtered.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'campaign-empty';
+    empty.textContent = 'No campaigns match that.';
+    el.campaignList.appendChild(empty);
+  }
+
+  state.filtered.forEach((campaign, index) => {
+    const item = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `campaign-option${index === state.activeIndex ? ' active' : ''}`;
+    button.setAttribute('role', 'option');
+    button.setAttribute('aria-selected', String(index === state.activeIndex));
+
+    const dot = document.createElement('span');
+    dot.className = `campaign-status-dot ${campaign.status}`;
+    button.appendChild(dot);
+
+    const name = document.createElement('span');
+    name.className = 'campaign-option-name';
+    name.textContent = campaign.name;
+    button.appendChild(name);
+
+    const meta = document.createElement('span');
+    meta.className = 'campaign-option-meta';
+    meta.textContent = campaign.status;
+    button.appendChild(meta);
+
+    button.addEventListener('click', () => {
+      state.activeIndex = index;
+      selectActive();
+      addToCampaign();
+    });
+    // Hovering shouldn't silently change what Enter does, but it should track
+    // the pointer so click and keyboard agree.
+    button.addEventListener('mousemove', () => {
+      if (state.activeIndex === index) return;
+      state.activeIndex = index;
+      selectActive();
+      renderPicker();
+    });
+
+    item.appendChild(button);
+    el.campaignList.appendChild(item);
+  });
+
+  // Finished campaigns, shown so their absence isn't mistaken for a bug.
+  const query = el.campaignSearch.value.trim().toLowerCase();
+  const finishedMatches = state.finished.filter((c) => c.name.toLowerCase().includes(query));
+  if (finishedMatches.length > 0) {
+    const label = document.createElement('li');
+    label.className = 'list-group-label';
+    label.textContent = "Finished — can't accept contacts";
+    el.campaignList.appendChild(label);
+
+    for (const campaign of finishedMatches.slice(0, 4)) {
+      const item = document.createElement('li');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'campaign-option';
+      button.disabled = true;
+
+      const dot = document.createElement('span');
+      dot.className = 'campaign-status-dot';
+      button.appendChild(dot);
+
+      const name = document.createElement('span');
+      name.className = 'campaign-option-name';
+      name.textContent = campaign.name;
+      button.appendChild(name);
+
+      const meta = document.createElement('span');
+      meta.className = 'campaign-option-meta';
+      meta.textContent = campaign.status;
+      button.appendChild(meta);
+
+      item.appendChild(button);
+      el.campaignList.appendChild(item);
+    }
+  }
+
+  el.campaignList.querySelector('.campaign-option.active')?.scrollIntoView({ block: 'nearest' });
 }
+
+function selectActive() {
+  const campaign = state.filtered[state.activeIndex];
+  state.selectedCampaignId = campaign?.id ?? null;
+  syncButtons();
+}
+
+function applyFilter() {
+  const query = el.campaignSearch.value.trim().toLowerCase();
+  state.filtered = query
+    ? state.campaigns.filter((c) => c.name.toLowerCase().includes(query))
+    : state.campaigns.slice();
+  state.activeIndex = 0;
+  selectActive();
+  renderPicker();
+}
+
+/** @param {string|null} preselectId */
+async function loadCampaigns(preselectId) {
+  const response = await send('LIST_CAMPAIGNS');
+
+  if (!response.ok) {
+    state.campaigns = [];
+    state.filtered = [];
+    renderPicker();
+    showError(response.error);
+    syncButtons();
+    return;
+  }
+
+  state.campaigns = response.data.enrollable || [];
+  state.finished = response.data.finished || [];
+  state.filtered = state.campaigns.slice();
+
+  // Start on the campaign they used last — that's overwhelmingly the one they
+  // want again, and it makes Enter correct without any typing.
+  const preselectIndex = state.campaigns.findIndex((c) => c.id === preselectId);
+  state.activeIndex = preselectIndex >= 0 ? preselectIndex : 0;
+
+  selectActive();
+  renderPicker();
+}
+
+/* ------------------------------------------------------------------ */
+/* Standing panel                                                     */
+/* ------------------------------------------------------------------ */
 
 function renderStanding() {
   el.standingBody.textContent = '';
 
-  // Show the panel for any valid address, not just ones we already know:
-  // "not in your contacts yet" is useful feedback, and hiding it made a
-  // brand-new address look like the lookup had silently failed.
-  const showPanel =
-    currentEmailIsValid() || state.suppressed || Boolean(state.contact) || state.memberships.length > 0;
+  const showPanel = state.memberships.length > 0 || (state.contact && !state.looking);
   el.standing.classList.toggle('hidden', !showPanel);
   if (!showPanel) return;
-
-  // Say we're checking rather than briefly asserting "not in your contacts",
-  // which reads as a verdict when it's really just an unfinished request.
-  if (state.looking) {
-    const pending = document.createElement('p');
-    pending.className = 'note text-tertiary';
-    pending.textContent = 'Checking…';
-    el.standingBody.appendChild(pending);
-    return;
-  }
 
   if (state.suppressed) {
     const warning = document.createElement('p');
@@ -262,18 +578,10 @@ function renderStanding() {
     el.standingBody.appendChild(warning);
   }
 
-  if (!state.contact) {
-    const note = document.createElement('p');
-    note.className = 'note';
-    note.textContent = 'Not in your contacts yet — adding them will create the contact.';
-    el.standingBody.appendChild(note);
-    return;
-  }
-
   if (state.memberships.length === 0) {
     const note = document.createElement('p');
     note.className = 'note';
-    note.textContent = 'Known contact, not enrolled in any campaign.';
+    note.textContent = 'Not enrolled in any campaign.';
     el.standingBody.appendChild(note);
     return;
   }
@@ -328,11 +636,17 @@ function renderStanding() {
   }
 }
 
+function renderAll() {
+  renderIdentity();
+  renderStandingStrip();
+  renderStanding();
+  syncButtons();
+}
+
 /* ------------------------------------------------------------------ */
-/* Actions                                                            */
+/* Lookup                                                             */
 /* ------------------------------------------------------------------ */
 
-/** Blank out only the fields a previous lookup filled in. */
 function clearBackfilledFields() {
   for (const key of state.backfilled) {
     if (el[key]) el[key].value = '';
@@ -340,17 +654,13 @@ function clearBackfilledFields() {
   state.backfilled.clear();
 }
 
-/**
- * @param {'firstName'|'lastName'|'company'|'jobTitle'} key
- * @param {string|null} value
- */
+/** @param {'firstName'|'lastName'|'company'|'jobTitle'} key @param {string|null} value */
 function backfill(key, value) {
   if (el[key].value || !value) return;
   el[key].value = value;
   state.backfilled.add(key);
 }
 
-/** Re-read the person's standing from the API and repaint. */
 async function refreshStanding() {
   const email = el.email.value.trim().toLowerCase();
   const seq = (lookupSeq += 1);
@@ -361,18 +671,18 @@ async function refreshStanding() {
   // wrong contact from a live campaign.
   state.contact = null;
   state.memberships = [];
+  state.engagement = null;
   state.suppressed = false;
   clearBackfilledFields();
 
   if (!EMAIL_PATTERN.test(email)) {
     state.looking = false;
-    renderStanding();
-    syncButtons();
+    renderAll();
     return;
   }
 
   state.looking = true;
-  renderStanding();
+  renderAll();
 
   const response = await send('LOOKUP_PERSON', { email });
 
@@ -381,18 +691,16 @@ async function refreshStanding() {
   state.looking = false;
 
   if (!response.ok) {
-    renderStanding();
-    syncButtons();
+    renderAll();
     showError(response.error);
     return;
   }
 
   state.contact = response.data.contact;
   state.memberships = response.data.campaigns || [];
+  state.engagement = response.data.engagement || null;
   state.suppressed = Boolean(response.data.suppressed);
 
-  // Fill blank name/company fields from the contact we already hold, so an
-  // existing record isn't overwritten by a thinner scrape.
   if (state.contact) {
     backfill('firstName', state.contact.first_name);
     backfill('lastName', state.contact.last_name);
@@ -400,14 +708,13 @@ async function refreshStanding() {
     backfill('jobTitle', state.contact.job_title);
   }
 
-  renderStanding();
-  syncButtons();
+  renderAll();
 }
 
-/**
- * @param {object} membership
- * @param {HTMLButtonElement} button
- */
+/* ------------------------------------------------------------------ */
+/* Actions                                                            */
+/* ------------------------------------------------------------------ */
+
 async function removeFrom(membership, button) {
   button.disabled = true;
   button.textContent = 'Removing…';
@@ -432,20 +739,20 @@ async function removeFrom(membership, button) {
 }
 
 async function addToCampaign() {
-  const campaignId = el.campaign.value;
+  const campaignId = state.selectedCampaignId;
   const person = readForm();
   if (!campaignId || !EMAIL_PATTERN.test(person.email)) return;
 
   el.add.disabled = true;
-  el.add.textContent = 'Adding…';
+  el.addLabel.textContent = 'Adding…';
   clearStatus();
 
   const response = await send('ADD_TO_CAMPAIGN', { campaignId, person });
 
-  el.add.textContent = 'Add to campaign';
   el.add.disabled = false;
 
   if (!response.ok) {
+    syncButtons();
     showError(response.error);
     return;
   }
@@ -458,16 +765,20 @@ async function addToCampaign() {
     if (skipped > 0) parts.push(`${skipped} skipped.`);
     setStatus(parts.join(' '), {
       variant: 'success',
-      actionLabel: 'Undo',
-      onAction: async () => {
-        const undo = await send('REMOVE_FROM_CAMPAIGN', { campaignId, contactId });
-        if (undo.ok) {
-          setStatus(`Removed from "${campaignName}" again.`);
-          await refreshStanding();
-        } else {
-          showError(undo.error);
-        }
-      },
+      actions: [
+        {
+          label: 'Undo',
+          onClick: async () => {
+            const undo = await send('REMOVE_FROM_CAMPAIGN', { campaignId, contactId });
+            if (undo.ok) {
+              setStatus(`Removed from "${campaignName}" again.`);
+              await refreshStanding();
+            } else {
+              showError(undo.error);
+            }
+          },
+        },
+      ],
     });
   } else {
     setStatus(`Already enrolled in "${campaignName}" — nothing changed.`);
@@ -477,14 +788,39 @@ async function addToCampaign() {
 }
 
 /**
- * Two-step rather than a confirm() dialog: a native dialog in a popup is both
- * ugly and liable to dismiss the popup, and this is not an action to fire on a
- * stray click.
+ * Resolve the exclusivity block: pull them out of the campaigns holding them,
+ * then enrol here.
+ *
+ * @param {string} contactId
+ * @param {string[]} fromCampaignIds
  */
+async function moveToCampaign(contactId, fromCampaignIds) {
+  const campaignId = state.selectedCampaignId;
+  if (!campaignId || !contactId) return;
+
+  setStatus('Moving…');
+
+  const response = await send('MOVE_TO_CAMPAIGN', { campaignId, contactId, fromCampaignIds });
+  if (!response.ok) {
+    showError(response.error);
+    return;
+  }
+
+  const { campaignName, movedFrom } = response.data;
+  setStatus(
+    `Moved to "${campaignName}" — removed from ${movedFrom} other campaign${movedFrom === 1 ? '' : 's'}.`,
+    { variant: 'success' }
+  );
+  await refreshStanding();
+}
+
 async function suppressPerson() {
   const email = el.email.value.trim().toLowerCase();
   if (!EMAIL_PATTERN.test(email)) return;
 
+  // Two-step rather than a confirm() dialog: a native dialog in a popup is
+  // both ugly and liable to dismiss the popup, and this is not an action to
+  // fire on a stray click.
   if (!state.suppressArmed) {
     state.suppressArmed = true;
     syncButtons();
@@ -573,7 +909,6 @@ async function searchByName() {
       if (contact.company) el.company.value = contact.company;
       el.nameMatches.classList.add('hidden');
       clearStatus();
-      syncButtons();
       await refreshStanding();
     });
 
@@ -584,72 +919,20 @@ async function searchByName() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Campaign picker                                                    */
+/* Details disclosure                                                 */
 /* ------------------------------------------------------------------ */
 
-/** @param {string|null} preselectId */
-async function loadCampaigns(preselectId) {
-  const response = await send('LIST_CAMPAIGNS');
-
-  el.campaign.textContent = '';
-
-  if (!response.ok) {
-    const option = document.createElement('option');
-    option.value = '';
-    option.textContent = "Couldn't load campaigns";
-    el.campaign.appendChild(option);
-    showError(response.error);
-    syncButtons();
-    return;
-  }
-
-  const { enrollable, finished } = response.data;
-
-  if (enrollable.length === 0) {
-    const option = document.createElement('option');
-    option.value = '';
-    option.textContent = 'No campaigns accept new contacts';
-    el.campaign.appendChild(option);
-  } else {
-    const placeholder = document.createElement('option');
-    placeholder.value = '';
-    placeholder.textContent = 'Choose a campaign…';
-    el.campaign.appendChild(placeholder);
-
-    for (const campaign of enrollable) {
-      const option = document.createElement('option');
-      option.value = campaign.id;
-      option.textContent = `${campaign.name} (${campaign.status})`;
-      el.campaign.appendChild(option);
-    }
-  }
-
-  // Completed and cancelled campaigns reject enrolment server-side, so list
-  // them visibly disabled rather than hiding them and looking broken.
-  if (finished.length > 0) {
-    const group = document.createElement('optgroup');
-    group.label = "Finished — can't accept contacts";
-    for (const campaign of finished) {
-      const option = document.createElement('option');
-      option.value = '';
-      option.disabled = true;
-      option.textContent = `${campaign.name} (${campaign.status})`;
-      group.appendChild(option);
-    }
-    el.campaign.appendChild(group);
-  }
-
-  if (preselectId && enrollable.some((c) => c.id === preselectId)) {
-    el.campaign.value = preselectId;
-  }
-  syncButtons();
+function toggleDetails(force) {
+  const open = force ?? el.detailsBody.classList.contains('hidden');
+  el.detailsBody.classList.toggle('hidden', !open);
+  el.detailsToggle.setAttribute('aria-expanded', String(open));
+  if (open) el.email.focus();
 }
 
 /* ------------------------------------------------------------------ */
 /* Init                                                               */
 /* ------------------------------------------------------------------ */
 
-/** Debounce so typing an address doesn't fire a lookup per keystroke. */
 function debounce(fn, wait) {
   let timer = null;
   return (...args) => {
@@ -666,23 +949,57 @@ function wireEvents() {
     'input',
     debounce(() => {
       state.suppressArmed = false;
-      syncButtons();
+      renderIdentity();
       refreshStanding();
     }, 450)
   );
+
+  for (const field of [el.firstName, el.lastName, el.company, el.jobTitle]) {
+    field.addEventListener('input', renderIdentity);
+  }
 
   el.candidates.addEventListener('change', () => {
     if (!el.candidates.value) return;
     el.email.value = el.candidates.value;
     state.suppressArmed = false;
-    syncButtons();
     refreshStanding();
   });
 
-  el.campaign.addEventListener('change', syncButtons);
+  el.campaignSearch.addEventListener('input', applyFilter);
+  el.campaignSearch.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      state.activeIndex = Math.min(state.activeIndex + 1, state.filtered.length - 1);
+      selectActive();
+      renderPicker();
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      state.activeIndex = Math.max(state.activeIndex - 1, 0);
+      selectActive();
+      renderPicker();
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      if (!el.add.disabled) addToCampaign();
+    }
+  });
+
   el.add.addEventListener('click', addToCampaign);
   el.suppress.addEventListener('click', suppressPerson);
   el.searchByName.addEventListener('click', searchByName);
+  el.detailsToggle.addEventListener('click', () => toggleDetails());
+
+  // Enter adds from anywhere except a textarea or the details fields, where
+  // it would be surprising.
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      window.close();
+      return;
+    }
+    if (event.key === 'Enter' && event.target === document.body && !el.add.disabled) {
+      event.preventDefault();
+      addToCampaign();
+    }
+  });
 }
 
 async function init() {
@@ -708,9 +1025,14 @@ async function init() {
   el.main.classList.remove('hidden');
   state.person = context.data.person;
   fillForm(context.data.person);
-  syncButtons();
+  renderAll();
 
-  // Campaigns and standing are independent — fetch together.
+  // The picker owns the keyboard from the moment the popup opens.
+  el.campaignSearch.focus();
+
+  // If the page gave us nothing usable, the details are where the work is.
+  if (!context.data.person?.email) toggleDetails(true);
+
   await Promise.all([loadCampaigns(context.data.lastCampaignId), refreshStanding()]);
 }
 

@@ -2,6 +2,9 @@
  * Popup layout. Tokens and component primitives come from ../lib/theme.css —
  * this file only positions them, so a change to the design system lands here
  * automatically.
+ *
+ * Hierarchy is deliberate: who this is, what's already happened, then the
+ * decision. Editing the person's details is a rarer job, so it collapses.
  */
 
 body {
@@ -9,9 +12,8 @@ body {
   padding-bottom: 12px;
 }
 
-/* ── Top bar ──
-   Mirrors the app shell header: brand mark left, quiet icon action right,
-   separated from the canvas by a hairline. */
+/* ── Top bar ── */
+
 .topbar {
   position: sticky;
   top: 0;
@@ -57,23 +59,326 @@ body {
   color: var(--text-primary);
 }
 
-/* ── Panels ── */
+/* ── Identity ── */
 
-.block {
-  margin: 10px 12px 0;
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 14px 11px;
 }
 
-.block-head {
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  background: var(--gradient-brand);
+}
+
+.identity-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.identity-line {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 11px 13px;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.person-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.person-sub {
+  margin: 1px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Verification pill — same states and thresholds as the contacts table. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.pill::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.pill-valid {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.12);
+}
+.pill-risky {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.12);
+}
+.pill-invalid {
+  color: #be123c;
+  background: rgba(244, 63, 94, 0.12);
+}
+.pill-neutral {
+  color: var(--text-tertiary);
+  background: var(--bg-elevated);
+}
+.dark .pill-valid {
+  color: #34d399;
+}
+.dark .pill-risky {
+  color: #fbbf24;
+}
+.dark .pill-invalid {
+  color: #fb7185;
+}
+
+/* ── Standing strip ──
+   One line of history above the decision, so you know what you're walking
+   into before you pick a campaign. */
+
+.standing-strip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 14px 2px;
+  padding: 7px 10px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+}
+.standing-strip.replied {
+  color: var(--success);
+  background: var(--success-bg);
+}
+.standing-strip.suppressed {
+  color: var(--error);
+  background: var(--error-bg);
+}
+.standing-strip .strip-icon {
+  flex: 0 0 auto;
+}
+
+/* ── Campaign picker ──
+   Type to filter, arrows to move, enter to add: the same shape as the app's
+   command palette. */
+
+.picker {
+  margin: 8px 14px 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 0 rgba(15, 15, 25, 0.02), 0 1px 3px rgba(15, 15, 25, 0.03);
+  overflow: hidden;
+}
+
+.picker-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  height: 36px;
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.block-body {
-  padding: 12px 13px;
+.picker-icon {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+}
+
+.picker-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+}
+.picker-input:focus {
+  outline: none;
+}
+.picker-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.kbd {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  font-family: var(--font-data);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+}
+.kbd-on-primary {
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.campaign-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.campaign-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.campaign-option:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+/* Active row is driven by keyboard position, not :hover, so the two can't
+   disagree about which row Enter will act on. */
+.campaign-option.active {
+  background: var(--indigo-subtle);
+}
+.campaign-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.campaign-status-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.campaign-status-dot.running {
+  background: var(--success);
+}
+.campaign-status-dot.draft {
+  background: var(--text-tertiary);
+}
+.campaign-status-dot.paused,
+.campaign-status-dot.scheduled {
+  background: var(--warning);
+}
+
+.campaign-option-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.campaign-option-meta {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.campaign-empty {
+  padding: 14px 10px;
+  font-size: 12.5px;
+  text-align: center;
+  color: var(--text-tertiary);
+}
+
+.list-group-label {
+  padding: 8px 8px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+/* ── Primary action ── */
+
+.actions {
+  margin: 9px 14px 0;
+}
+
+.actions .btn-primary {
+  justify-content: center;
+  gap: 8px;
+  height: 34px;
+}
+
+/* ── Collapsible details ── */
+
+.details {
+  margin: 10px 14px 0;
+}
+
+.details-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 0;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.details-toggle:hover {
+  color: var(--text-primary);
+}
+.details-toggle .chev {
+  transition: transform 150ms var(--ease-out);
+}
+.details-toggle[aria-expanded='true'] .chev {
+  transform: rotate(90deg);
+}
+
+.details-body {
+  margin-top: 9px;
+  padding: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
 }
 
 .field {
@@ -90,14 +395,25 @@ body {
 }
 
 .footnote {
-  margin: 9px 0 0;
+  margin: 8px 0 0;
   font-size: 11.5px;
   line-height: 1.45;
   color: var(--text-tertiary);
 }
 
-.suppress-btn {
-  margin-top: 7px;
+/* ── Panels ── */
+
+.block {
+  margin: 10px 14px 0;
+}
+
+.block-head {
+  padding: 10px 13px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.block-body {
+  padding: 11px 13px;
 }
 
 /* ── Empty / setup state ── */
@@ -120,7 +436,7 @@ body {
 /* ── Callout (no email found) ── */
 
 .callout {
-  margin-top: 11px;
+  margin: 10px 14px 0;
   padding: 10px 11px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
@@ -166,8 +482,7 @@ body {
   color: var(--text-tertiary);
 }
 
-/* ── Enrolment rows ──
-   Hairline-separated list, matching the app's table rows. */
+/* ── Enrolment rows ── */
 
 .enrolment {
   display: flex;
@@ -201,6 +516,7 @@ body {
 .enrolment-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: 3px;
   font-size: 11.5px;
@@ -230,7 +546,7 @@ body {
 /* ── Status line ── */
 
 .status {
-  margin: 10px 12px 0;
+  margin: 10px 14px 0;
   padding: 10px 12px;
   font-size: 12.5px;
   line-height: 1.5;
@@ -250,8 +566,15 @@ body {
   border-color: var(--error-border);
   color: var(--error);
 }
+
+.status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 9px;
+}
+
 .status .status-action {
-  margin-top: 8px;
   height: 26px;
   padding: 0 9px;
   font-family: inherit;
@@ -266,4 +589,13 @@ body {
 }
 .status .status-action:hover {
   opacity: 1;
+}
+.status .status-action.primary {
+  background: currentColor;
+  border-color: currentColor;
+}
+/* The label needs the panel's background colour to stay readable on a filled
+   button; a nested span inherits `color` otherwise and disappears. */
+.status .status-action.primary span {
+  color: var(--bg-surface);
 }

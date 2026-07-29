@@ -36,22 +36,66 @@
     </section>
 
     <main id="main" class="hidden">
-      <section class="panel block">
-        <div class="block-head">
-          <div>
-            <p class="section-title">Person on this page</p>
-            <p class="section-sub" id="source-hint">Detected from the current tab</p>
+      <!-- Identity: who this is, and whether they're safe to email. -->
+      <section class="identity">
+        <span id="avatar" class="avatar" aria-hidden="true"></span>
+        <div class="identity-text">
+          <div class="identity-line">
+            <span id="person-name" class="person-name">Nobody detected</span>
+            <span id="verification" class="pill hidden"></span>
           </div>
-          <span id="source-badge" class="badge hidden"></span>
+          <p id="person-sub" class="person-sub">Open a profile or an email, or type an address below.</p>
         </div>
+      </section>
 
-        <div class="block-body">
+      <!-- One line that answers "what's already happened with this person?" -->
+      <div id="standing-strip" class="standing-strip hidden"></div>
+
+      <!-- The decision, first. -->
+      <section class="picker">
+        <div class="picker-field">
+          <svg class="picker-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+          <input
+            id="campaign-search"
+            class="picker-input"
+            type="text"
+            placeholder="Find a campaign…"
+            autocomplete="off"
+            spellcheck="false"
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="campaign-list"
+          />
+          <kbd class="kbd">↑↓</kbd>
+        </div>
+        <ul id="campaign-list" class="campaign-list" role="listbox" aria-label="Campaigns"></ul>
+      </section>
+
+      <div class="actions">
+        <button id="add" class="btn-primary btn-block" type="button" disabled>
+          <span id="add-label">Add to campaign</span>
+          <kbd class="kbd kbd-on-primary">⏎</kbd>
+        </button>
+      </div>
+
+      <!-- Details, out of the way until they're needed. -->
+      <section class="details">
+        <button id="details-toggle" class="details-toggle" type="button" aria-expanded="false" aria-controls="details-body">
+          <svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m9 18 6-6-6-6" />
+          </svg>
+          <span id="details-summary">Edit details</span>
+        </button>
+
+        <div id="details-body" class="details-body hidden">
           <div class="field">
             <label class="field-label" for="email">Email</label>
             <input id="email" class="input-field" type="email" placeholder="name@company.com" autocomplete="off" spellcheck="false" />
           </div>
 
-          <!-- Only rendered when the page offers more than one address. -->
           <div id="candidates-wrap" class="field hidden">
             <label class="field-label" for="candidates">Other addresses on this page</label>
             <select id="candidates" class="input-field"></select>
@@ -79,19 +123,17 @@
             </div>
           </div>
 
-          <!-- LinkedIn rarely exposes an email; offer name matches instead. -->
-          <div id="no-email-help" class="callout hidden">
-            <p class="callout-text">
-              No email on this page. Paste one above, or find someone you already have.
-            </p>
-            <button id="search-by-name" class="btn-secondary btn-xs" type="button">
-              Search contacts by name
-            </button>
-            <ul id="name-matches" class="matches hidden"></ul>
-          </div>
+          <button id="suppress" class="btn-danger-quiet btn-block" type="button" disabled>
+            Never contact again
+          </button>
+          <p class="footnote">
+            Removing ends one sequence. Suppressing blocks every future send and survives
+            re-imports.
+          </p>
         </div>
       </section>
 
+      <!-- Enrolments, each removable. Hidden until there are some. -->
       <section id="standing" class="panel block hidden">
         <div class="block-head">
           <p class="section-title">Where they stand</p>
@@ -99,25 +141,13 @@
         <div class="block-body" id="standing-body"></div>
       </section>
 
-      <section class="panel block">
-        <div class="block-head">
-          <p class="section-title">Add to campaign</p>
-        </div>
-        <div class="block-body">
-          <div class="field">
-            <select id="campaign" class="input-field">
-              <option value="">Loading campaigns…</option>
-            </select>
-          </div>
-          <button id="add" class="btn-primary btn-block" type="button" disabled>Add to campaign</button>
-          <button id="suppress" class="btn-danger-quiet btn-block suppress-btn" type="button" disabled>
-            Never contact again
-          </button>
-          <p class="footnote">
-            Removing ends this sequence only. Suppressing blocks every future send and
-            survives re-imports.
-          </p>
-        </div>
+      <!-- LinkedIn rarely exposes an email; offer name matches instead. -->
+      <section id="no-email-help" class="callout hidden">
+        <p class="callout-text">No email on this page. Find someone you already have:</p>
+        <button id="search-by-name" class="btn-secondary btn-xs" type="button">
+          Search contacts by name
+        </button>
+        <ul id="name-matches" class="matches hidden"></ul>
       </section>
     </main>
 

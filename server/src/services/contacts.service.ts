@@ -212,7 +212,7 @@ export const contactsService = {
     const { data, error } = await supabaseAdmin
       .from('campaign_contacts')
       .select(
-        'id, campaign_id, status, current_step_order, next_send_at, completed_at, error_message, created_at, campaigns!inner(id, name, status, user_id)'
+        'id, campaign_id, status, current_step_order, next_send_at, completed_at, error_message, created_at, campaigns!inner(id, name, status, user_id, list_id)'
       )
       .eq('contact_id', contactId)
       .eq('campaigns.user_id', userId)
@@ -225,6 +225,9 @@ export const contactsService = {
       campaign_id: row.campaign_id,
       campaign_name: row.campaigns?.name ?? null,
       campaign_status: row.campaigns?.status ?? null,
+      // Exposed so a client can work out which enrolment actually blocks a new
+      // one: the exclusivity rule only bites across *different* lead lists.
+      campaign_list_id: row.campaigns?.list_id ?? null,
       status: row.status,
       current_step_order: row.current_step_order,
       next_send_at: row.next_send_at,

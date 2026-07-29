@@ -266,6 +266,36 @@ async function scrapeTab(tabId) {
 /* ------------------------------------------------------------------ */
 
 /**
+ * Boil the activity log down to the handful of facts worth a line in a popup:
+ * has this person engaged, how much, and when did they last do anything.
+ *
+ * The timeline is newest-first (analyticsService orders by occurred_at desc),
+ * so the first row is the most recent.
+ *
+ * @param {Array<{activity_type: string, occurred_at: string, campaign_name?: string}>} timeline
+ */
+function summariseEngagement(timeline) {
+  if (!Array.isArray(timeline) || timeline.length === 0) return null;
+
+  const counts = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
+  for (const entry of timeline) {
+    const type = String(entry.activity_type || '').toLowerCase();
+    if (type in counts) counts[type] += 1;
+  }
+
+  const latest = timeline[0];
+  return {
+    ...counts,
+    // A reply is the only signal that changes what you'd do next, so it's
+    // surfaced separately rather than buried in a count.
+    hasReplied: counts.replied > 0,
+    lastActivityType: latest?.activity_type ?? null,
+    lastActivityAt: latest?.occurred_at ?? null,
+    lastCampaignName: latest?.campaign_name ?? null,
+  };
+}
+
+/**
  * Everything the popup needs to render its first frame, in one round-trip.
  * @param {{tabId?: number}} payload
  */
@@ -321,8 +351,18 @@ async function handleLookupPerson(payload) {
       // Non-fatal: an unavailable check shouldn't block the whole panel.
     }
 
-    const campaigns = contact ? await api.getContactCampaigns(contact.id) : [];
-    return { ok: true, data: { contact, campaigns, suppressed } };
+    if (!contact) return { ok: true, data: { contact: null, campaigns: [], suppressed, engagement: null } };
+
+    // Enrolments and activity are independent reads — one round-trip each,
+    // in parallel, so the panel fills in one go.
+    const [campaigns, timeline] = await Promise.all([
+      api.getContactCampaigns(contact.id),
+      // Activity is a bonus, not a blocker: an analytics hiccup shouldn't
+      // stop the panel showing where someone stands.
+      api.getContactTimeline(contact.id).catch(() => []),
+    ]);
+
+    return { ok: true, data: { contact, campaigns, suppressed, engagement: summariseEngagement(timeline) } };
   } catch (err) {
     return toErrorPayload(err);
   }
@@ -356,7 +396,36 @@ async function handleAddToCampaign(payload) {
     }
 
     const { contact, created } = await api.resolveOrCreateContact({ ...person, email });
-    const result = await api.enrollContacts(campaignId, [contact.id]);
+
+    let result;
+    try {
+      result = await api.enrollContacts(campaignId, [contact.id]);
+    } catch (enrollErr) {
+      // The exclusivity rule is the one refusal the user can actually resolve,
+      // so turn it from a dead end into a choice: name the campaigns holding
+      // this person and let the popup offer to move them.
+      const blocking = await findBlockingEnrolments(contact.id, campaignId).catch(() => []);
+      if (blocking.length > 0) {
+        const payload = toErrorPayload(enrollErr);
+        return {
+          ok: false,
+          error: { ...payload.error, code: 'BLOCKED_BY_CAMPAIGN', blocking, contactId: contact.id },
+        };
+      }
+      throw enrollErr;
+    }
+
+    // Source attribution, so the channel can be measured later. Best-effort:
+    // a tagging failure must never look like the enrolment failed, because
+    // the enrolment already succeeded.
+    if (settings.autoTag && settings.autoTagName) {
+      try {
+        const tag = await api.ensureTag(settings.autoTagName);
+        await api.tagContacts([contact.id], [tag.id]);
+      } catch (tagErr) {
+        console.warn('[Sincerely] Could not tag contact:', tagErr?.message);
+      }
+    }
 
     await setSettings({ lastCampaignId: campaignId });
 
@@ -371,6 +440,76 @@ async function handleAddToCampaign(payload) {
         added: result?.added ?? 0,
         skipped: result?.skipped ?? 0,
         total: result?.total ?? 0,
+        campaignId,
+        campaignName,
+      },
+    };
+  } catch (err) {
+    return toErrorPayload(err);
+  }
+}
+
+/**
+ * Which existing enrolments stand in the way of enrolling into `targetId`.
+ *
+ * The server refuses a contact who's already in another *active* campaign
+ * bound to a *different* lead list. That message names the rule but not the
+ * campaign, which leaves the user with a dead end — so work it out here and
+ * hand back something they can act on.
+ *
+ * @param {string} contactId
+ * @param {string} targetId
+ * @returns {Promise<Array<{campaign_id: string, campaign_name: string|null}>>}
+ */
+async function findBlockingEnrolments(contactId, targetId) {
+  const [memberships, target] = await Promise.all([
+    api.getContactCampaigns(contactId),
+    api.getCampaign(targetId),
+  ]);
+
+  return memberships
+    .filter((m) => {
+      if (!m.is_active || m.campaign_id === targetId) return false;
+      // Same list is explicitly allowed, so it isn't blocking.
+      const sameList = m.campaign_list_id && target?.list_id && m.campaign_list_id === target.list_id;
+      return !sameList;
+    })
+    .map((m) => ({ campaign_id: m.campaign_id, campaign_name: m.campaign_name }));
+}
+
+/**
+ * Take a contact out of the campaigns blocking this one, then enrol them.
+ *
+ * The escape hatch from the exclusivity rule: the user has seen which
+ * campaign holds this person and decided this one matters more.
+ *
+ * @param {{campaignId: string, contactId: string, fromCampaignIds: string[]}} payload
+ */
+async function handleMoveToCampaign(payload) {
+  try {
+    const { campaignId, contactId, fromCampaignIds = [] } = payload;
+    if (!campaignId || !contactId) throw new ApiError('Nothing to move.', { code: 'BAD_MOVE' });
+
+    // Sequential: a burst of DELETEs is exactly what trips the per-key limit.
+    const removedFrom = [];
+    for (const fromId of fromCampaignIds) {
+      await api.removeFromCampaign(fromId, [contactId]);
+      removedFrom.push(fromId);
+    }
+
+    const result = await api.enrollContacts(campaignId, [contactId]);
+    await setSettings({ lastCampaignId: campaignId });
+
+    const { cachedCampaigns = [] } = await chrome.storage.local.get({ cachedCampaigns: [] });
+    const campaignName = cachedCampaigns.find((c) => c.id === campaignId)?.name || 'the campaign';
+
+    return {
+      ok: true,
+      data: {
+        contactId,
+        added: result?.added ?? 0,
+        skipped: result?.skipped ?? 0,
+        movedFrom: removedFrom.length,
         campaignId,
         campaignName,
       },
@@ -483,6 +622,7 @@ const HANDLERS = {
   SEARCH_CONTACTS: handleSearchContacts,
   ADD_TO_CAMPAIGN: handleAddToCampaign,
   REMOVE_FROM_CAMPAIGN: handleRemoveFromCampaign,
+  MOVE_TO_CAMPAIGN: handleMoveToCampaign,
   SUPPRESS_PERSON: handleSuppress,
   TEST_CONNECTION: handleTestConnection,
 };

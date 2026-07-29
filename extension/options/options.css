@@ -166,6 +166,19 @@ code {
   color: var(--text-secondary);
 }
 
+.check-spaced {
+  margin-top: 14px;
+}
+
+/* Indented under the checkbox it belongs to, so the relationship is obvious. */
+.tag-name-field {
+  margin: 8px 0 0 25px;
+}
+
+.tag-name-input {
+  max-width: 240px;
+}
+
 /* ── Explainer rows ── */
 
 .notes {

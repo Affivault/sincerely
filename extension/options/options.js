@@ -19,6 +19,8 @@ import { getThemeMode, initTheme, setThemeMode } from '../lib/theme.js';
 
 const el = {
   theme: document.getElementById('theme'),
+  autoTag: document.getElementById('auto-tag'),
+  autoTagName: document.getElementById('auto-tag-name'),
   apiUrl: document.getElementById('api-url'),
   apiKey: document.getElementById('api-key'),
   save: document.getElementById('save'),
@@ -47,6 +49,9 @@ async function load() {
   el.apiKey.value = '';
   el.apiKey.placeholder = settings.apiKey ? `${settings.apiKey.slice(0, 12)}… (saved)` : 'sk_live_…';
   el.verifyBeforeAdd.checked = Boolean(settings.verifyBeforeAdd);
+  el.autoTag.checked = Boolean(settings.autoTag);
+  el.autoTagName.value = settings.autoTagName || '';
+  el.autoTagName.disabled = !settings.autoTag;
   el.theme.value = await getThemeMode();
 }
 
@@ -163,6 +168,17 @@ el.verifyBeforeAdd.addEventListener('change', () => {
 });
 el.theme.addEventListener('change', () => {
   setThemeMode(/** @type {'light'|'dark'|'system'} */ (el.theme.value));
+});
+el.autoTag.addEventListener('change', () => {
+  el.autoTagName.disabled = !el.autoTag.checked;
+  setSettings({ autoTag: el.autoTag.checked });
+});
+el.autoTagName.addEventListener('change', () => {
+  // Fall back to the default rather than storing a blank, which would silently
+  // disable tagging while the checkbox still says it's on.
+  const name = el.autoTagName.value.trim() || 'chrome-extension';
+  el.autoTagName.value = name;
+  setSettings({ autoTagName: name });
 });
 
 initTheme()

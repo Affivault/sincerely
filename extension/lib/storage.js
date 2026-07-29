@@ -6,7 +6,7 @@
  * a credential should stay on the machine it was entered on.
  */
 
-/** @typedef {{apiBaseUrl: string, apiKey: string, lastCampaignId: string|null, verifyBeforeAdd: boolean, autoTag: boolean}} Settings */
+/** @typedef {{apiBaseUrl: string, apiKey: string, lastCampaignId: string|null, verifyBeforeAdd: boolean, autoTag: boolean, autoTagName: string}} Settings */
 
 export const DEFAULT_API_BASE = 'https://api.usesincerely.com/api/v1';
 export const LOCAL_API_BASE = 'http://localhost:3001/api/v1';
@@ -17,7 +17,9 @@ const DEFAULTS = {
   apiKey: '',
   lastCampaignId: null,
   verifyBeforeAdd: false,
-  autoTag: false,
+  /** Tag everything added from the extension, so the channel is measurable. */
+  autoTag: true,
+  autoTagName: 'chrome-extension',
 };
 
 /**

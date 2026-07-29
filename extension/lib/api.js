@@ -229,6 +229,15 @@ export async function listCampaigns() {
 }
 
 /**
+ * A single campaign, including the lead list it's bound to — which is what
+ * decides whether an existing enrolment blocks a new one.
+ * @param {string} campaignId
+ */
+export async function getCampaign(campaignId) {
+  return request(`/campaigns/${campaignId}`);
+}
+
+/**
  * Campaigns split into the ones you can enrol into and the ones you can't,
  * so the picker can show finished campaigns as disabled instead of letting a
  * click fail with a 400.
@@ -348,6 +357,50 @@ export async function searchContacts(query, limit = 10) {
 /** @param {string[]} contactIds @param {string[]} tagIds */
 export async function tagContacts(contactIds, tagIds) {
   return request('/contacts/bulk-tag', { method: 'POST', body: { contact_ids: contactIds, tag_ids: tagIds } });
+}
+
+/**
+ * What actually happened to this contact — sends, opens, clicks, replies.
+ * Turns the extension into somewhere you check before reaching out, rather
+ * than a one-way chute into a sequence.
+ *
+ * @param {string} contactId
+ * @returns {Promise<Array<{activity_type: string, campaign_name: string, step_subject: string|null, occurred_at: string}>>}
+ */
+export async function getContactTimeline(contactId) {
+  return request(`/analytics/contacts/${contactId}/timeline`);
+}
+
+/** @returns {Promise<Array<{id: string, name: string, color: string}>>} */
+export async function listTags() {
+  return request('/tags');
+}
+
+/**
+ * Find a tag by name or create it, so callers can tag by label without
+ * managing ids. Matching is case-insensitive because that's how people
+ * remember tag names.
+ *
+ * @param {string} name
+ * @param {string} [color]
+ * @returns {Promise<{id: string, name: string}>}
+ */
+export async function ensureTag(name, color = '#5B5BF5') {
+  const wanted = name.trim().toLowerCase();
+  const existing = (await listTags()).find((t) => String(t.name).trim().toLowerCase() === wanted);
+  if (existing) return existing;
+
+  try {
+    return await request('/tags', { method: 'POST', body: { name: name.trim(), color } });
+  } catch (err) {
+    // 409 means it appeared between our read and our write — re-read rather
+    // than failing an add over a tag.
+    if (err instanceof ApiError && err.status === 409) {
+      const found = (await listTags()).find((t) => String(t.name).trim().toLowerCase() === wanted);
+      if (found) return found;
+    }
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
