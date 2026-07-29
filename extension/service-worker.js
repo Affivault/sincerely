@@ -13,6 +13,7 @@
 import * as api from './lib/api.js';
 import { ApiError } from './lib/api.js';
 import { getSettings, setSettings } from './lib/storage.js';
+import { CANDIDATE_PATHS, extractFromHtml, promisingLinks, rankResults } from './lib/harvest.js';
 
 const MENU_ROOT = 'sincerely-root';
 const MENU_ADD_LAST = 'sincerely-add-last';
@@ -562,6 +563,171 @@ async function handleAddToCampaign(payload) {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* Site harvest                                                       */
+/* ------------------------------------------------------------------ */
+
+/** Pages fetched per scan. Enough to reach a contact and a team page. */
+const SCAN_PAGE_LIMIT = 14;
+/** Parallel fetches. Low on purpose — this is someone else's server. */
+const SCAN_CONCURRENCY = 3;
+const SCAN_TIMEOUT_MS = 8000;
+/** Skip anything huge; a 5MB page is an app bundle, not a contact page. */
+const SCAN_MAX_BYTES = 2_000_000;
+
+/**
+ * Fetch one page as text, giving up quickly and quietly.
+ * @param {string} url
+ * @returns {Promise<string|null>}
+ */
+async function fetchPage(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SCAN_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      credentials: 'omit',
+      redirect: 'follow',
+    });
+    if (!response.ok) return null;
+
+    const type = response.headers.get('content-type') || '';
+    if (!/text\/html|application\/xhtml/i.test(type)) return null;
+
+    const length = Number(response.headers.get('content-length') || 0);
+    if (length > SCAN_MAX_BYTES) return null;
+
+    const text = await response.text();
+    return text.length > SCAN_MAX_BYTES ? text.slice(0, SCAN_MAX_BYTES) : text;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Run tasks with a small pool, so a scan doesn't hammer the site. */
+async function pooled(items, worker, size) {
+  const queue = [...items];
+  const runners = Array.from({ length: Math.min(size, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const item = queue.shift();
+      await worker(item);
+    }
+  });
+  await Promise.all(runners);
+}
+
+/**
+ * Read a company's own site for addresses.
+ *
+ * This is the free half of the product. Enrichment vendors charge because they
+ * licence a people database; a company's /contact page is public HTML, so the
+ * only cost is a handful of HTTP requests the extension makes itself. No
+ * server, no credits.
+ *
+ * Bounded deliberately: a fixed list of likely paths plus one round of
+ * on-page links, same-origin only, capped pages, three at a time. A scan
+ * should feel like a person clicking "Contact", not like a crawler.
+ *
+ * @param {{url: string}} payload The page the user is on; its origin is scanned.
+ */
+async function handleScanSite(payload) {
+  try {
+    let origin;
+    let startUrl;
+    try {
+      const parsed = new URL(payload.url);
+      if (!/^https?:$/.test(parsed.protocol)) throw new Error('not http');
+      origin = parsed.origin;
+      startUrl = parsed.toString();
+    } catch {
+      throw new ApiError("This page can't be scanned — open the company's website first.", { code: 'BAD_URL' });
+    }
+
+    // Scanning a site means fetching from it, which needs a host grant. It's
+    // requested from the popup (a user gesture); by here it must already exist.
+    const granted = await chrome.permissions.contains({ origins: [`${origin}/*`] }).catch(() => false);
+    if (!granted) {
+      throw new ApiError(`Chrome needs permission to read ${origin}. Allow it and scan again.`, {
+        code: 'NEEDS_PERMISSION',
+        origin,
+      });
+    }
+
+    const queued = [startUrl, ...CANDIDATE_PATHS.map((path) => `${origin}${path}`)];
+    const seen = new Set();
+    const toVisit = [];
+    for (const url of queued) {
+      const normalised = url.replace(/\/+$/, '') || url;
+      if (seen.has(normalised)) continue;
+      seen.add(normalised);
+      toVisit.push(url);
+    }
+
+    /** @type {Map<string, object>} */
+    const found = new Map();
+    const visited = [];
+    /** @type {string[]} */
+    const discovered = [];
+
+    const visit = async (url) => {
+      if (visited.length >= SCAN_PAGE_LIMIT) return;
+      const html = await fetchPage(url);
+      if (!html) return;
+      visited.push(url);
+
+      for (const result of extractFromHtml(html, url)) {
+        // First sighting wins: the earlier pages are the likelier ones, and a
+        // later page rarely improves on the name we already attributed.
+        if (!found.has(result.email)) found.set(result.email, result);
+      }
+
+      // Only the entry page contributes new links — one hop keeps the scan
+      // predictable and stops a big site turning into a crawl.
+      if (url === startUrl) discovered.push(...promisingLinks(html, url, 8));
+    };
+
+    await pooled(toVisit.slice(0, SCAN_PAGE_LIMIT), visit, SCAN_CONCURRENCY);
+
+    const extra = discovered.filter((url) => {
+      const normalised = url.replace(/\/+$/, '');
+      if (seen.has(normalised)) return false;
+      seen.add(normalised);
+      return true;
+    });
+    if (extra.length > 0 && visited.length < SCAN_PAGE_LIMIT) {
+      await pooled(extra.slice(0, SCAN_PAGE_LIMIT - visited.length), visit, SCAN_CONCURRENCY);
+    }
+
+    const results = rankResults([...found.values()]);
+
+    // Tell the user which of these they already have, so a scan doubles as a
+    // gap analysis rather than a pile of unknowns.
+    const known = new Map();
+    const domains = [...new Set(results.map((r) => r.email.split('@')[1]).filter(Boolean))].slice(0, 5);
+    for (const domain of domains) {
+      try {
+        const byEmail = await api.contactsByDomain(domain);
+        for (const [email, contact] of byEmail) known.set(email, contact);
+      } catch {
+        // A lookup failure just means we can't annotate; the addresses stand.
+      }
+    }
+
+    return {
+      ok: true,
+      data: {
+        origin,
+        pagesScanned: visited.length,
+        results: results.map((r) => ({ ...r, alreadyAContact: known.has(r.email) })),
+      },
+    };
+  } catch (err) {
+    return toErrorPayload(err);
+  }
+}
+
 /**
  * Add every address found on a page to one campaign.
  *
@@ -580,10 +746,22 @@ async function handleBulkAdd(payload) {
     const { campaignId } = payload;
     if (!campaignId) throw new ApiError('Pick a campaign first.', { code: 'NO_CAMPAIGN' });
 
-    const emails = [...new Set((payload.emails || []).map((e) => String(e).trim().toLowerCase()))]
-      .filter((e) => EMAIL_PATTERN.test(e))
-      .slice(0, BULK_LIMIT);
+    // Accepts bare addresses or {email, first_name, ...} rows, so a harvest
+    // can carry the names it worked out rather than throwing them away.
+    const rows = (payload.people || payload.emails || []).map((entry) =>
+      typeof entry === 'string' ? { email: entry } : entry || {}
+    );
 
+    /** @type {Map<string, object>} */
+    const byEmail = new Map();
+    for (const row of rows) {
+      const email = String(row.email || '').trim().toLowerCase();
+      if (!EMAIL_PATTERN.test(email) || byEmail.has(email)) continue;
+      byEmail.set(email, { ...row, email });
+      if (byEmail.size >= BULK_LIMIT) break;
+    }
+
+    const emails = [...byEmail.keys()];
     if (emails.length === 0) throw new ApiError('No usable addresses on this page.', { code: 'NO_EMAILS' });
 
     const domains = [...new Set(emails.map((e) => e.split('@')[1]).filter(Boolean))];
@@ -599,7 +777,18 @@ async function handleBulkAdd(payload) {
     let created = 0;
 
     if (missing.length > 0) {
-      const result = await api.bulkCreateContacts(missing.map((email) => ({ email })));
+      const result = await api.bulkCreateContacts(
+        missing.map((email) => {
+          const row = byEmail.get(email) || {};
+          return {
+            email,
+            first_name: row.first_name || null,
+            last_name: row.last_name || null,
+            company: row.company || null,
+            job_title: row.job_title || null,
+          };
+        })
+      );
       created = result?.imported ?? 0;
 
       // The bulk endpoint returns counts, not ids, so re-read the domains we
@@ -956,6 +1145,7 @@ const HANDLERS = {
   REMOVE_FROM_CAMPAIGN: handleRemoveFromCampaign,
   MOVE_TO_CAMPAIGN: handleMoveToCampaign,
   BULK_ADD: handleBulkAdd,
+  SCAN_SITE: handleScanSite,
   SUPPRESS_PERSON: handleSuppress,
   TEST_CONNECTION: handleTestConnection,
 };

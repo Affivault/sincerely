@@ -78,6 +78,34 @@ talk to that origin when you save. Accept it, or requests will be blocked.
 - **Never contact again** suppresses the address account-wide and pulls them out
   of every campaign still running. Two clicks, deliberately.
 
+**On any company website** — press **Scan** in the popup. It reads that site's
+own contact, about and team pages, lists every address it finds, and enrols the
+ones you tick. This costs nothing to run: enrichment vendors charge because they
+licence a people database, but a company's `/contact` page is public HTML, so the
+only cost is a handful of requests the extension makes itself. No credits, no
+server.
+
+It handles the obfuscations real sites use, which is where most free scrapers
+give up: Cloudflare's `data-cfemail` protection, `&#64;` entities,
+`name (at) example (dot) com`, and zero-width padding. It also attributes names
+— from `first.last@` where the address carries one, otherwise from the text
+beside it on a team page — so contacts arrive with something for your merge tags
+rather than a bare address.
+
+Results are ranked: named people first, shared inboxes (`info@`, `sales@`) next,
+role accounts (`no-reply@`, `press@`) last but never discarded — sometimes the
+shared inbox *is* the way in. Anything you already hold is labelled, so a scan
+doubles as a gap analysis, and **New only** ticks just the ones you're missing.
+
+The scan asks Chrome for permission to read that one site, at the moment you
+press the button. The extension never holds blanket access to everything you
+browse. It reads at most 14 pages, same-origin only, three at a time — it should
+feel like a person clicking "Contact", not like a crawler.
+
+> Addresses on a public site are still personal data. Under GDPR you need a
+> lawful basis to email them, and B2B cold outreach rules vary by country. This
+> reads what's published; deciding who to contact is yours.
+
 **On a page with several people** — a team page, a directory, a thread with
 multiple participants — the popup offers **Add all N addresses on this page**.
 It's two-click, like suppression: the first click lists exactly who is about to

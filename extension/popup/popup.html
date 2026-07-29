@@ -145,6 +145,28 @@
         <div class="block-body" id="standing-body"></div>
       </section>
 
+      <!-- Read this company's own site for addresses. Free: public HTML. -->
+      <section class="panel block" id="scan-block">
+        <div class="block-head">
+          <div>
+            <p class="section-title">Scan this website</p>
+            <p class="section-sub" id="scan-sub">Read the contact and team pages for addresses.</p>
+          </div>
+          <button id="scan" class="btn-secondary btn-xs" type="button">Scan</button>
+        </div>
+        <div class="block-body hidden" id="scan-body">
+          <div class="scan-toolbar hidden" id="scan-toolbar">
+            <label class="scan-check">
+              <input id="scan-all" type="checkbox" />
+              <span id="scan-count">0 selected</span>
+            </label>
+            <button id="scan-new-only" class="btn-secondary btn-xs" type="button">New only</button>
+          </div>
+          <ul id="scan-results" class="scan-results"></ul>
+          <button id="scan-add" class="btn-primary btn-block hidden" type="button">Add selected to campaign</button>
+        </div>
+      </section>
+
       <!-- LinkedIn rarely exposes an email; offer name matches instead. -->
       <section id="no-email-help" class="callout hidden">
         <p class="callout-text">No email on this page.</p>

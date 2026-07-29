@@ -84,6 +84,17 @@ const el = {
   jobTitle: document.getElementById('job-title'),
   suppress: document.getElementById('suppress'),
 
+  scanBlock: document.getElementById('scan-block'),
+  scanSub: document.getElementById('scan-sub'),
+  scan: document.getElementById('scan'),
+  scanBody: document.getElementById('scan-body'),
+  scanToolbar: document.getElementById('scan-toolbar'),
+  scanAll: document.getElementById('scan-all'),
+  scanCount: document.getElementById('scan-count'),
+  scanNewOnly: document.getElementById('scan-new-only'),
+  scanResults: document.getElementById('scan-results'),
+  scanAdd: document.getElementById('scan-add'),
+
   noEmailHelp: document.getElementById('no-email-help'),
   prospectFind: document.getElementById('prospect-find'),
   prospectResult: document.getElementById('prospect-result'),
@@ -113,6 +124,11 @@ const state = {
   selectedCampaignId: null,
   /** Web app origin, for "open in Sincerely" links. Empty disables them. */
   appUrl: '',
+  /** The tab the popup was opened over, so a scan knows which site to read. */
+  tabUrl: '',
+  /** Harvest results, and which of them are ticked. */
+  scanResults: [],
+  scanSelected: new Set(),
   /**
    * Form fields filled from an API result rather than typed or scraped. Only
    * these get cleared when the address changes.
@@ -464,6 +480,8 @@ function syncButtons() {
 
   // Bulk is offered only when the page really does hold several people —
   // otherwise it's a button that does the same as the one above it.
+  if (state.scanResults.length > 0) syncScanToolbar();
+
   const bulk = pageEmails();
   el.bulkAdd.classList.toggle('hidden', bulk.length < 2);
   el.bulkAdd.disabled = !state.selectedCampaignId;
@@ -971,6 +989,201 @@ async function suppressPerson() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Site scan                                                          */
+/* ------------------------------------------------------------------ */
+
+/** Only http(s) pages can be read; a chrome:// tab has nothing to offer. */
+function scannableOrigin() {
+  try {
+    const url = new URL(state.tabUrl);
+    if (!/^https?:$/.test(url.protocol)) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function renderScanSub() {
+  const origin = scannableOrigin();
+  el.scanBlock.classList.toggle('hidden', !origin);
+  if (!origin) return;
+  el.scanSub.textContent = state.scanResults.length
+    ? `${state.scanResults.length} found on ${origin.replace(/^https?:\/\//, '')}`
+    : `Read ${origin.replace(/^https?:\/\//, '')} for addresses.`;
+}
+
+/**
+ * Scan the site the popup was opened over.
+ *
+ * The host permission is requested here rather than declared in the manifest:
+ * asking for one origin when the user presses Scan is both honest and far
+ * likelier to survive review than blanket access to every site they visit.
+ */
+async function scanSite() {
+  const origin = scannableOrigin();
+  if (!origin) return;
+
+  const origins = [`${origin}/*`];
+  let granted = await chrome.permissions.contains({ origins }).catch(() => false);
+  if (!granted) {
+    granted = await chrome.permissions.request({ origins }).catch(() => false);
+  }
+  if (!granted) {
+    setStatus(`Sincerely needs your permission to read ${origin}. Press Scan again to allow it.`, {
+      variant: 'error',
+    });
+    return;
+  }
+
+  el.scan.disabled = true;
+  el.scan.textContent = 'Scanning…';
+  clearStatus();
+
+  const response = await send('SCAN_SITE', { url: state.tabUrl });
+
+  el.scan.disabled = false;
+  el.scan.textContent = 'Scan';
+
+  if (!response.ok) {
+    showError(response.error);
+    return;
+  }
+
+  state.scanResults = response.data.results || [];
+  // Pre-tick the ones worth having: real people this account doesn't hold yet.
+  state.scanSelected = new Set(
+    state.scanResults.filter((r) => r.kind === 'person' && !r.alreadyAContact).map((r) => r.email)
+  );
+
+  renderScan(response.data);
+}
+
+/** @param {{pagesScanned: number, origin: string}} meta */
+function renderScan(meta) {
+  el.scanBody.classList.remove('hidden');
+  el.scanResults.textContent = '';
+  renderScanSub();
+
+  if (state.scanResults.length === 0) {
+    el.scanToolbar.classList.add('hidden');
+    el.scanAdd.classList.add('hidden');
+    const empty = document.createElement('li');
+    empty.className = 'scan-empty';
+    empty.textContent = `No addresses found across ${meta.pagesScanned} page${meta.pagesScanned === 1 ? '' : 's'}. Many sites only show them behind a form.`;
+    el.scanResults.appendChild(empty);
+    return;
+  }
+
+  el.scanToolbar.classList.remove('hidden');
+  el.scanAdd.classList.remove('hidden');
+
+  for (const result of state.scanResults) {
+    const item = document.createElement('li');
+    item.className = 'scan-row';
+
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = state.scanSelected.has(result.email);
+    box.addEventListener('change', () => {
+      if (box.checked) state.scanSelected.add(result.email);
+      else state.scanSelected.delete(result.email);
+      syncScanToolbar();
+    });
+    item.appendChild(box);
+
+    const main = document.createElement('div');
+    main.className = 'scan-main';
+
+    const address = document.createElement('div');
+    address.className = 'scan-email';
+    address.textContent = result.email;
+    main.appendChild(address);
+
+    const meta2 = document.createElement('div');
+    meta2.className = 'scan-meta';
+
+    const name = [result.first_name, result.last_name].filter(Boolean).join(' ');
+    if (name) meta2.appendChild(document.createTextNode(name));
+
+    if (result.kind !== 'person') {
+      const badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.textContent = result.kind === 'role' ? 'role account' : 'shared inbox';
+      meta2.appendChild(badge);
+    }
+    if (result.alreadyAContact) {
+      const badge = document.createElement('span');
+      badge.className = 'badge badge-info';
+      badge.textContent = 'already a contact';
+      meta2.appendChild(badge);
+    }
+    main.appendChild(meta2);
+    item.appendChild(main);
+
+    el.scanResults.appendChild(item);
+  }
+
+  syncScanToolbar();
+}
+
+function syncScanToolbar() {
+  const total = state.scanResults.length;
+  const selected = state.scanSelected.size;
+  el.scanCount.textContent = `${selected} of ${total} selected`;
+  el.scanAll.checked = selected > 0 && selected === total;
+  el.scanAll.indeterminate = selected > 0 && selected < total;
+  el.scanAdd.disabled = selected === 0 || !state.selectedCampaignId;
+
+  const target = state.campaigns.find((c) => c.id === state.selectedCampaignId);
+  el.scanAdd.textContent = target
+    ? `Add ${selected} to ${target.name}`
+    : 'Pick a campaign above first';
+}
+
+/** Re-tick only the addresses this account doesn't already hold. */
+function selectNewOnly() {
+  state.scanSelected = new Set(
+    state.scanResults.filter((r) => !r.alreadyAContact).map((r) => r.email)
+  );
+  for (const box of el.scanResults.querySelectorAll('input[type="checkbox"]')) {
+    const row = box.closest('.scan-row');
+    const email = row?.querySelector('.scan-email')?.textContent || '';
+    box.checked = state.scanSelected.has(email);
+  }
+  syncScanToolbar();
+}
+
+async function addScanned() {
+  const target = state.campaigns.find((c) => c.id === state.selectedCampaignId);
+  if (!target || state.scanSelected.size === 0) return;
+
+  const people = state.scanResults.filter((r) => state.scanSelected.has(r.email));
+
+  el.scanAdd.disabled = true;
+  el.scanAdd.textContent = 'Adding…';
+  clearStatus();
+
+  // The harvested names travel with the addresses, so contacts arrive with
+  // something to merge into a first-name token rather than a bare address.
+  const response = await send('BULK_ADD', { campaignId: target.id, people });
+
+  syncScanToolbar();
+
+  if (!response.ok) {
+    showError(response.error);
+    return;
+  }
+
+  const { requested, created, added, skipped, campaignName } = response.data;
+  const parts = [`Added ${added} of ${requested} to "${campaignName}".`];
+  if (created > 0) parts.push(`${created} new contact${created === 1 ? '' : 's'} created.`);
+  if (skipped > 0) parts.push(`${skipped} skipped — already enrolled, or held by another campaign.`);
+  setStatus(parts.join(' '), { variant: added > 0 ? 'success' : undefined });
+
+  await refreshStanding();
+}
+
+/* ------------------------------------------------------------------ */
 /* Prospector                                                         */
 /* ------------------------------------------------------------------ */
 
@@ -1251,6 +1464,18 @@ function wireEvents() {
   el.suppress.addEventListener('click', suppressPerson);
   el.searchByName.addEventListener('click', searchByName);
   el.prospectFind.addEventListener('click', prospectFind);
+  el.scan.addEventListener('click', scanSite);
+  el.scanAdd.addEventListener('click', addScanned);
+  el.scanNewOnly.addEventListener('click', selectNewOnly);
+  el.scanAll.addEventListener('change', () => {
+    state.scanSelected = el.scanAll.checked
+      ? new Set(state.scanResults.map((r) => r.email))
+      : new Set();
+    for (const box of el.scanResults.querySelectorAll('input[type="checkbox"]')) {
+      box.checked = el.scanAll.checked;
+    }
+    syncScanToolbar();
+  });
   el.detailsToggle.addEventListener('click', () => toggleDetails());
 
   // Enter adds from anywhere except a textarea or the details fields, where
@@ -1290,6 +1515,8 @@ async function init() {
   el.main.classList.remove('hidden');
   state.person = context.data.person;
   state.appUrl = String(context.data.appUrl || '').replace(/\/+$/, '');
+  state.tabUrl = tab?.url || '';
+  renderScanSub();
   fillForm(context.data.person);
   renderAll();
 
