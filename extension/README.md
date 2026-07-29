@@ -165,9 +165,40 @@ manifest.json          MV3, no build step
 service-worker.js      The only place the API key is read; all fetches happen here
 lib/api.js             API client — auth, error normalising, domain calls
 lib/storage.js         chrome.storage.local wrapper + URL normalising
+lib/theme.css          Design system, ported from client/src/index.css
+lib/theme.js           Light/dark/system resolution, mirroring ThemeContext
+fonts/                 Inter + JetBrains Mono (bundled, never fetched)
 content/scraper.js     Classic script: LinkedIn/Gmail/generic adapters, floating button
 popup/                 Main UI
 options/               Setup + connection test
+```
+
+### Design
+
+`lib/theme.css` is a direct port of `client/src/index.css` — same token names,
+same values, same control geometry (32px controls, 6px radii, Inter at 13.5px,
+warm paper neutrals, `#5B5BF5` indigo). **`client/src/index.css` is the source
+of truth: when a token changes there, change it here too.** The popup and
+options stylesheets only do layout; every colour, border, and control style
+comes from the shared file.
+
+Dark mode works the way the app's does — a `.dark` class on `<html>`, resolved
+from a `light | dark | system` preference (`lib/theme.js`, mirroring
+`ThemeContext.tsx`). The extension can't read the app's `localStorage` across
+origins, so it keeps its own copy of that choice; the picker is on the options
+page.
+
+Inter and JetBrains Mono are bundled as woff2 rather than loaded from Google
+Fonts: an extension that fetches a remote font leaks a request from every page
+it renders on and breaks offline.
+
+The toolbar icon is generated from `client/public/favicon.png`, the platform's
+own brand mark, so it's the same gradient "S" users see in the app. Both assets
+are reproducible from `extension/tools/` when the brand or type changes:
+
+```sh
+node extension/tools/make-icons.mjs client/public/favicon.png extension/icons
+node extension/tools/fetch-fonts.mjs extension/fonts
 ```
 
 Two rules hold this together:

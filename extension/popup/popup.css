@@ -1,272 +1,269 @@
-:root {
-  --bg: #ffffff;
-  --panel: #f8fafc;
-  --border: #e2e8f0;
-  --text: #0f172a;
-  --muted: #64748b;
-  --primary: #1f2937;
-  --primary-hover: #111827;
-  --danger: #b91c1c;
-  --success: #15803d;
-  --warn: #b45309;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f172a;
-    --panel: #16213a;
-    --border: #2b3a55;
-    --text: #e8edf7;
-    --muted: #94a3b8;
-    --primary: #3b5bfd;
-    --primary-hover: #2c48e0;
-    --danger: #ef4444;
-    --success: #22c55e;
-    --warn: #f59e0b;
-  }
-}
-
-* { box-sizing: border-box; }
+/**
+ * Popup layout. Tokens and component primitives come from ../lib/theme.css —
+ * this file only positions them, so a change to the design system lands here
+ * automatically.
+ */
 
 body {
   width: 380px;
-  margin: 0;
-  padding: 0 0 10px;
-  font: 13px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  color: var(--text);
-  background: var(--bg);
+  padding-bottom: 12px;
 }
 
-.hidden { display: none !important; }
-
-.header {
+/* ── Top bar ──
+   Mirrors the app shell header: brand mark left, quiet icon action right,
+   separated from the canvas by a hairline. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
+  height: 44px;
+  padding: 0 12px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .brand {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  gap: 7px;
 }
 
-.link-btn {
+.brand-name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border: 0;
-  background: none;
-  color: var(--muted);
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-tertiary);
   cursor: pointer;
-  padding: 4px;
+  transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
 }
-.link-btn:hover { color: var(--text); text-decoration: underline; }
+.icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
 
-.panel {
+/* ── Panels ── */
+
+.block {
   margin: 10px 12px 0;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--panel);
 }
 
-.panel-title {
-  margin: 0 0 10px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
+.block-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
-.field { margin-bottom: 10px; }
-.field:last-child { margin-bottom: 0; }
+.block-body {
+  padding: 12px 13px;
+}
 
-.field-row {
+.field {
+  margin-bottom: 10px;
+}
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.field-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
-label {
-  display: block;
-  margin-bottom: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted);
+.footnote {
+  margin: 9px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
 }
 
-input, select {
-  width: 100%;
-  padding: 7px 9px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 13px;
-  font-family: inherit;
+.suppress-btn {
+  margin-top: 7px;
 }
 
-input:focus, select:focus {
-  outline: 2px solid color-mix(in srgb, var(--primary) 45%, transparent);
-  outline-offset: 1px;
-  border-color: var(--primary);
+/* ── Empty / setup state ── */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 34px 30px 38px;
+  text-align: center;
+}
+.empty-state .section-sub {
+  max-width: 260px;
+}
+.empty-state .btn-primary {
+  margin-top: 5px;
 }
 
-.btn {
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
+/* ── Callout (no email found) ── */
+
+.callout {
+  margin-top: 11px;
+  padding: 10px 11px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
 }
-.btn:hover:not(:disabled) { border-color: var(--muted); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.btn.primary {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
-}
-.btn.primary:hover:not(:disabled) { background: var(--primary-hover); }
-
-.btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
-.btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 10%, transparent); }
-
-.btn.subtle { font-weight: 500; font-size: 12px; padding: 6px 10px; }
-
-.btn.block { display: block; width: 100%; margin-top: 8px; }
-
-.muted { color: var(--muted); margin: 8px 0 0; }
-.small { font-size: 11px; line-height: 1.45; }
-
-.hint {
-  margin-top: 10px;
-  padding: 9px 10px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--warn) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+.callout-text {
+  margin: 0 0 8px;
   font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
 }
-.hint p { margin: 0 0 8px; }
 
-.matches { list-style: none; margin: 8px 0 0; padding: 0; }
-.matches li { margin-bottom: 4px; }
+.matches {
+  list-style: none;
+  margin: 9px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+}
 .matches button {
   width: 100%;
   text-align: left;
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
+  padding: 7px 9px;
+  font-family: inherit;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: border-color 150ms var(--ease-out), background-color 150ms var(--ease-out);
 }
-.matches button:hover { border-color: var(--primary); }
-.matches .match-email { color: var(--muted); font-size: 11px; }
+.matches button:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-muted);
+}
+.match-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.match-meta {
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
 
-/* Enrolment rows -------------------------------------------------- */
+/* ── Enrolment rows ──
+   Hairline-separated list, matching the app's table rows. */
 
 .enrolment {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--border);
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border-subtle);
 }
-.enrolment:last-child { border-bottom: 0; }
+.enrolment:first-child {
+  padding-top: 0;
+}
+.enrolment:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
 
-.enrolment-main { flex: 1; min-width: 0; }
+.enrolment-main {
+  flex: 1;
+  min-width: 0;
+}
+
 .enrolment-name {
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.enrolment-meta { color: var(--muted); font-size: 11px; }
 
-.badge {
-  display: inline-block;
-  padding: 1px 6px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background: color-mix(in srgb, var(--muted) 20%, transparent);
-  color: var(--muted);
+.enrolment-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
 }
-.badge.running, .badge.active { background: color-mix(in srgb, var(--success) 20%, transparent); color: var(--success); }
-.badge.replied { background: color-mix(in srgb, var(--primary) 22%, transparent); color: var(--primary); }
-.badge.paused, .badge.pending { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
-.badge.bounced, .badge.error, .badge.unsubscribed, .badge.suppressed { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
 
-.remove-btn {
-  flex: 0 0 auto;
-  padding: 4px 9px;
-  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
-  border-radius: 6px;
-  background: transparent;
-  color: var(--danger);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
+.note {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
 }
-.remove-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 12%, transparent); }
-.remove-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.suppressed-warning {
-  margin: 0 0 8px;
+.suppressed-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0 0 10px;
   padding: 8px 10px;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--danger) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--danger) 32%, transparent);
-  color: var(--danger);
   font-size: 12px;
-  font-weight: 600;
+  line-height: 1.45;
+  color: var(--error);
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  border-radius: var(--radius-md);
 }
 
-/* Status toast ---------------------------------------------------- */
+/* ── Status line ── */
 
 .status {
   margin: 10px 12px 0;
-  padding: 9px 11px;
-  border-radius: 8px;
-  font-size: 12px;
-  line-height: 1.45;
-  border: 1px solid var(--border);
-  background: var(--panel);
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
   white-space: pre-wrap;
-}
-.status.error {
-  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  color: var(--danger);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
 }
 .status.success {
-  border-color: color-mix(in srgb, var(--success) 40%, transparent);
-  background: color-mix(in srgb, var(--success) 12%, transparent);
+  background: var(--success-bg);
+  border-color: var(--success-border);
   color: var(--success);
 }
+.status.error {
+  background: var(--error-bg);
+  border-color: var(--error-border);
+  color: var(--error);
+}
 .status .status-action {
-  margin-top: 7px;
-  padding: 3px 9px;
-  border: 1px solid currentColor;
-  border-radius: 6px;
-  background: transparent;
+  margin-top: 8px;
+  height: 26px;
+  padding: 0 9px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
   color: inherit;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 600;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  opacity: 0.85;
+}
+.status .status-action:hover {
+  opacity: 1;
 }

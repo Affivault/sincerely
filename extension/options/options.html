@@ -3,83 +3,124 @@
   <head>
     <meta charset="utf-8" />
     <title>Sincerely extension settings</title>
+    <link rel="stylesheet" href="../lib/theme.css" />
     <link rel="stylesheet" href="options.css" />
   </head>
   <body>
     <main class="wrap">
-      <header>
-        <img src="../icons/icon-48.png" alt="" width="34" height="34" />
+      <header class="page-head">
+        <span class="brand-tile page-icon">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="2" y="4" width="20" height="16" rx="2" />
+            <path d="m22 7-10 6L2 7" />
+          </svg>
+        </span>
         <div>
-          <h1>Sincerely extension</h1>
-          <p class="sub">Connect the extension to your Sincerely account.</p>
+          <h1>Extension settings</h1>
+          <p class="page-sub">Connect the Chrome extension to your Sincerely account.</p>
         </div>
       </header>
 
-      <section class="card">
-        <h2>1. Where is your API?</h2>
-        <div class="field">
-          <label for="api-url">API URL</label>
-          <input id="api-url" type="text" spellcheck="false" placeholder="https://api.usesincerely.com" />
-          <p class="help">
-            Paste the host and we'll add <code>/api/v1</code> for you. Use
-            <button class="inline-link" id="use-production" type="button">production</button> or
-            <button class="inline-link" id="use-local" type="button">localhost:3001</button>.
+      <section class="panel block">
+        <div class="block-head">
+          <div>
+            <p class="section-title">Connection</p>
+            <p class="section-sub">Where your API lives, and the key that reaches it.</p>
+          </div>
+        </div>
+        <div class="block-body">
+          <div class="field">
+            <label class="field-label" for="api-url">API URL</label>
+            <input id="api-url" class="input-field mono" type="text" spellcheck="false" placeholder="https://api.usesincerely.com" />
+            <p class="help">
+              Paste the host — <code>/api/v1</code> is added for you. Use
+              <button class="link-btn" id="use-production" type="button">production</button> or
+              <button class="link-btn" id="use-local" type="button">localhost:3001</button>.
+            </p>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="api-key">API key</label>
+            <input id="api-key" class="input-field mono" type="password" spellcheck="false" autocomplete="off" placeholder="sk_live_…" />
+            <p class="help">
+              Create one under <strong>Developer → API keys</strong>. It needs both
+              <code>read</code> and <code>write</code> scopes. The key is shown once, and is
+              stored on this machine only.
+            </p>
+          </div>
+
+          <div class="actions">
+            <button id="save" class="btn-primary" type="button">Save &amp; test connection</button>
+            <button id="forget" class="btn-secondary" type="button">Forget key</button>
+          </div>
+
+          <div id="result" class="result hidden" role="status" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="panel block">
+        <div class="block-head">
+          <p class="section-title">Preferences</p>
+        </div>
+        <div class="block-body">
+          <div class="field">
+            <label class="field-label" for="theme">Appearance</label>
+            <select id="theme" class="input-field theme-select">
+              <option value="system">Match system</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
+
+          <label class="check">
+            <input id="verify-before-add" type="checkbox" />
+            <span class="check-body">
+              <span class="check-title">Verify addresses before adding</span>
+              <span class="check-sub"
+                >Runs a deliverability check first and refuses obviously bad addresses.
+                Slower, but protects your sending reputation.</span
+              >
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <section class="panel block">
+        <div class="block-head">
+          <div>
+            <p class="section-title">How it works</p>
+            <p class="section-sub">Three actions that are easy to confuse.</p>
+          </div>
+        </div>
+        <div class="block-body">
+          <dl class="notes">
+            <div class="note-row">
+              <dt><span class="badge badge-brand">Add</span></dt>
+              <dd>
+                Puts someone on the campaign's lead list and enrols them. The contact is
+                created first if your account has never seen them.
+              </dd>
+            </div>
+            <div class="note-row">
+              <dt><span class="badge">Remove</span></dt>
+              <dd>
+                Ends that one sequence. They stay on the lead list, so a future import can
+                re-enrol them.
+              </dd>
+            </div>
+            <div class="note-row">
+              <dt><span class="badge badge-error">Suppress</span></dt>
+              <dd>
+                Blocks the address account-wide and pulls them out of every campaign still
+                running. This is the one that sticks.
+              </dd>
+            </div>
+          </dl>
+          <p class="footnote">
+            Someone already in another active campaign bound to a different lead list can't be
+            added — the server blocks it, and the extension shows you why.
           </p>
         </div>
-      </section>
-
-      <section class="card">
-        <h2>2. API key</h2>
-        <div class="field">
-          <label for="api-key">Key</label>
-          <input id="api-key" type="password" spellcheck="false" autocomplete="off" placeholder="sk_live_…" />
-          <p class="help">
-            Create one in the app under <strong>Developer → API keys</strong>. It needs both
-            <code>read</code> and <code>write</code> scopes. The key is shown only once, so copy it
-            when you create it. It is stored on this machine only.
-          </p>
-        </div>
-        <div class="row">
-          <button id="save" class="btn primary" type="button">Save &amp; test connection</button>
-          <button id="forget" class="btn" type="button">Forget key</button>
-        </div>
-        <div id="result" class="result hidden" role="status" aria-live="polite"></div>
-      </section>
-
-      <section class="card">
-        <h2>3. Preferences</h2>
-        <label class="check">
-          <input id="verify-before-add" type="checkbox" />
-          <span>
-            <strong>Verify addresses before adding</strong>
-            <em
-              >Runs a deliverability check first and refuses obviously bad addresses. Slower, but
-              protects your sending reputation.</em
-            >
-          </span>
-        </label>
-      </section>
-
-      <section class="card muted-card">
-        <h2>How it works</h2>
-        <ul class="notes">
-          <li>
-            <strong>Add</strong> puts someone on the campaign's lead list and enrols them. A contact
-            is created first if your account has never seen them.
-          </li>
-          <li>
-            <strong>Remove</strong> ends that one sequence. They stay on the lead list, so a future
-            import can re-enrol them.
-          </li>
-          <li>
-            <strong>Never contact again</strong> suppresses the address account-wide and pulls them
-            out of every campaign still running. This is the one that sticks.
-          </li>
-          <li>
-            Someone already in another <em>active</em> campaign bound to a different lead list can't
-            be added — the server blocks it and the extension shows you why.
-          </li>
-        </ul>
       </section>
     </main>
 

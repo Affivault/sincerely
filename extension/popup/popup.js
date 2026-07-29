@@ -6,7 +6,31 @@
  * the server or the page is written with textContent, never innerHTML.
  */
 
+import { initTheme } from '../lib/theme.js';
+
 const EMAIL_PATTERN = /^[a-z0-9._%+'-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
+
+/**
+ * Per-campaign contact status → badge variant, matching the app's status
+ * colours (CONTACT_STATUS_COLORS in client/src/lib/constants.ts).
+ */
+const STATUS_VARIANT = {
+  pending: 'badge-warning',
+  active: 'badge-brand',
+  completed: 'badge-success',
+  replied: 'badge-success',
+  bounced: 'badge-error',
+  unsubscribed: 'badge-error',
+  suppressed: 'badge-error',
+  error: 'badge-error',
+};
+
+/** Where the details came from, shown as a small badge in the panel header. */
+const SOURCE_LABEL = {
+  linkedin: 'LinkedIn',
+  gmail: 'Gmail',
+  generic: 'This page',
+};
 
 const el = {
   setup: document.getElementById('setup'),
@@ -22,6 +46,8 @@ const el = {
   company: document.getElementById('company'),
   jobTitle: document.getElementById('job-title'),
 
+  sourceBadge: document.getElementById('source-badge'),
+  sourceHint: document.getElementById('source-hint'),
   noEmailHelp: document.getElementById('no-email-help'),
   searchByName: document.getElementById('search-by-name'),
   nameMatches: document.getElementById('name-matches'),
@@ -143,7 +169,18 @@ function readForm() {
 
 /** @param {object|null} person */
 function fillForm(person) {
-  if (!person) return;
+  if (!person) {
+    el.sourceHint.textContent = "Couldn't read this tab — enter the details yourself";
+    return;
+  }
+
+  const label = SOURCE_LABEL[person.source];
+  if (label) {
+    el.sourceBadge.textContent = label;
+    el.sourceBadge.classList.remove('hidden');
+    el.sourceHint.textContent = 'Detected from the current tab';
+  }
+
   el.email.value = person.email || '';
   el.firstName.value = person.first_name || '';
   el.lastName.value = person.last_name || '';
@@ -212,7 +249,7 @@ function renderStanding() {
   // which reads as a verdict when it's really just an unfinished request.
   if (state.looking) {
     const pending = document.createElement('p');
-    pending.className = 'muted small';
+    pending.className = 'note text-tertiary';
     pending.textContent = 'Checking…';
     el.standingBody.appendChild(pending);
     return;
@@ -220,14 +257,14 @@ function renderStanding() {
 
   if (state.suppressed) {
     const warning = document.createElement('p');
-    warning.className = 'suppressed-warning';
-    warning.textContent = 'This address is on your suppression list — campaigns will not email it.';
+    warning.className = 'suppressed-note';
+    warning.textContent = 'On your suppression list — campaigns will not email this address.';
     el.standingBody.appendChild(warning);
   }
 
   if (!state.contact) {
     const note = document.createElement('p');
-    note.className = 'muted small';
+    note.className = 'note';
     note.textContent = 'Not in your contacts yet — adding them will create the contact.';
     el.standingBody.appendChild(note);
     return;
@@ -235,7 +272,7 @@ function renderStanding() {
 
   if (state.memberships.length === 0) {
     const note = document.createElement('p');
-    note.className = 'muted small';
+    note.className = 'note';
     note.textContent = 'Known contact, not enrolled in any campaign.';
     el.standingBody.appendChild(note);
     return;
@@ -255,9 +292,14 @@ function renderStanding() {
 
     const meta = document.createElement('div');
     meta.className = 'enrolment-meta';
+
+    const status = String(membership.status || '').toLowerCase();
     const badge = document.createElement('span');
-    badge.className = `badge ${String(membership.status || '').toLowerCase()}`;
-    badge.textContent = membership.status || 'unknown';
+    badge.className = `badge ${STATUS_VARIANT[status] || ''}`.trim();
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    badge.appendChild(dot);
+    badge.appendChild(document.createTextNode(membership.status || 'unknown'));
     meta.appendChild(badge);
 
     // Step order is a 0-based index server-side; show it 1-based.
@@ -269,13 +311,13 @@ function renderStanding() {
     if (nextSend && membership.is_active) bits.push(`next ${nextSend}`);
 
     const detail = document.createElement('span');
-    detail.textContent = ` ${bits.join(' · ')}`;
+    detail.textContent = bits.join(' · ');
     meta.appendChild(detail);
     main.appendChild(meta);
     row.appendChild(main);
 
     const removeButton = document.createElement('button');
-    removeButton.className = 'remove-btn';
+    removeButton.className = 'btn-secondary btn-xs remove-btn';
     removeButton.type = 'button';
     removeButton.textContent = 'Remove';
     removeButton.title = `Remove from "${membership.campaign_name}" — stops this sequence only`;
@@ -515,11 +557,12 @@ async function searchByName() {
     button.type = 'button';
 
     const label = document.createElement('div');
+    label.className = 'match-name';
     label.textContent = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || contact.email;
     button.appendChild(label);
 
     const sub = document.createElement('div');
-    sub.className = 'match-email';
+    sub.className = 'match-meta';
     sub.textContent = contact.company ? `${contact.email} · ${contact.company}` : contact.email;
     button.appendChild(sub);
 
@@ -643,6 +686,9 @@ function wireEvents() {
 }
 
 async function init() {
+  // Resolve the theme before first paint so the popup never flashes light on a
+  // dark setup.
+  await initTheme();
   wireEvents();
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });

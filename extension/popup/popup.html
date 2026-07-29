@@ -3,90 +3,121 @@
   <head>
     <meta charset="utf-8" />
     <title>Sincerely</title>
+    <link rel="stylesheet" href="../lib/theme.css" />
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <header class="header">
-      <div class="brand">
-        <img src="../icons/icon-32.png" alt="" width="18" height="18" />
-        <span>Sincerely</span>
-      </div>
-      <button id="open-options" class="link-btn" type="button">Settings</button>
+    <header class="topbar">
+      <span class="brand">
+        <img src="../icons/icon-32.png" alt="" width="20" height="20" />
+        <span class="brand-name">sincerely</span>
+      </span>
+      <button id="open-options" class="icon-btn" type="button" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      </button>
     </header>
 
     <!-- Shown until a key is configured; nothing else can work without one. -->
-    <section id="setup" class="panel hidden">
-      <p class="panel-title">Not connected</p>
-      <p class="muted">
-        Paste an API key from your Sincerely <strong>Developer</strong> page to get started.
+    <section id="setup" class="empty-state hidden">
+      <span class="brand-tile" style="width: 40px; height: 40px">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="2" y="4" width="20" height="16" rx="2" />
+          <path d="m22 7-10 6L2 7" />
+        </svg>
+      </span>
+      <p class="section-title">Connect your account</p>
+      <p class="section-sub">
+        Add an API key from your Developer page and you can enrol people from any tab.
       </p>
-      <button id="setup-open-options" class="btn primary" type="button">Open settings</button>
+      <button id="setup-open-options" class="btn-primary" type="button">Open settings</button>
     </section>
 
     <main id="main" class="hidden">
-      <section class="panel">
-        <p class="panel-title">Person on this page</p>
-
-        <div class="field">
-          <label for="email">Email</label>
-          <input id="email" type="email" placeholder="name@company.com" autocomplete="off" spellcheck="false" />
+      <section class="panel block">
+        <div class="block-head">
+          <div>
+            <p class="section-title">Person on this page</p>
+            <p class="section-sub" id="source-hint">Detected from the current tab</p>
+          </div>
+          <span id="source-badge" class="badge hidden"></span>
         </div>
 
-        <!-- Populated only when the page offers several addresses. -->
-        <div id="candidates-wrap" class="field hidden">
-          <label for="candidates">Other addresses found</label>
-          <select id="candidates"></select>
-        </div>
+        <div class="block-body">
+          <div class="field">
+            <label class="field-label" for="email">Email</label>
+            <input id="email" class="input-field" type="email" placeholder="name@company.com" autocomplete="off" spellcheck="false" />
+          </div>
 
-        <div class="field-row">
-          <div class="field">
-            <label for="first-name">First name</label>
-            <input id="first-name" type="text" autocomplete="off" />
+          <!-- Only rendered when the page offers more than one address. -->
+          <div id="candidates-wrap" class="field hidden">
+            <label class="field-label" for="candidates">Other addresses on this page</label>
+            <select id="candidates" class="input-field"></select>
           </div>
-          <div class="field">
-            <label for="last-name">Last name</label>
-            <input id="last-name" type="text" autocomplete="off" />
-          </div>
-        </div>
 
-        <div class="field-row">
-          <div class="field">
-            <label for="company">Company</label>
-            <input id="company" type="text" autocomplete="off" />
+          <div class="field-grid">
+            <div class="field">
+              <label class="field-label" for="first-name">First name</label>
+              <input id="first-name" class="input-field" type="text" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label class="field-label" for="last-name">Last name</label>
+              <input id="last-name" class="input-field" type="text" autocomplete="off" />
+            </div>
           </div>
-          <div class="field">
-            <label for="job-title">Title</label>
-            <input id="job-title" type="text" autocomplete="off" />
-          </div>
-        </div>
 
-        <!-- LinkedIn rarely exposes an email; offer name matches instead. -->
-        <div id="no-email-help" class="hint hidden">
-          <p>No email on this page. Paste one above, or pick someone you already have:</p>
-          <button id="search-by-name" class="btn subtle" type="button">Search contacts by name</button>
-          <ul id="name-matches" class="matches hidden"></ul>
+          <div class="field-grid">
+            <div class="field">
+              <label class="field-label" for="company">Company</label>
+              <input id="company" class="input-field" type="text" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label class="field-label" for="job-title">Title</label>
+              <input id="job-title" class="input-field" type="text" autocomplete="off" />
+            </div>
+          </div>
+
+          <!-- LinkedIn rarely exposes an email; offer name matches instead. -->
+          <div id="no-email-help" class="callout hidden">
+            <p class="callout-text">
+              No email on this page. Paste one above, or find someone you already have.
+            </p>
+            <button id="search-by-name" class="btn-secondary btn-xs" type="button">
+              Search contacts by name
+            </button>
+            <ul id="name-matches" class="matches hidden"></ul>
+          </div>
         </div>
       </section>
 
-      <section id="standing" class="panel hidden">
-        <p class="panel-title">Where they stand</p>
-        <div id="standing-body"></div>
+      <section id="standing" class="panel block hidden">
+        <div class="block-head">
+          <p class="section-title">Where they stand</p>
+        </div>
+        <div class="block-body" id="standing-body"></div>
       </section>
 
-      <section class="panel">
-        <p class="panel-title">Add to campaign</p>
-        <div class="field">
-          <label for="campaign">Campaign</label>
-          <select id="campaign"><option value="">Loading…</option></select>
+      <section class="panel block">
+        <div class="block-head">
+          <p class="section-title">Add to campaign</p>
         </div>
-        <button id="add" class="btn primary block" type="button" disabled>Add to campaign</button>
-        <button id="suppress" class="btn danger block" type="button" disabled>
-          Never contact again
-        </button>
-        <p class="muted small">
-          Removing someone stops this sequence only. Suppressing blocks every future
-          send and survives re-imports.
-        </p>
+        <div class="block-body">
+          <div class="field">
+            <select id="campaign" class="input-field">
+              <option value="">Loading campaigns…</option>
+            </select>
+          </div>
+          <button id="add" class="btn-primary btn-block" type="button" disabled>Add to campaign</button>
+          <button id="suppress" class="btn-danger-quiet btn-block suppress-btn" type="button" disabled>
+            Never contact again
+          </button>
+          <p class="footnote">
+            Removing ends this sequence only. Suppressing blocks every future send and
+            survives re-imports.
+          </p>
+        </div>
       </section>
     </main>
 

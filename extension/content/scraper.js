@@ -304,34 +304,56 @@
 
     const root = host.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
+    // Sincerely tokens, inlined: a shadow root can't inherit the extension's
+    // stylesheet, and the page's own CSS must not reach in here. Values track
+    // client/src/index.css. Light surfaces only — this floats over someone
+    // else's page, where a dark slab would read as a third-party ad.
     style.textContent = `
       :host { all: initial; }
-      * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+      * { box-sizing: border-box; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
       .pill {
         position: fixed; right: 20px; bottom: 20px;
         display: inline-flex; align-items: center; gap: 8px;
-        padding: 10px 14px; border: 0; border-radius: 999px;
-        background: #1f2937; color: #fff; font-size: 13px; font-weight: 600;
-        box-shadow: 0 6px 20px rgba(0,0,0,.28); cursor: pointer;
-        max-width: 320px;
+        max-width: 320px; height: 36px; padding: 0 14px;
+        border: 0; border-radius: 999px;
+        background: linear-gradient(135deg, #5B5BF5 0%, #8B5CF6 100%);
+        color: #fff; font-size: 13px; font-weight: 500; letter-spacing: -0.005em;
+        box-shadow: 0 1px 2px rgba(27,27,31,.14), 0 8px 20px -6px rgba(91,91,245,.45);
+        cursor: pointer;
+        transition: box-shadow 180ms cubic-bezier(.22,1,.36,1), opacity 180ms;
       }
-      .pill:hover { background: #111827; }
-      .pill:disabled { opacity: .6; cursor: default; }
+      .pill:hover { box-shadow: 0 1px 2px rgba(27,27,31,.16), 0 10px 26px -6px rgba(91,91,245,.55); }
+      .pill:disabled { opacity: .55; cursor: default; }
+      .pill .mark { width: 15px; height: 15px; flex: 0 0 auto; }
       .pill .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
       .toast {
-        position: fixed; right: 20px; bottom: 74px;
-        max-width: 340px; padding: 12px 14px; border-radius: 10px;
-        background: #111827; color: #f9fafb; font-size: 13px; line-height: 1.45;
-        box-shadow: 0 8px 24px rgba(0,0,0,.32);
+        position: fixed; right: 20px; bottom: 68px;
+        max-width: 330px; padding: 11px 13px;
+        border-radius: 10px;
+        background: #FFFFFF; color: #1B1B1F;
+        border: 1px solid #ECEAE6;
+        font-size: 12.5px; line-height: 1.5; letter-spacing: -0.005em;
+        box-shadow: 0 1px 2px rgba(27,27,31,.04), 0 8px 20px -6px rgba(27,27,31,.10);
       }
-      .toast.error { background: #7f1d1d; }
-      .toast.success { background: #14532d; }
-      .toast .row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+      .toast.success { background: #ECFDF5; border-color: #D1FAE5; color: #10B981; }
+      .toast.error { background: #FEF2F2; border-color: #FEE2E2; color: #EF4444; }
+      .toast .row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
       .toast button {
-        border: 1px solid rgba(255,255,255,.35); background: transparent; color: inherit;
-        border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+        height: 26px; padding: 0 9px;
+        border: 1px solid currentColor; border-radius: 6px;
+        background: transparent; color: inherit;
+        font-family: inherit; font-size: 12px; font-weight: 500;
+        cursor: pointer; opacity: .85;
       }
-      .toast button:hover { background: rgba(255,255,255,.12); }
+      .toast button:hover { opacity: 1; }
+
+      @media (prefers-color-scheme: dark) {
+        .toast { background: #191919; color: #F4F4F3; border-color: #262626;
+                 box-shadow: 0 2px 4px -1px rgba(0,0,0,.35), 0 12px 24px -6px rgba(0,0,0,.45); }
+        .toast.success { background: rgba(34,197,94,.10); border-color: rgba(34,197,94,.2); color: #4ADE80; }
+        .toast.error { background: rgba(239,68,68,.10); border-color: rgba(239,68,68,.2); color: #F87171; }
+      }
     `;
     root.appendChild(style);
     return root;
@@ -396,7 +418,15 @@
 
     const button = document.createElement('button');
     button.className = 'pill';
-    button.innerHTML = '<span aria-hidden="true">+</span>';
+
+    // The extension's own icon, so the button is unmistakably Sincerely's
+    // rather than an anonymous widget on someone else's page.
+    const mark = document.createElement('img');
+    mark.className = 'mark';
+    mark.src = chrome.runtime.getURL('icons/icon-32.png');
+    mark.alt = '';
+    button.appendChild(mark);
+
     const label = document.createElement('span');
     label.className = 'label';
     label.textContent = `Add to ${campaign.name}`;

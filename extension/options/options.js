@@ -15,8 +15,10 @@ import {
   setSettings,
   clearApiKey,
 } from '../lib/storage.js';
+import { getThemeMode, initTheme, setThemeMode } from '../lib/theme.js';
 
 const el = {
+  theme: document.getElementById('theme'),
   apiUrl: document.getElementById('api-url'),
   apiKey: document.getElementById('api-key'),
   save: document.getElementById('save'),
@@ -45,6 +47,7 @@ async function load() {
   el.apiKey.value = '';
   el.apiKey.placeholder = settings.apiKey ? `${settings.apiKey.slice(0, 12)}… (saved)` : 'sk_live_…';
   el.verifyBeforeAdd.checked = Boolean(settings.verifyBeforeAdd);
+  el.theme.value = await getThemeMode();
 }
 
 /**
@@ -158,5 +161,10 @@ el.useLocal.addEventListener('click', () => {
 el.verifyBeforeAdd.addEventListener('change', () => {
   setSettings({ verifyBeforeAdd: el.verifyBeforeAdd.checked });
 });
+el.theme.addEventListener('change', () => {
+  setThemeMode(/** @type {'light'|'dark'|'system'} */ (el.theme.value));
+});
 
-load().catch((err) => showResult(err?.message || 'Failed to load settings.', 'error'));
+initTheme()
+  .then(load)
+  .catch((err) => showResult(err?.message || 'Failed to load settings.', 'error'));
