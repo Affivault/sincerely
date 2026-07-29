@@ -16,6 +16,11 @@
   if (window.__sincerelyScraperLoaded) return;
   window.__sincerelyScraperLoaded = true;
 
+  // Shared namespace. Content scripts declared in the manifest can't be ES
+  // modules, so the panel and list-selection scripts reach the scraper through
+  // this rather than through imports.
+  const sincerely = (window.__sincerely = window.__sincerely || {});
+
   const EMAIL_PATTERN = /[a-z0-9._%+'-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
 
   // Role accounts — never the person you're prospecting.
@@ -311,22 +316,6 @@
     style.textContent = `
       :host { all: initial; }
       * { box-sizing: border-box; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-      .pill {
-        position: fixed; right: 20px; bottom: 20px;
-        display: inline-flex; align-items: center; gap: 8px;
-        max-width: 320px; height: 36px; padding: 0 14px;
-        border: 0; border-radius: 999px;
-        background: linear-gradient(135deg, #5B5BF5 0%, #8B5CF6 100%);
-        color: #fff; font-size: 13px; font-weight: 500; letter-spacing: -0.005em;
-        box-shadow: 0 1px 2px rgba(27,27,31,.14), 0 8px 20px -6px rgba(91,91,245,.45);
-        cursor: pointer;
-        transition: box-shadow 180ms cubic-bezier(.22,1,.36,1), opacity 180ms;
-      }
-      .pill:hover { box-shadow: 0 1px 2px rgba(27,27,31,.16), 0 10px 26px -6px rgba(91,91,245,.55); }
-      .pill:disabled { opacity: .55; cursor: default; }
-      .pill .mark { width: 15px; height: 15px; flex: 0 0 auto; }
-      .pill .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
       .toast {
         position: fixed; right: 20px; bottom: 68px;
         max-width: 330px; padding: 11px 13px;
@@ -393,93 +382,17 @@
     toastTimer = setTimeout(() => toast.remove(), opts.timeout ?? 6000);
   }
 
-  /**
-   * A one-click "add to the campaign I'm working out of" button.
-   *
-   * Only rendered once a campaign has been chosen in the popup, and it names
-   * that campaign — enrolling someone into a live sequence shouldn't be
-   * possible without knowing which one. The result toast offers an undo.
-   */
-  async function renderPill() {
-    if (!/^(www\.)?linkedin\.com$|^mail\.google\.com$/.test(location.hostname)) return;
-
-    const { lastCampaignId = null, cachedCampaigns = [] } = await chrome.storage.local.get({
-      lastCampaignId: null,
-      cachedCampaigns: [],
-    });
-    const campaign = cachedCampaigns.find((c) => c.id === lastCampaignId);
-
-    const root = ensureShadowRoot();
-    root.querySelector('.pill')?.remove();
-    if (!campaign) return;
-
-    const person = scrape();
-    if (!person?.email) return;
-
-    const button = document.createElement('button');
-    button.className = 'pill';
-
-    // The extension's own icon, so the button is unmistakably Sincerely's
-    // rather than an anonymous widget on someone else's page.
-    const mark = document.createElement('img');
-    mark.className = 'mark';
-    mark.src = chrome.runtime.getURL('icons/icon-32.png');
-    mark.alt = '';
-    button.appendChild(mark);
-
-    const label = document.createElement('span');
-    label.className = 'label';
-    label.textContent = `Add to ${campaign.name}`;
-    button.appendChild(label);
-    button.title = `Add ${person.email} to "${campaign.name}"`;
-
-    button.addEventListener('click', async () => {
-      button.disabled = true;
-      label.textContent = 'Adding…';
-
-      const response = await chrome.runtime.sendMessage({
-        type: 'ADD_TO_CAMPAIGN',
-        payload: { campaignId: campaign.id, person },
-      });
-
-      button.disabled = false;
-      label.textContent = `Add to ${campaign.name}`;
-
-      if (!response?.ok) {
-        showToast(response?.error?.message || 'Something went wrong.', { variant: 'error', timeout: 9000 });
-        return;
-      }
-
-      const { added, skipped, contactId } = response.data;
-      if (added > 0) {
-        showToast(`${person.email} added to "${campaign.name}".`, {
-          variant: 'success',
-          actionLabel: 'Undo',
-          onAction: async () => {
-            const undo = await chrome.runtime.sendMessage({
-              type: 'REMOVE_FROM_CAMPAIGN',
-              payload: { campaignId: campaign.id, contactId },
-            });
-            showToast(
-              undo?.ok ? `Removed ${person.email} from "${campaign.name}".` : undo?.error?.message || 'Undo failed.',
-              { variant: undo?.ok ? undefined : 'error' }
-            );
-          },
-        });
-      } else {
-        showToast(
-          `${person.email} was already enrolled in "${campaign.name}"${skipped ? ` (${skipped} skipped)` : ''}.`,
-          { timeout: 7000 }
-        );
-      }
-    });
-
-    root.appendChild(button);
-  }
-
   /* ---------------------------------------------------------------- */
   /* Wiring                                                           */
   /* ---------------------------------------------------------------- */
+
+  // Published for the other content scripts on this page.
+  sincerely.scrape = scrape;
+  sincerely.splitName = splitName;
+  sincerely.isPlausibleEmail = isPlausibleEmail;
+  sincerely.collectEmails = collectEmails;
+  sincerely.ensureShadowRoot = ensureShadowRoot;
+  sincerely.showToast = showToast;
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type !== 'SINCERELY_SCRAPE') return false;
@@ -491,16 +404,4 @@
     return true;
   });
 
-  // LinkedIn and Gmail are SPAs: the document never reloads, so re-render the
-  // button on URL changes. Polling the URL is crude but far cheaper and more
-  // reliable than observing their mutation-heavy DOM trees.
-  let lastUrl = location.href;
-  setInterval(() => {
-    if (location.href !== lastUrl) {
-      lastUrl = location.href;
-      renderPill().catch(() => {});
-    }
-  }, 1500);
-
-  renderPill().catch(() => {});
 })();
