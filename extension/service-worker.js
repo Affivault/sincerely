@@ -417,6 +417,29 @@ function summariseEngagement(timeline) {
  * Everything the popup needs to render its first frame, in one round-trip.
  * @param {{tabId?: number}} payload
  */
+/**
+ * The origin of the configured API, when Chrome has not granted it yet.
+ *
+ * A key can be perfectly valid and still useless: an API on a host outside
+ * host_permissions can't be fetched at all, and the failure surfaces as a bare
+ * "Failed to fetch". Reporting it as its own state lets the UI ask for the grant
+ * instead of showing a network error.
+ *
+ * @param {string} apiBaseUrl
+ * @returns {Promise<string|null>}
+ */
+async function missingApiPermission(apiBaseUrl) {
+  const pattern = originPatternFor(apiBaseUrl);
+  if (!pattern) return null;
+  const allowed = await chrome.permissions.contains({ origins: [pattern] }).catch(() => false);
+  if (allowed) return null;
+  try {
+    return new URL(apiBaseUrl).origin;
+  } catch {
+    return null;
+  }
+}
+
 async function handleGetContext(payload) {
   const settings = await getSettings();
   const person = payload.tabId ? await scrapeTab(payload.tabId) : null;
@@ -430,6 +453,9 @@ async function handleGetContext(payload) {
       lastCampaignId: settings.lastCampaignId,
       verifyBeforeAdd: settings.verifyBeforeAdd,
       appUrl: settings.appUrl,
+      // So a popup reopened after the permission prompt closed it can pick the
+      // flow back up instead of failing every request.
+      needsPermission: settings.apiKey ? await missingApiPermission(settings.apiBaseUrl) : null,
       person,
     },
   };
@@ -1342,6 +1368,185 @@ async function handleTestConnection() {
 }
 
 /**
+ * Runs inside the app's page, not in the extension. Serialized and injected by
+ * handleConnectFromTab, so it can use nothing from this file's scope.
+ *
+ * Everything needed to connect is already in a signed-in app tab: the session
+ * token in localStorage, and the API's address in the page's own network
+ * history. Reading both from the tab means the extension never has to be told
+ * which domain the app or the API lives on — which is what made the previous
+ * approach fail on any deployment that wasn't the one baked into the manifest.
+ *
+ * The key is minted by the page itself so no host permission is needed to get
+ * this far: the app is already allowed to call its own API.
+ *
+ * @param {string} keyName
+ * @param {string} configuredBase The API URL already in settings, tried as a
+ *   candidate: it may be the only right answer for an API on a host that can't
+ *   be derived from the app's domain.
+ * @returns {Promise<{ok: true, apiKey: string, apiBaseUrl: string}
+ *   | {ok: false, reason: string, status?: number, tried?: string[]}>}
+ */
+async function mintKeyFromPage(keyName, configuredBase) {
+  /** @type {string[]} */
+  const bases = [];
+
+  /** Reduce any URL that contains an /api/v<N> root down to that root. */
+  const push = (raw) => {
+    if (typeof raw !== 'string') return;
+    const match = raw.match(/^https?:\/\/[^/]+(?:\/[^?#]*?)?\/api\/v\d+/i);
+    if (match && !bases.includes(match[0])) bases.push(match[0]);
+  };
+
+  // An explicit hint from the app wins, when the app is new enough to give one.
+  push(window.__SINCERELY_API_URL);
+  push(document.querySelector('meta[name="sincerely-api-url"]')?.getAttribute('content'));
+
+  // Otherwise: wherever this page has actually been calling. A signed-in app
+  // page has made plenty of these, and it is true by construction. Resource
+  // entries appear a moment after each request settles, so a page opened a
+  // split second ago may not have them yet — hence the fallbacks below.
+  for (const entry of performance.getEntriesByType('resource')) push(entry.name);
+
+  // Whatever the extension is already pointed at. Ranked above the guesses
+  // because it's a stated answer, and for an API on a host unrelated to the
+  // app's domain it is the only one that can be right.
+  push(configuredBase);
+
+  // Last resorts for a page that hasn't called the API yet — the two shapes
+  // real deployments use. Wrong guesses just fail the POST below.
+  const { origin, hostname, protocol } = window.location;
+  push(`${origin}/api/v1`);
+  // api.<domain> only makes sense for a real hostname; an IP or a bare label
+  // would produce nonsense like api.0.0.1.
+  if (/[a-z]/i.test(hostname) && hostname.includes('.')) {
+    const labels = hostname.split('.');
+    const registrable = labels.length > 2 ? labels.slice(1).join('.') : hostname;
+    push(`${protocol}//api.${registrable}/api/v1`);
+  }
+
+  let token = null;
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (!key.startsWith('sb-') || !key.endsWith('-auth-token')) continue;
+      const parsed = JSON.parse(localStorage.getItem(key) || 'null');
+      token = parsed?.access_token || parsed?.currentSession?.access_token || null;
+      if (token) break;
+    }
+  } catch {
+    // Storage blocked by browser settings; handled as a missing session below.
+  }
+
+  if (!token) return { ok: false, reason: 'no-session' };
+
+  let lastStatus = 0;
+  const tried = [];
+  for (const base of bases) {
+    tried.push(base);
+    try {
+      const res = await fetch(`${base}/api-keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: keyName, rate_limit: 100 }),
+      });
+      lastStatus = res.status;
+      if (!res.ok) continue;
+      const body = await res.json().catch(() => null);
+      if (body?.raw_key) return { ok: true, apiKey: body.raw_key, apiBaseUrl: base };
+    } catch {
+      // Wrong guess, blocked by CORS, or unreachable — try the next candidate.
+    }
+  }
+
+  if (lastStatus === 401) return { ok: false, reason: 'unauthorized', tried };
+  return { ok: false, reason: bases.length ? 'failed' : 'no-api-url', status: lastStatus, tried };
+}
+
+/**
+ * Connect using the app tab the user is looking at.
+ *
+ * This is the seamless path, and it needs no deployed app change, no hardcoded
+ * domain, and no permission prompt to get the key: clicking the toolbar icon
+ * grants activeTab for that tab, which is enough to read the session and let
+ * the page mint its own key.
+ *
+ * @param {{tabId: number}} payload
+ */
+async function handleConnectFromTab(payload) {
+  try {
+    const tabId = payload.tabId;
+    if (typeof tabId !== 'number') {
+      throw new ApiError('No tab to read. Open your Sincerely app, then click the extension.', {
+        code: 'NO_TAB',
+      });
+    }
+
+    const tab = await chrome.tabs.get(tabId).catch(() => null);
+    if (!/^https?:/i.test(tab?.url || '')) {
+      throw new ApiError(
+        'Chrome will not let an extension read this kind of page. Open your Sincerely app in a tab, sign in, then click the extension there.',
+        { code: 'BAD_TAB' }
+      );
+    }
+
+    const current = await getSettings();
+
+    let frames;
+    try {
+      frames = await chrome.scripting.executeScript({
+        target: { tabId },
+        world: 'MAIN',
+        func: mintKeyFromPage,
+        args: [`Chrome extension (${new Date().toLocaleDateString()})`, current.apiBaseUrl],
+      });
+    } catch (err) {
+      throw new ApiError(
+        `Chrome would not let the extension read this tab: ${err?.message || 'unknown reason'}. Make sure your Sincerely tab is the one in front when you click.`,
+        { code: 'NO_INJECT' }
+      );
+    }
+
+    const result = frames?.[0]?.result;
+    if (!result) throw new ApiError('The page did not answer.', { code: 'NO_RESULT' });
+
+    if (!result.ok) {
+      /** @type {Record<string, string>} */
+      const reasons = {
+        'no-session':
+          "You're not signed in to Sincerely on this page. Sign in, then click Connect again.",
+        'no-api-url':
+          "This page doesn't look like your Sincerely app. Open Sincerely, sign in, then click Connect from that tab.",
+        unauthorized:
+          'Your Sincerely sign-in has expired. Reload the page, sign in again, then click Connect.',
+        failed: `Sincerely would not create a key from this page${result.status ? ` (HTTP ${result.status})` : ''}. You can still paste a key by hand in settings.`,
+      };
+      throw new ApiError(reasons[result.reason] || 'Could not create a key from this page.', {
+        code: 'CONNECT_FAILED',
+      });
+    }
+
+    // The API URL is proven, not guessed: it is the one that just answered.
+    const settings = await setSettings({
+      apiKey: result.apiKey,
+      apiBaseUrl: result.apiBaseUrl,
+      appUrl: new URL(tab.url).origin,
+    });
+    await ensureConnectScript(settings.appUrl);
+
+    const needsPermission = await missingApiPermission(settings.apiBaseUrl);
+    if (needsPermission) {
+      return { ok: true, data: { apiBaseUrl: settings.apiBaseUrl, needsPermission } };
+    }
+
+    const test = await api.testConnection();
+    await refreshBadge();
+    return { ok: true, data: { apiBaseUrl: settings.apiBaseUrl, needsPermission: null, ...test } };
+  } catch (err) {
+    return toErrorPayload(err);
+  }
+}
+
+/**
  * Accept a key handed over by the web app's "Connect extension" button.
  *
  * Everything the options page would do on a manual paste happens here instead:
@@ -1380,17 +1585,11 @@ async function handleConnectApply(payload) {
 
     const settings = await setSettings(patch);
 
-    const pattern = originPatternFor(settings.apiBaseUrl);
-    if (pattern) {
-      const allowed = await chrome.permissions.contains({ origins: [pattern] }).catch(() => false);
-      if (!allowed) {
-        // Saved, but not usable yet — and the fix needs a click in the options
-        // page, so send the user there with the reason.
-        return {
-          ok: true,
-          data: { saved: true, needsPermission: new URL(settings.apiBaseUrl).origin },
-        };
-      }
+    const needsPermission = await missingApiPermission(settings.apiBaseUrl);
+    if (needsPermission) {
+      // Saved, but not usable yet — and the fix needs a click in an extension
+      // page, so report it rather than failing later as "can't reach".
+      return { ok: true, data: { saved: true, needsPermission } };
     }
 
     const result = await api.testConnection();
@@ -1423,6 +1622,7 @@ const HANDLERS = {
   SUPPRESS_PERSON: handleSuppress,
   TEST_CONNECTION: handleTestConnection,
   CONNECT_APPLY: handleConnectApply,
+  CONNECT_FROM_TAB: handleConnectFromTab,
 };
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

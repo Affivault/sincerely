@@ -30,10 +30,15 @@
       </span>
       <p class="section-title">Connect your account</p>
       <p class="section-sub">
-        One click inside Sincerely links this extension to your account — nothing to copy or
-        type. Then you can enrol people from any tab.
+        Open Sincerely in a tab and sign in, then press this. The extension sets itself up from
+        your session — there is nothing to create, copy or type.
       </p>
-      <button id="setup-open-options" class="btn-primary" type="button">Open settings</button>
+      <button id="setup-connect-tab" class="btn-primary" type="button">Connect using this tab</button>
+      <p id="setup-status" class="setup-status hidden" role="status" aria-live="polite"></p>
+      <button id="setup-grant" class="btn-primary hidden" type="button">Allow access</button>
+      <button id="setup-open-options" class="link-btn setup-alt" type="button">
+        Or paste a key by hand
+      </button>
     </section>
 
     <main id="main" class="hidden">

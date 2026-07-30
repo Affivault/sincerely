@@ -35,24 +35,42 @@ An API key isn't something you already have from somewhere else — it's a
 password the extension uses to prove it's you, created inside your own Sincerely
 account. So the extension creates it for you:
 
-1. Open the extension's options page and press **Open Sincerely**.
-2. In the app, go to **Webhooks** in the sidebar, then the **API keys** tab.
-3. Press **Connect extension**.
+1. Open Sincerely in a tab and sign in.
+2. Click the Sincerely icon in the Chrome toolbar.
+3. Press **Connect using this tab**.
 
-The app mints a `read`+`write` key named `Chrome extension (<date>)`, hands it
-straight to the extension, and the options page confirms the connection by
-itself. Nothing is shown, copied or typed.
+That's it. Works on whatever domain your app is deployed to, and needs no change
+to the app itself.
 
-How it works: `content/connect.js` runs on the app's own pages and relays the
-key over `window.postMessage`, accepting messages only from the page's own
-window (never an iframe or another origin) and only if the key matches
-`sk_live_` plus 64 hex. `chrome.runtime` messaging isn't used because it needs
-the extension's ID, and an unpacked extension's ID changes with its folder.
+**How it works.** Clicking the toolbar icon grants `activeTab` — access to that
+one tab, on any origin, with no prompt and nothing in the manifest. The service
+worker injects `mintKeyFromPage` into the page, which:
 
-The manifest declares the relay for `usesincerely.com`, `www.usesincerely.com`
-and `localhost:5173`. For any other app URL, set **Web app URL** on the options
-page first — **Open Sincerely** then asks Chrome for that origin and registers
-the relay there at runtime.
+- reads the Supabase session from `localStorage` (`sb-*-auth-token`);
+- works out the API's address, in this order: `window.__SINCERELY_API_URL`, a
+  `<meta name="sincerely-api-url">` tag, any `/api/v<N>` URL in the page's own
+  resource timeline (i.e. wherever it has actually been calling), the address
+  already in the extension's settings, then `<origin>/api/v1` and
+  `api.<domain>/api/v1`;
+- `POST`s `/api-keys` with the session token, from the page — so the app mints
+  the key itself, exactly as pressing a button in the UI would.
+
+The session token is used for that one request and never stored. The API address
+that gets saved is the one that answered, not a guess.
+
+`POST /api-keys` is `jwtOnly` server-side, so an API key can never mint another
+key — only a real session can.
+
+**Why not do it from inside the app?** There is also a **Connect extension**
+button on **Webhooks → API keys**, which relays a key via
+`window.postMessage` (`content/connect.js`, same-window messages only, never an
+iframe or another origin). It works, but a content script only runs on origins
+the manifest names — declared here for `usesincerely.com`, any subdomain of it,
+and `localhost:5173` — so it silently does nothing on a domain the build didn't
+anticipate. The toolbar route has no such limit, which is why it's the primary
+one. For any other app URL, set **Web app URL** on the options page and press
+**Open Sincerely**: that asks Chrome for the origin and registers the relay at
+runtime.
 
 ### Or paste a key by hand
 

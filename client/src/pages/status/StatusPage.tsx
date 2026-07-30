@@ -49,7 +49,9 @@ async function runChecks(update: (r: CheckResult[]) => void): Promise<CheckResul
     ok: !(isProdHost && apiLooksLocal),
     detail: `This build calls: ${API_URL}`,
     fix: isProdHost && apiLooksLocal
-      ? 'VITE_API_URL is missing from this build, so it fell back to localhost. In Vercel → Settings → Environment Variables, set VITE_API_URL (e.g. https://skysend-api.onrender.com/api/v1) for the Production environment — check the environment checkboxes! — then Deployments → Redeploy.'
+      // Deliberately no example host: naming one goes stale the moment the API
+      // moves, and a stale example is worse than none — people paste it in.
+      ? 'VITE_API_URL is missing from this build, so it fell back to localhost. In Vercel → Settings → Environment Variables, set VITE_API_URL to your API server’s address with /api/v1 on the end, for the Production environment — check the environment checkboxes! — then Deployments → Redeploy.'
       : undefined,
   });
 
@@ -85,14 +87,14 @@ async function runChecks(update: (r: CheckResult[]) => void): Promise<CheckResul
       name: 'API server',
       ok,
       detail: ok ? `Reachable and healthy (${healthUrl})` : `Unexpected response HTTP ${res.status} from ${healthUrl}`,
-      fix: ok ? undefined : 'Check the Render service is live (dashboard.render.com) and that VITE_API_URL in Vercel points at it.',
+      fix: ok ? undefined : 'Check the API server is live in your hosting dashboard, and that VITE_API_URL in Vercel points at it.',
     });
   } catch (err: any) {
     push({
       name: 'API server',
       ok: false,
       detail: `Could not connect to ${healthUrl}: ${err?.message || err}`,
-      fix: 'The API address this build uses is unreachable from your browser. Most common causes: the domain does not exist in DNS, or VITE_API_URL is wrong. Set VITE_API_URL in Vercel to https://skysend-api.onrender.com/api/v1 and Redeploy.',
+      fix: `The API address this build uses is unreachable from your browser. Most common causes: the domain does not exist in DNS, the API server is asleep or down, or VITE_API_URL is wrong. Check VITE_API_URL in Vercel matches your live API server (currently ${API_URL}), then Redeploy.`,
     });
   }
 

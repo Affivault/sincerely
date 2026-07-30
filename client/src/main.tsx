@@ -6,7 +6,19 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import { queryClient } from './lib/queryClient';
 import App from './App';
+import { API_URL } from './lib/constants';
 import './index.css';
+
+/**
+ * Publish the API address the build was compiled with.
+ *
+ * The Chrome extension has to find this app's API without being told, so it can
+ * work on any deployment. It can fall back to reading the page's network
+ * history, but that only works once the app has made a call; this makes it
+ * immediate and exact. Nothing secret — it's the same URL every request already
+ * goes to, visible in devtools.
+ */
+(window as unknown as { __SINCERELY_API_URL?: string }).__SINCERELY_API_URL = API_URL;
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

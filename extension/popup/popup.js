@@ -58,6 +58,9 @@ const el = {
   main: document.getElementById('main'),
   openOptions: document.getElementById('open-options'),
   setupOpenOptions: document.getElementById('setup-open-options'),
+  setupConnectTab: document.getElementById('setup-connect-tab'),
+  setupStatus: document.getElementById('setup-status'),
+  setupGrant: document.getElementById('setup-grant'),
 
   avatar: document.getElementById('avatar'),
   personName: document.getElementById('person-name'),
@@ -1463,9 +1466,111 @@ function debounce(fn, wait) {
   };
 }
 
+/* ------------------------------------------------------------------ */
+/* Setup                                                              */
+/* ------------------------------------------------------------------ */
+
+/** Origin waiting on a permission grant, if the connect stopped there. */
+let pendingGrantOrigin = null;
+
+/**
+ * @param {string} message
+ * @param {'error'|'warn'|null} [variant]
+ */
+function setSetupStatus(message, variant = null) {
+  el.setupStatus.textContent = message;
+  el.setupStatus.className = `setup-status${variant ? ` ${variant}` : ''}`;
+  el.setupStatus.classList.remove('hidden');
+}
+
+/**
+ * Show the "one more click" state. Chrome only grants a host permission from a
+ * user gesture, so it cannot be folded into the connect itself.
+ *
+ * @param {string} origin
+ */
+function askForPermission(origin) {
+  pendingGrantOrigin = origin;
+  el.setupGrant.textContent = `Allow access to ${new URL(origin).host}`;
+  el.setupGrant.classList.remove('hidden');
+  el.setupConnectTab.classList.add('hidden');
+  setSetupStatus(
+    `Connected to ${new URL(origin).host}. Chrome needs your permission for the extension to talk to it — this is the last step.`,
+    'warn'
+  );
+}
+
+/**
+ * Set the extension up from the app tab in front of the user.
+ *
+ * Clicking the toolbar icon grants activeTab for that tab, which is all this
+ * needs: the page mints its own key from the session it already has. No key to
+ * copy, no domain to configure, and nothing that depends on which host the app
+ * or API happens to be deployed on.
+ */
+async function connectUsingTab() {
+  el.setupConnectTab.disabled = true;
+  el.setupConnectTab.textContent = 'Connecting…';
+  setSetupStatus('Reading your Sincerely session from this tab…');
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const response = await send('CONNECT_FROM_TAB', { tabId: tab?.id });
+
+    if (!response.ok) {
+      setSetupStatus(response.error?.message || 'Could not connect.', 'error');
+      return;
+    }
+
+    if (response.data.needsPermission) {
+      askForPermission(response.data.needsPermission);
+      return;
+    }
+
+    // Simpler and safer than patching the setup screen into the main one: the
+    // popup restarts with a key in hand and takes its normal path.
+    window.location.reload();
+  } finally {
+    el.setupConnectTab.disabled = false;
+    el.setupConnectTab.textContent = 'Connect using this tab';
+  }
+}
+
+/**
+ * Ask Chrome for the API's origin. Requested as the first statement of the
+ * click, since anything awaited beforehand breaks the user gesture.
+ *
+ * Chrome may close the popup while its prompt is up, which kills this function
+ * mid-flight. That's survivable: the key is already stored, and GET_CONTEXT
+ * reports the outstanding grant, so reopening the popup lands right back here.
+ */
+function grantApiPermission() {
+  if (!pendingGrantOrigin) return;
+  const origin = pendingGrantOrigin;
+  chrome.permissions
+    .request({ origins: [`${origin}/*`] })
+    .then((granted) => {
+      if (granted) {
+        window.location.reload();
+        return;
+      }
+      setSetupStatus(
+        `Without access to ${new URL(origin).host} the extension can't reach your account. Press the button again and choose Allow.`,
+        'error'
+      );
+    })
+    .catch((err) => setSetupStatus(err?.message || 'Chrome refused the request.', 'error'));
+}
+
 function wireEvents() {
   el.openOptions.addEventListener('click', () => chrome.runtime.openOptionsPage());
   el.setupOpenOptions.addEventListener('click', () => chrome.runtime.openOptionsPage());
+  el.setupConnectTab.addEventListener('click', () => {
+    connectUsingTab().catch((err) =>
+      setSetupStatus(err?.message || 'Something went wrong while connecting.', 'error')
+    );
+  });
+  el.setupGrant.addEventListener('click', grantApiPermission);
 
   el.email.addEventListener(
     'input',
@@ -1560,6 +1665,14 @@ async function init() {
 
   if (!context.data.hasKey) {
     el.setup.classList.remove('hidden');
+    return;
+  }
+
+  // A key with no permission to reach its API can't do anything, and every
+  // request would fail as a bare network error. Finish setup instead.
+  if (context.data.needsPermission) {
+    el.setup.classList.remove('hidden');
+    askForPermission(context.data.needsPermission);
     return;
   }
 

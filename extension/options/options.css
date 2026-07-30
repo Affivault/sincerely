@@ -239,6 +239,9 @@ code {
   color: var(--text-primary);
   font-weight: 600;
 }
+.explainer .explainer-alt {
+  color: var(--text-tertiary);
+}
 
 .manual {
   margin-top: 16px;

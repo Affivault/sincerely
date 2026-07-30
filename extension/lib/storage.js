@@ -90,12 +90,24 @@ export async function clearApiKey() {
 /** ID for the dynamically registered copy of content/connect.js. */
 export const CONNECT_SCRIPT_ID = 'sincerely-connect';
 
-/** App origins content/connect.js is already declared for in the manifest. */
-const DECLARED_APP_ORIGINS = [
-  'https://usesincerely.com',
-  'https://www.usesincerely.com',
-  'http://localhost:5173',
-];
+/**
+ * App origins content/connect.js is already declared for in the manifest —
+ * usesincerely.com and any subdomain of it (app., staging., …), plus the Vite
+ * dev server. Anything else is a runtime registration.
+ *
+ * @param {string} origin
+ * @returns {boolean}
+ */
+function isDeclaredAppOrigin(origin) {
+  if (origin === 'http://localhost:5173') return true;
+  try {
+    const { protocol, hostname } = new URL(origin);
+    if (protocol !== 'https:') return false;
+    return hostname === 'usesincerely.com' || hostname.endsWith('.usesincerely.com');
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Match pattern for running the connect relay on the user's web app, or null
@@ -111,7 +123,7 @@ export function connectPatternFor(appUrl) {
   } catch {
     return null;
   }
-  if (DECLARED_APP_ORIGINS.includes(origin)) return null;
+  if (isDeclaredAppOrigin(origin)) return null;
   return `${origin}/*`;
 }
 

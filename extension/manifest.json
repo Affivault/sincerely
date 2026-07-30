@@ -62,7 +62,7 @@
     {
       "matches": [
         "https://usesincerely.com/*",
-        "https://www.usesincerely.com/*",
+        "https://*.usesincerely.com/*",
         "http://localhost:5173/*"
       ],
       "js": [

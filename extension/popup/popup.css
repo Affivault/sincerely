@@ -450,6 +450,39 @@ body {
   margin-top: 5px;
 }
 
+/* Progress and failures during setup. Kept in the flow rather than in the main
+   status line, which lives in a section that is still hidden at this point. */
+.setup-status {
+  max-width: 262px;
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.setup-status.error {
+  color: var(--error);
+}
+.setup-status.warn {
+  color: var(--warning);
+}
+
+.setup-alt {
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.setup-alt:hover {
+  color: var(--text-secondary);
+}
+
 /* ── Callout (no email found) ── */
 
 .callout {
