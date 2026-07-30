@@ -49,9 +49,10 @@ async function runChecks(update: (r: CheckResult[]) => void): Promise<CheckResul
     ok: !(isProdHost && apiLooksLocal),
     detail: `This build calls: ${API_URL}`,
     fix: isProdHost && apiLooksLocal
-      // Deliberately no example host: naming one goes stale the moment the API
-      // moves, and a stale example is worse than none — people paste it in.
-      ? 'VITE_API_URL is missing from this build, so it fell back to localhost. In Vercel → Settings → Environment Variables, set VITE_API_URL to your API server’s address with /api/v1 on the end, for the Production environment — check the environment checkboxes! — then Deployments → Redeploy.'
+      // An example is worth having here: when the variable is missing entirely,
+      // the address above just says localhost, which tells the reader nothing
+      // about what to put instead.
+      ? 'VITE_API_URL is missing from this build, so it fell back to localhost. In Vercel → Settings → Environment Variables, set VITE_API_URL to your API server with /api/v1 on the end (https://skysend-api.onrender.com/api/v1) for the Production environment — check the environment checkboxes! — then Deployments → Redeploy.'
       : undefined,
   });
 
@@ -94,7 +95,7 @@ async function runChecks(update: (r: CheckResult[]) => void): Promise<CheckResul
       name: 'API server',
       ok: false,
       detail: `Could not connect to ${healthUrl}: ${err?.message || err}`,
-      fix: `The API address this build uses is unreachable from your browser. Most common causes: the domain does not exist in DNS, the API server is asleep or down, or VITE_API_URL is wrong. Check VITE_API_URL in Vercel matches your live API server (currently ${API_URL}), then Redeploy.`,
+      fix: `The API address this build uses is unreachable from your browser. Most common causes: the API server is asleep or down, the domain does not exist in DNS, or VITE_API_URL is wrong. This build calls ${API_URL} — check that matches your live API server in Vercel, then Redeploy.`,
     });
   }
 

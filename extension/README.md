@@ -84,8 +84,13 @@ key by hand**:
 
 | Environment | API URL |
 | --- | --- |
-| Production | `https://api.usesincerely.com` |
+| Production | `https://skysend-api.onrender.com` |
 | Local dev | `http://localhost:3001` |
+
+Production must match the deployment's `VITE_API_URL`. It appears in three
+places that have to agree: `DEFAULT_API_BASE` in `lib/storage.js`, the declared
+list in `originPatternFor()`, and `host_permissions` in the manifest. Miss the
+last two and the extension asks Chrome for access it was never granted.
 
 Paste the host — `/api/v1` is appended automatically. There are one-click
 buttons for both. Then paste the key and hit **Save & test connection**.

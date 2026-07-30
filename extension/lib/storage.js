@@ -8,7 +8,12 @@
 
 /** @typedef {{apiBaseUrl: string, apiKey: string, lastCampaignId: string|null, verifyBeforeAdd: boolean, autoTag: boolean, autoTagName: string, appUrl: string, showBadge: boolean}} Settings */
 
-export const DEFAULT_API_BASE = 'https://api.usesincerely.com/api/v1';
+/**
+ * The live API. Keep this in step with the deployment's VITE_API_URL — it is
+ * both the default and one of the candidates the tab connect falls back to when
+ * a page has no API calls in its resource timeline yet.
+ */
+export const DEFAULT_API_BASE = 'https://skysend-api.onrender.com/api/v1';
 export const LOCAL_API_BASE = 'http://localhost:3001/api/v1';
 
 /** Where the web app lives — used for "open in Sincerely" links. */
@@ -185,9 +190,13 @@ export function originPatternFor(baseUrl) {
   } catch {
     return null;
   }
+  // Must match host_permissions in manifest.json exactly: an origin listed
+  // there needs no runtime grant, and one missing from here would prompt the
+  // user for access Chrome has already given.
   const declared = [
     'http://localhost:3001',
     'http://127.0.0.1:3001',
+    'https://skysend-api.onrender.com',
     'https://api.usesincerely.com',
   ];
   if (declared.includes(origin)) return null;
