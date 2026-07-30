@@ -169,6 +169,17 @@
             <button id="scan-new-only" class="btn-secondary btn-xs" type="button">New only</button>
           </div>
           <ul id="scan-results" class="scan-results"></ul>
+
+          <!-- People the site names but gives no address for. Most of a
+               company is in here, not in the list above. -->
+          <div id="unlisted-block" class="unlisted hidden">
+            <div class="unlisted-head">
+              <span id="unlisted-title" class="unlisted-title">Named, no address published</span>
+              <button id="find-all" class="btn-secondary btn-xs" type="button">Find all</button>
+            </div>
+            <ul id="unlisted-results" class="scan-results"></ul>
+          </div>
+
           <button id="scan-add" class="btn-primary btn-block hidden" type="button">Add selected to campaign</button>
         </div>
       </section>

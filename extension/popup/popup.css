@@ -729,6 +729,55 @@ body {
   margin-top: 10px;
 }
 
+/* ── Named on the site, address not published ── */
+
+.unlisted {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.unlisted-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.unlisted-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.unlisted-name {
+  font-size: 12.5px;
+  color: var(--text-primary);
+}
+
+/* A found address is a claim about someone's mailbox, so how sure we are has to
+   travel with it — never just the address on its own. */
+.confidence {
+  font-variant-numeric: tabular-nums;
+}
+.confidence-high {
+  color: var(--success);
+}
+.confidence-medium {
+  color: var(--warning);
+}
+.confidence-low {
+  color: var(--text-tertiary);
+}
+
+.find-btn {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
 /* ── Status line ── */
 
 .status {

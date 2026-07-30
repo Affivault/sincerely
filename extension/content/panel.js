@@ -46,6 +46,10 @@
     collapsed: false,
     /** Prospector match, once searched. */
     prospect: undefined,
+    /** Result of the free domain-based finder, once run. */
+    found: null,
+    /** Domain the user typed for that, so a re-render doesn't lose it. */
+    findDomain: '',
     busy: false,
     message: null,
   };
@@ -138,6 +142,20 @@
       .pill.risky { color: #B45309; background: rgba(245,158,11,.12); }
       .pill.invalid { color: #BE123C; background: rgba(244,63,94,.12); }
       .pill.neutral { color: #8F8E97; background: #F3F2F0; }
+      .pill.ok { color: #047857; background: rgba(16,185,129,.12); }
+      .pill.warn { color: #B45309; background: rgba(245,158,11,.12); }
+
+      /* Domain box and its Find button on one line — typing a domain and
+         pressing Find is one action, so it reads as one control. */
+      .finder { display: flex; align-items: center; gap: 6px; }
+      .finder input.txt { flex: 1; min-width: 0; }
+      .finder .btn { width: auto; margin-top: 0; flex: 0 0 auto; padding: 0 14px; }
+
+      .found-row {
+        display: flex; align-items: center; gap: 6px; margin-top: 8px;
+        padding: 7px 9px; border: 1px solid #E0DDD8; border-radius: 6px; background: #fff;
+      }
+      .found-row .addr { flex: 1; min-width: 0; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
       label.lbl { display: block; margin-bottom: 4px; font-size: 11px; font-weight: 500; color: #61606A; }
 
@@ -477,7 +495,58 @@
 
     if (person.email) return wrap;
 
-    // No address: offer the Prospector, then a manual entry fallback.
+    /*
+     * No address. Work it out from the company's domain first: that costs
+     * nothing, where the prospect database costs a credit per reveal. The domain
+     * comes from the profile's own listed website when there is one, and is
+     * editable because LinkedIn shows a company's name far more often than its
+     * domain.
+     */
+    const finderRow = el('div', 'finder');
+    const domainInput = el('input', 'txt');
+    domainInput.type = 'text';
+    domainInput.placeholder = 'company.com';
+    domainInput.value = state.findDomain || person.company_domain || '';
+    domainInput.addEventListener('input', () => {
+      state.findDomain = domainInput.value.trim();
+    });
+    finderRow.appendChild(domainInput);
+
+    const findAt = el('button', 'btn secondary', 'Find');
+    findAt.disabled = state.busy;
+    findAt.addEventListener('click', () => findAtDomain(domainInput.value.trim()));
+    finderRow.appendChild(findAt);
+    wrap.appendChild(finderRow);
+    wrap.appendChild(el('div', 'cost', 'Free — works out the address from the company’s own convention and asks their mail server.'));
+
+    if (state.found) {
+      if (state.found.email) {
+        const hit = el('div', 'found-row');
+        hit.appendChild(el('span', 'addr', state.found.email));
+        hit.appendChild(
+          el(
+            'span',
+            `pill ${state.found.verified ? 'ok' : 'warn'}`,
+            state.found.verified ? 'confirmed' : `${state.found.confidence}%`
+          )
+        );
+        wrap.appendChild(hit);
+        wrap.appendChild(el('div', 'cost', state.found.reason || ''));
+
+        const use = el('button', 'btn', 'Use this address');
+        use.disabled = state.busy;
+        use.addEventListener('click', () => {
+          state.person = { ...(state.person || {}), email: state.found.email };
+          state.found = null;
+          refresh();
+        });
+        wrap.appendChild(use);
+      } else {
+        wrap.appendChild(el('div', 'cost', state.found.reason || 'No address could be established.'));
+      }
+    }
+
+    // Then the paid route, for when the domain gives nothing.
     if (state.prospect === undefined) {
       const find = el('button', 'btn secondary', 'Find their email');
       find.disabled = state.busy;
@@ -607,6 +676,42 @@
     setMessage(`Removed from "${membership.campaign_name}". They stay on the lead list.`, 'success');
   }
 
+  /**
+   * Work out this person's address at a company domain. Costs nothing.
+   *
+   * @param {string} domain
+   */
+  async function findAtDomain(domain) {
+    if (!domain) {
+      return setMessage("Type the company's domain — linkedin shows the name, not the domain.", 'error');
+    }
+
+    state.busy = true;
+    state.findDomain = domain;
+    setMessage(`Working out their address at ${domain}…`);
+
+    const response = await send('FIND_EMAIL', {
+      domain,
+      firstName: state.person?.first_name || undefined,
+      lastName: state.person?.last_name || undefined,
+      fullName: state.person?.full_name || undefined,
+    });
+    state.busy = false;
+
+    if (!response.ok) {
+      state.found = null;
+      return setMessage(response.error.message, 'error');
+    }
+
+    state.found = {
+      email: response.data.found ? response.data.email : null,
+      confidence: response.data.confidence,
+      verified: response.data.verified,
+      reason: response.data.reason,
+    };
+    setMessage(null);
+  }
+
   async function findEmail() {
     state.busy = true;
     setMessage('Searching the prospect database…');
@@ -681,8 +786,11 @@
     const stored = await chrome.storage.local.get({ [COLLAPSED_KEY]: false });
     state.collapsed = Boolean(stored[COLLAPSED_KEY]);
 
-    // The scraper is the sibling content script; it has already run.
-    state.person = sincerely.scrape ? sincerely.scrape() : null;
+    // The scraper is the sibling content script; it has already run. Awaited
+    // because on LinkedIn it fetches the contact info rather than reading the
+    // DOM, which is what makes an address available without the user opening
+    // the Contact info dialog.
+    state.person = sincerely.scrape ? await sincerely.scrape().catch(() => null) : null;
 
     const context = await send('GET_CONTEXT', {});
     if (context.ok) {
@@ -728,23 +836,21 @@
   }, 1200);
 
   /**
-   * Watch for an address appearing after the panel has already loaded.
+   * Last-resort watcher for an address appearing in the DOM after load.
    *
-   * On LinkedIn the address usually lives behind the "Contact info" link, so
-   * it simply isn't in the DOM when the panel first reads the page. Without
-   * this, opening that panel changes nothing and the extension looks broken on
-   * exactly the profiles where the email *is* available.
-   *
-   * Only runs while no address is known, and only re-renders when the scrape
-   * actually produces one — so it costs nothing on a page that never has one.
+   * The scraper now fetches LinkedIn's contact info directly, so this should
+   * almost never be what finds the address. It stays for the cases that fetch
+   * can't cover: LinkedIn changing its internals, a signed-out session, or an
+   * address that only ever appears in a page's own markup — and it costs
+   * nothing while an address is already known.
    */
   let rescanTimer = null;
   const watcher = new MutationObserver(() => {
     if (state.loading || state.person?.email) return;
     clearTimeout(rescanTimer);
-    rescanTimer = setTimeout(() => {
+    rescanTimer = setTimeout(async () => {
       if (state.person?.email || !sincerely.scrape) return;
-      const fresh = sincerely.scrape();
+      const fresh = await sincerely.scrape().catch(() => null);
       if (!fresh?.email) return;
       state.person = { ...state.person, ...fresh };
       state.prospect = undefined;

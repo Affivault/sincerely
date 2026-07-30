@@ -505,6 +505,22 @@ export async function verifyEmail(email) {
   return request('/verification/email', { method: 'POST', body: { email } });
 }
 
+/**
+ * Work out someone's address at a domain when no page publishes it.
+ *
+ * Slow by nature — DNS, then a conversation with the domain's mail server — so
+ * it gets the cold-start budget rather than the default 20s.
+ *
+ * @param {{domain: string, first_name?: string, last_name?: string, full_name?: string}} payload
+ */
+export async function findEmail(payload) {
+  return request('/verification/find-email', {
+    method: 'POST',
+    body: payload,
+    timeoutMs: COLD_START_TIMEOUT_MS,
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /* Prospector                                                         */
 /* ------------------------------------------------------------------ */

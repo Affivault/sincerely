@@ -9,6 +9,9 @@ verificationRoutes.post('/contacts/:contactId', verificationController.verifyCon
 // Verify a raw email address
 verificationRoutes.post('/email', verificationController.verifyEmail);
 
+// Find the address for a name at a domain, when nothing published it
+verificationRoutes.post('/find-email', verificationController.findEmail);
+
 // Batch verify contacts
 verificationRoutes.post('/batch', verificationController.batchVerify);
 

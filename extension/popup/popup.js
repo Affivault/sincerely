@@ -98,6 +98,10 @@ const el = {
   scanNewOnly: document.getElementById('scan-new-only'),
   scanResults: document.getElementById('scan-results'),
   scanAdd: document.getElementById('scan-add'),
+  unlistedBlock: document.getElementById('unlisted-block'),
+  unlistedTitle: document.getElementById('unlisted-title'),
+  unlistedResults: document.getElementById('unlisted-results'),
+  findAll: document.getElementById('find-all'),
 
   noEmailHelp: document.getElementById('no-email-help'),
   prospectFind: document.getElementById('prospect-find'),
@@ -135,6 +139,16 @@ const state = {
   scanSelected: new Set(),
   /** True once the whole site has been crawled, not just the open page. */
   scannedSite: false,
+  /**
+   * People the site names without publishing an address, each gaining a
+   * `finding`/`found`/`failed` state as the finder works through them.
+   * @type {Array<{first_name: string, last_name: string, job_title: string|null,
+   *   state?: string, email?: string, confidence?: number, verified?: boolean,
+   *   reason?: string}>}
+   */
+  unlisted: [],
+  /** The site's own domain, which is what addresses get looked for at. */
+  siteDomain: '',
   /**
    * Form fields filled from an API result rather than typed or scraped. Only
    * these get cleared when the address changes.
@@ -1102,6 +1116,8 @@ async function scanSite() {
 
   state.scanResults = response.data.results || [];
   state.scannedSite = true;
+  state.unlisted = (response.data.unlisted || []).map((person) => ({ ...person, state: 'idle' }));
+  state.siteDomain = response.data.siteDomain || '';
   // Pre-tick the ones worth having: real people this account doesn't hold yet.
   state.scanSelected = new Set(
     state.scanResults.filter((r) => r.kind === 'person' && !r.alreadyAContact).map((r) => r.email)
@@ -1122,9 +1138,12 @@ function renderScan(meta) {
     const empty = document.createElement('li');
     empty.className = 'scan-empty';
     empty.textContent = state.scannedSite
-      ? `No addresses found across ${meta.pagesScanned} page${meta.pagesScanned === 1 ? '' : 's'}. Many sites only publish them behind a contact form.`
+      ? state.unlisted.length > 0
+        ? `No addresses are published across ${meta.pagesScanned} page${meta.pagesScanned === 1 ? '' : 's'} — but the site names ${state.unlisted.length} ${state.unlisted.length === 1 ? 'person' : 'people'} below, and their addresses can be worked out.`
+        : `No addresses found across ${meta.pagesScanned} page${meta.pagesScanned === 1 ? '' : 's'}. Many sites only publish them behind a contact form.`
       : 'No addresses on this page. Try scanning the whole site.';
     el.scanResults.appendChild(empty);
+    renderUnlisted();
     return;
   }
 
@@ -1171,13 +1190,200 @@ function renderScan(meta) {
       badge.textContent = 'already a contact';
       meta2.appendChild(badge);
     }
+    // Worked out rather than read off the page: say so, and say how sure.
+    if (result.found) {
+      const label = confidenceLabel(result.confidence ?? 0);
+      const badge = document.createElement('span');
+      badge.className = `confidence ${label.className}`;
+      badge.textContent = label.text;
+      meta2.appendChild(badge);
+    }
     main.appendChild(meta2);
     item.appendChild(main);
 
     el.scanResults.appendChild(item);
   }
 
+  renderUnlisted();
   syncScanToolbar();
+}
+
+/* ------------------------------------------------------------------ */
+/* People named without an address                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A confidence figure and the class that colours it.
+ *
+ * Shown on every found address without exception. A convention-based guess and
+ * a mailbox the server confirmed look identical otherwise, and treating them
+ * the same is how someone ends up emailing an address that never existed.
+ *
+ * @param {number} confidence
+ */
+function confidenceLabel(confidence) {
+  if (confidence >= 90) return { text: 'confirmed', className: 'confidence-high' };
+  if (confidence >= 60) return { text: `${confidence}% likely`, className: 'confidence-medium' };
+  return { text: `${confidence}% — unconfirmed guess`, className: 'confidence-low' };
+}
+
+/**
+ * Ask the server for one person's address at the scanned site's domain.
+ *
+ * @param {number} index Position in state.unlisted.
+ */
+async function findOneAddress(index) {
+  const person = state.unlisted[index];
+  if (!person || person.state === 'finding' || person.state === 'found') return;
+  if (!state.siteDomain) return;
+
+  person.state = 'finding';
+  renderUnlisted();
+
+  const response = await send('FIND_EMAIL', {
+    domain: state.siteDomain,
+    firstName: person.first_name,
+    lastName: person.last_name,
+  });
+
+  if (!response.ok) {
+    person.state = 'failed';
+    person.reason = response.error?.message || 'Lookup failed.';
+    renderUnlisted();
+    return;
+  }
+
+  const data = response.data;
+  if (!data.found || !data.email) {
+    person.state = 'failed';
+    person.reason = data.reason || 'No address could be established.';
+    renderUnlisted();
+    return;
+  }
+
+  person.state = 'found';
+  person.email = data.email;
+  person.confidence = data.confidence;
+  person.verified = data.verified;
+  person.reason = data.reason;
+
+  // Fold it into the harvest list so it can be selected and enrolled like any
+  // other address — a found address that can't be acted on is no use.
+  if (!state.scanResults.some((result) => result.email === data.email)) {
+    state.scanResults.push({
+      email: data.email,
+      kind: 'person',
+      first_name: person.first_name,
+      last_name: person.last_name,
+      source_url: person.source_url || '',
+      alreadyAContact: false,
+      confidence: data.confidence,
+      verified: data.verified,
+      found: true,
+    });
+    // Only pre-tick what the mail server actually confirmed. A guess is the
+    // user's call, not ours.
+    if (data.verified) state.scanSelected.add(data.email);
+  }
+
+  renderScan({ pagesScanned: 0, origin: '' });
+}
+
+/** Work through everyone still unfound, a few at a time. */
+async function findAllAddresses() {
+  el.findAll.disabled = true;
+  el.findAll.textContent = 'Finding…';
+  try {
+    const pending = state.unlisted
+      .map((person, index) => ({ person, index }))
+      .filter(({ person }) => person.state === 'idle' || person.state === 'failed');
+
+    // Two at a time: each lookup holds an SMTP conversation open, and firing a
+    // dozen at one mail server at once is how a sender gets itself blocked.
+    const CONCURRENCY = 2;
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(CONCURRENCY, pending.length) }, async () => {
+      while (cursor < pending.length) {
+        const next = pending[cursor];
+        cursor += 1;
+        await findOneAddress(next.index);
+      }
+    });
+    await Promise.all(workers);
+  } finally {
+    el.findAll.disabled = false;
+    el.findAll.textContent = 'Find all';
+  }
+}
+
+function renderUnlisted() {
+  if (state.unlisted.length === 0) {
+    el.unlistedBlock.classList.add('hidden');
+    return;
+  }
+
+  el.unlistedBlock.classList.remove('hidden');
+  el.unlistedTitle.textContent = state.siteDomain
+    ? `Named on the site, no address published (@${state.siteDomain})`
+    : 'Named on the site, no address published';
+  el.unlistedResults.textContent = '';
+
+  state.unlisted.forEach((person, index) => {
+    const item = document.createElement('li');
+    item.className = 'scan-row';
+
+    const main = document.createElement('div');
+    main.className = 'scan-main';
+
+    const name = document.createElement('div');
+    name.className = 'unlisted-name';
+    name.textContent = [person.first_name, person.last_name].filter(Boolean).join(' ');
+    main.appendChild(name);
+
+    const meta = document.createElement('div');
+    meta.className = 'scan-meta';
+
+    if (person.state === 'found') {
+      const address = document.createElement('span');
+      address.textContent = person.email;
+      meta.appendChild(address);
+
+      const label = confidenceLabel(person.confidence ?? 0);
+      const badge = document.createElement('span');
+      badge.className = `confidence ${label.className}`;
+      badge.textContent = label.text;
+      meta.appendChild(badge);
+    } else if (person.state === 'finding') {
+      meta.textContent = 'Asking the mail server…';
+    } else if (person.state === 'failed') {
+      meta.textContent = person.reason || 'Nothing found.';
+    } else if (person.job_title) {
+      meta.textContent = person.job_title;
+    } else {
+      meta.textContent = 'No address on the site';
+    }
+
+    main.appendChild(meta);
+    item.appendChild(main);
+
+    if (person.state !== 'found') {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn-secondary btn-xs find-btn';
+      button.textContent = person.state === 'finding' ? '…' : 'Find';
+      button.disabled = person.state === 'finding' || !state.siteDomain;
+      button.addEventListener('click', () => {
+        findOneAddress(index).catch((err) => showError({ message: err?.message }));
+      });
+      item.appendChild(button);
+    }
+
+    el.unlistedResults.appendChild(item);
+  });
+
+  const pending = state.unlisted.filter((p) => p.state === 'idle').length;
+  el.findAll.disabled = pending === 0 || !state.siteDomain;
+  el.findAll.textContent = pending > 0 ? `Find all ${pending}` : 'Find all';
 }
 
 function syncScanToolbar() {
@@ -1571,6 +1777,9 @@ function wireEvents() {
     );
   });
   el.setupGrant.addEventListener('click', grantApiPermission);
+  el.findAll.addEventListener('click', () => {
+    findAllAddresses().catch((err) => showError({ message: err?.message }));
+  });
 
   el.email.addEventListener(
     'input',

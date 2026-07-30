@@ -19,7 +19,13 @@ import {
   originPatternFor,
   setSettings,
 } from './lib/storage.js';
-import { CANDIDATE_PATHS, extractFromHtml, promisingLinks, rankResults } from './lib/harvest.js';
+import {
+  CANDIDATE_PATHS,
+  extractFromHtml,
+  peopleWithoutEmails,
+  promisingLinks,
+  rankResults,
+} from './lib/harvest.js';
 
 const MENU_ROOT = 'sincerely-root';
 const MENU_ADD_LAST = 'sincerely-add-last';
@@ -909,16 +915,28 @@ async function handleScanSite(payload) {
     /** @type {string[]} */
     const discovered = [];
 
+    /** People the site names but publishes no address for, keyed by name. */
+    const unlisted = new Map();
+
     const visit = async (url) => {
       if (visited.length >= SCAN_PAGE_LIMIT) return;
       const html = await fetchPage(url);
       if (!html) return;
       visited.push(url);
 
-      for (const result of extractFromHtml(html, url)) {
+      const pageResults = extractFromHtml(html, url);
+      for (const result of pageResults) {
         // First sighting wins: the earlier pages are the likelier ones, and a
         // later page rarely improves on the name we already attributed.
         if (!found.has(result.email)) found.set(result.email, result);
+      }
+
+      // The other half of the scan: most people at a company are named on a
+      // team page and never given an address there. Collecting them is what
+      // makes it possible to reach past whoever happens to be published.
+      for (const person of peopleWithoutEmails(html, url, pageResults.map((r) => r.email))) {
+        const key = `${person.first_name}|${person.last_name}`.toLowerCase();
+        if (!unlisted.has(key)) unlisted.set(key, person);
       }
 
       // Only the entry page contributes new links — one hop keeps the scan
@@ -953,12 +971,25 @@ async function handleScanSite(payload) {
       }
     }
 
+    // Anyone whose address turned up after all — on a later page than the one
+    // that named them — needs no finding.
+    const harvestedNames = new Set(
+      results
+        .filter((r) => r.first_name && r.last_name)
+        .map((r) => `${r.first_name}|${r.last_name}`.toLowerCase())
+    );
+
     return {
       ok: true,
       data: {
         origin,
+        siteDomain: new URL(origin).hostname.replace(/^www\./, ''),
         pagesScanned: visited.length,
         results: results.map((r) => ({ ...r, alreadyAContact: known.has(r.email) })),
+        unlisted: [...unlisted.entries()]
+          .filter(([key]) => !harvestedNames.has(key))
+          .map(([, person]) => person)
+          .slice(0, 12),
       },
     };
   } catch (err) {
@@ -1357,6 +1388,49 @@ async function handleProspectReveal(payload) {
   }
 }
 
+/**
+ * Find an address for a name at a domain, when the page never printed one.
+ *
+ * The counterpart to harvesting: harvesting returns what is published, this
+ * returns what exists. The result carries its own confidence and reason, and
+ * the UI is expected to show both — an unconfirmed convention guess must never
+ * be presented as a finding.
+ *
+ * @param {{domain: string, firstName?: string, lastName?: string, fullName?: string}} payload
+ */
+async function handleFindEmail(payload) {
+  try {
+    const domain = String(payload.domain || '').trim();
+    if (!domain) throw new ApiError('A company domain is needed to look for an address.', { code: 'NO_DOMAIN' });
+
+    const result = await api.findEmail({
+      domain,
+      first_name: payload.firstName || undefined,
+      last_name: payload.lastName || undefined,
+      full_name: payload.fullName || undefined,
+    });
+
+    return {
+      ok: true,
+      data: {
+        found: Boolean(result?.found),
+        email: result?.email ?? null,
+        pattern: result?.pattern ?? null,
+        confidence: Number(result?.confidence ?? 0),
+        verified: Boolean(result?.verified),
+        catchAll: Boolean(result?.catch_all),
+        mx: Boolean(result?.mx),
+        smtpChecked: Boolean(result?.smtp_checked),
+        patternFromKnown: Boolean(result?.pattern_from_known),
+        candidates: Array.isArray(result?.candidates) ? result.candidates : [],
+        reason: result?.reason || '',
+      },
+    };
+  } catch (err) {
+    return toErrorPayload(err);
+  }
+}
+
 async function handleTestConnection() {
   try {
     const result = await api.testConnection();
@@ -1619,6 +1693,7 @@ const HANDLERS = {
   SCAN_SITE: handleScanSite,
   CHECK_KNOWN: handleCheckKnown,
   BULK_ENROL_PROFILES: handleBulkEnrolProfiles,
+  FIND_EMAIL: handleFindEmail,
   SUPPRESS_PERSON: handleSuppress,
   TEST_CONNECTION: handleTestConnection,
   CONNECT_APPLY: handleConnectApply,

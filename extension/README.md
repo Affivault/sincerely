@@ -209,10 +209,76 @@ happened with them (suppressed, replied, engagement, or which campaigns they're
 in), the address or the way to get one, and the campaign picker. Collapse it
 with the × and it stays collapsed until you reopen it.
 
-### On LinkedIn, there's usually no email
+### On LinkedIn, the address is read without opening Contact info
 
-LinkedIn almost never exposes addresses, so the extension offers two ways
-forward when it can't find one:
+A profile's email lives inside the **Contact info** dialog, so it is genuinely
+not in the page until that dialog is opened. Waiting for the user to click it was
+not acceptable: on a profile where the address *is* available, the extension
+appeared to find nothing.
+
+So the extension asks LinkedIn the same question the dialog asks, using the
+user's own signed-in session, as soon as the profile loads:
+
+1. `/voyager/api/identity/profiles/<slug>/profileContactInfo` — the endpoint the
+   dialog itself calls, authenticated with the `JSESSIONID` cookie as the
+   `csrf-token` header. Returns the address, phone numbers and websites.
+2. `/in/<slug>/overlay/contact-info/` — the dialog's own URL, scanned for
+   addresses. Slower, but survives step 1 being renamed.
+3. The DOM, as before.
+
+All same-origin requests from a linkedin.com page carrying the user's cookies:
+the extension sees exactly what the user would see by clicking, and nothing
+more. Every failure is silent and falls through to the next step, so a changed
+internal API degrades to the old behaviour rather than breaking. Results are
+cached per profile for the life of the page.
+
+The DOM mutation watcher stays as a last resort for the cases a fetch can't
+cover — signed-out sessions, and addresses that only ever appear in markup.
+
+Two notes on this. LinkedIn's internal endpoints are undocumented and change
+without warning, which is why there are three layers and why none of them is
+load-bearing on its own. And scraping LinkedIn is against its terms of service
+regardless of how it's done — the same is true of every extension in this
+category, but it's your account that carries the risk, so it's worth knowing.
+
+### Working out an address that was never published
+
+Harvesting only returns what a page prints. Most people at a company are named
+on a team page with no address beside them, and they're the ones worth reaching.
+
+`POST /verification/find-email` takes a name and a domain and works out the
+address, in descending order of what the answer is worth:
+
+1. **The account's own contacts at that domain.** If `jane.doe@acme.com` is on
+   file and her name is Jane Doe, the convention is `first.last` and every other
+   guess at acme.com follows from it. Free, instant, and better than a heuristic.
+2. **The mail server.** `RCPT TO` is the only way to *prove* a mailbox exists.
+   Done strictly, unlike `/verification/email`, which assumes valid on ambiguity
+   — right for an address a human typed, useless for sifting a dozen guesses
+   because everything would come back valid.
+3. **Which conventions are common**, as a last resort, reported as a guess.
+
+A random local part is probed first: a domain that accepts it accepts anything,
+so no address there can be confirmed, and that's said rather than hidden. Same
+for a host that blocks outbound port 25 — **most PaaS hosts do, Render
+included**, so in production expect `smtp_checked: false` and unverified guesses
+unless port 25 is open.
+
+**Every result carries a confidence and a reason, and the UI shows both.** 90+
+means a mail server accepted the exact address. Under 60 is a convention guess.
+The popup pre-ticks only confirmed addresses; a guess is the user's call.
+
+Two places use it, both free — no credits, no provider:
+
+- **Site scan** now returns `unlisted`: people the site names with no address.
+  Each gets a **Find** button, or **Find all** which works through them two at a
+  time (each lookup holds an SMTP conversation open, and a dozen at once is how
+  a sender gets itself blocked).
+- **The LinkedIn panel** offers a domain box and **Find**, prefilled from the
+  profile's listed website. LinkedIn shows a company's *name* far more often
+  than its domain, hence editable.
+
+### The Prospector, when the domain gives nothing
 
 - **Find their email** searches the Prospector database using the profile URL
   first and name + company as a fallback, then shows you the match, how
@@ -381,6 +447,7 @@ All under `/api/v1`, all with `Authorization: Bearer sk_live_…`:
 | Remove from campaign | `DELETE /campaigns/:id/contacts` |
 | Suppress | `POST /suppression`, `GET /suppression/check` |
 | Verify (optional) | `POST /verification/email` |
+| Work out an unpublished address | `POST /verification/find-email` |
 | Engagement | `GET /analytics/contacts/:id/timeline` |
 | Source tag | `GET`/`POST /tags`, `POST /contacts/bulk-tag` |
 | Find an email | `GET /prospecting/status`, `POST /prospecting/search`, `POST /prospecting/reveal` |

@@ -174,6 +174,11 @@ function capitalise(word) {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
+/** Make a literal string safe to embed in a RegExp. */
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * Every address in one page of HTML, with what we could work out about each.
  *
@@ -256,6 +261,136 @@ export function promisingLinks(html, baseUrl, limit = 10) {
   }
 
   return out;
+}
+
+/**
+ * Words that mark the text around a name as a person's role, which is what
+ * separates a team-page entry from any other pair of capitalised words.
+ */
+const TITLE_WORD =
+  /\b(ceo|cto|cfo|coo|cmo|founder|co-founder|owner|president|partner|principal|director|head|chief|manager|lead|vp|vice president|officer|analyst|associate|consultant|specialist|engineer|designer|advisor|adviser|counsel|controller|treasurer|chair|chairman|chairwoman|executive|supervisor|strategist|architect|recruiter|trader|broker)\b/i;
+
+/**
+ * One name word.
+ *
+ * Latin-1 accents count as letters, and a compound name may capitalise after
+ * its hyphen or apostrophe — Ana-María and O'Brien are names, and a pattern
+ * that stops at the internal capital silently drops both.
+ */
+const NAME_WORD = "[A-Z\u00C0-\u00DE][a-z\u00DF-\u00FF]*(?:['\u2019-][A-Za-z\u00C0-\u00FF][a-z\u00DF-\u00FF]*)*";
+
+/**
+ * Surname particles: lower-case, and part of the surname. Without them
+ * "Piet van Dijk" matches nothing at all rather than yielding van Dijk.
+ */
+const PARTICLE = '(?:van|von|de|del|della|di|da|das|dos|du|le|la|el|bin|binti|ter|ten|op|of|af|zu)';
+
+/** "Jane Doe", "Ana-Maria J. O'Brien", or "Piet van Dijk". */
+const TWO_PART_NAME = new RegExp(
+  `^(${NAME_WORD})(?:\\s+[A-Z]\\.?)?\\s+((?:${PARTICLE}\\s+)*${NAME_WORD})\\b`
+);
+
+/**
+ * Tags whose text is where team pages actually put people's names — headings,
+ * emphasised text, table cells, captions.
+ */
+const NAME_HOST_TAG =
+  /<(h[1-6]|strong|b|figcaption|dt|td|th|a)\b[^>]*>([\s\S]{0,120}?)<\/\1>/gi;
+
+/**
+ * People a page names but gives no address for.
+ *
+ * This is the other half of harvesting. A team page typically prints
+ * "Jane Doe — Head of Trading" and nothing else; the address exists, it just
+ * isn't published. Returning these lets the finder be pointed at them, which is
+ * the only way to reach the majority of people at any company.
+ *
+ * Precision is worth more than recall here: every name returned costs a
+ * conversation with a mail server, and a wrong one produces a confident-looking
+ * address for somebody who doesn't exist. So a name only counts when a job
+ * title sits near it — the pattern a team page always follows and stray
+ * capitalised prose almost never does.
+ *
+ * @param {string} html
+ * @param {string} pageUrl
+ * @param {string[]} [claimedEmails] Addresses already found on this page; the
+ *   people they belong to are skipped, since they need no finding.
+ * @param {number} [limit]
+ * @returns {Array<{first_name: string, last_name: string, job_title: string|null, source_url: string}>}
+ */
+export function peopleWithoutEmails(html, pageUrl, claimedEmails = [], limit = 12) {
+  // Local parts of the addresses we already have, so "jane.doe@" suppresses
+  // Jane Doe and we don't go looking for an address we're holding.
+  const claimed = new Set(
+    claimedEmails.map((email) => String(email).split('@')[0].toLowerCase().replace(/[^a-z]/g, ''))
+  );
+
+  const cleaned = String(html)
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ');
+
+  const found = new Map();
+
+  NAME_HOST_TAG.lastIndex = 0;
+  for (const match of cleaned.matchAll(NAME_HOST_TAG)) {
+    const inner = match[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!inner || inner.length > 80) continue;
+
+    const nameMatch = inner.match(TWO_PART_NAME);
+    if (!nameMatch) continue;
+    const [, first, last] = nameMatch;
+    if (NOT_A_NAME.test(first) || NOT_A_NAME.test(last)) continue;
+
+    /*
+     * The title may sit inside the same element or in the markup just after it.
+     * Tags become newlines rather than spaces so each element's text stays a
+     * separate line — collapsing them into one string makes the title of the
+     * *next* person look like part of this one's.
+     */
+    const afterLines = cleaned
+      .slice(match.index + match[0].length, match.index + match[0].length + 240)
+      .replace(/<[^>]+>/g, '\n')
+      .split('\n')
+      .map((line) => line.replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
+
+    const titleLine = TITLE_WORD.test(inner)
+      ? inner
+      : afterLines.find((line) => TITLE_WORD.test(line) && line.length <= 60);
+    if (!titleLine) continue;
+
+    const key = `${first}|${last}`.toLowerCase();
+    if (found.has(key)) continue;
+    if (claimed.has(`${first}${last}`.toLowerCase())) continue;
+    if (claimed.has(`${first.charAt(0)}${last}`.toLowerCase())) continue;
+    if (claimed.has(first.toLowerCase())) continue;
+
+    /*
+     * Strip *this person's* name off the front when the title shares an element
+     * with it ("Jane Doe, Head of Trading" → "Head of Trading"). Matched
+     * literally rather than with the general name pattern, which would treat
+     * "Sales Director" as a name and delete the whole title.
+     */
+    const namePrefix = new RegExp(
+      `^${escapeRegExp(first)}(?:\\s+[A-Z]\\.?)?\\s+${escapeRegExp(last)}\\b`
+    );
+    const jobTitle = titleLine
+      .replace(namePrefix, '')
+      .replace(/^[\s,.|/–—-]+/, '')
+      .trim()
+      .slice(0, 60);
+
+    found.set(key, {
+      first_name: first,
+      last_name: last,
+      job_title: jobTitle || null,
+      source_url: pageUrl,
+    });
+    if (found.size >= limit) break;
+  }
+
+  return [...found.values()];
 }
 
 /**

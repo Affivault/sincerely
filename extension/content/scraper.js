@@ -145,19 +145,180 @@
   /* Site adapters                                                    */
   /* ---------------------------------------------------------------- */
 
+  /* ---------------------------------------------------------------- */
+  /* LinkedIn contact info                                            */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * The profile slug in the current URL, e.g. "jane-doe-1234" from
+   * /in/jane-doe-1234/. Null on anything that isn't a profile.
+   */
+  function linkedInPublicId() {
+    const match = location.pathname.match(/\/in\/([^/?#]+)/);
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
+  /**
+   * LinkedIn's CSRF token, which is simply the JSESSIONID cookie's value.
+   * Required on its internal API, and absent when the user is signed out.
+   */
+  function linkedInCsrfToken() {
+    const match = document.cookie.match(/JSESSIONID="?([^";]+)"?/);
+    return match ? match[1] : null;
+  }
+
+  /** Every address in an arbitrary object graph, however deeply nested. */
+  function emailsInJson(value, found = new Set(), depth = 0) {
+    if (depth > 8 || found.size > 10) return found;
+    if (typeof value === 'string') {
+      if (EMAIL_TEST.test(value) && isPlausibleEmail(value.toLowerCase())) {
+        found.add(value.toLowerCase());
+      }
+      return found;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) emailsInJson(item, found, depth + 1);
+      return found;
+    }
+    if (value && typeof value === 'object') {
+      for (const item of Object.values(value)) emailsInJson(item, found, depth + 1);
+    }
+    return found;
+  }
+
+  /** Websites listed on a profile, used to work out the company's domain. */
+  function websitesInJson(value, found = new Set(), depth = 0) {
+    if (depth > 8 || found.size > 6) return found;
+    if (typeof value === 'string') {
+      if (/^https?:\/\//i.test(value) && !/linkedin\.com|licdn\.com/i.test(value)) found.add(value);
+      return found;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) websitesInJson(item, found, depth + 1);
+      return found;
+    }
+    if (value && typeof value === 'object') {
+      for (const item of Object.values(value)) websitesInJson(item, found, depth + 1);
+    }
+    return found;
+  }
+
+  /**
+   * Cache per profile for the life of the page, so an SPA navigation back to a
+   * profile — or the panel and the popup asking at the same moment — doesn't
+   * re-request. Keyed by slug; a Map is enough, this never grows large.
+   */
+  const contactInfoCache = new Map();
+
+  /** fetch with a deadline, so a hung request can't stall a scrape. */
+  async function fetchWithTimeout(url, options, timeoutMs) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Read a profile's contact details without the user opening the overlay.
+   *
+   * The address on a LinkedIn profile lives behind the "Contact info" link, so
+   * it is genuinely not in the page until that dialog is opened. Waiting for a
+   * click is not a fix: on a profile where the email is right there, the
+   * extension appeared to find nothing.
+   *
+   * So ask LinkedIn the same question the dialog asks, using the user's own
+   * signed-in session. Two routes, because LinkedIn's internals move:
+   *
+   *  1. The endpoint the overlay itself calls. Fastest and returns structured
+   *     fields.
+   *  2. The overlay's own URL, scanned for addresses. Slower, but survives the
+   *     first route being renamed.
+   *
+   * Both are same-origin requests from a linkedin.com page carrying the user's
+   * cookies — the extension sees exactly what the user would see by clicking,
+   * and nothing more. Failure is always silent: the DOM scrape still runs, so a
+   * blocked or changed API degrades to the old behaviour rather than breaking.
+   *
+   * @param {string} publicId
+   * @returns {Promise<{emails: string[], websites: string[]}>}
+   */
+  async function linkedInContactInfo(publicId) {
+    if (contactInfoCache.has(publicId)) return contactInfoCache.get(publicId);
+
+    const result = { emails: [], websites: [] };
+    const token = linkedInCsrfToken();
+
+    if (token) {
+      try {
+        const response = await fetchWithTimeout(
+          `${location.origin}/voyager/api/identity/profiles/${encodeURIComponent(publicId)}/profileContactInfo`,
+          {
+            credentials: 'include',
+            headers: {
+              accept: 'application/vnd.linkedin.normalized+json+2.1',
+              'csrf-token': token,
+              'x-restli-protocol-version': '2.0.0',
+            },
+          },
+          7000
+        );
+        if (response.ok) {
+          const body = await response.json();
+          result.emails = [...emailsInJson(body)];
+          result.websites = [...websitesInJson(body)];
+        }
+      } catch {
+        // Signed out, endpoint moved, or offline — route 2 gets a turn.
+      }
+    }
+
+    if (result.emails.length === 0) {
+      try {
+        const response = await fetchWithTimeout(
+          `${location.origin}/in/${encodeURIComponent(publicId)}/overlay/contact-info/`,
+          { credentials: 'include', headers: { accept: 'text/html' } },
+          7000
+        );
+        if (response.ok) {
+          const html = await response.text();
+          const found = new Set();
+          // The addresses arrive inside embedded JSON, so entity-decode first;
+          // an unescaped &#64; would otherwise hide one.
+          const decoded = html
+            .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+            .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
+            .replace(/&amp;/g, '&');
+          for (const match of decoded.match(EMAIL_PATTERN) || []) {
+            const email = match.toLowerCase();
+            if (isPlausibleEmail(email)) found.add(email);
+            if (found.size > 5) break;
+          }
+          result.emails = [...found];
+        }
+      } catch {
+        // Nothing more to try; the DOM scrape below still applies.
+      }
+    }
+
+    contactInfoCache.set(publicId, result);
+    return result;
+  }
+
   /**
    * LinkedIn profile pages.
    *
-   * LinkedIn almost never exposes an email address, so this adapter's job is
-   * the *other* fields — name, company, title, profile URL. The popup then
-   * matches an existing contact by name, or takes an address the user pastes.
+   * Fields come from the DOM; the address comes from the contact-info endpoint
+   * above, because it is never in the DOM until the user opens that dialog.
    *
    * Selectors are deliberately layered: LinkedIn reskins often, and a stale
    * single selector would silently return nothing.
    */
-  function scrapeLinkedIn() {
-    const isProfile = /\/in\//.test(location.pathname);
-    if (!isProfile) return null;
+  async function scrapeLinkedIn() {
+    const publicId = linkedInPublicId();
+    if (!publicId) return null;
 
     const name = firstText([
       'main h1',
@@ -188,7 +349,26 @@
       if (!company) company = atMatch[2].trim();
     }
 
-    const emails = collectEmails();
+    // Anything already in the DOM (the overlay may be open), plus what the
+    // contact-info endpoint gives us. Order matters: a selection the user made
+    // beats everything, then the profile's own address.
+    const domEmails = collectEmails();
+    const contact = await linkedInContactInfo(publicId).catch(() => ({ emails: [], websites: [] }));
+
+    const emails = [...new Set([...contact.emails, ...domEmails])];
+
+    // The company's domain, for finding an address when the profile has none.
+    // A personal site is a better signal than nothing, and the finder rejects
+    // consumer hosts anyway.
+    const companyDomain = contact.websites
+      .map((url) => {
+        try {
+          return new URL(url).hostname.replace(/^www\./, '');
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean)[0] || null;
 
     return {
       ...splitName(name),
@@ -196,6 +376,7 @@
       email: emailFromSelection() || emails[0] || null,
       email_candidates: emails,
       company: company || null,
+      company_domain: companyDomain,
       job_title: jobTitle || null,
       linkedin_url: `${location.origin}${location.pathname}`.replace(/\/$/, ''),
       source: 'linkedin',
@@ -268,13 +449,17 @@
   /**
    * Run the adapter matching the current host, falling back to generic when a
    * site-specific one finds nothing (e.g. a LinkedIn feed rather than a profile).
-   * @returns {object}
+   *
+   * Async because LinkedIn's address has to be fetched rather than read off the
+   * page. The generic and Gmail paths still resolve immediately.
+   *
+   * @returns {Promise<object>}
    */
-  function scrape() {
+  async function scrape() {
     const host = location.hostname;
     let result = null;
 
-    if (host.endsWith('linkedin.com')) result = scrapeLinkedIn();
+    if (host.endsWith('linkedin.com')) result = await scrapeLinkedIn();
     else if (host === 'mail.google.com') result = scrapeGmail();
 
     if (!result || !result.email) {
@@ -405,11 +590,8 @@
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type !== 'SINCERELY_SCRAPE') return false;
-    try {
-      sendResponse(scrape());
-    } catch {
-      sendResponse(null);
-    }
+    // Returning true keeps the channel open for the async reply below.
+    scrape().then(sendResponse, () => sendResponse(null));
     return true;
   });
 
