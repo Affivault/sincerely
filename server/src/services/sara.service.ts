@@ -248,11 +248,12 @@ export function classifyReply(
     }
 
     if (matchCount > 0) {
-      // Confidence = base weight * (matched patterns / total patterns), capped at 0.99
-      const confidence = Math.min(
-        rule.weight * (0.5 + 0.5 * (matchCount / rule.patterns.length)),
-        0.99
-      );
+      // A single matching pattern already earns the rule's base confidence
+      // (that's what "weight" means); extra corroborating matches add a
+      // small bonus. Scaling by matchCount/patterns.length instead would make
+      // the base weight nearly unreachable for real replies, since it forces
+      // every pattern in the list to match at once.
+      const confidence = Math.min(rule.weight + (matchCount - 1) * 0.03, 0.99);
 
       if (!bestMatch || confidence > bestMatch.confidence) {
         bestMatch = { intent: rule.intent, confidence, matchCount };
@@ -350,11 +351,27 @@ export async function processReply(messageId: string, requestingUserId?: string)
   // Positive intent → fill the CRM pipeline automatically (user-toggleable).
   await maybeCreateDealFromReply(message, result);
 
-  // Auto-execute for high-confidence unsubscribe/bounce
+  // Auto-execute for high-confidence unsubscribe/bounce — gated by the user's
+  // SARA settings (Settings → SARA), which were previously stored/exposed in
+  // the UI but never actually consulted here. Only fetch settings when the
+  // intent could actually trigger auto-execute, to avoid an extra lookup on
+  // every single classified reply.
+  const isAutoExecutableIntent =
+    (result.intent === SaraIntent.Unsubscribe || result.intent === SaraIntent.Bounce) && !!message.contact_id;
+  const saraSettings = isAutoExecutableIntent && message.user_id ? await settingsService.get(message.user_id) : null;
+  const autoExecuteEnabled = saraSettings ? (saraSettings as any).sara_auto_execute !== false : true;
+  const threshold = saraSettings && typeof (saraSettings as any).sara_confidence_threshold === 'number'
+    ? (saraSettings as any).sara_confidence_threshold / 100
+    : 0.9;
+  const autoUnsubscribeEnabled = saraSettings ? (saraSettings as any).sara_auto_unsubscribe !== false : true;
+  const autoBounceEnabled = saraSettings ? (saraSettings as any).sara_auto_bounce !== false : true;
+
   if (
-    (result.intent === SaraIntent.Unsubscribe || result.intent === SaraIntent.Bounce) &&
-    result.confidence >= 0.9 &&
-    message.contact_id
+    isAutoExecutableIntent &&
+    autoExecuteEnabled &&
+    ((result.intent === SaraIntent.Unsubscribe && autoUnsubscribeEnabled) ||
+      (result.intent === SaraIntent.Bounce && autoBounceEnabled)) &&
+    result.confidence >= threshold
   ) {
     if (result.intent === SaraIntent.Unsubscribe) {
       await supabaseAdmin

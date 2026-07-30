@@ -3,6 +3,8 @@ import { AppError } from '../middleware/error.middleware.js';
 import crypto from 'crypto';
 import dns from 'dns';
 import net from 'net';
+import http from 'http';
+import https from 'https';
 import type {
   WebhookEndpoint,
   CreateWebhookEndpointInput,
@@ -43,8 +45,13 @@ function isPrivateOrReservedIp(ip: string): boolean {
  * schemes, and hosts that resolve to loopback/private/link-local addresses
  * (including the cloud metadata IP) — otherwise a user can turn the webhook
  * delivery pipeline into an SSRF proxy against internal infrastructure.
+ *
+ * Returns the validated IP address(es) so callers that go on to make the
+ * actual request can connect directly to them instead of re-resolving the
+ * hostname — re-resolving would reopen a DNS-rebinding TOCTOU gap where the
+ * name is repointed at an internal address between this check and the fetch.
  */
-export async function assertSafeWebhookUrl(rawUrl: string): Promise<void> {
+export async function assertSafeWebhookUrl(rawUrl: string): Promise<string[]> {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
@@ -60,7 +67,7 @@ export async function assertSafeWebhookUrl(rawUrl: string): Promise<void> {
   }
   if (net.isIP(hostname)) {
     if (isPrivateOrReservedIp(hostname)) throw new AppError('Webhook URL may not target a private or internal address', 400);
-    return;
+    return [hostname];
   }
   let addresses: string[];
   try {
@@ -68,9 +75,85 @@ export async function assertSafeWebhookUrl(rawUrl: string): Promise<void> {
   } catch {
     throw new AppError('Webhook URL host could not be resolved', 400);
   }
+  if (addresses.length === 0) {
+    throw new AppError('Webhook URL host could not be resolved', 400);
+  }
   if (addresses.some(isPrivateOrReservedIp)) {
     throw new AppError('Webhook URL may not target a private or internal address', 400);
   }
+  return addresses;
+}
+
+/**
+ * Custom `lookup` for http(s).request that pins the connection to addresses
+ * already validated by assertSafeWebhookUrl, instead of letting Node resolve
+ * the hostname again at connect time (which is what let DNS rebinding slip
+ * a private IP in between the safety check and the real request).
+ */
+function pinnedLookup(addresses: string[]): (hostname: string, options: any, callback: any) => void {
+  return (_hostname, options, callback) => {
+    if (typeof options === 'function') {
+      callback = options;
+      options = {};
+    }
+    // Node's happy-eyeballs connection logic (autoSelectFamily, on by default
+    // since Node 20) calls lookup with { all: true } and expects the full
+    // { address, family }[] shape back, not a single address.
+    if (options?.all) {
+      callback(null, addresses.map((a) => ({ address: a, family: net.isIP(a) })));
+      return;
+    }
+    const family = options?.family;
+    const match = family === 4
+      ? addresses.find((a) => net.isIP(a) === 4)
+      : family === 6
+        ? addresses.find((a) => net.isIP(a) === 6)
+        : undefined;
+    const address = match || addresses[0];
+    callback(null, address, net.isIP(address));
+  };
+}
+
+/**
+ * POST a payload to a URL, pinned to pre-validated addresses (see
+ * pinnedLookup) so the request can never land on a different host than the
+ * one that was SSRF-checked. Does not follow redirects — a redirect to an
+ * internal address would otherwise bypass the check entirely.
+ */
+function pinnedPost(
+  rawUrl: string,
+  addresses: string[],
+  headers: Record<string, string>,
+  body: string,
+  timeoutMs: number
+): Promise<{ statusCode: number; body: string }> {
+  const parsed = new URL(rawUrl);
+  const client = parsed.protocol === 'https:' ? https : http;
+  const bodyBuf = Buffer.from(body, 'utf8');
+
+  return new Promise((resolve, reject) => {
+    const req = client.request(
+      {
+        hostname: parsed.hostname,
+        port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+        path: `${parsed.pathname}${parsed.search}`,
+        method: 'POST',
+        headers: { ...headers, 'Content-Length': String(bodyBuf.length) },
+        lookup: pinnedLookup(addresses),
+        timeout: timeoutMs,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk) => chunks.push(chunk));
+        res.on('end', () => resolve({ statusCode: res.statusCode || 0, body: Buffer.concat(chunks).toString('utf8') }));
+        res.on('error', reject);
+      }
+    );
+    req.on('timeout', () => req.destroy(new Error('Request timed out')));
+    req.on('error', reject);
+    req.write(bodyBuf);
+    req.end();
+  });
 }
 
 // ============================================
@@ -258,9 +341,12 @@ async function deliverWebhook(
   // Endpoint URLs are only host-validated at create/update/test time. Re-validate
   // on every delivery too, so a hostname that resolved to a public IP back then
   // can't be silently re-pointed at an internal/metadata address later (DNS
-  // rebinding) and have every future event delivered there unchecked.
+  // rebinding) and have every future event delivered there unchecked. The
+  // resolved addresses are then pinned for the actual request below, so a
+  // rebind between this check and the connection can't slip through either.
+  let safeAddresses: string[];
   try {
-    await assertSafeWebhookUrl(endpoint.url);
+    safeAddresses = await assertSafeWebhookUrl(endpoint.url);
   } catch (err: any) {
     await supabaseAdmin.from('webhook_deliveries').insert({
       endpoint_id: endpoint.id,
@@ -295,16 +381,11 @@ async function deliverWebhook(
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     actualAttempts = attempt;
     try {
-      const response = await fetch(endpoint.url, {
-        method: 'POST',
-        headers,
-        body: payloadStr,
-        signal: AbortSignal.timeout(15000),
-      });
+      const response = await pinnedPost(endpoint.url, safeAddresses, headers, payloadStr, 15000);
 
-      statusCode = response.status;
-      responseBody = await response.text().catch(() => '');
-      success = response.ok;
+      statusCode = response.statusCode;
+      responseBody = response.body;
+      success = statusCode >= 200 && statusCode < 300;
 
       if (success) break;
       // 4xx = permanent client error (bad URL, auth, payload) — no point retrying
@@ -366,14 +447,9 @@ export async function testEndpoint(userId: string, endpointId: string): Promise<
   }
 
   try {
-    await assertSafeWebhookUrl(endpoint.url);
-    const response = await fetch(endpoint.url, {
-      method: 'POST',
-      headers,
-      body: payloadStr,
-      signal: AbortSignal.timeout(10000),
-    });
-    return { success: response.ok, status_code: response.status };
+    const safeAddresses = await assertSafeWebhookUrl(endpoint.url);
+    const response = await pinnedPost(endpoint.url, safeAddresses, headers, payloadStr, 10000);
+    return { success: response.statusCode >= 200 && response.statusCode < 300, status_code: response.statusCode };
   } catch {
     return { success: false, status_code: null };
   }

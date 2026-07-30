@@ -120,7 +120,11 @@ export function StatusPage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    runChecks(setChecks).then(() => setDone(true));
+    let cancelled = false;
+    runChecks((results) => { if (!cancelled) setChecks(results); }).then(() => {
+      if (!cancelled) setDone(true);
+    });
+    return () => { cancelled = true; };
   }, []);
 
   const failures = checks.filter((c) => c.ok === false);

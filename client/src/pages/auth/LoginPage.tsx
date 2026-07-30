@@ -13,6 +13,7 @@ export function LoginPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     const { error } = await signIn(email, password);
     if (error) {
