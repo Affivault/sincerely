@@ -82,8 +82,8 @@
         max-height: calc(100vh - 100px);
         display: flex; flex-direction: column;
         background: #FFFFFF; color: #1B1B1F;
-        border: 1px solid #ECEAE6; border-radius: 12px;
-        box-shadow: 0 1px 2px rgba(27,27,31,.04), 0 8px 24px -8px rgba(27,27,31,.14);
+        border: 1px solid #ECEAE6; border-radius: 14px;
+        box-shadow: 0 1px 2px rgba(27,27,31,.04), 0 12px 32px -10px rgba(27,27,31,.18);
         font-size: 13px; line-height: 1.5; letter-spacing: -0.005em;
         overflow: hidden;
       }
@@ -92,6 +92,7 @@
       .head {
         display: flex; align-items: center; gap: 8px;
         padding: 10px 12px; border-bottom: 1px solid #ECEAE6;
+        background: #FDFCFB;
         cursor: grab; user-select: none;
       }
       .panel.collapsed .head { border-bottom: 0; }
@@ -157,30 +158,54 @@
       }
       .found-row .addr { flex: 1; min-width: 0; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-      label.lbl { display: block; margin-bottom: 4px; font-size: 11px; font-weight: 500; color: #61606A; }
+      /* Uppercase micro-labels, as the app labels its sections. */
+      label.lbl {
+        display: block; margin-bottom: 5px;
+        font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+        color: #8F8E97;
+      }
 
       select.sel, input.txt {
         width: 100%; height: 32px; padding: 0 9px;
         font-family: inherit; font-size: 12.5px; color: #1B1B1F;
         background: #F9F8F7; border: 1px solid #E0DDD8; border-radius: 6px;
       }
-      select.sel:focus, input.txt:focus { outline: none; border-color: #5B5BF5; box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
+      select.sel:focus-visible, input.txt:focus-visible {
+        outline: none; border-color: #5B5BF5; box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+      }
+      .btn:focus-visible {
+        outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #5B5BF5;
+      }
 
+      /* Matches the app's primary button exactly: a vertical sheen, an inner
+         highlight and a coloured drop shadow. A flat fill is most of why an
+         injected panel reads as a third-party add-on rather than the product. */
       .btn {
         display: inline-flex; align-items: center; justify-content: center; gap: 6px;
         width: 100%; height: 34px; margin-top: 8px; padding: 0 12px;
         border: 0; border-radius: 6px; cursor: pointer;
         font-family: inherit; font-size: 13px; font-weight: 500;
-        background: #5B5BF5; color: #fff;
-        box-shadow: 0 1px 2px rgba(15,15,25,.08);
+        background: linear-gradient(180deg, #6E6EF8 0%, #5B5BF5 100%); color: #fff;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 1px 2px rgba(67,56,202,.35);
+        transition: background 150ms cubic-bezier(.22,1,.36,1), box-shadow 150ms cubic-bezier(.22,1,.36,1), transform 120ms;
       }
-      .btn:hover:not(:disabled) { background: #4646E5; }
-      .btn:disabled { opacity: .45; cursor: not-allowed; }
-      .btn.secondary { background: #FFFFFF; color: #1B1B1F; border: 1px solid #E0DDD8; box-shadow: none; }
-      .btn.secondary:hover:not(:disabled) { background: #EFEDEA; }
+      .btn:hover:not(:disabled) {
+        background: linear-gradient(180deg, #5A5AF0 0%, #4646E5 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 2px 8px rgba(67,56,202,.45);
+      }
+      .btn:active:not(:disabled) { transform: translateY(.5px); }
+      .btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+      .btn.secondary {
+        background: #FFFFFF; color: #1B1B1F; border: 1px solid #E0DDD8;
+        box-shadow: 0 1px 0 rgba(0,0,0,.015);
+      }
+      .btn.secondary:hover:not(:disabled) { background: #EFEDEA; border-color: #C9C5BE; box-shadow: none; }
 
-      .rows { margin-top: 10px; border-top: 1px solid #ECEAE6; padding-top: 8px; }
-      .rows-title { font-size: 11px; font-weight: 500; color: #8F8E97; margin-bottom: 6px; }
+      .rows { margin-top: 12px; border-top: 1px solid #ECEAE6; padding-top: 10px; }
+      .rows-title {
+        font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+        color: #8F8E97; margin-bottom: 7px;
+      }
       .row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #ECEAE6; }
       .row:last-child { border-bottom: 0; }
       .row-main { flex: 1; min-width: 0; }
@@ -202,11 +227,35 @@
         color: inherit; font-family: inherit; font-size: 11px; font-weight: 500; cursor: pointer;
       }
 
+      /* Skeletons — the same shimmer the app uses while data lands. */
+      .skeleton-who { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+      .sk-lines { flex: 1; min-width: 0; }
+      .sk {
+        display: block; position: relative; overflow: hidden;
+        background: #F3F2F0; border-radius: 6px;
+      }
+      .sk::after {
+        content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+        background: linear-gradient(90deg, transparent, rgba(27,27,31,.06), transparent);
+        animation: sx-shimmer 1.4s infinite;
+      }
+      .sk-avatar { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%; }
+      .sk-line { height: 9px; border-radius: 999px; }
+      .sk-line.short { width: 60%; margin-top: 7px; }
+      .sk-block { height: 34px; margin-bottom: 8px; }
+      .sk-block.tall { height: 58px; }
+      @keyframes sx-shimmer { 100% { transform: translateX(100%); } }
+      @media (prefers-reduced-motion: reduce) { .sk::after { animation: none; } }
+
       .muted { color: #8F8E97; font-size: 11.5px; }
       .cost { margin-top: 6px; font-size: 11px; color: #8F8E97; }
       .hidden { display: none !important; }
 
+      /* Dark, tracked from the app's .dark palette. */
       @media (prefers-color-scheme: dark) {
+        .head { background: #1E1E1E; }
+        .btn:focus-visible { box-shadow: 0 0 0 2px #191919, 0 0 0 4px #6366F1; }
+
         .panel { background: #191919; color: #F4F4F3; border-color: #262626;
                  box-shadow: 0 2px 4px -1px rgba(0,0,0,.4), 0 12px 28px -8px rgba(0,0,0,.55); }
         .head { border-bottom-color: #262626; }
@@ -226,6 +275,8 @@
         .msg.success { background: rgba(34,197,94,.10); color: #4ADE80; }
         .msg.error { background: rgba(239,68,68,.10); color: #F87171; }
         .pill.neutral { background: #202020; }
+        .sk { background: #202020; }
+        .sk::after { background: linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent); }
       }
     `;
   }
@@ -346,7 +397,20 @@
     panel.appendChild(body);
 
     if (state.loading) {
-      body.appendChild(el('p', 'muted', 'Reading this page…'));
+      /*
+       * A skeleton in the shape of what's coming, not a line of text. Reading a
+       * profile involves opening LinkedIn's own dialog, so this is on screen for
+       * a second or so — long enough that "Reading this page…" reads as a stall.
+       */
+      const skeleton = el('div', 'skeleton-who');
+      skeleton.appendChild(el('span', 'sk sk-avatar'));
+      const lines = el('div', 'sk-lines');
+      lines.appendChild(el('span', 'sk sk-line'));
+      lines.appendChild(el('span', 'sk sk-line short'));
+      skeleton.appendChild(lines);
+      body.appendChild(skeleton);
+      body.appendChild(el('span', 'sk sk-block'));
+      body.appendChild(el('span', 'sk sk-block tall'));
       shadow.appendChild(panel);
       return;
     }

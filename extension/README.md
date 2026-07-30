@@ -463,6 +463,29 @@ of truth: when a token changes there, change it here too.** The popup and
 options stylesheets only do layout; every colour, border, and control style
 comes from the shared file.
 
+Matching the tokens is not the same as matching the product, and the gap showed.
+The app's primary button is `--indigo-grad` with an inner white highlight and a
+coloured drop shadow (see `client/src/components/ui/Button.tsx`); the extension
+had a flat `--indigo` fill, which is most of why it read as a lookalike. The
+gradient, the highlight, the focus ring with its offset, and the category
+accents are all ported now, and the in-page panel — which can't share a
+stylesheet, being in a shadow root — carries the same values inline.
+
+Layout follows the app's own rhythm: content sits in cards on `--bg-app`, each
+region carries an uppercase micro-label, and lists show the colour swatch the
+app files them under, so a list is recognisable here by the mark you already
+know it by.
+
+Two things that were costing time rather than looks:
+
+- **The primary action is pinned.** It used to sit inline, so on any page with
+  scan results you scrolled past the picker to reach it. It now sits over a
+  blurred edge at the foot of the popup, always in reach.
+- **Loading is a skeleton, not a sentence.** Reading a LinkedIn profile means
+  opening its Contact info dialog, which takes about a second — long enough that
+  "Reading this page…" reads as a stall. The skeleton is the shape of what's
+  coming, so nothing jumps when it lands.
+
 Dark mode works the way the app's does — a `.dark` class on `<html>`, resolved
 from a `light | dark | system` preference (`lib/theme.js`, mirroring
 `ThemeContext.tsx`). The extension can't read the app's `localStorage` across
