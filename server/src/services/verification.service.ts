@@ -2,6 +2,12 @@ import { supabaseAdmin } from '../config/supabase.js';
 import net from 'net';
 import type { DcsVerificationResult } from '@lemlist/shared';
 import { fireEvent } from './webhook.service.js';
+import {
+  noteSmtpOutcome,
+  outboundSmtpStatus,
+  shouldSkipSmtpProbe,
+  smtpBlockedMessage,
+} from './smtp-reachability.service.js';
 import { resolveDoh, resolveHostIp } from '../utils/dns-doh.js';
 
 /**
@@ -51,9 +57,29 @@ async function checkDomain(email: string): Promise<boolean> {
 // ============================================
 // Layer 3: SMTP Handshake Simulation
 // ============================================
-async function checkSmtp(email: string): Promise<{ ok: boolean; reason?: string }> {
+/**
+ * Ask the domain's mail server whether it will accept this recipient.
+ *
+ * Returns `checked` separately from `ok`, and the distinction matters more than
+ * either field on its own:
+ *
+ * - `checked: true` means a mail server gave a verdict, so `ok` is evidence.
+ * - `checked: false` means nothing was established. `ok` stays true so an
+ *   unreachable server doesn't mark every address as bad, but the score must not
+ *   credit a check that never ran — which is exactly what it used to do, giving
+ *   every address with an MX record 100/100 on any host with port 25 blocked.
+ */
+async function checkSmtp(
+  email: string
+): Promise<{ ok: boolean; checked: boolean; reason?: string }> {
   const domain = email.split('@')[1];
-  if (!domain) return { ok: false, reason: 'Invalid domain' };
+  if (!domain) return { ok: false, checked: true, reason: 'Invalid domain' };
+
+  // Already established that this host can't reach port 25: answer at once
+  // rather than stalling for the connect timeout on every single address.
+  if (shouldSkipSmtpProbe()) {
+    return { ok: true, checked: false, reason: smtpBlockedMessage() };
+  }
 
   const mxAnswers = await resolveDoh(domain, 'MX');
   const sorted = mxAnswers
@@ -65,7 +91,7 @@ async function checkSmtp(email: string): Promise<{ ok: boolean; reason?: string 
     .sort((a, b) => a.priority - b.priority);
 
   if (sorted.length === 0) {
-    return { ok: false, reason: 'No MX records' };
+    return { ok: false, checked: true, reason: 'No MX records' };
   }
 
   const mxHost = sorted[0].exchange;
@@ -80,8 +106,10 @@ async function checkSmtp(email: string): Promise<{ ok: boolean; reason?: string 
 
     const timeout = setTimeout(() => {
       socket.destroy();
-      // Timeout is not necessarily a failure - many servers are slow
-      resolve({ ok: true, reason: 'SMTP timeout (assumed valid)' });
+      // A slow server is not a bad address, but it is not a checked one either:
+      // no verdict arrived, so nothing may be credited to the SMTP layer.
+      noteSmtpOutcome(step > 0, 'Mail server did not answer in time');
+      resolve({ ok: true, checked: false, reason: 'Mail server did not answer in time' });
     }, 10000);
 
     socket.connect(25, mxIp || mxHost, () => {
@@ -106,7 +134,8 @@ async function checkSmtp(email: string): Promise<{ ok: boolean; reason?: string 
           } else {
             clearTimeout(timeout);
             socket.destroy();
-            resolve({ ok: false, reason: `Bad greeting: ${code}` });
+            noteSmtpOutcome(true);
+            resolve({ ok: false, checked: true, reason: `Bad greeting: ${code}` });
           }
         } else if (step === 1) {
           // EHLO response
@@ -116,7 +145,8 @@ async function checkSmtp(email: string): Promise<{ ok: boolean; reason?: string 
           } else {
             clearTimeout(timeout);
             socket.destroy();
-            resolve({ ok: false, reason: `EHLO rejected: ${code}` });
+            noteSmtpOutcome(true);
+            resolve({ ok: false, checked: true, reason: `EHLO rejected: ${code}` });
           }
         } else if (step === 2) {
           // MAIL FROM response
@@ -126,7 +156,8 @@ async function checkSmtp(email: string): Promise<{ ok: boolean; reason?: string 
           } else {
             clearTimeout(timeout);
             socket.destroy();
-            resolve({ ok: false, reason: `MAIL FROM rejected: ${code}` });
+            noteSmtpOutcome(true);
+            resolve({ ok: false, checked: true, reason: `MAIL FROM rejected: ${code}` });
           }
         } else if (step === 3) {
           // RCPT TO response - this is the key check
@@ -134,25 +165,32 @@ async function checkSmtp(email: string): Promise<{ ok: boolean; reason?: string 
           socket.write('QUIT\r\n');
           socket.destroy();
 
+          noteSmtpOutcome(true);
+
           if (code === 250 || code === 251) {
-            resolve({ ok: true });
+            resolve({ ok: true, checked: true });
           } else if (code === 550 || code === 551 || code === 553) {
-            resolve({ ok: false, reason: `Mailbox does not exist (${code})` });
+            resolve({ ok: false, checked: true, reason: `Mailbox does not exist (${code})` });
           } else if (code === 452 || code === 552) {
-            resolve({ ok: true, reason: 'Mailbox full but exists' });
+            resolve({ ok: true, checked: true, reason: 'Mailbox full but exists' });
           } else {
-            // Catch-all domains or greylisting - assume valid
-            resolve({ ok: true, reason: `Ambiguous response (${code})` });
+            // Greylisting or a server that won't say. Not a bad address, but no
+            // verdict either — scoring it as a pass is how a guess becomes a
+            // "verified" address.
+            resolve({ ok: true, checked: false, reason: `Mail server would not confirm (${code})` });
           }
         }
       }
     });
 
-    socket.on('error', () => {
+    socket.on('error', (err) => {
       clearTimeout(timeout);
       socket.destroy();
-      // Connection error - server exists but refused, assume valid
-      resolve({ ok: true, reason: 'Connection error (assumed valid)' });
+      // Could not get a conversation started at all. On a host with outbound
+      // port 25 blocked this is every address, which is why it is recorded: a
+      // few of these in a row and the probe stops being attempted.
+      noteSmtpOutcome(false, err.message);
+      resolve({ ok: true, checked: false, reason: 'Could not reach the mail server' });
     });
   });
 }
@@ -164,25 +202,33 @@ function calculateDcs(
   syntaxOk: boolean,
   domainOk: boolean,
   smtpOk: boolean,
+  smtpChecked: boolean,
   historicalBounceRate?: number
 ): number {
   if (!syntaxOk) return 0;
   if (!domainOk) return 10;
 
-  // Base score from verification layers
   let score = 0;
-  score += syntaxOk ? 30 : 0;    // Syntax: 30 points
-  score += domainOk ? 30 : 0;    // Domain: 30 points
-  score += smtpOk ? 30 : 0;      // SMTP:   30 points
+  score += 30; // Syntax
+  score += 30; // Domain (MX or A records exist)
 
-  // Baseline bonus for passing all checks
-  if (syntaxOk && domainOk && smtpOk) {
-    score += 10;
+  /*
+   * The SMTP layer only scores when a mail server actually gave a verdict.
+   *
+   * This used to award the full 30 whenever `smtpOk` was true — and `smtpOk` was
+   * set to true on a connection error, a timeout, and any ambiguous reply. On a
+   * host with outbound port 25 blocked, which is most managed hosts, that meant
+   * every address with an MX record scored 100/100 and the whole score meant
+   * nothing. An unrun check now scores nothing and caps the total at 60, which
+   * is what "syntax and domain look right, deliverability unknown" is worth.
+   */
+  if (smtpChecked && smtpOk) {
+    score += 30;
+    score += 10; // All three layers genuinely passed
   }
 
-  // Historical bounce penalty
   if (historicalBounceRate !== undefined && historicalBounceRate > 0) {
-    score -= Math.round(historicalBounceRate * 20); // High bounce rate = penalty
+    score -= Math.round(historicalBounceRate * 20);
   }
 
   return Math.max(0, Math.min(100, score));
@@ -199,24 +245,27 @@ export async function verifyEmail(email: string, historicalBounceRate = 0): Prom
   const syntaxOk = checkSyntax(email);
 
   if (!syntaxOk) {
-    return { email, syntax_ok: false, domain_ok: false, smtp_ok: false, score: 0, fail_reason: 'Invalid email syntax' };
+    return { email, syntax_ok: false, domain_ok: false, smtp_ok: false, smtp_checked: false, score: 0, fail_reason: 'Invalid email syntax' };
   }
 
   const domainOk = await checkDomain(email);
   if (!domainOk) {
-    return { email, syntax_ok: true, domain_ok: false, smtp_ok: false, score: 10, fail_reason: 'Domain has no mail records' };
+    return { email, syntax_ok: true, domain_ok: false, smtp_ok: false, smtp_checked: true, score: 10, fail_reason: 'Domain has no mail records' };
   }
 
   const smtpResult = await checkSmtp(email);
-  const score = calculateDcs(syntaxOk, domainOk, smtpResult.ok, historicalBounceRate);
+  const score = calculateDcs(syntaxOk, domainOk, smtpResult.ok, smtpResult.checked, historicalBounceRate);
 
   return {
     email,
     syntax_ok: syntaxOk,
     domain_ok: domainOk,
     smtp_ok: smtpResult.ok,
+    smtp_checked: smtpResult.checked,
     score,
-    fail_reason: smtpResult.ok ? null : (smtpResult.reason || 'SMTP check failed'),
+    // Carried even when the address isn't bad: "could not be checked" is the
+    // most useful thing to say about a 60, and the UI needs to be able to say it.
+    fail_reason: smtpResult.ok && smtpResult.checked ? null : (smtpResult.reason || 'SMTP check failed'),
   };
 }
 
@@ -367,6 +416,17 @@ export async function getDcsStats(userId: string): Promise<{
   unverified: number;
   avg_score: number;
   score_distribution: { range: string; count: number }[];
+  /**
+   * Whether this server can check mailboxes at all. Reported so the app can say
+   * so, rather than leaving an operator to wonder why every score is 60 — or
+   * worse, to trust scores recorded when a blocked port counted as a pass.
+   */
+  smtp: {
+    available: boolean | null;
+    consecutive_failures: number;
+    last_reason: string;
+    retry_after_seconds: number | null;
+  };
 }> {
   const { data: contacts } = await supabaseAdmin
     .from('contacts')
@@ -391,6 +451,7 @@ export async function getDcsStats(userId: string): Promise<{
     unverified: all.length - verified.length,
     avg_score: avg,
     score_distribution: distribution,
+    smtp: outboundSmtpStatus(),
   };
 }
 

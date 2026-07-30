@@ -1,6 +1,11 @@
 import dns from 'dns';
 import net from 'net';
 import { supabaseAdmin } from '../config/supabase.js';
+import {
+  noteSmtpOutcome,
+  shouldSkipSmtpProbe,
+  smtpBlockedMessage,
+} from './smtp-reachability.service.js';
 import type {
   EmailCandidate,
   EmailPatternId,
@@ -254,6 +259,17 @@ export function classifyRcpt(code: number): RcptVerdict {
  * @param addresses Ranked; probing stops at the first acceptance.
  */
 export function probeMailbox(mxHost: string, addresses: string[]): Promise<SmtpProbeResult> {
+  // Already established that this host can't open port 25: say so at once
+  // instead of stalling for the connect timeout on every name looked up.
+  if (shouldSkipSmtpProbe()) {
+    return Promise.resolve({
+      reachable: false,
+      catchAll: false,
+      verdicts: new Map(),
+      reason: smtpBlockedMessage(),
+    });
+  }
+
   return new Promise((resolve) => {
     const verdicts = new Map<string, RcptVerdict>();
     const domain = addresses[0]?.split('@')[1] || EHLO_HOST;
@@ -301,7 +317,10 @@ export function probeMailbox(mxHost: string, addresses: string[]): Promise<SmtpP
 
     socket.setTimeout(SMTP_CONNECT_TIMEOUT_MS);
     socket.on('timeout', () => finish(verdicts.size > 0, 'Mail server did not respond in time'));
-    socket.on('error', (err) => finish(false, `Could not reach the mail server: ${err.message}`));
+    socket.on('error', (err) => {
+      noteSmtpOutcome(false, err.message);
+      finish(false, `Could not reach the mail server: ${err.message}`);
+    });
 
     socket.on('data', (chunk) => {
       buffer += chunk.toString();
@@ -317,6 +336,8 @@ export function probeMailbox(mxHost: string, addresses: string[]): Promise<SmtpP
         if (Number.isNaN(code)) continue;
 
         if (stage === 'greeting') {
+          // A greeting of any kind proves the port is open from here.
+          noteSmtpOutcome(true);
           if (code !== 220) return finish(false, `Mail server refused the connection (${code})`);
           stage = 'ehlo';
           socket.write(`EHLO ${EHLO_HOST}\r\n`);
