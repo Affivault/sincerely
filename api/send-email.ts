@@ -127,28 +127,36 @@ export default async function handler(req: VercelReq, res: VercelRes) {
     // timeout budget) is redundant. Race it against the hard deadline so a
     // slow-but-still-active destination server can't push us past Vercel's
     // own function timeout.
-    const info = await Promise.race([
-      transporter.sendMail({
-        from,
-        to,
-        subject,
-        html: html || undefined,
-        text: text || undefined,
-        messageId: message_id || undefined,
-        headers: headers || undefined,
-        replyTo: reply_to || undefined,
-      }),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(Object.assign(new Error('SMTP send exceeded relay deadline'), { code: 'ERELAYDEADLINE' })), HARD_DEADLINE_MS)
-      ),
-    ]);
+    let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const info = await Promise.race([
+        transporter.sendMail({
+          from,
+          to,
+          subject,
+          html: html || undefined,
+          text: text || undefined,
+          messageId: message_id || undefined,
+          headers: headers || undefined,
+          replyTo: reply_to || undefined,
+        }),
+        new Promise<never>((_, reject) => {
+          deadlineTimer = setTimeout(() => reject(Object.assign(new Error('SMTP send exceeded relay deadline'), { code: 'ERELAYDEADLINE' })), HARD_DEADLINE_MS);
+        }),
+      ]);
 
-    return res.status(200).json({
-      success: true,
-      messageId: info.messageId,
-      accepted: info.accepted,
-      rejected: info.rejected,
-    });
+      return res.status(200).json({
+        success: true,
+        messageId: info.messageId,
+        accepted: info.accepted,
+        rejected: info.rejected,
+      });
+    } finally {
+      // Without this, a fast sendMail() leaves the deadline timer pending for
+      // the rest of HARD_DEADLINE_MS — on a frozen/reused Lambda container
+      // that timer can fire during a later, unrelated invocation.
+      if (deadlineTimer) clearTimeout(deadlineTimer);
+    }
   } catch (err: any) {
     console.error('[SMTP Relay] Error:', err.message);
     return res.status(502).json({

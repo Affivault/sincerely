@@ -78,10 +78,12 @@ export function UpgradeNag() {
   }, [isFree]);
 
   // Auto-open shortly after load, then keep re-popping on an interval — until they pay.
+  // Clears any leftover `reason` from a prior limit-hit so these unrelated re-pops
+  // show the generic pitch instead of a stale "you hit X limit" banner.
   useEffect(() => {
     if (!isFree || onBilling) return;
-    const first = window.setTimeout(() => { if (!busyRef.current) setOpen(true); }, 2000);
-    const timer = window.setInterval(() => { if (!busyRef.current) setOpen(true); }, NAG_INTERVAL);
+    const first = window.setTimeout(() => { if (!busyRef.current) { setReason(undefined); setOpen(true); } }, 2000);
+    const timer = window.setInterval(() => { if (!busyRef.current) { setReason(undefined); setOpen(true); } }, NAG_INTERVAL);
     return () => { window.clearTimeout(first); window.clearInterval(timer); };
   }, [isFree, onBilling]);
 

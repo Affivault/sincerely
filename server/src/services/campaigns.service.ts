@@ -361,7 +361,7 @@ export const campaignsService = {
   },
 
   async retryErrors(userId: string, id: string) {
-    await this.get(userId, id); // ownership check
+    const campaign = await this.get(userId, id); // ownership check
     const now = new Date().toISOString();
     const { data, error } = await supabaseAdmin
       .from('campaign_contacts')
@@ -370,6 +370,22 @@ export const campaignsService = {
       .eq('status', 'error')
       .select('id');
     if (error) throw new AppError(error.message, 500);
+
+    // checkAndAutoCompleteCampaign() treats 'error' as a terminal contact status,
+    // so a campaign whose last outstanding contacts all errored out has already
+    // flipped to 'completed'. processDueSteps()/processNextStep() only ever pick
+    // up contacts whose campaign is still 'running' — without resuming it here,
+    // the contacts just reactivated above would sit as 'active' forever and
+    // never actually get retried.
+    if ((data?.length || 0) > 0 && campaign.status === 'completed') {
+      const { error: resumeErr } = await supabaseAdmin
+        .from('campaigns')
+        .update({ status: 'running', completed_at: null })
+        .eq('id', id)
+        .eq('status', 'completed');
+      if (resumeErr) console.error(`[Campaign] Failed to resume ${id} after retrying errors:`, resumeErr.message);
+    }
+
     return { retried: data?.length || 0 };
   },
 
