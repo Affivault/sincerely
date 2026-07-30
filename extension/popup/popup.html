@@ -11,6 +11,7 @@
       <span class="brand">
         <img src="../icons/icon-32.png" alt="" width="20" height="20" />
         <span class="brand-name">sincerely</span>
+        <span id="conn-dot" class="conn-dot" title="Connected" aria-hidden="true"></span>
       </span>
       <button id="open-options" class="icon-btn" type="button" title="Settings" aria-label="Settings">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -42,23 +43,25 @@
     </section>
 
     <main id="main" class="hidden">
-      <!-- Identity: who this is, and whether they're safe to email. -->
-      <section class="identity">
-        <span id="avatar" class="avatar" aria-hidden="true"></span>
-        <div class="identity-text">
-          <div class="identity-line">
-            <span id="person-name" class="person-name">Nobody detected</span>
-            <span id="verification" class="pill hidden"></span>
+      <!-- Who this is, and everything already known about them, in one card. -->
+      <section class="person-card">
+        <div class="identity">
+          <span id="avatar" class="avatar" aria-hidden="true"></span>
+          <div class="identity-text">
+            <div class="identity-line">
+              <span id="person-name" class="person-name">Nobody detected</span>
+              <span id="verification" class="pill hidden"></span>
+            </div>
+            <p id="person-sub" class="person-sub">Open a profile or an email, or type an address below.</p>
           </div>
-          <p id="person-sub" class="person-sub">Open a profile or an email, or type an address below.</p>
         </div>
+        <div id="standing-strip" class="standing-strip hidden"></div>
       </section>
 
-      <!-- One line that answers "what's already happened with this person?" -->
-      <div id="standing-strip" class="standing-strip hidden"></div>
-
-      <!-- The decision, first. -->
+      <!-- The decision. Labelled, because "which list" is the whole question. -->
       <section class="picker">
+        <p class="micro-label">Add to lead list</p>
+        <div class="picker-box">
         <div class="picker-field">
           <svg class="picker-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
             <circle cx="11" cy="11" r="7" />
@@ -78,18 +81,8 @@
           <kbd class="kbd">↑↓</kbd>
         </div>
         <ul id="lead-lists" class="campaign-list" role="listbox" aria-label="Lead lists"></ul>
+        </div>
       </section>
-
-      <div class="actions">
-        <button id="add" class="btn-primary btn-block" type="button" disabled>
-          <span id="add-label">Add to list</span>
-          <kbd class="kbd kbd-on-primary">⏎</kbd>
-        </button>
-        <!-- Only when the page actually holds several people. -->
-        <button id="bulk-add" class="btn-secondary btn-block hidden" type="button">
-          <span id="bulk-label">Add everyone on this page</span>
-        </button>
-      </div>
 
       <!-- Details, out of the way until they're needed. -->
       <section class="details">
@@ -146,7 +139,7 @@
       <!-- Lead lists they're on, each removable. Hidden until there are some. -->
       <section id="standing" class="panel block hidden">
         <div class="block-head">
-          <p class="section-title">Where they stand</p>
+          <p class="section-title">On these lead lists</p>
         </div>
         <div class="block-body" id="standing-body"></div>
       </section>
@@ -196,7 +189,22 @@
         <div id="prospect-result" class="prospect hidden"></div>
         <ul id="name-matches" class="matches hidden"></ul>
       </section>
+
+      <!-- Spacer so the sticky action bar never covers the last row. -->
+      <div class="action-spacer" aria-hidden="true"></div>
     </main>
+
+    <!-- The primary action, pinned. Scrolling to find "Add" is the single most
+         common thing that made this feel slow. -->
+    <div id="action-bar" class="action-bar hidden">
+      <button id="add" class="btn-primary btn-block" type="button" disabled>
+        <span id="add-label">Add to list</span>
+        <kbd class="kbd kbd-on-primary">⏎</kbd>
+      </button>
+      <button id="bulk-add" class="btn-secondary btn-block hidden" type="button">
+        <span id="bulk-label">Add everyone on this page</span>
+      </button>
+    </div>
 
     <div id="status" class="status hidden" role="status" aria-live="polite"></div>
 

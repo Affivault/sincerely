@@ -8,8 +8,10 @@
  */
 
 body {
-  width: 380px;
-  padding-bottom: 12px;
+  width: 400px;
+  /* Room for the pinned action bar, which overlays the end of the scroll. */
+  padding-bottom: 0;
+  background: var(--bg-app);
 }
 
 /* ── Top bar ── */
@@ -59,13 +61,43 @@ body {
   color: var(--text-primary);
 }
 
-/* ── Identity ── */
+/* Connection state, as a dot rather than a sentence: it only matters when it
+   is wrong, and then the popup says so properly. */
+.conn-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 22%, transparent);
+}
+
+/* ── Person card ──
+   Who they are and what has already happened, as one object. Previously these
+   were two loose bands that read as unrelated. */
+
+.person-card {
+  margin: 12px 12px 0;
+  padding: 12px 12px 11px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
 
 .identity {
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 13px 14px 11px;
+}
+
+/* Micro-labels above each region, the way the app labels its sections. */
+.micro-label {
+  margin: 0 0 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
 }
 
 .avatar {
@@ -181,8 +213,10 @@ body {
   display: flex;
   align-items: center;
   gap: 7px;
-  margin: 0 14px 2px;
-  padding: 7px 10px;
+  /* Inside the person card now, so it hangs off the identity rather than
+     floating as its own band. */
+  margin: 10px 0 0;
+  padding: 7px 9px;
   font-size: 11.5px;
   line-height: 1.4;
   color: var(--text-secondary);
@@ -206,11 +240,14 @@ body {
    command palette. */
 
 .picker {
-  margin: 8px 14px 0;
+  margin: 14px 12px 0;
+}
+
+.picker-box {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  box-shadow: 0 1px 0 rgba(15, 15, 25, 0.02), 0 1px 3px rgba(15, 15, 25, 0.03);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 
@@ -299,22 +336,26 @@ body {
   cursor: not-allowed;
 }
 
-.campaign-status-dot {
-  width: 6px;
-  height: 6px;
+/* The list's own colour, as a rounded swatch — the same mark the app files it
+   under, so recognition carries across without anyone learning a second thing. */
+.list-swatch {
+  width: 8px;
+  height: 8px;
   flex: 0 0 auto;
-  border-radius: 50%;
-  background: var(--text-muted);
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
-.campaign-status-dot.running {
-  background: var(--success);
-}
-.campaign-status-dot.draft {
-  background: var(--text-tertiary);
-}
-.campaign-status-dot.paused,
-.campaign-status-dot.scheduled {
-  background: var(--warning);
+
+/* Where imports land, which is worth knowing when picking. */
+.list-default {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--indigo);
+  background: var(--indigo-subtle);
+  border-radius: var(--radius-xs);
 }
 
 .campaign-option-name {
@@ -364,7 +405,7 @@ body {
 /* ── Collapsible details ── */
 
 .details {
-  margin: 10px 14px 0;
+  margin: 12px 12px 0;
 }
 
 .details-toggle {
@@ -421,7 +462,9 @@ body {
 /* ── Panels ── */
 
 .block {
-  margin: 10px 14px 0;
+  margin: 12px 12px 0;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 
 .block-head {
@@ -486,7 +529,7 @@ body {
 /* ── Callout (no email found) ── */
 
 .callout {
-  margin: 10px 14px 0;
+  margin: 12px 12px 0;
   padding: 10px 11px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
@@ -781,7 +824,7 @@ body {
 /* ── Status line ── */
 
 .status {
-  margin: 10px 14px 0;
+  margin: 12px 12px 0;
   padding: 10px 12px;
   font-size: 12.5px;
   line-height: 1.5;
@@ -833,4 +876,63 @@ body {
    button; a nested span inherits `color` otherwise and disappears. */
 .status .status-action.primary span {
   color: var(--bg-surface);
+}
+
+
+/* ── Pinned action bar ──
+   The primary action used to sit inline, which meant scrolling past the picker
+   to reach it on any page with scan results — the single thing that made this
+   feel slow to use. It is now always on screen, over a blurred edge so the
+   content beneath reads as continuing rather than being cut off. */
+
+.action-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px 12px;
+  background: color-mix(in srgb, var(--bg-app) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Keeps the last row of content clear of the bar when scrolled to the end. */
+.action-spacer {
+  height: 4px;
+}
+
+/* ── Loading ──
+   Shown while the page is being read, in place of a line of text that reads as
+   a stall. Mirrors the shape of the person card so nothing jumps when it
+   resolves. */
+
+.loading-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 12px 12px 0;
+  padding: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+.loading-avatar {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+.loading-lines {
+  flex: 1;
+  min-width: 0;
+}
+.loading-line {
+  height: 9px;
+  border-radius: 999px;
+}
+.loading-line + .loading-line {
+  margin-top: 7px;
+  width: 62%;
 }

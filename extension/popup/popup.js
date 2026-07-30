@@ -57,6 +57,7 @@ const el = {
   setup: document.getElementById('setup'),
   main: document.getElementById('main'),
   openOptions: document.getElementById('open-options'),
+  actionBar: document.getElementById('action-bar'),
   setupOpenOptions: document.getElementById('setup-open-options'),
   setupConnectTab: document.getElementById('setup-connect-tab'),
   setupStatus: document.getElementById('setup-status'),
@@ -531,22 +532,30 @@ function renderPicker() {
     button.setAttribute('role', 'option');
     button.setAttribute('aria-selected', String(index === state.activeIndex));
 
-    const dot = document.createElement('span');
-    dot.className = 'campaign-status-dot running';
-    button.appendChild(dot);
+    // The list's own colour, the same swatch the app shows it with — so a list
+    // is recognisable here by the thing you already recognise it by.
+    const swatch = document.createElement('span');
+    swatch.className = 'list-swatch';
+    swatch.style.background = list.color || 'var(--c-indigo)';
+    button.appendChild(swatch);
 
     const name = document.createElement('span');
     name.className = 'campaign-option-name';
     name.textContent = list.name;
     button.appendChild(name);
 
+    if (list.is_default) {
+      const badge = document.createElement('span');
+      badge.className = 'list-default';
+      badge.textContent = 'Default';
+      button.appendChild(badge);
+    }
+
     const meta = document.createElement('span');
     meta.className = 'campaign-option-meta';
-    // Size is the useful thing to know about a list at a glance; the default
-    // one is worth marking because it's where imports land.
-    meta.textContent = list.is_default
-      ? `${list.contact_count ?? 0} · default`
-      : String(list.contact_count ?? 0);
+    // Size is the useful thing to know about a list at a glance.
+    const size = list.contact_count ?? 0;
+    meta.textContent = `${size} contact${size === 1 ? '' : 's'}`;
     button.appendChild(meta);
 
     button.addEventListener('click', () => {
@@ -1776,6 +1785,7 @@ async function init() {
 
   if (!context.ok) {
     el.main.classList.remove('hidden');
+    el.actionBar.classList.remove('hidden');
     showError(context.error);
     return;
   }
@@ -1794,6 +1804,7 @@ async function init() {
   }
 
   el.main.classList.remove('hidden');
+  el.actionBar.classList.remove('hidden');
   state.person = context.data.person;
   state.appUrl = String(context.data.appUrl || '').replace(/\/+$/, '');
   state.tabUrl = tab?.url || '';
@@ -1812,5 +1823,6 @@ async function init() {
 
 init().catch((err) => {
   el.main.classList.remove('hidden');
+  el.actionBar.classList.remove('hidden');
   setStatus(err?.message || 'The popup failed to start.', { variant: 'error' });
 });
