@@ -29,9 +29,9 @@ import {
 
 const MENU_ROOT = 'sincerely-root';
 const MENU_ADD_LAST = 'sincerely-add-last';
-const MENU_CAMPAIGN_PREFIX = 'sincerely-campaign:';
+const MENU_LIST_PREFIX = 'sincerely-list:';
 const MENU_SUPPRESS = 'sincerely-suppress';
-const MAX_MENU_CAMPAIGNS = 10;
+const MAX_MENU_LISTS = 10;
 
 /**
  * Ceiling on one bulk action. Not a server limit — a judgement one: enrolling
@@ -106,13 +106,13 @@ async function refreshBadge() {
 /**
  * Cache of email → standing, so browsing a list of profiles doesn't spend the
  * per-key rate limit re-asking about the same people. Short-lived on purpose:
- * enrolments change, and a stale badge is worse than no badge.
+ * memberships change, and a stale badge is worse than no badge.
  */
 const standingCache = new Map();
 const STANDING_TTL_MS = 5 * 60_000;
 
 /**
- * Drop the cache after anything that changes an enrolment. The cache exists to
+ * Drop the cache after anything that changes a membership. The cache exists to
  * spare the rate limit on repeated reads, not to survive our own writes — a
  * badge still reading "1" after the user just removed someone is a bug.
  */
@@ -127,7 +127,7 @@ function canBadge(url) {
 
 /**
  * @param {string} email
- * @returns {Promise<{enrolled: number, suppressed: boolean}|null>}
+ * @returns {Promise<{onLists: number, suppressed: boolean}|null>}
  */
 async function standingFor(email) {
   const cached = standingCache.get(email);
@@ -135,15 +135,15 @@ async function standingFor(email) {
 
   try {
     const contact = await api.findContactByEmail(email);
-    let value = { enrolled: 0, suppressed: false };
+    let value = { onLists: 0, suppressed: false };
 
     if (contact) {
       const [memberships, suppressed] = await Promise.all([
-        api.getContactCampaigns(contact.id),
+        api.getContactLists(contact.id),
         api.isSuppressed(email).catch(() => false),
       ]);
       value = {
-        enrolled: memberships.filter((m) => m.is_active).length,
+        onLists: memberships.length,
         suppressed: Boolean(suppressed),
       };
     }
@@ -158,7 +158,7 @@ async function standingFor(email) {
 
 /**
  * Mark the toolbar icon with what we already know about the person on this
- * tab, so "are they already in a sequence?" doesn't need a click.
+ * tab, so "are they already on one of my lists?" doesn't need a click.
  *
  * @param {number} tabId
  * @param {string} url
@@ -180,7 +180,7 @@ async function updateTabBadge(tabId, url) {
   const standing = await standingFor(person.email);
   if (!standing) return;
 
-  const text = standing.suppressed ? '✕' : standing.enrolled > 0 ? String(standing.enrolled) : '';
+  const text = standing.suppressed ? '✕' : standing.onLists > 0 ? String(standing.onLists) : '';
   const colour = standing.suppressed ? '#EF4444' : '#5B5BF5';
 
   await chrome.action.setBadgeText({ tabId, text }).catch(() => {});
@@ -208,26 +208,26 @@ function scheduleBadge(tabId, url) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Rebuild the right-click menu from the cached campaign list.
+ * Rebuild the right-click menu from the cached lead lists.
  *
  * Cached rather than fetched: the menu has to exist before the user
  * right-clicks, and an API round-trip on every worker wake-up would be both
  * slow and wasteful of the per-key rate limit. The cache refreshes whenever
- * the popup lists campaigns.
+ * the popup lists them.
  */
 async function rebuildContextMenus() {
   await chrome.contextMenus.removeAll();
 
-  const { cachedCampaigns = [], lastCampaignId } = await chrome.storage.local.get({
-    cachedCampaigns: [],
-    lastCampaignId: null,
+  const { cachedLists = [], lastListId } = await chrome.storage.local.get({
+    cachedLists: [],
+    lastListId: null,
   });
 
   const contexts = ['selection', 'link', 'page'];
 
   chrome.contextMenus.create({ id: MENU_ROOT, title: 'Sincerely', contexts });
 
-  const last = cachedCampaigns.find((c) => c.id === lastCampaignId);
+  const last = cachedLists.find((l) => l.id === lastListId);
   if (last) {
     chrome.contextMenus.create({
       id: MENU_ADD_LAST,
@@ -243,20 +243,20 @@ async function rebuildContextMenus() {
     });
   }
 
-  for (const campaign of cachedCampaigns.slice(0, MAX_MENU_CAMPAIGNS)) {
+  for (const list of cachedLists.slice(0, MAX_MENU_LISTS)) {
     chrome.contextMenus.create({
-      id: `${MENU_CAMPAIGN_PREFIX}${campaign.id}`,
+      id: `${MENU_LIST_PREFIX}${list.id}`,
       parentId: MENU_ROOT,
-      title: `Add to: ${campaign.name}`,
+      title: `Add to: ${list.name}`,
       contexts,
     });
   }
 
-  if (cachedCampaigns.length === 0) {
+  if (cachedLists.length === 0) {
     chrome.contextMenus.create({
       id: 'sincerely-empty',
       parentId: MENU_ROOT,
-      title: 'Open the extension once to load campaigns',
+      title: 'Open the extension once to load your lists',
       enabled: false,
       contexts,
     });
@@ -304,9 +304,9 @@ async function personFromContext(info, tab) {
 }
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  const isCampaignItem =
-    info.menuItemId === MENU_ADD_LAST || String(info.menuItemId).startsWith(MENU_CAMPAIGN_PREFIX);
-  if (!isCampaignItem && info.menuItemId !== MENU_SUPPRESS) return;
+  const isListItem =
+    info.menuItemId === MENU_ADD_LAST || String(info.menuItemId).startsWith(MENU_LIST_PREFIX);
+  if (!isListItem && info.menuItemId !== MENU_SUPPRESS) return;
 
   const person = await personFromContext(info, tab);
   if (!person?.email) {
@@ -317,35 +317,36 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === MENU_SUPPRESS) {
     const result = await handleSuppress({ email: person.email, removeFromActive: true });
     if (result.ok) {
-      notify('Suppressed', `${person.email} will not be emailed again${result.data.removedFrom ? `, and was removed from ${result.data.removedFrom} campaign(s)` : ''}.`);
+      notify('Suppressed', `${person.email} will not be emailed again${result.data.removedFrom ? `, and was taken off ${result.data.removedFrom} list(s)` : ''}.`);
     } else {
       notify("Couldn't suppress", result.error.message);
     }
     return;
   }
 
-  let campaignId;
+  let listId;
   if (info.menuItemId === MENU_ADD_LAST) {
-    ({ lastCampaignId: campaignId } = await getSettings());
+    ({ lastListId: listId } = await getSettings());
   } else {
-    campaignId = String(info.menuItemId).slice(MENU_CAMPAIGN_PREFIX.length);
+    listId = String(info.menuItemId).slice(MENU_LIST_PREFIX.length);
   }
-  if (!campaignId) {
-    notify('No campaign selected', 'Open the extension and pick a campaign first.');
+  if (!listId) {
+    notify('No list selected', 'Open the extension and pick a lead list first.');
     return;
   }
 
-  const result = await handleAddToCampaign({ campaignId, person });
+  const result = await handleAddToList({ listId, person });
   if (result.ok) {
-    const { added, skipped, campaignName } = result.data;
+    const { added, alreadyOnList, listName } = result.data;
+    const isNew = added > 0 && !alreadyOnList;
     notify(
-      added > 0 ? 'Added to campaign' : 'Already in this campaign',
-      added > 0
-        ? `${person.email} → ${campaignName}`
-        : `${person.email} was already enrolled${skipped ? ` (${skipped} skipped)` : ''}.`
+      isNew ? 'Added to list' : 'Already on this list',
+      isNew
+        ? `${person.email} → ${listName}`
+        : `${person.email} was already on "${listName}".`
     );
   } else {
-    notify("Couldn't add to campaign", result.error.message);
+    notify("Couldn't add to list", result.error.message);
   }
 });
 
@@ -456,7 +457,7 @@ async function handleGetContext(payload) {
       hasKey: Boolean(settings.apiKey),
       apiBaseUrl: settings.apiBaseUrl,
       keyPrefix: settings.apiKey ? `${settings.apiKey.slice(0, 12)}…` : null,
-      lastCampaignId: settings.lastCampaignId,
+      lastListId: settings.lastListId,
       verifyBeforeAdd: settings.verifyBeforeAdd,
       appUrl: settings.appUrl,
       // So a popup reopened after the permission prompt closed it can pick the
@@ -467,15 +468,15 @@ async function handleGetContext(payload) {
   };
 }
 
-/** Campaign list, split into enrollable and finished, and cached for the menus. */
-async function handleListCampaigns() {
+/** Every lead list, cached for the right-click menu. */
+async function handleListLists() {
   try {
-    const grouped = await api.listCampaignsGrouped();
+    const lists = await api.listLists();
     await chrome.storage.local.set({
-      cachedCampaigns: grouped.enrollable.map((c) => ({ id: c.id, name: c.name, status: c.status })),
+      cachedLists: lists.map((l) => ({ id: l.id, name: l.name, contact_count: l.contact_count ?? 0 })),
     });
     await rebuildContextMenus();
-    return { ok: true, data: grouped };
+    return { ok: true, data: { lists } };
   } catch (err) {
     return toErrorPayload(err);
   }
@@ -483,13 +484,13 @@ async function handleListCampaigns() {
 
 /**
  * Look someone up without changing anything: do we know them, are they
- * suppressed, and which campaigns are they already in?
+ * suppressed, and which lead lists are they already on?
  * @param {{email: string}} payload
  */
 async function handleLookupPerson(payload) {
   try {
     const email = String(payload.email || '').trim().toLowerCase();
-    if (!email) return { ok: true, data: { contact: null, campaigns: [], suppressed: false } };
+    if (!email) return { ok: true, data: { contact: null, lists: [], suppressed: false } };
 
     const contact = await api.findContactByEmail(email);
 
@@ -502,34 +503,40 @@ async function handleLookupPerson(payload) {
       // Non-fatal: an unavailable check shouldn't block the whole panel.
     }
 
-    if (!contact) return { ok: true, data: { contact: null, campaigns: [], suppressed, engagement: null } };
+    if (!contact) return { ok: true, data: { contact: null, lists: [], suppressed, engagement: null } };
 
-    // Enrolments and activity are independent reads — one round-trip each,
+    // Memberships and activity are independent reads — one round-trip each,
     // in parallel, so the panel fills in one go.
-    const [campaigns, timeline] = await Promise.all([
-      api.getContactCampaigns(contact.id),
+    const [lists, timeline] = await Promise.all([
+      api.getContactLists(contact.id),
       // Activity is a bonus, not a blocker: an analytics hiccup shouldn't
       // stop the panel showing where someone stands.
       api.getContactTimeline(contact.id).catch(() => []),
     ]);
 
-    return { ok: true, data: { contact, campaigns, suppressed, engagement: summariseEngagement(timeline) } };
+    return { ok: true, data: { contact, lists, suppressed, engagement: summariseEngagement(timeline) } };
   } catch (err) {
     return toErrorPayload(err);
   }
 }
 
 /**
- * The main event: take a person off a page and put them in a campaign,
+ * The main event: take a person off a page and put them on a lead list,
  * creating the contact first if this account has never seen them.
  *
- * @param {{campaignId: string, person: object, verify?: boolean}} payload
+ * A list, not a campaign. Campaigns draw from a list, so membership of the list
+ * is the thing that actually decides who gets emailed — enrolling into a
+ * campaign directly reached past that, and carried an exclusivity rule (no two
+ * active campaigns on different lists) that made a simple "add this person"
+ * fail in ways nobody could predict from the page they were on.
+ *
+ * @param {{listId: string, person: object, verify?: boolean}} payload
  */
-async function handleAddToCampaign(payload) {
+async function handleAddToList(payload) {
   try {
-    const { campaignId, person } = payload;
+    const { listId, person } = payload;
     const email = String(person?.email || '').trim().toLowerCase();
-    if (!campaignId) throw new ApiError('Pick a campaign first.', { code: 'NO_CAMPAIGN' });
+    if (!listId) throw new ApiError('Pick a list first.', { code: 'NO_LIST' });
     if (!EMAIL_PATTERN.test(email)) throw new ApiError(`"${email}" doesn't look like an email address.`, { code: 'BAD_EMAIL' });
 
     const settings = await getSettings();
@@ -548,27 +555,21 @@ async function handleAddToCampaign(payload) {
 
     const { contact, created } = await api.resolveOrCreateContact({ ...person, email });
 
-    let result;
-    try {
-      result = await api.enrollContacts(campaignId, [contact.id]);
-    } catch (enrollErr) {
-      // The exclusivity rule is the one refusal the user can actually resolve,
-      // so turn it from a dead end into a choice: name the campaigns holding
-      // this person and let the popup offer to move them.
-      const blocking = await findBlockingEnrolments(contact.id, campaignId).catch(() => []);
-      if (blocking.length > 0) {
-        const payload = toErrorPayload(enrollErr);
-        return {
-          ok: false,
-          error: { ...payload.error, code: 'BLOCKED_BY_CAMPAIGN', blocking, contactId: contact.id },
-        };
-      }
-      throw enrollErr;
-    }
+    /*
+     * Whether they were already on this list has to be established before
+     * adding: the server upserts, so its reply counts a repeat as a success and
+     * cannot tell the two apart. Only worth a request for a contact that
+     * already existed — one just created is on nothing.
+     */
+    const alreadyOnList = created
+      ? false
+      : (await api.getContactLists(contact.id).catch(() => [])).some((l) => l.id === listId);
+
+    const result = await api.addToList(listId, [contact.id]);
 
     // Source attribution, so the channel can be measured later. Best-effort:
-    // a tagging failure must never look like the enrolment failed, because
-    // the enrolment already succeeded.
+    // a tagging failure must never look like the add failed, because the add
+    // already succeeded.
     if (settings.autoTag && settings.autoTagName) {
       try {
         const tag = await api.ensureTag(settings.autoTagName);
@@ -578,22 +579,22 @@ async function handleAddToCampaign(payload) {
       }
     }
 
-    await setSettings({ lastCampaignId: campaignId });
+    await setSettings({ lastListId: listId });
     invalidateStandingCache();
 
-    const { cachedCampaigns = [] } = await chrome.storage.local.get({ cachedCampaigns: [] });
-    const campaignName = cachedCampaigns.find((c) => c.id === campaignId)?.name || 'the campaign';
+    const { cachedLists = [] } = await chrome.storage.local.get({ cachedLists: [] });
+    const listName = cachedLists.find((l) => l.id === listId)?.name || 'the list';
 
     return {
       ok: true,
       data: {
         contactId: contact.id,
         contactCreated: created,
-        added: result?.added ?? 0,
-        skipped: result?.skipped ?? 0,
-        total: result?.total ?? 0,
-        campaignId,
-        campaignName,
+        alreadyOnList,
+        added: result?.success ?? 0,
+        failed: result?.failed ?? 0,
+        listId,
+        listName,
       },
     };
   } catch (err) {
@@ -659,7 +660,7 @@ async function findContactForPerson(person, pool) {
 async function handleCheckKnown(payload) {
   try {
     const people = (payload.people || []).slice(0, 60);
-    /** @type {Record<string, {contactId: string|null, enrolledActive: number, suppressed: boolean}>} */
+    /** @type {Record<string, {contactId: string|null, onLists: number, suppressed: boolean}>} */
     const byProfile = {};
 
     // One search per distinct surname rather than per person: a page of
@@ -679,18 +680,18 @@ async function handleCheckKnown(payload) {
       const contact = await findContactForPerson(person, pool);
 
       if (!contact) {
-        byProfile[person.linkedin_url] = { contactId: null, enrolledActive: 0, suppressed: false };
+        byProfile[person.linkedin_url] = { contactId: null, onLists: 0, suppressed: false };
         continue;
       }
 
       const [memberships, suppressed] = await Promise.all([
-        api.getContactCampaigns(contact.id).catch(() => []),
+        api.getContactLists(contact.id).catch(() => []),
         api.isSuppressed(contact.email).catch(() => false),
       ]);
 
       byProfile[person.linkedin_url] = {
         contactId: contact.id,
-        enrolledActive: memberships.filter((m) => m.is_active).length,
+        onLists: memberships.length,
         suppressed: Boolean(suppressed),
       };
     }
@@ -709,12 +710,12 @@ async function handleCheckKnown(payload) {
  * credit is only ever spent on someone the user explicitly ticked, and the
  * result reports exactly how many were spent and what's left.
  *
- * @param {{campaignId: string, people: object[]}} payload
+ * @param {{listId: string, people: object[]}} payload
  */
-async function handleBulkEnrolProfiles(payload) {
+async function handleBulkAddProfiles(payload) {
   try {
-    const { campaignId } = payload;
-    if (!campaignId) throw new ApiError('Pick a campaign first.', { code: 'NO_CAMPAIGN' });
+    const { listId } = payload;
+    if (!listId) throw new ApiError('Pick a list first.', { code: 'NO_LIST' });
 
     const people = (payload.people || []).slice(0, BULK_LIMIT);
     if (people.length === 0) throw new ApiError('Nobody selected.', { code: 'NO_PEOPLE' });
@@ -772,13 +773,17 @@ async function handleBulkEnrolProfiles(payload) {
 
     if (contactIds.length === 0) {
       throw new ApiError(
-        `No addresses could be found for the ${people.length} selected. Nothing was enrolled.`,
+        `No addresses could be found for the ${people.length} selected. Nobody was added.`,
         { code: 'NO_CONTACTS' }
       );
     }
 
-    const result = await api.enrollContacts(campaignId, contactIds);
-    await setSettings({ lastCampaignId: campaignId });
+    // Who was on it already, so the result can distinguish new from repeat:
+    // the server upserts and counts both as a success.
+    const before = await api.listContactIds(listId).catch(() => new Set());
+    const result = await api.addToList(listId, contactIds);
+    const alreadyOnList = contactIds.filter((id) => before.has(id)).length;
+    await setSettings({ lastListId: listId });
     invalidateStandingCache();
 
     const settings = await getSettings();
@@ -787,7 +792,7 @@ async function handleBulkEnrolProfiles(payload) {
         const tag = await api.ensureTag(settings.autoTagName);
         await api.tagContacts(contactIds, [tag.id]);
       } catch (tagErr) {
-        console.warn('[Sincerely] Could not tag enrolled profiles:', tagErr?.message);
+        console.warn('[Sincerely] Could not tag added profiles:', tagErr?.message);
       }
     }
 
@@ -795,8 +800,9 @@ async function handleBulkEnrolProfiles(payload) {
       ok: true,
       data: {
         requested: people.length,
-        added: result?.added ?? 0,
-        skipped: result?.skipped ?? 0,
+        added: Math.max(0, (result?.success ?? 0) - alreadyOnList),
+        alreadyOnList,
+        failed: result?.failed ?? 0,
         revealed,
         noEmail,
         creditsRemaining,
@@ -998,7 +1004,7 @@ async function handleScanSite(payload) {
 }
 
 /**
- * Add every address found on a page to one campaign.
+ * Add every address found on a page to one lead list.
  *
  * Prospecting happens on list pages — a team page, a directory, a thread with
  * several participants — and doing those one at a time is the difference
@@ -1008,12 +1014,12 @@ async function handleScanSite(payload) {
  * one search per distinct domain rather than per person, one bulk create for
  * everyone missing, and a single enrol for the whole set.
  *
- * @param {{campaignId: string, emails: string[]}} payload
+ * @param {{listId: string, emails: string[]}} payload
  */
 async function handleBulkAdd(payload) {
   try {
-    const { campaignId } = payload;
-    if (!campaignId) throw new ApiError('Pick a campaign first.', { code: 'NO_CAMPAIGN' });
+    const { listId } = payload;
+    if (!listId) throw new ApiError('Pick a list first.', { code: 'NO_LIST' });
 
     // Accepts bare addresses or {email, first_name, ...} rows, so a harvest
     // can carry the names it worked out rather than throwing them away.
@@ -1073,8 +1079,10 @@ async function handleBulkAdd(payload) {
       throw new ApiError('None of these addresses could be turned into contacts.', { code: 'NO_CONTACTS' });
     }
 
-    const result = await api.enrollContacts(campaignId, contactIds);
-    await setSettings({ lastCampaignId: campaignId });
+    const before = await api.listContactIds(listId).catch(() => new Set());
+    const result = await api.addToList(listId, contactIds);
+    const alreadyOnList = contactIds.filter((id) => before.has(id)).length;
+    await setSettings({ lastListId: listId });
     invalidateStandingCache();
 
     const settings = await getSettings();
@@ -1087,18 +1095,19 @@ async function handleBulkAdd(payload) {
       }
     }
 
-    const { cachedCampaigns = [] } = await chrome.storage.local.get({ cachedCampaigns: [] });
-    const campaignName = cachedCampaigns.find((c) => c.id === campaignId)?.name || 'the campaign';
+    const { cachedLists = [] } = await chrome.storage.local.get({ cachedLists: [] });
+    const listName = cachedLists.find((l) => l.id === listId)?.name || 'the list';
 
     return {
       ok: true,
       data: {
         requested: emails.length,
         created,
-        added: result?.added ?? 0,
-        skipped: result?.skipped ?? 0,
-        campaignId,
-        campaignName,
+        added: Math.max(0, (result?.success ?? 0) - alreadyOnList),
+        alreadyOnList,
+        failed: result?.failed ?? 0,
+        listId,
+        listName,
       },
     };
   } catch (err) {
@@ -1106,81 +1115,13 @@ async function handleBulkAdd(payload) {
   }
 }
 
-/**
- * Which existing enrolments stand in the way of enrolling into `targetId`.
- *
- * The server refuses a contact who's already in another *active* campaign
- * bound to a *different* lead list. That message names the rule but not the
- * campaign, which leaves the user with a dead end — so work it out here and
- * hand back something they can act on.
- *
- * @param {string} contactId
- * @param {string} targetId
- * @returns {Promise<Array<{campaign_id: string, campaign_name: string|null}>>}
- */
-async function findBlockingEnrolments(contactId, targetId) {
-  const [memberships, target] = await Promise.all([
-    api.getContactCampaigns(contactId),
-    api.getCampaign(targetId),
-  ]);
-
-  return memberships
-    .filter((m) => {
-      if (!m.is_active || m.campaign_id === targetId) return false;
-      // Same list is explicitly allowed, so it isn't blocking.
-      const sameList = m.campaign_list_id && target?.list_id && m.campaign_list_id === target.list_id;
-      return !sameList;
-    })
-    .map((m) => ({ campaign_id: m.campaign_id, campaign_name: m.campaign_name }));
-}
-
-/**
- * Take a contact out of the campaigns blocking this one, then enrol them.
- *
- * The escape hatch from the exclusivity rule: the user has seen which
- * campaign holds this person and decided this one matters more.
- *
- * @param {{campaignId: string, contactId: string, fromCampaignIds: string[]}} payload
- */
-async function handleMoveToCampaign(payload) {
+/** @param {{listId: string, contactId: string}} payload */
+async function handleRemoveFromList(payload) {
   try {
-    const { campaignId, contactId, fromCampaignIds = [] } = payload;
-    if (!campaignId || !contactId) throw new ApiError('Nothing to move.', { code: 'BAD_MOVE' });
-
-    // Sequential: a burst of DELETEs is exactly what trips the per-key limit.
-    const removedFrom = [];
-    for (const fromId of fromCampaignIds) {
-      await api.removeFromCampaign(fromId, [contactId]);
-      removedFrom.push(fromId);
+    if (!payload.listId || !payload.contactId) {
+      throw new ApiError('Nothing to remove.', { code: 'BAD_REMOVE' });
     }
-
-    const result = await api.enrollContacts(campaignId, [contactId]);
-    await setSettings({ lastCampaignId: campaignId });
-    invalidateStandingCache();
-
-    const { cachedCampaigns = [] } = await chrome.storage.local.get({ cachedCampaigns: [] });
-    const campaignName = cachedCampaigns.find((c) => c.id === campaignId)?.name || 'the campaign';
-
-    return {
-      ok: true,
-      data: {
-        contactId,
-        added: result?.added ?? 0,
-        skipped: result?.skipped ?? 0,
-        movedFrom: removedFrom.length,
-        campaignId,
-        campaignName,
-      },
-    };
-  } catch (err) {
-    return toErrorPayload(err);
-  }
-}
-
-/** @param {{campaignId: string, contactId: string}} payload */
-async function handleRemoveFromCampaign(payload) {
-  try {
-    await api.removeFromCampaign(payload.campaignId, [payload.contactId]);
+    await api.removeFromList(payload.listId, [payload.contactId]);
     invalidateStandingCache();
     return { ok: true, data: { removed: true } };
   } catch (err) {
@@ -1191,12 +1132,12 @@ async function handleRemoveFromCampaign(payload) {
 /**
  * "Never contact again", done properly.
  *
- * Removal alone only deletes the enrolment — the contact stays on the lead
- * list and the next import re-enrols them. Suppression is what actually
- * sticks, so this does both: suppress the address, then pull them out of every
- * campaign still in flight.
+ * Taking someone off a list is not the same thing: the next import puts them
+ * back. Suppression is what actually sticks, so this does both — suppress the
+ * address account-wide, then take them off every lead list they're on, so no
+ * campaign drawing from those lists picks them up again.
  *
- * @param {{email: string, contactId?: string, removeFromActive?: boolean}} payload
+ * @param {{email: string, contactId?: string, removeFromLists?: boolean}} payload
  */
 async function handleSuppress(payload) {
   try {
@@ -1206,23 +1147,22 @@ async function handleSuppress(payload) {
     await api.suppressEmail(email, 'manual', 'Suppressed from the Chrome extension');
 
     let removedFrom = 0;
-    if (payload.removeFromActive !== false) {
+    if (payload.removeFromLists !== false) {
       const contact = payload.contactId
         ? { id: payload.contactId }
         : await api.findContactByEmail(email);
 
       if (contact) {
-        const memberships = await api.getContactCampaigns(contact.id);
-        const active = memberships.filter((m) => m.is_active);
+        const lists = await api.getContactLists(contact.id).catch(() => []);
         // Sequential rather than parallel: a burst of DELETEs from several
         // suppressions in a row is exactly what trips the per-key rate limit.
-        for (const membership of active) {
+        for (const list of lists) {
           try {
-            await api.removeFromCampaign(membership.campaign_id, [contact.id]);
+            await api.removeFromList(list.id, [contact.id]);
             removedFrom += 1;
           } catch {
-            // The suppression already landed, which is the part that matters;
-            // report how far we got rather than failing the whole action.
+            // One failure shouldn't abandon the rest; the suppression itself
+            // has already landed, which is the part that matters.
           }
         }
       }
@@ -1237,8 +1177,8 @@ async function handleSuppress(payload) {
 
 /**
  * Name/company search, for pages that show a person but no address —
- * LinkedIn, mainly. Each hit comes back with its enrolments already resolved
- * so the popup can offer removal without a second round-trip per candidate.
+ * LinkedIn, mainly. Returns the bare contact fields the picker needs; list
+ * memberships are fetched separately once one is chosen.
  *
  * @param {{query: string}} payload
  */
@@ -1681,18 +1621,17 @@ async function handleConnectApply(payload) {
 /** @type {Record<string, (payload: any) => Promise<any>>} */
 const HANDLERS = {
   GET_CONTEXT: handleGetContext,
-  LIST_CAMPAIGNS: handleListCampaigns,
+  LIST_LISTS: handleListLists,
   LOOKUP_PERSON: handleLookupPerson,
   SEARCH_CONTACTS: handleSearchContacts,
   PROSPECT_FIND: handleProspectFind,
   PROSPECT_REVEAL: handleProspectReveal,
-  ADD_TO_CAMPAIGN: handleAddToCampaign,
-  REMOVE_FROM_CAMPAIGN: handleRemoveFromCampaign,
-  MOVE_TO_CAMPAIGN: handleMoveToCampaign,
+  ADD_TO_LIST: handleAddToList,
+  REMOVE_FROM_LIST: handleRemoveFromList,
   BULK_ADD: handleBulkAdd,
   SCAN_SITE: handleScanSite,
   CHECK_KNOWN: handleCheckKnown,
-  BULK_ENROL_PROFILES: handleBulkEnrolProfiles,
+  BULK_ADD_PROFILES: handleBulkAddProfiles,
   FIND_EMAIL: handleFindEmail,
   SUPPRESS_PERSON: handleSuppress,
   TEST_CONNECTION: handleTestConnection,
@@ -1747,7 +1686,7 @@ chrome.runtime.onStartup.addListener(async () => {
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== 'local') return;
   if (changes.apiKey) refreshBadge();
-  if (changes.lastCampaignId) rebuildContextMenus();
+  if (changes.lastListId) rebuildContextMenus();
   if (changes.appUrl?.newValue) ensureConnectScript(changes.appUrl.newValue);
 });
 

@@ -275,7 +275,7 @@
     return barRoot;
   }
 
-  const barState = { campaigns: [], campaignId: null, message: null, busy: false, netNewReady: false };
+  const barState = { lists: [], listId: null, message: null, busy: false, netNewReady: false };
 
   function renderBar() {
     const shadow = ensureBarRoot();
@@ -313,32 +313,32 @@
     netNew.textContent = checking ? 'Checking…' : 'Net new';
     netNew.disabled = checking || barState.busy;
     netNew.title =
-      'Select only people who are not already in one of your active campaigns — not merely those missing from your contacts.';
+      'Select only people who are not already on one of your lead lists — not merely those missing from your contacts.';
     netNew.addEventListener('click', selectNetNew);
     bar.appendChild(netNew);
 
     const select = document.createElement('select');
-    if (barState.campaigns.length === 0) {
+    if (barState.lists.length === 0) {
       const option = document.createElement('option');
-      option.textContent = 'No campaigns';
+      option.textContent = 'No lead lists';
       select.appendChild(option);
     }
-    for (const campaign of barState.campaigns) {
+    for (const list of barState.lists) {
       const option = document.createElement('option');
-      option.value = campaign.id;
-      option.textContent = campaign.name;
-      if (campaign.id === barState.campaignId) option.selected = true;
+      option.value = list.id;
+      option.textContent = list.name;
+      if (list.id === barState.listId) option.selected = true;
       select.appendChild(option);
     }
     select.addEventListener('change', () => {
-      barState.campaignId = select.value;
+      barState.listId = select.value;
     });
     bar.appendChild(select);
 
     const add = document.createElement('button');
     add.className = 'primary';
     add.textContent = barState.busy ? 'Working…' : `Add ${selected.size}`;
-    add.disabled = barState.busy || selected.size === 0 || !barState.campaignId;
+    add.disabled = barState.busy || selected.size === 0 || !barState.listId;
     add.addEventListener('click', addSelected);
     bar.appendChild(add);
 
@@ -357,7 +357,7 @@
   /* ---------------------------------------------------------------- */
 
   /**
-   * Tick only the people who aren't already in an active campaign.
+   * Tick only the people who aren't already on one of your lead lists.
    *
    * LinkedIn rows carry no address, so "do we know them?" is answered by name
    * and company. That's a fuzzy match, so the result is a selection the user
@@ -383,22 +383,22 @@
     for (const [url, entry] of rows) {
       entry.standing = known.get(url) || null;
       // Enrolled in something live, or suppressed → not net new.
-      const skip = entry.standing?.enrolledActive > 0 || entry.standing?.suppressed;
+      const skip = entry.standing?.onLists > 0 || entry.standing?.suppressed;
       setChecked(url, !skip);
     }
 
     const skipped = [...rows.values()].filter(
-      (e) => e.standing?.enrolledActive > 0 || e.standing?.suppressed
+      (e) => e.standing?.onLists > 0 || e.standing?.suppressed
     ).length;
     barState.message = skipped
-      ? { text: `${skipped} skipped — already in a campaign or suppressed` }
+      ? { text: `${skipped} skipped — already on a list, or suppressed` }
       : { text: 'Nobody here is already being emailed' };
     barState.netNewReady = true;
     renderBar();
   }
 
   async function addSelected() {
-    if (!barState.campaignId || selected.size === 0) return;
+    if (!barState.listId || selected.size === 0) return;
 
     const people = [...selected].map((url) => rows.get(url)?.person).filter(Boolean);
 
@@ -406,8 +406,8 @@
     barState.message = { text: 'Finding addresses…' };
     renderBar();
 
-    const response = await send('BULK_ENROL_PROFILES', {
-      campaignId: barState.campaignId,
+    const response = await send('BULK_ADD_PROFILES', {
+      listId: barState.listId,
       people,
     });
 
@@ -434,14 +434,14 @@
   /* Mount                                                            */
   /* ---------------------------------------------------------------- */
 
-  async function loadCampaigns() {
-    const response = await send('LIST_CAMPAIGNS');
+  async function loadLists() {
+    const response = await send('LIST_LISTS');
     if (!response.ok) return;
-    barState.campaigns = response.data.enrollable || [];
-    const { lastCampaignId } = await chrome.storage.local.get({ lastCampaignId: null });
-    barState.campaignId = barState.campaigns.some((c) => c.id === lastCampaignId)
-      ? lastCampaignId
-      : barState.campaigns[0]?.id ?? null;
+    barState.lists = response.data.lists || [];
+    const { lastListId } = await chrome.storage.local.get({ lastListId: null });
+    barState.listId = barState.lists.some((l) => l.id === lastListId)
+      ? lastListId
+      : barState.lists[0]?.id ?? null;
   }
 
   function teardown() {
@@ -479,9 +479,9 @@
       return;
     }
     if (rows.size === 0) {
-      await loadCampaigns();
-      // The observer may have drawn the bar while the campaigns were still in
-      // flight; repaint so the picker isn't stuck on "No campaigns".
+      await loadLists();
+      // The observer may have drawn the bar while the lists were still in
+      // flight; repaint so the picker isn't stuck on "No lead lists".
       if (rows.size > 0) renderBar();
     }
     scheduleDecorate();

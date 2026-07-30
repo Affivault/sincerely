@@ -185,18 +185,18 @@ async function save() {
       return;
     }
 
-    const { campaignCount, canWrite } = response.data;
+    const { listCount, canWrite } = response.data;
 
     if (!canWrite) {
       showResult(
-        `Connected, and ${campaignCount} campaign(s) are visible — but this key is read-only, so adding and removing people will fail. Create a key with both read and write scopes.`,
+        `Connected, and ${listCount} lead list(s) are visible — but this key is read-only, so adding and removing people will fail. Create a key with both read and write scopes.`,
         'warn'
       );
       return;
     }
 
     showResult(
-      `Connected. ${campaignCount} campaign(s) on the account, and the key can add and remove people. You're ready to go.`,
+      `Connected. ${listCount} lead list(s) on the account, and the key can add and remove people. You're ready to go.`,
       'success'
     );
     await load();
@@ -339,16 +339,16 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
         showResult(response?.error?.message || 'The key arrived but the connection test failed.', 'error');
         return;
       }
-      const { campaignCount, canWrite } = response.data;
+      const { listCount, canWrite } = response.data;
       if (!canWrite) {
         showResult(
-          `Connected, and ${campaignCount} campaign(s) are visible — but this key is read-only, so adding and removing people will fail.`,
+          `Connected, and ${listCount} lead list(s) are visible — but this key is read-only, so adding and removing people will fail.`,
           'warn'
         );
         return;
       }
       showResult(
-        `Connected. ${campaignCount} campaign(s) on the account, and the key can add and remove people. Nothing else to do — close this page and use the extension.`,
+        `Connected. ${listCount} lead list(s) on the account, and the key can add and remove people. Nothing else to do — close this page and use the extension.`,
         'success'
       );
     })

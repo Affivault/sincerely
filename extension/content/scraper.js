@@ -245,10 +245,151 @@
    * @param {string} publicId
    * @returns {Promise<{emails: string[], websites: string[]}>}
    */
+  /** Resolve once `test()` returns something truthy, or null at the deadline. */
+  function waitFor(test, timeoutMs, intervalMs = 100) {
+    return new Promise((resolve) => {
+      const started = Date.now();
+      const tick = () => {
+        let value = null;
+        try {
+          value = test();
+        } catch {
+          value = null;
+        }
+        if (value) return resolve(value);
+        if (Date.now() - started >= timeoutMs) return resolve(null);
+        setTimeout(tick, intervalMs);
+      };
+      tick();
+    });
+  }
+
+  /** The "Contact info" control on a profile, however LinkedIn has labelled it. */
+  function contactInfoTrigger() {
+    return (
+      document.getElementById('top-card-text-details-contact-info') ||
+      document.querySelector('a[href*="/overlay/contact-info"]') ||
+      [...document.querySelectorAll('main a, main button')].find((node) =>
+        /^\s*contact info\s*$/i.test(node.textContent || '')
+      ) ||
+      null
+    );
+  }
+
+  /**
+   * Open the Contact info dialog, read it, and put the page back.
+   *
+   * This is the path that actually works, and it is first for that reason.
+   * LinkedIn's internal API endpoints move and get locked down; its own UI
+   * cannot, because that is what the user clicks. Driving that UI does exactly
+   * what the user would do by hand — the extension has no more access than they
+   * do — and produces the address on a profile they are merely looking at,
+   * which is the whole point.
+   *
+   * The dialog is hidden while it is open, so the page doesn't flash. The style
+   * is removed in a `finally`, so a throw can't leave LinkedIn's modals
+   * invisible for the rest of the session.
+   *
+   * @returns {Promise<string[]>}
+   */
+  async function readContactInfoOverlay() {
+    const trigger = contactInfoTrigger();
+    if (!trigger) return [];
+
+    const wasAt = location.href;
+    const style = document.createElement('style');
+    style.setAttribute('data-sincerely', 'overlay-hide');
+    // Opacity rather than display: LinkedIn's modal measures itself on open, and
+    // an undisplayed dialog can decide it has nothing to render.
+    style.textContent =
+      '.artdeco-modal-overlay,.artdeco-modal,[role="dialog"]{opacity:0!important;pointer-events:none!important;}';
+    document.head.appendChild(style);
+
+    try {
+      trigger.click();
+
+      const modal = await waitFor(
+        () =>
+          document.querySelector('.pv-contact-info') ||
+          document.querySelector('.artdeco-modal[role="dialog"]') ||
+          document.querySelector('[role="dialog"]'),
+        4000
+      );
+      if (!modal) return [];
+
+      // The shell appears before its contents, so wait for something to read.
+      await waitFor(
+        () => modal.querySelector('a[href^="mailto:"]') || EMAIL_TEST.test(modal.textContent || ''),
+        3000
+      );
+
+      const found = new Set();
+      for (const link of modal.querySelectorAll('a[href^="mailto:"]')) {
+        const address = decodeURIComponent(link.getAttribute('href').slice(7)).split('?')[0].toLowerCase();
+        if (EMAIL_TEST.test(address) && isPlausibleEmail(address)) found.add(address);
+      }
+      /*
+       * Text nodes one at a time, not the dialog's whole textContent. Adjacent
+       * elements concatenate with no separator, so a dismiss button labelled "x"
+       * sitting beside the address yields "xjane.doe@acme.com" — a plausible
+       * address that does not exist.
+       */
+      const walker = document.createTreeWalker(modal, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node && found.size <= 5; node = walker.nextNode()) {
+        for (const match of (node.nodeValue || '').match(EMAIL_PATTERN) || []) {
+          const address = match.toLowerCase();
+          if (isPlausibleEmail(address)) found.add(address);
+        }
+      }
+
+      // Put it back the way we found it, by LinkedIn's own dismiss where there
+      // is one, then Escape, then history as a last resort.
+      const dismiss = modal.closest('.artdeco-modal')?.querySelector('.artdeco-modal__dismiss') ||
+        document.querySelector('button[aria-label*="Dismiss" i]');
+      if (dismiss) {
+        dismiss.click();
+      } else {
+        document.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true })
+        );
+      }
+      await waitFor(() => !document.querySelector('[role="dialog"]'), 1500);
+
+      /*
+       * Dismissing usually pops the history entry LinkedIn pushed, but
+       * history.back() is asynchronous — the URL is still the overlay's for a
+       * moment afterwards. Checking too early and "helpfully" going back again
+       * takes the user off the profile entirely, one entry further back than
+       * they ever were. So wait for the URL to settle, and only step back if it
+       * genuinely didn't.
+       */
+      const restored = await waitFor(() => location.href === wasAt, 1200);
+      if (!restored && /overlay\/contact-info/.test(location.href)) {
+        history.back();
+        await waitFor(() => location.href === wasAt, 1200);
+      }
+
+      return [...found];
+    } catch {
+      return [];
+    } finally {
+      style.remove();
+    }
+  }
+
   async function linkedInContactInfo(publicId) {
     if (contactInfoCache.has(publicId)) return contactInfoCache.get(publicId);
 
     const result = { emails: [], websites: [] };
+
+    // The reliable route first. Anything else costs seconds of network waiting
+    // before the thing that was going to work anyway.
+    result.emails = await readContactInfoOverlay();
+    if (result.emails.length > 0) {
+      contactInfoCache.set(publicId, result);
+      return result;
+    }
+
     const token = linkedInCsrfToken();
 
     if (token) {
@@ -263,7 +404,7 @@
               'x-restli-protocol-version': '2.0.0',
             },
           },
-          7000
+          4000
         );
         if (response.ok) {
           const body = await response.json();
@@ -280,7 +421,7 @@
         const response = await fetchWithTimeout(
           `${location.origin}/in/${encodeURIComponent(publicId)}/overlay/contact-info/`,
           { credentials: 'include', headers: { accept: 'text/html' } },
-          7000
+          4000
         );
         if (response.ok) {
           const html = await response.text();

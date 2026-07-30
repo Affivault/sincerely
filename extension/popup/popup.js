@@ -6,7 +6,7 @@
  * the server or the page is written with textContent, never innerHTML.
  *
  * The layout answers three questions in order: who is this, what has already
- * happened with them, and which campaign should they go into. Editing their
+ * happened with them, and which lead list should they go on. Editing their
  * details is a rarer job, so it lives behind a disclosure.
  */
 
@@ -16,7 +16,7 @@ import { classifyEmail, rankResults } from '../lib/harvest.js';
 const EMAIL_PATTERN = /^[a-z0-9._%+'-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
 
 /**
- * Per-campaign contact status → badge variant, matching the app's status
+ * Contact status → badge variant, matching the app's status
  * colours (CONTACT_STATUS_COLORS in client/src/lib/constants.ts).
  */
 const STATUS_VARIANT = {
@@ -68,8 +68,8 @@ const el = {
   verification: document.getElementById('verification'),
   standingStrip: document.getElementById('standing-strip'),
 
-  campaignSearch: document.getElementById('campaign-search'),
-  campaignList: document.getElementById('campaign-list'),
+  listSearch: document.getElementById('list-search'),
+  listPicker: document.getElementById('lead-lists'),
   add: document.getElementById('add'),
   addLabel: document.getElementById('add-label'),
   bulkAdd: document.getElementById('bulk-add'),
@@ -124,12 +124,12 @@ const state = {
   suppressArmed: false,
   bulkArmed: false,
   looking: false,
-  /** All enrollable campaigns, and the filtered subset currently listed. */
-  campaigns: [],
+  /** Every lead list, and the filtered subset currently listed. */
+  lists: [],
   finished: [],
   filtered: [],
   activeIndex: 0,
-  selectedCampaignId: null,
+  selectedListId: null,
   /** Web app origin, for "open in Sincerely" links. Empty disables them. */
   appUrl: '',
   /** The tab the popup was opened over, so a scan knows which site to read. */
@@ -213,34 +213,11 @@ function clearStatus() {
 }
 
 /**
- * @param {{message: string, isAuthProblem?: boolean, code?: string, blocking?: Array<{campaign_id: string, campaign_name: string}>, contactId?: string}} error
+ * Show a failure, with a way out of it where one exists.
+ *
+ * @param {{message: string, isAuthProblem?: boolean, code?: string, contactId?: string}} error
  */
 function showError(error) {
-  // The exclusivity rule is resolvable, so offer the resolution rather than
-  // leaving the user staring at a refusal.
-  if (error.code === 'BLOCKED_BY_CAMPAIGN' && error.blocking?.length) {
-    const names = error.blocking.map((b) => `"${b.campaign_name}"`).join(', ');
-    const target = state.campaigns.find((c) => c.id === state.selectedCampaignId);
-    setStatus(
-      `Already in ${names}, on a different lead list. A contact can only be in one active campaign per list.`,
-      {
-        variant: 'error',
-        actions: [
-          {
-            label: `Move to "${target?.name ?? 'this campaign'}"`,
-            primary: true,
-            onClick: () =>
-              moveToCampaign(
-                error.contactId,
-                error.blocking.map((b) => b.campaign_id)
-              ),
-          },
-        ],
-      }
-    );
-    return;
-  }
-
   setStatus(error.message, {
     variant: 'error',
     actions: error.isAuthProblem
@@ -297,7 +274,7 @@ function verificationFor(contact) {
  * A link that opens somewhere in the web app, or plain text when no app URL is
  * configured — a link to nowhere is worse than no link.
  *
- * @param {string} path Path within the app, e.g. "/campaigns/abc".
+ * @param {string} path Path within the app, e.g. "/contacts?list=abc".
  * @param {string} label
  * @param {string} [title]
  * @returns {HTMLElement}
@@ -389,11 +366,14 @@ function renderStandingStrip() {
   let tone = '';
 
   if (state.suppressed) {
-    text = 'Suppressed — no campaign will email this address.';
+    text = 'Suppressed — this address will not be emailed.';
     tone = 'suppressed';
   } else if (engagement?.hasReplied) {
     const when = formatDate(engagement.lastActivityAt);
-    text = `Replied${engagement.lastCampaignName ? ` to "${engagement.lastCampaignName}"` : ''}${when ? ` · ${when}` : ''}`;
+    // Deliberately not naming which campaign: the extension deals in lists,
+    // and "they have replied to you before" is the part that changes what you
+    // do next.
+    text = `Replied${when ? ` · ${when}` : ''}`;
     tone = 'replied';
   } else if (engagement && (engagement.opened > 0 || engagement.clicked > 0)) {
     const parts = [];
@@ -402,9 +382,9 @@ function renderStandingStrip() {
     if (engagement.clicked > 0) parts.push(`clicked ${engagement.clicked}×`);
     text = parts.join(' · ');
   } else if (activeCount > 0) {
-    text = `In ${activeCount} active campaign${activeCount > 1 ? 's' : ''}`;
+    text = `On ${activeCount} lead list${activeCount > 1 ? 's' : ''}`;
   } else if (state.contact) {
-    text = 'Known contact · no campaign activity yet';
+    text = 'Known contact · no list membership yet';
   } else if (currentEmailIsValid()) {
     text = 'New contact — adding will create them';
   }
@@ -487,7 +467,7 @@ function currentEmailIsValid() {
 
 function syncButtons() {
   const hasEmail = currentEmailIsValid();
-  el.add.disabled = !hasEmail || !state.selectedCampaignId;
+  el.add.disabled = !hasEmail || !state.selectedListId;
   el.suppress.disabled = !hasEmail || state.suppressed;
   el.suppress.textContent = state.suppressed
     ? 'Already suppressed'
@@ -495,8 +475,8 @@ function syncButtons() {
       ? 'Click again to confirm'
       : 'Never contact again';
 
-  const target = state.campaigns.find((c) => c.id === state.selectedCampaignId);
-  el.addLabel.textContent = target ? `Add to ${target.name}` : 'Add to campaign';
+  const target = state.lists.find((l) => l.id === state.selectedListId);
+  el.addLabel.textContent = target ? `Add to ${target.name}` : 'Add to list';
 
   // Bulk is offered only when the page really does hold several people —
   // otherwise it's a button that does the same as the one above it.
@@ -504,7 +484,7 @@ function syncButtons() {
 
   const bulk = pageEmails();
   el.bulkAdd.classList.toggle('hidden', bulk.length < 2);
-  el.bulkAdd.disabled = !state.selectedCampaignId;
+  el.bulkAdd.disabled = !state.selectedListId;
   el.bulkLabel.textContent = `Add all ${bulk.length} addresses on this page`;
 
   el.noEmailHelp.classList.toggle('hidden', hasEmail);
@@ -515,33 +495,35 @@ function syncButtons() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Campaign picker                                                    */
+/* Lead list picker                                                   */
 /* ------------------------------------------------------------------ */
 
 /**
- * Draw the filtered campaign list and keep the active row in view.
- * Finished campaigns are listed but disabled — hiding them makes the picker
- * look broken when a campaign the user expects is missing.
+ * Draw the filtered lead lists and keep the active row in view.
+ *
+ * Lists, not campaigns. Every list can take a contact — there is no equivalent
+ * of a finished campaign that has to be shown-but-disabled — so this is simply
+ * the account's lists, with the default one first as the server orders them.
  */
 function renderPicker() {
-  el.campaignList.textContent = '';
+  el.listPicker.textContent = '';
 
-  if (state.campaigns.length === 0 && state.finished.length === 0) {
+  if (state.lists.length === 0) {
     const empty = document.createElement('li');
     empty.className = 'campaign-empty';
-    empty.textContent = 'No campaigns on this account yet.';
-    el.campaignList.appendChild(empty);
+    empty.textContent = 'No lead lists on this account yet. Create one in Sincerely first.';
+    el.listPicker.appendChild(empty);
     return;
   }
 
   if (state.filtered.length === 0) {
     const empty = document.createElement('li');
     empty.className = 'campaign-empty';
-    empty.textContent = 'No campaigns match that.';
-    el.campaignList.appendChild(empty);
+    empty.textContent = 'No lists match that.';
+    el.listPicker.appendChild(empty);
   }
 
-  state.filtered.forEach((campaign, index) => {
+  state.filtered.forEach((list, index) => {
     const item = document.createElement('li');
     const button = document.createElement('button');
     button.type = 'button';
@@ -550,23 +532,27 @@ function renderPicker() {
     button.setAttribute('aria-selected', String(index === state.activeIndex));
 
     const dot = document.createElement('span');
-    dot.className = `campaign-status-dot ${campaign.status}`;
+    dot.className = 'campaign-status-dot running';
     button.appendChild(dot);
 
     const name = document.createElement('span');
     name.className = 'campaign-option-name';
-    name.textContent = campaign.name;
+    name.textContent = list.name;
     button.appendChild(name);
 
     const meta = document.createElement('span');
     meta.className = 'campaign-option-meta';
-    meta.textContent = campaign.status;
+    // Size is the useful thing to know about a list at a glance; the default
+    // one is worth marking because it's where imports land.
+    meta.textContent = list.is_default
+      ? `${list.contact_count ?? 0} · default`
+      : String(list.contact_count ?? 0);
     button.appendChild(meta);
 
     button.addEventListener('click', () => {
       state.activeIndex = index;
       selectActive();
-      addToCampaign();
+      addToList();
     });
     // Hovering shouldn't silently change what Enter does, but it should track
     // the pointer so click and keyboard agree.
@@ -578,69 +564,34 @@ function renderPicker() {
     });
 
     item.appendChild(button);
-    el.campaignList.appendChild(item);
+    el.listPicker.appendChild(item);
   });
 
-  // Finished campaigns, shown so their absence isn't mistaken for a bug.
-  const query = el.campaignSearch.value.trim().toLowerCase();
-  const finishedMatches = state.finished.filter((c) => c.name.toLowerCase().includes(query));
-  if (finishedMatches.length > 0) {
-    const label = document.createElement('li');
-    label.className = 'list-group-label';
-    label.textContent = "Finished — can't accept contacts";
-    el.campaignList.appendChild(label);
-
-    for (const campaign of finishedMatches.slice(0, 4)) {
-      const item = document.createElement('li');
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'campaign-option';
-      button.disabled = true;
-
-      const dot = document.createElement('span');
-      dot.className = 'campaign-status-dot';
-      button.appendChild(dot);
-
-      const name = document.createElement('span');
-      name.className = 'campaign-option-name';
-      name.textContent = campaign.name;
-      button.appendChild(name);
-
-      const meta = document.createElement('span');
-      meta.className = 'campaign-option-meta';
-      meta.textContent = campaign.status;
-      button.appendChild(meta);
-
-      item.appendChild(button);
-      el.campaignList.appendChild(item);
-    }
-  }
-
-  el.campaignList.querySelector('.campaign-option.active')?.scrollIntoView({ block: 'nearest' });
+  el.listPicker.querySelector('.campaign-option.active')?.scrollIntoView({ block: 'nearest' });
 }
 
 function selectActive() {
-  const campaign = state.filtered[state.activeIndex];
-  state.selectedCampaignId = campaign?.id ?? null;
+  const list = state.filtered[state.activeIndex];
+  state.selectedListId = list?.id ?? null;
   syncButtons();
 }
 
 function applyFilter() {
-  const query = el.campaignSearch.value.trim().toLowerCase();
+  const query = el.listSearch.value.trim().toLowerCase();
   state.filtered = query
-    ? state.campaigns.filter((c) => c.name.toLowerCase().includes(query))
-    : state.campaigns.slice();
+    ? state.lists.filter((l) => l.name.toLowerCase().includes(query))
+    : state.lists.slice();
   state.activeIndex = 0;
   selectActive();
   renderPicker();
 }
 
 /** @param {string|null} preselectId */
-async function loadCampaigns(preselectId) {
-  const response = await send('LIST_CAMPAIGNS');
+async function loadLists(preselectId) {
+  const response = await send('LIST_LISTS');
 
   if (!response.ok) {
-    state.campaigns = [];
+    state.lists = [];
     state.filtered = [];
     renderPicker();
     showError(response.error);
@@ -648,13 +599,12 @@ async function loadCampaigns(preselectId) {
     return;
   }
 
-  state.campaigns = response.data.enrollable || [];
-  state.finished = response.data.finished || [];
-  state.filtered = state.campaigns.slice();
+  state.lists = response.data.lists || [];
+  state.filtered = state.lists.slice();
 
-  // Start on the campaign they used last — that's overwhelmingly the one they
-  // want again, and it makes Enter correct without any typing.
-  const preselectIndex = state.campaigns.findIndex((c) => c.id === preselectId);
+  // Start on the list they used last — overwhelmingly the one they want again,
+  // and it makes Enter correct without any typing.
+  const preselectIndex = state.lists.findIndex((l) => l.id === preselectId);
   state.activeIndex = preselectIndex >= 0 ? preselectIndex : 0;
 
   selectActive();
@@ -675,14 +625,14 @@ function renderStanding() {
   if (state.suppressed) {
     const warning = document.createElement('p');
     warning.className = 'suppressed-note';
-    warning.textContent = 'On your suppression list — campaigns will not email this address.';
+    warning.textContent = 'On your suppression list — this address will not be emailed.';
     el.standingBody.appendChild(warning);
   }
 
   if (state.memberships.length === 0) {
     const note = document.createElement('p');
     note.className = 'note';
-    note.textContent = 'Not enrolled in any campaign.';
+    note.textContent = 'Not on any lead list yet.';
     el.standingBody.appendChild(note);
     return;
   }
@@ -694,47 +644,31 @@ function renderStanding() {
     const main = document.createElement('div');
     main.className = 'enrolment-main';
 
-    // The campaign name doubles as the way back into the app — the popup can
-    // tell you where someone stands, but anything deeper belongs in Sincerely.
+    // The list name doubles as the way back into the app — the popup can tell
+    // you where someone stands, but anything deeper belongs in Sincerely.
     const name = openInAppLink(
-      `/campaigns/${membership.campaign_id}`,
-      membership.campaign_name || 'Untitled campaign',
-      `Open "${membership.campaign_name}" in Sincerely`
+      `/contacts?list=${membership.id}`,
+      membership.name || 'Untitled list',
+      `Open "${membership.name}" in Sincerely`
     );
     name.classList.add('enrolment-name');
     main.appendChild(name);
 
-    const meta = document.createElement('div');
-    meta.className = 'enrolment-meta';
-
-    const status = String(membership.status || '').toLowerCase();
-    const badge = document.createElement('span');
-    badge.className = `badge ${STATUS_VARIANT[status] || ''}`.trim();
-    const dot = document.createElement('span');
-    dot.className = 'dot';
-    badge.appendChild(dot);
-    badge.appendChild(document.createTextNode(membership.status || 'unknown'));
-    meta.appendChild(badge);
-
-    // Step order is a 0-based index server-side; show it 1-based.
-    const bits = [`step ${Number(membership.current_step_order || 0) + 1}`];
-    if (membership.campaign_status && membership.campaign_status !== 'running') {
-      bits.push(`campaign ${membership.campaign_status}`);
+    if (Number.isFinite(membership.contact_count)) {
+      const meta = document.createElement('div');
+      meta.className = 'enrolment-meta';
+      const detail = document.createElement('span');
+      detail.textContent = `${membership.contact_count} contact${membership.contact_count === 1 ? '' : 's'}`;
+      meta.appendChild(detail);
+      main.appendChild(meta);
     }
-    const nextSend = formatDate(membership.next_send_at);
-    if (nextSend && membership.is_active) bits.push(`next ${nextSend}`);
-
-    const detail = document.createElement('span');
-    detail.textContent = bits.join(' · ');
-    meta.appendChild(detail);
-    main.appendChild(meta);
     row.appendChild(main);
 
     const removeButton = document.createElement('button');
     removeButton.className = 'btn-secondary btn-xs remove-btn';
     removeButton.type = 'button';
     removeButton.textContent = 'Remove';
-    removeButton.title = `Remove from "${membership.campaign_name}" — stops this sequence only`;
+    removeButton.title = `Take them off "${membership.name}" — they stay in your contacts`;
     removeButton.addEventListener('click', () => removeFrom(membership, removeButton));
     row.appendChild(removeButton);
 
@@ -774,7 +708,7 @@ async function refreshStanding() {
   // Drop everything tied to the previous address before going anywhere. A
   // stale panel is worse than an empty one: Remove acts on state.contact, so
   // showing one person's enrolments under another's address could remove the
-  // wrong contact from a live campaign.
+  // wrong contact from a live list.
   state.contact = null;
   state.memberships = [];
   state.engagement = null;
@@ -803,7 +737,7 @@ async function refreshStanding() {
   }
 
   state.contact = response.data.contact;
-  state.memberships = response.data.campaigns || [];
+  state.memberships = response.data.lists || [];
   state.engagement = response.data.engagement || null;
   state.suppressed = Boolean(response.data.suppressed);
 
@@ -826,8 +760,8 @@ async function removeFrom(membership, button) {
   button.textContent = 'Removing…';
   clearStatus();
 
-  const response = await send('REMOVE_FROM_CAMPAIGN', {
-    campaignId: membership.campaign_id,
+  const response = await send('REMOVE_FROM_LIST', {
+    listId: membership.id,
     contactId: state.contact.id,
   });
 
@@ -838,22 +772,20 @@ async function removeFrom(membership, button) {
     return;
   }
 
-  setStatus(`Removed from "${membership.campaign_name}". They stay on the lead list and can be re-enrolled.`, {
-    variant: 'success',
-  });
+  setStatus(`Taken off "${membership.name}". They stay in your contacts.`, { variant: 'success' });
   await refreshStanding();
 }
 
-async function addToCampaign() {
-  const campaignId = state.selectedCampaignId;
+async function addToList() {
+  const listId = state.selectedListId;
   const person = readForm();
-  if (!campaignId || !EMAIL_PATTERN.test(person.email)) return;
+  if (!listId || !EMAIL_PATTERN.test(person.email)) return;
 
   el.add.disabled = true;
   el.addLabel.textContent = 'Adding…';
   clearStatus();
 
-  const response = await send('ADD_TO_CAMPAIGN', { campaignId, person });
+  const response = await send('ADD_TO_LIST', { listId, person });
 
   el.add.disabled = false;
 
@@ -863,21 +795,20 @@ async function addToCampaign() {
     return;
   }
 
-  const { added, skipped, contactCreated, campaignName, contactId } = response.data;
+  const { added, contactCreated, alreadyOnList, listName, contactId } = response.data;
 
-  if (added > 0) {
-    const parts = [`Added to "${campaignName}".`];
+  if (added > 0 && !alreadyOnList) {
+    const parts = [`Added to "${listName}".`];
     if (contactCreated) parts.push('New contact created.');
-    if (skipped > 0) parts.push(`${skipped} skipped.`);
     setStatus(parts.join(' '), {
       variant: 'success',
       actions: [
         {
           label: 'Undo',
           onClick: async () => {
-            const undo = await send('REMOVE_FROM_CAMPAIGN', { campaignId, contactId });
+            const undo = await send('REMOVE_FROM_LIST', { listId, contactId });
             if (undo.ok) {
-              setStatus(`Removed from "${campaignName}" again.`);
+              setStatus(`Taken back off "${listName}".`);
               await refreshStanding();
             } else {
               showError(undo.error);
@@ -887,22 +818,23 @@ async function addToCampaign() {
       ],
     });
   } else {
-    setStatus(`Already enrolled in "${campaignName}" — nothing changed.`);
+    setStatus(`Already on "${listName}" — nothing changed.`);
   }
 
   await refreshStanding();
 }
 
 /**
- * Enrol every address on the page into the selected campaign.
+ * Add every address on the page to the selected list.
  *
  * Two-step, like suppression: the first click says exactly what is about to
- * happen and to how many people, the second does it. Enrolling a page's worth
- * of strangers into a live sequence is not an undo-able-by-one-click action.
+ * happen and to how many people, the second does it. Putting a page's worth of
+ * strangers onto a list a live campaign draws from is not an
+ * undo-in-one-click action.
  */
 async function bulkAdd() {
   const emails = pageEmails();
-  const target = state.campaigns.find((c) => c.id === state.selectedCampaignId);
+  const target = state.lists.find((l) => l.id === state.selectedListId);
   if (!target || emails.length < 2) return;
 
   if (!state.bulkArmed) {
@@ -919,7 +851,7 @@ async function bulkAdd() {
   el.bulkAdd.disabled = true;
   el.bulkLabel.textContent = 'Adding…';
 
-  const response = await send('BULK_ADD', { campaignId: target.id, emails });
+  const response = await send('BULK_ADD', { listId: target.id, emails });
 
   el.bulkAdd.disabled = false;
   syncButtons();
@@ -929,41 +861,16 @@ async function bulkAdd() {
     return;
   }
 
-  const { requested, created, added, skipped, campaignName } = response.data;
-  const parts = [`Added ${added} of ${requested} to "${campaignName}".`];
+  const { requested, created, added, alreadyOnList, failed, listName } = response.data;
+  const parts = [`Added ${added} of ${requested} to "${listName}".`];
   if (created > 0) parts.push(`${created} new contact${created === 1 ? '' : 's'} created.`);
-  if (skipped > 0) parts.push(`${skipped} skipped — already enrolled, or held by another campaign.`);
+  if (alreadyOnList > 0) parts.push(`${alreadyOnList} were already on it.`);
+  if (failed > 0) parts.push(`${failed} could not be added.`);
   setStatus(parts.join(' '), { variant: added > 0 ? 'success' : undefined });
 
   await refreshStanding();
 }
 
-/**
- * Resolve the exclusivity block: pull them out of the campaigns holding them,
- * then enrol here.
- *
- * @param {string} contactId
- * @param {string[]} fromCampaignIds
- */
-async function moveToCampaign(contactId, fromCampaignIds) {
-  const campaignId = state.selectedCampaignId;
-  if (!campaignId || !contactId) return;
-
-  setStatus('Moving…');
-
-  const response = await send('MOVE_TO_CAMPAIGN', { campaignId, contactId, fromCampaignIds });
-  if (!response.ok) {
-    showError(response.error);
-    return;
-  }
-
-  const { campaignName, movedFrom } = response.data;
-  setStatus(
-    `Moved to "${campaignName}" — removed from ${movedFrom} other campaign${movedFrom === 1 ? '' : 's'}.`,
-    { variant: 'success' }
-  );
-  await refreshStanding();
-}
 
 async function suppressPerson() {
   const email = el.email.value.trim().toLowerCase();
@@ -976,7 +883,7 @@ async function suppressPerson() {
     state.suppressArmed = true;
     syncButtons();
     setStatus(
-      `This blocks every future send to ${email} across all campaigns, and removes them from any campaign still running. Click again to confirm.`
+      `This blocks every future send to ${email}, and takes them off every lead list. Click again to confirm.`
     );
     return;
   }
@@ -1000,8 +907,8 @@ async function suppressPerson() {
   const { removedFrom } = response.data;
   setStatus(
     removedFrom > 0
-      ? `${email} suppressed, and removed from ${removedFrom} active campaign${removedFrom > 1 ? 's' : ''}.`
-      : `${email} suppressed. No active campaigns to remove them from.`,
+      ? `${email} suppressed, and taken off ${removedFrom} lead list${removedFrom > 1 ? 's' : ''}.`
+      : `${email} suppressed. They were not on any lead list.`,
     { variant: 'success' }
   );
 
@@ -1392,12 +1299,12 @@ function syncScanToolbar() {
   el.scanCount.textContent = `${selected} of ${total} selected`;
   el.scanAll.checked = selected > 0 && selected === total;
   el.scanAll.indeterminate = selected > 0 && selected < total;
-  el.scanAdd.disabled = selected === 0 || !state.selectedCampaignId;
+  el.scanAdd.disabled = selected === 0 || !state.selectedListId;
 
-  const target = state.campaigns.find((c) => c.id === state.selectedCampaignId);
+  const target = state.lists.find((l) => l.id === state.selectedListId);
   el.scanAdd.textContent = target
     ? `Add ${selected} to ${target.name}`
-    : 'Pick a campaign above first';
+    : 'Pick a list above first';
 }
 
 /** Re-tick only the addresses this account doesn't already hold. */
@@ -1414,7 +1321,7 @@ function selectNewOnly() {
 }
 
 async function addScanned() {
-  const target = state.campaigns.find((c) => c.id === state.selectedCampaignId);
+  const target = state.lists.find((l) => l.id === state.selectedListId);
   if (!target || state.scanSelected.size === 0) return;
 
   const people = state.scanResults.filter((r) => state.scanSelected.has(r.email));
@@ -1425,7 +1332,7 @@ async function addScanned() {
 
   // The harvested names travel with the addresses, so contacts arrive with
   // something to merge into a first-name token rather than a bare address.
-  const response = await send('BULK_ADD', { campaignId: target.id, people });
+  const response = await send('BULK_ADD', { listId: target.id, people });
 
   syncScanToolbar();
 
@@ -1434,10 +1341,11 @@ async function addScanned() {
     return;
   }
 
-  const { requested, created, added, skipped, campaignName } = response.data;
-  const parts = [`Added ${added} of ${requested} to "${campaignName}".`];
+  const { requested, created, added, alreadyOnList, failed, listName } = response.data;
+  const parts = [`Added ${added} of ${requested} to "${listName}".`];
   if (created > 0) parts.push(`${created} new contact${created === 1 ? '' : 's'} created.`);
-  if (skipped > 0) parts.push(`${skipped} skipped — already enrolled, or held by another campaign.`);
+  if (alreadyOnList > 0) parts.push(`${alreadyOnList} were already on it.`);
+  if (failed > 0) parts.push(`${failed} could not be added.`);
   setStatus(parts.join(' '), { variant: added > 0 ? 'success' : undefined });
 
   await refreshStanding();
@@ -1583,9 +1491,9 @@ async function prospectReveal(match, button) {
   // Straight into the flow: the address is now the thing to act on.
   el.email.value = email;
   el.prospectResult.classList.add('hidden');
-  setStatus(`Found ${email}. Pick a campaign and add them.`, { variant: 'success' });
+  setStatus(`Found ${email}. Pick a list and add them.`, { variant: 'success' });
   await refreshStanding();
-  el.campaignSearch.focus();
+  el.listSearch.focus();
 }
 
 /** Name-based lookup for pages with no address (LinkedIn, mostly). */
@@ -1806,8 +1714,8 @@ function wireEvents() {
     refreshStanding();
   });
 
-  el.campaignSearch.addEventListener('input', applyFilter);
-  el.campaignSearch.addEventListener('keydown', (event) => {
+  el.listSearch.addEventListener('input', applyFilter);
+  el.listSearch.addEventListener('keydown', (event) => {
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       state.activeIndex = Math.min(state.activeIndex + 1, state.filtered.length - 1);
@@ -1820,11 +1728,11 @@ function wireEvents() {
       renderPicker();
     } else if (event.key === 'Enter') {
       event.preventDefault();
-      if (!el.add.disabled) addToCampaign();
+      if (!el.add.disabled) addToList();
     }
   });
 
-  el.add.addEventListener('click', addToCampaign);
+  el.add.addEventListener('click', addToList);
   el.bulkAdd.addEventListener('click', bulkAdd);
   el.suppress.addEventListener('click', suppressPerson);
   el.searchByName.addEventListener('click', searchByName);
@@ -1852,7 +1760,7 @@ function wireEvents() {
     }
     if (event.key === 'Enter' && event.target === document.body && !el.add.disabled) {
       event.preventDefault();
-      addToCampaign();
+      addToList();
     }
   });
 }
@@ -1894,12 +1802,12 @@ async function init() {
   renderAll();
 
   // The picker owns the keyboard from the moment the popup opens.
-  el.campaignSearch.focus();
+  el.listSearch.focus();
 
   // If the page gave us nothing usable, the details are where the work is.
   if (!context.data.person?.email) toggleDetails(true);
 
-  await Promise.all([loadCampaigns(context.data.lastCampaignId), refreshStanding()]);
+  await Promise.all([loadLists(context.data.lastListId), refreshStanding()]);
 }
 
 init().catch((err) => {

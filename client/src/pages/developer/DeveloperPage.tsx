@@ -19,6 +19,8 @@ import {
   Zap,
   X,
   RefreshCw,
+  Chrome,
+  Info,
 } from 'lucide-react';
 import { cn, formatDateTime } from '../../lib/utils';
 import { API_URL } from '../../lib/constants';
@@ -52,6 +54,9 @@ export function DeveloperPage() {
   const [keyRateLimit, setKeyRateLimit] = useState(100);
   const [newRawKey, setNewRawKey] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
+  /** Which key the freshly shown secret belongs to, so the panel can say so. */
+  const [newKeyName, setNewKeyName] = useState<string>('');
+  const [showConnectHelp, setShowConnectHelp] = useState(false);
 
   const { data: endpoints, isLoading: loadingEndpoints } = useQuery({
     queryKey: ['webhook-endpoints'],
@@ -186,11 +191,29 @@ export function DeveloperPage() {
     }
   };
 
+  /*
+   * Keys are stored hashed, so a secret shown once is gone. Rotating issues a
+   * new secret for the same key instead of forcing a delete-and-recreate — the
+   * way back for anyone who closed the dialog before copying.
+   */
+  const rotateKeyMutation = useMutation({
+    mutationFn: (id: string) => apikeyApi.rotate(id),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] });
+      setNewRawKey(data.raw_key);
+      setNewKeyName(data.key.name);
+      setShowKey(false);
+      toast.success('New key issued. The old one has stopped working.');
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to issue a new key'),
+  });
+
   const createKeyMutation = useMutation({
     mutationFn: () => apikeyApi.create({ name: keyName, rate_limit: keyRateLimit }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
       setNewRawKey(data.raw_key);
+      setNewKeyName(data.key.name);
       setKeyName('');
       setKeyRateLimit(100);
       toast.success('API key created');
@@ -467,6 +490,14 @@ export function DeveloperPage() {
 
           <div className="flex items-center justify-between">
             <p className="text-sm text-[var(--text-secondary)]">Manage API keys for headless access to Sincerely.</p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowConnectHelp((open) => !open)}
+                className="flex items-center gap-2 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                <Chrome className="h-4 w-4" />
+                Connect the Chrome extension
+              </button>
             <button
               onClick={() => setShowCreateKey(true)}
               className="flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-sm font-medium text-white hover:bg-[#4F46E5] transition-colors"
@@ -474,13 +505,91 @@ export function DeveloperPage() {
               <Plus className="h-4 w-4" />
               Create Key
             </button>
+            </div>
           </div>
+
+          {/* Written out in full because the alternative is a support thread.
+              The one-click route is first; the manual one exists because a key
+              can always be pasted, whatever the browser is doing. */}
+          {showConnectHelp && (
+            <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-2">
+                  <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--indigo)]" />
+                  <div>
+                    <h3 className="text-sm font-medium text-[var(--text-primary)]">
+                      Connecting the Chrome extension
+                    </h3>
+                    <p className="mt-0.5 text-sm text-[var(--text-secondary)]">
+                      An API key is a password the extension uses to prove it's you. You create it
+                      here — it isn't something you get from anywhere else.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowConnectHelp(false)}
+                  className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
+                <p className="text-sm font-medium text-[var(--text-primary)]">
+                  The easy way — nothing to copy
+                </p>
+                <ol className="mt-2 space-y-1.5 text-sm text-[var(--text-secondary)] list-decimal list-inside">
+                  <li>Make sure you're signed in to Sincerely in this tab.</li>
+                  <li>Click the Sincerely icon in your Chrome toolbar.</li>
+                  <li>
+                    Press <span className="font-medium text-[var(--text-primary)]">Connect using this tab</span>.
+                  </li>
+                </ol>
+                <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                  The extension creates its own key from your session and sets itself up. If the
+                  extension is installed, the <span className="font-medium text-[var(--text-primary)]">Connect
+                  extension</span> button above does the same thing from this side.
+                </p>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-[var(--text-primary)]">Or paste a key by hand</p>
+                <ol className="mt-2 space-y-1.5 text-sm text-[var(--text-secondary)] list-decimal list-inside">
+                  <li>
+                    Press <span className="font-medium text-[var(--text-primary)]">Create Key</span> above and
+                    give it a name like "Chrome extension".
+                  </li>
+                  <li>
+                    Use the <span className="font-medium text-[var(--text-primary)]">copy button</span> beside the
+                    key. Selecting the text copies the dots that hide it, which won't work.
+                  </li>
+                  <li>Right-click the extension icon in Chrome and choose Options.</li>
+                  <li>
+                    Open <span className="font-medium text-[var(--text-primary)]">Or paste a key by hand</span>,
+                    set the API URL to{' '}
+                    <code className="rounded bg-[var(--bg-elevated)] px-1 py-0.5 font-mono text-xs">{API_URL}</code>
+                    , paste the key, and press{' '}
+                    <span className="font-medium text-[var(--text-primary)]">Save &amp; test connection</span>.
+                  </li>
+                </ol>
+                <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                  A key is 72 characters starting <code className="rounded bg-[var(--bg-elevated)] px-1 py-0.5 font-mono text-xs">sk_live_</code>,
+                  and needs both read and write scopes (the default). If you closed the dialog before
+                  copying, press <span className="font-medium text-[var(--text-primary)]">New secret</span> on the
+                  key below rather than creating another.
+                </p>
+              </div>
+            </div>
+          )}
 
           {newRawKey && (
             <div className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-default)] p-4 space-y-2">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-[var(--indigo)]" />
-                <span className="text-sm font-medium text-[var(--text-primary)]">API key created. Copy it now - it will not be shown again.</span>
+                <span className="text-sm font-medium text-[var(--text-primary)]">
+                  {newKeyName ? `"${newKeyName}" is ready.` : 'API key ready.'} Copy it now — it is
+                  stored hashed and cannot be shown again.
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <code className={cn('flex-1 rounded bg-[var(--bg-elevated)] px-3 py-2 text-sm font-mono', showKey ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]')}>
@@ -500,9 +609,15 @@ export function DeveloperPage() {
                   <Copy className="h-4 w-4" />
                 </button>
               </div>
-              <button onClick={() => { setNewRawKey(null); setShowKey(false); }} className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
-                Dismiss
-              </button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => { setNewRawKey(null); setShowKey(false); setNewKeyName(''); }} className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
+                  Dismiss
+                </button>
+                <span className="text-xs text-[var(--text-tertiary)]">
+                  Lost it later? Use <span className="font-medium text-[var(--text-secondary)]">New secret</span> on
+                  the key below — no need to create another.
+                </span>
+              </div>
             </div>
           )}
 
@@ -574,6 +689,22 @@ export function DeveloperPage() {
                       <p className="text-[10px] text-[var(--text-tertiary)] mt-1">Last used {formatDateTime(key.last_used_at)}</p>
                     )}
                   </div>
+                  <button
+                    onClick={() => {
+                      if (
+                        confirm(
+                          `Issue a new secret for "${key.name}"?\n\nThe current one stops working immediately. Use this when the key was never copied, or may have leaked.`
+                        )
+                      ) {
+                        rotateKeyMutation.mutate(key.id);
+                      }
+                    }}
+                    disabled={rotateKeyMutation.isPending}
+                    className="p-1.5 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-xs flex items-center gap-1 disabled:opacity-50"
+                    title="The stored key is hashed and cannot be shown again — this issues a fresh one"
+                  >
+                    <RefreshCw className="h-3 w-3" /> New secret
+                  </button>
                   {key.is_active && (
                     <button
                       onClick={() => { if (confirm(`Revoke the API key "${key.name}"? Anything using it will stop working immediately.`)) revokeKeyMutation.mutate(key.id); }}
