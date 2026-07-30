@@ -14,7 +14,7 @@ const envSchema = z.object({
   CLIENT_URL: z.string().default('http://localhost:5173'),
   TRACKING_BASE_URL: z.string().default('http://localhost:3001'),
   TRACKING_SECRET: z.string().min(16),
-  ENCRYPTION_KEY: z.string().length(64),
+  ENCRYPTION_KEY: z.string().length(64).regex(/^[0-9a-f]{64}$/i, 'must be 64 hex characters'),
   // Accepts either the full endpoint or just the deployment origin — a bare
   // "https://app.vercel.app" is the single most common way this gets set, and
   // silently posting to the site root looks identical to a broken relay.

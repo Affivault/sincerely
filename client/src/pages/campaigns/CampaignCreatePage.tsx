@@ -495,11 +495,12 @@ export function CampaignCreatePage() {
   const [sendMode, setSendMode] = useState<'now' | 'schedule'>('now');
   const [scheduleAt, setScheduleAt] = useState('');
 
-  const saveCampaign = async (): Promise<string | null> => {
+  const saveCampaign = async (overrides: Partial<CreateCampaignInput> = {}): Promise<string | null> => {
     try {
+      const payload = { ...campaignForm, ...overrides };
       const campaign = isEdit
-        ? await campaignsApi.update(id!, campaignForm)
-        : await campaignsApi.create(campaignForm);
+        ? await campaignsApi.update(id!, payload)
+        : await campaignsApi.create(payload);
       const campaignId = isEdit ? id! : campaign.id;
 
       if (isEdit && existingCampaign?.steps) {
@@ -616,11 +617,12 @@ export function CampaignCreatePage() {
       }
       scheduledIso = when.toISOString();
     }
-    // Persist the start choice on the form so saveCampaign writes scheduled_at.
-    campaignForm.scheduled_at = scheduledIso;
+    // Passed as an explicit override (rather than mutating campaignForm
+    // directly) so a failed/cancelled schedule attempt never leaks a stale
+    // scheduled_at into a later, unrelated save (e.g. "Save draft").
     setLaunching(true);
     try {
-      const campaignId = await saveCampaign();
+      const campaignId = await saveCampaign({ scheduled_at: scheduledIso });
       if (!campaignId) { setLaunching(false); return; }
       await campaignsApi.launch(campaignId);
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });

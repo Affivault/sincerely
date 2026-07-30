@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, Send, Globe, ShieldOff, ShieldCheck, UserPlus,
@@ -9,6 +10,8 @@ import {
 import { cn } from '../lib/utils';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { useDebounce } from '../hooks/useDebounce';
+import { campaignsApi } from '../api/campaigns.api';
 
 interface CommandItem {
   id: string;
@@ -69,13 +72,35 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     { id: 'sign-out', label: 'Sign out', icon: LogOut, group: 'Actions', keywords: 'logout exit leave', run: () => { signOut(); onClose(); } },
   ], [theme, toggleTheme, signOut, onClose]);
 
+  // Jump straight to a specific campaign by name, not just the Campaigns list page.
+  const debouncedQuery = useDebounce(query, 200);
+  const trimmedDebounced = debouncedQuery.trim();
+  const { data: campaignResults } = useQuery({
+    queryKey: ['command-palette', 'campaigns', trimmedDebounced],
+    queryFn: () => campaignsApi.list({ search: trimmedDebounced, limit: 5 }),
+    enabled: open && trimmedDebounced.length >= 2,
+    staleTime: 30_000,
+  });
+
+  const campaignItems = useMemo<CommandItem[]>(() => {
+    if (trimmedDebounced.length < 2) return [];
+    return (campaignResults?.data ?? []).map((c) => ({
+      id: `campaign-${c.id}`,
+      label: c.name,
+      icon: Megaphone,
+      group: 'Campaigns',
+      href: `/campaigns/${c.id}`,
+    }));
+  }, [campaignResults, trimmedDebounced]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return items;
-    return items.filter((it) =>
+    const staticMatches = items.filter((it) =>
       `${it.label} ${it.group} ${it.keywords ?? ''}`.toLowerCase().includes(q)
     );
-  }, [items, query]);
+    return [...campaignItems, ...staticMatches];
+  }, [items, campaignItems, query]);
 
   // Group while preserving the flat order used for keyboard navigation
   const groups = useMemo(() => {
