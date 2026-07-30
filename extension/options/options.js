@@ -36,6 +36,7 @@ const el = {
   useProduction: document.getElementById('use-production'),
   useLocal: document.getElementById('use-local'),
   verifyBeforeAdd: document.getElementById('verify-before-add'),
+  autoOpenContactInfo: document.getElementById('auto-open-contact-info'),
   openApp: document.getElementById('open-app'),
 };
 
@@ -91,6 +92,7 @@ async function load() {
   el.verifyBeforeAdd.checked = Boolean(settings.verifyBeforeAdd);
   el.appUrl.value = settings.appUrl || '';
   el.showBadge.checked = Boolean(settings.showBadge);
+  el.autoOpenContactInfo.checked = Boolean(settings.autoOpenContactInfo);
   el.autoTag.checked = Boolean(settings.autoTag);
   el.autoTagName.value = settings.autoTagName || '';
   el.autoTagName.disabled = !settings.autoTag;
@@ -282,6 +284,9 @@ el.showBadge.addEventListener('change', () => {
 });
 el.verifyBeforeAdd.addEventListener('change', () => {
   setSettings({ verifyBeforeAdd: el.verifyBeforeAdd.checked });
+});
+el.autoOpenContactInfo.addEventListener('change', () => {
+  setSettings({ autoOpenContactInfo: el.autoOpenContactInfo.checked });
 });
 el.theme.addEventListener('change', () => {
   setThemeMode(/** @type {'light'|'dark'|'system'} */ (el.theme.value));

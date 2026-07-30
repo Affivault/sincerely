@@ -264,37 +264,79 @@
     });
   }
 
-  /** The "Contact info" control on a profile, however LinkedIn has labelled it. */
-  function contactInfoTrigger() {
-    return (
-      document.getElementById('top-card-text-details-contact-info') ||
-      document.querySelector('a[href*="/overlay/contact-info"]') ||
-      [...document.querySelectorAll('main a, main button')].find((node) =>
-        /^\s*contact info\s*$/i.test(node.textContent || '')
-      ) ||
-      null
-    );
+  /**
+   * The one element it is safe to click: the profile's own Contact info link.
+   *
+   * Deliberately narrow. An earlier version also matched any `<button>` in
+   * `main` whose text read "Contact info", which on a real profile picks up the
+   * wrong control — LinkedIn's buttons carry nested visually-hidden text, the
+   * label is translated on non-English accounts, and a near-miss means clicking
+   * Message or Connect on somebody's profile. Clicking the wrong thing on a
+   * page the user is only looking at is far worse than finding no address, so
+   * the rule is: an anchor whose href is this profile's contact-info overlay,
+   * or nothing at all.
+   *
+   * @param {string} publicId
+   * @returns {HTMLAnchorElement|null}
+   */
+  function contactInfoTrigger(publicId) {
+    const anchors = [...document.querySelectorAll('a[href*="/overlay/contact-info"]')];
+    const mine = anchors.filter((anchor) => {
+      const href = anchor.getAttribute('href') || '';
+      // "People also viewed" and similar carry other people's overlay links.
+      // Only this profile's slug is ours to open.
+      const slug = href.match(/\/in\/([^/?#]+)/);
+      return !slug || decodeURIComponent(slug[1]) === publicId;
+    });
+    // The top card's link is the canonical one where several match.
+    return mine.find((anchor) => anchor.closest('main')) || mine[0] || null;
   }
 
   /**
-   * Open the Contact info dialog, read it, and put the page back.
+   * Is this dialog the contact-info one, rather than something else that
+   * happened to open?
    *
-   * This is the path that actually works, and it is first for that reason.
-   * LinkedIn's internal API endpoints move and get locked down; its own UI
-   * cannot, because that is what the user clicks. Driving that UI does exactly
-   * what the user would do by hand — the extension has no more access than they
-   * do — and produces the address on a profile they are merely looking at,
-   * which is the whole point.
+   * Checked before reading and before dismissing. Without it, a message
+   * composer or a cookie notice that appeared at the wrong moment would be
+   * scraped for addresses and then closed on the user's behalf.
    *
-   * The dialog is hidden while it is open, so the page doesn't flash. The style
-   * is removed in a `finally`, so a throw can't leave LinkedIn's modals
-   * invisible for the rest of the session.
+   * @param {Element} dialog
+   */
+  function looksLikeContactInfo(dialog) {
+    if (dialog.querySelector('.pv-contact-info, [class*="contact-info" i]')) return true;
+    if (dialog.querySelector('a[href^="mailto:"]')) return true;
+    const heading = dialog.querySelector('h1, h2, [role="heading"]');
+    return /contact\s*info/i.test(heading?.textContent || '');
+  }
+
+  /** True while we are driving LinkedIn's UI, so other watchers stay out of it. */
+  let overlayBusy = false;
+
+  /**
+   * Open the profile's Contact info dialog, read it, and put the page back.
    *
+   * This is the route that actually works. LinkedIn's internal API endpoints
+   * move and get locked down; its own UI cannot, because that is what the user
+   * clicks. Driving it does exactly what they would do by hand — the extension
+   * sees no more than they would — and produces the address on a profile they
+   * are merely looking at, which is the whole point.
+   *
+   * Everything here is written to fail closed. It clicks one specific anchor or
+   * nothing; it only accepts a dialog that appeared *after* that click and
+   * looks like contact info; it dismisses only within that dialog; and the
+   * hiding stylesheet is removed in a `finally`, so a throw can't leave
+   * LinkedIn's own modals invisible for the rest of the session.
+   *
+   * @param {string} publicId
    * @returns {Promise<string[]>}
    */
-  async function readContactInfoOverlay() {
-    const trigger = contactInfoTrigger();
+  async function readContactInfoOverlay(publicId) {
+    const trigger = contactInfoTrigger(publicId);
     if (!trigger) return [];
+
+    // Anything already open is the page's own business — never ours to read or
+    // to close. Only a dialog that wasn't here before the click counts.
+    const before = new Set(document.querySelectorAll('[role="dialog"], .artdeco-modal'));
 
     const wasAt = location.href;
     const style = document.createElement('style');
@@ -304,15 +346,25 @@
     style.textContent =
       '.artdeco-modal-overlay,.artdeco-modal,[role="dialog"]{opacity:0!important;pointer-events:none!important;}';
     document.head.appendChild(style);
+    overlayBusy = true;
+
+    /** Close only what we opened, and only from inside it. */
+    const dismiss = (dialog) => {
+      const button =
+        dialog.querySelector('.artdeco-modal__dismiss') ||
+        dialog.querySelector('button[aria-label*="dismiss" i], button[aria-label*="close" i]');
+      if (button) button.click();
+      else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+    };
 
     try {
       trigger.click();
 
       const modal = await waitFor(
         () =>
-          document.querySelector('.pv-contact-info') ||
-          document.querySelector('.artdeco-modal[role="dialog"]') ||
-          document.querySelector('[role="dialog"]'),
+          [...document.querySelectorAll('[role="dialog"], .artdeco-modal')].find(
+            (node) => !before.has(node)
+          ),
         4000
       );
       if (!modal) return [];
@@ -322,6 +374,12 @@
         () => modal.querySelector('a[href^="mailto:"]') || EMAIL_TEST.test(modal.textContent || ''),
         3000
       );
+
+      if (!looksLikeContactInfo(modal)) {
+        // Something else opened. Put it back and take nothing from it.
+        dismiss(modal);
+        return [];
+      }
 
       const found = new Set();
       for (const link of modal.querySelectorAll('a[href^="mailto:"]')) {
@@ -342,18 +400,8 @@
         }
       }
 
-      // Put it back the way we found it, by LinkedIn's own dismiss where there
-      // is one, then Escape, then history as a last resort.
-      const dismiss = modal.closest('.artdeco-modal')?.querySelector('.artdeco-modal__dismiss') ||
-        document.querySelector('button[aria-label*="Dismiss" i]');
-      if (dismiss) {
-        dismiss.click();
-      } else {
-        document.dispatchEvent(
-          new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true })
-        );
-      }
-      await waitFor(() => !document.querySelector('[role="dialog"]'), 1500);
+      dismiss(modal);
+      await waitFor(() => !modal.isConnected, 1500);
 
       /*
        * Dismissing usually pops the history entry LinkedIn pushed, but
@@ -374,78 +422,106 @@
       return [];
     } finally {
       style.remove();
+      overlayBusy = false;
     }
   }
 
   async function linkedInContactInfo(publicId) {
+    /*
+     * The cache holds the in-flight promise, not just the finished value, and
+     * that is the point. The panel, the popup and the DOM watcher all scrape
+     * the same page, often within the same second; without this each one opens
+     * the dialog again, which on a real profile is the difference between one
+     * quiet click and the page visibly thrashing. Failures are cached too — a
+     * profile with no contact-info link must be asked once, not on every
+     * mutation.
+     */
     if (contactInfoCache.has(publicId)) return contactInfoCache.get(publicId);
 
-    const result = { emails: [], websites: [] };
+    const run = (async () => {
+      const result = { emails: [], websites: [] };
 
-    // The reliable route first. Anything else costs seconds of network waiting
-    // before the thing that was going to work anyway.
-    result.emails = await readContactInfoOverlay();
-    if (result.emails.length > 0) {
-      contactInfoCache.set(publicId, result);
-      return result;
-    }
+      // Nothing to open if the address is already on the page — the user may
+      // have opened the dialog themselves, or LinkedIn may have inlined it.
+      const visible = collectEmails();
+      if (visible.length > 0) {
+        result.emails = visible;
+        return result;
+      }
 
-    const token = linkedInCsrfToken();
+      // Opening a dialog on someone's page is the one thing here that touches
+      // LinkedIn's UI, so it is switchable — off means the API routes below
+      // still run, they are just less likely to find anything.
+      const { autoOpenContactInfo = true } = await chrome.storage.local
+        .get({ autoOpenContactInfo: true })
+        .catch(() => ({ autoOpenContactInfo: true }));
 
-    if (token) {
-      try {
-        const response = await fetchWithTimeout(
-          `${location.origin}/voyager/api/identity/profiles/${encodeURIComponent(publicId)}/profileContactInfo`,
-          {
-            credentials: 'include',
-            headers: {
-              accept: 'application/vnd.linkedin.normalized+json+2.1',
-              'csrf-token': token,
-              'x-restli-protocol-version': '2.0.0',
+      if (autoOpenContactInfo) {
+        // The reliable route first. Anything else costs seconds of network
+        // waiting before the thing that was going to work anyway.
+        result.emails = await readContactInfoOverlay(publicId);
+        if (result.emails.length > 0) return result;
+      }
+
+      const token = linkedInCsrfToken();
+
+      if (token) {
+        try {
+          const response = await fetchWithTimeout(
+            `${location.origin}/voyager/api/identity/profiles/${encodeURIComponent(publicId)}/profileContactInfo`,
+            {
+              credentials: 'include',
+              headers: {
+                accept: 'application/vnd.linkedin.normalized+json+2.1',
+                'csrf-token': token,
+                'x-restli-protocol-version': '2.0.0',
+              },
             },
-          },
-          4000
-        );
-        if (response.ok) {
-          const body = await response.json();
-          result.emails = [...emailsInJson(body)];
-          result.websites = [...websitesInJson(body)];
-        }
-      } catch {
-        // Signed out, endpoint moved, or offline — route 2 gets a turn.
-      }
-    }
-
-    if (result.emails.length === 0) {
-      try {
-        const response = await fetchWithTimeout(
-          `${location.origin}/in/${encodeURIComponent(publicId)}/overlay/contact-info/`,
-          { credentials: 'include', headers: { accept: 'text/html' } },
-          4000
-        );
-        if (response.ok) {
-          const html = await response.text();
-          const found = new Set();
-          // The addresses arrive inside embedded JSON, so entity-decode first;
-          // an unescaped &#64; would otherwise hide one.
-          const decoded = html
-            .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
-            .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
-            .replace(/&amp;/g, '&');
-          for (const match of decoded.match(EMAIL_PATTERN) || []) {
-            const email = match.toLowerCase();
-            if (isPlausibleEmail(email)) found.add(email);
-            if (found.size > 5) break;
+            4000
+          );
+          if (response.ok) {
+            const body = await response.json();
+            result.emails = [...emailsInJson(body)];
+            result.websites = [...websitesInJson(body)];
           }
-          result.emails = [...found];
+        } catch {
+          // Signed out, endpoint moved, or offline — route 2 gets a turn.
         }
-      } catch {
-        // Nothing more to try; the DOM scrape below still applies.
       }
-    }
 
-    contactInfoCache.set(publicId, result);
-    return result;
+      if (result.emails.length === 0) {
+        try {
+          const response = await fetchWithTimeout(
+            `${location.origin}/in/${encodeURIComponent(publicId)}/overlay/contact-info/`,
+            { credentials: 'include', headers: { accept: 'text/html' } },
+            4000
+          );
+          if (response.ok) {
+            const html = await response.text();
+            const found = new Set();
+            // The addresses arrive inside embedded JSON, so entity-decode first;
+            // an unescaped &#64; would otherwise hide one.
+            const decoded = html
+              .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+              .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
+              .replace(/&amp;/g, '&');
+            for (const match of decoded.match(EMAIL_PATTERN) || []) {
+              const email = match.toLowerCase();
+              if (isPlausibleEmail(email)) found.add(email);
+              if (found.size > 5) break;
+            }
+            result.emails = [...found];
+          }
+        } catch {
+          // Nothing more to try; the DOM scrape below still applies.
+        }
+      }
+
+      return result;
+    })();
+
+    contactInfoCache.set(publicId, run);
+    return run;
   }
 
   /**
@@ -723,6 +799,9 @@
 
   // Published for the other content scripts on this page.
   sincerely.scrape = scrape;
+  // The panel's DOM watcher consults this: our own dialog mutates the page, and
+  // re-scraping on those mutations would drive it round in circles.
+  sincerely.isOverlayBusy = () => overlayBusy;
   sincerely.splitName = splitName;
   sincerely.isPlausibleEmail = isPlausibleEmail;
   sincerely.collectEmails = collectEmails;

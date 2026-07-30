@@ -6,7 +6,7 @@
  * a credential should stay on the machine it was entered on.
  */
 
-/** @typedef {{apiBaseUrl: string, apiKey: string, lastListId: string|null, verifyBeforeAdd: boolean, autoTag: boolean, autoTagName: string, appUrl: string, showBadge: boolean}} Settings */
+/** @typedef {{apiBaseUrl: string, apiKey: string, lastListId: string|null, verifyBeforeAdd: boolean, autoTag: boolean, autoTagName: string, appUrl: string, showBadge: boolean, autoOpenContactInfo: boolean}} Settings */
 
 /**
  * The live API. Keep this in step with the deployment's VITE_API_URL — it is
@@ -32,6 +32,12 @@ const DEFAULTS = {
   appUrl: DEFAULT_APP_URL,
   /** Mark the toolbar icon when the current tab's person is already known. */
   showBadge: true,
+  /**
+   * Open LinkedIn's own Contact info dialog to read the address, rather than
+   * waiting for the user to click it. The only behaviour that touches
+   * LinkedIn's UI, so it can be turned off.
+   */
+  autoOpenContactInfo: true,
 };
 
 /**

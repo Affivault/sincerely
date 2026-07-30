@@ -825,6 +825,10 @@
   let rescanTimer = null;
   const watcher = new MutationObserver(() => {
     if (state.loading || state.person?.email) return;
+    // The scraper opening LinkedIn's own dialog mutates the page. Reacting to
+    // that would ask it to scrape again mid-flight, which is how one quiet
+    // click becomes a loop.
+    if (sincerely.isOverlayBusy?.()) return;
     clearTimeout(rescanTimer);
     rescanTimer = setTimeout(async () => {
       if (state.person?.email || !sincerely.scrape) return;
