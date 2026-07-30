@@ -28,7 +28,17 @@ export interface DcsVerificationResult {
   email: string;
   syntax_ok: boolean;
   domain_ok: boolean;
+  /** Not known to be bad. Only evidence when `smtp_checked` is also true. */
   smtp_ok: boolean;
+  /**
+   * A mail server actually gave a verdict.
+   *
+   * False when nothing could be established — outbound port 25 blocked by the
+   * host, a server that timed out, or a greylisting reply. The score credits the
+   * SMTP layer only when this is true, so an unrun check caps the total at 60
+   * instead of reading as a clean 100.
+   */
+  smtp_checked: boolean;
   score: number;
   fail_reason: string | null;
 }

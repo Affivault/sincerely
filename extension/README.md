@@ -253,16 +253,44 @@ address, in descending order of what the answer is worth:
    file and her name is Jane Doe, the convention is `first.last` and every other
    guess at acme.com follows from it. Free, instant, and better than a heuristic.
 2. **The mail server.** `RCPT TO` is the only way to *prove* a mailbox exists.
-   Done strictly, unlike `/verification/email`, which assumes valid on ambiguity
-   — right for an address a human typed, useless for sifting a dozen guesses
-   because everything would come back valid.
+   Done strictly here, so ambiguity is never scored as a pass.
 3. **Which conventions are common**, as a last resort, reported as a guess.
 
 A random local part is probed first: a domain that accepts it accepts anything,
-so no address there can be confirmed, and that's said rather than hidden. Same
-for a host that blocks outbound port 25 — **most PaaS hosts do, Render
-included**, so in production expect `smtp_checked: false` and unverified guesses
-unless port 25 is open.
+so no address there can be confirmed, and that's said rather than hidden.
+
+### Outbound port 25, and why verification may not run
+
+**Render blocks outbound connections on port 25, and there is no setting to
+change it.** So do Heroku, Fly, Vercel and App Engine — it is how a platform
+stops itself being used to send spam, not a misconfiguration on the account.
+Nothing in this repo can open it.
+
+That leaves three real options, and it's a business decision, not a technical
+one:
+
+| Option | What it costs | What you get |
+| --- | --- | --- |
+| Leave it | Nothing | Convention-based addresses at 45–70% confidence, honestly labelled. The pattern learned from your own contacts at a domain is the strongest signal, and it needs no network at all |
+| A verification API (ZeroBounce, NeverBounce, Bouncer, …) | Per-address, typically $0.003–0.01 | Real mailbox verification, from a provider whose whole business is keeping port 25 open and their IPs trusted |
+| Move the API to a VPS with port 25 open, or run a small probe service on one | A few dollars a month, plus IP reputation to manage | Verification in-house; the probing IP has to stay off blocklists or answers get worse over time |
+
+The recommendation is a verification API if this matters commercially: running
+your own prober well is a reputation-management job, not a coding one.
+
+`smtp-reachability.service.ts` makes the current state visible and cheap rather
+than pretending. Three failed connections in a row and it stops dialling for 15
+minutes, so a batch of ten answers immediately instead of stalling 10s each. One
+success clears it, so opening the port — or moving host — starts working without
+a restart. `GET /verification/stats` reports it, and the Verification page shows
+a banner when checks aren't running.
+
+**This also fixed a real bug.** `verification.service.ts` treated an unreachable
+mail server as "assumed valid" and awarded the SMTP layer full marks, so on
+Render every address with an MX record scored **100/100** and the deliverability
+score meant nothing. An unrun check now scores nothing and caps the total at 60.
+Any score recorded before this was measured, not proven — re-verify anything
+you're relying on.
 
 **Every result carries a confidence and a reason, and the UI shows both.** 90+
 means a mail server accepted the exact address. Under 60 is a convention guess.

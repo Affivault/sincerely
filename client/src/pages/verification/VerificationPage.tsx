@@ -6,12 +6,18 @@ import { Spinner } from '../../components/ui/Spinner';
 import {
   ShieldCheck, ShieldX, CheckCircle2, XCircle, Loader2,
   Search, Zap, ArrowRight, Sparkles, Globe, Mail, FileCheck2,
+  MinusCircle, AlertTriangle,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import type { DcsVerificationResult } from '@lemlist/shared';
 
-type Stage = 'idle' | 'pending' | 'pass' | 'fail';
+/**
+ * 'skipped' is not a pass and not a failure: no mail server gave a verdict, so
+ * nothing about the mailbox was established. Showing it as a tick was how a
+ * blocked port 25 turned into a page full of green.
+ */
+type Stage = 'idle' | 'pending' | 'pass' | 'fail' | 'skipped';
 
 function StageCell({ icon: Icon, label, state }: { icon: any; label: string; state: Stage }) {
   return (
@@ -23,6 +29,7 @@ function StageCell({ icon: Icon, label, state }: { icon: any; label: string; sta
           state === 'pending' && 'bg-[#5B5BF5]/10 border-[#5B5BF5]/40 text-[var(--indigo)]',
           state === 'pass' && 'bg-emerald-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400',
           state === 'fail' && 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400',
+          state === 'skipped' && 'bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-tertiary)]',
         )}
       >
         {state === 'pending' ? (
@@ -31,6 +38,8 @@ function StageCell({ icon: Icon, label, state }: { icon: any; label: string; sta
           <CheckCircle2 className="h-3.5 w-3.5" />
         ) : state === 'fail' ? (
           <XCircle className="h-3.5 w-3.5" />
+        ) : state === 'skipped' ? (
+          <MinusCircle className="h-3.5 w-3.5" />
         ) : (
           <Icon className="h-3.5 w-3.5" />
         )}
@@ -131,7 +140,15 @@ export function VerificationPage() {
   const isPending = verifyMut.isPending;
   const syntaxState: Stage = isPending ? 'pending' : lastResult ? (lastResult.syntax_ok ? 'pass' : 'fail') : 'idle';
   const dnsState: Stage = isPending ? 'pending' : lastResult ? (lastResult.domain_ok ? 'pass' : 'fail') : 'idle';
-  const smtpState: Stage = isPending ? 'pending' : lastResult ? (lastResult.smtp_ok ? 'pass' : 'fail') : 'idle';
+  const smtpState: Stage = isPending
+    ? 'pending'
+    : lastResult
+      ? !lastResult.smtp_checked
+        ? 'skipped'
+        : lastResult.smtp_ok
+          ? 'pass'
+          : 'fail'
+      : 'idle';
 
   const verifiedPct = stats && stats.total > 0 ? Math.round((stats.verified / stats.total) * 100) : 0;
   const avgScore = Math.round(stats?.avg_score || 0);
@@ -139,6 +156,22 @@ export function VerificationPage() {
   return (
     <SettingsShell>
     <div className="space-y-5">
+      {/* Said once, plainly: without outbound port 25 the mailbox check cannot
+          run, and a score of 60 is the ceiling. Better here than left to be
+          inferred from a column of identical numbers. */}
+      {stats?.smtp?.available === false && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="text-[13px] leading-relaxed text-[var(--text-secondary)]">
+            <span className="font-medium text-[var(--text-primary)]">
+              Mailbox checks are not running on this server.
+            </span>{' '}
+            {stats.smtp.last_reason} Scores above 60 are only possible once a mail server can be
+            reached, so anything recorded at 100 before this was measured, not proven.
+          </div>
+        </div>
+      )}
+
       {/* ── Hero command bar with live pipeline ──────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)]">
         <div className="absolute inset-0 bg-[var(--indigo-subtle)] opacity-40 pointer-events-none" />
@@ -337,8 +370,25 @@ export function VerificationPage() {
                         {r.domain_ok ? <CheckCircle2 className="h-2.5 w-2.5" /> : <XCircle className="h-2.5 w-2.5" />} DNS
                       </span>
                       <ArrowRight className="h-2.5 w-2.5" />
-                      <span className={cn('flex items-center gap-0.5', r.smtp_ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500')}>
-                        {r.smtp_ok ? <CheckCircle2 className="h-2.5 w-2.5" /> : <XCircle className="h-2.5 w-2.5" />} SMTP
+                      <span
+                        className={cn(
+                          'flex items-center gap-0.5',
+                          !r.smtp_checked
+                            ? 'text-[var(--text-tertiary)]'
+                            : r.smtp_ok
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-rose-500'
+                        )}
+                        title={!r.smtp_checked ? r.fail_reason || 'The mailbox could not be checked' : undefined}
+                      >
+                        {!r.smtp_checked ? (
+                          <MinusCircle className="h-2.5 w-2.5" />
+                        ) : r.smtp_ok ? (
+                          <CheckCircle2 className="h-2.5 w-2.5" />
+                        ) : (
+                          <XCircle className="h-2.5 w-2.5" />
+                        )}{' '}
+                        SMTP
                       </span>
                     </div>
                   </div>

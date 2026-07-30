@@ -29,6 +29,13 @@ export const verificationApi = {
       unverified: number;
       avg_score: number;
       score_distribution: { range: string; count: number }[];
+      /** Whether this server can reach mail servers at all; null until tried. */
+      smtp: {
+        available: boolean | null;
+        consecutive_failures: number;
+        last_reason: string;
+        retry_after_seconds: number | null;
+      };
     }>('/verification/stats');
     return data;
   },
