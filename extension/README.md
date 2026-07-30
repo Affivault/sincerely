@@ -224,18 +224,42 @@ would.
 
 Three layers, in the order they're tried:
 
-1. **The Contact info dialog**, opened and dismissed programmatically. Fast, and
-   correct by construction.
+1. **The Contact info dialog**, opened and dismissed programmatically.
 2. `/voyager/api/identity/profiles/<slug>/profileContactInfo` — the endpoint the
-   dialog itself calls, authenticated with the `JSESSIONID` cookie as the
-   `csrf-token` header. Used when no dialog trigger is on the page.
+   dialog itself calls, with the `JSESSIONID` cookie as the `csrf-token` header.
+   Used when no dialog link is on the page.
 3. `/in/<slug>/overlay/contact-info/` — the dialog's own URL, scanned for
    addresses.
 
-The undocumented endpoints are the fallbacks rather than the primary route
-precisely because they move; the UI cannot. Results are cached per profile for
-the life of the page, and every failure falls silently through to the next
-layer.
+The undocumented endpoints are fallbacks rather than the primary route precisely
+because they move; the UI cannot.
+
+**It only ever clicks one element: an anchor whose href is this profile's
+contact-info overlay.** An earlier version also matched any button in `main`
+whose text read "Contact info", which on a real profile hits the wrong control —
+LinkedIn's buttons carry nested visually-hidden text, the label is translated on
+non-English accounts, and a near-miss means clicking Message or Connect on
+somebody's profile. Clicking the wrong thing on a page the user is only looking
+at is far worse than finding no address, so it is that one anchor or nothing.
+The slug in the href must match the current profile, which rules out the
+contact-info links belonging to "People also viewed".
+
+Everything else fails closed too:
+
+- Dialogs open **before** the click are the page's own business — never read,
+  never dismissed. Only one that appears afterwards counts.
+- That dialog is checked to actually be contact info (a `pv-contact-info`
+  element, a `mailto:` link, or a matching heading) before anything is read from
+  it. If something else opened, it is closed again and nothing is taken.
+- Dismissal is scoped to that dialog. An earlier version fell back to
+  `document.querySelector('button[aria-label*="Dismiss"]')`, which could close
+  an unrelated LinkedIn dialog.
+- The result — including failure — is cached per profile as an in-flight
+  promise, so the panel, the popup and the DOM watcher share one run. Without
+  that they each open the dialog, and the watcher reacts to the mutations the
+  dialog itself causes, which is a loop.
+- **Preferences → "Read LinkedIn's Contact info without clicking"** turns it off.
+  The API routes still run; they are just less likely to find anything.
 
 Restoring the page is more delicate than it looks. `history.back()` is
 asynchronous, so checking the URL immediately after dismissing and "helpfully"
