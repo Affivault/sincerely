@@ -29,11 +29,40 @@ upload, so it's deliberately left out.
 
 ## Connect it
 
-**Mint an API key.** In the Sincerely web app, go to **Developer → API keys** →
-**Create Key**. It needs both `read` and `write` scopes (the default). The raw
-key is shown **once** and stored hashed, so copy it there and then.
+### One click, nothing to copy
 
-**Point the extension at your API.** On the options page:
+An API key isn't something you already have from somewhere else — it's a
+password the extension uses to prove it's you, created inside your own Sincerely
+account. So the extension creates it for you:
+
+1. Open the extension's options page and press **Open Sincerely**.
+2. In the app, go to **Webhooks** in the sidebar, then the **API keys** tab.
+3. Press **Connect extension**.
+
+The app mints a `read`+`write` key named `Chrome extension (<date>)`, hands it
+straight to the extension, and the options page confirms the connection by
+itself. Nothing is shown, copied or typed.
+
+How it works: `content/connect.js` runs on the app's own pages and relays the
+key over `window.postMessage`, accepting messages only from the page's own
+window (never an iframe or another origin) and only if the key matches
+`sk_live_` plus 64 hex. `chrome.runtime` messaging isn't used because it needs
+the extension's ID, and an unpacked extension's ID changes with its folder.
+
+The manifest declares the relay for `usesincerely.com`, `www.usesincerely.com`
+and `localhost:5173`. For any other app URL, set **Web app URL** on the options
+page first — **Open Sincerely** then asks Chrome for that origin and registers
+the relay there at runtime.
+
+### Or paste a key by hand
+
+**Mint an API key.** In the Sincerely web app, go to **Webhooks → API keys** →
+**Create Key**. It needs both `read` and `write` scopes (the default). The raw
+key is shown **once** and stored hashed, so use the **copy button** beside it
+there and then — selecting the text copies the dots that mask it.
+
+**Point the extension at your API.** On the options page, expand **Or paste a
+key by hand**:
 
 | Environment | API URL |
 | --- | --- |
@@ -60,9 +89,11 @@ it can tell you which:
 - **"looks truncated"** — a partial copy. A full key is exactly 72 characters:
   `sk_live_` plus 64 hex.
 - **Rejected by the server** — the message names the prefix being sent. Compare
-  it with the list on your Developer page. If it isn't there or shows Revoked,
-  make a new one. If it is there and active, check the API URL points at the
-  same environment the key was created in.
+  it with the list on **Webhooks → API keys**. If it isn't there or shows
+  Revoked, make a new one. If it is there and active, check the API URL points
+  at the same environment the key was created in.
+
+All three go away if you use **Connect extension** instead of pasting.
 
 ### If your API is on a free hosting tier
 
@@ -246,6 +277,9 @@ lib/theme.css          Design system, ported from client/src/index.css
 lib/theme.js           Light/dark/system resolution, mirroring ThemeContext
 fonts/                 Inter + JetBrains Mono (bundled, never fetched)
 content/scraper.js     Classic script: LinkedIn/Gmail/generic adapters, floating button
+content/panel.js       In-page side panel on LinkedIn and Gmail
+content/list-select.js Row checkboxes + bulk bar on search results
+content/connect.js     Runs on the app's own pages; relays a key on one-click connect
 popup/                 Main UI
 options/               Setup + connection test
 ```

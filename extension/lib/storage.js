@@ -87,6 +87,74 @@ export async function clearApiKey() {
   await chrome.storage.local.remove('apiKey');
 }
 
+/** ID for the dynamically registered copy of content/connect.js. */
+export const CONNECT_SCRIPT_ID = 'sincerely-connect';
+
+/** App origins content/connect.js is already declared for in the manifest. */
+const DECLARED_APP_ORIGINS = [
+  'https://usesincerely.com',
+  'https://www.usesincerely.com',
+  'http://localhost:5173',
+];
+
+/**
+ * Match pattern for running the connect relay on the user's web app, or null
+ * when the manifest already covers it.
+ *
+ * @param {string} appUrl
+ * @returns {string|null}
+ */
+export function connectPatternFor(appUrl) {
+  let origin;
+  try {
+    origin = new URL(appUrl).origin;
+  } catch {
+    return null;
+  }
+  if (DECLARED_APP_ORIGINS.includes(origin)) return null;
+  return `${origin}/*`;
+}
+
+/**
+ * Make one-click connect work on a self-hosted app URL.
+ *
+ * The manifest can only name origins known at build time, so an app on any
+ * other domain needs content/connect.js registered at runtime. Registration is
+ * skipped unless Chrome has actually granted the origin — registering a match
+ * the extension has no access to throws.
+ *
+ * @param {string} appUrl
+ * @returns {Promise<boolean>} Whether the relay is now in place for that origin.
+ */
+export async function ensureConnectScript(appUrl) {
+  const pattern = connectPatternFor(appUrl);
+  // Covered by the manifest: nothing to register, and it already works.
+  if (!pattern) return true;
+
+  const allowed = await chrome.permissions.contains({ origins: [pattern] }).catch(() => false);
+  if (!allowed) return false;
+
+  /** @type {chrome.scripting.RegisteredContentScript} */
+  const spec = {
+    id: CONNECT_SCRIPT_ID,
+    matches: [pattern],
+    js: ['content/connect.js'],
+    runAt: 'document_idle',
+    persistAcrossSessions: true,
+  };
+
+  try {
+    const existing = await chrome.scripting
+      .getRegisteredContentScripts({ ids: [CONNECT_SCRIPT_ID] })
+      .catch(() => []);
+    if (existing.length) await chrome.scripting.updateContentScripts([spec]);
+    else await chrome.scripting.registerContentScripts([spec]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The origin the API base URL points at, in the pattern form
  * chrome.permissions wants (e.g. "https://api.example.com/*").

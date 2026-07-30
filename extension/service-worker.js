@@ -12,7 +12,13 @@
 
 import * as api from './lib/api.js';
 import { ApiError } from './lib/api.js';
-import { getSettings, setSettings } from './lib/storage.js';
+import {
+  ensureConnectScript,
+  getSettings,
+  normaliseBaseUrl,
+  originPatternFor,
+  setSettings,
+} from './lib/storage.js';
 import { CANDIDATE_PATHS, extractFromHtml, promisingLinks, rankResults } from './lib/harvest.js';
 
 const MENU_ROOT = 'sincerely-root';
@@ -1335,6 +1341,66 @@ async function handleTestConnection() {
   }
 }
 
+/**
+ * Accept a key handed over by the web app's "Connect extension" button.
+ *
+ * Everything the options page would do on a manual paste happens here instead:
+ * shape check, store, host-permission check, connection test. The page that sent
+ * the key gets a plain result back so it can say what actually happened rather
+ * than "sent, hopefully".
+ *
+ * A missing host permission is reported rather than requested:
+ * chrome.permissions.request needs a user gesture in an extension page, which a
+ * message from a content script isn't. The key is still saved, so the options
+ * page's Save button can finish the job in one click.
+ *
+ * @param {{apiKey: string, apiBaseUrl?: string, appUrl?: string}} payload
+ */
+async function handleConnectApply(payload) {
+  try {
+    const apiKey = String(payload.apiKey || '').trim();
+    if (!/^sk_live_[0-9a-f]{64}$/i.test(apiKey)) {
+      throw new ApiError(
+        'That key is not the right shape — it should be "sk_live_" followed by 64 hex characters.',
+        { code: 'BAD_KEY_SHAPE' }
+      );
+    }
+
+    /** @type {Record<string, string>} */
+    const patch = { apiKey };
+    // Only override the API URL when the app actually sent one; normalising an
+    // empty string would silently reset a working self-hosted setup to the
+    // default host.
+    if (/^https?:\/\//i.test(String(payload.apiBaseUrl || ''))) {
+      patch.apiBaseUrl = normaliseBaseUrl(payload.apiBaseUrl);
+    }
+    if (/^https?:\/\//i.test(String(payload.appUrl || ''))) {
+      patch.appUrl = String(payload.appUrl).replace(/\/+$/, '');
+    }
+
+    const settings = await setSettings(patch);
+
+    const pattern = originPatternFor(settings.apiBaseUrl);
+    if (pattern) {
+      const allowed = await chrome.permissions.contains({ origins: [pattern] }).catch(() => false);
+      if (!allowed) {
+        // Saved, but not usable yet — and the fix needs a click in the options
+        // page, so send the user there with the reason.
+        return {
+          ok: true,
+          data: { saved: true, needsPermission: new URL(settings.apiBaseUrl).origin },
+        };
+      }
+    }
+
+    const result = await api.testConnection();
+    await refreshBadge();
+    return { ok: true, data: { saved: true, ...result } };
+  } catch (err) {
+    return toErrorPayload(err);
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Message routing                                                    */
 /* ------------------------------------------------------------------ */
@@ -1356,6 +1422,7 @@ const HANDLERS = {
   BULK_ENROL_PROFILES: handleBulkEnrolProfiles,
   SUPPRESS_PERSON: handleSuppress,
   TEST_CONNECTION: handleTestConnection,
+  CONNECT_APPLY: handleConnectApply,
 };
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -1374,9 +1441,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 /* Lifecycle                                                          */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Keep the one-click connect relay registered for whatever app URL is
+ * configured. The manifest covers the hosted app and the dev server; a
+ * self-hosted or staging domain is only known at runtime, and a registration
+ * can be lost if the extension is reloaded from disk.
+ */
+async function syncConnectScript() {
+  const { appUrl } = await getSettings();
+  if (appUrl) await ensureConnectScript(appUrl);
+}
+
 chrome.runtime.onInstalled.addListener(async (details) => {
   await rebuildContextMenus();
   await refreshBadge();
+  await syncConnectScript();
 
   // First run: send them straight to setup, since nothing works without a key.
   if (details.reason === 'install') {
@@ -1387,12 +1466,14 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 chrome.runtime.onStartup.addListener(async () => {
   await rebuildContextMenus();
   await refreshBadge();
+  await syncConnectScript();
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== 'local') return;
   if (changes.apiKey) refreshBadge();
   if (changes.lastCampaignId) rebuildContextMenus();
+  if (changes.appUrl?.newValue) ensureConnectScript(changes.appUrl.newValue);
 });
 
 // Badge the tab the user is actually looking at, on switch and on navigation.

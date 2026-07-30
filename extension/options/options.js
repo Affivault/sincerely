@@ -11,6 +11,8 @@ import {
   DEFAULT_APP_URL,
   LOCAL_API_BASE,
   LOCAL_APP_URL,
+  connectPatternFor,
+  ensureConnectScript,
   guessAppUrl,
   getSettings,
   normaliseBaseUrl,
@@ -34,6 +36,7 @@ const el = {
   useProduction: document.getElementById('use-production'),
   useLocal: document.getElementById('use-local'),
   verifyBeforeAdd: document.getElementById('verify-before-add'),
+  openApp: document.getElementById('open-app'),
 };
 
 /**
@@ -50,10 +53,10 @@ const el = {
  */
 function describeKeyProblem(key) {
   if (!key.startsWith('sk_live_')) {
-    return 'That does not look like a Sincerely API key. Keys start with "sk_live_" and come from Developer → API keys — a Supabase session token or anon key will not work here.';
+    return 'That does not look like a Sincerely API key. Keys start with "sk_live_" and are created in your own account, on the Webhooks page under the API keys tab — a Supabase session token or anon key will not work here.';
   }
   if (/[•·*…]/.test(key)) {
-    return 'That key is still masked — it contains the dots used to hide it on screen. Use the copy button next to the key rather than selecting the text, then paste again.';
+    return 'That key is still masked — it contains the dots used to hide it on screen. Use the copy button next to the key rather than selecting the text, then paste again. Easier still: press "Open Sincerely" above and use Connect extension.';
   }
   const body = key.slice('sk_live_'.length);
   if (body.length < 64) {
@@ -63,7 +66,7 @@ function describeKeyProblem(key) {
     return `That key is ${key.length} characters, but a full key is 72. Check nothing extra was pasted along with it.`;
   }
   if (!/^[0-9a-f]{64}$/i.test(body)) {
-    return 'That key contains characters a real key never has. Copy it again with the copy button on the Developer page.';
+    return 'That key contains characters a real key never has. Copy it again with the copy button beside it on the Webhooks page.';
   }
   return null;
 }
@@ -130,7 +133,10 @@ async function save() {
     const apiKey = typedKey || existing.apiKey;
 
     if (!apiKey) {
-      showResult('Paste an API key first — create one in the app under Developer → API keys.', 'error');
+      showResult(
+        'No key yet. Press "Open Sincerely" above and use Connect extension — it makes the key and sends it here for you. Or paste one by hand below.',
+        'error'
+      );
       return;
     }
 
@@ -155,7 +161,12 @@ async function save() {
     const appUrl = el.appUrl.value.trim().replace(/\/+$/, '');
     el.appUrl.value = appUrl;
 
-    await setSettings({ apiBaseUrl, apiKey, appUrl, verifyBeforeAdd: el.verifyBeforeAdd.checked });
+    writingOurselves = true;
+    try {
+      await setSettings({ apiBaseUrl, apiKey, appUrl, verifyBeforeAdd: el.verifyBeforeAdd.checked });
+    } finally {
+      writingOurselves = false;
+    }
 
     // A free-tier host that has spun down takes the better part of a minute to
     // answer. Say so, or a slow first connect looks like a hang.
@@ -167,7 +178,7 @@ async function save() {
       let message = response?.error?.message || 'Connection test failed.';
       if (response?.error?.status === 401) {
         message +=
-          `\n\nThe key being sent starts ${apiKey.slice(0, 16)}… — compare that with the list on your Developer page. ` +
+          `\n\nThe key being sent starts ${apiKey.slice(0, 16)}… — compare that with the list on your Webhooks page, API keys tab. ` +
           'If it is not there, or shows as Revoked, create a new one. If it is there and active, check the API URL above points at the same environment the key was created in.';
       }
       showResult(message, 'error');
@@ -195,6 +206,45 @@ async function save() {
   }
 }
 
+/**
+ * Open the app on the page that has the Connect extension button, having first
+ * made sure the connect relay will actually run there.
+ *
+ * The manifest declares the hosted and localhost origins; anything else — a
+ * staging domain, a self-hosted install — needs a runtime grant and a
+ * dynamically registered content script, and the grant has to be requested from
+ * this click. Nothing is awaited before the request, or the gesture is lost.
+ */
+async function openApp() {
+  const appUrl = (el.appUrl.value.trim() || DEFAULT_APP_URL).replace(/\/+$/, '');
+  el.appUrl.value = appUrl;
+
+  const pattern = connectPatternFor(appUrl);
+  if (pattern) {
+    let granted = false;
+    try {
+      granted = await chrome.permissions.request({ origins: [pattern] });
+    } catch {
+      granted = false;
+    }
+    if (!granted) {
+      showResult(
+        `Without permission to run on ${appUrl}, the Connect extension button there can't reach this extension. Press "Open Sincerely" again and accept the prompt, or paste a key by hand below.`,
+        'error'
+      );
+      return;
+    }
+  }
+
+  await setSettings({ appUrl });
+  await ensureConnectScript(appUrl);
+
+  showResult(
+    `Opening ${appUrl}. Go to Webhooks in the sidebar, open the API keys tab, and press Connect extension. This page will update by itself.`
+  );
+  await chrome.tabs.create({ url: `${appUrl}/developer` });
+}
+
 async function forget() {
   await clearApiKey();
   await load();
@@ -203,6 +253,9 @@ async function forget() {
 
 el.save.addEventListener('click', () => {
   save().catch((err) => showResult(err?.message || 'Something went wrong.', 'error'));
+});
+el.openApp.addEventListener('click', () => {
+  openApp().catch((err) => showResult(err?.message || 'Could not open the app.', 'error'));
 });
 el.forget.addEventListener('click', () => {
   forget().catch((err) => showResult(err?.message || 'Something went wrong.', 'error'));
@@ -243,6 +296,63 @@ el.autoTagName.addEventListener('change', () => {
   const name = el.autoTagName.value.trim() || 'chrome-extension';
   el.autoTagName.value = name;
   setSettings({ autoTagName: name });
+});
+
+/**
+ * Set while this page is writing settings itself, so its own save doesn't come
+ * back through the storage listener below and run a second connection test.
+ */
+let writingOurselves = false;
+
+/**
+ * The key can arrive while this page is open — that is the whole point of
+ * one-click connect, and the app is in a different tab. React to it, so the
+ * user sees the result here instead of being left staring at an empty field
+ * wondering whether it worked.
+ */
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local' || writingOurselves) return;
+  if (!changes.apiKey?.newValue) return;
+
+  showResult('Key received from Sincerely. Checking it…');
+  load()
+    .then(async () => {
+      // A key for an API on some other host is stored but unusable until Chrome
+      // grants that origin, and the grant needs a click — which this listener
+      // isn't. Say so plainly instead of letting the test fail as "can't reach".
+      const pattern = originPatternFor(normaliseBaseUrl(el.apiUrl.value));
+      if (pattern) {
+        const allowed = await chrome.permissions.contains({ origins: [pattern] }).catch(() => false);
+        if (!allowed) return null;
+      }
+      return chrome.runtime.sendMessage({ type: 'TEST_CONNECTION' });
+    })
+    .then((response) => {
+      if (response === null) {
+        showResult(
+          `Key saved. One thing left: Chrome needs permission to talk to ${new URL(normaliseBaseUrl(el.apiUrl.value)).origin}. Press "Save & test connection" below and accept the prompt.`,
+          'warn'
+        );
+        return;
+      }
+      if (!response?.ok) {
+        showResult(response?.error?.message || 'The key arrived but the connection test failed.', 'error');
+        return;
+      }
+      const { campaignCount, canWrite } = response.data;
+      if (!canWrite) {
+        showResult(
+          `Connected, and ${campaignCount} campaign(s) are visible — but this key is read-only, so adding and removing people will fail.`,
+          'warn'
+        );
+        return;
+      }
+      showResult(
+        `Connected. ${campaignCount} campaign(s) on the account, and the key can add and remove people. Nothing else to do — close this page and use the extension.`,
+        'success'
+      );
+    })
+    .catch((err) => showResult(err?.message || 'Something went wrong.', 'error'));
 });
 
 initTheme()

@@ -217,3 +217,57 @@ code {
   line-height: 1.5;
   color: var(--text-tertiary);
 }
+
+/* ── Connect explainer ──
+   The recommended path, stated plainly. Pasting a key is the fallback and
+   collapses, because most people should never need it. */
+
+.explainer {
+  padding: 12px 13px;
+  margin-bottom: 14px;
+  background: var(--indigo-subtle);
+  border: 1px solid color-mix(in srgb, var(--indigo) 22%, transparent);
+  border-radius: var(--radius-md);
+}
+.explainer p {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.explainer strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.manual {
+  margin-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 12px;
+}
+.manual > summary {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  list-style: none;
+}
+.manual > summary::-webkit-details-marker {
+  display: none;
+}
+.manual > summary::before {
+  content: '›';
+  display: inline-block;
+  margin-right: 6px;
+  transition: transform 150ms var(--ease-out);
+}
+.manual[open] > summary::before {
+  transform: rotate(90deg);
+}
+.manual > summary:hover {
+  color: var(--text-primary);
+}
+.manual-note {
+  margin-top: 10px;
+  margin-bottom: 14px;
+}

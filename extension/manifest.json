@@ -58,6 +58,17 @@
         "content/list-select.js"
       ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://usesincerely.com/*",
+        "https://www.usesincerely.com/*",
+        "http://localhost:5173/*"
+      ],
+      "js": [
+        "content/connect.js"
+      ],
+      "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
