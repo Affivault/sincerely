@@ -6,7 +6,7 @@
  * a credential should stay on the machine it was entered on.
  */
 
-/** @typedef {{apiBaseUrl: string, apiKey: string, lastCampaignId: string|null, verifyBeforeAdd: boolean, autoTag: boolean, autoTagName: string, appUrl: string, showBadge: boolean}} Settings */
+/** @typedef {{apiBaseUrl: string, apiKey: string, lastListId: string|null, verifyBeforeAdd: boolean, autoTag: boolean, autoTagName: string, appUrl: string, showBadge: boolean}} Settings */
 
 /**
  * The live API. Keep this in step with the deployment's VITE_API_URL — it is
@@ -24,7 +24,7 @@ export const LOCAL_APP_URL = 'http://localhost:5173';
 const DEFAULTS = {
   apiBaseUrl: DEFAULT_API_BASE,
   apiKey: '',
-  lastCampaignId: null,
+  lastListId: null,
   verifyBeforeAdd: false,
   /** Tag everything added from the extension, so the channel is measurable. */
   autoTag: true,

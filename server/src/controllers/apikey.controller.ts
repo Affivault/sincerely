@@ -27,6 +27,13 @@ export const apikeyController = {
     } catch (err) { next(err); }
   },
 
+  async rotate(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await apikeyService.rotateKey(req.userId!, req.params.id);
+      res.json(result);
+    } catch (err) { next(err); }
+  },
+
   async revoke(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       await apikeyService.revokeKey(req.userId!, req.params.id);

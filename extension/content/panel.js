@@ -39,8 +39,8 @@
     memberships: [],
     engagement: null,
     suppressed: false,
-    campaigns: [],
-    selectedCampaignId: null,
+    lists: [],
+    selectedListId: null,
     appUrl: '',
     loading: true,
     collapsed: false,
@@ -380,51 +380,56 @@
     /* Address */
     body.appendChild(emailRow());
 
-    /* Campaign picker + add */
+    /* Lead-list picker + add */
     if (person.email || state.contact) {
-      const label = el('label', 'lbl', 'Add to campaign');
-      label.setAttribute('for', 'sx-campaign');
+      const label = el('label', 'lbl', 'Add to lead list');
+      label.setAttribute('for', 'sx-list');
       body.appendChild(label);
 
       const select = el('select', 'sel');
-      select.id = 'sx-campaign';
-      if (state.campaigns.length === 0) {
-        const option = el('option', null, 'No campaigns available');
+      select.id = 'sx-list';
+      if (state.lists.length === 0) {
+        const option = el('option', null, 'No lead lists on this account');
         option.value = '';
         select.appendChild(option);
       }
-      for (const campaign of state.campaigns) {
-        const option = el('option', null, `${campaign.name} (${campaign.status})`);
-        option.value = campaign.id;
-        if (campaign.id === state.selectedCampaignId) option.selected = true;
+      for (const list of state.lists) {
+        const option = el(
+          'option',
+          null,
+          `${list.name}${list.is_default ? ' (default)' : ''} · ${list.contact_count ?? 0}`
+        );
+        option.value = list.id;
+        if (list.id === state.selectedListId) option.selected = true;
         select.appendChild(option);
       }
       select.addEventListener('change', () => {
-        state.selectedCampaignId = select.value;
+        state.selectedListId = select.value;
       });
       body.appendChild(select);
 
-      const add = el('button', 'btn', 'Add to campaign');
-      add.disabled = state.busy || !person.email || state.campaigns.length === 0;
-      add.addEventListener('click', addToCampaign);
+      const add = el('button', 'btn', 'Add to list');
+      add.disabled = state.busy || !person.email || state.lists.length === 0;
+      add.addEventListener('click', addToList);
       body.appendChild(add);
     }
 
-    /* Enrolments */
+    /* Lists they're already on */
     if (state.memberships.length > 0) {
       const rows = el('div', 'rows');
-      rows.appendChild(el('div', 'rows-title', 'In these campaigns'));
+      rows.appendChild(el('div', 'rows-title', 'On these lead lists'));
       for (const membership of state.memberships) {
         const row = el('div', 'row');
         const main = el('div', 'row-main');
         const rowName = el('div', 'row-name');
-        rowName.appendChild(link(`/campaigns/${membership.campaign_id}`, membership.campaign_name || 'Untitled'));
+        rowName.appendChild(link(`/contacts?list=${membership.id}`, membership.name || 'Untitled'));
         main.appendChild(rowName);
 
-        const bits = [membership.status, `step ${Number(membership.current_step_order || 0) + 1}`];
-        const next = formatDate(membership.next_send_at);
-        if (next && membership.is_active) bits.push(`next ${next}`);
-        main.appendChild(el('div', 'row-meta', bits.join(' · ')));
+        if (Number.isFinite(membership.contact_count)) {
+          main.appendChild(
+            el('div', 'row-meta', `${membership.contact_count} contact${membership.contact_count === 1 ? '' : 's'}`)
+          );
+        }
         row.appendChild(main);
 
         const remove = el('button', null, 'Remove');
@@ -452,7 +457,7 @@
 
   /** The one line that says what's already happened with this person. */
   function historyStrip() {
-    if (state.suppressed) return el('div', 'strip suppressed', 'Suppressed — no campaign will email this address.');
+    if (state.suppressed) return el('div', 'strip suppressed', 'Suppressed — this address will not be emailed.');
 
     const engagement = state.engagement;
     if (engagement?.hasReplied) {
@@ -466,9 +471,9 @@
       if (engagement.clicked > 0) parts.push(`clicked ${engagement.clicked}×`);
       return el('div', 'strip', parts.join(' · '));
     }
-    const active = state.memberships.filter((m) => m.is_active).length;
-    if (active > 0) return el('div', 'strip', `Already in ${active} active campaign${active > 1 ? 's' : ''}.`);
-    if (state.contact) return el('div', 'strip', 'Known contact · not in any campaign.');
+    const onLists = state.memberships.length;
+    if (onLists > 0) return el('div', 'strip', `Already on ${onLists} lead list${onLists > 1 ? 's' : ''}.`);
+    if (state.contact) return el('div', 'strip', 'Known contact · not on any lead list.');
     if (state.person?.email) return el('div', 'strip', 'New contact — adding will create them.');
     return null;
   }
@@ -605,75 +610,48 @@
     render();
   }
 
-  async function addToCampaign() {
-    const campaignId = state.selectedCampaignId;
-    if (!campaignId || !state.person?.email) return;
+  async function addToList() {
+    const listId = state.selectedListId;
+    if (!listId || !state.person?.email) return;
 
     state.busy = true;
     setMessage('Adding…');
 
-    const response = await send('ADD_TO_CAMPAIGN', { campaignId, person: state.person });
+    const response = await send('ADD_TO_LIST', { listId, person: state.person });
     state.busy = false;
 
-    if (!response.ok) {
-      const error = response.error;
-      if (error.code === 'BLOCKED_BY_CAMPAIGN' && error.blocking?.length) {
-        const names = error.blocking.map((b) => `"${b.campaign_name}"`).join(', ');
-        const target = state.campaigns.find((c) => c.id === campaignId);
-        setMessage(
-          `Already in ${names}, on a different lead list.`,
-          'error',
-          {
-            label: `Move to "${target?.name ?? 'this campaign'}"`,
-            onClick: async () => {
-              setMessage('Moving…');
-              const moved = await send('MOVE_TO_CAMPAIGN', {
-                campaignId,
-                contactId: error.contactId,
-                fromCampaignIds: error.blocking.map((b) => b.campaign_id),
-              });
-              if (!moved.ok) return setMessage(moved.error.message, 'error');
-              await refresh();
-              setMessage(`Moved to "${moved.data.campaignName}".`, 'success');
-            },
-          }
-        );
-        return;
-      }
-      setMessage(error.message, 'error');
-      return;
-    }
+    if (!response.ok) return setMessage(response.error.message, 'error');
 
-    const { added, campaignName, contactId } = response.data;
+    const { added, alreadyOnList, listName, contactId } = response.data;
 
     // Re-read before announcing: rendering "Added to X" next to a stale
-    // "not in any campaign" makes the panel look broken for a beat.
+    // "not on any list" makes the panel look broken for a beat.
     await refresh();
 
-    if (added > 0) {
-      setMessage(`Added to "${campaignName}".`, 'success', {
+    if (added > 0 && !alreadyOnList) {
+      setMessage(`Added to "${listName}".`, 'success', {
         label: 'Undo',
         onClick: async () => {
-          const undo = await send('REMOVE_FROM_CAMPAIGN', { campaignId, contactId });
+          const undo = await send('REMOVE_FROM_LIST', { listId, contactId });
           await refresh();
-          setMessage(undo.ok ? `Removed from "${campaignName}".` : undo.error.message, undo.ok ? undefined : 'error');
+          setMessage(undo.ok ? `Taken off "${listName}".` : undo.error.message, undo.ok ? undefined : 'error');
         },
       });
     } else {
-      setMessage(`Already enrolled in "${campaignName}".`);
+      setMessage(`Already on "${listName}".`);
     }
   }
 
   async function removeFrom(membership, button) {
     button.disabled = true;
     button.textContent = '…';
-    const response = await send('REMOVE_FROM_CAMPAIGN', {
-      campaignId: membership.campaign_id,
+    const response = await send('REMOVE_FROM_LIST', {
+      listId: membership.id,
       contactId: state.contact.id,
     });
     if (!response.ok) return setMessage(response.error.message, 'error');
     await refresh();
-    setMessage(`Removed from "${membership.campaign_name}". They stay on the lead list.`, 'success');
+    setMessage(`Taken off "${membership.name}". They stay in your contacts.`, 'success');
   }
 
   /**
@@ -770,7 +748,7 @@
     const response = await send('LOOKUP_PERSON', { email: state.person.email });
     if (response.ok) {
       state.contact = response.data.contact;
-      state.memberships = response.data.campaigns || [];
+      state.memberships = response.data.lists || [];
       state.engagement = response.data.engagement || null;
       state.suppressed = Boolean(response.data.suppressed);
     }
@@ -795,7 +773,7 @@
     const context = await send('GET_CONTEXT', {});
     if (context.ok) {
       state.appUrl = String(context.data.appUrl || '').replace(/\/+$/, '');
-      state.selectedCampaignId = context.data.lastCampaignId;
+      state.selectedListId = context.data.lastListId;
       if (!context.data.hasKey) {
         state.loading = false;
         setMessage('Connect the extension in settings to use it here.', 'error');
@@ -803,11 +781,11 @@
       }
     }
 
-    const campaigns = await send('LIST_CAMPAIGNS');
-    if (campaigns.ok) {
-      state.campaigns = campaigns.data.enrollable || [];
-      if (!state.campaigns.some((c) => c.id === state.selectedCampaignId)) {
-        state.selectedCampaignId = state.campaigns[0]?.id ?? null;
+    const lists = await send('LIST_LISTS');
+    if (lists.ok) {
+      state.lists = lists.data.lists || [];
+      if (!state.lists.some((l) => l.id === state.selectedListId)) {
+        state.selectedListId = state.lists[0]?.id ?? null;
       }
     }
 

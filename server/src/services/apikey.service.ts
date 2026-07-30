@@ -56,6 +56,45 @@ export async function listKeys(userId: string): Promise<ApiKey[]> {
 }
 
 /**
+ * Issue a fresh secret for an existing key, keeping its name and settings.
+ *
+ * Keys are stored as SHA-256 hashes, so a key that has been shown once cannot
+ * be shown again — there is nothing left to show. That is the right design, and
+ * it leaves a real gap: someone who closed the dialog before copying has a key
+ * listed in the UI that they cannot use, and no way forward except creating
+ * another and cleaning up the old one.
+ *
+ * Rotating closes that gap without weakening storage. The old secret stops
+ * working the instant this returns, which is also what you want after a key has
+ * been pasted somewhere it shouldn't have been.
+ */
+export async function rotateKey(userId: string, keyId: string): Promise<ApiKeyCreatedResponse> {
+  const rawKey = `sk_live_${crypto.randomBytes(32).toString('hex')}`;
+  const keyPrefix = rawKey.substring(0, KEY_PREFIX_LENGTH + 8);
+  const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
+
+  const { data, error } = await supabaseAdmin
+    .from('api_keys')
+    .update({
+      key_hash: keyHash,
+      key_prefix: keyPrefix,
+      // Rotating a revoked key is how you bring an integration back, so this
+      // reactivates rather than leaving a working secret on a dead key.
+      is_active: true,
+      last_used_at: null,
+    })
+    .eq('id', keyId)
+    .eq('user_id', userId)
+    .select('id, user_id, name, key_prefix, scopes, rate_limit, last_used_at, expires_at, is_active, created_at')
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) throw new Error('API key not found');
+
+  return { key: data as ApiKey, raw_key: rawKey };
+}
+
+/**
  * Revoke (deactivate) an API key.
  */
 export async function revokeKey(userId: string, keyId: string): Promise<void> {

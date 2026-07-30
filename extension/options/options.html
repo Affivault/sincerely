@@ -51,7 +51,7 @@
             <input id="app-url" class="input-field mono" type="text" spellcheck="false" placeholder="https://usesincerely.com" />
             <p class="help">
               Where your Sincerely app is. Used by the button above, and by the
-              "open in Sincerely" links on contacts and campaigns.
+              "open in Sincerely" links on contacts and lists.
             </p>
           </div>
 
@@ -120,7 +120,7 @@
             <span class="check-body">
               <span class="check-title">Mark the toolbar icon on LinkedIn and Gmail</span>
               <span class="check-sub"
-                >Shows how many active campaigns the person on the page is already in, or a
+                >Shows how many lead lists the person on the page is already on, or a
                 cross if they're suppressed — without opening the extension.</span
               >
             </span>
@@ -155,28 +155,29 @@
             <div class="note-row">
               <dt><span class="badge badge-brand">Add</span></dt>
               <dd>
-                Puts someone on the campaign's lead list and enrols them. The contact is
-                created first if your account has never seen them.
+                Puts someone on a lead list. The contact is created first if your account
+                has never seen them. Campaigns draw from lists, so this is what gets them
+                emailed.
               </dd>
             </div>
             <div class="note-row">
               <dt><span class="badge">Remove</span></dt>
               <dd>
-                Ends that one sequence. They stay on the lead list, so a future import can
-                re-enrol them.
+                Takes them off that one list. They stay in your contacts, and stay on any
+                other list they're on.
               </dd>
             </div>
             <div class="note-row">
               <dt><span class="badge badge-error">Suppress</span></dt>
               <dd>
-                Blocks the address account-wide and pulls them out of every campaign still
-                running. This is the one that sticks.
+                Blocks the address account-wide and takes them off every lead list. This is
+                the one that sticks.
               </dd>
             </div>
           </dl>
           <p class="footnote">
-            Someone already in another active campaign bound to a different lead list can't be
-            added — the server blocks it, and the extension shows you why.
+            Adding is idempotent: someone already on the list is left alone rather than
+            duplicated, so re-running a scan is safe.
           </p>
         </div>
       </section>

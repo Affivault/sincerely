@@ -65,7 +65,7 @@ const COLD_START_TIMEOUT_MS = 75000;
 class TimeoutError extends Error {}
 
 /**
- * @param {string} path Path below the API root, e.g. "/campaigns".
+ * @param {string} path Path below the API root, e.g. "/lists".
  * @param {{method?: string, body?: unknown, query?: Record<string, string|number|undefined>, timeoutMs?: number, retryOnTimeout?: boolean}} [opts]
  * @returns {Promise<any>} Parsed JSON, or null for 204.
  */
@@ -198,56 +198,88 @@ async function request(path, opts = {}) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Campaigns                                                          */
+/* Lead lists                                                         */
 /* ------------------------------------------------------------------ */
 
-/** Campaign statuses that will accept an enrolment (server rejects the rest). */
-export const ENROLLABLE_STATUSES = ['draft', 'scheduled', 'running', 'paused'];
-
 /**
- * Every campaign on the account, newest first.
+ * Every lead list on the account.
  *
- * The server's status filter is a single-value equality check, so "all the
- * ones I can actually enrol into" has to be assembled client-side. Paginates
- * because the server caps limit at 100.
+ * Lists are what the extension adds people to. A campaign is bound to one list
+ * and draws from it, so putting someone on the list is what actually gets them
+ * emailed — enrolling them into a campaign directly was reaching past the thing
+ * that owns membership.
  *
- * @returns {Promise<Array<{id: string, name: string, status: string, total_contacts: number}>>}
+ * Returned already sorted by the server: the default list first, then by name.
+ *
+ * @returns {Promise<Array<{id: string, name: string, contact_count: number, is_default: boolean}>>}
  */
-export async function listCampaigns() {
-  const all = [];
-  const MAX_PAGES = 10;
-
-  for (let page = 1; page <= MAX_PAGES; page += 1) {
-    const result = await request('/campaigns', { query: { page, limit: 100 } });
-    const batch = result?.data || [];
-    all.push(...batch);
-    const totalPages = result?.total_pages ?? 1;
-    if (page >= totalPages || batch.length === 0) break;
-  }
-
-  return all;
+export async function listLists() {
+  const lists = await request('/lists');
+  return Array.isArray(lists) ? lists : [];
 }
 
 /**
- * A single campaign, including the lead list it's bound to — which is what
- * decides whether an existing enrolment blocks a new one.
- * @param {string} campaignId
+ * Which lists a contact is on.
+ *
+ * The server answers with every list plus an `is_member` flag, so this narrows
+ * it to the memberships — the only part the UI has any use for.
+ *
+ * @param {string} contactId
+ * @returns {Promise<Array<{id: string, name: string}>>}
  */
-export async function getCampaign(campaignId) {
-  return request(`/campaigns/${campaignId}`);
+export async function listsForContact(contactId) {
+  const lists = await request(`/lists/contact/${contactId}`);
+  return (Array.isArray(lists) ? lists : []).filter((list) => list.is_member);
 }
 
 /**
- * Campaigns split into the ones you can enrol into and the ones you can't,
- * so the picker can show finished campaigns as disabled instead of letting a
- * click fail with a 400.
+ * The contact ids already on a list.
+ *
+ * One request, rather than one membership lookup per person, which is what
+ * makes it affordable to tell "added" from "was already there" on a bulk add —
+ * the server upserts, so its reply counts a repeat as a success and cannot
+ * distinguish them.
+ *
+ * @param {string} listId
+ * @returns {Promise<Set<string>>}
  */
-export async function listCampaignsGrouped() {
-  const campaigns = await listCampaigns();
-  return {
-    enrollable: campaigns.filter((c) => ENROLLABLE_STATUSES.includes(c.status)),
-    finished: campaigns.filter((c) => !ENROLLABLE_STATUSES.includes(c.status)),
-  };
+export async function listContactIds(listId) {
+  const result = await request(`/lists/${listId}/contacts`);
+  return new Set(result?.contact_ids || []);
+}
+
+/**
+ * Put contacts on a list.
+ *
+ * Idempotent server-side (upsert on list_id + contact_id), so re-adding
+ * somebody is a no-op rather than an error — which matters because the same
+ * person turns up on a second page of a scan often.
+ *
+ * @param {string} listId
+ * @param {string[]} contactIds
+ * @returns {Promise<{success: number, failed: number}>}
+ */
+export async function addToList(listId, contactIds) {
+  return request(`/lists/${listId}/contacts`, {
+    method: 'POST',
+    body: { contact_ids: contactIds },
+  });
+}
+
+/**
+ * Take contacts off a list.
+ *
+ * They stay in the account, and stay suppressed or not as before — this only
+ * ends their membership of this one list.
+ *
+ * @param {string} listId
+ * @param {string[]} contactIds
+ */
+export async function removeFromList(listId, contactIds) {
+  return request(`/lists/${listId}/contacts`, {
+    method: 'DELETE',
+    body: { contact_ids: contactIds },
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -355,12 +387,11 @@ export async function resolveOrCreateContact(person) {
 }
 
 /**
- * Where this contact already stands — every campaign they're enrolled in,
- * with their per-campaign status and step.
+ * Where this contact already stands — every lead list they're on.
  * @param {string} contactId
  */
-export async function getContactCampaigns(contactId) {
-  return request(`/contacts/${contactId}/campaigns`);
+export async function getContactLists(contactId) {
+  return listsForContact(contactId);
 }
 
 /**
@@ -435,44 +466,6 @@ export async function ensureTag(name, color = '#5B5BF5') {
 /* ------------------------------------------------------------------ */
 /* Enrolment                                                          */
 /* ------------------------------------------------------------------ */
-
-/**
- * Add contacts to a campaign.
- *
- * Uses /enroll rather than /contacts deliberately: campaigns are bound to a
- * lead list, and POST /campaigns/:id/contacts rejects anyone not already in
- * that list. /enroll adds them to the bound list first, then enrols — and
- * returns {added, skipped, total} so we can tell the user when the server
- * silently declined some of them.
- *
- * @param {string} campaignId
- * @param {string[]} contactIds Send them in one call; the default key limit is
- *   100 requests/minute, so per-contact calls would burn it needlessly.
- * @returns {Promise<{added: number, skipped: number, total: number}>}
- */
-export async function enrollContacts(campaignId, contactIds) {
-  return request(`/campaigns/${campaignId}/enroll`, {
-    method: 'POST',
-    body: { contact_ids: contactIds },
-  });
-}
-
-/**
- * Remove contacts from one campaign.
- *
- * This deletes the enrolment only. The contact stays on the campaign's lead
- * list and can be re-enrolled by the next import — if the intent is "never
- * email this person again", call suppressEmail as well.
- *
- * @param {string} campaignId
- * @param {string[]} contactIds
- */
-export async function removeFromCampaign(campaignId, contactIds) {
-  return request(`/campaigns/${campaignId}/contacts`, {
-    method: 'DELETE',
-    body: { contact_ids: contactIds },
-  });
-}
 
 /* ------------------------------------------------------------------ */
 /* Suppression & verification                                         */
@@ -570,19 +563,20 @@ export async function prospectReveal(providerPersonId) {
  * "Test connection". Distinguishes the three failure modes that matter:
  * unreachable URL, bad key, and a key missing the write scope.
  *
- * @returns {Promise<{ok: true, campaignCount: number, canWrite: boolean}>}
+ * @returns {Promise<{ok: true, listCount: number, canWrite: boolean}>}
  */
 export async function testConnection() {
   // Generous from the outset: this is usually the first request of the
   // session, so it's the one that pays for waking a sleeping host.
-  const result = await request('/campaigns', { query: { limit: 1 }, timeoutMs: COLD_START_TIMEOUT_MS });
+  const lists = await request('/lists', { timeoutMs: COLD_START_TIMEOUT_MS });
 
-  // Read worked. Probe write scope without changing anything: enrolling an
-  // empty contact list is rejected by validation (400) but still passes
-  // through the scope gate first, so a 403 here means read-only.
+  // Read worked. Probe write scope without changing anything: adding an empty
+  // set of contacts to a list that cannot exist fails on validation or
+  // ownership, but only after passing the scope gate — so a 403 here, and only
+  // a 403, means the key is read-only.
   let canWrite = true;
   try {
-    await request('/campaigns/00000000-0000-0000-0000-000000000000/enroll', {
+    await request('/lists/00000000-0000-0000-0000-000000000000/contacts', {
       method: 'POST',
       body: { contact_ids: [] },
       // The server is demonstrably awake by now, so don't let this probe
@@ -593,5 +587,5 @@ export async function testConnection() {
     if (err instanceof ApiError && err.code === 'SCOPE') canWrite = false;
   }
 
-  return { ok: true, campaignCount: result?.total ?? 0, canWrite };
+  return { ok: true, listCount: Array.isArray(lists) ? lists.length : 0, canWrite };
 }

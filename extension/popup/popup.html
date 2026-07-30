@@ -65,24 +65,24 @@
             <path d="m20 20-3.5-3.5" />
           </svg>
           <input
-            id="campaign-search"
+            id="list-search"
             class="picker-input"
             type="text"
-            placeholder="Find a campaign…"
+            placeholder="Find a lead list…"
             autocomplete="off"
             spellcheck="false"
             role="combobox"
             aria-expanded="true"
-            aria-controls="campaign-list"
+            aria-controls="lead-lists"
           />
           <kbd class="kbd">↑↓</kbd>
         </div>
-        <ul id="campaign-list" class="campaign-list" role="listbox" aria-label="Campaigns"></ul>
+        <ul id="lead-lists" class="campaign-list" role="listbox" aria-label="Lead lists"></ul>
       </section>
 
       <div class="actions">
         <button id="add" class="btn-primary btn-block" type="button" disabled>
-          <span id="add-label">Add to campaign</span>
+          <span id="add-label">Add to list</span>
           <kbd class="kbd kbd-on-primary">⏎</kbd>
         </button>
         <!-- Only when the page actually holds several people. -->
@@ -137,13 +137,13 @@
             Never contact again
           </button>
           <p class="footnote">
-            Removing ends one sequence. Suppressing blocks every future send and survives
-            re-imports.
+            Removing takes them off one list. Suppressing blocks every future send and
+            survives re-imports.
           </p>
         </div>
       </section>
 
-      <!-- Enrolments, each removable. Hidden until there are some. -->
+      <!-- Lead lists they're on, each removable. Hidden until there are some. -->
       <section id="standing" class="panel block hidden">
         <div class="block-head">
           <p class="section-title">Where they stand</p>
@@ -180,7 +180,7 @@
             <ul id="unlisted-results" class="scan-results"></ul>
           </div>
 
-          <button id="scan-add" class="btn-primary btn-block hidden" type="button">Add selected to campaign</button>
+          <button id="scan-add" class="btn-primary btn-block hidden" type="button">Add selected to list</button>
         </div>
       </section>
 

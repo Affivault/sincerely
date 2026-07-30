@@ -12,6 +12,11 @@ export const apikeyApi = {
     return data;
   },
 
+  rotate: async (id: string) => {
+    const { data } = await apiClient.post<ApiKeyCreatedResponse>(`/api-keys/${id}/rotate`);
+    return data;
+  },
+
   revoke: async (id: string) => {
     await apiClient.post(`/api-keys/${id}/revoke`);
   },

@@ -1,6 +1,6 @@
 # Sincerely — Chrome extension
 
-Add and remove people from Sincerely campaigns without leaving the page you're
+Add and remove people from Sincerely lead lists without leaving the page you're
 on. Works on LinkedIn profiles, Gmail threads, and any page with an email
 address on it.
 
@@ -141,11 +141,11 @@ is where you scan a website or type someone in by hand:
 
 - The person on the current page is detected and pre-filled. Every field is
   editable, so you can correct a bad scrape or type someone in by hand.
-- **Where they stand** lists every campaign they're already enrolled in, with
-  their status and step, each with its own **Remove** button.
-- Pick a campaign and **Add to campaign**. A successful add offers **Undo**.
-- **Never contact again** suppresses the address account-wide and pulls them out
-  of every campaign still running. Two clicks, deliberately.
+- **Where they stand** lists every lead list they're already on, each with its
+  own **Remove** button.
+- Pick a lead list and **Add to list**. A successful add offers **Undo**.
+- **Never contact again** suppresses the address account-wide and takes them off
+  every lead list. Two clicks, deliberately.
 
 **On any website** — open the popup and the addresses on that page are already
 listed, no permission prompt and no waiting. Tick the ones you want and add
@@ -183,11 +183,11 @@ be enrolled and where, the second does it. Capped at 25 per action.
 
 **On LinkedIn search results and a company's People tab** — every row gets a
 checkbox and a bar appears at the bottom with **Select all**, **Net new**, a
-campaign picker and the count.
+list picker and the count.
 
 **Net new** is where this differs from Apollo. Theirs means "not already in my
 database". Ours means **not already being emailed** — it excludes anyone in an
-active campaign or on the suppression list, not merely anyone missing from your
+lead list or on the suppression list, not merely anyone missing from your
 contacts. A duplicate contact record is untidy; a second sequence landing on
 someone mid-conversation is what loses the reply.
 
@@ -199,14 +199,14 @@ fuzzy, which is exactly why Net new produces a *selection you can see and
 correct* rather than an automatic send.
 
 **From the right-click menu** — select an email address (or right-click a
-`mailto:` link) → **Sincerely** → *Add to "<campaign>"*. The menu lists your
-last-used campaign first, then up to ten others. Results come back as a
+`mailto:` link) → **Sincerely** → *Add to "<list>"*. The menu lists your
+last-used lead list first, then up to ten others. Results come back as a
 notification. Open the popup once after installing to populate the list.
 
 **From the panel on a LinkedIn profile** — this is the main surface, and it
 opens by itself. It shows who the profile is, one line of what's already
-happened with them (suppressed, replied, engagement, or which campaigns they're
-in), the address or the way to get one, and the campaign picker. Collapse it
+happened with them (suppressed, replied, engagement, or which lead lists
+they're on), the address or the way to get one, and the list picker. Collapse it
 with the × and it stays collapsed until you reopen it.
 
 ### On LinkedIn, the address is read without opening Contact info
@@ -216,21 +216,35 @@ not in the page until that dialog is opened. Waiting for the user to click it wa
 not acceptable: on a profile where the address *is* available, the extension
 appeared to find nothing.
 
-So the extension asks LinkedIn the same question the dialog asks, using the
-user's own signed-in session, as soon as the profile loads:
+So the extension opens that dialog itself, reads it, and puts the page back —
+the moment the profile loads, with the dialog hidden while it happens so nothing
+flashes. Driving LinkedIn's own UI is the only route that can't drift: it is
+exactly what the user would do by hand, and the extension sees no more than they
+would.
 
-1. `/voyager/api/identity/profiles/<slug>/profileContactInfo` — the endpoint the
+Three layers, in the order they're tried:
+
+1. **The Contact info dialog**, opened and dismissed programmatically. Fast, and
+   correct by construction.
+2. `/voyager/api/identity/profiles/<slug>/profileContactInfo` — the endpoint the
    dialog itself calls, authenticated with the `JSESSIONID` cookie as the
-   `csrf-token` header. Returns the address, phone numbers and websites.
-2. `/in/<slug>/overlay/contact-info/` — the dialog's own URL, scanned for
-   addresses. Slower, but survives step 1 being renamed.
-3. The DOM, as before.
+   `csrf-token` header. Used when no dialog trigger is on the page.
+3. `/in/<slug>/overlay/contact-info/` — the dialog's own URL, scanned for
+   addresses.
 
-All same-origin requests from a linkedin.com page carrying the user's cookies:
-the extension sees exactly what the user would see by clicking, and nothing
-more. Every failure is silent and falls through to the next step, so a changed
-internal API degrades to the old behaviour rather than breaking. Results are
-cached per profile for the life of the page.
+The undocumented endpoints are the fallbacks rather than the primary route
+precisely because they move; the UI cannot. Results are cached per profile for
+the life of the page, and every failure falls silently through to the next
+layer.
+
+Restoring the page is more delicate than it looks. `history.back()` is
+asynchronous, so checking the URL immediately after dismissing and "helpfully"
+going back again lands the user one entry further back than they ever were —
+off the profile entirely. The code waits for the URL to settle before deciding.
+Addresses are read from text nodes individually rather than the dialog's whole
+`textContent`, because adjacent elements concatenate: a dismiss button labelled
+"x" beside the address yields `xjane.doe@acme.com`, a plausible address that
+does not exist.
 
 The DOM mutation watcher stays as a last resort for the cases a fetch can't
 cover — signed-out sessions, and addresses that only ever appear in markup.
@@ -320,15 +334,33 @@ Two places use it, both free — no credits, no provider:
 A match on the profile URL is proof. A match on name and company is a guess, and
 the extension labels it as one, because a wrong guess still costs a credit.
 
+## Lists, not campaigns
+
+The extension adds people to **lead lists**. It has no campaign controls at all,
+and that is deliberate.
+
+A campaign is bound to one lead list and draws from it. Enrolling someone into a
+campaign directly reached past the thing that actually owns membership, and
+dragged in a rule that made a simple "add this person" fail in ways nobody could
+predict from the page they were standing on: a contact could not be in two
+active campaigns bound to different lists, so adding from LinkedIn would be
+refused because of a campaign the user wasn't thinking about. Putting someone on
+the list is what gets them emailed, and it always works.
+
+Adding is an upsert server-side, so a repeat is a no-op rather than a duplicate
+or an error — which is what makes re-running a scan safe. The extension checks
+membership before adding so it can say "already on this list" rather than
+claiming a second add.
+
 ## Add vs. remove vs. suppress
 
 This trips people up, so it's worth being precise:
 
 | Action | What it does | Sticks? |
 | --- | --- | --- |
-| **Add** | Puts them on the campaign's lead list and enrols them, creating the contact if needed | — |
-| **Remove** | Deletes that one enrolment | **No** — they stay on the lead list, and a future import can re-enrol them |
-| **Never contact again** | Suppresses the address account-wide *and* removes them from every active campaign | **Yes** |
+| **Add** | Puts them on a lead list, creating the contact if needed | — |
+| **Remove** | Takes them off that one list | **No** — they stay in your contacts and on any other list |
+| **Never contact again** | Suppresses the address account-wide *and* takes them off every lead list | **Yes** |
 
 If someone asks you to stop emailing them, use **Never contact again**. Remove
 alone is not enough.
@@ -338,16 +370,12 @@ alone is not enough.
 These are the server's rules, not bugs. The extension shows the server's own
 message verbatim:
 
-- **"Already enrolled in other active campaigns with different lead lists"** — a
-  contact can't be in two active campaigns bound to different lists. Remove them
-  from the other one first, or bind both campaigns to the same list.
-- **"This campaign has finished"** — `completed` and `cancelled` campaigns reject
-  enrolment. They're listed in the picker as disabled so you can see why.
 - **Rate limit (429)** — API keys default to 100 requests/minute. The message
   tells you how long to wait.
-
-Re-adding someone who's already enrolled is safe: the server never resets an
-in-flight contact's progress.
+- **A read-only key** — adding needs the `write` scope. The options page's
+  connection test says so explicitly rather than letting the first add fail.
+- **No lead lists on the account** — create one in Sincerely first; the picker
+  says so rather than showing an empty box.
 
 ## Developing on it
 
@@ -371,17 +399,18 @@ shows the real request and the server's JSON error body.
 
 The happy path is the easy part. These are the paths that actually break:
 
-1. Add someone already in another active campaign on a different list → expect a
-   clear 400, not a silent failure.
-2. Pick a `completed` campaign → should be disabled in the picker.
+1. Add someone already on the chosen list → expect "already on this list", no
+   duplicate row, and no error.
+2. Connect with a read-only key → the connection test should say so, rather than
+   the first add failing.
 3. Revoke the key in the app, then try to add → expect a 401 with an
    **Open settings** button.
 4. Add the same person twice → second add reports "already enrolled", no
    progress reset.
-5. Suppress someone in two running campaigns → both enrolments should disappear.
+5. Suppress someone on two lead lists → they should come off both.
 
-Point the extension at a `draft` campaign bound to a throwaway list while you're
-testing. Add and remove write to real data.
+Point the extension at a throwaway lead list while you're testing. Add and
+remove write to real data.
 
 ## Architecture
 
@@ -467,12 +496,13 @@ All under `/api/v1`, all with `Authorization: Bearer sk_live_…`:
 
 | Purpose | Call |
 | --- | --- |
-| Campaign picker | `GET /campaigns` |
+| List picker | `GET /lists` |
 | Find a contact | `GET /contacts?search=` |
 | Create a contact | `POST /contacts` |
-| Where they stand | `GET /contacts/:id/campaigns` |
-| Add to campaign | `POST /campaigns/:id/enroll` |
-| Remove from campaign | `DELETE /campaigns/:id/contacts` |
+| Where they stand | `GET /lists/contact/:id` |
+| Add to a list | `POST /lists/:id/contacts` |
+| Remove from a list | `DELETE /lists/:id/contacts` |
+| Who is on a list | `GET /lists/:id/contacts` |
 | Suppress | `POST /suppression`, `GET /suppression/check` |
 | Verify (optional) | `POST /verification/email` |
 | Work out an unpublished address | `POST /verification/find-email` |
@@ -480,7 +510,10 @@ All under `/api/v1`, all with `Authorization: Bearer sk_live_…`:
 | Source tag | `GET`/`POST /tags`, `POST /contacts/bulk-tag` |
 | Find an email | `GET /prospecting/status`, `POST /prospecting/search`, `POST /prospecting/reveal` |
 
-`POST /campaigns/:id/enroll` is used rather than `POST /campaigns/:id/contacts`
-because campaigns are bound to a lead list: `/enroll` adds someone to that list
-first and then enrols them, and returns `{added, skipped, total}` so the UI can
-report what the server actually did.
+There is no campaign endpoint in that list, and that is the point — see
+**Lists, not campaigns** above.
+
+`GET /lists/:id/contacts` is fetched before a bulk add so the result can tell
+"added" from "was already there": the server upserts, so its reply counts a
+repeat as a success and cannot distinguish them. One request covers the whole
+batch, rather than a membership lookup per person.
