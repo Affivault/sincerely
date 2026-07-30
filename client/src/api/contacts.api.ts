@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import type {
   Contact,
+  ContactCampaignMembership,
   ContactWithTags,
   CreateContactInput,
   UpdateContactInput,
@@ -52,6 +53,11 @@ export const contactsApi = {
 
   get: async (id: string) => {
     const { data } = await apiClient.get<ContactWithTags>(`/contacts/${id}`);
+    return data;
+  },
+
+  getCampaigns: async (id: string) => {
+    const { data } = await apiClient.get<ContactCampaignMembership[]>(`/contacts/${id}/campaigns`);
     return data;
   },
 

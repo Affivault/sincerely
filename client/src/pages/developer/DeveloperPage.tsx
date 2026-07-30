@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { webhookApi } from '../../api/webhook.api';
 import { apikeyApi } from '../../api/apikey.api';
@@ -21,6 +21,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { cn, formatDateTime } from '../../lib/utils';
+import { API_URL } from '../../lib/constants';
 import { PageHeader } from '../../components/shared/PageHeader';
 import toast from 'react-hot-toast';
 
@@ -124,6 +125,66 @@ export function DeveloperPage() {
     },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to test webhook'),
   });
+
+  /* The extension announces itself on load; until it does, the connect button
+     stays hidden rather than offering something that can't work. */
+  const [extensionPresent, setExtensionPresent] = useState(false);
+  const [extensionConnected, setExtensionConnected] = useState(false);
+  const [connectingExtension, setConnectingExtension] = useState(false);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== window || !event.data || typeof event.data !== 'object') return;
+      if (event.data.type === 'SINCERELY_EXTENSION_HERE') setExtensionPresent(true);
+      if (event.data.type === 'SINCERELY_EXTENSION_CONNECTED') {
+        setConnectingExtension(false);
+        if (!event.data.ok) {
+          toast.error(event.data.error || 'Could not connect the extension');
+          return;
+        }
+        /* The extension verifies the key before answering, so say what it found
+           rather than a bare "connected" that might not be usable yet — and only
+           call it connected when it can actually do the job. */
+        if (event.data.needsPermission) {
+          toast.success(
+            `Key sent. Chrome still needs permission for ${event.data.needsPermission} — open the extension's settings and press "Save & test connection".`,
+            { duration: 9000 }
+          );
+        } else if (event.data.canWrite === false) {
+          toast.error('Connected, but that key is read-only, so adding people will fail.');
+        } else if (typeof event.data.campaignCount === 'number') {
+          setExtensionConnected(true);
+          toast.success(`Extension connected — ${event.data.campaignCount} campaign(s) visible.`);
+        } else {
+          setExtensionConnected(true);
+          toast.success('Extension connected');
+        }
+      }
+    };
+    window.addEventListener('message', onMessage);
+    // The content script may have announced before this page mounted.
+    window.postMessage({ type: 'SINCERELY_EXTENSION_PING' }, window.location.origin);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  /** Mint a key and hand it straight to the extension. */
+  const connectExtension = async () => {
+    setConnectingExtension(true);
+    try {
+      const { raw_key } = await apikeyApi.create({
+        name: `Chrome extension (${new Date().toLocaleDateString()})`,
+        rate_limit: 100,
+      });
+      window.postMessage(
+        { type: 'SINCERELY_EXTENSION_CONNECT', apiKey: raw_key, apiBaseUrl: API_URL },
+        window.location.origin
+      );
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] });
+    } catch (err: any) {
+      setConnectingExtension(false);
+      toast.error(err.response?.data?.error || 'Could not create a key for the extension');
+    }
+  };
 
   const createKeyMutation = useMutation({
     mutationFn: () => apikeyApi.create({ name: keyName, rate_limit: keyRateLimit }),
@@ -379,6 +440,31 @@ export function DeveloperPage() {
       {/* API Keys Tab */}
       {tab === 'api-keys' && (
         <div className="space-y-4">
+          {/* Shown only when the extension is actually installed, so it can't
+              become a button that does nothing. Connecting mints the key here
+              and hands it over directly — nothing to copy, and no chance of
+              pasting the masked display by mistake. */}
+          {extensionPresent && (
+            <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-medium text-[var(--text-primary)]">Chrome extension</h3>
+                <p className="text-sm text-[var(--text-secondary)] mt-0.5">
+                  {extensionConnected
+                    ? 'Connected. It can add and remove people from your campaigns.'
+                    : 'Connect it in one click — we\u2019ll create the key and hand it over. Nothing to copy.'}
+                </p>
+              </div>
+              <button
+                onClick={connectExtension}
+                disabled={connectingExtension}
+                className="flex-shrink-0 flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:bg-[#4F46E5] transition-colors"
+              >
+                <Key className="h-4 w-4" />
+                {connectingExtension ? 'Connecting…' : extensionConnected ? 'Reconnect' : 'Connect extension'}
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <p className="text-sm text-[var(--text-secondary)]">Manage API keys for headless access to Sincerely.</p>
             <button

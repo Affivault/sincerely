@@ -1,0 +1,276 @@
+/**
+ * Options page layout. Tokens and primitives come from ../lib/theme.css.
+ * Mirrors the app's settings pages: a page header with a gradient icon tile,
+ * then hairline-bordered panels with a titled head and a padded body.
+ */
+
+body {
+  padding: 34px 20px 64px;
+}
+
+.wrap {
+  max-width: 620px;
+  margin: 0 auto;
+}
+
+/* ── Page header ── */
+
+.page-head {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 20px;
+}
+
+.page-icon {
+  width: 38px;
+  height: 38px;
+}
+
+.page-head h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.page-sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* ── Panels ── */
+
+.block {
+  margin-bottom: 14px;
+}
+
+.block-head {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.block-body {
+  padding: 16px;
+}
+
+.field {
+  margin-bottom: 16px;
+}
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.help {
+  margin: 7px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+code {
+  padding: 1px 5px;
+  font-family: var(--font-data);
+  font-size: 11.5px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-xs);
+  color: var(--text-secondary);
+}
+
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--indigo);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.link-btn:hover {
+  color: var(--indigo-hover);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.theme-select {
+  max-width: 220px;
+}
+
+/* ── Connection result ── */
+
+.result {
+  margin-top: 14px;
+  padding: 11px 13px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+}
+.result.success {
+  background: var(--success-bg);
+  border-color: var(--success-border);
+  color: var(--success);
+}
+.result.error {
+  background: var(--error-bg);
+  border-color: var(--error-border);
+  color: var(--error);
+}
+.result.warn {
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+  color: var(--warning);
+}
+
+/* ── Checkbox row ── */
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.check input {
+  margin: 2px 0 0;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--indigo);
+  cursor: pointer;
+}
+
+.check-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.check-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.check-spaced {
+  margin-top: 14px;
+}
+
+/* Indented under the checkbox it belongs to, so the relationship is obvious. */
+.tag-name-field {
+  margin: 8px 0 0 25px;
+}
+
+.tag-name-input {
+  max-width: 240px;
+}
+
+/* ── Explainer rows ── */
+
+.notes {
+  margin: 0;
+}
+
+.note-row {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.note-row:first-child {
+  padding-top: 0;
+}
+.note-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.note-row dt {
+  margin: 0;
+}
+
+.note-row dd {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.footnote {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+/* ── Connect explainer ──
+   The recommended path, stated plainly. Pasting a key is the fallback and
+   collapses, because most people should never need it. */
+
+.explainer {
+  padding: 12px 13px;
+  margin-bottom: 14px;
+  background: var(--indigo-subtle);
+  border: 1px solid color-mix(in srgb, var(--indigo) 22%, transparent);
+  border-radius: var(--radius-md);
+}
+.explainer p {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.explainer strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.explainer .explainer-alt {
+  color: var(--text-tertiary);
+}
+
+.manual {
+  margin-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 12px;
+}
+.manual > summary {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  list-style: none;
+}
+.manual > summary::-webkit-details-marker {
+  display: none;
+}
+.manual > summary::before {
+  content: '›';
+  display: inline-block;
+  margin-right: 6px;
+  transition: transform 150ms var(--ease-out);
+}
+.manual[open] > summary::before {
+  transform: rotate(90deg);
+}
+.manual > summary:hover {
+  color: var(--text-primary);
+}
+.manual-note {
+  margin-top: 10px;
+  margin-bottom: 14px;
+}

@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sincerely</title>
+    <link rel="stylesheet" href="../lib/theme.css" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <span class="brand">
+        <img src="../icons/icon-32.png" alt="" width="20" height="20" />
+        <span class="brand-name">sincerely</span>
+      </span>
+      <button id="open-options" class="icon-btn" type="button" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      </button>
+    </header>
+
+    <!-- Shown until a key is configured; nothing else can work without one. -->
+    <section id="setup" class="empty-state hidden">
+      <span class="brand-tile" style="width: 40px; height: 40px">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="2" y="4" width="20" height="16" rx="2" />
+          <path d="m22 7-10 6L2 7" />
+        </svg>
+      </span>
+      <p class="section-title">Connect your account</p>
+      <p class="section-sub">
+        Open Sincerely in a tab and sign in, then press this. The extension sets itself up from
+        your session — there is nothing to create, copy or type.
+      </p>
+      <button id="setup-connect-tab" class="btn-primary" type="button">Connect using this tab</button>
+      <p id="setup-status" class="setup-status hidden" role="status" aria-live="polite"></p>
+      <button id="setup-grant" class="btn-primary hidden" type="button">Allow access</button>
+      <button id="setup-open-options" class="link-btn setup-alt" type="button">
+        Or paste a key by hand
+      </button>
+    </section>
+
+    <main id="main" class="hidden">
+      <!-- Identity: who this is, and whether they're safe to email. -->
+      <section class="identity">
+        <span id="avatar" class="avatar" aria-hidden="true"></span>
+        <div class="identity-text">
+          <div class="identity-line">
+            <span id="person-name" class="person-name">Nobody detected</span>
+            <span id="verification" class="pill hidden"></span>
+          </div>
+          <p id="person-sub" class="person-sub">Open a profile or an email, or type an address below.</p>
+        </div>
+      </section>
+
+      <!-- One line that answers "what's already happened with this person?" -->
+      <div id="standing-strip" class="standing-strip hidden"></div>
+
+      <!-- The decision, first. -->
+      <section class="picker">
+        <div class="picker-field">
+          <svg class="picker-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+          <input
+            id="campaign-search"
+            class="picker-input"
+            type="text"
+            placeholder="Find a campaign…"
+            autocomplete="off"
+            spellcheck="false"
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="campaign-list"
+          />
+          <kbd class="kbd">↑↓</kbd>
+        </div>
+        <ul id="campaign-list" class="campaign-list" role="listbox" aria-label="Campaigns"></ul>
+      </section>
+
+      <div class="actions">
+        <button id="add" class="btn-primary btn-block" type="button" disabled>
+          <span id="add-label">Add to campaign</span>
+          <kbd class="kbd kbd-on-primary">⏎</kbd>
+        </button>
+        <!-- Only when the page actually holds several people. -->
+        <button id="bulk-add" class="btn-secondary btn-block hidden" type="button">
+          <span id="bulk-label">Add everyone on this page</span>
+        </button>
+      </div>
+
+      <!-- Details, out of the way until they're needed. -->
+      <section class="details">
+        <button id="details-toggle" class="details-toggle" type="button" aria-expanded="false" aria-controls="details-body">
+          <svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m9 18 6-6-6-6" />
+          </svg>
+          <span id="details-summary">Edit details</span>
+        </button>
+
+        <div id="details-body" class="details-body hidden">
+          <div class="field">
+            <label class="field-label" for="email">Email</label>
+            <input id="email" class="input-field" type="email" placeholder="name@company.com" autocomplete="off" spellcheck="false" />
+          </div>
+
+          <div id="candidates-wrap" class="field hidden">
+            <label class="field-label" for="candidates">Other addresses on this page</label>
+            <select id="candidates" class="input-field"></select>
+          </div>
+
+          <div class="field-grid">
+            <div class="field">
+              <label class="field-label" for="first-name">First name</label>
+              <input id="first-name" class="input-field" type="text" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label class="field-label" for="last-name">Last name</label>
+              <input id="last-name" class="input-field" type="text" autocomplete="off" />
+            </div>
+          </div>
+
+          <div class="field-grid">
+            <div class="field">
+              <label class="field-label" for="company">Company</label>
+              <input id="company" class="input-field" type="text" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label class="field-label" for="job-title">Title</label>
+              <input id="job-title" class="input-field" type="text" autocomplete="off" />
+            </div>
+          </div>
+
+          <button id="suppress" class="btn-danger-quiet btn-block" type="button" disabled>
+            Never contact again
+          </button>
+          <p class="footnote">
+            Removing ends one sequence. Suppressing blocks every future send and survives
+            re-imports.
+          </p>
+        </div>
+      </section>
+
+      <!-- Enrolments, each removable. Hidden until there are some. -->
+      <section id="standing" class="panel block hidden">
+        <div class="block-head">
+          <p class="section-title">Where they stand</p>
+        </div>
+        <div class="block-body" id="standing-body"></div>
+      </section>
+
+      <!-- Read this company's own site for addresses. Free: public HTML. -->
+      <section class="panel block" id="scan-block">
+        <div class="block-head">
+          <div>
+            <p class="section-title">Scan this website</p>
+            <p class="section-sub" id="scan-sub">Read the contact and team pages for addresses.</p>
+          </div>
+          <button id="scan" class="btn-secondary btn-xs" type="button">Scan</button>
+        </div>
+        <div class="block-body hidden" id="scan-body">
+          <div class="scan-toolbar hidden" id="scan-toolbar">
+            <label class="scan-check">
+              <input id="scan-all" type="checkbox" />
+              <span id="scan-count">0 selected</span>
+            </label>
+            <button id="scan-new-only" class="btn-secondary btn-xs" type="button">New only</button>
+          </div>
+          <ul id="scan-results" class="scan-results"></ul>
+
+          <!-- People the site names but gives no address for. Most of a
+               company is in here, not in the list above. -->
+          <div id="unlisted-block" class="unlisted hidden">
+            <div class="unlisted-head">
+              <span id="unlisted-title" class="unlisted-title">Named, no address published</span>
+              <button id="find-all" class="btn-secondary btn-xs" type="button">Find all</button>
+            </div>
+            <ul id="unlisted-results" class="scan-results"></ul>
+          </div>
+
+          <button id="scan-add" class="btn-primary btn-block hidden" type="button">Add selected to campaign</button>
+        </div>
+      </section>
+
+      <!-- LinkedIn rarely exposes an email; offer name matches instead. -->
+      <section id="no-email-help" class="callout hidden">
+        <p class="callout-text">No email on this page.</p>
+        <div class="callout-actions">
+          <button id="prospect-find" class="btn-secondary btn-xs" type="button">Find their email</button>
+          <button id="search-by-name" class="btn-secondary btn-xs" type="button">
+            Search my contacts
+          </button>
+        </div>
+        <div id="prospect-result" class="prospect hidden"></div>
+        <ul id="name-matches" class="matches hidden"></ul>
+      </section>
+    </main>
+
+    <div id="status" class="status hidden" role="status" aria-live="polite"></div>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

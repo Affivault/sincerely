@@ -1,7 +1,12 @@
 import { apiClient } from './client';
-import type { DcsVerificationResult } from '@lemlist/shared';
+import type { DcsVerificationResult, FindEmailInput, FindEmailResult } from '@lemlist/shared';
 
 export const verificationApi = {
+  findEmail: async (input: FindEmailInput) => {
+    const { data } = await apiClient.post<FindEmailResult>('/verification/find-email', input);
+    return data;
+  },
+
   verifyContact: async (contactId: string) => {
     const { data } = await apiClient.post<DcsVerificationResult>(`/verification/contacts/${contactId}`);
     return data;

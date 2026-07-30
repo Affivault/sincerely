@@ -49,7 +49,10 @@ async function runChecks(update: (r: CheckResult[]) => void): Promise<CheckResul
     ok: !(isProdHost && apiLooksLocal),
     detail: `This build calls: ${API_URL}`,
     fix: isProdHost && apiLooksLocal
-      ? 'VITE_API_URL is missing from this build, so it fell back to localhost. In Vercel → Settings → Environment Variables, set VITE_API_URL (e.g. https://skysend-api.onrender.com/api/v1) for the Production environment — check the environment checkboxes! — then Deployments → Redeploy.'
+      // An example is worth having here: when the variable is missing entirely,
+      // the address above just says localhost, which tells the reader nothing
+      // about what to put instead.
+      ? 'VITE_API_URL is missing from this build, so it fell back to localhost. In Vercel → Settings → Environment Variables, set VITE_API_URL to your API server with /api/v1 on the end (https://skysend-api.onrender.com/api/v1) for the Production environment — check the environment checkboxes! — then Deployments → Redeploy.'
       : undefined,
   });
 
@@ -85,14 +88,14 @@ async function runChecks(update: (r: CheckResult[]) => void): Promise<CheckResul
       name: 'API server',
       ok,
       detail: ok ? `Reachable and healthy (${healthUrl})` : `Unexpected response HTTP ${res.status} from ${healthUrl}`,
-      fix: ok ? undefined : 'Check the Render service is live (dashboard.render.com) and that VITE_API_URL in Vercel points at it.',
+      fix: ok ? undefined : 'Check the API server is live in your hosting dashboard, and that VITE_API_URL in Vercel points at it.',
     });
   } catch (err: any) {
     push({
       name: 'API server',
       ok: false,
       detail: `Could not connect to ${healthUrl}: ${err?.message || err}`,
-      fix: 'The API address this build uses is unreachable from your browser. Most common causes: the domain does not exist in DNS, or VITE_API_URL is wrong. Set VITE_API_URL in Vercel to https://skysend-api.onrender.com/api/v1 and Redeploy.',
+      fix: `The API address this build uses is unreachable from your browser. Most common causes: the API server is asleep or down, the domain does not exist in DNS, or VITE_API_URL is wrong. This build calls ${API_URL} — check that matches your live API server in Vercel, then Redeploy.`,
     });
   }
 

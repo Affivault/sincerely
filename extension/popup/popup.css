@@ -1,0 +1,836 @@
+/**
+ * Popup layout. Tokens and component primitives come from ../lib/theme.css —
+ * this file only positions them, so a change to the design system lands here
+ * automatically.
+ *
+ * Hierarchy is deliberate: who this is, what's already happened, then the
+ * decision. Editing the person's details is a rarer job, so it collapses.
+ */
+
+body {
+  width: 380px;
+  padding-bottom: 12px;
+}
+
+/* ── Top bar ── */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  padding: 0 12px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.brand-name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
+}
+.icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* ── Identity ── */
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 14px 11px;
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  background: var(--gradient-brand);
+}
+
+.identity-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.identity-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.person-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Links back into the web app — underlined only on hover, so a panel full of
+   campaign names doesn't read as a wall of links. */
+.app-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.app-link:hover {
+  color: var(--indigo);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.person-sub {
+  margin: 1px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Verification pill — same states and thresholds as the contacts table. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.pill::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.pill-valid {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.12);
+}
+.pill-risky {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.12);
+}
+.pill-invalid {
+  color: #be123c;
+  background: rgba(244, 63, 94, 0.12);
+}
+.pill-neutral {
+  color: var(--text-tertiary);
+  background: var(--bg-elevated);
+}
+.dark .pill-valid {
+  color: #34d399;
+}
+.dark .pill-risky {
+  color: #fbbf24;
+}
+.dark .pill-invalid {
+  color: #fb7185;
+}
+
+/* ── Standing strip ──
+   One line of history above the decision, so you know what you're walking
+   into before you pick a campaign. */
+
+.standing-strip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 14px 2px;
+  padding: 7px 10px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+}
+.standing-strip.replied {
+  color: var(--success);
+  background: var(--success-bg);
+}
+.standing-strip.suppressed {
+  color: var(--error);
+  background: var(--error-bg);
+}
+.standing-strip .strip-icon {
+  flex: 0 0 auto;
+}
+
+/* ── Campaign picker ──
+   Type to filter, arrows to move, enter to add: the same shape as the app's
+   command palette. */
+
+.picker {
+  margin: 8px 14px 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 0 rgba(15, 15, 25, 0.02), 0 1px 3px rgba(15, 15, 25, 0.03);
+  overflow: hidden;
+}
+
+.picker-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  height: 36px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.picker-icon {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+}
+
+.picker-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+}
+.picker-input:focus {
+  outline: none;
+}
+.picker-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.kbd {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  font-family: var(--font-data);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+}
+.kbd-on-primary {
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.campaign-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.campaign-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.campaign-option:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+/* Active row is driven by keyboard position, not :hover, so the two can't
+   disagree about which row Enter will act on. */
+.campaign-option.active {
+  background: var(--indigo-subtle);
+}
+.campaign-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.campaign-status-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.campaign-status-dot.running {
+  background: var(--success);
+}
+.campaign-status-dot.draft {
+  background: var(--text-tertiary);
+}
+.campaign-status-dot.paused,
+.campaign-status-dot.scheduled {
+  background: var(--warning);
+}
+
+.campaign-option-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.campaign-option-meta {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.campaign-empty {
+  padding: 14px 10px;
+  font-size: 12.5px;
+  text-align: center;
+  color: var(--text-tertiary);
+}
+
+.list-group-label {
+  padding: 8px 8px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+/* ── Primary action ── */
+
+.actions {
+  margin: 9px 14px 0;
+}
+
+.actions .btn-primary {
+  justify-content: center;
+  gap: 8px;
+  height: 34px;
+}
+
+.actions #bulk-add {
+  margin-top: 7px;
+}
+
+/* ── Collapsible details ── */
+
+.details {
+  margin: 10px 14px 0;
+}
+
+.details-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 0;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.details-toggle:hover {
+  color: var(--text-primary);
+}
+.details-toggle .chev {
+  transition: transform 150ms var(--ease-out);
+}
+.details-toggle[aria-expanded='true'] .chev {
+  transform: rotate(90deg);
+}
+
+.details-body {
+  margin-top: 9px;
+  padding: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.field {
+  margin-bottom: 10px;
+}
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.footnote {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+
+/* ── Panels ── */
+
+.block {
+  margin: 10px 14px 0;
+}
+
+.block-head {
+  padding: 10px 13px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.block-body {
+  padding: 11px 13px;
+}
+
+/* ── Empty / setup state ── */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 34px 30px 38px;
+  text-align: center;
+}
+.empty-state .section-sub {
+  max-width: 260px;
+}
+.empty-state .btn-primary {
+  margin-top: 5px;
+}
+
+/* Progress and failures during setup. Kept in the flow rather than in the main
+   status line, which lives in a section that is still hidden at this point. */
+.setup-status {
+  max-width: 262px;
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.setup-status.error {
+  color: var(--error);
+}
+.setup-status.warn {
+  color: var(--warning);
+}
+
+.setup-alt {
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.setup-alt:hover {
+  color: var(--text-secondary);
+}
+
+/* ── Callout (no email found) ── */
+
+.callout {
+  margin: 10px 14px 0;
+  padding: 10px 11px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+.callout-text {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.callout-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ── Prospector match ──
+   A credit is about to be spent, so the person, the confidence, and the cost
+   all have to be visible before the button is pressed. */
+
+.prospect {
+  margin-top: 9px;
+  padding: 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.prospect-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.prospect-meta {
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.prospect-note {
+  display: block;
+  margin-top: 7px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+
+.prospect-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.prospect-cost {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+.matches {
+  list-style: none;
+  margin: 9px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+}
+.matches button {
+  width: 100%;
+  text-align: left;
+  padding: 7px 9px;
+  font-family: inherit;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 150ms var(--ease-out), background-color 150ms var(--ease-out);
+}
+.matches button:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-muted);
+}
+.match-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.match-meta {
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+/* ── Enrolment rows ── */
+
+.enrolment {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.enrolment:first-child {
+  padding-top: 0;
+}
+.enrolment:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.enrolment-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.enrolment-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.enrolment-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+.note {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+.suppressed-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--error);
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  border-radius: var(--radius-md);
+}
+
+/* ── Site scan ── */
+
+.scan-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.scan-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.scan-check input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--indigo);
+  cursor: pointer;
+}
+
+.scan-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 210px;
+  overflow-y: auto;
+}
+
+.scan-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.scan-row:last-child {
+  border-bottom: 0;
+}
+.scan-row input {
+  margin-top: 2px;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  accent-color: var(--indigo);
+  cursor: pointer;
+}
+
+.scan-main {
+  flex: 1;
+  min-width: 0;
+}
+.scan-email {
+  font-size: 12.5px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scan-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.scan-empty {
+  padding: 10px 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+#scan-add {
+  margin-top: 10px;
+}
+
+/* ── Named on the site, address not published ── */
+
+.unlisted {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.unlisted-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.unlisted-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.unlisted-name {
+  font-size: 12.5px;
+  color: var(--text-primary);
+}
+
+/* A found address is a claim about someone's mailbox, so how sure we are has to
+   travel with it — never just the address on its own. */
+.confidence {
+  font-variant-numeric: tabular-nums;
+}
+.confidence-high {
+  color: var(--success);
+}
+.confidence-medium {
+  color: var(--warning);
+}
+.confidence-low {
+  color: var(--text-tertiary);
+}
+
+.find-btn {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+/* ── Status line ── */
+
+.status {
+  margin: 10px 14px 0;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+}
+.status.success {
+  background: var(--success-bg);
+  border-color: var(--success-border);
+  color: var(--success);
+}
+.status.error {
+  background: var(--error-bg);
+  border-color: var(--error-border);
+  color: var(--error);
+}
+
+.status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.status .status-action {
+  height: 26px;
+  padding: 0 9px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0.85;
+}
+.status .status-action:hover {
+  opacity: 1;
+}
+.status .status-action.primary {
+  background: currentColor;
+  border-color: currentColor;
+}
+/* The label needs the panel's background colour to stay readable on a filled
+   button; a nested span inherits `color` otherwise and disappears. */
+.status .status-action.primary span {
+  color: var(--bg-surface);
+}

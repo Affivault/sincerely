@@ -13,6 +13,8 @@ contactRoutes.get('/stats', contactsController.getStats);
 contactRoutes.get('/verification-breakdown', contactsController.verificationBreakdown);
 contactRoutes.get('/companies', contactsController.companies);
 contactRoutes.get('/:id', contactsController.get);
+// Which campaigns is this contact enrolled in, and where in each sequence?
+contactRoutes.get('/:id/campaigns', contactsController.campaignsForContact);
 contactRoutes.post('/', contactsController.create);
 contactRoutes.put('/:id', contactsController.update);
 contactRoutes.delete('/:id', contactsController.delete);

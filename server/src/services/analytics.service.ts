@@ -412,7 +412,9 @@ export const analyticsService = {
       .select('id')
       .eq('id', contactId)
       .eq('user_id', userId)
-      .single();
+      // maybeSingle, not single: .single() raises on "no rows", which surfaced
+      // as a 500 instead of the 404 below.
+      .maybeSingle();
 
     if (!contact) throw new AppError('Contact not found', 404);
 

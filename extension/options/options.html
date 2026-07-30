@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sincerely extension settings</title>
+    <link rel="stylesheet" href="../lib/theme.css" />
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="page-head">
+        <span class="brand-tile page-icon">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="2" y="4" width="20" height="16" rx="2" />
+            <path d="m22 7-10 6L2 7" />
+          </svg>
+        </span>
+        <div>
+          <h1>Extension settings</h1>
+          <p class="page-sub">Connect the Chrome extension to your Sincerely account.</p>
+        </div>
+      </header>
+
+      <section class="panel block">
+        <div class="block-head">
+          <div>
+            <p class="section-title">Connect to your account</p>
+            <p class="section-sub">One click from inside Sincerely — nothing to copy.</p>
+          </div>
+        </div>
+        <div class="block-body">
+          <div class="explainer">
+            <p>
+              <strong>The easy way.</strong> Open Sincerely in a tab and sign in, then click the
+              Sincerely icon in your Chrome toolbar and press
+              <strong>Connect using this tab</strong>. It works out your API address and makes its
+              own key from your session — nothing to create, copy or type, whatever domain your
+              app is on.
+            </p>
+            <p class="explainer-alt">
+              There's also a <strong>Connect extension</strong> button inside the app, on
+              <strong>Webhooks → API keys</strong>.
+            </p>
+            <button id="open-app" class="btn-primary" type="button">Open Sincerely</button>
+          </div>
+
+          <!-- Sits with the button that uses it: "Open Sincerely" goes here, and
+               a self-hosted app needs this set before it will work. -->
+          <div class="field">
+            <label class="field-label" for="app-url">Web app URL</label>
+            <input id="app-url" class="input-field mono" type="text" spellcheck="false" placeholder="https://usesincerely.com" />
+            <p class="help">
+              Where your Sincerely app is. Used by the button above, and by the
+              "open in Sincerely" links on contacts and campaigns.
+            </p>
+          </div>
+
+          <details class="manual">
+            <summary>Or paste a key by hand</summary>
+            <p class="help manual-note">
+              An API key is just a password this extension uses to prove it's you. You create it in
+              your own Sincerely account — it isn't something you get from anywhere else. On the
+              <strong>Webhooks</strong> page, <strong>API keys</strong> tab, press
+              <strong>Create Key</strong>, then use the <strong>copy button</strong> beside the key
+              (selecting the text copies the dots that hide it, which won't work).
+            </p>
+            <div class="field">
+              <label class="field-label" for="api-url">API URL</label>
+              <input id="api-url" class="input-field mono" type="text" spellcheck="false" placeholder="https://skysend-api.onrender.com" />
+              <p class="help">
+                Paste the host — <code>/api/v1</code> is added for you. Use
+                <button class="link-btn" id="use-production" type="button">production</button> or
+                <button class="link-btn" id="use-local" type="button">localhost:3001</button>.
+              </p>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="api-key">API key</label>
+              <input id="api-key" class="input-field mono" type="password" spellcheck="false" autocomplete="off" placeholder="sk_live_…" />
+              <p class="help">72 characters, starting <code>sk_live_</code>. Stored on this machine only.</p>
+            </div>
+          </details>
+
+          <div class="actions">
+            <button id="save" class="btn-primary" type="button">Save &amp; test connection</button>
+            <button id="forget" class="btn-secondary" type="button">Forget key</button>
+          </div>
+
+          <div id="result" class="result hidden" role="status" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="panel block">
+        <div class="block-head">
+          <p class="section-title">Preferences</p>
+        </div>
+        <div class="block-body">
+          <div class="field">
+            <label class="field-label" for="theme">Appearance</label>
+            <select id="theme" class="input-field theme-select">
+              <option value="system">Match system</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
+
+          <label class="check">
+            <input id="verify-before-add" type="checkbox" />
+            <span class="check-body">
+              <span class="check-title">Verify addresses before adding</span>
+              <span class="check-sub"
+                >Runs a deliverability check first and refuses obviously bad addresses.
+                Slower, but protects your sending reputation.</span
+              >
+            </span>
+          </label>
+
+          <label class="check check-spaced">
+            <input id="show-badge" type="checkbox" />
+            <span class="check-body">
+              <span class="check-title">Mark the toolbar icon on LinkedIn and Gmail</span>
+              <span class="check-sub"
+                >Shows how many active campaigns the person on the page is already in, or a
+                cross if they're suppressed — without opening the extension.</span
+              >
+            </span>
+          </label>
+
+          <label class="check check-spaced">
+            <input id="auto-tag" type="checkbox" />
+            <span class="check-body">
+              <span class="check-title">Tag contacts added from the extension</span>
+              <span class="check-sub"
+                >Applies a tag on every add, so you can filter on it in Contacts and see
+                whether the channel is worth it.</span
+              >
+            </span>
+          </label>
+          <div class="field tag-name-field">
+            <label class="field-label" for="auto-tag-name">Tag name</label>
+            <input id="auto-tag-name" class="input-field mono tag-name-input" type="text" spellcheck="false" placeholder="chrome-extension" />
+          </div>
+        </div>
+      </section>
+
+      <section class="panel block">
+        <div class="block-head">
+          <div>
+            <p class="section-title">How it works</p>
+            <p class="section-sub">Three actions that are easy to confuse.</p>
+          </div>
+        </div>
+        <div class="block-body">
+          <dl class="notes">
+            <div class="note-row">
+              <dt><span class="badge badge-brand">Add</span></dt>
+              <dd>
+                Puts someone on the campaign's lead list and enrols them. The contact is
+                created first if your account has never seen them.
+              </dd>
+            </div>
+            <div class="note-row">
+              <dt><span class="badge">Remove</span></dt>
+              <dd>
+                Ends that one sequence. They stay on the lead list, so a future import can
+                re-enrol them.
+              </dd>
+            </div>
+            <div class="note-row">
+              <dt><span class="badge badge-error">Suppress</span></dt>
+              <dd>
+                Blocks the address account-wide and pulls them out of every campaign still
+                running. This is the one that sticks.
+              </dd>
+            </div>
+          </dl>
+          <p class="footnote">
+            Someone already in another active campaign bound to a different lead list can't be
+            added — the server blocks it, and the extension shows you why.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>
