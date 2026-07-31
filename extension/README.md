@@ -216,23 +216,53 @@ not in the page until that dialog is opened. Waiting for the user to click it wa
 not acceptable: on a profile where the address *is* available, the extension
 appeared to find nothing.
 
-So the extension opens that dialog itself, reads it, and puts the page back —
-the moment the profile loads, with the dialog hidden while it happens so nothing
-flashes. Driving LinkedIn's own UI is the only route that can't drift: it is
-exactly what the user would do by hand, and the extension sees no more than they
-would.
+So the extension asks for it itself. Three layers:
 
-Three layers, in the order they're tried:
-
-1. **The Contact info dialog**, opened and dismissed programmatically.
-2. `/voyager/api/identity/profiles/<slug>/profileContactInfo` — the endpoint the
+1. `/voyager/api/identity/profiles/<slug>/profileContactInfo` — the endpoint the
    dialog itself calls, with the `JSESSIONID` cookie as the `csrf-token` header.
-   Used when no dialog link is on the page.
-3. `/in/<slug>/overlay/contact-info/` — the dialog's own URL, scanned for
+2. `/in/<slug>/overlay/contact-info/` — the dialog's own URL, scanned for
    addresses.
+3. **The Contact info dialog**, opened and dismissed programmatically.
 
-The undocumented endpoints are fallbacks rather than the primary route precisely
-because they move; the UI cannot.
+**1 and 2 run first, and in parallel.** Both are plain same-origin fetches: the
+user sees nothing, the page is untouched, and on most profiles one of them
+answers in a few hundred milliseconds. Only when neither returns an address does
+the extension fall through to driving the UI.
+
+That ordering used to be the other way round, on the reasoning that the route
+which can't drift should go first. It was the wrong trade. Opening the dialog
+takes over the page somebody is reading — modal opens, LinkedIn locks body
+scroll, focus moves — so leading with it meant *every* profile froze for a couple
+of seconds, including the ones a quiet fetch would have answered instantly.
+Running the two fetches in sequence also cost up to eight seconds between them;
+in parallel they cost four at worst.
+
+#### Fast and deep
+
+The scrape has two speeds, and the split is what keeps the UI responsive:
+
+- **Fast** (`SINCERELY_SCRAPE`) reads the DOM and returns within a tick. Name,
+  title, company, anything already on the page. It awaits nothing. The popup
+  opens on this, the in-page panel paints from this, and the toolbar badge uses
+  **only** this — the badge runs on every tab update for somebody who hasn't
+  asked for anything, so it must never make a profile do work.
+- **Deep** (`SINCERELY_SCRAPE_DEEP`) additionally waits for the three layers
+  above. It is only ever run from a surface that has already rendered, so the
+  wait happens behind a visible UI rather than in front of a blank one.
+
+A fast scrape reports `contact_info_pending: true` when a deep read could still
+turn something up. That distinction matters: "no email on this profile" and
+"still looking" are different answers, and showing the first while the second was
+true is what made the extension look broken. Both the panel and the popup say
+*Checking contact info…* instead, and fill the address in when it lands.
+
+Once a deep read has settled, its result is readable synchronously, so later
+fast scrapes report the address immediately without re-opening anything.
+
+While the extension is driving the dialog it also overrides LinkedIn's body
+scroll lock, restoring it afterwards. Hiding the modal but leaving the lock in
+place is worse than doing nothing: the page looks normal and simply refuses to
+move.
 
 **It only ever clicks one element: an anchor whose href is this profile's
 contact-info overlay.** An earlier version also matched any button in `main`
@@ -432,6 +462,10 @@ The happy path is the easy part. These are the paths that actually break:
 4. Add the same person twice → second add reports "already enrolled", no
    progress reset.
 5. Suppress someone on two lead lists → they should come off both.
+6. Open a LinkedIn profile → the panel and the popup must show the name and
+   title *immediately*, before any address is known, and the page must stay
+   scrollable throughout. If it stalls or freezes, the fast/deep split has been
+   broken somewhere.
 
 Point the extension at a throwaway lead list while you're testing. Add and
 remove write to real data.

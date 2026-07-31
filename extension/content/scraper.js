@@ -210,6 +210,16 @@
    */
   const contactInfoCache = new Map();
 
+  /**
+   * The same results again, but settled and readable *synchronously*.
+   *
+   * The fast scrape must never await anything, and it must still report an
+   * address that a previous deep read already established — otherwise every
+   * re-render on a profile shows "no email" for a beat before the deep result
+   * lands again. A promise can't be read without awaiting it; this can.
+   */
+  const contactInfoSettled = new Map();
+
   /** fetch with a deadline, so a hung request can't stall a scrape. */
   async function fetchWithTimeout(url, options, timeoutMs) {
     const controller = new AbortController();
@@ -343,8 +353,17 @@
     style.setAttribute('data-sincerely', 'overlay-hide');
     // Opacity rather than display: LinkedIn's modal measures itself on open, and
     // an undisplayed dialog can decide it has nothing to render.
+    /*
+     * The last clause is the important one. LinkedIn locks body scroll while a
+     * modal is open, so hiding the dialog but leaving the lock in place is worse
+     * than doing nothing: the page looks normal and simply refuses to move for a
+     * couple of seconds. That is the "buffer" — not slowness, a frozen page. The
+     * lock is overridden for as long as we're driving, and the rule is removed
+     * in the `finally` below, so LinkedIn's own modals still lock normally.
+     */
     style.textContent =
-      '.artdeco-modal-overlay,.artdeco-modal,[role="dialog"]{opacity:0!important;pointer-events:none!important;}';
+      '.artdeco-modal-overlay,.artdeco-modal,[role="dialog"]{opacity:0!important;pointer-events:none!important;}' +
+      'html,body{overflow:auto!important;position:static!important;}';
     document.head.appendChild(style);
     overlayBusy = true;
 
@@ -360,19 +379,25 @@
     try {
       trigger.click();
 
+      /*
+       * Short deadlines on purpose. This runs last, after the network routes
+       * have already had their turn, and every millisecond here is a millisecond
+       * of somebody's profile being driven underneath them. If LinkedIn hasn't
+       * produced the dialog in a second and a half it isn't going to.
+       */
       const modal = await waitFor(
         () =>
           [...document.querySelectorAll('[role="dialog"], .artdeco-modal')].find(
             (node) => !before.has(node)
           ),
-        4000
+        1500
       );
       if (!modal) return [];
 
       // The shell appears before its contents, so wait for something to read.
       await waitFor(
         () => modal.querySelector('a[href^="mailto:"]') || EMAIL_TEST.test(modal.textContent || ''),
-        3000
+        1500
       );
 
       if (!looksLikeContactInfo(modal)) {
@@ -426,6 +451,78 @@
     }
   }
 
+  /**
+   * Route 1: the endpoint the Contact info overlay itself calls.
+   *
+   * Same-origin, carrying the user's own cookies, returning structured fields —
+   * the fastest answer available and completely invisible to the page.
+   *
+   * @param {string} publicId
+   * @returns {Promise<{emails: string[], websites: string[]}>} Empty on any failure.
+   */
+  async function fetchVoyagerContactInfo(publicId) {
+    const token = linkedInCsrfToken();
+    if (!token) return { emails: [], websites: [] };
+
+    try {
+      const response = await fetchWithTimeout(
+        `${location.origin}/voyager/api/identity/profiles/${encodeURIComponent(publicId)}/profileContactInfo`,
+        {
+          credentials: 'include',
+          headers: {
+            accept: 'application/vnd.linkedin.normalized+json+2.1',
+            'csrf-token': token,
+            'x-restli-protocol-version': '2.0.0',
+          },
+        },
+        4000
+      );
+      if (!response.ok) return { emails: [], websites: [] };
+      const body = await response.json();
+      return { emails: [...emailsInJson(body)], websites: [...websitesInJson(body)] };
+    } catch {
+      // Signed out, endpoint moved, or offline — the other routes get a turn.
+      return { emails: [], websites: [] };
+    }
+  }
+
+  /**
+   * Route 2: the overlay's own URL, fetched and scanned.
+   *
+   * Slower and unstructured, but it survives route 1 being renamed, which
+   * LinkedIn does periodically.
+   *
+   * @param {string} publicId
+   * @returns {Promise<string[]>} Empty on any failure.
+   */
+  async function fetchOverlayHtml(publicId) {
+    try {
+      const response = await fetchWithTimeout(
+        `${location.origin}/in/${encodeURIComponent(publicId)}/overlay/contact-info/`,
+        { credentials: 'include', headers: { accept: 'text/html' } },
+        4000
+      );
+      if (!response.ok) return [];
+
+      const html = await response.text();
+      const found = new Set();
+      // The addresses arrive inside embedded JSON, so entity-decode first; an
+      // unescaped &#64; would otherwise hide one.
+      const decoded = html
+        .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+        .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
+        .replace(/&amp;/g, '&');
+      for (const match of decoded.match(EMAIL_PATTERN) || []) {
+        const email = match.toLowerCase();
+        if (isPlausibleEmail(email)) found.add(email);
+        if (found.size > 5) break;
+      }
+      return [...found];
+    } catch {
+      return [];
+    }
+  }
+
   async function linkedInContactInfo(publicId) {
     /*
      * The cache holds the in-flight promise, not just the finished value, and
@@ -449,91 +546,89 @@
         return result;
       }
 
-      // Opening a dialog on someone's page is the one thing here that touches
-      // LinkedIn's UI, so it is switchable — off means the API routes below
-      // still run, they are just less likely to find anything.
+      /*
+       * Network routes first, and both at once.
+       *
+       * They used to run after the dialog-driving route, on the reasoning that
+       * the reliable thing should go first. That was the wrong trade. Driving
+       * LinkedIn's own UI takes over the page the user is reading — modal opens,
+       * scroll locks, focus moves — so putting it first means every profile
+       * freezes for a couple of seconds before anything is shown, including the
+       * profiles where a plain fetch would have answered instantly and
+       * invisibly. Sequentially, the two fetches also cost up to eight seconds
+       * between them; in parallel they cost four, and usually a few hundred
+       * milliseconds.
+       *
+       * So: ask quietly, twice, at the same time. Only if neither answers do we
+       * touch the page.
+       */
+      const [viaApi, viaOverlayFetch] = await Promise.all([
+        fetchVoyagerContactInfo(publicId),
+        fetchOverlayHtml(publicId),
+      ]);
+
+      if (viaApi.emails.length > 0) {
+        result.emails = viaApi.emails;
+        result.websites = viaApi.websites;
+        return result;
+      }
+      // Websites are worth keeping even when the API had no address: they give
+      // the finder a company domain to work from.
+      result.websites = viaApi.websites;
+
+      if (viaOverlayFetch.length > 0) {
+        result.emails = viaOverlayFetch;
+        return result;
+      }
+
+      // Last resort. Opening a dialog on someone's page is the one thing here
+      // that the user can see happening, so it is switchable — off means the
+      // quiet routes above are all there is.
       const { autoOpenContactInfo = true } = await chrome.storage.local
         .get({ autoOpenContactInfo: true })
         .catch(() => ({ autoOpenContactInfo: true }));
 
       if (autoOpenContactInfo) {
-        // The reliable route first. Anything else costs seconds of network
-        // waiting before the thing that was going to work anyway.
         result.emails = await readContactInfoOverlay(publicId);
-        if (result.emails.length > 0) return result;
-      }
-
-      const token = linkedInCsrfToken();
-
-      if (token) {
-        try {
-          const response = await fetchWithTimeout(
-            `${location.origin}/voyager/api/identity/profiles/${encodeURIComponent(publicId)}/profileContactInfo`,
-            {
-              credentials: 'include',
-              headers: {
-                accept: 'application/vnd.linkedin.normalized+json+2.1',
-                'csrf-token': token,
-                'x-restli-protocol-version': '2.0.0',
-              },
-            },
-            4000
-          );
-          if (response.ok) {
-            const body = await response.json();
-            result.emails = [...emailsInJson(body)];
-            result.websites = [...websitesInJson(body)];
-          }
-        } catch {
-          // Signed out, endpoint moved, or offline — route 2 gets a turn.
-        }
-      }
-
-      if (result.emails.length === 0) {
-        try {
-          const response = await fetchWithTimeout(
-            `${location.origin}/in/${encodeURIComponent(publicId)}/overlay/contact-info/`,
-            { credentials: 'include', headers: { accept: 'text/html' } },
-            4000
-          );
-          if (response.ok) {
-            const html = await response.text();
-            const found = new Set();
-            // The addresses arrive inside embedded JSON, so entity-decode first;
-            // an unescaped &#64; would otherwise hide one.
-            const decoded = html
-              .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
-              .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
-              .replace(/&amp;/g, '&');
-            for (const match of decoded.match(EMAIL_PATTERN) || []) {
-              const email = match.toLowerCase();
-              if (isPlausibleEmail(email)) found.add(email);
-              if (found.size > 5) break;
-            }
-            result.emails = [...found];
-          }
-        } catch {
-          // Nothing more to try; the DOM scrape below still applies.
-        }
       }
 
       return result;
     })();
 
     contactInfoCache.set(publicId, run);
+    run.then(
+      (value) => contactInfoSettled.set(publicId, value),
+      () => contactInfoSettled.set(publicId, { emails: [], websites: [] })
+    );
     return run;
   }
 
   /**
    * LinkedIn profile pages.
    *
-   * Fields come from the DOM; the address comes from the contact-info endpoint
+   * Fields come from the DOM; the address comes from the contact-info routes
    * above, because it is never in the DOM until the user opens that dialog.
    *
    * Selectors are deliberately layered: LinkedIn reskins often, and a stale
    * single selector would silently return nothing.
+   *
+   * Two speeds, and the difference matters more than anything else in this file:
+   *
+   *  - **fast** (the default) reads the DOM and returns. It awaits nothing that
+   *    can take time, so the panel and the popup can paint the person's name,
+   *    title and company immediately. If a deep read already ran for this
+   *    profile its address is included, straight from the settled cache.
+   *  - **deep** additionally waits for the contact-info routes. Only ever run
+   *    from a surface that has already shown something, so the wait happens
+   *    behind a rendered UI rather than in front of a blank one.
+   *
+   * Before this split, everything awaited the deep path — which is why a profile
+   * sat there doing nothing for seconds before the extension showed any sign of
+   * life, and why the page itself felt frozen while that happened.
+   *
+   * @param {{deep?: boolean}} [options]
    */
-  async function scrapeLinkedIn() {
+  async function scrapeLinkedIn({ deep = false } = {}) {
     const publicId = linkedInPublicId();
     if (!publicId) return null;
 
@@ -567,12 +662,23 @@
     }
 
     // Anything already in the DOM (the overlay may be open), plus what the
-    // contact-info endpoint gives us. Order matters: a selection the user made
+    // contact-info routes gave us. Order matters: a selection the user made
     // beats everything, then the profile's own address.
     const domEmails = collectEmails();
-    const contact = await linkedInContactInfo(publicId).catch(() => ({ emails: [], websites: [] }));
+    const contact = deep
+      ? await linkedInContactInfo(publicId).catch(() => ({ emails: [], websites: [] }))
+      : contactInfoSettled.get(publicId) || { emails: [], websites: [] };
 
     const emails = [...new Set([...contact.emails, ...domEmails])];
+
+    /*
+     * Is there more to come if somebody asks for it?
+     *
+     * The panel uses this to decide between "no email on this profile" and "still
+     * looking" — two very different things to tell somebody, and showing the
+     * first while the second is true is what made the extension look broken.
+     */
+    const pendingContactInfo = !deep && !contactInfoSettled.has(publicId) && emails.length === 0;
 
     // The company's domain, for finding an address when the profile has none.
     // A personal site is a better signal than nothing, and the finder rejects
@@ -598,6 +704,7 @@
       linkedin_url: `${location.origin}${location.pathname}`.replace(/\/$/, ''),
       source: 'linkedin',
       source_url: location.href,
+      contact_info_pending: pendingContactInfo,
     };
   }
 
@@ -667,16 +774,18 @@
    * Run the adapter matching the current host, falling back to generic when a
    * site-specific one finds nothing (e.g. a LinkedIn feed rather than a profile).
    *
-   * Async because LinkedIn's address has to be fetched rather than read off the
-   * page. The generic and Gmail paths still resolve immediately.
+   * Async for shape, not because it waits: with `deep` false — the default, and
+   * what every surface calls first — nothing here awaits anything slower than
+   * reading the DOM, so it settles within a tick on every site.
    *
+   * @param {{deep?: boolean}} [options]
    * @returns {Promise<object>}
    */
-  async function scrape() {
+  async function scrape({ deep = false } = {}) {
     const host = location.hostname;
     let result = null;
 
-    if (host.endsWith('linkedin.com')) result = await scrapeLinkedIn();
+    if (host.endsWith('linkedin.com')) result = await scrapeLinkedIn({ deep });
     else if (host === 'mail.google.com') result = scrapeGmail();
 
     if (!result || !result.email) {
@@ -799,6 +908,8 @@
 
   // Published for the other content scripts on this page.
   sincerely.scrape = scrape;
+  /** The same scrape, but willing to wait for LinkedIn's contact info. */
+  sincerely.scrapeDeep = () => scrape({ deep: true });
   // The panel's DOM watcher consults this: our own dialog mutates the page, and
   // re-scraping on those mutations would drive it round in circles.
   sincerely.isOverlayBusy = () => overlayBusy;
@@ -809,9 +920,17 @@
   sincerely.showToast = showToast;
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type !== 'SINCERELY_SCRAPE') return false;
+    /*
+     * Two messages, one handler. SINCERELY_SCRAPE answers from the DOM and
+     * returns at once — that is what the popup opens on and what the toolbar
+     * badge uses, and neither may ever be blocked behind a network round trip
+     * or, worse, a dialog opening on the user's page. SINCERELY_SCRAPE_DEEP is
+     * the follow-up, asked only once something is already on screen.
+     */
+    const deep = message?.type === 'SINCERELY_SCRAPE_DEEP';
+    if (!deep && message?.type !== 'SINCERELY_SCRAPE') return false;
     // Returning true keeps the channel open for the async reply below.
-    scrape().then(sendResponse, () => sendResponse(null));
+    scrape({ deep }).then(sendResponse, () => sendResponse(null));
     return true;
   });
 

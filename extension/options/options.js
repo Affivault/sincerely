@@ -242,9 +242,11 @@ async function openApp() {
   await ensureConnectScript(appUrl);
 
   showResult(
-    `Opening ${appUrl}. Go to Webhooks in the sidebar, open the API keys tab, and press Connect extension. This page will update by itself.`
+    `Opening ${appUrl}. Press Connect extension on the page that opens — this page will update by itself.`
   );
-  await chrome.tabs.create({ url: `${appUrl}/developer` });
+  // Straight to the API keys tab. Landing on Webhooks and hunting for the right
+  // tab is a step that shouldn't exist.
+  await chrome.tabs.create({ url: `${appUrl}/developer?tab=api-keys` });
 }
 
 async function forget() {

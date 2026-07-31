@@ -38,9 +38,21 @@ const EVENT_CATEGORIES: Record<string, WebhookEventType[]> = {
 
 type Tab = 'webhooks' | 'api-keys';
 
+/**
+ * Which tab to open on.
+ *
+ * Read from the URL so the page can be linked to directly — the Chrome
+ * extension sends people here for their API key, and landing them on Webhooks
+ * to hunt for the right tab is a step that shouldn't exist.
+ */
+function tabFromUrl(): Tab {
+  const requested = new URLSearchParams(window.location.search).get('tab');
+  return requested === 'api-keys' ? 'api-keys' : 'webhooks';
+}
+
 export function DeveloperPage() {
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<Tab>('webhooks');
+  const [tab, setTab] = useState<Tab>(tabFromUrl);
 
   const [showCreateWebhook, setShowCreateWebhook] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState('');
@@ -57,6 +69,16 @@ export function DeveloperPage() {
   /** Which key the freshly shown secret belongs to, so the panel can say so. */
   const [newKeyName, setNewKeyName] = useState<string>('');
   const [showConnectHelp, setShowConnectHelp] = useState(false);
+
+  /* Keep the URL in step with the tab, so a reload — or a link copied out of the
+     address bar — comes back to the tab the user was actually on. replaceState
+     rather than push: switching tabs isn't a navigation worth a Back press. */
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('tab') === tab) return;
+    url.searchParams.set('tab', tab);
+    window.history.replaceState(window.history.state, '', url.toString());
+  }, [tab]);
 
   const { data: endpoints, isLoading: loadingEndpoints } = useQuery({
     queryKey: ['webhook-endpoints'],
@@ -157,9 +179,9 @@ export function DeveloperPage() {
           );
         } else if (event.data.canWrite === false) {
           toast.error('Connected, but that key is read-only, so adding people will fail.');
-        } else if (typeof event.data.campaignCount === 'number') {
+        } else if (typeof event.data.listCount === 'number') {
           setExtensionConnected(true);
-          toast.success(`Extension connected — ${event.data.campaignCount} campaign(s) visible.`);
+          toast.success(`Extension connected — ${event.data.listCount} lead list(s) visible.`);
         } else {
           setExtensionConnected(true);
           toast.success('Extension connected');
