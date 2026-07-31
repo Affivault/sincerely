@@ -299,7 +299,9 @@ async function personFromContext(info, tab) {
   }
 
   if (!tab?.id) return null;
-  const scraped = await scrapeTab(tab.id).catch(() => null);
+  // Deep: the user picked "Add to list" from the menu with nothing selected, so
+  // finding the address *is* the request. Worth the wait here, unlike the badge.
+  const scraped = await scrapeTab(tab.id, { deep: true }).catch(() => null);
   return scraped?.email ? scraped : null;
 }
 
@@ -361,12 +363,21 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
  * Everywhere else it's injected on demand under activeTab, which is why the
  * extension needs no broad host permission to work on arbitrary sites.
  *
+ * `deep` decides whether the page is allowed to spend time looking: false reads
+ * the DOM and answers immediately, true also waits for LinkedIn's contact info.
+ * The default is false, and the default is the right answer for anything the
+ * user did not explicitly ask for — the badge, in particular, must never make a
+ * profile page do work on its own.
+ *
  * @param {number} tabId
+ * @param {{deep?: boolean}} [options]
  * @returns {Promise<object|null>}
  */
-async function scrapeTab(tabId) {
+async function scrapeTab(tabId, { deep = false } = {}) {
+  const type = deep ? 'SINCERELY_SCRAPE_DEEP' : 'SINCERELY_SCRAPE';
+
   try {
-    const response = await chrome.tabs.sendMessage(tabId, { type: 'SINCERELY_SCRAPE' });
+    const response = await chrome.tabs.sendMessage(tabId, { type });
     if (response) return response;
   } catch {
     // No listener yet — fall through and inject.
@@ -380,7 +391,7 @@ async function scrapeTab(tabId) {
   }
 
   try {
-    return await chrome.tabs.sendMessage(tabId, { type: 'SINCERELY_SCRAPE' });
+    return await chrome.tabs.sendMessage(tabId, { type });
   } catch {
     return null;
   }
@@ -447,8 +458,26 @@ async function missingApiPermission(apiBaseUrl) {
   }
 }
 
+/**
+ * The slow half of the scrape, asked for separately.
+ *
+ * GET_CONTEXT deliberately takes the fast path so the popup can paint. When the
+ * page says there is more to find (`contact_info_pending`), the popup calls this
+ * and fills the address in when it arrives. Splitting it this way is the whole
+ * difference between a popup that opens instantly and one that shows a blank
+ * frame for several seconds.
+ *
+ * @param {{tabId?: number}} payload
+ */
+async function handleDeepScrape(payload) {
+  if (!payload.tabId) return { ok: true, data: { person: null } };
+  const person = await scrapeTab(payload.tabId, { deep: true }).catch(() => null);
+  return { ok: true, data: { person } };
+}
+
 async function handleGetContext(payload) {
   const settings = await getSettings();
+  // Fast path only. See handleDeepScrape.
   const person = payload.tabId ? await scrapeTab(payload.tabId) : null;
 
   return {
@@ -1621,6 +1650,7 @@ async function handleConnectApply(payload) {
 /** @type {Record<string, (payload: any) => Promise<any>>} */
 const HANDLERS = {
   GET_CONTEXT: handleGetContext,
+  DEEP_SCRAPE: handleDeepScrape,
   LIST_LISTS: handleListLists,
   LOOKUP_PERSON: handleLookupPerson,
   SEARCH_CONTACTS: handleSearchContacts,

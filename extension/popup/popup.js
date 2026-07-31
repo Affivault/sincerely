@@ -180,7 +180,7 @@ async function send(type, payload = {}) {
 
 /**
  * @param {string} message
- * @param {{variant?: 'error'|'success', actions?: Array<{label: string, primary?: boolean, onClick: () => void}>}} [opts]
+ * @param {{variant?: 'error'|'success'|'working', actions?: Array<{label: string, primary?: boolean, onClick: () => void}>}} [opts]
  */
 function setStatus(message, opts = {}) {
   el.status.textContent = '';
@@ -1818,7 +1818,53 @@ async function init() {
   // If the page gave us nothing usable, the details are where the work is.
   if (!context.data.person?.email) toggleDetails(true);
 
-  await Promise.all([loadLists(context.data.lastListId), refreshStanding()]);
+  await Promise.all([
+    loadLists(context.data.lastListId),
+    refreshStanding(),
+    deepenPerson(tab?.id),
+  ]);
+}
+
+/**
+ * Ask the page for LinkedIn's contact info, after the popup is already drawn.
+ *
+ * GET_CONTEXT takes the scraper's fast path, so the popup opens on the person's
+ * name and title immediately rather than on an empty frame. On a LinkedIn
+ * profile the address isn't in the page at all, so it needs a second, slower
+ * request — which is fine once there is something on screen to wait in front of.
+ *
+ * Only runs when the fast pass said there was more to find, and never
+ * overwrites an address the user has started typing.
+ *
+ * @param {number|undefined} tabId
+ */
+async function deepenPerson(tabId) {
+  if (!tabId || !state.person?.contact_info_pending) return;
+
+  const wasEmpty = el.email.value.trim() === '';
+  if (wasEmpty) setStatus('Checking contact info…', { variant: 'working' });
+
+  const response = await send('DEEP_SCRAPE', { tabId });
+  const person = response.ok ? response.data.person : null;
+
+  if (!person?.email) {
+    if (wasEmpty && el.email.value.trim() === '') clearStatus();
+    return;
+  }
+
+  state.person = { ...state.person, ...person, contact_info_pending: false };
+
+  // The user may have typed while we were away; their address wins.
+  if (el.email.value.trim() !== '') {
+    renderAll();
+    return;
+  }
+
+  fillForm(state.person);
+  showPageEmails();
+  renderAll();
+  setStatus(`Found ${person.email} on this profile.`, { variant: 'success' });
+  await refreshStanding();
 }
 
 init().catch((err) => {

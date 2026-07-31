@@ -46,6 +46,8 @@
     collapsed: false,
     /** Prospector match, once searched. */
     prospect: undefined,
+    /** True while the deep contact-info pass is in flight. */
+    lookingForEmail: false,
     /** Result of the free domain-based finder, once run. */
     found: null,
     /** Domain the user typed for that, so a re-render doesn't lose it. */
@@ -134,6 +136,9 @@
       }
       .email-row .addr { flex: 1; min-width: 0; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .email-row .addr.missing { color: #8F8E97; }
+      .email-row .addr.looking { color: #5B5BF5; }
+      .email-row .addr.looking::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: currentColor; animation: sx-pulse 1s ease-in-out infinite; vertical-align: middle; }
+      @keyframes sx-pulse { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
       .pill {
         flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px;
         padding: 1px 6px; border-radius: 999px; font-size: 10.5px; font-weight: 500;
@@ -557,12 +562,19 @@
       if (verification) {
         row.appendChild(el('span', `pill ${verification.variant}`, verification.label));
       }
+    } else if (state.lookingForEmail) {
+      /* "Still looking" and "there is nothing here" are different answers, and
+         showing the second while the first is true is what made this look
+         broken — people saw "No email", reached for the finder, and the address
+         appeared underneath them a second later. */
+      row.appendChild(el('span', 'addr looking', 'Checking contact info…'));
     } else {
       row.appendChild(el('span', 'addr missing', 'No email on this profile'));
     }
     wrap.appendChild(row);
 
-    if (person.email) return wrap;
+    // Nothing to offer while the answer is still on its way.
+    if (person.email || state.lookingForEmail) return wrap;
 
     /*
      * No address. Work it out from the company's domain first: that costs
@@ -823,15 +835,16 @@
     state.loading = true;
     state.prospect = undefined;
     state.message = null;
+    state.lookingForEmail = false;
+    state.found = null;
     render();
 
     const stored = await chrome.storage.local.get({ [COLLAPSED_KEY]: false });
     state.collapsed = Boolean(stored[COLLAPSED_KEY]);
 
-    // The scraper is the sibling content script; it has already run. Awaited
-    // because on LinkedIn it fetches the contact info rather than reading the
-    // DOM, which is what makes an address available without the user opening
-    // the Contact info dialog.
+    /* The fast scrape: DOM only, settles within a tick, so the panel can show
+       who this is straight away. The address, which on LinkedIn has to be
+       fetched, arrives separately — see deepen() below. */
     state.person = sincerely.scrape ? await sincerely.scrape().catch(() => null) : null;
 
     const context = await send('GET_CONTEXT', {});
@@ -855,6 +868,50 @@
 
     state.loading = false;
     await refresh();
+
+    // Not awaited: the panel is already usable, and this is what used to keep it
+    // from being drawn at all.
+    deepen();
+  }
+
+  /**
+   * Second pass for LinkedIn's contact info.
+   *
+   * Runs behind an already-rendered panel, so the wait costs nobody anything.
+   * Guarded three ways: only when the fast pass said there was more to find,
+   * only once per profile, and abandoned if the user navigated while it ran —
+   * an address landing on the wrong person's card would be worse than none.
+   */
+  let deepening = false;
+  async function deepen() {
+    if (deepening) return;
+    if (!sincerely.scrapeDeep) return;
+    if (!state.person?.contact_info_pending) return;
+
+    const startedAt = location.href;
+    deepening = true;
+    state.lookingForEmail = true;
+    render();
+
+    try {
+      const deep = await sincerely.scrapeDeep().catch(() => null);
+      if (location.href !== startedAt) return;
+
+      state.lookingForEmail = false;
+      if (!deep?.email) {
+        // Say so, rather than leaving "looking" up forever.
+        state.person = { ...state.person, contact_info_pending: false };
+        render();
+        return;
+      }
+
+      state.person = { ...state.person, ...deep, contact_info_pending: false };
+      state.prospect = undefined;
+      await refresh();
+    } finally {
+      state.lookingForEmail = false;
+      deepening = false;
+    }
   }
 
   /* ---------------------------------------------------------------- */
@@ -893,6 +950,9 @@
     // that would ask it to scrape again mid-flight, which is how one quiet
     // click becomes a loop.
     if (sincerely.isOverlayBusy?.()) return;
+    // Same reasoning for the deep pass: it is already going to answer, and a
+    // second scrape racing it just doubles the work.
+    if (deepening) return;
     clearTimeout(rescanTimer);
     rescanTimer = setTimeout(async () => {
       if (state.person?.email || !sincerely.scrape) return;
