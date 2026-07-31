@@ -1,0 +1,12 @@
+{
+  "name": "@sincerely/extension-tests",
+  "private": true,
+  "type": "module",
+  "description": "Playwright suites driving the real unpacked extension against a mock API.",
+  "scripts": {
+    "test": "node run.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.62.0"
+  }
+}
