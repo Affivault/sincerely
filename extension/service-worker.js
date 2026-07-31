@@ -705,6 +705,32 @@ async function handleCheckKnown(payload) {
       }
     }
 
+    /*
+     * Memberships and suppression are resolved for the whole page up front,
+     * not per person.
+     *
+     * Asking per person cost two requests each — getContactLists plus
+     * isSuppressed — so a scrolled results page of 60 came to 145 requests
+     * against a 100/minute key. It reliably ran into 429s, and the rows that
+     * hit the wall silently reported "not known" for people who were on three
+     * lists. The surname batching above was written to avoid exactly that and
+     * then this loop spent the budget anyway.
+     *
+     * Now it is one read of the lists plus one read of each list's members —
+     * a handful of requests regardless of how many people are on screen.
+     */
+    const lists = await api.listLists().catch(() => []);
+    /** @type {Map<string, number>} contact id → how many lists they're on */
+    const listCounts = new Map();
+    for (const list of lists) {
+      const ids = await api.listContactIds(list.id).catch(() => new Set());
+      for (const id of ids) listCounts.set(id, (listCounts.get(id) || 0) + 1);
+    }
+
+    const suppression = await api
+      .listSuppressed()
+      .catch(() => ({ emails: new Set(), complete: false }));
+
     for (const person of people) {
       const contact = await findContactForPerson(person, pool);
 
@@ -713,14 +739,22 @@ async function handleCheckKnown(payload) {
         continue;
       }
 
-      const [memberships, suppressed] = await Promise.all([
-        api.getContactLists(contact.id).catch(() => []),
-        api.isSuppressed(contact.email).catch(() => false),
-      ]);
+      const email = String(contact.email || '').toLowerCase();
+      let suppressed = suppression.emails.has(email);
+
+      /*
+       * Only ask individually when the bulk read was truncated and said
+       * nothing about this address. Reporting somebody as safe to email when
+       * they are suppressed is the one error here worth spending a request to
+       * avoid.
+       */
+      if (!suppressed && !suppression.complete) {
+        suppressed = await api.isSuppressed(email).catch(() => false);
+      }
 
       byProfile[person.linkedin_url] = {
         contactId: contact.id,
-        onLists: memberships.length,
+        onLists: listCounts.get(contact.id) || 0,
         suppressed: Boolean(suppressed),
       };
     }

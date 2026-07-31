@@ -426,7 +426,30 @@
       }
 
       dismiss(modal);
-      await waitFor(() => !modal.isConnected, 1500);
+      let closed = await waitFor(() => !modal.isConnected, 1500);
+
+      /*
+       * If the dismiss button did not take, try Escape before giving up.
+       *
+       * This matters because the hiding stylesheet is removed in the `finally`
+       * below: a dialog we opened and failed to close does not stay invisible,
+       * it becomes a modal the user never asked for, sitting over the profile
+       * they were reading. `dismiss` only falls back to Escape when there was
+       * no button to click at all, which is the rarer case.
+       */
+      if (!closed) {
+        document.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true })
+        );
+        closed = await waitFor(() => !modal.isConnected, 1000);
+      }
+
+      // Still there: remove it ourselves rather than leave it on screen. We
+      // opened it, so it is ours to clear up.
+      if (!closed && modal.isConnected) {
+        modal.remove();
+        document.querySelector('.artdeco-modal-overlay')?.remove();
+      }
 
       /*
        * Dismissing usually pops the history entry LinkedIn pushed, but

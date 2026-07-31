@@ -490,6 +490,29 @@ export async function isSuppressed(email) {
 }
 
 /**
+ * The whole suppression list in one read, for checking many people at once.
+ *
+ * `isSuppressed` costs a request per address, which is fine for one person and
+ * ruinous for a page of them — the per-key limit is 100/minute. This answers
+ * for everybody in a single call.
+ *
+ * `complete` says whether the answer can be trusted as exhaustive: the endpoint
+ * paginates, so an account with more suppressions than we asked for gives a
+ * partial set, and callers must fall back rather than reporting "not
+ * suppressed" for someone who is.
+ *
+ * @param {number} [limit]
+ * @returns {Promise<{emails: Set<string>, complete: boolean}>}
+ */
+export async function listSuppressed(limit = 500) {
+  const result = await request('/suppression', { query: { limit, page: 1 } });
+  const rows = result?.data || [];
+  const emails = new Set(rows.map((row) => String(row.email || '').toLowerCase()).filter(Boolean));
+  const total = Number(result?.total ?? rows.length);
+  return { emails, complete: rows.length >= total };
+}
+
+/**
  * Deliverability check before enrolling, so an obvious dud doesn't burn a
  * send and a bit of domain reputation.
  * @param {string} email

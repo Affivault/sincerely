@@ -85,8 +85,21 @@ createServer({ key, cert }, (req, res) => {
   }
 
   if (url.pathname.includes('/overlay/contact-info')) {
-    res.writeHead(404, { 'Content-Type': 'text/html' });
-    return res.end('');
+    /*
+     * Slow for priya, instant for the quiet profile.
+     *
+     * The deep read has to still be running when the panel's 1200ms URL poller
+     * notices an SPA navigation, or the regression test for "navigating
+     * mid-read loses the next profile" has no overlap to catch and passes
+     * against the broken build. Real LinkedIn responses are not instant either.
+     * Kept under the scraper's 1500ms modal budget so the dialog route still
+     * succeeds afterwards.
+     */
+    const delay = url.pathname.includes(QUIET_SLUG) ? 0 : 1200;
+    return setTimeout(() => {
+      res.writeHead(404, { 'Content-Type': 'text/html' });
+      res.end('');
+    }, delay);
   }
 
   // A JSESSIONID is what the scraper reads as the CSRF token; without it the

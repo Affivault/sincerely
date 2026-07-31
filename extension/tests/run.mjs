@@ -32,6 +32,7 @@ const BROWSER = [
   'listbar.mjs',
   'scan.mjs',
   'fastpath.mjs',
+  'regressions.mjs',
 ];
 
 const only = process.argv[2];
