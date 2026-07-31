@@ -449,6 +449,18 @@ others:
 The **Network** tab inside the service worker's DevTools is the useful one — it
 shows the real request and the server's JSON error body.
 
+### Running the tests
+
+```bash
+cd extension/tests
+npm install
+node run.mjs
+```
+
+Ten suites, driving the real unpacked extension in Chromium against a mock API.
+Run them before opening a PR — they catch the wiring and timing faults that
+reading a diff does not. See [tests/README.md](tests/README.md).
+
 ### Worth testing deliberately
 
 The happy path is the easy part. These are the paths that actually break:
