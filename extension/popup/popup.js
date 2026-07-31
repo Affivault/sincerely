@@ -581,7 +581,20 @@ function renderPicker() {
 
 function selectActive() {
   const list = state.filtered[state.activeIndex];
+  const changed = state.selectedListId !== (list?.id ?? null);
   state.selectedListId = list?.id ?? null;
+
+  /*
+   * Changing the destination cancels an armed bulk add. The armed message
+   * names a list ("Add these 12 to 'Warm leads'? Click again"), and firing it
+   * at a list picked afterwards would put a page of people somewhere the user
+   * was never asked about.
+   */
+  if (changed && state.bulkArmed) {
+    state.bulkArmed = false;
+    clearStatus();
+  }
+
   syncButtons();
 }
 
@@ -1698,10 +1711,27 @@ function wireEvents() {
     findAllAddresses().catch((err) => showError({ message: err?.message }));
   });
 
+  /*
+   * Disarming is immediate; only the lookup is debounced.
+   *
+   * These used to share the 450ms debounce, which meant that editing the
+   * address and confirming quickly fired the *armed* action against the *new*
+   * address — the warning had named someone else entirely. Suppression blocks
+   * every future send and clears every list, so hitting the wrong person is
+   * not a recoverable mistake.
+   */
+  const disarm = () => {
+    state.suppressArmed = false;
+    state.bulkArmed = false;
+  };
+
+  el.email.addEventListener('input', () => {
+    disarm();
+    syncButtons();
+  });
   el.email.addEventListener(
     'input',
     debounce(() => {
-      state.suppressArmed = false;
       renderIdentity();
       refreshStanding();
     }, 450)
@@ -1719,7 +1749,7 @@ function wireEvents() {
   el.candidates.addEventListener('change', () => {
     if (!el.candidates.value) return;
     el.email.value = el.candidates.value;
-    state.suppressArmed = false;
+    disarm();
     refreshStanding();
   });
 

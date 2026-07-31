@@ -434,14 +434,20 @@
   /* Mount                                                            */
   /* ---------------------------------------------------------------- */
 
+  /** @returns {Promise<boolean>} True once the lists have actually been read. */
   async function loadLists() {
     const response = await send('LIST_LISTS');
-    if (!response.ok) return;
+    if (!response.ok) return false;
     barState.lists = response.data.lists || [];
     const { lastListId } = await chrome.storage.local.get({ lastListId: null });
     barState.listId = barState.lists.some((l) => l.id === lastListId)
       ? lastListId
       : barState.lists[0]?.id ?? null;
+    // The bar may already be on screen from an earlier decorate pass, drawn
+    // while this request was still in flight and therefore showing "No lead
+    // lists". Repaint now that there is something to show.
+    if (rows.size > 0) renderBar();
+    return true;
   }
 
   function teardown() {
@@ -473,17 +479,36 @@
     }, 600);
   }
 
+  /**
+   * Whether the lead lists have been fetched, successfully or not.
+   *
+   * Separate from `barState.lists.length`, so an account that genuinely has no
+   * lists isn't re-asked on every navigation, while a failed fetch still is.
+   */
+  let listsLoaded = false;
+
   async function mount() {
     if (!isListPage()) {
       teardown();
       return;
     }
-    if (rows.size === 0) {
-      await loadLists();
-      // The observer may have drawn the bar while the lists were still in
-      // flight; repaint so the picker isn't stuck on "No lead lists".
-      if (rows.size > 0) renderBar();
+
+    /*
+     * Lead lists belong to the account, not to the page, so they are fetched
+     * once and kept across navigations.
+     *
+     * This used to be guarded on `rows.size === 0` — the count of decorated
+     * result rows, which is a different thing entirely. Two faults came out of
+     * that: `teardown()` clears `rows`, so every LinkedIn search re-fetched the
+     * lists and spent the 100/minute key budget for nothing; and the repaint
+     * that followed was dead code, because `decorateRows()` had not run yet in
+     * this cycle, so `rows.size` was still 0 and `renderBar()` returns early at
+     * zero rows anyway. The picker it was meant to un-stick never got repainted.
+     */
+    if (!listsLoaded) {
+      listsLoaded = await loadLists();
     }
+
     scheduleDecorate();
   }
 

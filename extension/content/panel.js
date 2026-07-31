@@ -882,18 +882,37 @@
    * only once per profile, and abandoned if the user navigated while it ran —
    * an address landing on the wrong person's card would be worse than none.
    */
-  let deepening = false;
+  /**
+   * The deep read currently in flight, or null.
+   *
+   * A promise rather than a boolean, because the boolean version dropped work:
+   * navigating to another profile while a deep read was running made the new
+   * profile's `deepen()` return immediately, and by the time the old run
+   * finished there was nothing left to trigger a new one. The second profile
+   * simply never got its address. Now a later call waits for the earlier run
+   * instead of skipping.
+   */
+  let deepRun = null;
+
   async function deepen() {
-    if (deepening) return;
     if (!sincerely.scrapeDeep) return;
     if (!state.person?.contact_info_pending) return;
 
     const startedAt = location.href;
-    deepening = true;
+
+    // Serialise behind anything still finishing for a previous profile.
+    const previous = deepRun;
+    if (previous) await previous.catch(() => {});
+
+    // Re-check after the wait: the user may have moved on again, or the fast
+    // watcher may have found the address in the meantime.
+    if (location.href !== startedAt) return;
+    if (!state.person?.contact_info_pending) return;
+
     state.lookingForEmail = true;
     render();
 
-    try {
+    const run = (async () => {
       const deep = await sincerely.scrapeDeep().catch(() => null);
       if (location.href !== startedAt) return;
 
@@ -908,9 +927,14 @@
       state.person = { ...state.person, ...deep, contact_info_pending: false };
       state.prospect = undefined;
       await refresh();
+    })();
+
+    deepRun = run;
+    try {
+      await run;
     } finally {
       state.lookingForEmail = false;
-      deepening = false;
+      if (deepRun === run) deepRun = null;
     }
   }
 
@@ -952,7 +976,7 @@
     if (sincerely.isOverlayBusy?.()) return;
     // Same reasoning for the deep pass: it is already going to answer, and a
     // second scrape racing it just doubles the work.
-    if (deepening) return;
+    if (deepRun) return;
     clearTimeout(rescanTimer);
     rescanTimer = setTimeout(async () => {
       if (state.person?.email || !sincerely.scrape) return;

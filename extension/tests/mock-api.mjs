@@ -41,6 +41,9 @@ let listMembers = new Map();
 // Flipped on via GET /__arm-cold-start by the test harness.
 const coldStart = { armed: false, delayed: 0, delayMs: 25000 };
 
+/** Every request the extension has made, so a test can assert on cost. */
+export const calls = [];
+
 let contacts = [];
 /** contact id -> [{campaign_id, status, current_step_order}] */
 let enrolments = new Map();
@@ -79,6 +82,9 @@ function reset() {
   coldStart.armed = false;
   coldStart.delayed = 0;
   mintedKeys = [];
+  // Request log too, so a test can measure the cost of one flow rather than
+  // everything the suite has done so far.
+  calls.length = 0;
 }
 
 /** Prospector fixture — a provider, a credit balance, and two people. */
@@ -119,8 +125,6 @@ const timelines = new Map([
     { activity_type: 'sent', campaign_name: 'Q3 Brokers Outreach', step_subject: 'Quick question', occurred_at: '2026-07-25T10:00:00.000Z' },
   ]],
 ]);
-export const calls = [];
-
 
 function json(res, status, body) {
   const payload = body === null ? '' : JSON.stringify(body);
@@ -196,6 +200,14 @@ const server = createServer(async (req, res) => {
   }
   if (req.method === 'GET' && url.pathname === '/__cold-start-stats') {
     return json(res, 200, { armed: coldStart.armed, delayed: coldStart.delayed });
+  }
+  /*
+   * How many API requests the extension has made. Lets a test assert on cost
+   * rather than only on correctness — the per-key limit is 100/minute, so a
+   * handler that answers correctly in 145 requests is still broken.
+   */
+  if (req.method === 'GET' && url.pathname === '/__call-count') {
+    return json(res, 200, { total: calls.filter((c) => !c.path.startsWith('/__')).length });
   }
 
   // A person page served from an origin that IS in host_permissions, so the
@@ -548,6 +560,25 @@ const server = createServer(async (req, res) => {
   if (req.method === 'POST' && path === '/suppression') {
     suppressed.add(String(body.email).toLowerCase());
     return json(res, 201, { email: body.email, reason: body.reason });
+  }
+  /*
+   * The whole list in one read. Paginated like the real endpoint, because the
+   * extension has to know whether it got everything: a truncated page means it
+   * must fall back to per-address checks rather than report somebody as safe to
+   * email when they are suppressed.
+   */
+  if (req.method === 'GET' && path === '/suppression') {
+    const limit = Number(url.searchParams.get('limit') || 50);
+    const page = Number(url.searchParams.get('page') || 1);
+    const all = [...suppressed].map((email) => ({ email, reason: 'manual' }));
+    const from = (page - 1) * limit;
+    return json(res, 200, {
+      data: all.slice(from, from + limit),
+      total: all.length,
+      page,
+      limit,
+      total_pages: Math.max(1, Math.ceil(all.length / limit)),
+    });
   }
 
   if (req.method === 'POST' && path === '/verification/email') {
