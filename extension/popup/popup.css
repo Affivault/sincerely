@@ -1157,9 +1157,10 @@ body {
 .dest-trigger {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   width: 100%;
-  padding: 7px 10px;
+  height: 36px;
+  padding: 0 10px;
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
@@ -1183,26 +1184,11 @@ body {
   cursor: not-allowed;
 }
 
-.dest-text {
+.dest-name {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-/* The label stays quiet; the list name is the thing being chosen. */
-.dest-label {
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-
-.dest-name {
   font-size: 13px;
-  font-weight: 550;
+  font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -1261,4 +1247,36 @@ body {
 }
 .campaign-option.is-member .campaign-option-name {
   color: var(--text-secondary);
+}
+
+
+/* ── The decision row ──
+   Destination and verb side by side: "which list" then "go". Stacked, with the
+   dropdown labelled "Add to lead list" above a button reading "Add to <list>",
+   it was two controls both claiming the same action — it read as two Add
+   buttons, and it was right to call that out. */
+
+.decide {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.decide .destination {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Sized to its label, so the destination gets the room it needs for a long
+   list name. */
+.decide .btn-primary {
+  flex: 0 0 auto;
+  height: 36px;
+  padding: 0 16px;
+}
+
+/* Already on it: the row still reads left-to-right as a statement about this
+   person and this list, so the button only carries the state. */
+.decide .btn-primary.is-done:disabled {
+  padding: 0 12px;
 }

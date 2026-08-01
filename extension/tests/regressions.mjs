@@ -360,9 +360,14 @@ try {
     `${await popup.textContent('#list-trigger-name')} vs ${wanted}`
   );
   check(
-    'the button names that destination, still unpressed',
-    (await popup.textContent('#add-label')).includes(wanted),
+    'the button is a plain verb, not a second copy of the destination',
+    (await popup.textContent('#add-label')).trim() === 'Add',
     await popup.textContent('#add-label')
+  );
+  check(
+    'and it says where it will go on hover, without shouting it twice on screen',
+    ((await popup.getAttribute('#add', 'title')) || '').includes(wanted),
+    await popup.getAttribute('#add', 'title')
   );
 
   await popup.close();

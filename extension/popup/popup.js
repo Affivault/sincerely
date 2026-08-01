@@ -522,11 +522,17 @@ function syncButtons() {
 
   el.add.disabled = !hasEmail || !state.selectedListId || alreadyOnTarget;
   el.add.classList.toggle('is-done', alreadyOnTarget);
-  el.addLabel.textContent = !target
-    ? 'Add to list'
+  /*
+   * The verb only. The destination is named by the dropdown immediately to its
+   * left, so repeating it here produced "Add to lead list / Add to Brokers — UK"
+   * stacked — two controls both carrying the action.
+   */
+  el.addLabel.textContent = alreadyOnTarget ? 'On list' : 'Add';
+  el.add.title = !target
+    ? 'Choose a lead list first'
     : alreadyOnTarget
-      ? `Already on ${target.name}`
-      : `Add to ${target.name}`;
+      ? `Already on "${target.name}"`
+      : `Add to "${target.name}"`;
 
   // Bulk is offered only when the page really does hold several people —
   // otherwise it's a button that does the same as the one above it.
