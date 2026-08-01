@@ -216,15 +216,22 @@ not in the page until that dialog is opened. Waiting for the user to click it wa
 not acceptable: on a profile where the address *is* available, the extension
 appeared to find nothing.
 
-So the extension asks for it itself. Three layers:
+So the extension asks for it itself. Four layers:
 
-1. `/voyager/api/identity/profiles/<slug>/profileContactInfo` — the endpoint the
-   dialog itself calls, with the `JSESSIONID` cookie as the `csrf-token` header.
-2. `/in/<slug>/overlay/contact-info/` — the dialog's own URL, scanned for
-   addresses.
-3. **The Contact info dialog**, opened and dismissed programmatically.
+0. **LinkedIn's own embedded payloads.** It is an Ember app that ships its API
+   responses inside the document, in `<code id="bpr-guid-…">` elements holding
+   JSON. Free, instant, invisible, and independent of every class name — so it
+   goes first, and it is the layer most likely to survive a LinkedIn reskin.
+1. `/voyager/api/identity/profiles/<slug>/profileContactInfo` — a legacy REST
+   endpoint. LinkedIn has moved this behind GraphQL with rotating query ids, so
+   on most accounts it now answers 404. Kept because it costs one parallel
+   request, but nothing depends on it.
+2. `/in/<slug>/overlay/contact-info/` fetched and scanned. Also weak: LinkedIn
+   is a single-page app, so this returns the shell rather than rendered contact
+   info on most sessions.
+3. **The Contact info overlay**, opened and read.
 
-**1 and 2 run first, and in parallel.** Both are plain same-origin fetches: the
+**0, 1 and 2 run first, and in parallel.** Both are plain same-origin fetches: the
 user sees nothing, the page is untouched, and on most profiles one of them
 answers in a few hundred milliseconds. Only when neither returns an address does
 the extension fall through to driving the UI.
@@ -264,8 +271,37 @@ scroll lock, restoring it afterwards. Hiding the modal but leaving the lock in
 place is worse than doing nothing: the page looks normal and simply refuses to
 move.
 
-**It only ever clicks one element: an anchor whose href is this profile's
-contact-info overlay.** An earlier version also matched any button in `main`
+#### Opening the overlay without a button to click
+
+This was the bug that kept coming back: the extension found nothing unless the
+user opened Contact info themselves and left it on screen.
+
+The cause was that opening it depended entirely on locating one specific anchor.
+When that anchor was absent — a layout variant, a profile that renders the link
+differently — there was no way in at all, and the extension reported "no email"
+for somebody who plainly had one. Layers 1 and 2 above were supposed to be the
+safety net and are both weak in production, so in practice there was exactly one
+route and it was the fragile one.
+
+**LinkedIn's router opens that overlay in response to the URL.** Pushing the
+overlay path and firing a `popstate` makes LinkedIn open its own dialog, with
+its own data fetch, using a route it already owns. No element has to exist,
+nothing gets clicked, and there is no text to match — so it cannot click the
+wrong control, which was the failure in the other direction.
+
+Two consequences worth knowing:
+
+- The address bar changes while this runs. The panel's and the bulk bar's SPA
+  watchers skip URL changes while `isOverlayBusy()`, or they would treat it as
+  the user navigating and tear themselves down mid-read.
+- Restoring the URL happens in a `finally`, and only steps back **while still
+  parked on the overlay URL**. Guarding on "did we push it" instead is not
+  enough: LinkedIn's own dismiss handler also calls `history.back()`, and two
+  backs take the user off the profile entirely.
+
+**When it does click, it only ever clicks one element: an anchor or button
+identified structurally — by href, or by an id LinkedIn assigns to this one
+link.** An earlier version also matched any button in `main`
 whose text read "Contact info", which on a real profile hits the wrong control —
 LinkedIn's buttons carry nested visually-hidden text, the label is translated on
 non-English accounts, and a near-miss means clicking Message or Connect on

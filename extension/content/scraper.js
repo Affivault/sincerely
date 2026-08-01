@@ -122,6 +122,22 @@
       if (EMAIL_TEST.test(value) && isPlausibleEmail(value)) found.add(value);
     }
 
+    /*
+     * Anything in an open dialog, before the capped body sweep.
+     *
+     * A modal is appended at the end of the document, so its text lands at the
+     * *end* of innerText — past the 60k cap on a long profile. That is the
+     * literal case of "the email is on my screen and it says there is none":
+     * the user had opened Contact info themselves and the sweep never reached
+     * it. Dialogs are small and few, so they are read in full.
+     */
+    for (const dialog of document.querySelectorAll('[role="dialog"], .artdeco-modal')) {
+      for (const hit of (dialog.innerText || '').match(EMAIL_PATTERN) || []) {
+        const email = hit.toLowerCase();
+        if (isPlausibleEmail(email)) found.add(email);
+      }
+    }
+
     // Body text last, and capped — innerText on a huge page is expensive and
     // the tail end is almost always footer noise.
     const body = document.body ? document.body.innerText.slice(0, 60000) : '';
@@ -169,7 +185,7 @@
 
   /** Every address in an arbitrary object graph, however deeply nested. */
   function emailsInJson(value, found = new Set(), depth = 0) {
-    if (depth > 8 || found.size > 10) return found;
+    if (depth > 12 || found.size > 10) return found;
     if (typeof value === 'string') {
       if (EMAIL_TEST.test(value) && isPlausibleEmail(value.toLowerCase())) {
         found.add(value.toLowerCase());
@@ -290,16 +306,39 @@
    * @returns {HTMLAnchorElement|null}
    */
   function contactInfoTrigger(publicId) {
-    const anchors = [...document.querySelectorAll('a[href*="/overlay/contact-info"]')];
-    const mine = anchors.filter((anchor) => {
-      const href = anchor.getAttribute('href') || '';
+    /*
+     * Every selector here identifies the control structurally — by href, or by
+     * an id LinkedIn assigns to this one link. None of them match on visible
+     * text, which is what made the earlier version click Message or Connect:
+     * LinkedIn's buttons carry nested visually-hidden text and the label is
+     * translated on non-English accounts.
+     *
+     * Widened because relying on the href alone meant that any layout not
+     * rendering that anchor left no way into the overlay at all.
+     */
+    const candidates = [
+      ...document.querySelectorAll(
+        [
+          'a[href*="/overlay/contact-info"]',
+          '#top-card-text-details-contact-info',
+          'a[data-control-name="contact_see_more"]',
+          'a[id*="contact-info" i]',
+          'button[id*="contact-info" i]',
+        ].join(',')
+      ),
+    ];
+
+    const mine = candidates.filter((node) => {
+      const href = node.getAttribute('href') || '';
+      if (!href) return true;
       // "People also viewed" and similar carry other people's overlay links.
       // Only this profile's slug is ours to open.
       const slug = href.match(/\/in\/([^/?#]+)/);
       return !slug || decodeURIComponent(slug[1]) === publicId;
     });
+
     // The top card's link is the canonical one where several match.
-    return mine.find((anchor) => anchor.closest('main')) || mine[0] || null;
+    return mine.find((node) => node.closest('main')) || mine[0] || null;
   }
 
   /**
@@ -341,9 +380,6 @@
    * @returns {Promise<string[]>}
    */
   async function readContactInfoOverlay(publicId) {
-    const trigger = contactInfoTrigger(publicId);
-    if (!trigger) return [];
-
     // Anything already open is the page's own business — never ours to read or
     // to close. Only a dialog that wasn't here before the click counts.
     const before = new Set(document.querySelectorAll('[role="dialog"], .artdeco-modal'));
@@ -376,8 +412,12 @@
       else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
     };
 
+    /** @type {'click'|'router'|null} */
+    let openedBy = null;
+
     try {
-      trigger.click();
+      openedBy = openContactInfoOverlay(publicId);
+      if (!openedBy) return [];
 
       /*
        * Short deadlines on purpose. This runs last, after the network routes
@@ -392,7 +432,22 @@
           ),
         1500
       );
-      if (!modal) return [];
+
+      if (!modal) {
+        /*
+         * No dialog where we expected one — but opening the overlay makes
+         * LinkedIn *fetch* the contact info regardless of what it does with the
+         * markup, and the response lands in the document's embedded payloads.
+         * Reading that is independent of every class name and every layout
+         * variant, which is exactly what kept failing before.
+         *
+         * One settle-and-check rather than a poll: scanning the payloads means
+         * JSON.parsing every `code` block in the document, which on a real
+         * profile is far too heavy to run fifteen times over a second and a half.
+         */
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        return emailsFromEmbeddedPayloads();
+      }
 
       // The shell appears before its contents, so wait for something to read.
       await waitFor(
@@ -424,6 +479,10 @@
           if (isPlausibleEmail(address)) found.add(address);
         }
       }
+
+      // Belt and braces: whatever the modal rendered, take what LinkedIn
+      // fetched too. Costs nothing and survives a markup change.
+      for (const address of emailsFromEmbeddedPayloads()) found.add(address);
 
       dismiss(modal);
       let closed = await waitFor(() => !modal.isConnected, 1500);
@@ -459,26 +518,146 @@
        * they ever were. So wait for the URL to settle, and only step back if it
        * genuinely didn't.
        */
-      const restored = await waitFor(() => location.href === wasAt, 1200);
-      if (!restored && /overlay\/contact-info/.test(location.href)) {
-        history.back();
-        await waitFor(() => location.href === wasAt, 1200);
-      }
-
       return [...found];
     } catch {
       return [];
     } finally {
+      /*
+       * Restoring the address bar belongs here, not on the happy path.
+       *
+       * When the overlay is opened by pushing its URL and no dialog appears,
+       * the read returns early — and a restore placed after the modal handling
+       * never ran, leaving the page parked on the overlay URL. The panel's own
+       * SPA watcher then saw a changed URL, remounted, scraped again, pushed
+       * again: a loop, from a single missed cleanup path.
+       */
+      await restoreUrl(wasAt, openedBy);
       style.remove();
       overlayBusy = false;
     }
   }
 
   /**
-   * Route 1: the endpoint the Contact info overlay itself calls.
+   * Put the address bar back after driving the overlay.
    *
-   * Same-origin, carrying the user's own cookies, returning structured fields —
-   * the fastest answer available and completely invisible to the page.
+   * @param {string} wasAt Where the user actually was.
+   * @param {'click'|'router'|null} openedBy
+   */
+  async function restoreUrl(wasAt, openedBy) {
+    if (location.href === wasAt) return;
+
+    /*
+     * Give whoever else might pop it a moment first. LinkedIn's own dismiss
+     * handler calls history.back(), and so does ours — going back twice takes
+     * the user off the profile entirely, one entry further than they ever were.
+     * A short grace is enough to see that happen; a long one is dead time.
+     */
+    if (await waitFor(() => location.href === wasAt, openedBy === 'router' ? 400 : 1000)) return;
+
+    /*
+     * Only ever step back while still parked on the overlay URL. That check —
+     * not "did we push it" — is what makes a double-back impossible: once the
+     * address bar is anywhere else, going back is somebody else's history.
+     */
+    if (/overlay\/contact-info/.test(location.href)) {
+      history.back();
+      if (await waitFor(() => location.href === wasAt, 1000)) return;
+    }
+
+    /*
+     * Last resort, and deliberately not another history.back(). Rewriting the
+     * address bar in place restores what they were looking at without touching
+     * their history.
+     */
+    if (location.href !== wasAt && /^https?:/.test(location.href)) {
+      history.replaceState(history.state, '', wasAt);
+    }
+  }
+
+  /**
+   * Route 0: LinkedIn's own embedded API payloads.
+   *
+   * LinkedIn is an Ember app that ships its API responses inside the document,
+   * in `<code id="bpr-guid-…">` elements holding JSON. Anything the page has
+   * already fetched — including contact info, once the overlay has been opened
+   * in this session — is sitting there in the markup.
+   *
+   * Free, instant, invisible, and it needs no endpoint, no CSRF token and no
+   * element to click, which is why it goes first. It is also the only route
+   * that keeps working when LinkedIn renames things, because it reads whatever
+   * LinkedIn itself decided to embed.
+   *
+   * @returns {string[]}
+   */
+  function emailsFromEmbeddedPayloads() {
+    const found = new Set();
+    // `code` is the documented carrier; the id prefix varies by release, so
+    // every `code` block is considered and non-JSON ones simply fail to parse.
+    for (const node of document.querySelectorAll('code')) {
+      const raw = node.textContent || '';
+      // Cheap reject before paying for JSON.parse on a large blob.
+      if (!raw || raw.length > 400000 || raw.indexOf('@') === -1) continue;
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        continue;
+      }
+      for (const email of emailsInJson(parsed)) {
+        if (isPlausibleEmail(email)) found.add(email);
+      }
+      if (found.size > 5) break;
+    }
+    return [...found];
+  }
+
+  /**
+   * Open the Contact info overlay without needing a button to click.
+   *
+   * This is the fix for the complaint that kept coming back: the extension
+   * found nothing unless the user opened Contact info themselves. The reason
+   * was that opening it depended entirely on locating one specific anchor in
+   * LinkedIn's markup, and when that anchor was absent — a layout variant, a
+   * profile that renders the link differently — there was no way in at all, so
+   * the address was reported as missing when it plainly existed.
+   *
+   * LinkedIn's router opens that overlay in response to the *URL*. Pushing the
+   * overlay path and firing a popstate makes LinkedIn open its own dialog, with
+   * its own data fetch, using nothing but a route it already owns. No element
+   * has to exist, nothing gets clicked, and there is no text to match — so it
+   * cannot click the wrong control, which was the previous failure in the other
+   * direction.
+   *
+   * @param {string} publicId
+   * @returns {'click'|'router'|null} How it got in, so the restore can be exact.
+   */
+  function openContactInfoOverlay(publicId) {
+    const trigger = contactInfoTrigger(publicId);
+    if (trigger) {
+      trigger.click();
+      return 'click';
+    }
+
+    try {
+      const overlayUrl = `/in/${encodeURIComponent(publicId)}/overlay/contact-info/`;
+      history.pushState({}, '', overlayUrl);
+      // Ember and every other history router listens for this. Dispatched on
+      // the shared window, so the page's own listeners receive it.
+      window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+      return 'router';
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Route 2: the legacy REST endpoint the overlay used to call.
+   *
+   * Same-origin and invisible, so it is cheap to try, but it is a legacy path:
+   * LinkedIn has moved this behind GraphQL with rotating query ids, so on most
+   * accounts it now answers 404 and contributes nothing. Kept because it costs
+   * one parallel request and still works on some sessions — but nothing here
+   * depends on it, which was the mistake before.
    *
    * @param {string} publicId
    * @returns {Promise<{emails: string[], websites: string[]}>} Empty on any failure.
@@ -566,6 +745,17 @@
       const visible = collectEmails();
       if (visible.length > 0) {
         result.emails = visible;
+        return result;
+      }
+
+      /*
+       * Then LinkedIn's own embedded payloads, before any network call. Costs
+       * nothing, touches nothing, and on a profile whose contact info has
+       * already been fetched in this session it simply has the answer.
+       */
+      const embedded = emailsFromEmbeddedPayloads();
+      if (embedded.length > 0) {
+        result.emails = embedded;
         return result;
       }
 

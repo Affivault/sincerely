@@ -124,6 +124,86 @@ try {
   await profile.close();
 
   /* ================================================================ */
+  /* 1b. No button to click, and it still finds the address           */
+  /* ================================================================ */
+
+  /*
+   * The reported failure, reproduced exactly: a profile with no contact-info
+   * anchor anywhere in the markup, a dead legacy endpoint, and the address
+   * nowhere in the document. Every route the extension had came up empty and it
+   * declared "no email" for somebody who plainly had one — the user had to open
+   * Contact info by hand and leave it on screen.
+   *
+   * The way in is LinkedIn's own router: the overlay is a route, so pushing its
+   * URL makes the app open the dialog itself. Nothing is clicked, so nothing can
+   * be mis-clicked.
+   */
+  const router = await context.newPage();
+  await router.goto('https://www.linkedin.com/in/router-only/');
+  await router.waitForLoadState('domcontentloaded');
+
+  check(
+    'the fixture really has no contact-info link to click',
+    (await router.locator('a[href*="overlay/contact-info"]').count()) === 0
+  );
+  check(
+    'and no address anywhere in the document',
+    !/dana\.okafor@/.test(await router.evaluate(() => document.body.innerText))
+  );
+
+  const routerTabId = await worker.evaluate(async () => {
+    const tabs = await chrome.tabs.query({});
+    return tabs.find((t) => (t.url || '').includes('router-only'))?.id ?? null;
+  });
+
+  let routerDeep = null;
+  for (let i = 0; i < 20 && !routerDeep?.person?.email; i += 1) {
+    routerDeep = await worker.evaluate(
+      async (id) => {
+        try {
+          return { person: await chrome.tabs.sendMessage(id, { type: 'SINCERELY_SCRAPE_DEEP' }) };
+        } catch {
+          return null;
+        }
+      },
+      routerTabId
+    );
+    if (!routerDeep?.person?.email) await router.waitForTimeout(500);
+  }
+
+  check(
+    'the address is found with no button pressed and nothing visible on screen',
+    routerDeep?.person?.email === 'dana.okafor@northwind.example.org',
+    routerDeep?.person?.email || 'none'
+  );
+
+  await router.waitForTimeout(600);
+  const routerState = await router.evaluate(() => ({
+    url: location.pathname,
+    host: location.hostname,
+    dialogs: document.querySelectorAll('[role="dialog"]').length,
+    locked: getComputedStyle(document.body).overflowY === 'hidden',
+    styles: document.querySelectorAll('style[data-sincerely]').length,
+  }));
+
+  check('the profile URL is put back afterwards', routerState.url === '/in/router-only/', routerState.url);
+  /*
+   * The fixture's own dismiss calls history.back(), and so did the restore —
+   * two backs took the page off the profile entirely and landed on about:blank,
+   * the content script with it. Stepping back is now guarded on still being
+   * parked on the overlay URL, not on who opened it.
+   */
+  check(
+    'and the user is still on LinkedIn, not one entry further back than they ever were',
+    routerState.host === 'www.linkedin.com',
+    routerState.host
+  );
+  check('the dialog it opened is closed again', routerState.dialogs === 0, String(routerState.dialogs));
+  check('and the page is left unlocked', !routerState.locked);
+  check('with none of our stylesheet left behind', routerState.styles === 0, String(routerState.styles));
+  await router.close();
+
+  /* ================================================================ */
   /* 2. A page of results costs a handful of requests, not hundreds   */
   /* ================================================================ */
 
