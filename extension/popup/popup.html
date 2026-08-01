@@ -147,7 +147,7 @@
             <ul id="unlisted-results" class="scan-results"></ul>
           </div>
 
-          <button id="scan-add" class="btn-primary btn-block hidden" type="button">Add selected to list</button>
+          <button id="scan-add" class="btn-primary btn-block hidden" type="button">Add selected</button>
         </div>
       </section>
 
@@ -222,6 +222,19 @@
             <kbd class="kbd">↑↓</kbd>
           </div>
           <ul id="lead-lists" class="campaign-list" role="listbox" aria-label="Lead lists"></ul>
+          <!-- Making the destination is part of choosing it. A fresh account
+               had nowhere to put anybody and no way to fix that from here. -->
+          <div class="new-list">
+            <input
+              id="new-list-name"
+              class="picker-input"
+              type="text"
+              placeholder="New list name…"
+              autocomplete="off"
+              maxlength="120"
+            />
+            <button id="new-list-create" class="btn-secondary btn-xs" type="button">Create</button>
+          </div>
         </div>
       </div>
 

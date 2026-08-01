@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureCert } from './tls.mjs';
-import { TEST_API_KEY } from './fixtures.mjs';
+import { TEST_API_KEY, TEST_AUTH } from './fixtures.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const EXT_PATH = join(here, '..');
@@ -368,6 +368,52 @@ try {
     'and it says where it will go on hover, without shouting it twice on screen',
     ((await popup.getAttribute('#add', 'title')) || '').includes(wanted),
     await popup.getAttribute('#add', 'title')
+  );
+
+
+  /* ================================================================ */
+  /* 7. A fresh account can make its first list from here             */
+  /* ================================================================ */
+
+  /*
+   * "No lead lists on this account yet. Create one in Sincerely first." was the
+   * whole of the empty state — a dead end in a popup, from a tool whose entire
+   * job is putting people on lists. Worse, the trigger was disabled when the
+   * list was empty, so there was nothing pressable anywhere on the screen.
+   */
+  await popup.click('#list-trigger');
+  check('the destination opens even with lists present', await popup.locator('#list-pop').isVisible());
+  check('and offers a way to make a new one', await popup.locator('#new-list-name').isVisible());
+
+  const madeName = `Trade show ${Date.now() % 100000}`;
+  await popup.fill('#new-list-name', madeName);
+  await popup.click('#new-list-create');
+
+  await popup.waitForTimeout(2500);
+  console.log('DEBUG status:', await popup.textContent('#status').catch(() => 'n/a'));
+  console.log('DEBUG trigger:', await popup.textContent('#list-trigger-name'));
+  await popup.waitForFunction(
+    (wanted) => document.getElementById('list-trigger-name')?.textContent?.trim() === wanted,
+    madeName,
+    { timeout: 15000 }
+  );
+  check('creating a list selects it as the destination', true);
+  check('and closes the picker', await popup.locator('#list-pop').isHidden());
+  check(
+    'and the button offers to add to it',
+    (await popup.textContent('#add-label')).trim() === 'Add' &&
+      ((await popup.getAttribute('#add', 'title')) || '').includes(madeName),
+    await popup.getAttribute('#add', 'title')
+  );
+
+  const listsNow = await popup.evaluate((auth) =>
+    fetch('http://localhost:3001/api/v1/lists', { headers: { Authorization: auth } }).then((r) => r.json()),
+    TEST_AUTH
+  );
+  check(
+    'the list really exists on the account',
+    (listsNow || []).some((l) => l.name === madeName),
+    JSON.stringify((listsNow || []).map((l) => l.name))
   );
 
   await popup.close();

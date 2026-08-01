@@ -297,7 +297,8 @@ try {
     const select = shadow.querySelector('#sx-list');
     select.value = 'L1';
     select.dispatchEvent(new Event('change'));
-    [...shadow.querySelectorAll('button')].find((b) => b.textContent.includes('Add to list'))?.click();
+    // The verb only — the select beside it names the destination.
+    [...shadow.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Add')?.click();
   });
   await page.waitForFunction(
     () => document.getElementById('sincerely-panel-host')?.shadowRoot?.textContent?.includes('Added to'),

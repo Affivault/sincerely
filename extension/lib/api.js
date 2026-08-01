@@ -219,6 +219,21 @@ export async function listLists() {
 }
 
 /**
+ * Make a new lead list.
+ *
+ * The extension can create the destination it needs. Without this, somebody
+ * connecting a fresh account met "No lead lists on this account yet. Create one
+ * in Sincerely first." — a dead end in a popup, from a tool whose entire job is
+ * putting people on lists.
+ *
+ * @param {string} name
+ * @returns {Promise<{id: string, name: string, contact_count: number}>}
+ */
+export async function createList(name) {
+  return request('/lists', { method: 'POST', body: { name } });
+}
+
+/**
  * Which lists a contact is on.
  *
  * The server answers with every list plus an `is_member` flag, so this narrows

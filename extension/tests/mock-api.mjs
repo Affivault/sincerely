@@ -319,6 +319,19 @@ const server = createServer(async (req, res) => {
     return json(res, 200, ordered);
   }
 
+  // POST /lists — create one.
+  if (req.method === 'POST' && path === '/lists') {
+    const name = String(body.name || '').trim();
+    if (!name) return json(res, 400, { error: 'name is required' });
+    if (lists.some((l) => l.name.toLowerCase() === name.toLowerCase())) {
+      return json(res, 409, { error: 'List with this name already exists' });
+    }
+    const list = { id: `L${lists.length + 1}${Date.now() % 1000}`, name, contact_count: 0, is_default: false, color: '#5b5bf5' };
+    lists.push(list);
+    listMembers.set(list.id, new Set());
+    return json(res, 201, list);
+  }
+
   // GET /lists/contact/:id — every list, flagged with membership.
   const listsForContact = path.match(/^\/lists\/contact\/([^/]+)$/);
   if (req.method === 'GET' && listsForContact) {

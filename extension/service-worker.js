@@ -498,6 +498,26 @@ async function handleGetContext(payload) {
 }
 
 /** Every lead list, cached for the right-click menu. */
+/**
+ * Create a lead list and make it the destination.
+ *
+ * @param {{name?: string}} payload
+ */
+async function handleCreateList(payload) {
+  try {
+    const name = String(payload.name || '').trim();
+    if (!name) throw new ApiError('Give the list a name.', { code: 'NO_NAME' });
+    if (name.length > 120) throw new ApiError('That name is too long.', { code: 'BAD_NAME' });
+
+    const list = await api.createList(name);
+    // Selecting it immediately is the point: it was created to be used now.
+    await setSettings({ lastListId: list.id });
+    return { ok: true, data: { list } };
+  } catch (err) {
+    return toErrorPayload(err);
+  }
+}
+
 async function handleListLists() {
   try {
     const lists = await api.listLists();
@@ -1686,6 +1706,7 @@ const HANDLERS = {
   GET_CONTEXT: handleGetContext,
   DEEP_SCRAPE: handleDeepScrape,
   LIST_LISTS: handleListLists,
+  CREATE_LIST: handleCreateList,
   LOOKUP_PERSON: handleLookupPerson,
   SEARCH_CONTACTS: handleSearchContacts,
   PROSPECT_FIND: handleProspectFind,
@@ -1750,7 +1771,13 @@ chrome.runtime.onStartup.addListener(async () => {
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== 'local') return;
   if (changes.apiKey) refreshBadge();
-  if (changes.lastListId) rebuildContextMenus();
+  /*
+   * Both, not just the last-used one. The right-click menu is built from
+   * `cachedLists`, so a list created or deleted in the web app left the menu
+   * offering a stale set — including ids that no longer exist, which fail the
+   * add with a 404 the user cannot act on. Only a browser restart fixed it.
+   */
+  if (changes.lastListId || changes.cachedLists) rebuildContextMenus();
   if (changes.appUrl?.newValue) ensureConnectScript(changes.appUrl.newValue);
 });
 

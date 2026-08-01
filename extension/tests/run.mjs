@@ -79,6 +79,26 @@ for (const suite of unitSuites) {
 }
 
 if (browserSuites.length > 0) {
+  /*
+   * Refuse to run against a mock we did not start.
+   *
+   * A stale mock left listening on :3001 from an earlier session silently wins
+   * the port, the freshly spawned one dies, and every suite then tests an old
+   * build of the fixture — which presents as impossible failures ("no mock route
+   * for POST /lists" when the route is plainly there). Fail loudly instead.
+   */
+  const alreadyUp = await fetch('http://localhost:3001/__reset')
+    .then(() => true)
+    .catch(() => false);
+  if (alreadyUp) {
+    console.error(
+      '\nSomething is already listening on :3001. That is almost certainly a stale\n' +
+        'mock-api.mjs, and running against it tests the wrong fixture.\n' +
+        'Stop it first:  pkill -f mock-api.mjs\n'
+    );
+    process.exit(1);
+  }
+
   const mock = spawn('node', [join(here, 'mock-api.mjs')], { stdio: 'ignore' });
   process.on('exit', () => mock.kill());
 
