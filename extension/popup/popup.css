@@ -278,18 +278,6 @@ body {
    Type to filter, arrows to move, enter to add: the same shape as the app's
    command palette. */
 
-.picker {
-  margin: 14px 12px 0;
-}
-
-.picker-box {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-}
-
 .picker-field {
   display: flex;
   align-items: center;
@@ -1150,4 +1138,127 @@ body {
   color: var(--text-tertiary);
   background: var(--bg-elevated);
   box-shadow: none;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   Destination dropdown
+   ══════════════════════════════════════════════════════════════════
+   The list picker lives in the action bar now: one row that names where
+   this person is going, opening upward into the full searchable list.
+   As an always-open box mid-page it cost about 300px for a choice that
+   is usually one of three, and pushed the person's own details — the
+   reason you opened the popup — below the fold. */
+
+.destination {
+  position: relative;
+}
+
+.dest-trigger {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms var(--ease-out), background-color 150ms var(--ease-out);
+}
+.dest-trigger:hover:not(:disabled) {
+  border-color: var(--border-strong, var(--border-default));
+  background: var(--bg-hover);
+}
+.dest-trigger:focus-visible {
+  outline: none;
+  border-color: var(--indigo);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--indigo) 18%, transparent);
+}
+.dest-trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.dest-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* The label stays quiet; the list name is the thing being chosen. */
+.dest-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.dest-name {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dest-chev {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  transition: transform 160ms var(--ease-out);
+}
+.dest-trigger[aria-expanded='true'] .dest-chev {
+  transform: rotate(180deg);
+}
+
+/* Upward, because there is nothing below the action bar. */
+.dest-pop {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  /* Cast upward, since that is where it opens — a downward shadow on a panel
+     that floats above the content reads as a seam rather than a layer. */
+  box-shadow: 0 -8px 28px rgba(15, 15, 25, 0.16), 0 2px 6px rgba(15, 15, 25, 0.06);
+  overflow: hidden;
+}
+
+.dest-pop .campaign-list {
+  max-height: 210px;
+}
+
+/* An address is not a name: at headline size it overflows the card and reads
+   as shouting. Shown plainly, and left to the sub-line to explain. */
+.person-name.is-email {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--text-secondary);
+}
+
+
+/* A destination they are already on is not a destination. Marked in the list
+   so the choice is visible before it is made, matching the LinkedIn panel. */
+.campaign-option .on-it {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--success);
+  background: var(--success-bg);
+  border-radius: 999px;
+}
+.campaign-option.is-member .campaign-option-name {
+  color: var(--text-secondary);
 }

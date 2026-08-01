@@ -72,6 +72,10 @@ const el = {
 
   listSearch: document.getElementById('list-search'),
   listPicker: document.getElementById('lead-lists'),
+  listTrigger: document.getElementById('list-trigger'),
+  listTriggerName: document.getElementById('list-trigger-name'),
+  listTriggerSwatch: document.getElementById('list-trigger-swatch'),
+  listPop: document.getElementById('list-pop'),
   add: document.getElementById('add'),
   addLabel: document.getElementById('add-label'),
   bulkAdd: document.getElementById('bulk-add'),
@@ -314,14 +318,22 @@ function renderIdentity() {
       : document.createTextNode(display)
   );
 
+  // Style the headline for what it actually is. An email rendered at name size
+  // overflows the card and reads as shouting.
+  el.personName.classList.toggle('is-email', !name && Boolean(form.email));
+
   const seed = (name || form.email || '?').toLowerCase();
   const initials = initialsFor(name, form.email);
   // Nobody detected is not a person: no gradient, no initials, no weight.
   const empty = !name && !form.email;
-  el.avatar.classList.toggle('is-empty', empty);
-  if (empty) {
+  /* Initials belong to a name. Deriving them from an address gives "BR" for
+     brand.new@… — two letters that mean nothing, dressed in the full brand
+     gradient as though we knew who this was. Muted placeholder instead. */
+  const placeholder = empty || !name;
+  el.avatar.classList.toggle('is-empty', placeholder);
+  if (placeholder) {
     el.avatar.style.background = '';
-    el.avatar.textContent = '—';
+    el.avatar.textContent = empty ? '—' : (form.email[0] || '?').toUpperCase();
   } else {
     const [from, to] = AVATAR_GRADIENTS[hashCode(seed) % AVATAR_GRADIENTS.length];
     el.avatar.style.background = `linear-gradient(135deg, ${from} 0%, ${to} 100%)`;
@@ -334,7 +346,12 @@ function renderIdentity() {
   if (bits.length === 0 && form.email && name) bits.push(form.email);
   if (bits.length === 0) {
     const source = SOURCE_LABEL[state.person?.source];
-    bits.push(source ? `Detected from ${source}` : 'Open a profile or an email, or type an address below.');
+    if (source) bits.push(`Detected from ${source}`);
+    // Only prompt when there is genuinely nothing. Telling somebody to "type an
+    // address below" directly underneath the address they are looking at was
+    // the empty-state copy leaking into a state that is not empty.
+    else if (!form.email) bits.push('Open a profile or an email, or type an address below.');
+    else bits.push('Not in your contacts yet');
   }
   el.personSub.textContent = bits.join(' · ');
 
@@ -583,18 +600,30 @@ function renderPicker() {
       button.appendChild(badge);
     }
 
+    /* Already on it? Say so here, not after they have picked it. */
+    const isMember = state.memberships.some((m) => m.id === list.id);
+    if (isMember) button.classList.add('is-member');
+
     const meta = document.createElement('span');
-    meta.className = 'campaign-option-meta';
-    // Size is the useful thing to know about a list at a glance.
-    const size = list.contact_count ?? 0;
-    meta.textContent = `${size} contact${size === 1 ? '' : 's'}`;
+    meta.className = isMember ? 'on-it' : 'campaign-option-meta';
+    if (isMember) {
+      meta.textContent = 'On it';
+    } else {
+      // Size is the useful thing to know about a list at a glance.
+      const size = list.contact_count ?? 0;
+      meta.textContent = `${size} contact${size === 1 ? '' : 's'}`;
+    }
     button.appendChild(meta);
 
     button.addEventListener('click', () => {
       state.activeIndex = index;
       state.listChosenByUser = true;
       selectActive();
-      addToList();
+      renderPicker();
+      /* Close and hand focus back to the trigger. Picking a destination is not
+         the same act as adding somebody to it — firing the add straight off a
+         list row made the dropdown feel like a trapdoor. */
+      toggleListPop(false);
     });
     // Hovering shouldn't silently change what Enter does, but it should track
     // the pointer so click and keyboard agree.
@@ -610,6 +639,33 @@ function renderPicker() {
   });
 
   el.listPicker.querySelector('.campaign-option.active')?.scrollIntoView({ block: 'nearest' });
+}
+
+/** Reflect the chosen destination on the collapsed trigger. */
+function syncDestination() {
+  const list = state.lists.find((l) => l.id === state.selectedListId);
+  el.listTriggerName.textContent = list
+    ? list.name
+    : state.lists.length === 0
+      ? 'No lead lists yet'
+      : 'Choose a list';
+  el.listTriggerSwatch.style.background = list?.color || 'var(--text-tertiary)';
+  el.listTriggerSwatch.classList.toggle('hidden', !list);
+  el.listTrigger.disabled = state.lists.length === 0;
+}
+
+/** @param {boolean} [force] */
+function toggleListPop(force) {
+  const open = force ?? el.listPop.classList.contains('hidden');
+  el.listPop.classList.toggle('hidden', !open);
+  el.listTrigger.setAttribute('aria-expanded', String(open));
+  if (open) {
+    el.listSearch.value = '';
+    applyFilter();
+    el.listSearch.focus();
+  } else {
+    el.listTrigger.focus();
+  }
 }
 
 function selectActive() {
@@ -628,6 +684,7 @@ function selectActive() {
     clearStatus();
   }
 
+  syncDestination();
   syncButtons();
 }
 
@@ -649,6 +706,7 @@ async function loadLists(preselectId) {
     state.lists = [];
     state.filtered = [];
     renderPicker();
+    syncDestination();
     showError(response.error);
     syncButtons();
     return;
@@ -659,6 +717,7 @@ async function loadLists(preselectId) {
 
   state.activeIndex = defaultListIndex(preselectId);
   selectActive();
+  syncDestination();
   renderPicker();
 }
 
@@ -747,6 +806,11 @@ function renderAll() {
   renderIdentity();
   renderStandingStrip();
   renderStanding();
+  /* Here rather than only at the call sites that change the selection: the
+     trigger and the button name the same list, and one path that updated the
+     selection without touching the trigger was enough to have them contradict
+     each other on screen. */
+  syncDestination();
   syncButtons();
 }
 
@@ -1575,9 +1639,9 @@ async function prospectReveal(match, button) {
   // Straight into the flow: the address is now the thing to act on.
   el.email.value = email;
   el.prospectResult.classList.add('hidden');
-  setStatus(`Found ${email}. Pick a list and add them.`, { variant: 'success' });
+  setStatus(`Found ${email}. Check the list below, then add them.`, { variant: 'success' });
   await refreshStanding();
-  el.listSearch.focus();
+  el.add.focus();
 }
 
 /** Name-based lookup for pages with no address (LinkedIn, mostly). */
@@ -1815,6 +1879,21 @@ function wireEvents() {
     refreshStanding();
   });
 
+  el.listTrigger.addEventListener('click', () => toggleListPop());
+  el.listTrigger.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      toggleListPop(true);
+    }
+  });
+
+  // Anywhere outside closes it, the way a dropdown is expected to behave.
+  document.addEventListener('mousedown', (event) => {
+    if (el.listPop.classList.contains('hidden')) return;
+    if (el.listPop.contains(event.target) || el.listTrigger.contains(event.target)) return;
+    toggleListPop(false);
+  });
+
   el.listSearch.addEventListener('input', () => {
     state.listChosenByUser = true;
     applyFilter();
@@ -1834,7 +1913,9 @@ function wireEvents() {
       renderPicker();
     } else if (event.key === 'Enter') {
       event.preventDefault();
-      if (!el.add.disabled) addToList();
+      state.listChosenByUser = true;
+      selectActive();
+      toggleListPop(false);
     }
   });
 
@@ -1861,6 +1942,13 @@ function wireEvents() {
   // it would be surprising.
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
+      /* Dismiss the topmost layer, not the whole popup. With the destination
+         picker open, Escape means "close this dropdown" — closing the entire
+         popup instead would throw away everything the user had typed. */
+      if (!el.listPop.classList.contains('hidden')) {
+        toggleListPop(false);
+        return;
+      }
       window.close();
       return;
     }
@@ -1914,11 +2002,21 @@ async function init() {
   fillForm(context.data.person);
   renderAll();
 
-  // The picker owns the keyboard from the moment the popup opens.
-  el.listSearch.focus();
-
   // If the page gave us nothing usable, the details are where the work is.
-  if (!context.data.person?.email) toggleDetails(true);
+  const hasEmail = Boolean(context.data.person?.email);
+  if (!hasEmail) toggleDetails(true);
+
+  /*
+   * Focus whatever the next action actually is.
+   *
+   * Not the picker: it is a collapsed dropdown now, so focusing it would open
+   * it on every launch, which is the opposite of the point. And not the Add
+   * button when there is nobody to add — that button is disabled, so focusing
+   * it strands the keyboard on a control that does nothing. With an address in
+   * hand, Enter adds to the shown destination straight away.
+   */
+  if (hasEmail) el.add.focus();
+  else el.email.focus();
 
   await Promise.all([
     loadLists(context.data.lastListId),
