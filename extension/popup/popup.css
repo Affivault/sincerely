@@ -7,19 +7,58 @@
  * decision. Editing the person's details is a rarer job, so it collapses.
  */
 
+/*
+ * A real three-row shell: header, scrolling body, pinned action bar.
+ *
+ * The previous version let the document grow to its content height and pinned
+ * the bar with `position: sticky; bottom: 0`. Sticky positions against the
+ * viewport while *keeping its place in the flow*, so on a popup taller than
+ * 600px the bar rendered on top of whatever content sat at that scroll
+ * position — slicing through the details form and hiding the memberships
+ * underneath it. Chrome caps popups at 600px, so that was the normal case,
+ * not an edge one.
+ *
+ * Fixed height plus flex is the fix: only the middle row scrolls, and the bar
+ * can never overlap anything because it is a sibling row, not an overlay.
+ */
+/*
+ * max-height, not height: Chrome sizes a popup to its content up to 600px, so
+ * pinning it at 600 would pad the short states — setup, "nobody detected" — with
+ * a slab of empty background under the buttons.
+ */
+html {
+  max-height: 600px;
+}
+
 body {
   width: 400px;
-  /* Room for the pinned action bar, which overlays the end of the scroll. */
-  padding-bottom: 0;
+  max-height: 600px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--bg-app);
+}
+
+#main {
+  flex: 1 1 auto;
+  /* Without min-height a flex child refuses to shrink below its content, and
+     the whole column grows instead of the body scrolling. */
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 12px;
+}
+
+#setup {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* ── Top bar ── */
 
 .topbar {
-  position: sticky;
-  top: 0;
-  z-index: 2;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -627,28 +666,42 @@ body {
 
 /* ── Enrolment rows ── */
 
+/* ── Memberships ──
+   Where they already are, sitting with the identity rather than in a panel at
+   the foot of the page. Knowing somebody is already on "Brokers — UK" is what
+   decides whether you add them at all, so it cannot be the last thing you
+   scroll to. Rendered as compact rows, one line each: this is reference, not
+   the main event. */
+
+.memberships {
+  margin: 10px 0 0;
+}
+
+.membership-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .enrolment {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--border-subtle);
-}
-.enrolment:first-child {
-  padding-top: 0;
-}
-.enrolment:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
+  gap: 8px;
+  padding: 5px 8px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
 }
 
 .enrolment-main {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
 }
 
 .enrolment-name {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
@@ -657,13 +710,31 @@ body {
 }
 
 .enrolment-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 3px;
-  font-size: 11.5px;
+  flex: 0 0 auto;
+  font-size: 11px;
   color: var(--text-tertiary);
+}
+
+/* Visible, but never competing with the primary action. Full contrast only on
+   hover, so a list of memberships doesn't read as a row of buttons. */
+.enrolment .remove-btn {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: color 120ms var(--ease-out), border-color 120ms var(--ease-out);
+}
+.enrolment:hover .remove-btn {
+  color: var(--text-secondary);
+  border-color: var(--border-subtle);
+}
+.enrolment .remove-btn:hover {
+  color: var(--error);
+  border-color: var(--error-border);
 }
 
 .note {
@@ -824,7 +895,10 @@ body {
 /* ── Status line ── */
 
 .status {
-  margin: 12px 12px 0;
+  flex: 0 0 auto;
+  max-height: 40%;
+  overflow-y: auto;
+  margin: 0 12px 8px;
   padding: 10px 12px;
   font-size: 12.5px;
   line-height: 1.5;
@@ -907,21 +981,13 @@ body {
    content beneath reads as continuing rather than being cut off. */
 
 .action-bar {
-  position: sticky;
-  bottom: 0;
-  z-index: 3;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   gap: 7px;
   padding: 10px 12px 12px;
-  background: color-mix(in srgb, var(--bg-app) 88%, transparent);
-  backdrop-filter: blur(8px);
+  background: var(--bg-surface);
   border-top: 1px solid var(--border-subtle);
-}
-
-/* Keeps the last row of content clear of the bar when scrolled to the end. */
-.action-spacer {
-  height: 4px;
 }
 
 /* ── Loading ──
@@ -956,4 +1022,132 @@ body {
 .loading-line + .loading-line {
   margin-top: 7px;
   width: 62%;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   Hierarchy pass
+   ══════════════════════════════════════════════════════════════════
+   Everything below fixes the same complaint: nothing led. Name, list
+   names, field labels and body copy all sat within a point or two of
+   each other at similar weights, so the eye had nowhere to land and
+   the popup read as one undifferentiated column. */
+
+/* The person is the headline. Give it the size to say so. */
+.person-name {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.person-sub {
+  font-size: 11.5px;
+}
+
+/* Section labels are signposts, not content — quieter and tighter. */
+.micro-label {
+  margin-bottom: 5px;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+  opacity: 0.85;
+}
+
+/* The decision is the one thing that should feel weighty after the name. */
+.campaign-option {
+  padding: 8px;
+  font-size: 13px;
+}
+.campaign-option-name {
+  font-weight: 500;
+}
+.campaign-option.active {
+  box-shadow: inset 2px 0 0 var(--indigo);
+}
+
+/* ── Density ──
+   The details form ran 48px per field in a 400×600 popup, which is most of
+   the viewport for four inputs nobody usually edits. */
+
+.field {
+  margin-bottom: 8px;
+}
+
+.field-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.details-body .input-field {
+  height: 30px;
+  font-size: 12.5px;
+}
+
+/* ── The destructive action ──
+   A full-width red-bordered button was the loudest thing in the details
+   panel, for the rarest and least reversible action in the extension.
+   Present, findable, and no longer shouting: it earns colour on hover and
+   when armed, not at rest. */
+
+.details-body .btn-danger-quiet {
+  width: auto;
+  height: 26px;
+  margin-top: 2px;
+  padding: 0 8px;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+  background: transparent;
+  border-color: transparent;
+}
+.details-body .btn-danger-quiet:hover:not(:disabled) {
+  color: var(--error);
+  background: var(--error-bg);
+  border-color: var(--error-border);
+}
+/* Armed is a different matter — the next click is the real one. */
+.details-body .btn-danger-quiet.armed {
+  color: var(--error);
+  background: var(--error-bg);
+  border-color: var(--error-border);
+  font-weight: 500;
+}
+
+.footnote {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+
+/* ── The primary action ──
+   Disabled used to be a washed-out purple that still read as the brightest
+   thing on screen, so "you cannot press this" looked like "press this". */
+
+.action-bar .btn-primary:disabled {
+  opacity: 1;
+  color: var(--text-tertiary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  box-shadow: none;
+}
+.action-bar .btn-primary:disabled .kbd {
+  display: none;
+}
+
+/* Already done is not a failure — it is a satisfied state, and it should
+   look settled rather than broken. */
+.action-bar .btn-primary.is-done:disabled {
+  color: var(--success);
+  background: var(--success-bg);
+  border-color: var(--success-border);
+}
+
+/* ── Empty state ──
+   "Nobody detected" is not a person, so it should not get a person's
+   avatar in full brand colour. */
+.avatar.is-empty {
+  color: var(--text-tertiary);
+  background: var(--bg-elevated);
+  box-shadow: none;
 }

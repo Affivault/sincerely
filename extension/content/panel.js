@@ -41,6 +41,8 @@
     suppressed: false,
     lists: [],
     selectedListId: null,
+    /** True once the user has picked a list themselves, so the default stops. */
+    listChosenByUser: false,
     appUrl: '',
     loading: true,
     collapsed: false,
@@ -200,6 +202,18 @@
       }
       .btn:active:not(:disabled) { transform: translateY(.5px); }
       .btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+      /* Already on the list is a satisfied state, not a failure. */
+      .btn.done, .btn.done:disabled {
+        opacity: 1; background: #ECFDF5; color: #047857;
+        border: 1px solid rgba(16,185,129,.35); box-shadow: none;
+      }
+      /* Native select arrows look like the operating system, not the product. */
+      select.sel {
+        appearance: none; -webkit-appearance: none;
+        padding-right: 28px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238F8E97' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat; background-position: right 9px center;
+      }
       .btn.secondary {
         background: #FFFFFF; color: #1B1B1F; border: 1px solid #E0DDD8;
         box-shadow: 0 1px 0 rgba(0,0,0,.015);
@@ -299,7 +313,10 @@
     return root;
   }
 
+  let lastSignature = null;
+
   function removePanel() {
+    lastSignature = null;
     document.getElementById(HOST_ID)?.remove();
     root = null;
   }
@@ -369,7 +386,48 @@
   /* Render                                                           */
   /* ---------------------------------------------------------------- */
 
+  /**
+   * Everything a render depends on, as a comparable string.
+   *
+   * Cheap insurance against redundant work: several things call render() —
+   * the lookup, the deep read, the DOM watcher, the list picker — and they
+   * frequently fire in quick succession with nothing actually different
+   * between them.
+   */
+  function renderSignature() {
+    return JSON.stringify([
+      state.loading,
+      state.collapsed,
+      state.busy,
+      state.lookingForEmail,
+      state.person?.email ?? null,
+      state.person?.full_name ?? null,
+      state.person?.job_title ?? null,
+      state.person?.company ?? null,
+      state.person?.contact_info_pending ?? null,
+      state.contact?.id ?? null,
+      state.memberships.map((m) => m.id),
+      state.suppressed,
+      state.engagement,
+      state.lists.map((l) => `${l.id}:${l.contact_count}`),
+      state.selectedListId,
+      state.prospect === undefined ? 'none' : state.prospect,
+      state.found,
+      state.message,
+    ]);
+  }
+
   function render() {
+    /*
+     * Rebuilding the DOM is the only way this panel updates, so a render that
+     * changes nothing is not free — it drops focus out of the domain box
+     * mid-typing, resets the scroll position, and makes the panel visibly
+     * flicker. Skipping the identical ones fixes all three.
+     */
+    const signature = renderSignature();
+    if (signature === lastSignature && ensureRoot().querySelector('.panel')) return;
+    lastSignature = signature;
+
     const shadow = ensureRoot();
     shadow.querySelector('.panel')?.remove();
 
@@ -462,23 +520,35 @@
         option.value = '';
         select.appendChild(option);
       }
+      const isMember = (list) => state.memberships.some((m) => m.id === list.id);
+
       for (const list of state.lists) {
-        const option = el(
-          'option',
-          null,
-          `${list.name}${list.is_default ? ' (default)' : ''} · ${list.contact_count ?? 0}`
-        );
+        // Say which ones they are already on, right in the options — picking a
+        // destination only to be told "already on it" is a wasted step.
+        const suffix = isMember(list) ? ' · already on' : ` · ${list.contact_count ?? 0}`;
+        const option = el('option', null, `${list.name}${list.is_default ? ' (default)' : ''}${suffix}`);
         option.value = list.id;
         if (list.id === state.selectedListId) option.selected = true;
         select.appendChild(option);
       }
       select.addEventListener('change', () => {
         state.selectedListId = select.value;
+        state.listChosenByUser = true;
+        render();
       });
       body.appendChild(select);
 
-      const add = el('button', 'btn', 'Add to list');
-      add.disabled = state.busy || !person.email || state.lists.length === 0;
+      /*
+       * The button says what pressing it will do, matching the popup. Offering
+       * "Add to list" for somebody already on the selected one reports a change
+       * that never happens — the server upserts, so it succeeds and means
+       * nothing.
+       */
+      const target = state.lists.find((l) => l.id === state.selectedListId);
+      const alreadyOn = Boolean(target) && isMember(target);
+
+      const add = el('button', `btn${alreadyOn ? ' done' : ''}`, alreadyOn ? `Already on ${target.name}` : 'Add to list');
+      add.disabled = state.busy || !person.email || state.lists.length === 0 || alreadyOn;
       add.addEventListener('click', addToList);
       body.appendChild(add);
     }
@@ -828,7 +898,25 @@
       state.engagement = response.data.engagement || null;
       state.suppressed = Boolean(response.data.suppressed);
     }
+    chooseDefaultList();
     render();
+  }
+
+  /**
+   * Move off a destination they are already on.
+   *
+   * Memberships are only known after the lookup, so the initial choice is made
+   * blind. Landing on a list they are already on leaves the primary button
+   * inert and the panel looking like it cannot do anything.
+   *
+   * Called before render rather than after: the panel rebuilds its DOM on every
+   * render, so a second pass costs a visible flash and any focus in the panel.
+   */
+  function chooseDefaultList() {
+    if (state.listChosenByUser) return;
+    if (!state.memberships.some((m) => m.id === state.selectedListId)) return;
+    const addable = state.lists.find((l) => !state.memberships.some((m) => m.id === l.id));
+    if (addable) state.selectedListId = addable.id;
   }
 
   async function load() {

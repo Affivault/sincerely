@@ -56,6 +56,14 @@
           </div>
         </div>
         <div id="standing-strip" class="standing-strip hidden"></div>
+
+        <!-- Where they already are. This is the thing you need *before*
+             choosing a destination, so it sits with the identity rather than
+             at the bottom of the page under everything else. -->
+        <div id="standing" class="memberships hidden">
+          <p class="micro-label">On these lead lists</p>
+          <div id="standing-body" class="membership-rows"></div>
+        </div>
       </section>
 
       <!-- The decision. Labelled, because "which list" is the whole question. -->
@@ -136,14 +144,6 @@
         </div>
       </section>
 
-      <!-- Lead lists they're on, each removable. Hidden until there are some. -->
-      <section id="standing" class="panel block hidden">
-        <div class="block-head">
-          <p class="section-title">On these lead lists</p>
-        </div>
-        <div class="block-body" id="standing-body"></div>
-      </section>
-
       <!-- Read this company's own site for addresses. Free: public HTML. -->
       <section class="panel block" id="scan-block">
         <div class="block-head">
@@ -190,12 +190,18 @@
         <ul id="name-matches" class="matches hidden"></ul>
       </section>
 
-      <!-- Spacer so the sticky action bar never covers the last row. -->
-      <div class="action-spacer" aria-hidden="true"></div>
     </main>
 
-    <!-- The primary action, pinned. Scrolling to find "Add" is the single most
-         common thing that made this feel slow. -->
+    <!-- Status sits *above* the action bar, not after it. It used to be the
+         last element in the document, which in a scrolling popup put every
+         error and confirmation below the pinned bar and off screen — the user
+         pressed Add and saw nothing happen. -->
+    <div id="status" class="status hidden" role="status" aria-live="polite"></div>
+
+    <!-- The primary action, pinned. A flex child of the body rather than a
+         sticky element in normal flow: sticky positions against the viewport
+         while still occupying its place in the document, so the bar rendered
+         *over* whatever content happened to be at that scroll position. -->
     <div id="action-bar" class="action-bar hidden">
       <button id="add" class="btn-primary btn-block" type="button" disabled>
         <span id="add-label">Add to list</span>
@@ -205,8 +211,6 @@
         <span id="bulk-label">Add everyone on this page</span>
       </button>
     </div>
-
-    <div id="status" class="status hidden" role="status" aria-live="polite"></div>
 
     <script type="module" src="popup.js"></script>
   </body>

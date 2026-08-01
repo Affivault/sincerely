@@ -56,6 +56,7 @@ const AVATAR_GRADIENTS = [
 const el = {
   setup: document.getElementById('setup'),
   main: document.getElementById('main'),
+  connDot: document.getElementById('conn-dot'),
   openOptions: document.getElementById('open-options'),
   actionBar: document.getElementById('action-bar'),
   setupOpenOptions: document.getElementById('setup-open-options'),
@@ -131,6 +132,8 @@ const state = {
   filtered: [],
   activeIndex: 0,
   selectedListId: null,
+  /** True once the user has picked a list themselves. */
+  listChosenByUser: false,
   /** Web app origin, for "open in Sincerely" links. Empty disables them. */
   appUrl: '',
   /** The tab the popup was opened over, so a scan knows which site to read. */
@@ -312,9 +315,18 @@ function renderIdentity() {
   );
 
   const seed = (name || form.email || '?').toLowerCase();
-  const [from, to] = AVATAR_GRADIENTS[hashCode(seed) % AVATAR_GRADIENTS.length];
-  el.avatar.style.background = `linear-gradient(135deg, ${from} 0%, ${to} 100%)`;
-  el.avatar.textContent = initialsFor(name, form.email);
+  const initials = initialsFor(name, form.email);
+  // Nobody detected is not a person: no gradient, no initials, no weight.
+  const empty = !name && !form.email;
+  el.avatar.classList.toggle('is-empty', empty);
+  if (empty) {
+    el.avatar.style.background = '';
+    el.avatar.textContent = '—';
+  } else {
+    const [from, to] = AVATAR_GRADIENTS[hashCode(seed) % AVATAR_GRADIENTS.length];
+    el.avatar.style.background = `linear-gradient(135deg, ${from} 0%, ${to} 100%)`;
+    el.avatar.textContent = initials;
+  }
 
   const bits = [];
   if (form.job_title) bits.push(form.job_title);
@@ -468,16 +480,36 @@ function currentEmailIsValid() {
 
 function syncButtons() {
   const hasEmail = currentEmailIsValid();
-  el.add.disabled = !hasEmail || !state.selectedListId;
   el.suppress.disabled = !hasEmail || state.suppressed;
   el.suppress.textContent = state.suppressed
     ? 'Already suppressed'
     : state.suppressArmed
       ? 'Click again to confirm'
       : 'Never contact again';
+  el.suppress.classList.toggle('armed', state.suppressArmed);
 
   const target = state.lists.find((l) => l.id === state.selectedListId);
-  el.addLabel.textContent = target ? `Add to ${target.name}` : 'Add to list';
+
+  /*
+   * Say what pressing this will actually do.
+   *
+   * The button used to read "Add to Brokers — UK" for somebody already on
+   * Brokers — UK, with the membership shown further down the page. Offering an
+   * action that has already been taken, while the evidence sits below the fold,
+   * is how the popup managed to be both wrong and confusing at once. The add
+   * itself is idempotent, so nothing breaks — it just reported a change that
+   * never happened.
+   */
+  const alreadyOnTarget =
+    Boolean(target) && state.memberships.some((m) => m.id === target.id);
+
+  el.add.disabled = !hasEmail || !state.selectedListId || alreadyOnTarget;
+  el.add.classList.toggle('is-done', alreadyOnTarget);
+  el.addLabel.textContent = !target
+    ? 'Add to list'
+    : alreadyOnTarget
+      ? `Already on ${target.name}`
+      : `Add to ${target.name}`;
 
   // Bulk is offered only when the page really does hold several people —
   // otherwise it's a button that does the same as the one above it.
@@ -560,6 +592,7 @@ function renderPicker() {
 
     button.addEventListener('click', () => {
       state.activeIndex = index;
+      state.listChosenByUser = true;
       selectActive();
       addToList();
     });
@@ -624,13 +657,34 @@ async function loadLists(preselectId) {
   state.lists = response.data.lists || [];
   state.filtered = state.lists.slice();
 
-  // Start on the list they used last — overwhelmingly the one they want again,
-  // and it makes Enter correct without any typing.
-  const preselectIndex = state.lists.findIndex((l) => l.id === preselectId);
-  state.activeIndex = preselectIndex >= 0 ? preselectIndex : 0;
-
+  state.activeIndex = defaultListIndex(preselectId);
   selectActive();
   renderPicker();
+}
+
+/**
+ * Which list to start on.
+ *
+ * The list they used last, overwhelmingly — it makes Enter correct with no
+ * typing. But not if this person is already on it: landing on a destination
+ * whose button reads "Already on …" means the one keystroke that should have
+ * worked does nothing, so fall through to the first list that is actually a
+ * change. Only if they are on every list does it settle back on the last-used
+ * one and say so.
+ *
+ * @param {string|null|undefined} preselectId
+ * @returns {number}
+ */
+function defaultListIndex(preselectId) {
+  const isMember = (list) => state.memberships.some((m) => m.id === list.id);
+
+  const preselectIndex = state.lists.findIndex((l) => l.id === preselectId);
+  if (preselectIndex >= 0 && !isMember(state.lists[preselectIndex])) return preselectIndex;
+
+  const firstAddable = state.lists.findIndex((l) => !isMember(l));
+  if (firstAddable >= 0) return firstAddable;
+
+  return preselectIndex >= 0 ? preselectIndex : 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -640,25 +694,17 @@ async function loadLists(preselectId) {
 function renderStanding() {
   el.standingBody.textContent = '';
 
-  const showPanel = state.memberships.length > 0 || (state.contact && !state.looking);
+  /* Only when there is something to report. "Not on any lead list yet" for a
+     brand-new contact is a row of chrome saying nothing — the picker below
+     already implies it. */
+  const showPanel = state.memberships.length > 0;
   el.standing.classList.toggle('hidden', !showPanel);
   if (!showPanel) return;
 
-  if (state.suppressed) {
-    const warning = document.createElement('p');
-    warning.className = 'suppressed-note';
-    warning.textContent = 'On your suppression list — this address will not be emailed.';
-    el.standingBody.appendChild(warning);
-  }
-
-  if (state.memberships.length === 0) {
-    const note = document.createElement('p');
-    note.className = 'note';
-    note.textContent = 'Not on any lead list yet.';
-    el.standingBody.appendChild(note);
-    return;
-  }
-
+  /* Suppression is announced by the standing strip at the top of the person
+     card, in red, above everything else. Repeating it down here was a second
+     copy of the same fact in a less visible place — and once this panel became
+     memberships-only it could not be relied on to appear at all. */
   for (const membership of state.memberships) {
     const row = document.createElement('div');
     row.className = 'enrolment';
@@ -677,17 +723,16 @@ function renderStanding() {
     main.appendChild(name);
 
     if (Number.isFinite(membership.contact_count)) {
-      const meta = document.createElement('div');
+      const meta = document.createElement('span');
       meta.className = 'enrolment-meta';
-      const detail = document.createElement('span');
-      detail.textContent = `${membership.contact_count} contact${membership.contact_count === 1 ? '' : 's'}`;
-      meta.appendChild(detail);
+      meta.textContent = `${membership.contact_count}`;
+      meta.title = `${membership.contact_count} contact${membership.contact_count === 1 ? '' : 's'} on this list`;
       main.appendChild(meta);
     }
     row.appendChild(main);
 
     const removeButton = document.createElement('button');
-    removeButton.className = 'btn-secondary btn-xs remove-btn';
+    removeButton.className = 'remove-btn';
     removeButton.type = 'button';
     removeButton.textContent = 'Remove';
     removeButton.title = `Take them off "${membership.name}" — they stay in your contacts`;
@@ -768,6 +813,23 @@ async function refreshStanding() {
     backfill('lastName', state.contact.last_name);
     backfill('company', state.contact.company);
     backfill('jobTitle', state.contact.job_title);
+  }
+
+  /*
+   * The lists load and this lookup run concurrently, so the default was chosen
+   * before we knew where this person already is. Now that we do, move off a
+   * destination they are already on — unless they picked it themselves, in
+   * which case it is not ours to change.
+   */
+  if (!state.listChosenByUser && state.lists.length > 0) {
+    const { lastListId } = await chrome.storage.local.get({ lastListId: null });
+    const better = defaultListIndex(lastListId);
+    if (better !== state.activeIndex) {
+      state.activeIndex = better;
+      const list = state.filtered[better];
+      state.selectedListId = list?.id ?? state.selectedListId;
+      renderPicker();
+    }
   }
 
   renderAll();
@@ -1753,16 +1815,21 @@ function wireEvents() {
     refreshStanding();
   });
 
-  el.listSearch.addEventListener('input', applyFilter);
+  el.listSearch.addEventListener('input', () => {
+    state.listChosenByUser = true;
+    applyFilter();
+  });
   el.listSearch.addEventListener('keydown', (event) => {
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       state.activeIndex = Math.min(state.activeIndex + 1, state.filtered.length - 1);
+      state.listChosenByUser = true;
       selectActive();
       renderPicker();
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
       state.activeIndex = Math.max(state.activeIndex - 1, 0);
+      state.listChosenByUser = true;
       selectActive();
       renderPicker();
     } else if (event.key === 'Enter') {
@@ -1821,6 +1888,9 @@ async function init() {
   }
 
   if (!context.data.hasKey) {
+    /* The dot is hardcoded green with a "Connected" tooltip. On the setup
+       screen — where there is no key at all — that was simply untrue. */
+    el.connDot.classList.add('hidden');
     el.setup.classList.remove('hidden');
     return;
   }
@@ -1828,6 +1898,8 @@ async function init() {
   // A key with no permission to reach its API can't do anything, and every
   // request would fail as a bare network error. Finish setup instead.
   if (context.data.needsPermission) {
+    // Key stored but unusable until Chrome grants the origin: not connected.
+    el.connDot.classList.add('hidden');
     el.setup.classList.remove('hidden');
     askForPermission(context.data.needsPermission);
     return;

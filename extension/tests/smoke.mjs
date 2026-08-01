@@ -398,36 +398,37 @@ try {
   await popup.waitForFunction(() => document.querySelectorAll('.enrolment').length === 2, null, { timeout: 15000 });
   check('standing refreshes to show both memberships', true);
 
-  /* ---------------- adding twice is a no-op, not an error ---------------- */
+  /* ---------------- the add cannot be offered twice ---------------- */
 
   /*
    * The server upserts, so a repeat add succeeds and its reply cannot tell the
-   * two apart. The extension counts membership *before* adding for exactly this
-   * reason — without that, adding somebody who is already on the list reports a
-   * cheerful "Added", which is a lie and hides the fact that nothing happened.
+   * two apart — meaning a second press would report a change that never
+   * happened. The extension used to allow the press and then explain itself
+   * afterwards ("Already on X — nothing changed"). Not offering a pointless
+   * action in the first place is better than apologising for it, so the button
+   * now names the state and goes inert.
    */
-  await popup.click('#add');
   await popup.waitForFunction(
-    () => document.getElementById('status')?.textContent?.includes('Already on'),
+    () => document.getElementById('add-label')?.textContent?.startsWith('Already on'),
     null,
     { timeout: 15000 }
   );
   check(
-    'adding somebody already on the list says so instead of claiming a change',
-    /Already on "Conference — Q3" — nothing changed/.test(await popup.textContent('#status')),
-    await popup.textContent('#status')
+    'once they are on the chosen list the button says so rather than offering the add again',
+    /Already on Conference — Q3/.test(await popup.textContent('#add-label')),
+    await popup.textContent('#add-label')
+  );
+  check('and cannot be pressed', await popup.locator('#add').isDisabled());
+  check(
+    'and reads as settled rather than broken',
+    (await popup.getAttribute('#add', 'class'))?.includes('is-done'),
+    await popup.getAttribute('#add', 'class')
   );
   check(
-    'and offers no Undo, because there is nothing to undo',
-    (await popup.locator('.status-action').count()) === 0
+    'the membership row is not duplicated',
+    (await popup.locator('.enrolment').count()) === 2,
+    String(await popup.locator('.enrolment').count())
   );
-  // Sampled after the refresh settles, not during it: refreshStanding() clears
-  // the rows before repopulating, so an immediate read catches zero and says
-  // "duplicated" about a list that is merely mid-render.
-  await popup.waitForFunction(() => document.querySelectorAll('.enrolment').length === 2, null, {
-    timeout: 15000,
-  });
-  check('and does not duplicate the membership row', true);
 
   /* ---------------- removing a membership ---------------- */
 
@@ -504,13 +505,19 @@ try {
     { timeout: 15000 }
   );
   check('suppress reports what happened', /suppressed/.test(await popup.textContent('#status')));
-  await popup.waitForFunction(() => document.querySelector('.suppressed-note') !== null, null, { timeout: 15000 });
-  check('suppressed state is shown on refresh', await popup.locator('.suppressed-note').isVisible());
+  // Announced once, at the top, in red — not repeated in a panel further down.
+  await popup.waitForFunction(
+    () => /Suppressed/.test(document.getElementById('standing-strip')?.textContent || ''),
+    null,
+    { timeout: 15000 }
+  );
   check(
     'the strip leads with suppression, which outranks everything else',
     /Suppressed/.test(await popup.textContent('#standing-strip')),
     await popup.textContent('#standing-strip')
   );
+  check('and it is visible without scrolling, inside the person card',
+    await popup.locator('#standing-strip').isVisible());
   check('suppress button disables once suppressed', await popup.locator('#suppress').isDisabled());
 
   /* ---------------- Prospector ---------------- */
