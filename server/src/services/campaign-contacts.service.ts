@@ -204,6 +204,8 @@ export const campaignContactsService = {
   },
 
   async remove(campaignId: string, contactIds: string[]) {
+    if (!Array.isArray(contactIds) || contactIds.length === 0) return;
+
     const { error } = await supabaseAdmin
       .from('campaign_contacts')
       .delete()

@@ -113,6 +113,8 @@ export const listsService = {
   },
 
   async addContacts(userId: string, listId: string, contactIds: string[]): Promise<BulkActionResult> {
+    if (!Array.isArray(contactIds) || contactIds.length === 0) return { success: 0, failed: 0 };
+
     // Verify list belongs to user
     await this.get(userId, listId);
 
@@ -145,6 +147,8 @@ export const listsService = {
   },
 
   async removeContacts(userId: string, listId: string, contactIds: string[]): Promise<BulkActionResult> {
+    if (!Array.isArray(contactIds) || contactIds.length === 0) return { success: 0, failed: 0 };
+
     // Verify list belongs to user
     await this.get(userId, listId);
 

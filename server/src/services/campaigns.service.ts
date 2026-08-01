@@ -67,7 +67,10 @@ export const campaignsService = {
   },
 
   async list(userId: string, params: ListParams) {
-    const { page, limit, from, to } = getPagination(params);
+    // Higher cap than the default 100: campaign counts per workspace stay
+    // small (unlike contacts), and the campaigns list page and the
+    // "add to campaign" picker both request up to 500 expecting one page.
+    const { page, limit, from, to } = getPagination(params, 500);
 
     let query = supabaseAdmin
       .from('campaigns')
