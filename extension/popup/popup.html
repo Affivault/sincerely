@@ -177,25 +177,25 @@
          while still occupying its place in the document, so the bar rendered
          *over* whatever content happened to be at that scroll position. -->
     <div id="action-bar" class="action-bar hidden">
-      <!-- Destination and action together, at the bottom.
-           The picker used to be an always-open box in the middle of the page,
-           which spent roughly 300px on a choice that is usually one of three and
-           pushed the person's own details below the fold. Collapsed to a single
-           row here, it sits next to the button that uses it. -->
+      <!-- One decision, one row: where, then go.
+           This was briefly a labelled dropdown stacked above a button reading
+           "Add to <list>" — two controls, both carrying the verb, both naming
+           the same list. It read as two Add buttons. The destination is the
+           object and the button is the verb; neither needs to say the other's
+           half. -->
+      <div class="decide">
       <div class="destination">
         <button
           id="list-trigger"
           class="dest-trigger"
           type="button"
           aria-haspopup="listbox"
+          aria-label="Lead list to add to"
           aria-expanded="false"
           aria-controls="list-pop"
         >
           <span id="list-trigger-swatch" class="list-swatch" aria-hidden="true"></span>
-          <span class="dest-text">
-            <span class="dest-label">Add to lead list</span>
-            <span id="list-trigger-name" class="dest-name">Choose a list</span>
-          </span>
+          <span id="list-trigger-name" class="dest-name">Choose a list</span>
           <svg class="dest-chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="m6 15 6-6 6 6" />
           </svg>
@@ -225,10 +225,11 @@
         </div>
       </div>
 
-      <button id="add" class="btn-primary btn-block" type="button" disabled>
-        <span id="add-label">Add to list</span>
+      <button id="add" class="btn-primary" type="button" disabled>
+        <span id="add-label">Add</span>
         <kbd class="kbd kbd-on-primary">⏎</kbd>
       </button>
+      </div>
       <button id="bulk-add" class="btn-secondary btn-block hidden" type="button">
         <span id="bulk-label">Add everyone on this page</span>
       </button>

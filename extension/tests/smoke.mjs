@@ -423,14 +423,22 @@ try {
    * now names the state and goes inert.
    */
   await popup.waitForFunction(
-    () => document.getElementById('add-label')?.textContent?.startsWith('Already on'),
+    () => document.getElementById('add-label')?.textContent?.trim() === 'On list',
     null,
     { timeout: 15000 }
   );
+  /* The verb carries the state; the destination is named by the dropdown beside
+     it. Spelling the list out on the button too is what produced two controls
+     both reading "Add to <list>". */
   check(
     'once they are on the chosen list the button says so rather than offering the add again',
-    /Already on Conference — Q3/.test(await popup.textContent('#add-label')),
+    (await popup.textContent('#add-label')).trim() === 'On list',
     await popup.textContent('#add-label')
+  );
+  check(
+    'and the destination beside it still names the list',
+    (await popup.textContent('#list-trigger-name')).includes('Conference'),
+    await popup.textContent('#list-trigger-name')
   );
   check('and cannot be pressed', await popup.locator('#add').isDisabled());
   check(
