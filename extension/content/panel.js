@@ -155,6 +155,11 @@
 
       /* Domain box and its Find button on one line — typing a domain and
          pressing Find is one action, so it reads as one control. */
+      /* Destination and verb on one line: which list, then go. */
+      .decide { display: flex; align-items: stretch; gap: 6px; margin-top: 2px; }
+      .decide select.sel { flex: 1 1 auto; min-width: 0; }
+      .decide .btn { width: auto; flex: 0 0 auto; margin-top: 0; height: 32px; padding: 0 14px; }
+
       .finder { display: flex; align-items: center; gap: 6px; }
       .finder input.txt { flex: 1; min-width: 0; }
       .finder .btn { width: auto; margin-top: 0; flex: 0 0 auto; padding: 0 14px; }
@@ -509,12 +514,18 @@
 
     /* Lead-list picker + add */
     if (person.email || state.contact) {
-      const label = el('label', 'lbl', 'Add to lead list');
-      label.setAttribute('for', 'sx-list');
-      body.appendChild(label);
+      /*
+       * No label above the picker. It used to read "Add to lead list" directly
+       * above a button reading "Add to list" — two controls both carrying the
+       * verb, which is exactly the duplication the popup had. The select is the
+       * destination, the button is the action, and the row reads as one
+       * sentence left to right.
+       */
+      const row = el('div', 'decide');
 
       const select = el('select', 'sel');
       select.id = 'sx-list';
+      select.setAttribute('aria-label', 'Lead list to add to');
       if (state.lists.length === 0) {
         const option = el('option', null, 'No lead lists on this account');
         option.value = '';
@@ -536,7 +547,7 @@
         state.listChosenByUser = true;
         render();
       });
-      body.appendChild(select);
+      row.appendChild(select);
 
       /*
        * The button says what pressing it will do, matching the popup. Offering
@@ -547,10 +558,17 @@
       const target = state.lists.find((l) => l.id === state.selectedListId);
       const alreadyOn = Boolean(target) && isMember(target);
 
-      const add = el('button', `btn${alreadyOn ? ' done' : ''}`, alreadyOn ? `Already on ${target.name}` : 'Add to list');
+      // The verb only; the select beside it names the destination.
+      const add = el('button', `btn${alreadyOn ? ' done' : ''}`, alreadyOn ? 'On list' : 'Add');
       add.disabled = state.busy || !person.email || state.lists.length === 0 || alreadyOn;
+      add.title = target
+        ? alreadyOn
+          ? `Already on "${target.name}"`
+          : `Add to "${target.name}"`
+        : 'Choose a lead list first';
       add.addEventListener('click', addToList);
-      body.appendChild(add);
+      row.appendChild(add);
+      body.appendChild(row);
     }
 
     /* Lists they're already on */
@@ -1023,6 +1041,26 @@
     } finally {
       state.lookingForEmail = false;
       if (deepRun === run) deepRun = null;
+    }
+
+    /*
+     * One last look, after the flag has cleared.
+     *
+     * The DOM watcher ignores mutations while the scraper is driving LinkedIn's
+     * overlay — it has to, or our own dialog would send it round in circles. But
+     * that leaves a window: if the user opens Contact info themselves *during*
+     * the deep read, the mutation is skipped and the deep read has already taken
+     * its own snapshot, so nobody ever looks again and a visible address goes
+     * unnoticed. Re-checking once here closes it.
+     */
+    if (!state.person?.email && location.href === startedAt && sincerely.scrape) {
+      const late = await sincerely.scrape().catch(() => null);
+      if (late?.email && !state.person?.email) {
+        state.person = { ...state.person, ...late, contact_info_pending: false };
+        state.prospect = undefined;
+        setMessage(`Found ${late.email} on this profile.`, 'success');
+        await refresh();
+      }
     }
   }
 

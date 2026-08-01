@@ -76,6 +76,8 @@ const el = {
   listTriggerName: document.getElementById('list-trigger-name'),
   listTriggerSwatch: document.getElementById('list-trigger-swatch'),
   listPop: document.getElementById('list-pop'),
+  newListName: document.getElementById('new-list-name'),
+  newListCreate: document.getElementById('new-list-create'),
   add: document.getElementById('add'),
   addLabel: document.getElementById('add-label'),
   bulkAdd: document.getElementById('bulk-add'),
@@ -567,7 +569,7 @@ function renderPicker() {
   if (state.lists.length === 0) {
     const empty = document.createElement('li');
     empty.className = 'campaign-empty';
-    empty.textContent = 'No lead lists on this account yet. Create one in Sincerely first.';
+    empty.textContent = 'No lead lists yet — name one below to get started.';
     el.listPicker.appendChild(empty);
     return;
   }
@@ -647,6 +649,40 @@ function renderPicker() {
   el.listPicker.querySelector('.campaign-option.active')?.scrollIntoView({ block: 'nearest' });
 }
 
+/**
+ * Create a lead list and select it.
+ *
+ * Reloading the lists afterwards rather than splicing the new one in: the
+ * server decides ordering and defaults, and a locally-invented row that
+ * disagrees with the next refresh is worse than one extra request.
+ */
+async function createList() {
+  const name = el.newListName.value.trim();
+  if (!name) {
+    el.newListName.focus();
+    return;
+  }
+
+  el.newListCreate.disabled = true;
+  el.newListCreate.textContent = 'Creating…';
+
+  const response = await send('CREATE_LIST', { name });
+
+  el.newListCreate.disabled = false;
+  el.newListCreate.textContent = 'Create';
+
+  if (!response.ok) {
+    showError(response.error);
+    return;
+  }
+
+  el.newListName.value = '';
+  state.listChosenByUser = true;
+  await loadLists(response.data.list.id);
+  toggleListPop(false);
+  setStatus(`Created "${response.data.list.name}".`, { variant: 'success' });
+}
+
 /** Reflect the chosen destination on the collapsed trigger. */
 function syncDestination() {
   const list = state.lists.find((l) => l.id === state.selectedListId);
@@ -657,7 +693,10 @@ function syncDestination() {
       : 'Choose a list';
   el.listTriggerSwatch.style.background = list?.color || 'var(--text-tertiary)';
   el.listTriggerSwatch.classList.toggle('hidden', !list);
-  el.listTrigger.disabled = state.lists.length === 0;
+  /* Never disabled. With no lists at all the dropdown is the only route to
+     making one, so locking it shut left a fresh account with nothing it could
+     press anywhere in the popup. */
+  el.listTrigger.disabled = false;
 }
 
 /** @param {boolean} [force] */
@@ -1455,10 +1494,15 @@ function syncScanToolbar() {
   el.scanAll.indeterminate = selected > 0 && selected < total;
   el.scanAdd.disabled = selected === 0 || !state.selectedListId;
 
+  /*
+   * Count, not destination. The list is named by the dropdown in the action bar
+   * — the same reason the primary button says "Add" rather than "Add to
+   * <list>". Two controls both spelling out the destination is what made the
+   * bottom of this popup read as two Add buttons.
+   */
   const target = state.lists.find((l) => l.id === state.selectedListId);
-  el.scanAdd.textContent = target
-    ? `Add ${selected} to ${target.name}`
-    : 'Pick a list above first';
+  el.scanAdd.textContent = target ? `Add ${selected} selected` : 'Choose a list below first';
+  el.scanAdd.title = target ? `Add ${selected} to "${target.name}"` : '';
 }
 
 /** Re-tick only the addresses this account doesn't already hold. */
@@ -1883,6 +1927,17 @@ function wireEvents() {
     el.email.value = el.candidates.value;
     disarm();
     refreshStanding();
+  });
+
+  el.newListCreate.addEventListener('click', () => createList());
+  el.newListName.addEventListener('keydown', (event) => {
+    // Enter creates; the picker's arrow-key handling belongs to the search box,
+    // not to this field, so it must not bubble into it.
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      event.stopPropagation();
+      createList();
+    }
   });
 
   el.listTrigger.addEventListener('click', () => toggleListPop());
