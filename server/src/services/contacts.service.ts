@@ -507,6 +507,9 @@ export const contactsService = {
   },
 
   async bulkTag(userId: string, contactIds: string[], tagIds: string[]) {
+    if (!Array.isArray(contactIds) || contactIds.length === 0) return;
+    if (!Array.isArray(tagIds) || tagIds.length === 0) return;
+
     // Verify contacts belong to user
     const { data: contacts } = await supabaseAdmin
       .from('contacts')
@@ -534,7 +537,8 @@ export const contactsService = {
   },
 
   async bulkUntag(userId: string, contactIds: string[], tagIds: string[]) {
-    if (!tagIds || tagIds.length === 0) return;
+    if (!Array.isArray(contactIds) || contactIds.length === 0) return;
+    if (!Array.isArray(tagIds) || tagIds.length === 0) return;
 
     const { data: contacts } = await supabaseAdmin
       .from('contacts')
@@ -561,6 +565,8 @@ export const contactsService = {
   },
 
   async bulkDelete(userId: string, contactIds: string[]) {
+    if (!Array.isArray(contactIds) || contactIds.length === 0) return { deleted: 0 };
+
     // Verify contacts belong to user before deleting
     const { data: owned } = await supabaseAdmin
       .from('contacts')

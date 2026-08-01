@@ -6,6 +6,7 @@ import { campaignsApi } from '../../api/campaigns.api';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Spinner } from '../ui/Spinner';
+import { SearchInput } from './SearchInput';
 import { cn } from '../../lib/utils';
 import { Megaphone, Plus, Check, Users, PlayCircle, PauseCircle, PencilLine, CalendarClock } from 'lucide-react';
 
@@ -31,23 +32,27 @@ export function AddToCampaignModal({
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const { data: campaignsPage, isLoading } = useQuery({
     queryKey: ['campaigns', 'for-enroll'],
-    queryFn: () => campaignsApi.list({ limit: 100 }),
+    queryFn: () => campaignsApi.list({ limit: 500 }),
   });
 
   // Finished campaigns can't take new leads.
-  const campaigns = (campaignsPage?.data || []).filter(
+  const activeCampaigns = (campaignsPage?.data || []).filter(
     (c: any) => !['completed', 'cancelled'].includes(c.status),
   );
+  const campaigns = search.trim()
+    ? activeCampaigns.filter((c: any) => c.name.toLowerCase().includes(search.trim().toLowerCase()))
+    : activeCampaigns;
 
   const enroll = useMutation({
     mutationFn: (campaignId: string) => campaignsApi.enrollContacts(campaignId, contactIds),
     onSuccess: (result, campaignId) => {
       qc.invalidateQueries({ queryKey: ['campaigns'] });
       qc.invalidateQueries({ queryKey: ['lists'] });
-      const name = campaigns.find((c: any) => c.id === campaignId)?.name || 'campaign';
+      const name = activeCampaigns.find((c: any) => c.id === campaignId)?.name || 'campaign';
       if (result.added > 0) {
         toast.success(
           `Added ${result.added} lead${result.added === 1 ? '' : 's'} to “${name}”` +
@@ -84,7 +89,7 @@ export function AddToCampaignModal({
     >
       {isLoading ? (
         <div className="flex justify-center py-10"><Spinner size="md" /></div>
-      ) : campaigns.length === 0 ? (
+      ) : activeCampaigns.length === 0 ? (
         <div className="py-8 text-center">
           <Megaphone className="h-7 w-7 text-[var(--text-muted)] mx-auto mb-2" />
           <p className="text-[13px] font-medium text-[var(--text-primary)]">No active campaigns yet</p>
@@ -94,36 +99,45 @@ export function AddToCampaignModal({
           </Button>
         </div>
       ) : (
-        <div className="space-y-1.5 max-h-80 overflow-y-auto -mx-1 px-1">
-          {campaigns.map((c: any) => {
-            const meta = STATUS_META[c.status] || STATUS_META.draft;
-            const Icon = meta.icon;
-            const active = selectedId === c.id;
-            return (
-              <button
-                key={c.id}
-                onClick={() => setSelectedId(c.id)}
-                className={cn(
-                  'w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors',
-                  active
-                    ? 'border-[var(--indigo)]/40 bg-[var(--indigo-subtle)]/50'
-                    : 'border-[var(--border-subtle)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)]',
-                )}
-              >
-                <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0', active ? 'bg-[var(--indigo-subtle)]' : 'bg-[var(--bg-elevated)]')}>
-                  <Megaphone className={cn('h-3.5 w-3.5', active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} />
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-[13px] font-medium text-[var(--text-primary)] truncate">{c.name}</span>
-                  <span className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)]">
-                    <span className={cn('inline-flex items-center gap-1 font-medium', meta.cls)}><Icon className="h-3 w-3" />{meta.label}</span>
-                    <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{c.total_contacts ?? 0} enrolled</span>
-                  </span>
-                </span>
-                {active && <Check className="h-4 w-4 text-[var(--indigo)] flex-shrink-0" />}
-              </button>
-            );
-          })}
+        <div className="space-y-2.5">
+          {activeCampaigns.length > 8 && (
+            <SearchInput value={search} onChange={setSearch} placeholder="Search campaigns…" />
+          )}
+          {campaigns.length === 0 ? (
+            <p className="py-6 text-center text-[13px] text-[var(--text-tertiary)]">No campaigns match “{search}”.</p>
+          ) : (
+            <div className="space-y-1.5 max-h-80 overflow-y-auto -mx-1 px-1">
+              {campaigns.map((c: any) => {
+                const meta = STATUS_META[c.status] || STATUS_META.draft;
+                const Icon = meta.icon;
+                const active = selectedId === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setSelectedId(c.id)}
+                    className={cn(
+                      'w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors',
+                      active
+                        ? 'border-[var(--indigo)]/40 bg-[var(--indigo-subtle)]/50'
+                        : 'border-[var(--border-subtle)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)]',
+                    )}
+                  >
+                    <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0', active ? 'bg-[var(--indigo-subtle)]' : 'bg-[var(--bg-elevated)]')}>
+                      <Megaphone className={cn('h-3.5 w-3.5', active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} />
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[13px] font-medium text-[var(--text-primary)] truncate">{c.name}</span>
+                      <span className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)]">
+                        <span className={cn('inline-flex items-center gap-1 font-medium', meta.cls)}><Icon className="h-3 w-3" />{meta.label}</span>
+                        <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{c.total_contacts ?? 0} enrolled</span>
+                      </span>
+                    </span>
+                    {active && <Check className="h-4 w-4 text-[var(--indigo)] flex-shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <button
             onClick={() => { onClose(); navigate('/campaigns/new'); }}
             className="w-full flex items-center gap-3 rounded-xl border border-dashed border-[var(--border-default)] px-3 py-2.5 text-left hover:bg-[var(--bg-hover)] transition-colors"
