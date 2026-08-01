@@ -66,32 +66,6 @@
         </div>
       </section>
 
-      <!-- The decision. Labelled, because "which list" is the whole question. -->
-      <section class="picker">
-        <p class="micro-label">Add to lead list</p>
-        <div class="picker-box">
-        <div class="picker-field">
-          <svg class="picker-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
-          </svg>
-          <input
-            id="list-search"
-            class="picker-input"
-            type="text"
-            placeholder="Find a lead list…"
-            autocomplete="off"
-            spellcheck="false"
-            role="combobox"
-            aria-expanded="true"
-            aria-controls="lead-lists"
-          />
-          <kbd class="kbd">↑↓</kbd>
-        </div>
-        <ul id="lead-lists" class="campaign-list" role="listbox" aria-label="Lead lists"></ul>
-        </div>
-      </section>
-
       <!-- Details, out of the way until they're needed. -->
       <section class="details">
         <button id="details-toggle" class="details-toggle" type="button" aria-expanded="false" aria-controls="details-body">
@@ -203,6 +177,54 @@
          while still occupying its place in the document, so the bar rendered
          *over* whatever content happened to be at that scroll position. -->
     <div id="action-bar" class="action-bar hidden">
+      <!-- Destination and action together, at the bottom.
+           The picker used to be an always-open box in the middle of the page,
+           which spent roughly 300px on a choice that is usually one of three and
+           pushed the person's own details below the fold. Collapsed to a single
+           row here, it sits next to the button that uses it. -->
+      <div class="destination">
+        <button
+          id="list-trigger"
+          class="dest-trigger"
+          type="button"
+          aria-haspopup="listbox"
+          aria-expanded="false"
+          aria-controls="list-pop"
+        >
+          <span id="list-trigger-swatch" class="list-swatch" aria-hidden="true"></span>
+          <span class="dest-text">
+            <span class="dest-label">Add to lead list</span>
+            <span id="list-trigger-name" class="dest-name">Choose a list</span>
+          </span>
+          <svg class="dest-chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m6 15 6-6 6 6" />
+          </svg>
+        </button>
+
+        <!-- Opens upward: there is nothing below it. -->
+        <div id="list-pop" class="dest-pop hidden">
+          <div class="picker-field">
+            <svg class="picker-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              id="list-search"
+              class="picker-input"
+              type="text"
+              placeholder="Find a lead list…"
+              autocomplete="off"
+              spellcheck="false"
+              role="combobox"
+              aria-expanded="true"
+              aria-controls="lead-lists"
+            />
+            <kbd class="kbd">↑↓</kbd>
+          </div>
+          <ul id="lead-lists" class="campaign-list" role="listbox" aria-label="Lead lists"></ul>
+        </div>
+      </div>
+
       <button id="add" class="btn-primary btn-block" type="button" disabled>
         <span id="add-label">Add to list</span>
         <kbd class="kbd kbd-on-primary">⏎</kbd>

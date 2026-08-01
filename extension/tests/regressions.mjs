@@ -318,6 +318,53 @@ try {
     (suppressedNow.data || []).length === 0,
     JSON.stringify(suppressedNow.data)
   );
+
+  /* ================================================================ */
+  /* 6. The destination dropdown                                      */
+  /* ================================================================ */
+
+  await popup.fill('#email', 'jane.doe@acme.com');
+  await popup.waitForTimeout(1600);
+
+  check('the dropdown starts closed', await popup.locator('#list-pop').isHidden());
+
+  await popup.click('#list-trigger');
+  check('the trigger opens it', await popup.locator('#list-pop').isVisible());
+  check(
+    'and marks lists they are already on, before the choice is made',
+    (await popup.locator('.campaign-option.is-member .on-it').count()) >= 1,
+    String(await popup.locator('.campaign-option.is-member .on-it').count())
+  );
+
+  await popup.keyboard.press('Escape');
+  check('Escape closes it', await popup.locator('#list-pop').isHidden());
+
+  await popup.click('#list-trigger');
+  await popup.click('#person-name');
+  check('clicking away closes it', await popup.locator('#list-pop').isHidden());
+
+  /*
+   * Picking a destination is not the same act as adding somebody to it. Firing
+   * the add straight off a list row made the dropdown behave like a trapdoor —
+   * you opened it to look and it committed on the way past.
+   */
+  await popup.click('#list-trigger');
+  const rows = popup.locator('.campaign-option:not(.is-member)');
+  const wanted = ((await rows.first().locator('.campaign-option-name').textContent()) || '').trim();
+  await rows.first().click();
+
+  check('choosing a list closes the dropdown', await popup.locator('#list-pop').isHidden());
+  check(
+    'and sets the destination without adding anybody',
+    (await popup.textContent('#list-trigger-name')).trim() === wanted,
+    `${await popup.textContent('#list-trigger-name')} vs ${wanted}`
+  );
+  check(
+    'the button names that destination, still unpressed',
+    (await popup.textContent('#add-label')).includes(wanted),
+    await popup.textContent('#add-label')
+  );
+
   await popup.close();
 } catch (err) {
   failures.push(`harness threw: ${err.message}`);

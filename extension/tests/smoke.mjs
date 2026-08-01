@@ -231,9 +231,33 @@ try {
   check('popup has no JS errors', popupErrors.length === 0, popupErrors.join(' | '));
   check('setup panel is hidden once connected', await popup.locator('#setup').isHidden());
 
+  // Opened as a bare tab there's no page to scrape, so the popup should open
+  // the details and put the cursor where the work is.
+  check(
+    'with nobody detected, the details open automatically',
+    (await popup.getAttribute('#details-toggle', 'aria-expanded')) === 'true'
+  );
+  check(
+    'with nobody detected, focus lands on the email field',
+    await popup.evaluate(() => document.activeElement?.id === 'email')
+  );
+
+  /* The destination lives in a collapsed dropdown at the foot of the popup now,
+     so it has to be opened before it can be inspected. That is the point of the
+     change: the picker used to be an always-open box that spent ~300px in the
+     middle of the page on a choice that is usually one of three. */
+  check('the destination is collapsed to one row by default', await popup.locator('#list-pop').isHidden());
+  check(
+    'and names where this person is going',
+    (await popup.textContent('#list-trigger-name')).trim().length > 0,
+    await popup.textContent('#list-trigger-name')
+  );
+
+  await popup.click('#list-trigger');
   await popup.waitForFunction(() => document.querySelectorAll('.campaign-option').length > 0, null, {
     timeout: 15000,
   });
+  check('opening the trigger reveals the full picker', await popup.locator('#list-pop').isVisible());
 
   const listCount = await popup.locator('.campaign-option').count();
   check('picker lists all 3 lead lists', listCount === 3, String(listCount));
@@ -249,19 +273,9 @@ try {
   );
   check(
     'and its own colour swatch, so it is recognisable by what you already recognise it by',
-    (await popup.locator('.list-swatch').count()) === 3
+    (await popup.locator('#lead-lists .list-swatch').count()) === 3
   );
 
-  // Opened as a bare tab there's no page to scrape, so the popup should open
-  // the details and put the cursor where the work is.
-  check(
-    'with nobody detected, the details open automatically',
-    (await popup.getAttribute('#details-toggle', 'aria-expanded')) === 'true'
-  );
-  check(
-    'with nobody detected, focus lands on the email field',
-    await popup.evaluate(() => document.activeElement?.id === 'email')
-  );
   check(
     'the details toggle explains what is missing',
     (await popup.textContent('#details-summary')) === 'Enter an email address'
@@ -570,7 +584,7 @@ try {
   );
   check(
     'the reveal hands the user their next step',
-    /Pick a list/.test(await popup.textContent('#status')),
+    /Check the list below/.test(await popup.textContent('#status')),
     await popup.textContent('#status')
   );
 
