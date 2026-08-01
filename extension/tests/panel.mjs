@@ -91,6 +91,27 @@ async function panelText(page) {
   });
 }
 
+/**
+ * Wait until the panel has finished its deep contact-info read.
+ *
+ * The panel paints immediately and then says "Checking contact info…" while it
+ * works through the routes — including opening LinkedIn's overlay by URL when
+ * there is no link to click. Acting before that settles means clicking buttons
+ * the panel has not drawn yet.
+ */
+async function settled(page) {
+  await page.waitForFunction(
+    () => {
+      const text =
+        document.getElementById('sincerely-panel-host')?.shadowRoot?.querySelector('.panel')
+          ?.textContent || '';
+      return text && !text.includes('Reading this page') && !text.includes('Checking contact info');
+    },
+    null,
+    { timeout: 25000 }
+  );
+}
+
 async function panelQuery(page, selector) {
   return page.evaluate((sel) => {
     const host = document.getElementById('sincerely-panel-host');
@@ -132,14 +153,7 @@ try {
   check('the panel mounts itself on a LinkedIn profile', true);
   check('no page errors from the injected panel', pageErrors.length === 0, pageErrors.join(' | '));
 
-  await page.waitForFunction(
-    () => !document
-      .getElementById('sincerely-panel-host')
-      ?.shadowRoot?.querySelector('.panel')
-      ?.textContent?.includes('Reading this page'),
-    null,
-    { timeout: 15000 }
-  );
+  await settled(page);
 
   check(
     'the LinkedIn adapter reads the name from the real top-card markup',
@@ -232,6 +246,7 @@ try {
   );
   check('the panel follows an SPA navigation to a new profile', true);
 
+  await settled(page);
   await page.evaluate(() => {
     const buttons = [...document.getElementById('sincerely-panel-host').shadowRoot.querySelectorAll('button')];
     buttons.find((b) => b.textContent.includes('Find their email'))?.click();

@@ -520,6 +520,13 @@
   let lastUrl = location.href;
   setInterval(() => {
     if (location.href === lastUrl) return;
+    /*
+     * Ignore the address bar while the scraper is driving LinkedIn's overlay.
+     * It opens Contact info by pushing that overlay's URL — which is a URL
+     * change like any other, so this watcher would treat it as the user
+     * navigating and tear the panel down in the middle of the read.
+     */
+    if (sincerely.isOverlayBusy?.()) return;
     lastUrl = location.href;
     teardown();
     mount().catch(() => {});
