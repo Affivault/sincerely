@@ -123,8 +123,7 @@ export function ToolkitPage() {
           iconBg="bg-amber-500/10"
           title="Warm-up Status"
           description="Track your email account warm-up progress. Good warm-up leads to better inbox placement rates."
-          badge="Coming soon"
-          disabled
+          onClick={() => navigate('/email-accounts?tab=warmup')}
         />
 
         <ToolCard

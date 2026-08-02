@@ -123,7 +123,10 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     }
   }, [open]);
 
-  useEffect(() => { setActive(0); }, [query]);
+  // Re-anchor whenever the result set changes shape — not just on query edits
+  // — so a highlighted row can't silently become a different item once the
+  // debounced campaign search resolves underneath the keyboard selection.
+  useEffect(() => { setActive(0); }, [filtered]);
 
   const runItem = (item: CommandItem) => {
     if (item.run) { item.run(); return; }

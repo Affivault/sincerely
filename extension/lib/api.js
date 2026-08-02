@@ -237,26 +237,36 @@ export async function campaignsByList() {
   const LIVE = new Set(['running', 'scheduled']);
   const HELD = new Set(['draft', 'paused']);
 
-  const result = await request('/campaigns', { query: { limit: 200 } });
   const byList = new Map();
 
-  for (const campaign of result?.data || []) {
-    const listId = campaign.list_id;
-    if (!listId) continue;
-    const status = String(campaign.status || '').toLowerCase();
-    if (!LIVE.has(status) && !HELD.has(status)) continue;
+  // Page through every campaign — the server caps a single page at 500, so an
+  // account with more than that would otherwise have its later campaigns
+  // (and the lists they draw from) silently missing, misreporting a working
+  // list as "no campaign draws from this".
+  for (let page = 1; ; page++) {
+    const result = await request('/campaigns', { query: { limit: 500, page } });
 
-    const entry = byList.get(listId) || { live: 0, paused: 0, name: null };
-    if (LIVE.has(status)) {
-      entry.live += 1;
-      // Name the live one where there is a choice: that is the campaign that
-      // will actually pick these people up.
-      if (!entry.name || entry.live === 1) entry.name = campaign.name || null;
-    } else {
-      entry.paused += 1;
-      if (!entry.name) entry.name = campaign.name || null;
+    for (const campaign of result?.data || []) {
+      const listId = campaign.list_id;
+      if (!listId) continue;
+      const status = String(campaign.status || '').toLowerCase();
+      if (!LIVE.has(status) && !HELD.has(status)) continue;
+
+      const entry = byList.get(listId) || { live: 0, paused: 0, name: null };
+      if (LIVE.has(status)) {
+        entry.live += 1;
+        // Name the live one where there is a choice: that is the campaign that
+        // will actually pick these people up.
+        if (!entry.name || entry.live === 1) entry.name = campaign.name || null;
+      } else {
+        entry.paused += 1;
+        if (!entry.name) entry.name = campaign.name || null;
+      }
+      byList.set(listId, entry);
     }
-    byList.set(listId, entry);
+
+    const totalPages = result?.total_pages ?? 1;
+    if (page >= totalPages) break;
   }
 
   return byList;

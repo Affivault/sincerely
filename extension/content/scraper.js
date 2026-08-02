@@ -236,6 +236,19 @@
    */
   const contactInfoSettled = new Map();
 
+  /**
+   * This content script lives for the whole tab session (SPA navigation never
+   * reloads it), so a long prospecting run visiting hundreds of profiles would
+   * otherwise grow both caches without bound. Evict the oldest entry — Map
+   * preserves insertion order — once a cache passes this size.
+   */
+  const CONTACT_INFO_CACHE_LIMIT = 300;
+  function evictOldest(map, limit) {
+    while (map.size > limit) {
+      map.delete(map.keys().next().value);
+    }
+  }
+
   /** fetch with a deadline, so a hung request can't stall a scrape. */
   async function fetchWithTimeout(url, options, timeoutMs) {
     const controller = new AbortController();
@@ -809,10 +822,11 @@
     })();
 
     contactInfoCache.set(publicId, run);
+    evictOldest(contactInfoCache, CONTACT_INFO_CACHE_LIMIT);
     run.then(
       (value) => contactInfoSettled.set(publicId, value),
       () => contactInfoSettled.set(publicId, { emails: [], websites: [] })
-    );
+    ).then(() => evictOldest(contactInfoSettled, CONTACT_INFO_CACHE_LIMIT));
     return run;
   }
 
