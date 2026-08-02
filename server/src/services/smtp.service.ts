@@ -96,6 +96,11 @@ export const smtpService = {
     // Enforce the plan's inbox cap before connecting another mailbox.
     await billingService.assertCanAddInbox(userId);
 
+    const required = ['email_address', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass'];
+    for (const key of required) {
+      if (!input?.[key]) throw new AppError(`Missing ${key.replace('_', ' ')}`, 400);
+    }
+
     const { smtp_pass, ...rest } = input;
     const smtp_pass_encrypted = encrypt(smtp_pass);
     const row: any = { ...rest, user_id: userId, smtp_pass_encrypted };

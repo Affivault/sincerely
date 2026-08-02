@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { smtpApi } from '../../api/smtp.api';
 import { domainApi } from '../../api/domain.api';
 import { SkeletonList } from '../../components/ui/Skeleton';
@@ -154,10 +154,17 @@ function SetupProgress({
 
 /* ─── Page ───────────────────────────────────────────── */
 type Tab = 'mailboxes' | 'domains' | 'warmup';
+const VALID_TABS: Tab[] = ['mailboxes', 'domains', 'warmup'];
 
 export function EmailAccountsPage() {
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<Tab>('mailboxes');
+  const [searchParams] = useSearchParams();
+  // Lets other pages (e.g. the Toolkit's Warm-up card) link straight to a
+  // specific tab instead of always landing on Mailboxes.
+  const [tab, setTab] = useState<Tab>(() => {
+    const requested = searchParams.get('tab');
+    return (VALID_TABS as string[]).includes(requested || '') ? (requested as Tab) : 'mailboxes';
+  });
   const [modalOpen, setModalOpen] = useState(false);
   const [editAccount, setEditAccount] = useState<SmtpAccount | null>(null);
   const [initialPreset, setInitialPreset] = useState<SmtpPreset | null>(null);

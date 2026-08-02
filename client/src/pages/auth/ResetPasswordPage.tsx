@@ -41,7 +41,20 @@ export function ResetPasswordPage() {
       setInvalid(true);
     });
 
-    return () => subscription.unsubscribe();
+    // An expired or already-used link still carries access_token in the hash,
+    // so neither branch above fires and the form is stuck on "Verifying
+    // link…" forever. Fall back to "invalid" if nothing resolves in time.
+    const fallback = setTimeout(() => {
+      setReady((r) => {
+        if (!r) setInvalid(true);
+        return r;
+      });
+    }, 8000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(fallback);
+    };
   }, []);
 
   const handleSubmit = async (e: FormEvent) => {

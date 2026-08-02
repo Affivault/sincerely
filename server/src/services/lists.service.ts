@@ -20,17 +20,25 @@ export const listsService = {
 
     if (listIds.length === 0) return [];
 
-    const { data: counts, error: countError } = await supabaseAdmin
-      .from('list_contacts')
-      .select('list_id')
-      .in('list_id', listIds);
-
-    if (countError) throw new AppError(countError.message, 500);
-
-    // Count contacts per list
+    // Page through every membership — Supabase caps a single select at ~1000
+    // rows, so lists whose combined memberships exceed that (common once a
+    // user has several imported lists) would otherwise silently undercount.
     const countMap: Record<string, number> = {};
-    for (const row of counts || []) {
-      countMap[row.list_id] = (countMap[row.list_id] || 0) + 1;
+    const pageSize = 1000;
+    for (let from = 0; ; from += pageSize) {
+      const { data: counts, error: countError } = await supabaseAdmin
+        .from('list_contacts')
+        .select('list_id')
+        .in('list_id', listIds)
+        .range(from, from + pageSize - 1);
+
+      if (countError) throw new AppError(countError.message, 500);
+
+      const rows = counts || [];
+      for (const row of rows) {
+        countMap[row.list_id] = (countMap[row.list_id] || 0) + 1;
+      }
+      if (rows.length < pageSize) break;
     }
 
     return (lists || []).map((list: any) => ({

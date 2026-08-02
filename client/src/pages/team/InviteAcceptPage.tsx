@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { teamApi } from '../../api/team.api';
 import { useAuth } from '../../context/AuthContext';
@@ -12,6 +12,11 @@ export function InviteAcceptPage() {
   const token = searchParams.get('token');
   const [status, setStatus] = useState<'idle' | 'accepting' | 'success' | 'error'>('idle');
   const [error, setError] = useState('');
+  // AuthContext resolves `user` from getSession() and onAuthStateChange
+  // independently on mount, so a new (but logically identical) user object
+  // reference can land twice. Guard on the user id, not the reference, so
+  // the single-use invite token is only ever submitted once.
+  const acceptedFor = useRef<string | null>(null);
 
   useEffect(() => {
     if (loading) return;
@@ -26,6 +31,8 @@ export function InviteAcceptPage() {
       setError('No invite token found in the URL.');
       return;
     }
+    if (acceptedFor.current === user.id) return;
+    acceptedFor.current = user.id;
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     setStatus('accepting');

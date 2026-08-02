@@ -146,13 +146,20 @@ export const segmentsService = {
   // the join by contacts.user_id also means a tag id from another tenant just
   // resolves to an empty set instead of leaking anything.
   async getContactIdsWithTag(userId: string, tagId: string): Promise<string[]> {
-    const { data, error } = await supabaseAdmin
-      .from('contact_tags')
-      .select('contact_id, contacts!inner(user_id)')
-      .eq('tag_id', tagId)
-      .eq('contacts.user_id', userId);
-    if (error) throw new AppError(error.message, 500);
-    return (data || []).map((r: any) => r.contact_id);
+    const ids: string[] = [];
+    for (let from = 0; ; from += CONTACT_PAGE_SIZE) {
+      const { data, error } = await supabaseAdmin
+        .from('contact_tags')
+        .select('contact_id, contacts!inner(user_id)')
+        .eq('tag_id', tagId)
+        .eq('contacts.user_id', userId)
+        .range(from, from + CONTACT_PAGE_SIZE - 1);
+      if (error) throw new AppError(error.message, 500);
+      const rows = data || [];
+      for (const row of rows) ids.push((row as any).contact_id);
+      if (rows.length < CONTACT_PAGE_SIZE) break;
+    }
+    return ids;
   },
 
   async getMatchingContactIds(userId: string, filterConfig: FilterConfig): Promise<string[]> {

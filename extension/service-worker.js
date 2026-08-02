@@ -215,7 +215,18 @@ function scheduleBadge(tabId, url) {
  * slow and wasteful of the per-key rate limit. The cache refreshes whenever
  * the popup lists them.
  */
-async function rebuildContextMenus() {
+// A cachedLists write triggers both a direct rebuildContextMenus() call and
+// the storage.onChanged listener below for the same change. Two concurrent
+// runs race on chrome.contextMenus.removeAll()/create() with the same ids,
+// which can leave the menu missing entries. Chain calls so only one runs at
+// a time.
+let contextMenuQueue = Promise.resolve();
+function rebuildContextMenus() {
+  contextMenuQueue = contextMenuQueue.then(rebuildContextMenusImpl, rebuildContextMenusImpl);
+  return contextMenuQueue;
+}
+
+async function rebuildContextMenusImpl() {
   await chrome.contextMenus.removeAll();
 
   const { cachedLists = [], lastListId } = await chrome.storage.local.get({
@@ -534,9 +545,13 @@ async function handleListLists() {
      * rather than the whole picker failing. Not knowing is a reason to say
      * nothing, never a reason to block an add that would have worked.
      */
-    const byList = await api.campaignsByList().catch(() => new Map());
+    // null (not an empty Map) marks "the request failed" — kept distinct from
+    // a genuinely empty Map (the account really has zero campaigns), since
+    // both would otherwise collapse every list's `sends` to "we don't know"
+    // and silence the warning for the new accounts it exists to protect.
+    const byList = await api.campaignsByList().catch(() => null);
     const annotated = lists.map((list) => {
-      const bound = byList.get(list.id);
+      const bound = byList?.get(list.id);
       return {
         ...list,
         live_campaigns: bound?.live ?? 0,
@@ -544,7 +559,7 @@ async function handleListLists() {
         campaign_name: bound?.name ?? null,
         /* Null, not false, when we could not find out — the UI must be able to
            tell "nothing sends from this" from "we don't know". */
-        sends: byList.size === 0 && !bound ? null : (bound?.live ?? 0) > 0,
+        sends: byList === null ? null : (bound?.live ?? 0) > 0,
       };
     });
 
