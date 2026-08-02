@@ -219,6 +219,50 @@ export async function listLists() {
 }
 
 /**
+ * Which lists actually feed a live campaign.
+ *
+ * Adding somebody to a list that no campaign draws from is a no-op dressed as
+ * progress — the extension reported "Added", and nothing was ever sent. This is
+ * the fact that turns that into an informed choice.
+ *
+ * One request for the whole picker rather than one per list, and failure is
+ * silent: not knowing is a reason to say nothing, never a reason to block an
+ * add that would have worked.
+ *
+ * @returns {Promise<Map<string, {live: number, paused: number, name: string|null}>>}
+ *   list id → what is bound to it.
+ */
+export async function campaignsByList() {
+  /** Anything that will send now or is scheduled to. */
+  const LIVE = new Set(['running', 'scheduled']);
+  const HELD = new Set(['draft', 'paused']);
+
+  const result = await request('/campaigns', { query: { limit: 200 } });
+  const byList = new Map();
+
+  for (const campaign of result?.data || []) {
+    const listId = campaign.list_id;
+    if (!listId) continue;
+    const status = String(campaign.status || '').toLowerCase();
+    if (!LIVE.has(status) && !HELD.has(status)) continue;
+
+    const entry = byList.get(listId) || { live: 0, paused: 0, name: null };
+    if (LIVE.has(status)) {
+      entry.live += 1;
+      // Name the live one where there is a choice: that is the campaign that
+      // will actually pick these people up.
+      if (!entry.name || entry.live === 1) entry.name = campaign.name || null;
+    } else {
+      entry.paused += 1;
+      if (!entry.name) entry.name = campaign.name || null;
+    }
+    byList.set(listId, entry);
+  }
+
+  return byList;
+}
+
+/**
  * Make a new lead list.
  *
  * The extension can create the destination it needs. Without this, somebody

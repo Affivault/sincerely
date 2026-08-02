@@ -69,6 +69,10 @@ const el = {
   personSub: document.getElementById('person-sub'),
   verification: document.getElementById('verification'),
   standingStrip: document.getElementById('standing-strip'),
+  duplicate: document.getElementById('duplicate'),
+  dupLead: document.getElementById('dup-lead'),
+  dupEmail: document.getElementById('dup-email'),
+  dupUse: document.getElementById('dup-use'),
 
   listSearch: document.getElementById('list-search'),
   listPicker: document.getElementById('lead-lists'),
@@ -76,6 +80,7 @@ const el = {
   listTriggerName: document.getElementById('list-trigger-name'),
   listTriggerSwatch: document.getElementById('list-trigger-swatch'),
   listPop: document.getElementById('list-pop'),
+  destNote: document.getElementById('dest-note'),
   newListName: document.getElementById('new-list-name'),
   newListCreate: document.getElementById('new-list-create'),
   add: document.getElementById('add'),
@@ -129,6 +134,8 @@ const state = {
   memberships: [],
   engagement: null,
   suppressed: false,
+  /** Someone who looks like this person under a different address. */
+  possibleDuplicate: null,
   suppressArmed: false,
   bulkArmed: false,
   looking: false,
@@ -612,6 +619,22 @@ function renderPicker() {
     const isMember = state.memberships.some((m) => m.id === list.id);
     if (isMember) button.classList.add('is-member');
 
+    /*
+     * Whether anything sends from this list. `sends === null` means we could
+     * not find out, and an unknown must look different from a known "no" —
+     * inventing a warning we cannot stand behind is worse than staying quiet.
+     */
+    if (list.sends === false) {
+      const idle = document.createElement('span');
+      idle.className = 'no-send';
+      idle.textContent = list.held_campaigns > 0 ? 'Paused' : 'No campaign';
+      idle.title =
+        list.held_campaigns > 0
+          ? `"${list.campaign_name}" draws from this list but is not running`
+          : 'No campaign draws from this list, so nothing will be sent';
+      button.appendChild(idle);
+    }
+
     const meta = document.createElement('span');
     meta.className = isMember ? 'on-it' : 'campaign-option-meta';
     if (isMember) {
@@ -691,6 +714,16 @@ function syncDestination() {
     : state.lists.length === 0
       ? 'No lead lists yet'
       : 'Choose a list';
+
+  /* Say it on the collapsed control, not only inside the dropdown — most adds
+     never open it. */
+  const idle = Boolean(list) && list.sends === false;
+  el.destNote.textContent = !idle
+    ? ''
+    : list.held_campaigns > 0
+      ? 'Campaign paused — nothing will send yet'
+      : 'No campaign sends from this list yet';
+  el.destNote.classList.toggle('hidden', !idle);
   el.listTriggerSwatch.style.background = list?.color || 'var(--text-tertiary)';
   el.listTriggerSwatch.classList.toggle('hidden', !list);
   /* Never disabled. With no lists at all the dropdown is the only route to
@@ -847,8 +880,26 @@ function renderStanding() {
   }
 }
 
+/**
+ * The near-match, if there is one.
+ *
+ * A statement, not a barrier: adding is still one press away. The only thing
+ * being bought here is that the user knows before rather than after.
+ */
+function renderDuplicate() {
+  const dup = state.possibleDuplicate;
+  el.duplicate.classList.toggle('hidden', !dup);
+  if (!dup) return;
+
+  const name = [dup.first_name, dup.last_name].filter(Boolean).join(' ');
+  el.dupLead.textContent = name ? `You already have ${name} as` : 'You already have';
+  el.dupEmail.textContent = dup.email;
+  el.dupEmail.title = dup.company ? `${dup.email} · ${dup.company}` : dup.email;
+}
+
 function renderAll() {
   renderIdentity();
+  renderDuplicate();
   renderStandingStrip();
   renderStanding();
   /* Here rather than only at the call sites that change the selection: the
@@ -889,6 +940,7 @@ async function refreshStanding() {
   state.memberships = [];
   state.engagement = null;
   state.suppressed = false;
+  state.possibleDuplicate = null;
   clearBackfilledFields();
 
   if (!EMAIL_PATTERN.test(email)) {
@@ -900,7 +952,13 @@ async function refreshStanding() {
   state.looking = true;
   renderAll();
 
-  const response = await send('LOOKUP_PERSON', { email });
+  const form = readForm();
+  const response = await send('LOOKUP_PERSON', {
+    email,
+    first_name: form.first_name,
+    last_name: form.last_name,
+    company: form.company,
+  });
 
   // A newer lookup started while this one was in flight — that one owns the UI.
   if (seq !== lookupSeq) return;
@@ -916,6 +974,7 @@ async function refreshStanding() {
   state.memberships = response.data.lists || [];
   state.engagement = response.data.engagement || null;
   state.suppressed = Boolean(response.data.suppressed);
+  state.possibleDuplicate = response.data.possibleDuplicate || null;
 
   if (state.contact) {
     backfill('firstName', state.contact.first_name);
@@ -1939,6 +1998,19 @@ function wireEvents() {
       createList();
     }
   });
+
+  /* Switching to the address we already hold is the whole point of showing
+     this: one press, and the rest of the popup is now about that contact. */
+  const useExisting = () => {
+    const dup = state.possibleDuplicate;
+    if (!dup) return;
+    el.email.value = dup.email;
+    disarm();
+    renderIdentity();
+    refreshStanding();
+  };
+  el.dupUse.addEventListener('click', useExisting);
+  el.dupEmail.addEventListener('click', useExisting);
 
   el.listTrigger.addEventListener('click', () => toggleListPop());
   el.listTrigger.addEventListener('keydown', (event) => {

@@ -521,11 +521,38 @@ async function handleCreateList(payload) {
 async function handleListLists() {
   try {
     const lists = await api.listLists();
+
+    /*
+     * Annotate each list with whether anything actually sends from it.
+     *
+     * A list no campaign draws from is a bucket: the add succeeds, the UI says
+     * "Added", and nothing is ever emailed. That is the single most expensive
+     * misunderstanding this extension can create, and one request answers it for
+     * the whole picker.
+     *
+     * Best-effort by design — if this fails the lists are returned unannotated
+     * rather than the whole picker failing. Not knowing is a reason to say
+     * nothing, never a reason to block an add that would have worked.
+     */
+    const byList = await api.campaignsByList().catch(() => new Map());
+    const annotated = lists.map((list) => {
+      const bound = byList.get(list.id);
+      return {
+        ...list,
+        live_campaigns: bound?.live ?? 0,
+        held_campaigns: bound?.paused ?? 0,
+        campaign_name: bound?.name ?? null,
+        /* Null, not false, when we could not find out — the UI must be able to
+           tell "nothing sends from this" from "we don't know". */
+        sends: byList.size === 0 && !bound ? null : (bound?.live ?? 0) > 0,
+      };
+    });
+
     await chrome.storage.local.set({
-      cachedLists: lists.map((l) => ({ id: l.id, name: l.name, contact_count: l.contact_count ?? 0 })),
+      cachedLists: annotated.map((l) => ({ id: l.id, name: l.name, contact_count: l.contact_count ?? 0 })),
     });
     await rebuildContextMenus();
-    return { ok: true, data: { lists } };
+    return { ok: true, data: { lists: annotated } };
   } catch (err) {
     return toErrorPayload(err);
   }
@@ -536,6 +563,46 @@ async function handleListLists() {
  * suppressed, and which lead lists are they already on?
  * @param {{email: string}} payload
  */
+/**
+ * Somebody who looks like this person but under a different address.
+ *
+ * Deliberately conservative: same first *and* last name, and where both sides
+ * name a company, those must agree too. A false positive here is an accusation
+ * that the user is about to make a mess, so it has to be worth interrupting for.
+ *
+ * @param {{first_name?: string, last_name?: string, company?: string}} person
+ * @param {string} email The address being added, which the match must not share.
+ * @returns {Promise<{id: string, email: string, first_name: string|null, last_name: string|null, company: string|null}|null>}
+ */
+async function findPossibleDuplicate(person, email) {
+  const first = String(person.first_name || '').trim().toLowerCase();
+  const last = String(person.last_name || '').trim().toLowerCase();
+  if (!first || !last) return null;
+
+  const candidates = await api.searchContacts(last, 25).catch(() => []);
+  const wantedCompany = String(person.company || '').trim().toLowerCase();
+
+  const match = candidates.find((c) => {
+    if (String(c.email || '').toLowerCase() === email) return false;
+    if (String(c.first_name || '').trim().toLowerCase() !== first) return false;
+    if (String(c.last_name || '').trim().toLowerCase() !== last) return false;
+    const theirs = String(c.company || '').trim().toLowerCase();
+    // With no company on either side the name has to carry it; where both
+    // carry one they must agree, or two people who share a name get merged.
+    if (!wantedCompany || !theirs) return true;
+    return theirs.includes(wantedCompany) || wantedCompany.includes(theirs);
+  });
+
+  if (!match) return null;
+  return {
+    id: match.id,
+    email: match.email,
+    first_name: match.first_name ?? null,
+    last_name: match.last_name ?? null,
+    company: match.company ?? null,
+  };
+}
+
 async function handleLookupPerson(payload) {
   try {
     const email = String(payload.email || '').trim().toLowerCase();
@@ -552,7 +619,26 @@ async function handleLookupPerson(payload) {
       // Non-fatal: an unavailable check shouldn't block the whole panel.
     }
 
-    if (!contact) return { ok: true, data: { contact: null, lists: [], suppressed, engagement: null } };
+    if (!contact) {
+      /*
+       * Not this address — but possibly this person, under another one.
+       *
+       * The extension is a duplicate factory by nature: the same person gets
+       * scraped from LinkedIn as j.doe@acme.com and from their company's team
+       * page as jane.doe@acme.com, and both become contacts with separate
+       * histories. Whoever is doing the adding is the only one who can tell
+       * whether it is the same human, so surface the near-match and let them
+       * decide rather than silently creating the second record.
+       *
+       * Only worth asking when a name came with the request, and best-effort:
+       * a search hiccup must not block an add.
+       */
+      const possible = await findPossibleDuplicate(payload, email).catch(() => null);
+      return {
+        ok: true,
+        data: { contact: null, lists: [], suppressed, engagement: null, possibleDuplicate: possible },
+      };
+    }
 
     // Memberships and activity are independent reads — one round-trip each,
     // in parallel, so the panel fills in one go.

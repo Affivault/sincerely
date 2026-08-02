@@ -1299,3 +1299,81 @@ body {
 .new-list .btn-secondary {
   flex: 0 0 auto;
 }
+
+
+/* ── Send-readiness ──
+   A lead list no campaign draws from is a bucket: the add succeeds, the popup
+   says "Added", and nothing is ever emailed. Stated before the add, not
+   discovered a week later. Amber rather than red — it is a caveat about what
+   happens next, not an error. */
+
+.dest-note {
+  margin: 0 0 7px;
+  padding: 5px 9px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: #92400e;
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: var(--radius-sm);
+}
+.dark .dest-note {
+  color: #fbbf24;
+}
+
+.campaign-option .no-send {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: #92400e;
+  background: rgba(245, 158, 11, 0.12);
+  border-radius: 999px;
+}
+.dark .campaign-option .no-send {
+  color: #fbbf24;
+}
+
+
+/* ── Possible duplicate ──
+   The extension scrapes the same person from LinkedIn and from their company's
+   team page, under two addresses, and cheerfully makes two contacts with two
+   separate histories. Stated at the point of the decision — and only stated:
+   whether it is the same human is not something we can know. */
+
+.duplicate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 7px 9px;
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: var(--radius-sm);
+}
+
+.dup-text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: #92400e;
+}
+.dark .dup-text {
+  color: #fbbf24;
+}
+
+.dup-email {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.duplicate .btn-secondary {
+  flex: 0 0 auto;
+}

@@ -57,6 +57,16 @@
         </div>
         <div id="standing-strip" class="standing-strip hidden"></div>
 
+        <!-- The same person under another address. Shown, not enforced: only
+             the person adding can tell whether it is really the same human. -->
+        <div id="duplicate" class="duplicate hidden">
+          <p class="dup-text">
+            <span id="dup-lead">You already have</span>
+            <button id="dup-email" class="dup-email link-btn" type="button"></button>
+          </p>
+          <button id="dup-use" class="btn-secondary btn-xs" type="button">Use that one</button>
+        </div>
+
         <!-- Where they already are. This is the thing you need *before*
              choosing a destination, so it sits with the identity rather than
              at the bottom of the page under everything else. -->
@@ -183,6 +193,9 @@
            the same list. It read as two Add buttons. The destination is the
            object and the button is the verb; neither needs to say the other's
            half. -->
+      <!-- Named where it will be read: right above the destination it is about. -->
+      <p id="dest-note" class="dest-note hidden"></p>
+
       <div class="decide">
       <div class="destination">
         <button

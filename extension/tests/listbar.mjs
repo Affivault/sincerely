@@ -268,6 +268,82 @@ try {
     () => !!document.getElementById('sincerely-bulk-host')?.shadowRoot?.querySelector('.bar')
   );
   check('no bulk bar on a single profile', barOnProfile === false);
+  /* ---------------- keyboard triage ---------------- */
+
+  /*
+   * These pages get worked in volume — twenty-five results, most a yes or no on
+   * sight — and a checkbox each means a mouse trip per person. J and K move,
+   * space picks, Enter adds.
+   *
+   * Last in the file on purpose: it changes the selection, and every flow above
+   * depends on the selection it set up.
+   */
+  await page.goto('https://www.linkedin.com/search/results/people/?keywords=broker');
+  await page.waitForFunction(
+    () => document.querySelectorAll('[data-sincerely-row]').length > 0,
+    null,
+    { timeout: 20000 }
+  );
+
+  // The checkboxes live in per-row shadow roots, so a plain document query
+  // cannot see them.
+  await page.evaluate(() => {
+    document.querySelectorAll('[data-sincerely-row]').forEach((row) => {
+      const box = row.querySelector('.sincerely-box-host')?.shadowRoot?.querySelector('input');
+      if (box?.checked) box.click();
+    });
+  });
+  await page.waitForTimeout(300);
+
+  await page.click('body');
+  await page.keyboard.press('j');
+  await page.waitForTimeout(200);
+
+  const cursorOn = await page.evaluate(
+    () => [...document.querySelectorAll('[data-sincerely-row]')].filter((n) => n.style.outline).length
+  );
+  check('J moves a visible cursor onto a result', cursorOn === 1, String(cursorOn));
+
+  await page.keyboard.press(' ');
+  await page.waitForTimeout(250);
+  check('space selects the row under the cursor', /1 of \d+ selected/.test(await barText(page)), await barText(page));
+
+  await page.keyboard.press('j');
+  await page.keyboard.press(' ');
+  await page.waitForTimeout(250);
+  check('and moving on selects a second', /2 of \d+ selected/.test(await barText(page)), await barText(page));
+
+  await page.keyboard.press('k');
+  await page.keyboard.press(' ');
+  await page.waitForTimeout(250);
+  check('K goes back, and space deselects', /1 of \d+ selected/.test(await barText(page)), await barText(page));
+
+  /*
+   * The important restraint: LinkedIn's own inputs keep their letters. Typing
+   * "j" into a search box must search, not move a cursor nobody can see.
+   */
+  await page.evaluate(() => {
+    const input = document.createElement('input');
+    input.id = 'their-search';
+    document.body.appendChild(input);
+    input.focus();
+  });
+  await page.keyboard.press('j');
+  await page.waitForTimeout(200);
+  check(
+    'typing in a page input does not drive the cursor',
+    (await page.evaluate(() => document.getElementById('their-search').value)) === 'j',
+    await page.evaluate(() => document.getElementById('their-search').value)
+  );
+  check('and the selection is untouched', /1 of \d+ selected/.test(await barText(page)), await barText(page));
+  await page.evaluate(() => document.getElementById('their-search')?.remove());
+
+  check(
+    'the shortcuts are advertised on the bar rather than left to be discovered',
+    /J K/.test(await barText(page)),
+    await barText(page)
+  );
+
 } catch (err) {
   failures.push(`harness threw: ${err.message}`);
   console.log(`\n  HARNESS ERROR: ${err.stack}`);

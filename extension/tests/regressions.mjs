@@ -416,6 +416,107 @@ try {
     JSON.stringify((listsNow || []).map((l) => l.name))
   );
 
+
+  /* ================================================================ */
+  /* 8. Whether the list actually sends                               */
+  /* ================================================================ */
+
+  /*
+   * A lead list no campaign draws from is a bucket: the add succeeds, the popup
+   * says "Added", and nothing is ever emailed. In the fixture, L3 has no
+   * campaign at all and L2's only campaign is a draft — neither will send.
+   */
+  await popup.click('#list-trigger');
+  await popup.fill('#list-search', 'Conference');
+  await popup.waitForFunction(
+    () => document.querySelectorAll('.campaign-option').length === 1,
+    null,
+    { timeout: 10000 }
+  );
+  check(
+    'a list with no campaign is marked as such in the picker',
+    (await popup.locator('.campaign-option .no-send').count()) === 1,
+    String(await popup.locator('.campaign-option .no-send').count())
+  );
+  await popup.locator('.campaign-option').first().click();
+
+  await popup.waitForFunction(
+    () => !document.getElementById('dest-note')?.classList.contains('hidden'),
+    null,
+    { timeout: 10000 }
+  );
+  check(
+    'and says so on the collapsed control, where most adds never open the picker',
+    /No campaign sends from this list/.test(await popup.textContent('#dest-note')),
+    await popup.textContent('#dest-note')
+  );
+
+  // A list that does feed a running campaign says nothing — silence is the
+  // signal that everything is fine.
+  await popup.click('#list-trigger');
+  await popup.fill('#list-search', 'Brokers');
+  await popup.waitForFunction(
+    () => document.querySelectorAll('.campaign-option').length === 1,
+    null,
+    { timeout: 10000 }
+  );
+  await popup.locator('.campaign-option').first().click();
+  await popup.waitForFunction(
+    () => document.getElementById('dest-note')?.classList.contains('hidden'),
+    null,
+    { timeout: 10000 }
+  );
+  check('a list feeding a running campaign is not flagged', true);
+
+  /* ================================================================ */
+  /* 9. The same person under a second address                        */
+  /* ================================================================ */
+
+  /*
+   * The extension scrapes the same human from LinkedIn and from their company's
+   * team page under two addresses, and cheerfully makes two contacts with two
+   * separate histories. Jane Doe is already held as jane.doe@acme.com.
+   */
+  await popup.fill('#email', 'j.doe@acme.com');
+  await popup.fill('#first-name', 'Jane');
+  await popup.fill('#last-name', 'Doe');
+  await popup.fill('#company', 'Acme Ltd');
+  await popup.waitForTimeout(1600);
+
+  await popup.waitForFunction(
+    () => !document.getElementById('duplicate')?.classList.contains('hidden'),
+    null,
+    { timeout: 15000 }
+  );
+  check(
+    'a near-match under another address is surfaced before the add',
+    /jane\.doe@acme\.com/.test(await popup.textContent('#duplicate')),
+    await popup.textContent('#duplicate')
+  );
+  check(
+    'it is a statement, not a barrier — the add is still available',
+    !(await popup.locator('#add').isDisabled())
+  );
+
+  await popup.click('#dup-use');
+  await popup.waitForFunction(
+    () => document.getElementById('email')?.value === 'jane.doe@acme.com',
+    null,
+    { timeout: 10000 }
+  );
+  check('and one press switches to the contact already held', true);
+
+  // Somebody genuinely new must not be accused of being a duplicate.
+  await popup.fill('#email', 'nobody.here@elsewhere.example.net');
+  await popup.fill('#first-name', 'Nobody');
+  await popup.fill('#last-name', 'Here');
+  await popup.fill('#company', 'Elsewhere');
+  await popup.waitForTimeout(1800);
+  check(
+    'a genuinely new person is not flagged',
+    await popup.locator('#duplicate').isHidden()
+  );
+
   await popup.close();
 } catch (err) {
   failures.push(`harness threw: ${err.message}`);
