@@ -215,6 +215,82 @@
   }
 
   /* ---------------------------------------------------------------- */
+  /* Keyboard triage                                                  */
+  /* ---------------------------------------------------------------- */
+
+  /*
+   * Working a page of results one checkbox at a time means a mouse trip per
+   * person, and these pages are worked in volume — twenty-five results, most of
+   * them a yes or a no on sight. J and K move, space picks, Enter adds the
+   * selection.
+   *
+   * Deliberately narrow about when it listens: LinkedIn's own search box, the
+   * message composer and every other field on the page must keep their letters.
+   * So it only acts when focus is on the page body, and never with a modifier
+   * held.
+   */
+  let cursor = -1;
+
+  /** The row the cursor is on, marked so it is visible without hunting. */
+  function paintCursor() {
+    for (const [url, row] of rows) {
+      const node = document.querySelector(`[${MARK}="${CSS.escape(url)}"]`);
+      if (!node) continue;
+      const on = [...rows.keys()][cursor] === url;
+      node.style.outline = on ? '2px solid #5B5BF5' : '';
+      node.style.outlineOffset = on ? '2px' : '';
+      if (on) node.scrollIntoView({ block: 'nearest' });
+      void row;
+    }
+  }
+
+  function moveCursor(delta) {
+    const urls = [...rows.keys()];
+    if (urls.length === 0) return;
+    cursor = Math.max(0, Math.min(urls.length - 1, cursor < 0 ? 0 : cursor + delta));
+    paintCursor();
+  }
+
+  function typingSomewhere() {
+    const active = document.activeElement;
+    if (!active || active === document.body) return false;
+    const tag = active.tagName;
+    return (
+      tag === 'INPUT' ||
+      tag === 'TEXTAREA' ||
+      tag === 'SELECT' ||
+      active.isContentEditable === true
+    );
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (!isListPage() || rows.size === 0) return;
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (typingSomewhere()) return;
+
+    const urls = [...rows.keys()];
+
+    if (event.key === 'j' || event.key === 'J') {
+      event.preventDefault();
+      moveCursor(1);
+    } else if (event.key === 'k' || event.key === 'K') {
+      event.preventDefault();
+      moveCursor(-1);
+    } else if (event.key === ' ') {
+      if (cursor < 0) return;
+      event.preventDefault();
+      const url = urls[cursor];
+      setChecked(url, !selected.has(url));
+      renderBar();
+      paintCursor();
+    } else if (event.key === 'Enter') {
+      if (selected.size === 0) return;
+      event.preventDefault();
+      addSelected();
+    }
+  });
+
+  /* ---------------------------------------------------------------- */
   /* The bar                                                          */
   /* ---------------------------------------------------------------- */
 
@@ -232,6 +308,11 @@
       }
       .bar img { width: 17px; height: 17px; flex: 0 0 auto; }
       .count { font-weight: 600; white-space: nowrap; }
+      /* Shortcuts nobody knows about are shortcuts nobody uses. */
+      .keys {
+        font-size: 10.5px; color: #A8A6AE; letter-spacing: .02em; white-space: nowrap;
+        padding: 2px 6px; border: 1px solid #E8E6E1; border-radius: 5px;
+      }
       .sep { width: 1px; height: 20px; background: #ECEAE6; flex: 0 0 auto; }
       button {
         height: 28px; padding: 0 10px; border-radius: 6px; cursor: pointer;
@@ -294,7 +375,15 @@
     const count = document.createElement('span');
     count.className = 'count';
     count.textContent = `${selected.size} of ${rows.size} selected`;
+    // Shortcuts nobody knows about are shortcuts nobody uses.
+    count.title = 'J and K move · Space selects · Enter adds';
     bar.appendChild(count);
+
+    const keys = document.createElement('span');
+    keys.className = 'keys';
+    keys.textContent = 'J K · space · ⏎';
+    keys.title = 'J and K move between results, space selects, Enter adds them';
+    bar.appendChild(keys);
 
     const sep = document.createElement('span');
     sep.className = 'sep';
@@ -465,6 +554,7 @@
 
     rows.clear();
     selected.clear();
+    cursor = -1;
     barState.message = null;
   }
 
