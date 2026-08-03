@@ -1326,8 +1326,12 @@ export async function processScheduledEmails(): Promise<number> {
       // Only wipe schedule markers for permanent failures (auth, config, envelope errors).
       // Transient network errors revert the claim back to 'scheduled' (sara_action is
       // untouched, so it's still due) so the next scheduler run retries.
+      // ENOTFOUND means the SMTP host doesn't resolve at all — a permanent config
+      // problem (see describeSmtpError() in email-sender.service.ts), not a
+      // transient blip, so it must NOT be retried forever; it belongs in the
+      // permanent-failure branch.
       const TRANSIENT_CODES = new Set(['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'EAI_AGAIN']);
-      const isTransient = TRANSIENT_CODES.has(err.code) || err.message?.includes('timeout') || err.message?.includes('ENOTFOUND');
+      const isTransient = TRANSIENT_CODES.has(err.code) || err.message?.includes('timeout');
       await supabaseAdmin
         .from('inbox_messages')
         .update(isTransient ? { sara_status: 'scheduled' } : { sara_status: null, sara_action: null })

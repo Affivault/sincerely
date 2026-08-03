@@ -376,16 +376,17 @@ export const campaignsService = {
 
     // checkAndAutoCompleteCampaign() treats 'error' as a terminal contact status,
     // so a campaign whose last outstanding contacts all errored out has already
-    // flipped to 'completed'. processDueSteps()/processNextStep() only ever pick
-    // up contacts whose campaign is still 'running' — without resuming it here,
-    // the contacts just reactivated above would sit as 'active' forever and
-    // never actually get retried.
-    if ((data?.length || 0) > 0 && campaign.status === 'completed') {
+    // flipped to 'completed' — and a campaign can also be 'cancelled' while it
+    // still has 'error' contacts sitting on it. processDueSteps()/processNextStep()
+    // only ever pick up contacts whose campaign is still 'running' — without
+    // resuming it here, the contacts just reactivated above would sit as 'active'
+    // forever and never actually get retried.
+    if ((data?.length || 0) > 0 && (campaign.status === 'completed' || campaign.status === 'cancelled')) {
       const { error: resumeErr } = await supabaseAdmin
         .from('campaigns')
         .update({ status: 'running', completed_at: null })
         .eq('id', id)
-        .eq('status', 'completed');
+        .in('status', ['completed', 'cancelled']);
       if (resumeErr) console.error(`[Campaign] Failed to resume ${id} after retrying errors:`, resumeErr.message);
     }
 
