@@ -11,7 +11,7 @@ import { cn } from '../../lib/utils';
 import {
   CheckCircle2, XCircle, HelpCircle, Globe, Server, Loader2, Plug, Inbox,
   Send, ShieldCheck, Signature, Gauge, Sparkles, Mail, MinusCircle,
-  Stethoscope, AlertTriangle, Circle,
+  Stethoscope, AlertTriangle, Circle, Eye, EyeOff,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { SmtpAccount, CreateSmtpAccountInput, SmtpPreset, VerifyLegResult, SmtpDiagnostics } from '@lemlist/shared';
@@ -153,6 +153,7 @@ export function SmtpAccountModal({
   const [verify, setVerify] = useState<VerifyState>({ status: 'idle' });
   const [replyToOn, setReplyToOn] = useState(false);
   const [tab, setTab] = useState<TabId>('account');
+  const [showPass, setShowPass] = useState(false);
   /** Fields flagged after a check/save attempt, so the gap is visible in place. */
   const [flagged, setFlagged] = useState<string[]>([]);
   /* Staged probe (DNS → port → handshake → sign-in) run on demand after a
@@ -515,16 +516,28 @@ export function SmtpAccountModal({
               </div>
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <Input label="From email" type="email" value={form.email_address} onChange={(e) => handleEmailChange(e.target.value)} placeholder={activePreset?.username_hint || 'you@company.com'} error={err('email_address')} />
-                <Input
-                  label={passwordLabel}
-                  type="password"
-                  value={form.smtp_pass}
-                  onChange={(e) => updateField('smtp_pass', e.target.value)}
-                  placeholder={passwordPlaceholder}
-                  autoComplete="new-password"
-                  error={err('smtp_pass')}
-                  hint={editId ? 'Saved password is used for tests and sends unless you type a new one' : undefined}
-                />
+                <div className="relative">
+                  <Input
+                    label={passwordLabel}
+                    type={showPass ? 'text' : 'password'}
+                    value={form.smtp_pass}
+                    onChange={(e) => updateField('smtp_pass', e.target.value)}
+                    placeholder={passwordPlaceholder}
+                    autoComplete="new-password"
+                    error={err('smtp_pass')}
+                    hint={editId ? 'Saved password is used for tests and sends unless you type a new one' : undefined}
+                    className="pr-8"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPass((v) => !v)}
+                    tabIndex={-1}
+                    aria-label={showPass ? 'Hide password' : 'Show password'}
+                    className="absolute right-2.5 top-[27px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
+                  >
+                    {showPass ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
               </div>
 
               {/* MX-based auto-assignment for custom domains */}
