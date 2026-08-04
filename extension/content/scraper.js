@@ -249,6 +249,49 @@
     }
   }
 
+  /**
+   * How long to wait for LinkedIn to draw the Contact info link before deciding
+   * the profile hasn't got one.
+   *
+   * This constant is the whole bug, in one number that used to be zero.
+   *
+   * Content scripts run at `document_idle`, which on a LinkedIn profile is well
+   * before the top card exists — it is rendered client-side, after hydration,
+   * and on a slow connection that is seconds later. The old code looked for the
+   * anchor once, at the first possible moment, found nothing, and concluded the
+   * profile had no contact info. The anchor is of course there: it is the link
+   * the user clicks themselves.
+   */
+  const CONTACT_INFO_TRIGGER_WAIT_MS = 8000;
+
+  /**
+   * Once the profile itself has rendered, how much longer the link gets.
+   *
+   * Waiting the full deadline on every profile would mean eight seconds of
+   * "still looking" on everyone whose contact info simply isn't shared with the
+   * viewer — which is a lot of people, and is the sort of dead waiting that made
+   * this feel slow before. A top card that has arrived without the link is the
+   * signal that there isn't one; this is the benefit of the doubt on top.
+   */
+  const CONTACT_INFO_TRIGGER_GRACE_MS = 2000;
+
+  /**
+   * Failures are allowed to be retried; successes are not re-fetched.
+   *
+   * The previous version cached *both* for the life of the page, which is what
+   * made every earlier fix to the routes pointless. One empty result — from a
+   * read that ran before the profile had rendered — was remembered forever, so
+   * none of those routes ever got a second chance no matter how good they were.
+   * A profile is asked again on the next scrape, a few times, before we accept
+   * that there is genuinely nothing there.
+   */
+  const CONTACT_INFO_ATTEMPTS = 3;
+  const contactInfoAttempts = new Map();
+
+  function attemptsSoFar(publicId) {
+    return contactInfoAttempts.get(publicId) || 0;
+  }
+
   /** fetch with a deadline, so a hung request can't stall a scrape. */
   async function fetchWithTimeout(url, options, timeoutMs) {
     const controller = new AbortController();
@@ -392,7 +435,50 @@
    * @param {string} publicId
    * @returns {Promise<string[]>}
    */
+  /**
+   * The Contact info link, waited for rather than looked for once.
+   *
+   * @param {string} publicId
+   * @returns {Promise<Element|null>}
+   */
+  async function waitForContactInfoTrigger(publicId) {
+    // Already rendered — the common case on a profile that has been open a
+    // moment, and the only case the old code handled.
+    const present = contactInfoTrigger(publicId);
+    if (present) return present;
+
+    /*
+     * Otherwise wait for either the link or the profile around it, whichever
+     * lands first. `main h1` is the person's name: if that is on screen the
+     * profile has rendered, so a missing link means this viewer doesn't get one
+     * rather than that it hasn't arrived yet.
+     */
+    const settled = await waitFor(
+      () => contactInfoTrigger(publicId) || (document.querySelector('main h1') ? 'rendered' : null),
+      CONTACT_INFO_TRIGGER_WAIT_MS
+    );
+
+    if (!settled) return null;
+    if (settled !== 'rendered') return settled;
+    return waitFor(() => contactInfoTrigger(publicId), CONTACT_INFO_TRIGGER_GRACE_MS);
+  }
+
   async function readContactInfoOverlay(publicId) {
+    /*
+     * Find the way in *before* touching the page.
+     *
+     * Two reasons, and the first is the fix. LinkedIn renders the top card after
+     * document_idle, so the link is reliably absent at the moment this used to
+     * look for it — waiting for it is the difference between "this profile has
+     * no contact info" and reading it without a click.
+     *
+     * The second is why the wait happens here rather than inside the opener:
+     * everything below installs a stylesheet that hides dialogs and overrides
+     * LinkedIn's scroll lock. Waiting with that already in place would suppress
+     * LinkedIn's own modals, and unlock its scrolling, for the whole wait.
+     */
+    const trigger = await waitForContactInfoTrigger(publicId);
+
     // Anything already open is the page's own business — never ours to read or
     // to close. Only a dialog that wasn't here before the click counts.
     const before = new Set(document.querySelectorAll('[role="dialog"], .artdeco-modal'));
@@ -429,7 +515,7 @@
     let openedBy = null;
 
     try {
-      openedBy = openContactInfoOverlay(publicId);
+      openedBy = openContactInfoOverlay(publicId, trigger);
       if (!openedBy) return [];
 
       /*
@@ -684,10 +770,14 @@
    * direction.
    *
    * @param {string} publicId
+   * @param {Element|null} [resolved] The anchor, already waited for by the
+   *   caller. Passed in rather than looked up here because the wait has to
+   *   happen before the caller hides the page's dialogs — see
+   *   `readContactInfoOverlay`. Looked up directly when absent.
    * @returns {'click'|'router'|null} How it got in, so the restore can be exact.
    */
-  function openContactInfoOverlay(publicId) {
-    const trigger = contactInfoTrigger(publicId);
+  function openContactInfoOverlay(publicId, resolved) {
+    const trigger = resolved || contactInfoTrigger(publicId);
     if (trigger) {
       trigger.click();
       return 'click';
@@ -786,11 +876,26 @@
      * that is the point. The panel, the popup and the DOM watcher all scrape
      * the same page, often within the same second; without this each one opens
      * the dialog again, which on a real profile is the difference between one
-     * quiet click and the page visibly thrashing. Failures are cached too — a
-     * profile with no contact-info link must be asked once, not on every
-     * mutation.
+     * quiet click and the page visibly thrashing.
+     *
+     * What it must *not* do is remember a failure forever, which is what it used
+     * to do and what made this feature look permanently broken. The first read
+     * of a profile happens before LinkedIn has rendered it; that read found
+     * nothing, the nothing was cached, and no route below — however good — was
+     * ever run again for that profile. The address only ever appeared when the
+     * user opened Contact info by hand, which is precisely the complaint.
+     *
+     * So: an answer is kept, an empty result is kept only until the next ask,
+     * and a profile that has come back empty this many times is accepted as
+     * having nothing rather than being reopened on every mutation for the life
+     * of the tab.
      */
-    if (contactInfoCache.has(publicId)) return contactInfoCache.get(publicId);
+    const inFlight = contactInfoCache.get(publicId);
+    if (inFlight) return inFlight;
+
+    const previous = contactInfoSettled.get(publicId);
+    if (previous?.emails.length > 0) return previous;
+    if (previous && attemptsSoFar(publicId) >= CONTACT_INFO_ATTEMPTS) return previous;
 
     const run = (async () => {
       const result = { emails: [], websites: [] };
@@ -876,10 +981,24 @@
 
     contactInfoCache.set(publicId, run);
     evictOldest(contactInfoCache, CONTACT_INFO_CACHE_LIMIT);
-    run.then(
-      (value) => contactInfoSettled.set(publicId, value),
-      () => contactInfoSettled.set(publicId, { emails: [], websites: [] })
-    ).then(() => evictOldest(contactInfoSettled, CONTACT_INFO_CACHE_LIMIT));
+    contactInfoAttempts.set(publicId, attemptsSoFar(publicId) + 1);
+    evictOldest(contactInfoAttempts, CONTACT_INFO_CACHE_LIMIT);
+
+    const settle = (value) => {
+      contactInfoSettled.set(publicId, value);
+      evictOldest(contactInfoSettled, CONTACT_INFO_CACHE_LIMIT);
+      /*
+       * Release the in-flight entry when there was nothing to show, so the next
+       * scrape genuinely re-runs instead of being handed this same empty answer.
+       * A result with an address stays cached: it cannot improve, and re-opening
+       * the dialog on a profile we have already read is pure cost to the user.
+       */
+      if (value.emails.length === 0 && contactInfoCache.get(publicId) === run) {
+        contactInfoCache.delete(publicId);
+      }
+    };
+
+    run.then(settle, () => settle({ emails: [], websites: [] }));
     return run;
   }
 
@@ -958,7 +1077,17 @@
      * looking" — two very different things to tell somebody, and showing the
      * first while the second is true is what made the extension look broken.
      */
-    const pendingContactInfo = !deep && !contactInfoSettled.has(publicId) && emails.length === 0;
+    /*
+     * "More to come if somebody asks" now includes a profile that has been asked
+     * and came back empty, while retries remain. That is not pedantry: the panel
+     * only starts a deep read when this is true, so the old version — false the
+     * instant one empty result settled — is what stopped the retry from ever
+     * being attempted, no matter how many mutations later the page rendered.
+     */
+    const pendingContactInfo =
+      !deep &&
+      emails.length === 0 &&
+      (!contactInfoSettled.has(publicId) || attemptsSoFar(publicId) < CONTACT_INFO_ATTEMPTS);
 
     // The company's domain, for finding an address when the profile has none.
     // A personal site is a better signal than nothing, and the finder rejects

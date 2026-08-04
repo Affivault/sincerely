@@ -131,6 +131,58 @@ const ROUTER_ONLY_PROFILE = `<!doctype html><html><head><title>Dana Okafor | Lin
   </script>
 </body></html>`;
 
+/**
+ * The profile that reproduces the real complaint.
+ *
+ * Every other fixture here renders its Contact info link in the initial HTML,
+ * which is why four consecutive fixes for "the email isn't found unless I click
+ * Contact info" passed their tests and changed nothing on linkedin.com. Real
+ * LinkedIn renders the top card client-side, after `document_idle` — so at the
+ * moment a content script first looks, the link genuinely is not there.
+ *
+ * Here it appears 2.5 seconds in, and nothing else can answer: no address in the
+ * markup, no embedded payload, no Voyager, no overlay HTML, no self-fetch for
+ * the tap to read. Waiting for the link is the only way through, and a build
+ * that looks once reports "no email" — exactly as it did in production.
+ */
+const LATE_SLUG = 'late-anchor';
+const LATE_ADDRESS = 'nadia.hassan@northwind.example.org';
+
+const LATE_ANCHOR_PROFILE = `<!doctype html><html><head><title>Nadia Hassan | LinkedIn</title></head>
+<body>
+  <main><div id="shell"></div></main>
+  <script>
+    window.__dialogOpens = 0;
+    // The top card, drawn late — as LinkedIn draws it.
+    setTimeout(function () {
+      document.getElementById('shell').innerHTML =
+        '<h1>Nadia Hassan</h1>' +
+        '<div class="text-body-medium break-words">VP Sales at Northwind Capital</div>' +
+        '<a href="/in/${LATE_SLUG}/overlay/contact-info/" id="ci">Contact info</a>' +
+        '<button aria-label="Message Nadia">Message</button>';
+      document.getElementById('ci').addEventListener('click', function (e) {
+        e.preventDefault();
+        window.__dialogOpens += 1;
+        document.body.style.overflow = 'hidden';
+        setTimeout(function () {
+          var dialog = document.createElement('div');
+          dialog.setAttribute('role', 'dialog');
+          dialog.className = 'artdeco-modal';
+          dialog.innerHTML =
+            '<h2>Contact info</h2>' +
+            '<button class="artdeco-modal__dismiss" aria-label="Dismiss">x</button>' +
+            '<a href="mailto:${LATE_ADDRESS}">${LATE_ADDRESS}</a>';
+          dialog.querySelector('.artdeco-modal__dismiss').addEventListener('click', function () {
+            dialog.remove();
+            document.body.style.overflow = '';
+          });
+          document.body.appendChild(dialog);
+        }, 200);
+      });
+    }, 2500);
+  </script>
+</body></html>`;
+
 const TAP_ONLY_PROFILE = `<!doctype html><html><head><title>Marcus Webb | LinkedIn</title></head>
 <body>
   <main>
@@ -198,6 +250,7 @@ createServer({ key, cert }, (req, res) => {
     'Set-Cookie': 'JSESSIONID="ajax:1234567890"; Path=/',
   });
 
+  if (url.pathname.includes(LATE_SLUG)) return res.end(LATE_ANCHOR_PROFILE);
   if (url.pathname.includes(TAP_SLUG)) return res.end(TAP_ONLY_PROFILE);
   if (url.pathname.includes(ROUTER_SLUG)) return res.end(ROUTER_ONLY_PROFILE);
   if (url.pathname.includes(QUIET_SLUG)) {
