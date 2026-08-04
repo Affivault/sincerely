@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { dispatchEvent as dispatchToIntegrations } from './integrations.service.js';
 import crypto from 'crypto';
 import dns from 'dns';
 import net from 'net';
@@ -300,6 +301,14 @@ export async function fireEvent(
   eventType: string,
   data: Record<string, any>
 ): Promise<void> {
+  // Fan out to third-party integrations (Slack, CRMs, Zapier, …) first —
+  // they ride the same bus but must not depend on whether any raw webhook
+  // endpoint happens to be subscribed (this function returns early below
+  // when none are).
+  dispatchToIntegrations(userId, eventType, data).catch((err) => {
+    console.error('[Webhook] Integration dispatch error:', err?.message ?? String(err));
+  });
+
   // Find active endpoints subscribed to this event
   const { data: endpoints, error: endpointsError } = await supabaseAdmin
     .from('webhook_endpoints')

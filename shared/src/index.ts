@@ -6,6 +6,8 @@ export * from './analytics.types.js';
 export * from './inbox.types.js';
 export * from './asset.types.js';
 export * from './webhook.types.js';
+export * from './integration.types.js';
+export * from './integration.catalog.js';
 export * from './apikey.types.js';
 export * from './domain.types.js';
 export * from './billing.types.js';

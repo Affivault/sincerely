@@ -27,6 +27,7 @@ const PAGE_TITLES: [prefix: string, name: string][] = [
   ['/verification', 'Verification'],
   ['/team', 'Team'],
   ['/developer', 'Webhooks'],
+  ['/integrations', 'Integrations'],
   ['/toolkit', 'Toolkit'],
   ['/settings', 'Settings'],
 ];

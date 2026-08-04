@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, Send, Globe, ShieldOff, ShieldCheck, UserPlus,
-  CalendarClock, Wrench, Plus, Search, Sun, Moon, LogOut, CornerDownLeft,
+  CalendarClock, Wrench, Plus, Search, Sun, Moon, LogOut, CornerDownLeft, Blocks,
   ArrowUp, ArrowDown, type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -53,6 +53,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     { id: 'nav-domains', label: 'Domains & DNS', icon: Globe, group: 'Navigate', href: '/email-accounts', keywords: 'dns spf dkim deliverability authentication' },
     { id: 'nav-verification', label: 'Verification', icon: ShieldCheck, group: 'Navigate', href: '/verification', keywords: 'validate dcs score' },
     { id: 'nav-suppression', label: 'Suppression', icon: ShieldOff, group: 'Navigate', href: '/suppression', keywords: 'blocklist unsubscribe' },
+    { id: 'nav-integrations', label: 'Integrations', icon: Blocks, group: 'Navigate', href: '/integrations', keywords: 'slack discord telegram zapier make hubspot pipedrive connect apps' },
     { id: 'nav-webhooks', label: 'Webhooks', icon: Webhook, group: 'Navigate', href: '/developer', keywords: 'api developer events' },
     { id: 'nav-toolkit', label: 'Toolkit', icon: Wrench, group: 'Navigate', href: '/toolkit', keywords: 'tools utilities' },
     { id: 'nav-team', label: 'Team', icon: UserPlus, group: 'Navigate', href: '/team', keywords: 'members invite seats' },
