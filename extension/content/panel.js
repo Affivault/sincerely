@@ -1088,6 +1088,9 @@
      */
     if (sincerely.isOverlayBusy?.()) return;
     lastUrl = location.href;
+    /* Addresses captured from LinkedIn's traffic on the previous profile must
+       never be offered as this one's. A wrong address is far worse than none. */
+    sincerely.forgetNetEmails?.();
     mountIfRelevant();
   }, 1200);
 
