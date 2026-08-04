@@ -268,6 +268,89 @@ try {
   await tap.close();
 
   /* ================================================================ */
+  /* 1b. The link that renders late — the actual production failure   */
+  /* ================================================================ */
+
+  /*
+   * The bug four fixes missed, because every fixture until now put the Contact
+   * info link in the initial HTML and real LinkedIn does not.
+   *
+   * LinkedIn draws the top card client-side, after `document_idle`. The scraper
+   * looked for the link once, at the first possible moment, found nothing, and
+   * cached "this profile has no contact info" for the life of the tab — so no
+   * later attempt ever ran, however many times the page mutated. The address
+   * then only ever appeared when the user opened Contact info themselves, which
+   * is the complaint word for word.
+   *
+   * The deep read here is issued immediately on load, exactly as the panel
+   * issues it, with no retry loop to paper over the failure: a build that looks
+   * once gets `none`.
+   */
+  const late = await context.newPage();
+  await late.goto('https://www.linkedin.com/in/late-anchor/');
+  await late.waitForLoadState('domcontentloaded');
+
+  check(
+    'the contact-info link is genuinely absent when the scrape starts',
+    (await late.locator('a[href*="overlay/contact-info"]').count()) === 0
+  );
+  check(
+    'and nothing readable on the page carries the address yet',
+    await late.evaluate(
+      () =>
+        !/nadia\.hassan@/.test(document.body.innerText || '') &&
+        document.querySelectorAll('a[href^="mailto:"]').length === 0
+    )
+  );
+
+  const lateTabId = await worker.evaluate(async () => {
+    const tabs = await chrome.tabs.query({});
+    return tabs.find((t) => (t.url || '').includes('late-anchor'))?.id ?? null;
+  });
+
+  // One deep read, started now, awaited to completion. No polling.
+  const lateRead = await worker.evaluate(async (id) => {
+    try {
+      return await chrome.tabs.sendMessage(id, { type: 'SINCERELY_SCRAPE_DEEP' });
+    } catch {
+      return null;
+    }
+  }, lateTabId);
+
+  check(
+    'the address is found on a profile whose link renders late, with nothing clicked by hand',
+    lateRead?.email === 'nadia.hassan@northwind.example.org',
+    lateRead?.email || 'none'
+  );
+
+  const lateState = await late.evaluate(() => ({
+    dialogs: document.querySelectorAll('[role="dialog"]').length,
+    locked: getComputedStyle(document.body).overflowY === 'hidden',
+    path: location.pathname,
+  }));
+  check('the dialog it opened was closed again', lateState.dialogs === 0, String(lateState.dialogs));
+  check('the page was left scrollable', !lateState.locked);
+  check('and the user stayed on the profile', lateState.path === '/in/late-anchor/', lateState.path);
+
+  // The answer is kept: a second read must not reopen the dialog on a profile
+  // already resolved. (Failures are retried; successes are not.)
+  const opensBefore = await late.evaluate(() => window.__dialogOpens);
+  const lateAgain = await worker.evaluate(async (id) => {
+    try {
+      return await chrome.tabs.sendMessage(id, { type: 'SINCERELY_SCRAPE_DEEP' });
+    } catch {
+      return null;
+    }
+  }, lateTabId);
+  check(
+    'asking again returns the same address without reopening anything',
+    lateAgain?.email === 'nadia.hassan@northwind.example.org' &&
+      (await late.evaluate(() => window.__dialogOpens)) === opensBefore,
+    `${lateAgain?.email || 'none'}, opens ${opensBefore}→${await late.evaluate(() => window.__dialogOpens)}`
+  );
+  await late.close();
+
+  /* ================================================================ */
   /* 2. A page of results costs a handful of requests, not hundreds   */
   /* ================================================================ */
 
