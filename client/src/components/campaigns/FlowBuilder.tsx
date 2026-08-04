@@ -21,6 +21,7 @@ import {
   Brain,
   Copy,
   Check,
+  AlertTriangle,
 } from 'lucide-react';
 import { StepType, ConditionField, ConditionOperator } from '@lemlist/shared';
 import type { CreateStepInput } from '@lemlist/shared';
@@ -304,6 +305,14 @@ function FlowNode({
     return '';
   };
 
+  // A condition/webhook-wait step with no field/event picked yet can't do
+  // anything at send time — the launch checklist catches this too, but that
+  // only surfaces once the user tries to launch. Flagging it right on the
+  // card means they see it the moment they add the step instead.
+  const isUnconfigured =
+    (step.step_type === 'condition' && (!step.condition_field || !step.condition_operator)) ||
+    (step.step_type === 'webhook_wait' && !step.webhook_event);
+
   return (
     <div className="relative pt-2.5">
       {/* Node Card */}
@@ -357,8 +366,19 @@ function FlowNode({
                     If/Else
                   </span>
                 )}
+                {isUnconfigured && (
+                  <span
+                    className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                    title="This step won't do anything until it's configured — it'll block launch."
+                  >
+                    <AlertTriangle className="h-2.5 w-2.5" />
+                    Needs setup
+                  </span>
+                )}
               </div>
-              <p className="text-[12px] text-[var(--text-secondary)] truncate">{getStepSummary()}</p>
+              <p className={cn('text-[12px] truncate', isUnconfigured ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-secondary)]')}>
+                {getStepSummary()}
+              </p>
 
               {/* Built-in send timing — lives on the email itself, no separate
                   delay node needed. First email always goes out at launch, and
@@ -742,7 +762,9 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
   const dayOffsets: number[] = [];
   let cumulative = 0;
   // (email steps add their own built-in wait BEFORE they fire; delay nodes
-  // add theirs AFTER — both feed the Day-N badges below)
+  // add theirs AFTER — both feed the Day-N badges below; a webhook-wait node
+  // can hold a contact up to its timeout, so it adds its worst-case duration
+  // AFTER too, the same way a delay node does)
   steps.forEach((step, i) => {
     // Email built-in waits count only when no Wait node sits directly above
     // (the engine gives explicit Wait nodes precedence over built-in timing).
@@ -751,6 +773,7 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
     }
     dayOffsets.push(Math.round(cumulative));
     if (step.step_type === 'delay') cumulative += stepDelayInDays(step);
+    if (step.step_type === 'webhook_wait') cumulative += (step.webhook_timeout_hours || 72) / 24;
   });
   const emailCount = steps.filter((s) => s.step_type === 'email').length;
   const totalDays = Math.round(cumulative);
