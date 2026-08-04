@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
-  FileText, Webhook, LogOut, CalendarClock, Layers,
+  FileText, Webhook, LogOut, CalendarClock, Layers, Blocks,
   ChevronRight, Wrench, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -47,8 +47,9 @@ const leadsNav: NavItem[] = [
 ];
 
 const toolsNav: NavItem[] = [
-  { name: 'Webhooks', href: '/developer', icon: Webhook },
-  { name: 'Toolkit',  href: '/toolkit',   icon: Wrench },
+  { name: 'Integrations', href: '/integrations', icon: Blocks },
+  { name: 'Webhooks',     href: '/developer',    icon: Webhook },
+  { name: 'Toolkit',      href: '/toolkit',      icon: Wrench },
 ];
 
 /* Every route that lives inside the settings workspace (SettingsShell owns

@@ -30,6 +30,7 @@ const SseDashboardPage     = lazy(() => import('./pages/sse/SseDashboardPage').t
 const AssetBuilderPage     = lazy(() => import('./pages/assets/AssetBuilderPage').then(m => ({ default: m.AssetBuilderPage })));
 const TemplatesPage        = lazy(() => import('./pages/templates/TemplatesPage').then(m => ({ default: m.TemplatesPage })));
 const DeveloperPage        = lazy(() => import('./pages/developer/DeveloperPage').then(m => ({ default: m.DeveloperPage })));
+const IntegrationsPage     = lazy(() => import('./pages/integrations/IntegrationsPage').then(m => ({ default: m.IntegrationsPage })));
 const SuppressionPage      = lazy(() => import('./pages/suppression/SuppressionPage').then(m => ({ default: m.SuppressionPage })));
 const VerificationPage     = lazy(() => import('./pages/verification/VerificationPage').then(m => ({ default: m.VerificationPage })));
 const TeamPage             = lazy(() => import('./pages/team/TeamPage').then(m => ({ default: m.TeamPage })));
@@ -125,6 +126,7 @@ export default function App() {
           <Route path="/templates"          element={<TemplatesPage />} />
           <Route path="/assets"             element={<AssetBuilderPage />} />
           <Route path="/developer"          element={<DeveloperPage />} />
+          <Route path="/integrations"       element={<IntegrationsPage />} />
           <Route path="/settings"           element={<SettingsPage />} />
           <Route path="/billing"            element={<BillingPage />} />
           <Route path="/suppression"        element={<SuppressionPage />} />
