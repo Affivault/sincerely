@@ -15,6 +15,10 @@ import {
   Workflow,
   Orbit,
   Kanban,
+  UsersRound,
+  Network,
+  NotebookText,
+  Table2,
   X,
   CheckCircle2,
   XCircle,
@@ -35,10 +39,14 @@ const BRAND: Record<string, { color: string; icon: React.ElementType }> = {
   slack:     { color: '#4A154B', icon: Slack },
   discord:   { color: '#5865F2', icon: MessagesSquare },
   telegram:  { color: '#229ED9', icon: Send },
+  teams:     { color: '#6264A7', icon: UsersRound },
   zapier:    { color: '#FF4F00', icon: Zap },
   make:      { color: '#6D00CC', icon: Workflow },
+  n8n:       { color: '#EA4B71', icon: Network },
   hubspot:   { color: '#FF7A59', icon: Orbit },
   pipedrive: { color: '#08A742', icon: Kanban },
+  notion:    { color: '#191919', icon: NotebookText },
+  airtable:  { color: '#F82B60', icon: Table2 },
 };
 
 const KIND_LABELS: Record<string, string> = {

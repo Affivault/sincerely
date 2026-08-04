@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { assertSafeWebhookUrl, pinnedPost } from './webhook.service.js';
 import {
   getIntegrationMeta,
   type IntegrationProviderId,
@@ -136,7 +137,7 @@ function crmNoteText(eventType: string, data: Record<string, any>): string {
 
 interface ProviderRuntime {
   /** Throws AppError(400) when the config shape/host is wrong. */
-  validate(config: Record<string, string>): void;
+  validate(config: Record<string, string>): void | Promise<void>;
   /** Live round-trip against the provider's real API. Never throws. */
   test(config: Record<string, string>): Promise<IntegrationTestResult>;
   /**
@@ -238,6 +239,105 @@ const telegramRuntime: ProviderRuntime = {
       throw new Error(`Telegram: ${res.json?.description || res.text.slice(0, 120)}`);
     }
     return text;
+  },
+};
+
+const TEAMS_HOST_OK = (h: string) =>
+  h === 'webhook.office.com' ||
+  h.endsWith('.webhook.office.com') ||
+  h.endsWith('.logic.azure.com');
+
+/**
+ * Teams Workflows webhooks want an Adaptive Card message envelope; the legacy
+ * Incoming Webhook connector reads the top-level `text`. Sending both keeps a
+ * single payload working for either kind of URL.
+ */
+function teamsPayload(text: string) {
+  return {
+    type: 'message',
+    text,
+    attachments: [
+      {
+        contentType: 'application/vnd.microsoft.card.adaptive',
+        content: {
+          $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+          type: 'AdaptiveCard',
+          version: '1.4',
+          body: [{ type: 'TextBlock', text, wrap: true }],
+        },
+      },
+    ],
+  };
+}
+
+const teamsRuntime: ProviderRuntime = {
+  validate(config) {
+    assertProviderUrl(config.webhook_url || '', TEAMS_HOST_OK, 'Teams webhook URL');
+  },
+  async test(config) {
+    try {
+      const res = await httpJson('POST', config.webhook_url, {
+        body: teamsPayload('👋 Sincerely is connected! Campaign notifications will appear in this channel.'),
+      });
+      // Workflows answers 202, the legacy connector 200.
+      return res.status >= 200 && res.status < 300
+        ? { success: true, detail: 'Test message sent to your Teams channel.' }
+        : { success: false, detail: `Teams rejected the message (${res.status}: ${res.text.slice(0, 120)})` };
+    } catch (err: any) {
+      return { success: false, detail: err.message };
+    }
+  },
+  async handleEvent(_userId, config, eventType, data) {
+    const text = describeEvent(eventType, data);
+    const res = await httpJson('POST', config.webhook_url, { body: teamsPayload(text) });
+    if (res.status < 200 || res.status >= 300) throw new Error(`Teams returned ${res.status}: ${res.text.slice(0, 120)}`);
+    return text;
+  },
+};
+
+/**
+ * n8n is the one provider whose webhook can live anywhere (self-hosted), so
+ * its URL goes through the same SSRF pipeline as raw webhook endpoints:
+ * resolve + private-range check, then a connection pinned to the vetted IPs.
+ */
+const n8nRuntime: ProviderRuntime = {
+  async validate(config) {
+    await assertSafeWebhookUrl(config.webhook_url || '');
+  },
+  async test(config) {
+    try {
+      const addresses = await assertSafeWebhookUrl(config.webhook_url);
+      const res = await pinnedPost(
+        config.webhook_url,
+        addresses,
+        { 'Content-Type': 'application/json', 'User-Agent': 'Sincerely-Integrations/1.0' },
+        JSON.stringify({
+          event: 'test.ping',
+          timestamp: new Date().toISOString(),
+          data: { message: 'This is a test event from Sincerely — use it to map fields in n8n.' },
+        }),
+        12000
+      );
+      return res.statusCode >= 200 && res.statusCode < 300
+        ? { success: true, detail: 'Test event delivered — check the executions list on your n8n workflow.' }
+        : { success: false, detail: `n8n returned ${res.statusCode}: ${res.body.slice(0, 120)}` };
+    } catch (err: any) {
+      return { success: false, detail: err.message };
+    }
+  },
+  async handleEvent(_userId, config, eventType, data) {
+    const addresses = await assertSafeWebhookUrl(config.webhook_url);
+    const res = await pinnedPost(
+      config.webhook_url,
+      addresses,
+      { 'Content-Type': 'application/json', 'User-Agent': 'Sincerely-Integrations/1.0' },
+      JSON.stringify({ event: eventType, timestamp: new Date().toISOString(), data }),
+      12000
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw new Error(`n8n returned ${res.statusCode}: ${res.body.slice(0, 120)}`);
+    }
+    return `Forwarded ${eventType} to n8n`;
   },
 };
 
@@ -387,15 +487,192 @@ const pipedriveRuntime: ProviderRuntime = {
   },
 };
 
+const NOTION_VERSION = '2022-06-28';
+
+/** Notion database IDs appear with or without dashes — normalize to bare hex. */
+function notionDatabaseId(raw: string): string {
+  return (raw || '').trim().replace(/-/g, '').toLowerCase();
+}
+
+const notionRuntime: ProviderRuntime = {
+  validate(config) {
+    if (!(config.token || '').trim()) {
+      throw new AppError('Notion integration secret is required', 400);
+    }
+    if (!/^[0-9a-f]{32}$/.test(notionDatabaseId(config.database_id))) {
+      throw new AppError('Database ID should be the 32-character string from the database URL', 400);
+    }
+  },
+  async test(config) {
+    try {
+      const res = await httpJson('GET', `https://api.notion.com/v1/databases/${notionDatabaseId(config.database_id)}`, {
+        headers: { Authorization: `Bearer ${config.token.trim()}`, 'Notion-Version': NOTION_VERSION },
+      });
+      if (res.status === 200) {
+        const title = res.json?.title?.map((t: any) => t?.plain_text || '').join('') || 'your database';
+        return { success: true, detail: `Connected to “${title}” in Notion.` };
+      }
+      if (res.status === 401) return { success: false, detail: 'Notion rejected the secret (401). Copy it from notion.so/my-integrations.' };
+      if (res.status === 404) {
+        return { success: false, detail: 'Notion can’t see that database (404). Open the database → ⋯ → Connections and add your integration, and double-check the ID.' };
+      }
+      return { success: false, detail: `Notion returned ${res.status}: ${res.json?.message || res.text.slice(0, 120)}` };
+    } catch (err: any) {
+      return { success: false, detail: err.message };
+    }
+  },
+  async handleEvent(userId, config, eventType, data) {
+    if (!crmShouldSync(eventType, data)) return null;
+    const contact = await loadEventContact(userId, data);
+    if (!contact?.email) return null;
+
+    const headers = {
+      Authorization: `Bearer ${config.token.trim()}`,
+      'Notion-Version': NOTION_VERSION,
+    };
+    const dbId = notionDatabaseId(config.database_id);
+
+    // Property names vary per database — the title property is the only
+    // guaranteed slot, so find its actual name first.
+    const db = await httpJson('GET', `https://api.notion.com/v1/databases/${dbId}`, { headers });
+    if (db.status !== 200) {
+      throw new Error(`Notion database read failed (${db.status}): ${db.json?.message || db.text.slice(0, 120)}`);
+    }
+    const titleProp = Object.entries(db.json?.properties || {}).find(
+      ([, p]: [string, any]) => p?.type === 'title'
+    )?.[0];
+    if (!titleProp) throw new Error('Notion database has no title property');
+
+    const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
+    const pageTitle = name ? `${name} (${contact.email})` : contact.email;
+    const lines = [
+      crmNoteText(eventType, data),
+      `Email: ${contact.email}`,
+      contact.company ? `Company: ${contact.company}` : null,
+      contact.job_title ? `Role: ${contact.job_title}` : null,
+      contact.phone ? `Phone: ${contact.phone}` : null,
+    ].filter(Boolean) as string[];
+
+    const res = await httpJson('POST', 'https://api.notion.com/v1/pages', {
+      headers,
+      body: {
+        parent: { database_id: dbId },
+        properties: {
+          [titleProp]: { title: [{ text: { content: pageTitle.slice(0, 200) } }] },
+        },
+        children: lines.map((line) => ({
+          object: 'block',
+          type: 'paragraph',
+          paragraph: { rich_text: [{ type: 'text', text: { content: line.slice(0, 2000) } }] },
+        })),
+      },
+    });
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(`Notion page create failed (${res.status}): ${res.json?.message || res.text.slice(0, 160)}`);
+    }
+    return `Added ${contact.email} to your Notion database`;
+  },
+};
+
+/** Fields Sincerely can fill when the user's Airtable table has them. */
+const AIRTABLE_FIELDS = ['Email', 'Name', 'Company', 'Event', 'Notes'] as const;
+
+async function airtableTableFields(config: Record<string, string>): Promise<{ fields: string[]; error?: string }> {
+  const res = await httpJson(
+    'GET',
+    `https://api.airtable.com/v0/meta/bases/${encodeURIComponent(config.base_id.trim())}/tables`,
+    { headers: { Authorization: `Bearer ${config.token.trim()}` } }
+  );
+  if (res.status === 401) return { fields: [], error: 'Airtable rejected the token (401). Create one at airtable.com/create/tokens.' };
+  if (res.status === 403) return { fields: [], error: 'Token can’t read the base schema — add the schema.bases:read scope and grant the base.' };
+  if (res.status === 404) return { fields: [], error: 'Base not found (404). Check the base ID (starts with app…) and that the token has access to it.' };
+  if (res.status !== 200) return { fields: [], error: `Airtable returned ${res.status}: ${res.json?.error?.message || res.text.slice(0, 120)}` };
+
+  const wanted = config.table_name.trim().toLowerCase();
+  const table = (res.json?.tables || []).find(
+    (t: any) => t?.name?.toLowerCase() === wanted || t?.id === config.table_name.trim()
+  );
+  if (!table) {
+    const names = (res.json?.tables || []).map((t: any) => t.name).slice(0, 10).join(', ');
+    return { fields: [], error: `No table named “${config.table_name}” in that base. Found: ${names || 'none'}` };
+  }
+  const present = new Set((table.fields || []).map((f: any) => String(f.name)));
+  const usable = AIRTABLE_FIELDS.filter((f) => present.has(f));
+  if (!usable.includes('Email')) {
+    return { fields: [], error: `Table “${table.name}” needs an “Email” field (optional extras Sincerely fills: ${AIRTABLE_FIELDS.slice(1).join(', ')}).` };
+  }
+  return { fields: usable };
+}
+
+const airtableRuntime: ProviderRuntime = {
+  validate(config) {
+    if (!(config.token || '').trim()) throw new AppError('Airtable personal access token is required', 400);
+    if (!/^app[a-zA-Z0-9]{14,}$/.test((config.base_id || '').trim())) {
+      throw new AppError('Base ID should start with “app” (find it in the base URL)', 400);
+    }
+    if (!(config.table_name || '').trim()) throw new AppError('Table name is required', 400);
+  },
+  async test(config) {
+    try {
+      const { fields, error } = await airtableTableFields(config);
+      if (error) return { success: false, detail: error };
+      return { success: true, detail: `Connected — Sincerely will fill: ${fields.join(', ')}.` };
+    } catch (err: any) {
+      return { success: false, detail: err.message };
+    }
+  },
+  async handleEvent(userId, config, eventType, data) {
+    if (!crmShouldSync(eventType, data)) return null;
+    const contact = await loadEventContact(userId, data);
+    if (!contact?.email) return null;
+
+    const { fields: usable, error } = await airtableTableFields(config);
+    if (error) throw new Error(error);
+
+    const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
+    const candidate: Record<string, string> = {
+      Email: contact.email,
+      Name: name,
+      Company: contact.company || '',
+      Event: eventType,
+      Notes: crmNoteText(eventType, data),
+    };
+    const fields: Record<string, string> = {};
+    for (const key of usable) {
+      if (candidate[key]) fields[key] = candidate[key];
+    }
+
+    const res = await httpJson(
+      'POST',
+      `https://api.airtable.com/v0/${encodeURIComponent(config.base_id.trim())}/${encodeURIComponent(config.table_name.trim())}`,
+      {
+        headers: { Authorization: `Bearer ${config.token.trim()}` },
+        body: { records: [{ fields }], typecast: true },
+      }
+    );
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(`Airtable record create failed (${res.status}): ${res.json?.error?.message || res.text.slice(0, 160)}`);
+    }
+    return `Added ${contact.email} to Airtable table “${config.table_name}”`;
+  },
+};
+
 const RUNTIMES: Record<IntegrationProviderId, ProviderRuntime> = {
   slack: slackRuntime,
   discord: discordRuntime,
   telegram: telegramRuntime,
+  teams: teamsRuntime,
   zapier: zapierRuntime,
   make: makeRuntime,
+  n8n: n8nRuntime,
   hubspot: hubspotRuntime,
   pipedrive: pipedriveRuntime,
+  notion: notionRuntime,
+  airtable: airtableRuntime,
 };
+
+/** Exported for the integration test-bench (scripts/, not the HTTP API). */
+export const PROVIDER_RUNTIMES = RUNTIMES;
 
 // ============================================
 // Config redaction
@@ -442,7 +719,7 @@ export async function listIntegrations(userId: string): Promise<UserIntegration[
  * what's stored" so users can edit non-secret fields without re-pasting
  * secrets (which are only ever shown back to them masked).
  */
-function mergeConfig(
+export function mergeConfig(
   providerId: IntegrationProviderId,
   existing: Record<string, string>,
   submitted: Record<string, string>
@@ -459,7 +736,7 @@ function mergeConfig(
   return merged;
 }
 
-function sanitizeEvents(providerId: IntegrationProviderId, events: string[] | undefined): string[] {
+export function sanitizeEvents(providerId: IntegrationProviderId, events: string[] | undefined): string[] {
   const meta = getIntegrationMeta(providerId)!;
   const requested = events && events.length ? events : meta.defaultEvents;
   const supported = new Set(meta.supportedEvents);
@@ -490,7 +767,7 @@ export async function connectIntegration(
     .maybeSingle();
 
   const config = mergeConfig(meta.id, existing?.config || {}, input.config || {});
-  runtime.validate(config);
+  await runtime.validate(config);
 
   const test = await runtime.test(config);
   if (!test.success) {
@@ -537,7 +814,7 @@ export async function updateIntegration(
 
   if (input.config) {
     const config = mergeConfig(existing.provider, existing.config || {}, input.config);
-    RUNTIMES[existing.provider as IntegrationProviderId].validate(config);
+    await RUNTIMES[existing.provider as IntegrationProviderId].validate(config);
     update.config = config;
   }
   if (input.events) {

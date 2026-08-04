@@ -8,10 +8,14 @@ export type IntegrationProviderId =
   | 'slack'
   | 'discord'
   | 'telegram'
+  | 'teams'
   | 'zapier'
   | 'make'
+  | 'n8n'
   | 'hubspot'
-  | 'pipedrive';
+  | 'pipedrive'
+  | 'notion'
+  | 'airtable';
 
 export type IntegrationKind = 'notification' | 'automation' | 'crm';
 
