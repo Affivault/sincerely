@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import * as integrationsService from '../services/integrations.service.js';
+import { oauthAvailability, getAuthorizeUrl } from '../services/integrations-oauth.service.js';
 import { getPagination } from '../utils/pagination.js';
 
 export const integrationsController = {
@@ -48,6 +49,27 @@ export const integrationsController = {
       const { limit } = getPagination({ limit: req.query.limit ? Number(req.query.limit) : 30 });
       const activity = await integrationsService.getActivity(req.userId!, req.params.id, limit);
       res.json(activity);
+    } catch (err) { next(err); }
+  },
+
+  oauthAvailability(_req: AuthRequest, res: Response) {
+    res.json(oauthAvailability());
+  },
+
+  oauthUrl(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json({ url: getAuthorizeUrl(req.userId!, req.params.provider) });
+    } catch (err) { next(err); }
+  },
+
+  async resources(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const resources = await integrationsService.getResources(
+        req.userId!,
+        req.params.provider,
+        req.body?.config || {}
+      );
+      res.json(resources);
     } catch (err) { next(err); }
   },
 };

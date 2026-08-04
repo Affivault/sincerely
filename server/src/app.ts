@@ -7,6 +7,7 @@ import { routes } from './routes/index.js';
 import { assetController } from './controllers/asset.controller.js';
 import { webhookInboundRoutes } from './routes/webhook-inbound.routes.js';
 import { trackingRoutes } from './routes/tracking.routes.js';
+import { integrationsOAuthRoutes } from './routes/integrations-oauth.routes.js';
 import { billingController } from './controllers/billing.controller.js';
 
 const app = express();
@@ -33,6 +34,10 @@ app.use('/api/webhooks/inbound', webhookInboundRoutes);
 
 // Public tracking endpoints (no auth - used in email opens/clicks)
 app.use('/api/track', trackingRoutes);
+
+// Public OAuth callbacks for integrations (no auth — identity comes from
+// the HMAC-signed state parameter; the browser arrives via provider redirect)
+app.use('/api/oauth/integrations', integrationsOAuthRoutes);
 
 // Routes (authenticated)
 app.use('/api/v1', routes);

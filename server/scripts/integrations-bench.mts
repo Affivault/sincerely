@@ -29,6 +29,7 @@ const db = {
   contacts: [] as any[],
   activityInserts: [] as any[],
   integrationPatches: [] as any[],
+  integrationUpserts: [] as any[],
 };
 
 function defaultRoute(req: Captured): { status: number; body: any } {
@@ -40,6 +41,7 @@ function defaultRoute(req: Captured): { status: number; body: any } {
     if (url.pathname.includes('/rest/v1/user_integrations')) {
       if (req.method === 'GET') return { status: 200, body: db.integrations };
       if (req.method === 'PATCH') { db.integrationPatches.push(req.body); return { status: 204, body: '' }; }
+      if (req.method === 'POST') { db.integrationUpserts.push(req.body); return { status: 201, body: '' }; }
       return { status: 201, body: [] };
     }
     if (url.pathname.includes('/rest/v1/integration_activity')) {
@@ -49,7 +51,28 @@ function defaultRoute(req: Captured): { status: number; body: any } {
     if (url.pathname.includes('/rest/v1/contacts')) {
       return { status: 200, body: db.contacts[0] ?? null };
     }
+    if (url.pathname.includes('/rest/v1/campaigns')) {
+      return { status: 200, body: { name: 'Q3 Outreach' } };
+    }
     return { status: 200, body: [] };
+  }
+
+  // — OAuth token endpoints —
+  if (host === 'slack.com' && url.pathname === '/api/oauth.v2.access') {
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        incoming_webhook: { url: 'https://hooks.slack.com/services/T9/B9/oauthhook', channel: '#wins' },
+        team: { name: 'Acme Workspace' },
+      },
+    };
+  }
+  if (host === 'discord.com' && url.pathname === '/api/oauth2/token') {
+    return { status: 200, body: { webhook: { url: 'https://discord.com/api/webhooks/9/oauthhook', channel_id: '123', guild_id: '456' } } };
+  }
+  if (host === 'api.hubapi.com' && url.pathname === '/oauth/v1/token') {
+    return { status: 200, body: { access_token: 'refreshed-token', refresh_token: 'new-refresh', expires_in: 1800 } };
   }
 
   // — Provider happy paths —
@@ -68,12 +91,24 @@ function defaultRoute(req: Captured): { status: number; body: any } {
     if (url.pathname.includes('/persons/search')) return { status: 200, body: { success: true, data: { items: [] } } };
     if (url.pathname.includes('/persons')) return { status: 201, body: { success: true, data: { id: 42 } } };
     if (url.pathname.includes('/notes')) return { status: 201, body: { success: true, data: { id: 7 } } };
+    if (url.pathname.includes('/deals')) return { status: 201, body: { success: true, data: { id: 99 } } };
   }
   if (host === 'api.notion.com') {
     if (req.method === 'GET' && url.pathname.startsWith('/v1/databases/')) {
       return { status: 200, body: { title: [{ plain_text: 'Leads DB' }], properties: { Name: { type: 'title' }, Status: { type: 'select' } } } };
     }
     if (url.pathname === '/v1/pages') return { status: 200, body: { id: 'page_1' } };
+    if (url.pathname === '/v1/search') {
+      return {
+        status: 200,
+        body: {
+          results: [
+            { id: '2f26ee68-df30-4251-aad4-8ddc420cba3d', title: [{ plain_text: 'Leads DB' }] },
+            { id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', title: [] },
+          ],
+        },
+      };
+    }
   }
   if (host === 'api.airtable.com') {
     if (url.pathname.includes('/meta/bases/')) {
@@ -370,6 +405,127 @@ const others = db.activityInserts.filter((a: any) => a.success);
 ok(!!slackFail && String(slackFail.detail || '').includes('500'), 'resilience: failed provider logged with detail');
 ok(others.length === 9, `resilience: remaining 9 providers still delivered (got ${others.length})`);
 ok(db.integrationPatches.some((p: any) => typeof p.last_error === 'string'), 'resilience: last_error persisted for the failing integration');
+
+// ═════ 9. OAuth state signing + flows ═════
+section('9. OAuth engine (state signing, exchange, availability)');
+const oauth = await import('../src/services/integrations-oauth.service.js');
+const envMod = await import('../src/config/env.js');
+const { signOAuthState, verifyOAuthState, handleOAuthCallback, ensureFreshHubspotToken, oauthAvailability, getAuthorizeUrl } = oauth as any;
+
+const state = signOAuthState('user-1', 'slack');
+ok(verifyOAuthState(state, 'slack').userId === 'user-1', 'oauth: state sign → verify roundtrip carries the user');
+await rejects(() => verifyOAuthState(state, 'discord'), 'oauth: state bound to provider (slack state fails for discord)');
+await rejects(() => verifyOAuthState(state.slice(0, -4) + 'AAAA', 'slack'), 'oauth: tampered signature rejected');
+// Forge an expired state signed with the real key — must be rejected on expiry, not signature.
+{
+  const crypto = await import('crypto');
+  const payload = Buffer.from(JSON.stringify({ u: 'user-1', p: 'slack', e: Date.now() - 1000, n: 'x' })).toString('base64url');
+  const sig = crypto.createHmac('sha256', (envMod as any).env.ENCRYPTION_KEY).update(payload).digest('base64url');
+  await rejects(() => verifyOAuthState(`${payload}.${sig}`, 'slack'), 'oauth: expired state rejected', 'expired');
+}
+
+const availBefore = oauthAvailability();
+ok(Object.values(availBefore).every((v) => v === false), 'oauth: availability all-off without app credentials');
+(envMod as any).env.SLACK_CLIENT_ID = 'slack-client';
+(envMod as any).env.SLACK_CLIENT_SECRET = 'slack-secret';
+(envMod as any).env.HUBSPOT_CLIENT_ID = 'hs-client';
+(envMod as any).env.HUBSPOT_CLIENT_SECRET = 'hs-secret';
+ok(oauthAvailability().slack === true && oauthAvailability().discord === false, 'oauth: availability flips on with env credentials');
+const authUrl = getAuthorizeUrl('user-1', 'slack');
+ok(authUrl.startsWith('https://slack.com/oauth/v2/authorize') && authUrl.includes('incoming-webhook') && authUrl.includes('state='), 'oauth: Slack authorize URL carries scope + state');
+await rejects(() => getAuthorizeUrl('user-1', 'discord'), 'oauth: unconfigured provider refuses to start');
+
+db.integrationUpserts = [];
+const cbState = signOAuthState('user-1', 'slack');
+const cbResult = await handleOAuthCallback('slack', 'fake-code', cbState);
+const upserted = db.integrationUpserts.pop();
+ok(cbResult.userId === 'user-1' && upserted?.config?.webhook_url === 'https://hooks.slack.com/services/T9/B9/oauthhook', 'oauth: Slack callback exchanges code and stores the granted webhook');
+ok(upserted?.config?.channel === '#wins' && upserted?.config?.workspace === 'Acme Workspace' && upserted?.config?.auth_kind === 'oauth', 'oauth: workspace + channel metadata captured for the UI');
+
+// HubSpot refresh: expired OAuth token gets refreshed and persisted; manual tokens untouched.
+db.integrationPatches = [];
+const staleCfg = { access_token: 'stale', refresh_token: 'r1', expires_at: String(Date.now() - 1000), auth_kind: 'oauth' };
+const freshCfg = await ensureFreshHubspotToken('int-hs', staleCfg);
+ok(freshCfg.access_token === 'refreshed-token' && freshCfg.refresh_token === 'new-refresh', 'oauth: expired HubSpot token refreshed');
+const before9 = captured.length;
+const manualCfg = await ensureFreshHubspotToken('int-hs', { access_token: 'bench-fake-hubspot-token' });
+ok(manualCfg.access_token === 'bench-fake-hubspot-token' && captured.length === before9, 'oauth: manual HubSpot token passes through with zero HTTP');
+
+// ═════ 10. Rich payloads + event enrichment ═════
+section('10. Rich payloads + enrichment');
+db.contacts = [{ id: 'c1', email: 'lead@acme.io', first_name: 'Ada', last_name: 'Lovelace', company: 'Acme', job_title: 'CTO', phone: '+1555', website: 'acme.io' }];
+db.integrations = [{
+  id: 'int_slack', user_id: 'u1', provider: 'slack', config: GOOD.slack,
+  events: ['email.replied'], is_active: true, last_success_at: null, last_error: null, created_at: 'now', updated_at: 'now',
+}];
+captured.length = 0;
+await dispatchEvent('u1', 'email.replied', REPLY);
+const slackRich = captured.find((c) => c.url.includes('hooks.slack.com'))!;
+const slackJson = JSON.stringify(slackRich.body);
+ok(Array.isArray(slackRich.body?.blocks) && slackRich.body.blocks.some((b: any) => b.type === 'actions'), 'rich: Slack message is Block Kit with a deep-link button');
+ok(slackJson.includes('Ada Lovelace') && slackJson.includes('Acme'), 'rich: contact enrichment lands in the Slack card');
+ok(slackJson.includes('Q3 Outreach'), 'rich: campaign name enrichment lands in the Slack card');
+
+const discordRich = await R.discord.handleEvent('u1', GOOD.discord, 'sara.intent_classified', { contact_id: 'c1', intent: 'interested', confidence: 0.9 });
+const dcCall = captured.filter((c) => c.url.includes('discord.com/api/webhooks')).pop()!;
+ok(Array.isArray(dcCall.body?.embeds) && dcCall.body.embeds[0].fields?.some((f: any) => f.name === 'Intent'), 'rich: Discord message is an embed with fact fields');
+ok(String(discordRich).includes('Interested lead'), 'rich: positive intent gets a win-flavored headline');
+
+await R.teams.handleEvent('u1', GOOD.teams, 'email.replied', REPLY, { contact: db.contacts[0], campaignName: 'Q3 Outreach' });
+const teamsRich = captured.filter((c) => c.url.includes('logic.azure.com')).pop()!;
+const teamsBody = teamsRich.body?.attachments?.[0]?.content?.body || [];
+ok(teamsBody.some((b: any) => b.type === 'FactSet'), 'rich: Teams card carries a FactSet');
+
+// ═════ 11. CRM deals ═════
+section('11. CRM auto-deals');
+const INTERESTED = { contact_id: 'c1', intent: 'interested', confidence: 0.95 };
+captured.length = 0;
+const hsDeal = await R.hubspot.handleEvent('u1', { access_token: 'bench-fake-hubspot-token', create_deals: 'yes' }, 'sara.intent_classified', INTERESTED);
+const dealCall = captured.find((c) => c.url.endsWith('/crm/v3/objects/deals'));
+ok(!!dealCall && dealCall.body?.properties?.pipeline === 'default', 'hubspot: interested lead opens a deal in the default pipeline');
+ok(dealCall?.body?.associations?.[0]?.to?.id === '101', 'hubspot: deal associated to the upserted contact');
+ok(String(hsDeal).includes('deal created'), 'hubspot: summary reports the deal');
+
+captured.length = 0;
+await R.hubspot.handleEvent('u1', { access_token: 'bench-fake-hubspot-token', create_deals: 'no' }, 'sara.intent_classified', INTERESTED);
+ok(!captured.some((c) => c.url.endsWith('/crm/v3/objects/deals')), 'hubspot: deals toggle off → no deal call');
+
+captured.length = 0;
+await R.hubspot.handleEvent('u1', { access_token: 'bench-fake-hubspot-token', create_deals: 'yes' }, 'email.replied', REPLY);
+ok(!captured.some((c) => c.url.endsWith('/crm/v3/objects/deals')), 'hubspot: plain reply syncs contact but opens no deal');
+
+captured.length = 0;
+const pdDeal = await R.pipedrive.handleEvent('u1', { ...GOOD.pipedrive, create_deals: 'yes' }, 'sara.intent_classified', INTERESTED);
+const pdDealCall = captured.find((c) => c.url.includes('/v1/deals'));
+ok(!!pdDealCall && pdDealCall.body?.person_id === 42 && String(pdDeal).includes('deal created'), 'pipedrive: interested lead opens a deal tied to the person');
+
+// ═════ 12. Resource pickers + config merge upgrades ═════
+section('12. Resource pickers + merge upgrades');
+db.integrations = [];
+const notionRes = await svc.getResources('u1', 'notion', { token: 'ntn_x' });
+ok(notionRes.notion_databases?.length === 2 && notionRes.notion_databases[0].id === '2f26ee68df304251aad48ddc420cba3d', 'pickers: Notion databases listed with normalized ids');
+ok(notionRes.notion_databases?.[1].name === 'Untitled database', 'pickers: untitled Notion databases get a readable name');
+const airtableRes = await svc.getResources('u1', 'airtable', { token: 'pat-x', base_id: 'appABCDEF12345678' });
+ok((airtableRes.airtable_bases?.length ?? 0) >= 0 && airtableRes.airtable_tables?.[0]?.name === 'Leads', 'pickers: Airtable tables listed once a base is chosen');
+await rejects(() => svc.getResources('u1', 'notion', {}), 'pickers: missing token gives an actionable error', 'secret');
+await rejects(() => svc.getResources('u1', 'slack', {}), 'pickers: providers without resources refuse cleanly');
+
+const kept = mergeConfig('slack', { webhook_url: 'https://hooks.slack.com/services/T9/B9/x', auth_kind: 'oauth', channel: '#wins', workspace: 'Acme' }, {});
+ok(kept.auth_kind === 'oauth' && kept.channel === '#wins', 'merge: OAuth metadata survives a manual re-save');
+ok(mergeConfig('hubspot', { access_token: 't' }, {}).create_deals === 'yes', 'merge: deals toggle defaults on');
+ok(mergeConfig('hubspot', { access_token: 't', create_deals: 'no' }, {}).create_deals === 'no', 'merge: deals toggle off is preserved');
+ok(mergeConfig('hubspot', { access_token: 't', create_deals: 'no' }, { create_deals: 'yes' }).create_deals === 'yes', 'merge: submitted toggle wins over stored');
+
+// Redaction of OAuth metadata: workspace/channel readable, refresh_token masked.
+db.integrations = [{
+  id: 'i9', user_id: 'u1', provider: 'hubspot',
+  config: { access_token: 'super-secret-access-token-value', refresh_token: 'super-secret-refresh-token', expires_at: '123', auth_kind: 'oauth' },
+  events: ['email.replied'], is_active: true, last_success_at: null, last_error: null, created_at: 'now', updated_at: 'now',
+}];
+const listedOauth = await listIntegrations('u1');
+const oc = listedOauth[0].config;
+ok(!JSON.stringify(oc).includes('super-secret'), 'redaction: OAuth tokens never leave the server readable');
+ok(oc.auth_kind === 'oauth' && oc.expires_at === '123', 'redaction: OAuth metadata stays readable for the UI');
 
 // ═════ Summary ═════
 console.log(`\n${'═'.repeat(50)}\n  ${pass} passed, ${fail} failed\n${'═'.repeat(50)}`);
