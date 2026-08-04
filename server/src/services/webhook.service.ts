@@ -120,8 +120,11 @@ function pinnedLookup(addresses: string[]): (hostname: string, options: any, cal
  * pinnedLookup) so the request can never land on a different host than the
  * one that was SSRF-checked. Does not follow redirects — a redirect to an
  * internal address would otherwise bypass the check entirely.
+ *
+ * Exported for integrations that accept arbitrary user URLs (n8n) so they
+ * go through the exact same SSRF-hardened path as webhook deliveries.
  */
-function pinnedPost(
+export function pinnedPost(
   rawUrl: string,
   addresses: string[],
   headers: Record<string, string>,

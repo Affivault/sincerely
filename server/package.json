@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "bench:integrations": "tsx scripts/integrations-bench.mts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

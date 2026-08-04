@@ -121,6 +121,30 @@ export const INTEGRATION_CATALOG: IntegrationProviderMeta[] = [
     defaultEvents: NOTIFY_DEFAULTS,
   },
   {
+    id: 'teams',
+    name: 'Microsoft Teams',
+    kind: 'notification',
+    description:
+      'Post campaign activity into a Teams channel through a Workflows webhook — no bot install needed.',
+    setupSteps: [
+      'In Teams, open the channel → ⋯ menu → Workflows.',
+      'Pick the template “Post to a channel when a webhook request is received” and add it.',
+      'Copy the HTTP URL the workflow gives you and paste it below.',
+      'Legacy “Incoming Webhook” connector URLs (…webhook.office.com) work too.',
+    ],
+    docsUrl: 'https://support.microsoft.com/en-us/office/browse-and-add-workflows-in-microsoft-teams-4998095c-8b72-4b0e-984c-f2ad39e6ba9a',
+    fields: [
+      {
+        key: 'webhook_url',
+        label: 'Workflow webhook URL',
+        placeholder: 'https://prod-xx.westus.logic.azure.com/workflows/…',
+        secret: true,
+      },
+    ],
+    supportedEvents: NOTIFY_EVENTS,
+    defaultEvents: NOTIFY_DEFAULTS,
+  },
+  {
     id: 'zapier',
     name: 'Zapier',
     kind: 'automation',
@@ -161,6 +185,30 @@ export const INTEGRATION_CATALOG: IntegrationProviderMeta[] = [
         key: 'webhook_url',
         label: 'Custom webhook URL',
         placeholder: 'https://hook.eu1.make.com/…',
+        secret: true,
+      },
+    ],
+    supportedEvents: NOTIFY_EVENTS,
+    defaultEvents: NOTIFY_EVENTS,
+  },
+  {
+    id: 'n8n',
+    name: 'n8n',
+    kind: 'automation',
+    description:
+      'Trigger self-hosted or cloud n8n workflows with the full event payload — build any automation you can imagine.',
+    setupSteps: [
+      'In n8n, add a “Webhook” trigger node to your workflow (method: POST).',
+      'Copy the production webhook URL (switch off test mode first).',
+      'The URL must be publicly reachable — localhost and private-network addresses are rejected.',
+      'Paste it below, then click “Send test” to deliver a sample payload.',
+    ],
+    docsUrl: 'https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.webhook/',
+    fields: [
+      {
+        key: 'webhook_url',
+        label: 'Webhook URL',
+        placeholder: 'https://your-n8n.example.com/webhook/…',
         secret: true,
       },
     ],
@@ -210,6 +258,74 @@ export const INTEGRATION_CATALOG: IntegrationProviderMeta[] = [
         label: 'API token',
         placeholder: 'f23a…',
         secret: true,
+      },
+    ],
+    supportedEvents: CRM_EVENTS,
+    defaultEvents: CRM_EVENTS,
+  },
+  {
+    id: 'notion',
+    name: 'Notion',
+    kind: 'crm',
+    description:
+      'Logs every reply and interested lead as a new page in a Notion database — your lightweight CRM inside Notion.',
+    setupSteps: [
+      'Go to notion.so/my-integrations and create a new internal integration; copy its secret (starts with ntn_ or secret_).',
+      'Open the Notion database you want leads in → ⋯ menu → Connections → add your integration.',
+      'Copy the database ID: the 32-character string in the database URL, between the last / and the ?.',
+      'Paste both below — Sincerely verifies it can see the database before saving.',
+    ],
+    docsUrl: 'https://developers.notion.com/docs/create-a-notion-integration',
+    fields: [
+      {
+        key: 'token',
+        label: 'Integration secret',
+        placeholder: 'ntn_… or secret_…',
+        secret: true,
+      },
+      {
+        key: 'database_id',
+        label: 'Database ID',
+        placeholder: '32-character ID from the database URL',
+        secret: false,
+        help: 'Remember to share the database with your integration via Connections.',
+      },
+    ],
+    supportedEvents: CRM_EVENTS,
+    defaultEvents: CRM_EVENTS,
+  },
+  {
+    id: 'airtable',
+    name: 'Airtable',
+    kind: 'crm',
+    description:
+      'Appends a record to an Airtable table whenever a lead replies or is flagged interested — with contact details filled in.',
+    setupSteps: [
+      'Go to airtable.com/create/tokens and create a personal access token with scopes data.records:write and schema.bases:read, granting access to your base.',
+      'In your base, use (or create) a table with an “Email” field. Optional extra fields Sincerely will also fill: Name, Company, Event, Notes.',
+      'Find your base ID (starts with app…) in the base URL, e.g. airtable.com/appXXXX/…',
+      'Paste the token, base ID, and table name below — Sincerely checks the table and its fields before saving.',
+    ],
+    docsUrl: 'https://airtable.com/developers/web/guides/personal-access-tokens',
+    fields: [
+      {
+        key: 'token',
+        label: 'Personal access token',
+        placeholder: 'pat….…',
+        secret: true,
+        help: 'Needs data.records:write and schema.bases:read on the base.',
+      },
+      {
+        key: 'base_id',
+        label: 'Base ID',
+        placeholder: 'appXXXXXXXXXXXXXX',
+        secret: false,
+      },
+      {
+        key: 'table_name',
+        label: 'Table name',
+        placeholder: 'Leads',
+        secret: false,
       },
     ],
     supportedEvents: CRM_EVENTS,
