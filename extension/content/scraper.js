@@ -459,7 +459,9 @@
          * profile is far too heavy to run fifteen times over a second and a half.
          */
         await new Promise((resolve) => setTimeout(resolve, 600));
-        return emailsFromEmbeddedPayloads();
+        // The tap does not need the dialog to have rendered — only for LinkedIn
+        // to have fetched, which opening the overlay makes it do.
+        return [...new Set([...netEmails, ...emailsFromEmbeddedPayloads()])];
       }
 
       // The shell appears before its contents, so wait for something to read.
@@ -496,6 +498,7 @@
       // Belt and braces: whatever the modal rendered, take what LinkedIn
       // fetched too. Costs nothing and survives a markup change.
       for (const address of emailsFromEmbeddedPayloads()) found.add(address);
+      for (const address of netEmails) found.add(address);
 
       dismiss(modal);
       let closed = await waitFor(() => !modal.isConnected, 1500);
@@ -585,6 +588,45 @@
     if (location.href !== wasAt && /^https?:/.test(location.href)) {
       history.replaceState(history.state, '', wasAt);
     }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* What LinkedIn's own traffic gave up                              */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Addresses seen in LinkedIn's own API responses, newest first.
+   *
+   * Filled by content/net-tap.js, which runs in the page's world and reads what
+   * LinkedIn itself receives. This is the one route that depends on no markup,
+   * no class name, no endpoint path and no element to click — so it is the one
+   * that keeps working when everything else has been renamed.
+   *
+   * @type {string[]}
+   */
+  let netEmails = [];
+
+  window.addEventListener('message', (event) => {
+    // Same-window only, and only our own channel.
+    if (event.source !== window) return;
+    const data = event.data;
+    if (!data || data.type !== 'SINCERELY_NET_EMAILS' || !Array.isArray(data.emails)) return;
+
+    for (const raw of data.emails) {
+      const email = String(raw || '').toLowerCase();
+      if (!EMAIL_TEST.test(email) || !isPlausibleEmail(email)) continue;
+      if (!netEmails.includes(email)) netEmails.unshift(email);
+    }
+    // A prospecting session visits a lot of profiles; this is a cache, not a log.
+    if (netEmails.length > 20) netEmails.length = 20;
+  });
+
+  /**
+   * Reset on navigation. Addresses captured on one profile must never be
+   * offered as another's — a wrong address is far worse than none.
+   */
+  function forgetNetEmails() {
+    netEmails = [];
   }
 
   /**
@@ -758,6 +800,17 @@
       const visible = collectEmails();
       if (visible.length > 0) {
         result.emails = visible;
+        return result;
+      }
+
+      /*
+       * Then whatever LinkedIn's own traffic already handed over. Free, and
+       * independent of every class name and endpoint path — on a profile whose
+       * payload carries the address, this is the whole answer with nothing
+       * opened and nothing clicked.
+       */
+      if (netEmails.length > 0) {
+        result.emails = [...netEmails];
         return result;
       }
 
@@ -1135,6 +1188,7 @@
 
   // Published for the other content scripts on this page.
   sincerely.scrape = scrape;
+  sincerely.forgetNetEmails = forgetNetEmails;
   /** The same scrape, but willing to wait for LinkedIn's contact info. */
   sincerely.scrapeDeep = () => scrape({ deep: true });
   // The panel's DOM watcher consults this: our own dialog mutates the page, and

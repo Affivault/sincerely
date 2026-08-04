@@ -43,6 +43,18 @@ const QUIET_SLUG = 'quiet-profile';
  * the app opens the dialog itself, exactly as it does when the user clicks.
  */
 const ROUTER_SLUG = 'router-only';
+
+/**
+ * The hardest case, and the one the reports keep describing.
+ *
+ * No contact-info link. Nothing in the markup. No dialog, ever. The address
+ * exists in exactly one place: a JSON response the page fetches for itself on
+ * load — which is what LinkedIn does for profiles it will let you see the
+ * address of. Every markup-reading and endpoint-guessing route comes up empty
+ * here; only reading LinkedIn's own traffic finds it.
+ */
+const TAP_SLUG = 'tap-only';
+const TAP_ADDRESS = 'marcus.webb@northwind.example.org';
 const ADDRESS = 'priya.raman@northwind.example.org';
 
 const profile = (slug, name, headline) => `<!doctype html><html><head><title>${name} | LinkedIn</title></head>
@@ -119,10 +131,37 @@ const ROUTER_ONLY_PROFILE = `<!doctype html><html><head><title>Dana Okafor | Lin
   </script>
 </body></html>`;
 
+const TAP_ONLY_PROFILE = `<!doctype html><html><head><title>Marcus Webb | LinkedIn</title></head>
+<body>
+  <main>
+    <h1>Marcus Webb</h1>
+    <div class="text-body-medium break-words">Director at Northwind Capital</div>
+    <button aria-label="Message Marcus">Message</button>
+  </main>
+  <script>
+    // Exactly what LinkedIn does: the page fetches its own profile data. The
+    // address is in the response and nowhere else — not in the DOM, not in an
+    // embedded payload, and behind no clickable control.
+    fetch('/voyager/api/identity/profiles/${TAP_SLUG}/payload')
+      .then(function (r) { return r.json(); })
+      .then(function () {});
+  </script>
+</body></html>`;
+
 const { key, cert } = await ensureCert();
 
 createServer({ key, cert }, (req, res) => {
   const url = new URL(req.url, 'https://www.linkedin.com');
+
+  if (url.pathname.includes(`/voyager/api/identity/profiles/${TAP_SLUG}/payload`)) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(
+      JSON.stringify({
+        profile: { firstName: 'Marcus', lastName: 'Webb' },
+        contact: { emailAddress: { emailAddress: TAP_ADDRESS } },
+      })
+    );
+  }
 
   if (url.pathname.includes('/voyager/')) {
     if (url.pathname.includes(QUIET_SLUG)) {
@@ -159,6 +198,7 @@ createServer({ key, cert }, (req, res) => {
     'Set-Cookie': 'JSESSIONID="ajax:1234567890"; Path=/',
   });
 
+  if (url.pathname.includes(TAP_SLUG)) return res.end(TAP_ONLY_PROFILE);
   if (url.pathname.includes(ROUTER_SLUG)) return res.end(ROUTER_ONLY_PROFILE);
   if (url.pathname.includes(QUIET_SLUG)) {
     return res.end(profile(QUIET_SLUG, 'Quiet Profile', 'Analyst at Northwind Capital'));

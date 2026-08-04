@@ -204,6 +204,70 @@ try {
   await router.close();
 
   /* ================================================================ */
+  /* 1c. The address exists only in LinkedIn's own network traffic    */
+  /* ================================================================ */
+
+  /*
+   * The hardest case and the one the reports keep describing: no contact-info
+   * link, nothing in the markup, no dialog, and no endpoint of ours that
+   * answers. The address is in exactly one place — a JSON response the page
+   * fetches for itself, which is what LinkedIn does for profiles whose address
+   * you are allowed to see.
+   *
+   * Every markup-reading and endpoint-guessing route fails here. Only reading
+   * LinkedIn's own traffic finds it, and it finds it with nothing clicked and
+   * nothing opened.
+   */
+  const tap = await context.newPage();
+  await tap.goto('https://www.linkedin.com/in/tap-only/');
+  await tap.waitForLoadState('domcontentloaded');
+
+  check(
+    'the fixture has no contact-info link',
+    (await tap.locator('a[href*="overlay/contact-info"]').count()) === 0
+  );
+  check(
+    'and the address is nowhere in the document',
+    !/marcus\.webb@/.test(await tap.evaluate(() => document.documentElement.outerHTML))
+  );
+
+  const tapTabId = await worker.evaluate(async () => {
+    const tabs = await chrome.tabs.query({});
+    return tabs.find((t) => (t.url || '').includes('tap-only'))?.id ?? null;
+  });
+
+  let tapped = null;
+  for (let i = 0; i < 20 && !tapped?.person?.email; i += 1) {
+    tapped = await worker.evaluate(
+      async (id) => {
+        try {
+          return { person: await chrome.tabs.sendMessage(id, { type: 'SINCERELY_SCRAPE_DEEP' }) };
+        } catch {
+          return null;
+        }
+      },
+      tapTabId
+    );
+    if (!tapped?.person?.email) await tap.waitForTimeout(400);
+  }
+
+  check(
+    'the address is found from LinkedIn’s own response, with nothing clicked',
+    tapped?.person?.email === 'marcus.webb@northwind.example.org',
+    tapped?.person?.email || 'none'
+  );
+
+  const tapState = await tap.evaluate(() => ({
+    dialogs: document.querySelectorAll('[role="dialog"]').length,
+    locked: getComputedStyle(document.body).overflowY === 'hidden',
+    path: location.pathname,
+  }));
+  check('no dialog was opened to get it', tapState.dialogs === 0, String(tapState.dialogs));
+  check('the page was not locked', !tapState.locked);
+  check('and the user stayed on the profile', tapState.path === '/in/tap-only/', tapState.path);
+  await tap.close();
+
+  /* ================================================================ */
   /* 2. A page of results costs a handful of requests, not hundreds   */
   /* ================================================================ */
 

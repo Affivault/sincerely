@@ -216,7 +216,25 @@ not in the page until that dialog is opened. Waiting for the user to click it wa
 not acceptable: on a profile where the address *is* available, the extension
 appeared to find nothing.
 
-So the extension asks for it itself. Four layers:
+So the extension asks for it itself. Five layers, and the first one is the only
+one that depends on nothing LinkedIn can rename:
+
+0. **LinkedIn's own network traffic.** `content/net-tap.js` runs in the page's
+   world at `document_start` and patches `fetch` and `XMLHttpRequest` before
+   LinkedIn's code runs, reading whatever LinkedIn itself receives. If the
+   address is in any response the page gets — the profile payload, the
+   contact-info fetch, anything — it is seen, with no element to find, no dialog
+   to open and nothing to click.
+
+   This exists because every other layer below depends on LinkedIn's markup or
+   its endpoint paths, and all of them broke, repeatedly, on profiles that
+   plainly had an address. It runs in the MAIN world because a content script's
+   isolated world has its own `fetch` that LinkedIn never calls; findings cross
+   back by same-window `postMessage`. It observes responses the user's session is
+   already receiving, passes on nothing but addresses, and is cleared on every
+   navigation so one profile's address can never be offered as another's.
+
+The rest, in order:
 
 0. **LinkedIn's own embedded payloads.** It is an Ember app that ships its API
    responses inside the document, in `<code id="bpr-guid-…">` elements holding

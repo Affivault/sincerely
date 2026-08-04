@@ -50,6 +50,16 @@
   "content_scripts": [
     {
       "matches": [
+        "https://www.linkedin.com/*"
+      ],
+      "js": [
+        "content/net-tap.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
         "https://www.linkedin.com/*",
         "https://mail.google.com/*"
       ],
