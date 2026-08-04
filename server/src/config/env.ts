@@ -30,6 +30,18 @@ const envSchema = z.object({
   // prospect search on. PDL takes priority when both are configured.
   PDL_API_KEY: z.string().optional().default(''),
   APOLLO_API_KEY: z.string().optional().default(''),
+  // One-click OAuth for integrations — set a provider's client id + secret
+  // to switch its "Connect with …" button on. Absent = manual-credentials
+  // mode only (which always works). Redirect URIs are built from
+  // API_BASE_URL: <API_BASE_URL>/api/oauth/integrations/<provider>/callback
+  SLACK_CLIENT_ID: z.string().optional().default(''),
+  SLACK_CLIENT_SECRET: z.string().optional().default(''),
+  DISCORD_CLIENT_ID: z.string().optional().default(''),
+  DISCORD_CLIENT_SECRET: z.string().optional().default(''),
+  HUBSPOT_CLIENT_ID: z.string().optional().default(''),
+  HUBSPOT_CLIENT_SECRET: z.string().optional().default(''),
+  NOTION_CLIENT_ID: z.string().optional().default(''),
+  NOTION_CLIENT_SECRET: z.string().optional().default(''),
 });
 
 const parsed = envSchema.safeParse(process.env);

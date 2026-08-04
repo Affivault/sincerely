@@ -5,6 +5,8 @@ import type {
   UpdateIntegrationInput,
   IntegrationActivity,
   IntegrationTestResult,
+  IntegrationResourcesResult,
+  OAuthAvailability,
 } from '@lemlist/shared';
 
 export const integrationsApi = {
@@ -38,6 +40,27 @@ export const integrationsApi = {
 
   activity: async (id: string, limit = 30): Promise<IntegrationActivity[]> => {
     const { data } = await apiClient.get(`/integrations/${id}/activity`, { params: { limit } });
+    return data;
+  },
+
+  /** Which providers offer one-click OAuth on this deployment. */
+  oauthAvailability: async (): Promise<OAuthAvailability> => {
+    const { data } = await apiClient.get('/integrations/oauth-availability');
+    return data;
+  },
+
+  /** Authorize URL to navigate the browser to for one-click connect. */
+  oauthUrl: async (provider: string): Promise<string> => {
+    const { data } = await apiClient.get(`/integrations/oauth-url/${provider}`);
+    return data.url;
+  },
+
+  /** Live pickable resources (Notion databases, Airtable bases/tables). */
+  resources: async (
+    provider: string,
+    config: Record<string, string> = {}
+  ): Promise<IntegrationResourcesResult> => {
+    const { data } = await apiClient.post(`/integrations/${provider}/resources`, { config });
     return data;
   },
 };

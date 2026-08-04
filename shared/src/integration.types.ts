@@ -27,6 +27,15 @@ export interface IntegrationConfigField {
   /** Secrets are write-only: redacted in API responses, empty on edit = keep. */
   secret: boolean;
   help?: string;
+  /** Optional fields may be left blank (merge keeps stored value or default). */
+  optional?: boolean;
+  /** Rendered as an on/off switch; value is 'yes' or 'no', default 'yes'. */
+  toggle?: boolean;
+  /**
+   * Filled from a live resource picker (dropdown) instead of typing —
+   * the value names the resource kind the picker endpoint returns.
+   */
+  picker?: 'notion_database' | 'airtable_base' | 'airtable_table';
 }
 
 /** Static catalog entry describing a provider (shipped to the client). */
@@ -44,6 +53,12 @@ export interface IntegrationProviderMeta {
   supportedEvents: string[];
   /** Events pre-selected when connecting. */
   defaultEvents: string[];
+  /**
+   * Provider supports one-click OAuth connect. Whether it's actually
+   * offered depends on the server having app credentials configured —
+   * the client checks GET /integrations/oauth-availability.
+   */
+  oauth?: boolean;
 }
 
 export interface UserIntegration {
@@ -85,3 +100,18 @@ export interface IntegrationTestResult {
   success: boolean;
   detail: string;
 }
+
+/** One pickable remote resource (Notion database, Airtable base/table…). */
+export interface IntegrationResource {
+  id: string;
+  name: string;
+}
+
+export interface IntegrationResourcesResult {
+  notion_databases?: IntegrationResource[];
+  airtable_bases?: IntegrationResource[];
+  airtable_tables?: IntegrationResource[];
+}
+
+/** Which providers currently offer one-click OAuth (server env-dependent). */
+export type OAuthAvailability = Partial<Record<IntegrationProviderId, boolean>>;

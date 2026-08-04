@@ -1,6 +1,8 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import { env } from '../config/env.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { assertSafeWebhookUrl, pinnedPost } from './webhook.service.js';
+import { ensureFreshHubspotToken } from './integrations-oauth.service.js';
 import {
   getIntegrationMeta,
   type IntegrationProviderId,
@@ -9,6 +11,7 @@ import {
   type UpdateIntegrationInput,
   type IntegrationActivity,
   type IntegrationTestResult,
+  type IntegrationResourcesResult,
 } from '@lemlist/shared';
 
 /**
@@ -72,38 +75,59 @@ function assertProviderUrl(raw: string, hostOk: (host: string) => boolean, what:
   return url;
 }
 
-/** Human-readable one-liner for notification providers. */
-function describeEvent(eventType: string, data: Record<string, any>): string {
-  switch (eventType) {
-    case 'email.sent':
-      return `📤 Email sent to ${data.to || 'a contact'}${data.subject ? ` — “${data.subject}”` : ''}`;
-    case 'email.opened':
-      return '👀 A contact opened your email';
-    case 'email.clicked':
-      return `🔗 A contact clicked a link${data.url ? `: ${data.url}` : ''}`;
-    case 'email.replied':
-      return `📩 New reply from ${data.from || 'a contact'}${data.subject ? ` — “${data.subject}”` : ''}`;
-    case 'email.bounced':
-      return '📛 An email bounced';
-    case 'campaign.launched':
-      return `🚀 Campaign “${data.campaign?.name || data.campaign_id || ''}” launched`;
-    case 'campaign.paused':
-      return `⏸️ Campaign “${data.campaign?.name || data.campaign_id || ''}” paused`;
-    case 'campaign.completed':
-      return '🏁 A campaign finished — every contact has completed the sequence';
-    case 'lead.unsubscribed':
-      return '🚪 A lead unsubscribed';
-    case 'sara.intent_classified':
-      return `🤖 SARA classified a reply as “${data.intent || 'unknown'}”${typeof data.confidence === 'number' ? ` (${Math.round(data.confidence * 100)}% confident)` : ''}`;
-    case 'contact.created':
-      return `👤 New contact added: ${data.contact?.email || ''}`;
-    default:
-      return `🔔 ${eventType}`;
-  }
+/**
+ * Context looked up once per event and shared by every integration that
+ * receives it — contact and campaign details make notifications and CRM
+ * records dramatically more useful than raw IDs.
+ */
+export interface EventContext {
+  contact?: {
+    id: string;
+    email: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    company: string | null;
+    job_title: string | null;
+    phone: string | null;
+    website: string | null;
+  } | null;
+  campaignName?: string | null;
 }
 
-/** Load the contact a CRM event refers to (or null when there isn't one). */
-async function loadEventContact(userId: string, data: Record<string, any>) {
+export async function buildEventContext(userId: string, data: Record<string, any>): Promise<EventContext> {
+  const ctx: EventContext = {};
+  const lookups: Promise<void>[] = [];
+  if (data.contact_id) {
+    lookups.push((async () => {
+      const { data: row } = await supabaseAdmin
+        .from('contacts')
+        .select('id, email, first_name, last_name, company, job_title, phone, website')
+        .eq('id', data.contact_id)
+        .eq('user_id', userId)
+        .single();
+      ctx.contact = row || null;
+    })());
+  }
+  if (data.campaign?.name) {
+    ctx.campaignName = data.campaign.name;
+  } else if (data.campaign_id) {
+    lookups.push((async () => {
+      const { data: row } = await supabaseAdmin
+        .from('campaigns')
+        .select('name')
+        .eq('id', data.campaign_id)
+        .eq('user_id', userId)
+        .single();
+      ctx.campaignName = row?.name || null;
+    })());
+  }
+  await Promise.allSettled(lookups);
+  return ctx;
+}
+
+/** Load the contact a CRM event refers to (shared ctx first, DB fallback). */
+async function loadEventContact(userId: string, data: Record<string, any>, ctx?: EventContext) {
+  if (ctx && 'contact' in ctx) return ctx.contact ?? null;
   const contactId = data.contact_id;
   if (!contactId) return null;
   const { data: contact } = await supabaseAdmin
@@ -113,6 +137,177 @@ async function loadEventContact(userId: string, data: Record<string, any>) {
     .eq('user_id', userId)
     .single();
   return contact || null;
+}
+
+/**
+ * Structured rich card for notification providers: headline plus labeled
+ * facts, rendered natively per platform (Slack Block Kit, Discord embed,
+ * Teams Adaptive Card, Telegram multiline).
+ */
+interface RichEvent {
+  headline: string;
+  facts: [string, string][];
+  /** Deep link back into Sincerely, when there's a sensible destination. */
+  link?: { label: string; url: string };
+  /** Accent for platforms that support one (Discord embed strip). */
+  color: number;
+}
+
+function appUrl(path: string): string {
+  return `${env.CLIENT_URL.replace(/\/+$/, '')}${path}`;
+}
+
+function contactLabel(ctx?: EventContext): string | null {
+  const c = ctx?.contact;
+  if (!c) return null;
+  const name = [c.first_name, c.last_name].filter(Boolean).join(' ');
+  if (name && c.email) return `${name} <${c.email}>`;
+  return name || c.email || null;
+}
+
+function richEvent(eventType: string, data: Record<string, any>, ctx?: EventContext): RichEvent {
+  const facts: [string, string][] = [];
+  const who = contactLabel(ctx);
+  if (who) facts.push(['Contact', who]);
+  if (ctx?.contact?.company) facts.push(['Company', ctx.contact.company]);
+  if (ctx?.campaignName) facts.push(['Campaign', ctx.campaignName]);
+
+  const GREEN = 0x16a34a, RED = 0xdc2626, INDIGO = 0x6366f1, AMBER = 0xd97706;
+
+  switch (eventType) {
+    case 'email.replied':
+      if (data.subject) facts.push(['Subject', String(data.subject)]);
+      return {
+        headline: `📩 New reply${who ? ` from ${who.split(' <')[0]}` : data.from ? ` from ${data.from}` : ''}`,
+        facts,
+        link: { label: 'Open in Unibox', url: appUrl('/inbox') },
+        color: GREEN,
+      };
+    case 'email.sent':
+      if (data.subject) facts.push(['Subject', String(data.subject)]);
+      if (data.to) facts.push(['To', String(data.to)]);
+      return { headline: '📤 Email sent', facts, color: INDIGO };
+    case 'email.opened':
+      return {
+        headline: `👀 Email opened${who ? ` by ${who.split(' <')[0]}` : ''}`,
+        facts,
+        color: INDIGO,
+      };
+    case 'email.clicked':
+      if (data.url) facts.push(['Link', String(data.url)]);
+      return { headline: `🔗 Link clicked${who ? ` by ${who.split(' <')[0]}` : ''}`, facts, color: INDIGO };
+    case 'email.bounced':
+      return { headline: '📛 Email bounced', facts, color: RED };
+    case 'campaign.launched':
+      return {
+        headline: `🚀 Campaign launched: ${data.campaign?.name || ctx?.campaignName || ''}`.trim(),
+        facts,
+        link: data.campaign?.id ? { label: 'View campaign', url: appUrl(`/campaigns/${data.campaign.id}`) } : undefined,
+        color: INDIGO,
+      };
+    case 'campaign.paused':
+      return { headline: `⏸️ Campaign paused: ${data.campaign?.name || ctx?.campaignName || ''}`.trim(), facts, color: AMBER };
+    case 'campaign.completed':
+      return {
+        headline: '🏁 Campaign completed — every contact finished the sequence',
+        facts,
+        link: data.campaign_id ? { label: 'View campaign', url: appUrl(`/campaigns/${data.campaign_id}`) } : undefined,
+        color: GREEN,
+      };
+    case 'lead.unsubscribed':
+      return { headline: `🚪 Lead unsubscribed${who ? `: ${who.split(' <')[0]}` : ''}`, facts, color: AMBER };
+    case 'sara.intent_classified': {
+      const intent = String(data.intent || 'unknown');
+      const pct = typeof data.confidence === 'number' ? ` (${Math.round(data.confidence * 100)}%)` : '';
+      facts.push(['Intent', `${intent}${pct}`]);
+      const positive = intent === 'interested' || intent === 'meeting';
+      return {
+        headline: positive
+          ? `🎯 ${intent === 'meeting' ? 'Meeting request' : 'Interested lead'}${who ? `: ${who.split(' <')[0]}` : ''}`
+          : `🤖 SARA classified a reply as “${intent}”`,
+        facts,
+        link: { label: 'Open in Unibox', url: appUrl('/inbox') },
+        color: positive ? GREEN : INDIGO,
+      };
+    }
+    case 'contact.created':
+      return { headline: `👤 New contact: ${data.contact?.email || who || ''}`.trim(), facts, color: INDIGO };
+    case 'test.ping':
+      return { headline: '👋 Sincerely is connected! Notifications will appear here.', facts: [], color: INDIGO };
+    default:
+      return { headline: `🔔 ${eventType}`, facts, color: INDIGO };
+  }
+}
+
+/** Plain-text rendering of a rich event (Telegram, fallbacks, activity log). */
+function renderText(rich: RichEvent): string {
+  const lines = [rich.headline, ...rich.facts.map(([k, v]) => `${k}: ${v}`)];
+  if (rich.link) lines.push(`${rich.link.label}: ${rich.link.url}`);
+  return lines.join('\n');
+}
+
+/** Slack Block Kit rendering (incoming webhooks support blocks natively). */
+function renderSlackBlocks(rich: RichEvent): Record<string, any> {
+  const blocks: any[] = [
+    { type: 'section', text: { type: 'mrkdwn', text: `*${rich.headline}*` } },
+  ];
+  if (rich.facts.length) {
+    blocks.push({
+      type: 'section',
+      fields: rich.facts.slice(0, 10).map(([k, v]) => ({ type: 'mrkdwn', text: `*${k}*\n${v}` })),
+    });
+  }
+  if (rich.link) {
+    blocks.push({
+      type: 'actions',
+      elements: [{ type: 'button', text: { type: 'plain_text', text: rich.link.label }, url: rich.link.url }],
+    });
+  }
+  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: 'Sincerely' }] });
+  return { text: rich.headline, blocks };
+}
+
+/** Discord embed rendering. */
+function renderDiscordEmbed(rich: RichEvent): Record<string, any> {
+  return {
+    username: 'Sincerely',
+    embeds: [
+      {
+        title: rich.headline.slice(0, 256),
+        color: rich.color,
+        fields: rich.facts.slice(0, 25).map(([k, v]) => ({ name: k, value: String(v).slice(0, 1024), inline: true })),
+        ...(rich.link ? { description: `[${rich.link.label}](${rich.link.url})` } : {}),
+        timestamp: new Date().toISOString(),
+        footer: { text: 'Sincerely' },
+      },
+    ],
+  };
+}
+
+/** Teams Adaptive Card rendering (with legacy-connector text fallback). */
+function renderTeamsCard(rich: RichEvent): Record<string, any> {
+  const body: any[] = [
+    { type: 'TextBlock', text: rich.headline, weight: 'Bolder', size: 'Medium', wrap: true },
+  ];
+  if (rich.facts.length) {
+    body.push({ type: 'FactSet', facts: rich.facts.map(([k, v]) => ({ title: k, value: String(v) })) });
+  }
+  return {
+    type: 'message',
+    text: renderText(rich),
+    attachments: [
+      {
+        contentType: 'application/vnd.microsoft.card.adaptive',
+        content: {
+          $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+          type: 'AdaptiveCard',
+          version: '1.4',
+          body,
+          ...(rich.link ? { actions: [{ type: 'Action.OpenUrl', title: rich.link.label, url: rich.link.url }] } : {}),
+        },
+      },
+    ],
+  };
 }
 
 /** CRM sync fires on replies and on positive SARA intents only. */
@@ -148,7 +343,8 @@ interface ProviderRuntime {
     userId: string,
     config: Record<string, string>,
     eventType: string,
-    data: Record<string, any>
+    data: Record<string, any>,
+    ctx?: EventContext
   ): Promise<string | null>;
 }
 
@@ -162,7 +358,7 @@ const slackRuntime: ProviderRuntime = {
   async test(config) {
     try {
       const res = await httpJson('POST', config.webhook_url, {
-        body: { text: '👋 Sincerely is connected! Campaign notifications will appear in this channel.' },
+        body: renderSlackBlocks(richEvent('test.ping', {})),
       });
       return res.status === 200
         ? { success: true, detail: 'Test message posted to your Slack channel.' }
@@ -171,11 +367,11 @@ const slackRuntime: ProviderRuntime = {
       return { success: false, detail: err.message };
     }
   },
-  async handleEvent(_userId, config, eventType, data) {
-    const text = describeEvent(eventType, data);
-    const res = await httpJson('POST', config.webhook_url, { body: { text } });
+  async handleEvent(_userId, config, eventType, data, ctx) {
+    const rich = richEvent(eventType, data, ctx);
+    const res = await httpJson('POST', config.webhook_url, { body: renderSlackBlocks(rich) });
     if (res.status !== 200) throw new Error(`Slack returned ${res.status}: ${res.text.slice(0, 120)}`);
-    return text;
+    return rich.headline;
   },
 };
 
@@ -190,7 +386,7 @@ const discordRuntime: ProviderRuntime = {
   async test(config) {
     try {
       const res = await httpJson('POST', config.webhook_url, {
-        body: { content: '👋 Sincerely is connected! Campaign notifications will appear in this channel.', username: 'Sincerely' },
+        body: renderDiscordEmbed(richEvent('test.ping', {})),
       });
       return res.status >= 200 && res.status < 300
         ? { success: true, detail: 'Test message posted to your Discord channel.' }
@@ -199,11 +395,11 @@ const discordRuntime: ProviderRuntime = {
       return { success: false, detail: err.message };
     }
   },
-  async handleEvent(_userId, config, eventType, data) {
-    const content = describeEvent(eventType, data);
-    const res = await httpJson('POST', config.webhook_url, { body: { content, username: 'Sincerely' } });
+  async handleEvent(_userId, config, eventType, data, ctx) {
+    const rich = richEvent(eventType, data, ctx);
+    const res = await httpJson('POST', config.webhook_url, { body: renderDiscordEmbed(rich) });
     if (res.status < 200 || res.status >= 300) throw new Error(`Discord returned ${res.status}: ${res.text.slice(0, 120)}`);
-    return content;
+    return rich.headline;
   },
 };
 
@@ -219,7 +415,7 @@ const telegramRuntime: ProviderRuntime = {
   async test(config) {
     try {
       const res = await httpJson('POST', `https://api.telegram.org/bot${config.bot_token}/sendMessage`, {
-        body: { chat_id: config.chat_id, text: '👋 Sincerely is connected! Campaign notifications will arrive here.' },
+        body: { chat_id: config.chat_id, text: renderText(richEvent('test.ping', {})) },
       });
       if (res.status === 200 && res.json?.ok) {
         return { success: true, detail: 'Test message delivered on Telegram.' };
@@ -230,15 +426,15 @@ const telegramRuntime: ProviderRuntime = {
       return { success: false, detail: err.message };
     }
   },
-  async handleEvent(_userId, config, eventType, data) {
-    const text = describeEvent(eventType, data);
+  async handleEvent(_userId, config, eventType, data, ctx) {
+    const rich = richEvent(eventType, data, ctx);
     const res = await httpJson('POST', `https://api.telegram.org/bot${config.bot_token}/sendMessage`, {
-      body: { chat_id: config.chat_id, text },
+      body: { chat_id: config.chat_id, text: renderText(rich) },
     });
     if (!(res.status === 200 && res.json?.ok)) {
       throw new Error(`Telegram: ${res.json?.description || res.text.slice(0, 120)}`);
     }
-    return text;
+    return rich.headline;
   },
 };
 
@@ -247,29 +443,6 @@ const TEAMS_HOST_OK = (h: string) =>
   h.endsWith('.webhook.office.com') ||
   h.endsWith('.logic.azure.com');
 
-/**
- * Teams Workflows webhooks want an Adaptive Card message envelope; the legacy
- * Incoming Webhook connector reads the top-level `text`. Sending both keeps a
- * single payload working for either kind of URL.
- */
-function teamsPayload(text: string) {
-  return {
-    type: 'message',
-    text,
-    attachments: [
-      {
-        contentType: 'application/vnd.microsoft.card.adaptive',
-        content: {
-          $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
-          type: 'AdaptiveCard',
-          version: '1.4',
-          body: [{ type: 'TextBlock', text, wrap: true }],
-        },
-      },
-    ],
-  };
-}
-
 const teamsRuntime: ProviderRuntime = {
   validate(config) {
     assertProviderUrl(config.webhook_url || '', TEAMS_HOST_OK, 'Teams webhook URL');
@@ -277,7 +450,7 @@ const teamsRuntime: ProviderRuntime = {
   async test(config) {
     try {
       const res = await httpJson('POST', config.webhook_url, {
-        body: teamsPayload('👋 Sincerely is connected! Campaign notifications will appear in this channel.'),
+        body: renderTeamsCard(richEvent('test.ping', {})),
       });
       // Workflows answers 202, the legacy connector 200.
       return res.status >= 200 && res.status < 300
@@ -287,11 +460,11 @@ const teamsRuntime: ProviderRuntime = {
       return { success: false, detail: err.message };
     }
   },
-  async handleEvent(_userId, config, eventType, data) {
-    const text = describeEvent(eventType, data);
-    const res = await httpJson('POST', config.webhook_url, { body: teamsPayload(text) });
+  async handleEvent(_userId, config, eventType, data, ctx) {
+    const rich = richEvent(eventType, data, ctx);
+    const res = await httpJson('POST', config.webhook_url, { body: renderTeamsCard(rich) });
     if (res.status < 200 || res.status >= 300) throw new Error(`Teams returned ${res.status}: ${res.text.slice(0, 120)}`);
-    return text;
+    return rich.headline;
   },
 };
 
@@ -398,9 +571,9 @@ const hubspotRuntime: ProviderRuntime = {
       return { success: false, detail: err.message };
     }
   },
-  async handleEvent(userId, config, eventType, data) {
+  async handleEvent(userId, config, eventType, data, ctx) {
     if (!crmShouldSync(eventType, data)) return null;
-    const contact = await loadEventContact(userId, data);
+    const contact = await loadEventContact(userId, data, ctx);
     if (!contact?.email) return null;
 
     const properties: Record<string, string> = { email: contact.email };
@@ -411,14 +584,51 @@ const hubspotRuntime: ProviderRuntime = {
     if (contact.phone) properties.phone = contact.phone;
     if (contact.website) properties.website = contact.website;
 
+    const auth = { Authorization: `Bearer ${config.access_token.trim()}` };
     const res = await httpJson('POST', 'https://api.hubapi.com/crm/v3/objects/contacts/batch/upsert', {
-      headers: { Authorization: `Bearer ${config.access_token.trim()}` },
+      headers: auth,
       body: { inputs: [{ idProperty: 'email', id: contact.email, properties }] },
     });
     if (res.status < 200 || res.status >= 300) {
       throw new Error(`HubSpot upsert failed (${res.status}): ${res.json?.message || res.text.slice(0, 160)}`);
     }
-    return `Synced ${contact.email} to HubSpot — ${crmNoteText(eventType, data)}`;
+    let summary = `Synced ${contact.email} to HubSpot — ${crmNoteText(eventType, data)}`;
+
+    // Positive intent → open a deal in the default pipeline, associated to
+    // the contact. A deal failure downgrades to a warning rather than
+    // failing the delivery: the contact sync above already succeeded.
+    const positiveIntent =
+      eventType === 'sara.intent_classified' && (data.intent === 'interested' || data.intent === 'meeting');
+    if (positiveIntent && config.create_deals !== 'no') {
+      const hubspotContactId = res.json?.results?.[0]?.id;
+      const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || contact.email;
+      const dealRes = await httpJson('POST', 'https://api.hubapi.com/crm/v3/objects/deals', {
+        headers: auth,
+        body: {
+          properties: {
+            dealname: `${name}${contact.company ? ` (${contact.company})` : ''} — Sincerely`,
+            pipeline: 'default',
+            dealstage: 'appointmentscheduled',
+          },
+          ...(hubspotContactId
+            ? {
+                associations: [
+                  {
+                    to: { id: hubspotContactId },
+                    types: [{ associationCategory: 'HUBSPOT_DEFINED', associationTypeId: 3 }],
+                  },
+                ],
+              }
+            : {}),
+        },
+      });
+      if (dealRes.status >= 200 && dealRes.status < 300) {
+        summary += ' · deal created';
+      } else {
+        summary += ` · deal creation failed (${dealRes.status}: ${dealRes.json?.message || 'check deal scopes'})`;
+      }
+    }
+    return summary;
   },
 };
 
@@ -442,9 +652,9 @@ const pipedriveRuntime: ProviderRuntime = {
       return { success: false, detail: err.message };
     }
   },
-  async handleEvent(userId, config, eventType, data) {
+  async handleEvent(userId, config, eventType, data, ctx) {
     if (!crmShouldSync(eventType, data)) return null;
-    const contact = await loadEventContact(userId, data);
+    const contact = await loadEventContact(userId, data, ctx);
     if (!contact?.email) return null;
 
     const token = encodeURIComponent(config.api_token.trim());
@@ -483,7 +693,24 @@ const pipedriveRuntime: ProviderRuntime = {
     if (!(note.status >= 200 && note.status < 300 && note.json?.success)) {
       throw new Error(`Pipedrive note failed (${note.status}): ${note.json?.error || note.text.slice(0, 160)}`);
     }
-    return `${action} ${contact.email} in Pipedrive and attached a note`;
+    let summary = `${action} ${contact.email} in Pipedrive and attached a note`;
+
+    // Positive intent → open a deal tied to the person (same downgrade-to-
+    // warning semantics as HubSpot).
+    const positiveIntent =
+      eventType === 'sara.intent_classified' && (data.intent === 'interested' || data.intent === 'meeting');
+    if (positiveIntent && config.create_deals !== 'no') {
+      const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || contact.email;
+      const deal = await httpJson('POST', `${base}/deals?api_token=${token}`, {
+        body: { title: `${name}${contact.company ? ` (${contact.company})` : ''} — Sincerely`, person_id: personId },
+      });
+      if (deal.status >= 200 && deal.status < 300 && deal.json?.success) {
+        summary += ' · deal created';
+      } else {
+        summary += ` · deal creation failed (${deal.status}: ${deal.json?.error || 'unknown'})`;
+      }
+    }
+    return summary;
   },
 };
 
@@ -521,9 +748,9 @@ const notionRuntime: ProviderRuntime = {
       return { success: false, detail: err.message };
     }
   },
-  async handleEvent(userId, config, eventType, data) {
+  async handleEvent(userId, config, eventType, data, ctx) {
     if (!crmShouldSync(eventType, data)) return null;
-    const contact = await loadEventContact(userId, data);
+    const contact = await loadEventContact(userId, data, ctx);
     if (!contact?.email) return null;
 
     const headers = {
@@ -621,9 +848,9 @@ const airtableRuntime: ProviderRuntime = {
       return { success: false, detail: err.message };
     }
   },
-  async handleEvent(userId, config, eventType, data) {
+  async handleEvent(userId, config, eventType, data, ctx) {
     if (!crmShouldSync(eventType, data)) return null;
-    const contact = await loadEventContact(userId, data);
+    const contact = await loadEventContact(userId, data, ctx);
     if (!contact?.email) return null;
 
     const { fields: usable, error } = await airtableTableFields(config);
@@ -689,13 +916,21 @@ function maskValue(value: string): string {
   return `${value.slice(0, 4)}…${value.slice(-4)}`;
 }
 
+/**
+ * Non-credential metadata keys (written by OAuth connect) that are safe to
+ * show readable — the connected workspace/channel names make the UI say
+ * "Connected to #wins in Acme" instead of a masked string.
+ */
+const SAFE_META_KEYS = new Set(['auth_kind', 'channel', 'workspace', 'guild', 'expires_at']);
+
 /** Secrets never leave the server readable — the client gets a preview only. */
 function redact(row: UserIntegration): UserIntegration {
   const meta = getIntegrationMeta(row.provider);
   const config: Record<string, string> = {};
   for (const [key, value] of Object.entries(row.config || {})) {
     const field = meta?.fields.find((f) => f.key === key);
-    config[key] = field && !field.secret ? String(value) : maskValue(String(value));
+    const safe = (field && !field.secret) || SAFE_META_KEYS.has(key);
+    config[key] = safe ? String(value) : maskValue(String(value));
   }
   return { ...row, config };
 }
@@ -725,12 +960,22 @@ export function mergeConfig(
   submitted: Record<string, string>
 ): Record<string, string> {
   const meta = getIntegrationMeta(providerId)!;
-  const merged: Record<string, string> = {};
+  // Start from the stored config so keys OAuth wrote (tokens, workspace
+  // metadata, refresh_token) survive a manual edit of the catalog fields.
+  const merged: Record<string, string> = { ...existing };
   for (const field of meta.fields) {
     const incoming = (submitted[field.key] ?? '').trim();
     const kept = (existing[field.key] ?? '').trim();
+    if (field.toggle) {
+      // Toggles are two-state with a default of on; absent means "on".
+      merged[field.key] = (incoming || kept) === 'no' ? 'no' : 'yes';
+      continue;
+    }
     const value = incoming || kept;
-    if (!value) throw new AppError(`${field.label} is required`, 400);
+    if (!value) {
+      if (field.optional) continue;
+      throw new AppError(`${field.label} is required`, 400);
+    }
     merged[field.key] = value;
   }
   return merged;
@@ -766,8 +1011,14 @@ export async function connectIntegration(
     .eq('provider', meta.id)
     .maybeSingle();
 
-  const config = mergeConfig(meta.id, existing?.config || {}, input.config || {});
+  let config = mergeConfig(meta.id, existing?.config || {}, input.config || {});
   await runtime.validate(config);
+
+  // Re-saving an OAuth-connected row later (e.g. only changing events) may
+  // arrive with an expired short-lived token — freshen before the live test.
+  if (existing?.id) {
+    config = await prepareConfig(meta.id, existing.id, config);
+  }
 
   const test = await runtime.test(config);
   if (!test.success) {
@@ -853,7 +1104,17 @@ export async function testIntegration(userId: string, id: string): Promise<Integ
     .single();
   if (!row) throw new AppError('Integration not found', 404);
 
-  const result = await RUNTIMES[row.provider as IntegrationProviderId].test(row.config || {});
+  let config: Record<string, string> = row.config || {};
+  try {
+    config = await prepareConfig(row.provider, row.id, config);
+  } catch (err: any) {
+    // A dead refresh token is itself a test failure worth reporting.
+    const result = { success: false, detail: err?.message || 'Could not refresh credentials' };
+    await supabaseAdmin.from('user_integrations').update({ last_error: result.detail }).eq('id', id);
+    await logActivity(row.id, 'test.ping', 'Manual test failed', false, result.detail);
+    return result;
+  }
+  const result = await RUNTIMES[row.provider as IntegrationProviderId].test(config);
   await supabaseAdmin
     .from('user_integrations')
     .update(
@@ -886,8 +1147,91 @@ export async function getActivity(userId: string, id: string, limit = 30): Promi
 }
 
 // ============================================
+// Live resource pickers (Notion databases, Airtable bases/tables)
+// ============================================
+
+/**
+ * List pickable remote resources so the UI can show dropdowns instead of
+ * making users copy IDs. Works pre-save (submitted config) and post-save
+ * (stored config); submitted values win so a freshly pasted token is used.
+ */
+export async function getResources(
+  userId: string,
+  providerId: string,
+  submitted: Record<string, string> = {}
+): Promise<IntegrationResourcesResult> {
+  const meta = getIntegrationMeta(providerId);
+  if (!meta) throw new AppError('Unknown integration provider', 404);
+
+  const { data: existing } = await supabaseAdmin
+    .from('user_integrations')
+    .select('config')
+    .eq('user_id', userId)
+    .eq('provider', meta.id)
+    .maybeSingle();
+  const stored: Record<string, string> = existing?.config || {};
+  const val = (key: string) => (submitted[key] ?? '').trim() || (stored[key] ?? '').trim();
+
+  if (meta.id === 'notion') {
+    const token = val('token');
+    if (!token) throw new AppError('Enter your Notion integration secret first', 400);
+    const res = await httpJson('POST', 'https://api.notion.com/v1/search', {
+      headers: { Authorization: `Bearer ${token}`, 'Notion-Version': NOTION_VERSION },
+      body: { filter: { property: 'object', value: 'database' }, page_size: 100 },
+    });
+    if (res.status !== 200) {
+      throw new AppError(`Notion: ${res.json?.message || `error ${res.status}`}`, 400);
+    }
+    return {
+      notion_databases: (res.json?.results || []).map((d: any) => ({
+        id: String(d.id || '').replace(/-/g, ''),
+        name: (d.title || []).map((t: any) => t?.plain_text || '').join('') || 'Untitled database',
+      })),
+    };
+  }
+
+  if (meta.id === 'airtable') {
+    const token = val('token');
+    if (!token) throw new AppError('Enter your Airtable personal access token first', 400);
+    const auth = { Authorization: `Bearer ${token}` };
+    const basesRes = await httpJson('GET', 'https://api.airtable.com/v0/meta/bases', { headers: auth });
+    if (basesRes.status !== 200) {
+      throw new AppError(`Airtable: ${basesRes.json?.error?.message || `error ${basesRes.status}`}`, 400);
+    }
+    const out: IntegrationResourcesResult = {
+      airtable_bases: (basesRes.json?.bases || []).map((b: any) => ({ id: b.id, name: b.name })),
+    };
+    const baseId = val('base_id');
+    if (baseId) {
+      const tablesRes = await httpJson('GET', `https://api.airtable.com/v0/meta/bases/${encodeURIComponent(baseId)}/tables`, { headers: auth });
+      if (tablesRes.status === 200) {
+        out.airtable_tables = (tablesRes.json?.tables || []).map((t: any) => ({ id: t.name, name: t.name }));
+      }
+    }
+    return out;
+  }
+
+  throw new AppError('This provider has no pickable resources', 400);
+}
+
+// ============================================
 // Event dispatch (called from webhook.service.fireEvent)
 // ============================================
+
+/**
+ * Freshen short-lived OAuth credentials before use. Currently only HubSpot
+ * OAuth tokens expire; manual credentials pass through untouched.
+ */
+async function prepareConfig(
+  providerId: string,
+  integrationId: string,
+  config: Record<string, string>
+): Promise<Record<string, string>> {
+  if (providerId === 'hubspot') {
+    return ensureFreshHubspotToken(integrationId, config);
+  }
+  return config;
+}
 
 async function logActivity(
   integrationId: string,
@@ -928,12 +1272,16 @@ export async function dispatchEvent(
   }
   if (!rows || rows.length === 0) return;
 
+  // One context lookup shared by every integration receiving this event.
+  const ctx = await buildEventContext(userId, data);
+
   await Promise.allSettled(
     rows.map(async (row) => {
       const runtime = RUNTIMES[row.provider as IntegrationProviderId];
       if (!runtime) return;
       try {
-        const summary = await runtime.handleEvent(userId, row.config || {}, eventType, data);
+        const config = await prepareConfig(row.provider, row.id, row.config || {});
+        const summary = await runtime.handleEvent(userId, config, eventType, data, ctx);
         if (summary === null) return; // event not relevant for this provider
         await logActivity(row.id, eventType, summary, true);
         await supabaseAdmin
