@@ -22,7 +22,9 @@ const EmailAccountsPage    = lazy(() => import('./pages/smtp/EmailAccountsPage')
 const SmtpGuidePage        = lazy(() => import('./pages/smtp/SmtpGuidePage').then(m => ({ default: m.SmtpGuidePage })));
 const AnalyticsDashboardPage = lazy(() => import('./pages/analytics/AnalyticsDashboardPage').then(m => ({ default: m.AnalyticsDashboardPage })));
 const InboxPage            = lazy(() => import('./pages/inbox/InboxPage').then(m => ({ default: m.InboxPage })));
-const CrmPage              = lazy(() => import('./pages/crm/CrmPage').then(m => ({ default: m.CrmPage })));
+const DealsPage            = lazy(() => import('./pages/crm/DealsPage').then(m => ({ default: m.DealsPage })));
+const TasksPage            = lazy(() => import('./pages/crm/TasksPage').then(m => ({ default: m.TasksPage })));
+const CalendarPage         = lazy(() => import('./pages/crm/CalendarPage').then(m => ({ default: m.CalendarPage })));
 const ProspectorPage       = lazy(() => import('./pages/prospector/ProspectorPage').then(m => ({ default: m.ProspectorPage })));
 const AdminPage            = lazy(() => import('./pages/admin/AdminPage').then(m => ({ default: m.AdminPage })));
 const SettingsPage         = lazy(() => import('./pages/settings/SettingsPage').then(m => ({ default: m.SettingsPage })));
@@ -118,7 +120,11 @@ export default function App() {
           <Route path="/domains"            element={<Navigate to="/email-accounts" replace />} />
           <Route path="/analytics"          element={<AnalyticsDashboardPage />} />
           <Route path="/inbox"              element={<InboxPage />} />
-          <Route path="/crm"                element={<CrmPage />} />
+          <Route path="/deals"              element={<DealsPage />} />
+          <Route path="/tasks"              element={<TasksPage />} />
+          <Route path="/calendar"           element={<CalendarPage />} />
+          {/* CRM used to be one tabbed page; keep old links working. */}
+          <Route path="/crm"                element={<Navigate to="/deals" replace />} />
           <Route path="/prospector"         element={<ProspectorPage />} />
           <Route path="/admin"              element={<AdminPage />} />
           <Route path="/sara"               element={<Navigate to="/inbox" replace />} />

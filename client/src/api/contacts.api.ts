@@ -92,11 +92,13 @@ export const contactsApi = {
 
   bulkCreate: async (
     contacts: Array<Record<string, any>>,
-    listId?: string
+    listId?: string,
+    /** CSV filename, recorded on each contact as its origin. */
+    importSource?: string,
   ) => {
     const { data } = await apiClient.post<BulkImportResult>(
       '/contacts/bulk',
-      { contacts, list_id: listId }
+      { contacts, list_id: listId, import_source: importSource }
     );
     return data;
   },

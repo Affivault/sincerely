@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { crmApi } from '../../api/crm.api';
 import { contactsApi } from '../../api/contacts.api';
@@ -821,181 +821,7 @@ function PipelineBoard({ deals, tasks, events, onEdit, dragDisabled }: { deals: 
 }
 
 /* ─── Tasks panel ─────────────────────────────────── */
-function TasksPanel({ tasks, deals, onEdit }: { tasks: CrmTask[]; deals: Deal[]; onEdit: (t: CrmTask) => void }) {
-  const qc = useQueryClient();
-  const toggle = useMutation({
-    mutationFn: ({ id, is_done }: { id: string; is_done: boolean }) => crmApi.updateTask(id, { is_done }),
-    onMutate: async ({ id, is_done }) => {
-      await qc.cancelQueries({ queryKey: ['crm', 'tasks'] });
-      const prev = qc.getQueryData<CrmTask[]>(['crm', 'tasks']);
-      qc.setQueryData<CrmTask[]>(['crm', 'tasks'], (old) => (old || []).map(t => t.id === id ? { ...t, is_done } : t));
-      return { prev };
-    },
-    onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(['crm', 'tasks'], ctx.prev); toast.error('Failed to update task'); },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['crm', 'tasks'] }),
-  });
-
-  const dealTitle = (id: string | null) => (id ? deals.find(d => d.id === id)?.title : undefined);
-
-  // Group open tasks by urgency so the list reads like a to-do plan.
-  const open = tasks.filter(t => !t.is_done);
-  const done = tasks.filter(t => t.is_done);
-  const groups: { label: string; items: CrmTask[]; tone?: string }[] = [
-    { label: 'Overdue', items: open.filter(t => (relDay(t.due_date).diff ?? 1) < 0), tone: 'text-rose-500' },
-    { label: 'Today', items: open.filter(t => relDay(t.due_date).diff === 0), tone: 'text-amber-600 dark:text-amber-400' },
-    { label: 'Upcoming', items: open.filter(t => (relDay(t.due_date).diff ?? -1) > 0) },
-    { label: 'No due date', items: open.filter(t => !t.due_date) },
-    { label: 'Done', items: done },
-  ];
-
-  const Row = ({ t }: { t: CrmTask }) => {
-    const due = relDay(t.due_date);
-    const tone = due.tone === 'over' ? 'text-rose-500' : due.tone === 'today' ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-tertiary)]';
-    const linked = dealTitle(t.deal_id);
-    return (
-      <div className="group flex items-center gap-3 px-3 h-12 border-b border-[var(--border-subtle)] last:border-b-0 hover:bg-[var(--bg-hover)] transition-colors">
-        <button onClick={() => toggle.mutate({ id: t.id, is_done: !t.is_done })} className="flex-shrink-0" title={t.is_done ? 'Mark not done' : 'Mark done'}>
-          {t.is_done ? <CheckCircle2 className="h-[18px] w-[18px] text-emerald-500" /> : <Circle className="h-[18px] w-[18px] text-[var(--text-muted)] hover:text-[var(--indigo)] transition-colors" />}
-        </button>
-        <button onClick={() => onEdit(t)} className="flex-1 min-w-0 text-left flex items-center gap-2">
-          <span className={cn('text-[13px] truncate', t.is_done ? 'line-through text-[var(--text-muted)]' : 'text-[var(--text-primary)]')}>{t.title}</span>
-          {t.contact_name && <span className="text-[11px] text-[var(--text-tertiary)] truncate hidden sm:inline">· {t.contact_name}</span>}
-          {linked && (
-            <span className="hidden md:inline-flex items-center gap-1 px-1.5 h-[17px] text-[10px] font-medium text-[var(--indigo)] bg-[var(--indigo-subtle)] rounded-[4px] truncate max-w-[160px]">
-              <Handshake className="h-2.5 w-2.5 flex-shrink-0" />{linked}
-            </span>
-          )}
-        </button>
-        {t.priority !== 'normal' && (
-          <span className={cn('hidden sm:inline-flex items-center gap-1 text-[10.5px] font-medium', PRIORITY_META[t.priority].cls)}>
-            <Flag className="h-3 w-3" />{PRIORITY_META[t.priority].label}
-          </span>
-        )}
-        {!t.is_done && <span className={cn('text-[11px] font-medium tabular flex-shrink-0', tone)}>{due.label}</span>}
-      </div>
-    );
-  };
-
-  if (tasks.length === 0) {
-    return (
-      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-16 text-center">
-        <ListTodo className="h-8 w-8 text-[var(--text-muted)] mx-auto mb-3" />
-        <p className="text-[13px] font-medium text-[var(--text-primary)]">No tasks yet</p>
-        <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Add follow-ups and to-dos to stay on top of every deal.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden max-w-3xl">
-      {groups.filter(g => g.items.length > 0).map(g => (
-        <div key={g.label}>
-          <div className={cn('px-3 h-8 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider bg-[var(--bg-muted)]/50 border-y border-[var(--border-subtle)] first:border-t-0', g.tone || 'text-[var(--text-muted)]')}>
-            {g.label} · {g.items.length}
-          </div>
-          {g.items.map(t => <Row key={t.id} t={t} />)}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ─── Calendar panel ──────────────────────────────── */
-function CalendarPanel({ events, onAdd, onEdit }: { events: CrmEvent[]; onAdd: (dayIso: string) => void; onEdit: (e: CrmEvent) => void }) {
-  const [cursor, setCursor] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
-  const monthLabel = cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-
-  const cells = useMemo(() => {
-    const year = cursor.getFullYear(), month = cursor.getMonth();
-    const firstDay = new Date(year, month, 1).getDay();
-    const out: { date: Date; inMonth: boolean }[] = [];
-    for (let i = firstDay - 1; i >= 0; i--) out.push({ date: new Date(year, month, -i), inMonth: false });
-    const days = new Date(year, month + 1, 0).getDate();
-    for (let d = 1; d <= days; d++) out.push({ date: new Date(year, month, d), inMonth: true });
-    while (out.length % 7 !== 0) out.push({ date: new Date(year, month + 1, out.length - days - firstDay + 1), inMonth: false });
-    return out;
-  }, [cursor]);
-
-  const byDay = useMemo(() => {
-    const m = new Map<string, CrmEvent[]>();
-    for (const ev of events) {
-      const k = toDateInput(ev.starts_at);
-      if (!m.has(k)) m.set(k, []);
-      m.get(k)!.push(ev);
-    }
-    return m;
-  }, [events]);
-
-  const todayKey = toDateInput(new Date().toISOString());
-
-  return (
-    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
-      <div className="flex items-center gap-2 px-4 h-12 border-b border-[var(--border-subtle)]">
-        <CalendarIcon className="h-4 w-4 text-[var(--indigo)]" />
-        <span className="text-[14px] font-semibold text-[var(--text-primary)]">{monthLabel}</span>
-        <span className="flex-1" />
-        <button onClick={() => setCursor(new Date())} className="text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 h-7 rounded-lg hover:bg-[var(--bg-hover)] transition-colors">Today</button>
-        <button onClick={() => setCursor(c => new Date(c.getFullYear(), c.getMonth() - 1, 1))} className="icon-btn h-7 w-7"><ChevronLeft className="h-4 w-4" /></button>
-        <button onClick={() => setCursor(c => new Date(c.getFullYear(), c.getMonth() + 1, 1))} className="icon-btn h-7 w-7"><ChevronRight className="h-4 w-4" /></button>
-      </div>
-      <div className="grid grid-cols-7 border-b border-[var(--border-subtle)]">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-          <div key={d} className="py-2 text-center text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">{d}</div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7">
-        {cells.map((cell, i) => {
-          const key = toDateInput(cell.date.toISOString());
-          const dayEvents = byDay.get(key) || [];
-          const isToday = key === todayKey;
-          return (
-            <div
-              key={i}
-              onClick={() => onAdd(new Date(cell.date.getFullYear(), cell.date.getMonth(), cell.date.getDate(), 9, 0).toISOString())}
-              className={cn(
-                'group min-h-[104px] border-b border-r border-[var(--border-subtle)] p-1.5 cursor-pointer transition-colors',
-                (i + 1) % 7 === 0 && 'border-r-0',
-                cell.inMonth ? 'hover:bg-[var(--bg-hover)]' : 'bg-[var(--bg-muted)]/30'
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <span className={cn(
-                  'inline-flex h-5 min-w-5 items-center justify-center rounded-full text-[11px] font-medium px-1',
-                  isToday ? 'bg-[var(--indigo)] text-white' : cell.inMonth ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'
-                )}>{cell.date.getDate()}</span>
-                <Plus className="h-3 w-3 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <div className="mt-1 space-y-1">
-                {dayEvents.slice(0, 3).map(ev => {
-                  const meta = EVENT_META[ev.type];
-                  const time = new Date(ev.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-                  return (
-                    <button
-                      key={ev.id}
-                      onClick={(e) => { e.stopPropagation(); onEdit(ev); }}
-                      className={cn('w-full flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-medium truncate transition-opacity hover:opacity-90', meta.chip)}
-                      title={`${time} · ${ev.title}`}
-                    >
-                      <span className={cn('h-1.5 w-1.5 rounded-full flex-shrink-0', meta.dot)} />
-                      <span className="truncate">{time} {ev.title}</span>
-                    </button>
-                  );
-                })}
-                {dayEvents.length > 3 && <span className="block px-1.5 text-[10px] text-[var(--text-tertiary)]">+{dayEvents.length - 3} more</span>}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/* ─── Main CRM page ───────────────────────────────── */
-type Tab = 'pipeline' | 'tasks' | 'calendar';
-
-export function CrmPage() {
-  const [tab, setTab] = useState<Tab>('pipeline');
+export function DealsPage() {
   const [dealModal, setDealModal] = useState<Partial<Deal> | null | undefined>(undefined);
   const [taskModal, setTaskModal] = useState<Partial<CrmTask> | null | undefined>(undefined);
   const [eventModal, setEventModal] = useState<Partial<CrmEvent> | null | undefined>(undefined);
@@ -1003,7 +829,7 @@ export function CrmPage() {
   const [query, setQuery] = useState('');
 
   const dealsQ = useQuery({ queryKey: ['crm', 'deals'], queryFn: () => crmApi.listDeals() });
-  const tasksQ = useQuery({ queryKey: ['crm', 'tasks'], queryFn: crmApi.listTasks });
+  const tasksQ = useQuery({ queryKey: ['crm', 'tasks'], queryFn: () => crmApi.listTasks() });
   const eventsQ = useQuery({ queryKey: ['crm', 'events'], queryFn: () => crmApi.listEvents() });
 
   const deals = dealsQ.data || [];
@@ -1029,19 +855,6 @@ export function CrmPage() {
   const overdueTasks = openTasks.filter(t => (relDay(t.due_date).diff ?? 1) < 0).length;
   const upcoming = events.filter(e => new Date(e.starts_at) >= new Date()).length;
 
-  const tabs: { id: Tab; label: string; icon: typeof Handshake; count?: number }[] = [
-    { id: 'pipeline', label: 'Pipeline', icon: Handshake, count: deals.length },
-    { id: 'tasks', label: 'Tasks', icon: ListTodo, count: openTasks.length },
-    { id: 'calendar', label: 'Calendar', icon: CalendarIcon, count: upcoming },
-  ];
-
-  const newAction = () => {
-    if (tab === 'pipeline') setDealModal(null);
-    else if (tab === 'tasks') setTaskModal(null);
-    else setEventModal(null);
-  };
-  const newLabel = tab === 'pipeline' ? 'New deal' : tab === 'tasks' ? 'New task' : 'Book event';
-
   const loading = dealsQ.isLoading || tasksQ.isLoading || eventsQ.isLoading;
 
   return (
@@ -1053,11 +866,14 @@ export function CrmPage() {
             <Handshake className="h-5 w-5 text-[var(--indigo)]" />
           </span>
           <div>
-            <h1 className="text-[19px] font-semibold text-[var(--text-primary)] tracking-[-0.01em]">CRM</h1>
-            <p className="text-[12.5px] text-[var(--text-tertiary)]">Deals synced with your leads — see every contact, task, and meeting in one pipeline.</p>
+            <h1 className="text-[19px] font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Deals</h1>
+            <p className="text-[12.5px] text-[var(--text-tertiary)]">Your pipeline, synced with your leads. Activities and meetings have their own pages.</p>
           </div>
         </div>
-        <Button variant="primary" onClick={newAction}><Plus className="h-4 w-4" /> {newLabel}</Button>
+        <div className="flex items-center gap-2">
+          <SearchInput value={query} onChange={setQuery} placeholder="Search deals, companies, leads…" className="hidden sm:block w-56" />
+          <Button variant="primary" onClick={() => setDealModal(null)}><Plus className="h-4 w-4" /> New deal</Button>
+        </div>
       </div>
 
       {/* Stat strip */}
@@ -1065,52 +881,28 @@ export function CrmPage() {
         {([
           { label: 'Open pipeline', value: fmtMoney(pipelineValue), sub: `${deals.filter(d => d.stage !== 'won' && d.stage !== 'lost').length} active deals`, subTone: undefined, icon: Handshake },
           { label: 'Won', value: fmtMoney(wonValue), sub: winRate != null ? `${wonDeals.length} closed · ${winRate}% win rate` : `${wonDeals.length} closed`, subTone: undefined, icon: Trophy },
-          { label: 'Open tasks', value: String(openTasks.length), sub: overdueTasks > 0 ? `${overdueTasks} overdue` : `${tasks.length} total`, subTone: overdueTasks > 0 ? 'text-rose-500' : undefined, icon: ListTodo },
-          { label: 'Linked leads', value: String(linkedLeads), sub: `${upcoming} upcoming event${upcoming === 1 ? '' : 's'}`, subTone: undefined, icon: Link2 },
-        ] as { label: string; value: string; sub: string; subTone?: string; icon: typeof Handshake }[]).map(s => (
-          <div key={s.label} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3">
-            <p className="text-[11px] font-medium text-[var(--text-tertiary)] flex items-center gap-1.5"><s.icon className="h-3 w-3" />{s.label}</p>
-            <p className="mt-1 text-[19px] font-semibold text-[var(--text-primary)] tabular leading-none">{s.value}</p>
-            <p className={cn('mt-1.5 text-[11px]', s.subTone || 'text-[var(--text-muted)]')}>{s.sub}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-[var(--border-subtle)] mb-4">
-        {tabs.map(t => {
-          const Icon = t.icon;
-          const active = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={cn(
-                'relative flex items-center gap-1.5 h-9 px-3 text-[13px] font-medium transition-colors',
-                active ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {t.label}
-              {t.count != null && t.count > 0 && (
-                <span className={cn('flex h-[17px] min-w-[17px] items-center justify-center rounded-[5px] px-1 text-[10.5px] font-semibold tabular', active ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]')}>{t.count}</span>
-              )}
-              <span className={cn('absolute left-2 right-2 -bottom-px h-[2px] rounded-t-full transition-opacity', active ? 'bg-[var(--indigo)] opacity-100' : 'opacity-0')} />
-            </button>
+          { label: 'Open activities', value: String(openTasks.length), sub: overdueTasks > 0 ? `${overdueTasks} overdue` : `${tasks.length} total`, subTone: overdueTasks > 0 ? 'text-rose-500' : undefined, icon: ListTodo, to: '/tasks' },
+          { label: 'Upcoming meetings', value: String(upcoming), sub: `${linkedLeads} deal${linkedLeads === 1 ? '' : 's'} linked to a lead`, subTone: undefined, icon: CalendarIcon, to: '/calendar' },
+        ] as { label: string; value: string; sub: string; subTone?: string; icon: typeof Handshake; to?: string }[]).map(s => {
+          const body = (
+            <>
+              <p className="text-[11px] font-medium text-[var(--text-tertiary)] flex items-center gap-1.5"><s.icon className="h-3 w-3" />{s.label}</p>
+              <p className="mt-1 text-[19px] font-semibold text-[var(--text-primary)] tabular leading-none">{s.value}</p>
+              <p className={cn('mt-1.5 text-[11px]', s.subTone || 'text-[var(--text-muted)]')}>{s.sub}</p>
+            </>
+          );
+          return s.to ? (
+            <Link key={s.label} to={s.to} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3 hover:border-[var(--indigo)]/40 hover:bg-[var(--bg-hover)] transition-colors">{body}</Link>
+          ) : (
+            <div key={s.label} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3">{body}</div>
           );
         })}
-        <span className="flex-1" />
-        {tab === 'pipeline' && deals.length > 0 && (
-          <div className="hidden sm:flex items-center gap-2 pb-1.5">
-            <SearchInput value={query} onChange={setQuery} placeholder="Search deals, companies, leads…" className="w-64" />
-          </div>
-        )}
       </div>
 
       {/* Body */}
       {loading ? (
         <div className="flex items-center justify-center py-24"><Spinner size="md" /></div>
-      ) : tab === 'pipeline' ? (
+      ) : (
         deals.length === 0 ? (
           <EmptyBoard icon={Handshake} title="No deals yet" body="Add your first deal to start tracking your pipeline." action="New deal" onAction={() => setDealModal(null)} />
         ) : visibleDeals.length === 0 ? (
@@ -1121,10 +913,6 @@ export function CrmPage() {
         ) : (
           <PipelineBoard deals={visibleDeals} tasks={tasks} events={events} onEdit={(d) => setDrawerId(d.id)} dragDisabled={q.length > 0} />
         )
-      ) : tab === 'tasks' ? (
-        <TasksPanel tasks={tasks} deals={deals} onEdit={(t) => setTaskModal(t)} />
-      ) : (
-        <CalendarPanel events={events} onAdd={(iso) => setEventModal({ starts_at: iso })} onEdit={(e) => setEventModal(e)} />
       )}
 
       {drawerId && deals.some(d => d.id === drawerId) && (

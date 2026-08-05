@@ -5,6 +5,7 @@ import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers, Blocks,
   ChevronRight, Wrench, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck,
+  CalendarDays, ListTodo,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
@@ -24,7 +25,9 @@ const isGroup = (item: NavItem): item is NavGroup => (item as NavGroup).kind ===
 const workspaceNav: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Unibox',    href: '/inbox',     icon: Inbox },
-  { name: 'CRM',       href: '/crm',       icon: Handshake, match: ['/crm'] },
+  { name: 'Deals',     href: '/deals',     icon: Handshake, match: ['/deals', '/crm'] },
+  { name: 'Calendar',  href: '/calendar',  icon: CalendarDays, match: ['/calendar'] },
+  { name: 'Activities', href: '/tasks',    icon: ListTodo, match: ['/tasks'] },
 ];
 
 const campaignsNav: NavItem[] = [
