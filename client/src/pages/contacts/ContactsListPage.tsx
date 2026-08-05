@@ -449,6 +449,10 @@ function ResizeHandle({ onPointerDown, onDoubleClick }: {
 }) {
   return (
     <span
+      // The header itself is draggable (column reordering); marking the
+      // divider undraggable keeps a resize from turning into a reorder.
+      draggable={false}
+      onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
       onPointerDown={onPointerDown}
       onDoubleClick={onDoubleClick}
       onClick={(e) => e.stopPropagation()}
@@ -965,6 +969,7 @@ export function ContactsListPage() {
     e.stopPropagation();
     const startX = e.clientX;
     const startW = widthOf(id);
+    setResizingCol(id);
     // Track the gesture's own result rather than reading state back, so the
     // value written to storage is the one the user let go on.
     let latest: Record<string, number> = { ...colWidths };
@@ -978,12 +983,31 @@ export function ContactsListPage() {
       window.removeEventListener('pointerup', onUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      setResizingCol(null);
       localStorage.setItem('contacts.colWidths', JSON.stringify(latest));
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
+  };
+
+  /* ── Drag a header to reorder columns ──────────────────────────────
+     This moves the COLUMN, never the data: each cell renders through its own
+     column's render(), so a contact's company can never end up under "Job
+     title". Reordering only rewrites the list of column ids. */
+  const [dragCol, setDragCol] = useState<string | null>(null);
+  const [dropCol, setDropCol] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
+  /** Set while a resize gesture is live, so it can't turn into a drag. */
+  const [resizingCol, setResizingCol] = useState<string | null>(null);
+
+  const moveColumnTo = (dragId: string, targetId: string, side: 'left' | 'right') => {
+    if (dragId === targetId) return;
+    const next = visibleColumns.filter((c) => c !== dragId);
+    const idx = next.indexOf(targetId);
+    if (idx === -1) return;
+    next.splice(side === 'left' ? idx : idx + 1, 0, dragId);
+    persistColumns(next);
   };
 
   /** Double-click a divider to snap that column back to its default. */
@@ -1194,26 +1218,6 @@ export function ContactsListPage() {
             </span>
           </button>
 
-          {/* Not in Lists — automatic, always present, never editable */}
-          <button
-            onClick={() => setSearchParams({ list: UNLISTED_LIST_ID })}
-            title="Contacts that don't belong to any lead list"
-            className={cn(
-              "w-full flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[13px] font-medium transition-all",
-              isUnlistedView
-                ? "bg-[var(--indigo-subtle)] text-[var(--indigo)]"
-                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
-            )}
-          >
-            <FolderMinus className="h-3.5 w-3.5 flex-shrink-0" />
-            <span className="flex-1 text-left truncate">{UNLISTED_LIST_NAME}</span>
-            <span className={cn(
-              "text-[10px] font-semibold tabular px-1.5 rounded",
-              isUnlistedView ? "text-[var(--indigo)]" : "text-[var(--text-tertiary)]"
-            )}>
-              {unlistedCount}
-            </span>
-          </button>
 
           {/* Lists section */}
           <div className="pt-1.5">
@@ -1356,6 +1360,26 @@ export function ContactsListPage() {
                 Other
               </span>
             </div>
+            {/* Not in Lists — automatic view, never editable */}
+            <button
+              onClick={() => setSearchParams({ list: UNLISTED_LIST_ID })}
+              title="Contacts that don't belong to any lead list"
+              className={cn(
+                'w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-[12px] font-medium transition-all',
+                isUnlistedView
+                  ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+              )}
+            >
+              <FolderMinus className="h-3 w-3 flex-shrink-0" />
+              <span className="flex-1 text-left truncate">{UNLISTED_LIST_NAME}</span>
+              <span className={cn(
+                'text-[10px] font-semibold tabular',
+                isUnlistedView ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]'
+              )}>
+                {unlistedCount}
+              </span>
+            </button>
             <Link
               to="/suppression"
               className="w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-[12px] font-medium text-[var(--text-secondary)] hover:text-rose-500 hover:bg-rose-500/10 transition-all"
@@ -1718,13 +1742,53 @@ export function ContactsListPage() {
                       />
                     </th>
                     {activeColumns.map((col) => (
-                      <th key={col.id} className="relative bg-[var(--bg-muted)] border-b border-r border-[var(--border-subtle)] px-3 py-[7px] whitespace-nowrap">
+                      <th
+                        key={col.id}
+                        draggable={resizingCol !== col.id}
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('text/plain', col.id);
+                          setDragCol(col.id);
+                        }}
+                        onDragOver={(e) => {
+                          if (!dragCol || dragCol === col.id) return;
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          const r = e.currentTarget.getBoundingClientRect();
+                          const side: 'left' | 'right' = e.clientX < r.left + r.width / 2 ? 'left' : 'right';
+                          setDropCol((prev) => (prev?.id === col.id && prev.side === side ? prev : { id: col.id, side }));
+                        }}
+                        onDragLeave={() => setDropCol((prev) => (prev?.id === col.id ? null : prev))}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const id = e.dataTransfer.getData('text/plain') || dragCol;
+                          if (id && dropCol?.id === col.id) moveColumnTo(id, col.id, dropCol.side);
+                          setDragCol(null);
+                          setDropCol(null);
+                        }}
+                        onDragEnd={() => { setDragCol(null); setDropCol(null); }}
+                        title="Drag to reorder · drag the edge to resize"
+                        className={cn(
+                          'relative select-none bg-[var(--bg-muted)] border-b border-r border-[var(--border-subtle)] px-3 py-[7px] whitespace-nowrap',
+                          resizingCol === col.id ? 'cursor-col-resize' : 'cursor-grab active:cursor-grabbing',
+                          dragCol === col.id && 'opacity-40',
+                        )}
+                      >
                         <span className="flex items-center gap-1.5 min-w-0">
                           {col.icon && <col.icon className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />}
                           {col.sortKey
                             ? <SortableHeader label={col.label} colKey={col.sortKey} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                             : <span className="text-[11px] font-medium text-[var(--text-tertiary)] truncate">{col.label}</span>}
                         </span>
+                        {/* Where it will land */}
+                        {dropCol?.id === col.id && dragCol && dragCol !== col.id && (
+                          <span
+                            className={cn(
+                              'pointer-events-none absolute top-0 z-[5] h-full w-[2px] bg-[var(--indigo)]',
+                              dropCol.side === 'left' ? 'left-0' : 'right-0',
+                            )}
+                          />
+                        )}
                         <ResizeHandle
                           onPointerDown={(e) => startResize(col.id, e)}
                           onDoubleClick={() => resetWidth(col.id)}
