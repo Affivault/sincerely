@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import Papa from 'papaparse';
 import { useDebounce } from '../../hooks/useDebounce';
 import { contactsApi, listsApi, tagsApi } from '../../api/contacts.api';
+import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME } from '@lemlist/shared';
 import { listFoldersApi, type ListFolder } from '../../api/list-folders.api';
 import { verificationApi } from '../../api/verification.api';
 import { settingsApi } from '../../api/settings.api';
@@ -35,6 +36,7 @@ import {
   FolderOpen,
   Folder,
   FolderPlus,
+  FolderMinus,
   Pencil,
   ArrowRight,
   ShieldCheck,
@@ -431,6 +433,33 @@ interface ColumnDef {
   tdClass?: string;
   render: (c: any) => React.ReactNode;
 }
+/** Column sizing. The frozen gutter (44) and action rail (112) are fixed. */
+const CONTACT_COL_ID = '__contact__';
+const CONTACT_COL_DEFAULT_W = 260;
+const DEFAULT_COL_W = 160;
+const MIN_COL_W = 88;
+const MAX_COL_W = 640;
+const GUTTER_W = 44;
+const ACTIONS_W = 112;
+
+/** The drag divider on a column's right edge. */
+function ResizeHandle({ onPointerDown, onDoubleClick }: {
+  onPointerDown: (e: React.PointerEvent) => void;
+  onDoubleClick: () => void;
+}) {
+  return (
+    <span
+      onPointerDown={onPointerDown}
+      onDoubleClick={onDoubleClick}
+      onClick={(e) => e.stopPropagation()}
+      title="Drag to resize · double-click to reset"
+      className="group/rz absolute right-0 top-0 z-[4] flex h-full w-[9px] translate-x-[4px] cursor-col-resize touch-none items-center justify-center"
+    >
+      <span className="h-full w-[2px] rounded bg-transparent transition-colors group-hover/rz:bg-[var(--indigo)] group-active/rz:bg-[var(--indigo)]" />
+    </span>
+  );
+}
+
 const ALL_COLUMNS: ColumnDef[] = [
   { id: 'email',       label: 'Email',     icon: Mail,        sortKey: 'email',      tdClass: 'max-w-[280px]', render: (c) => (
     <span className="flex items-center gap-2 min-w-0"><EmailStatusDot c={c} /><CopyableEmail email={c.email} /></span>
@@ -524,6 +553,15 @@ export function ContactsListPage() {
     staleTime: 60000,
   });
 
+  /* "Not in Lists" is a computed view, not a stored list, so its size comes
+     from a 1-row probe of the same endpoint rather than a contact_count
+     column. Cheap: the server answers from an index and returns one row. */
+  const { data: unlistedCount = 0 } = useQuery({
+    queryKey: ['contacts', 'unlisted-count'],
+    queryFn: async () => (await contactsApi.list({ list_id: UNLISTED_LIST_ID, limit: 1 })).total,
+    staleTime: 15000,
+  });
+
   // Auto-verify preference — drives the live "verifying…" affordance
   const { data: userSettings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get });
   const autoVerifyOn = userSettings?.auto_verify_contacts ?? true;
@@ -585,7 +623,15 @@ export function ContactsListPage() {
   });
   const trashListMut = useMutation({
     mutationFn: (listId: string) => listFoldersApi.trashList(listId),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['lists'] }); queryClient.invalidateQueries({ queryKey: ['list-folders'] }); toast.success('List moved to trash'); setListContextMenu(null); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lists'] });
+      queryClient.invalidateQueries({ queryKey: ['list-folders'] });
+      // Its members are unlisted again, so both the table and the
+      // "Not in Lists" count are now stale.
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      toast.success('List moved to trash');
+      setListContextMenu(null);
+    },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to trash list'),
   });
   const renameListMut = useMutation({
@@ -896,9 +942,57 @@ export function ContactsListPage() {
   const someSelected = selectedContacts.size > 0;
   const pendingOnPage = (contacts as any[]).filter((c) => !c.dcs_verified_at && !c.is_bounced).length;
 
-  const currentListName = activeListId && lists
-    ? lists.find((l) => l.id === activeListId)?.name || 'List'
-    : 'All Contacts';
+  const isUnlistedView = activeListId === UNLISTED_LIST_ID;
+  const currentListName = isUnlistedView
+    ? UNLISTED_LIST_NAME
+    : activeListId && lists
+      ? lists.find((l) => l.id === activeListId)?.name || 'List'
+      : 'All Contacts';
+
+  /* ── Resizable columns ──────────────────────────────────────────────
+     The table is fixed-layout with an explicit <colgroup>, so a dragged width
+     is the width — content clips instead of fighting for space. Widths are
+     per-column and persisted, and a filler column soaks up any slack so the
+     table still fills the panel when the columns don't. */
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    try { return JSON.parse(localStorage.getItem('contacts.colWidths') || '{}'); } catch { return {}; }
+  });
+  const widthOf = (id: string) =>
+    colWidths[id] ?? (id === CONTACT_COL_ID ? CONTACT_COL_DEFAULT_W : DEFAULT_COL_W);
+
+  const startResize = (id: string, e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = widthOf(id);
+    // Track the gesture's own result rather than reading state back, so the
+    // value written to storage is the one the user let go on.
+    let latest: Record<string, number> = { ...colWidths };
+    const onMove = (ev: PointerEvent) => {
+      const w = Math.min(MAX_COL_W, Math.max(MIN_COL_W, Math.round(startW + (ev.clientX - startX))));
+      latest = { ...latest, [id]: w };
+      setColWidths(latest);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      localStorage.setItem('contacts.colWidths', JSON.stringify(latest));
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  /** Double-click a divider to snap that column back to its default. */
+  const resetWidth = (id: string) => {
+    const next = { ...colWidths };
+    delete next[id];
+    setColWidths(next);
+    localStorage.setItem('contacts.colWidths', JSON.stringify(next));
+  };
 
   // Collapsible folders (persisted) + drag-and-drop of lists into folders
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => {
@@ -990,7 +1084,7 @@ export function ContactsListPage() {
           </span>
         }
         title={
-          !activeListId ? currentListName : titleRenaming ? (
+          !activeListId || isUnlistedView ? currentListName : titleRenaming ? (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -1023,9 +1117,14 @@ export function ContactsListPage() {
             </span>
           )
         }
-        description={totalContacts === 0
-          ? 'No contacts yet — start building your audience'
-          : `${totalContacts.toLocaleString()} contact${totalContacts !== 1 ? 's' : ''} in your database`
+        description={
+          isUnlistedView
+            ? (totalContacts === 0
+                ? 'Every contact belongs to at least one list — nothing to tidy up.'
+                : `${totalContacts.toLocaleString()} contact${totalContacts !== 1 ? 's' : ''} that aren't in any lead list. Select them to file them into one.`)
+            : totalContacts === 0
+              ? 'No contacts yet — start building your audience'
+              : `${totalContacts.toLocaleString()} contact${totalContacts !== 1 ? 's' : ''} in your database`
         }
         actions={
           <div className="flex items-center gap-2">
@@ -1092,6 +1191,27 @@ export function ContactsListPage() {
               !activeListId ? "text-[var(--indigo)]" : "text-[var(--text-tertiary)]"
             )}>
               {stats?.total || 0}
+            </span>
+          </button>
+
+          {/* Not in Lists — automatic, always present, never editable */}
+          <button
+            onClick={() => setSearchParams({ list: UNLISTED_LIST_ID })}
+            title="Contacts that don't belong to any lead list"
+            className={cn(
+              "w-full flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[13px] font-medium transition-all",
+              isUnlistedView
+                ? "bg-[var(--indigo-subtle)] text-[var(--indigo)]"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+            )}
+          >
+            <FolderMinus className="h-3.5 w-3.5 flex-shrink-0" />
+            <span className="flex-1 text-left truncate">{UNLISTED_LIST_NAME}</span>
+            <span className={cn(
+              "text-[10px] font-semibold tabular px-1.5 rounded",
+              isUnlistedView ? "text-[var(--indigo)]" : "text-[var(--text-tertiary)]"
+            )}>
+              {unlistedCount}
             </span>
           </button>
 
@@ -1563,10 +1683,23 @@ export function ContactsListPage() {
         ) : (
           <div className="panel overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full border-separate border-spacing-0 text-left">
+              <table
+                className="border-separate border-spacing-0 text-left table-fixed w-full"
+                style={{ minWidth: GUTTER_W + widthOf(CONTACT_COL_ID) + activeColumns.reduce((n, c) => n + widthOf(c.id), 0) + ACTIONS_W }}
+              >
+                <colgroup>
+                  <col style={{ width: GUTTER_W }} />
+                  <col style={{ width: widthOf(CONTACT_COL_ID) }} />
+                  {activeColumns.map((col) => (
+                    <col key={col.id} style={{ width: widthOf(col.id) }} />
+                  ))}
+                  {/* Filler — takes any leftover width so set widths stay exact */}
+                  <col />
+                  <col style={{ width: ACTIONS_W }} />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th className="sticky left-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] w-[44px] pl-3 pr-2 py-[7px]">
+                    <th className="sticky left-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] pl-3 pr-2 py-[7px]">
                       <Checkbox
                         checked={allSelected}
                         indeterminate={someSelected && !allSelected}
@@ -1574,23 +1707,32 @@ export function ContactsListPage() {
                         aria-label="Select all contacts"
                       />
                     </th>
-                    <th className="sticky left-[44px] z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] min-w-[240px] px-3 py-[7px] shadow-[inset_-1px_0_0_var(--border-subtle)]">
-                      <span className="flex items-center gap-1.5">
+                    <th className="relative sticky left-[44px] z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-3 py-[7px] shadow-[inset_-1px_0_0_var(--border-subtle)]">
+                      <span className="flex items-center gap-1.5 min-w-0">
                         <Users className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />
                         <SortableHeader label="Contact" colKey="first_name" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                       </span>
+                      <ResizeHandle
+                        onPointerDown={(e) => startResize(CONTACT_COL_ID, e)}
+                        onDoubleClick={() => resetWidth(CONTACT_COL_ID)}
+                      />
                     </th>
                     {activeColumns.map((col) => (
-                      <th key={col.id} className="bg-[var(--bg-muted)] border-b border-r border-[var(--border-subtle)] px-3 py-[7px] whitespace-nowrap min-w-[150px]">
+                      <th key={col.id} className="relative bg-[var(--bg-muted)] border-b border-r border-[var(--border-subtle)] px-3 py-[7px] whitespace-nowrap">
                         <span className="flex items-center gap-1.5 min-w-0">
                           {col.icon && <col.icon className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />}
                           {col.sortKey
                             ? <SortableHeader label={col.label} colKey={col.sortKey} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
-                            : <span className="text-[11px] font-medium text-[var(--text-tertiary)]">{col.label}</span>}
+                            : <span className="text-[11px] font-medium text-[var(--text-tertiary)] truncate">{col.label}</span>}
                         </span>
+                        <ResizeHandle
+                          onPointerDown={(e) => startResize(col.id, e)}
+                          onDoubleClick={() => resetWidth(col.id)}
+                        />
                       </th>
                     ))}
-                    <th className="sticky right-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] w-[112px] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]" />
+                    <th className="bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]" />
+                    <th className="sticky right-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]" />
                   </tr>
                 </thead>
                 <tbody>
@@ -1611,7 +1753,7 @@ export function ContactsListPage() {
                           isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]'
                         )}
                       >
-                        <td className={cn('sticky left-0 z-[1] w-[44px] pl-3 pr-2 py-1.5 relative border-b border-[var(--border-subtle)]', frozenBg)}>
+                        <td className={cn('sticky left-0 z-[1] pl-3 pr-2 py-1.5 relative border-b border-[var(--border-subtle)]', frozenBg)}>
                           {/* Sheets-style gutter: row number at rest, checkbox on hover/selection */}
                           <span className={cn(
                             'text-[10.5px] tabular text-[var(--text-muted)] transition-opacity select-none',
@@ -1630,7 +1772,7 @@ export function ContactsListPage() {
                             />
                           </span>
                         </td>
-                        <td className={cn('sticky left-[44px] z-[1] min-w-[240px] px-3 py-1.5 border-b border-[var(--border-subtle)] shadow-[inset_-1px_0_0_var(--border-subtle)]', frozenBg)}>
+                        <td className={cn('sticky left-[44px] z-[1] px-3 py-1.5 border-b border-[var(--border-subtle)] overflow-hidden shadow-[inset_-1px_0_0_var(--border-subtle)]', frozenBg)}>
                           <div className="flex items-center gap-2.5 min-w-0">
                             <Avatar name={fullName || contact.email} email={contact.email} size="sm" />
                             <div className="min-w-0">
@@ -1647,11 +1789,12 @@ export function ContactsListPage() {
                           </div>
                         </td>
                         {activeColumns.map((col) => (
-                          <td key={col.id} className={cn('px-3 py-1.5 whitespace-nowrap border-b border-r border-[var(--border-subtle)] min-w-[150px]', col.tdClass)}>
+                          <td key={col.id} className={cn('px-3 py-1.5 whitespace-nowrap overflow-hidden text-ellipsis border-b border-r border-[var(--border-subtle)]', col.tdClass)}>
                             {col.render(contact)}
                           </td>
                         ))}
-                        <td className={cn('sticky right-0 z-[1] w-[112px] px-2 py-2 border-b border-[var(--border-subtle)] shadow-[inset_1px_0_0_var(--border-subtle)]', frozenBg)} onClick={(e) => e.stopPropagation()}>
+                        <td className="border-b border-[var(--border-subtle)]" />
+                        <td className={cn('sticky right-0 z-[1] px-2 py-2 border-b border-[var(--border-subtle)] shadow-[inset_1px_0_0_var(--border-subtle)]', frozenBg)} onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                             <button
                               onClick={() => verifyMutation.mutate(contact.id)}
