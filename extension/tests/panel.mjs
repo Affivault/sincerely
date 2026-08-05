@@ -102,10 +102,19 @@ async function panelText(page) {
 async function settled(page) {
   await page.waitForFunction(
     () => {
-      const text =
-        document.getElementById('sincerely-panel-host')?.shadowRoot?.querySelector('.panel')
-          ?.textContent || '';
-      return text && !text.includes('Reading this page') && !text.includes('Checking contact info');
+      const shadow = document.getElementById('sincerely-panel-host')?.shadowRoot;
+      const panel = shadow?.querySelector('.panel');
+      if (!panel) return false;
+      /*
+       * The identity has to have rendered, not merely *some* text.
+       * The loading skeleton draws no text of its own, but the header's brand
+       * sits inside .panel — so "has any text" is satisfied while the body is
+       * still a skeleton, and every assertion after this then races the first
+       * real render. That is a flake that reports as a scraper failure.
+       */
+      if (!shadow.querySelector('.who-name')?.textContent?.trim()) return false;
+      const text = panel.textContent || '';
+      return !text.includes('Reading this page') && !text.includes('Checking contact info');
     },
     null,
     { timeout: 25000 }
@@ -161,15 +170,24 @@ try {
     await panelQuery(page, '.who-name')
   );
   check(
-    'it reads title and company from the headline and current-company button',
-    (await panelQuery(page, '.who-sub')) === 'Head of Trading · Acme Ltd',
-    await panelQuery(page, '.who-sub')
+    'it reads the title from the headline',
+    (await panelQuery(page, '.who-role')) === 'Head of Trading',
+    await panelQuery(page, '.who-role')
+  );
+  check(
+    'and the company from the current-company button',
+    (await panelQuery(page, '.who-org')) === 'Acme Ltd',
+    await panelQuery(page, '.who-org')
   );
   check('the avatar shows initials', (await panelQuery(page, '.avatar')) === 'JD');
   check(
     'a LinkedIn profile with no address says so',
     /No email on this profile/.test(await panelText(page))
   );
+  // The state the panel spends most of its life in on LinkedIn, and the one
+  // that carries the most stacked controls — worth a shot of its own.
+  await page.screenshot({ path: join(OUT, '9-panel-no-email.png') });
+
   check(
     'the Prospector is offered right there',
     /Find their email/.test(await panelText(page))
@@ -297,8 +315,11 @@ try {
     const select = shadow.querySelector('#sx-list');
     select.value = 'L1';
     select.dispatchEvent(new Event('change'));
-    // The verb only — the select beside it names the destination.
-    [...shadow.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Add')?.click();
+    // One Add in the whole panel: the action card. The select above names the
+    // destination and carries no verb of its own.
+    [...shadow.querySelectorAll('.quick-btn')]
+      .find((b) => b.textContent.trim() === 'Add to list')
+      ?.click();
   });
   await page.waitForFunction(
     () => document.getElementById('sincerely-panel-host')?.shadowRoot?.textContent?.includes('Added to'),
@@ -309,7 +330,7 @@ try {
   check('a successful add offers Undo in the panel', /Undo/.test(await panelText(page)));
   check(
     'the membership appears in the panel without a reload',
-    /On these lead lists/.test(await panelText(page)),
+    /Lead lists/.test(await panelText(page)),
     await panelText(page)
   );
   check(

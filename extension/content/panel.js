@@ -54,6 +54,8 @@
     found: null,
     /** Domain the user typed for that, so a re-render doesn't lose it. */
     findDomain: '',
+    /** Which collapsible sections are open. Absent means open. */
+    openSections: {},
     busy: false,
     message: null,
   };
@@ -81,60 +83,157 @@
       :host { all: initial; }
       * { box-sizing: border-box; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 
+      /*
+       * A docked full-height rail, not a floating card.
+       *
+       * The card shape was most of why this read as a bolted-on add-on beside
+       * Apollo's: 320px of everything-the-same-size, floating over the page with
+       * a drop shadow. A rail that owns its edge of the window reads as part of
+       * the workspace, and the height is what buys room for hierarchy — a real
+       * name, labelled sections, and space between them.
+       */
       .panel {
-        position: fixed; top: 76px; right: 16px; width: 320px;
-        max-height: calc(100vh - 100px);
+        position: fixed; top: 0; right: 0; bottom: 0; width: 372px;
         display: flex; flex-direction: column;
         background: #FFFFFF; color: #1B1B1F;
-        border: 1px solid #ECEAE6; border-radius: 14px;
-        box-shadow: 0 1px 2px rgba(27,27,31,.04), 0 12px 32px -10px rgba(27,27,31,.18);
+        border-left: 1px solid #E6E3DE;
+        box-shadow: -8px 0 24px -12px rgba(27,27,31,.18);
         font-size: 13px; line-height: 1.5; letter-spacing: -0.005em;
         overflow: hidden;
       }
-      .panel.collapsed { width: auto; }
+      /* Collapsed is a tab on the edge, not a shrunken panel. */
+      .panel.collapsed {
+        top: 84px; bottom: auto; width: auto; border-radius: 10px 0 0 10px;
+        border: 1px solid #E6E3DE; border-right: 0;
+      }
 
       .head {
-        display: flex; align-items: center; gap: 8px;
-        padding: 10px 12px; border-bottom: 1px solid #ECEAE6;
-        background: #FDFCFB;
-        cursor: grab; user-select: none;
+        flex: 0 0 auto;
+        display: flex; align-items: center; gap: 9px;
+        padding: 13px 14px 13px 16px; border-bottom: 1px solid #ECEAE6;
+        background: #FFFFFF;
+        user-select: none;
       }
-      .panel.collapsed .head { border-bottom: 0; }
-      .head img { width: 18px; height: 18px; }
-      .head .title { flex: 1; font-size: 13.5px; font-weight: 600; letter-spacing: -0.02em; }
+      .panel.collapsed .head { border-bottom: 0; padding: 10px 12px; }
+      .head img { width: 19px; height: 19px; border-radius: 5px; }
+      .head .title { flex: 1; font-size: 14px; font-weight: 600; letter-spacing: -0.02em; }
       .head button {
-        width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px;
+        width: 27px; height: 27px; padding: 0; border: 0; border-radius: 7px;
+        display: inline-flex; align-items: center; justify-content: center;
         background: transparent; color: #8F8E97; cursor: pointer; font-size: 15px; line-height: 1;
       }
-      .head button:hover { background: #EFEDEA; color: #1B1B1F; }
+      .head button:hover { background: #F3F2F0; color: #1B1B1F; }
 
-      .body { padding: 12px; overflow-y: auto; }
+      .body { flex: 1 1 auto; padding: 0 0 20px; overflow-y: auto; }
+
       .body::-webkit-scrollbar { width: 6px; }
       .body::-webkit-scrollbar-thumb { background: #E0DDD8; border-radius: 3px; }
 
-      .who { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+      /*
+       * Identity, given the room to be the headline.
+       *
+       * It used to be a 14px name on one line with title and company crushed
+       * into 11.5px grey beneath — the same weight as every control under it, so
+       * nothing said whose profile this was. Whose record this is is the first
+       * question the panel answers, so it is the biggest thing on it.
+       */
+      .who { padding: 18px 20px 0; }
+      .who-top { display: flex; align-items: center; gap: 11px; }
       .avatar {
-        width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%;
+        width: 40px; height: 40px; flex: 0 0 auto; border-radius: 50%;
         display: inline-flex; align-items: center; justify-content: center;
-        font-size: 11.5px; font-weight: 700; color: #fff;
+        font-size: 13px; font-weight: 700; color: #fff;
         box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
       }
       .who-text { min-width: 0; flex: 1; }
-      .who-name { font-size: 14px; font-weight: 600; letter-spacing: -0.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .who-sub { margin-top: 1px; font-size: 11.5px; color: #61606A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .who-name {
+        font-size: 19px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.25;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .who-role { margin-top: 3px; font-size: 13px; color: #1B1B1F; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .who-org { margin-top: 1px; font-size: 12.5px; color: #8F8E97; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .who-sub { margin-top: 3px; font-size: 12.5px; color: #8F8E97; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+      /*
+       * The three things worth doing, as one card of equal-weight actions.
+       *
+       * Apollo's version of this is the clearest thing in their panel: a single
+       * card, round icon buttons, a word under each. It works because it answers
+       * "what can I do here" before you have read anything else.
+       */
+      .quick {
+        display: flex; margin: 16px 20px 0; padding: 15px 6px 13px;
+        border: 1px solid #ECEAE6; border-radius: 14px; background: #FDFCFB;
+      }
+      .quick-btn {
+        flex: 1 1 0; min-width: 0;
+        display: flex; flex-direction: column; align-items: center; gap: 7px;
+        padding: 0 2px; border: 0; background: transparent; cursor: pointer;
+        font-family: inherit; color: #1B1B1F;
+      }
+      .quick-btn:disabled { opacity: .4; cursor: not-allowed; }
+      .quick-ico {
+        width: 42px; height: 42px; border-radius: 50%;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: #F0EFEC; color: #1B1B1F;
+        transition: background 140ms cubic-bezier(.22,1,.36,1), transform 120ms;
+      }
+      .quick-btn:hover:not(:disabled) .quick-ico { background: #E4E2DD; }
+      .quick-btn:active:not(:disabled) .quick-ico { transform: translateY(.5px); }
+      .quick-btn.primary .quick-ico {
+        background: linear-gradient(180deg, #6E6EF8 0%, #5B5BF5 100%); color: #fff;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 2px 6px rgba(67,56,202,.34);
+      }
+      .quick-btn.primary:hover:not(:disabled) .quick-ico {
+        background: linear-gradient(180deg, #5A5AF0 0%, #4646E5 100%);
+      }
+      .quick-btn.danger:hover:not(:disabled) .quick-ico { background: #FEE9EC; color: #BE123C; }
+      .quick-label {
+        font-size: 11.5px; font-weight: 500; line-height: 1.3; text-align: center;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+      }
+      .quick-btn:focus-visible .quick-ico { outline: 2px solid #5B5BF5; outline-offset: 2px; }
+
+      /*
+       * Sections, divided and labelled.
+       *
+       * Everything below the identity used to be one undifferentiated stack in a
+       * 12px box. Naming the groups and ruling between them is what lets the eye
+       * skip to the one it wants.
+       */
+      .sec { border-top: 1px solid #ECEAE6; margin-top: 16px; }
+      .sec:first-of-type { margin-top: 18px; }
+      .sec-head {
+        display: flex; align-items: center; gap: 8px; width: 100%;
+        padding: 13px 20px; border: 0; background: transparent; cursor: pointer;
+        font-family: inherit; font-size: 13.5px; font-weight: 600; color: #1B1B1F;
+        letter-spacing: -0.015em; text-align: left;
+      }
+      .sec-head:hover { background: #FBFAF9; }
+      .sec-title { flex: 1; min-width: 0; }
+      .sec-count { font-size: 11.5px; font-weight: 500; color: #8F8E97; }
+      .sec-chev { flex: 0 0 auto; color: #8F8E97; transition: transform 160ms cubic-bezier(.22,1,.36,1); }
+      .sec.open .sec-chev { transform: rotate(180deg); }
+      .sec-body { padding: 0 20px 16px; }
+      .sec:not(.open) .sec-body { display: none; }
+      .dest { margin: 14px 20px 0; }
+      .field-label { margin-bottom: 6px; font-size: 11.5px; font-weight: 500; color: #8F8E97; }
+      .field-label + .field-label { margin-top: 14px; }
       a.link { color: inherit; text-decoration: none; }
       a.link:hover { color: #5B5BF5; text-decoration: underline; text-underline-offset: 2px; }
 
+      /* Sits directly under the name: what has already happened with this
+         person, before any control offers to do something else. */
       .strip {
-        padding: 7px 10px; margin-bottom: 10px; border-radius: 6px;
+        padding: 8px 11px; margin: 14px 20px 0; border-radius: 8px;
         font-size: 11.5px; background: #F3F2F0; color: #61606A;
       }
       .strip.replied { background: #ECFDF5; color: #047857; }
       .strip.suppressed { background: #FEF2F2; color: #BE123C; }
 
       .email-row {
-        display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
-        padding: 7px 9px; border: 1px solid #E0DDD8; border-radius: 6px; background: #F9F8F7;
+        display: flex; align-items: center; gap: 6px;
+        padding: 9px 11px; border: 1px solid #E0DDD8; border-radius: 8px; background: #F9F8F7;
       }
       .email-row .addr { flex: 1; min-width: 0; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .email-row .addr.missing { color: #8F8E97; }
@@ -155,10 +254,6 @@
 
       /* Domain box and its Find button on one line — typing a domain and
          pressing Find is one action, so it reads as one control. */
-      /* Destination and verb on one line: which list, then go. */
-      .decide { display: flex; align-items: stretch; gap: 6px; margin-top: 2px; }
-      .decide select.sel { flex: 1 1 auto; min-width: 0; }
-      .decide .btn { width: auto; flex: 0 0 auto; margin-top: 0; height: 32px; padding: 0 14px; }
 
       .finder { display: flex; align-items: center; gap: 6px; }
       .finder input.txt { flex: 1; min-width: 0; }
@@ -225,11 +320,9 @@
       }
       .btn.secondary:hover:not(:disabled) { background: #EFEDEA; border-color: #C9C5BE; box-shadow: none; }
 
-      .rows { margin-top: 12px; border-top: 1px solid #ECEAE6; padding-top: 10px; }
-      .rows-title {
-        font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
-        color: #8F8E97; margin-bottom: 7px;
-      }
+      /* Inside a titled section now, so it brings no rule or heading of its own. */
+      .rows { margin: 0; }
+      .rows-title { display: none; }
       .row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #ECEAE6; }
       .row:last-child { border-bottom: 0; }
       .row-main { flex: 1; min-width: 0; }
@@ -242,7 +335,7 @@
       }
       .row button:hover { background: #EFEDEA; }
 
-      .msg { margin-top: 9px; padding: 8px 10px; border-radius: 6px; font-size: 11.5px; line-height: 1.45; white-space: pre-wrap; background: #F3F2F0; color: #61606A; }
+      .msg { margin: 14px 20px 0; padding: 9px 11px; border-radius: 6px; font-size: 11.5px; line-height: 1.45; white-space: pre-wrap; background: #F3F2F0; color: #61606A; }
       .msg.success { background: #ECFDF5; color: #047857; }
       .msg.error { background: #FEF2F2; color: #BE123C; }
       .msg button {
@@ -252,7 +345,7 @@
       }
 
       /* Skeletons — the same shimmer the app uses while data lands. */
-      .skeleton-who { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+      .skeleton-who { display: flex; align-items: center; gap: 11px; padding: 18px 20px 0; }
       .sk-lines { flex: 1; min-width: 0; }
       .sk {
         display: block; position: relative; overflow: hidden;
@@ -266,7 +359,7 @@
       .sk-avatar { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%; }
       .sk-line { height: 9px; border-radius: 999px; }
       .sk-line.short { width: 60%; margin-top: 7px; }
-      .sk-block { height: 34px; margin-bottom: 8px; }
+      .sk-block { height: 34px; margin: 14px 20px 0; }
       .sk-block.tall { height: 58px; }
       @keyframes sx-shimmer { 100% { transform: translateX(100%); } }
       @media (prefers-reduced-motion: reduce) { .sk::after { animation: none; } }
@@ -281,10 +374,22 @@
         .btn:focus-visible { box-shadow: 0 0 0 2px #191919, 0 0 0 4px #6366F1; }
 
         .panel { background: #191919; color: #F4F4F3; border-color: #262626;
-                 box-shadow: 0 2px 4px -1px rgba(0,0,0,.4), 0 12px 28px -8px rgba(0,0,0,.55); }
+                 box-shadow: -8px 0 24px -12px rgba(0,0,0,.6); }
         .head { border-bottom-color: #262626; }
         .head button:hover { background: #242424; color: #F4F4F3; }
-        .who-sub, .row-meta, .muted, .cost, label.lbl { color: #A19FA6; }
+        .who-sub, .who-org, .row-meta, .muted, .cost, label.lbl, .field-label, .sec-count { color: #A19FA6; }
+        .who-role { color: #F4F4F3; }
+
+        .quick { background: #1E1E1E; border-color: #2E2E2E; }
+        .quick-btn { color: #F4F4F3; }
+        .quick-ico { background: #262626; color: #F4F4F3; }
+        .quick-btn:hover:not(:disabled) .quick-ico { background: #303030; }
+        .quick-btn.danger:hover:not(:disabled) .quick-ico { background: rgba(239,68,68,.14); color: #F87171; }
+
+        .sec { border-top-color: #262626; }
+        .sec-head { color: #F4F4F3; }
+        .sec-head:hover { background: #1E1E1E; }
+        .sec-chev { color: #A19FA6; }
         .strip { background: #202020; color: #A19FA6; }
         .strip.replied { background: rgba(34,197,94,.10); color: #4ADE80; }
         .strip.suppressed { background: rgba(239,68,68,.10); color: #F87171; }
@@ -416,10 +521,93 @@
       state.engagement,
       state.lists.map((l) => `${l.id}:${l.contact_count}`),
       state.selectedListId,
+      state.openSections,
       state.prospect === undefined ? 'none' : state.prospect,
       state.found,
       state.message,
     ]);
+  }
+
+  /** Inline SVG, sized for the round action buttons and section chevrons. */
+  const ICONS = {
+    add: '<path d="M12 5v14M5 12h14"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    block: '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
+    open: '<path d="M14 3h7v7"/><path d="M21 3 10 14"/><path d="M19 14v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6"/>',
+    chevron: '<path d="m6 9 6 6 6-6"/>',
+  };
+
+  /**
+   * @param {keyof ICONS} name
+   * @param {number} [size]
+   */
+  function icon(name, size = 18) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', String(size));
+    svg.setAttribute('height', String(size));
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.9');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.innerHTML = ICONS[name] || '';
+    return svg;
+  }
+
+  /**
+   * One round action in the card under the name.
+   *
+   * @param {{label: string, glyph: keyof ICONS, variant?: string, disabled?: boolean,
+   *          title?: string, onClick: () => void}} spec
+   */
+  function quickAction(spec) {
+    const button = el('button', `quick-btn${spec.variant ? ` ${spec.variant}` : ''}`);
+    button.type = 'button';
+    button.disabled = Boolean(spec.disabled);
+    if (spec.title) button.title = spec.title;
+    const ring = el('span', 'quick-ico');
+    ring.appendChild(icon(spec.glyph, 19));
+    button.appendChild(ring);
+    button.appendChild(el('span', 'quick-label', spec.label));
+    button.addEventListener('click', spec.onClick);
+    return button;
+  }
+
+  /**
+   * A titled, collapsible group.
+   *
+   * Which sections are open is remembered on `state.openSections` rather than in
+   * the DOM, because every update rebuilds this panel from scratch — reading it
+   * back off the element would reset every group on each render.
+   *
+   * @param {string} key Stable id for the open/closed memory.
+   * @param {string} title
+   * @param {{count?: string}} [opts]
+   * @returns {{wrap: HTMLElement, body: HTMLElement}}
+   */
+  function section(key, title, opts = {}) {
+    const open = state.openSections[key] !== false;
+    const wrap = el('div', `sec${open ? ' open' : ''}`);
+
+    const head = el('button', 'sec-head');
+    head.type = 'button';
+    head.setAttribute('aria-expanded', String(open));
+    head.appendChild(el('span', 'sec-title', title));
+    if (opts.count) head.appendChild(el('span', 'sec-count', opts.count));
+    const chev = icon('chevron', 15);
+    chev.classList.add('sec-chev');
+    head.appendChild(chev);
+    head.addEventListener('click', () => {
+      state.openSections[key] = !open;
+      render();
+    });
+    wrap.appendChild(head);
+
+    const body = el('div', 'sec-body');
+    wrap.appendChild(body);
+    return { wrap, body };
   }
 
   function render() {
@@ -489,10 +677,11 @@
     const display = name || person.email || 'Nobody detected';
 
     const who = el('div', 'who');
+    const whoTop = el('div', 'who-top');
     const [from, to] = GRADIENTS[hashCode((name || person.email || '?').toLowerCase()) % GRADIENTS.length];
     const avatar = el('span', 'avatar', initialsFor(name, person.email));
     avatar.style.background = `linear-gradient(135deg, ${from} 0%, ${to} 100%)`;
-    who.appendChild(avatar);
+    whoTop.appendChild(avatar);
 
     const whoText = el('div', 'who-text');
     const whoName = el('div', 'who-name');
@@ -500,81 +689,40 @@
       state.contact ? link(`/contacts/${state.contact.id}`, display) : document.createTextNode(display)
     );
     whoText.appendChild(whoName);
-    const subBits = [person.job_title, person.company].filter(Boolean);
-    whoText.appendChild(el('div', 'who-sub', subBits.join(' · ') || 'No title or company found'));
-    who.appendChild(whoText);
+    /*
+     * Role and company on separate lines rather than joined by a separator.
+     * "Founder · Buildable" clipped at this width reads as neither of them;
+     * stacked, the role stays legible even when the company truncates.
+     */
+    if (person.job_title) whoText.appendChild(el('div', 'who-role', person.job_title));
+    if (person.company) whoText.appendChild(el('div', 'who-org', person.company));
+    if (!person.job_title && !person.company) {
+      whoText.appendChild(el('div', 'who-sub', 'No title or company on this profile'));
+    }
+    whoTop.appendChild(whoText);
+    who.appendChild(whoTop);
     body.appendChild(who);
 
     /* One line of history */
     const strip = historyStrip();
     if (strip) body.appendChild(strip);
 
+    /* What can be done here, before anything has to be read. */
+    body.appendChild(quickCard());
+
+    /* Where an add would go. The object of the verb above — not a second one. */
+    if (person.email || state.contact) body.appendChild(destinationRow());
+
     /* Address */
-    body.appendChild(emailRow());
-
-    /* Lead-list picker + add */
-    if (person.email || state.contact) {
-      /*
-       * No label above the picker. It used to read "Add to lead list" directly
-       * above a button reading "Add to list" — two controls both carrying the
-       * verb, which is exactly the duplication the popup had. The select is the
-       * destination, the button is the action, and the row reads as one
-       * sentence left to right.
-       */
-      const row = el('div', 'decide');
-
-      const select = el('select', 'sel');
-      select.id = 'sx-list';
-      select.setAttribute('aria-label', 'Lead list to add to');
-      if (state.lists.length === 0) {
-        const option = el('option', null, 'No lead lists on this account');
-        option.value = '';
-        select.appendChild(option);
-      }
-      const isMember = (list) => state.memberships.some((m) => m.id === list.id);
-
-      for (const list of state.lists) {
-        // Say which ones they are already on, right in the options — picking a
-        // destination only to be told "already on it" is a wasted step.
-        const suffix = isMember(list) ? ' · already on' : ` · ${list.contact_count ?? 0}`;
-        const option = el('option', null, `${list.name}${list.is_default ? ' (default)' : ''}${suffix}`);
-        option.value = list.id;
-        if (list.id === state.selectedListId) option.selected = true;
-        select.appendChild(option);
-      }
-      select.addEventListener('change', () => {
-        state.selectedListId = select.value;
-        state.listChosenByUser = true;
-        render();
-      });
-      row.appendChild(select);
-
-      /*
-       * The button says what pressing it will do, matching the popup. Offering
-       * "Add to list" for somebody already on the selected one reports a change
-       * that never happens — the server upserts, so it succeeds and means
-       * nothing.
-       */
-      const target = state.lists.find((l) => l.id === state.selectedListId);
-      const alreadyOn = Boolean(target) && isMember(target);
-
-      // The verb only; the select beside it names the destination.
-      const add = el('button', `btn${alreadyOn ? ' done' : ''}`, alreadyOn ? 'On list' : 'Add');
-      add.disabled = state.busy || !person.email || state.lists.length === 0 || alreadyOn;
-      add.title = target
-        ? alreadyOn
-          ? `Already on "${target.name}"`
-          : `Add to "${target.name}"`
-        : 'Choose a lead list first';
-      add.addEventListener('click', addToList);
-      row.appendChild(add);
-      body.appendChild(row);
-    }
+    const contactSection = section('contact', 'Contact information');
+    contactSection.body.appendChild(el('div', 'field-label', 'Email'));
+    contactSection.body.appendChild(emailRow());
+    body.appendChild(contactSection.wrap);
 
     /* Lists they're already on */
     if (state.memberships.length > 0) {
+      const onLists = section('lists', 'Lead lists', { count: String(state.memberships.length) });
       const rows = el('div', 'rows');
-      rows.appendChild(el('div', 'rows-title', 'On these lead lists'));
       for (const membership of state.memberships) {
         const row = el('div', 'row');
         const main = el('div', 'row-main');
@@ -594,7 +742,8 @@
         row.appendChild(remove);
         rows.appendChild(row);
       }
-      body.appendChild(rows);
+      onLists.body.appendChild(rows);
+      body.appendChild(onLists.wrap);
     }
 
     /* Message */
@@ -636,6 +785,103 @@
   }
 
   /**
+   * The action card under the name.
+   *
+   * There is exactly one Add in this panel and it is here. The destination
+   * lives in its own row below as a chooser with no verb on it — a select
+   * reading "Conference — Q3" beside a button reading "Add to list" was the
+   * two-buttons-that-both-say-add problem, and putting the verb on a card does
+   * not make a second copy of it acceptable.
+   */
+  function quickCard() {
+    const person = state.person || {};
+    const card = el('div', 'quick');
+
+    const target = state.lists.find((l) => l.id === state.selectedListId);
+    const alreadyOn = Boolean(target) && state.memberships.some((m) => m.id === target.id);
+
+    card.appendChild(
+      quickAction({
+        label: alreadyOn ? 'On list' : 'Add to list',
+        glyph: 'add',
+        variant: 'primary',
+        disabled: state.busy || !person.email || state.lists.length === 0 || alreadyOn,
+        title: target
+          ? alreadyOn
+            ? `Already on "${target.name}"`
+            : `Add to "${target.name}"`
+          : 'Choose a lead list below first',
+        onClick: addToList,
+      })
+    );
+
+    card.appendChild(
+      quickAction({
+        label: 'Find email',
+        glyph: 'search',
+        disabled: state.busy || Boolean(person.email),
+        title: person.email ? 'This profile already has an address' : 'Look this person up',
+        onClick: findEmail,
+      })
+    );
+
+    card.appendChild(
+      quickAction({
+        label: 'Open',
+        glyph: 'open',
+        disabled: !state.appUrl,
+        title: state.appUrl ? 'Open in Sincerely' : 'Set your app URL in the extension settings',
+        onClick: () => {
+          if (!state.appUrl) return;
+          const path = state.contact ? `/contacts/${state.contact.id}` : '/contacts';
+          window.open(`${state.appUrl}${path}`, '_blank', 'noopener,noreferrer');
+        },
+      })
+    );
+
+    return card;
+  }
+
+  /**
+   * Which lead list an add would go to. The object of the verb on the card
+   * above — deliberately not a second control carrying the verb itself.
+   */
+  function destinationRow() {
+    const wrap = el('div', 'dest');
+    wrap.appendChild(el('div', 'field-label', 'Destination list'));
+
+    const select = el('select', 'sel');
+    select.id = 'sx-list';
+    select.setAttribute('aria-label', 'Lead list to add to');
+
+    if (state.lists.length === 0) {
+      const option = el('option', null, 'No lead lists on this account');
+      option.value = '';
+      select.appendChild(option);
+    }
+
+    const isMember = (list) => state.memberships.some((m) => m.id === list.id);
+    for (const list of state.lists) {
+      // Say which ones they are already on, right in the options — picking a
+      // destination only to be told "already on it" is a wasted step.
+      const suffix = isMember(list) ? ' · already on' : ` · ${list.contact_count ?? 0}`;
+      const option = el('option', null, `${list.name}${list.is_default ? ' (default)' : ''}${suffix}`);
+      option.value = list.id;
+      if (list.id === state.selectedListId) option.selected = true;
+      select.appendChild(option);
+    }
+
+    select.addEventListener('change', () => {
+      state.selectedListId = select.value;
+      state.listChosenByUser = true;
+      render();
+    });
+
+    wrap.appendChild(select);
+    return wrap;
+  }
+
+  /**
    * The address, or the way to get one. On LinkedIn this row is the whole
    * point: the profile almost never carries an email.
    */
@@ -671,6 +917,8 @@
      * editable because LinkedIn shows a company's name far more often than its
      * domain.
      */
+    wrap.appendChild(el('div', 'field-label', 'Find an address'));
+
     const finderRow = el('div', 'finder');
     const domainInput = el('input', 'txt');
     domainInput.type = 'text';
@@ -686,7 +934,7 @@
     findAt.addEventListener('click', () => findAtDomain(domainInput.value.trim()));
     finderRow.appendChild(findAt);
     wrap.appendChild(finderRow);
-    wrap.appendChild(el('div', 'cost', 'Free — works out the address from the company’s own convention and asks their mail server.'));
+    wrap.appendChild(el('div', 'cost', 'Free — guesses from the company’s own convention, then asks their mail server.'));
 
     if (state.found) {
       if (state.found.email) {
@@ -750,9 +998,10 @@
       }
     }
 
+    wrap.appendChild(el('div', 'field-label', 'Or enter it yourself'));
     const manual = el('input', 'txt');
     manual.type = 'email';
-    manual.placeholder = 'or type an address…';
+    manual.placeholder = 'name@company.com';
     manual.style.marginTop = '8px';
     manual.addEventListener('change', () => {
       const value = manual.value.trim().toLowerCase();
