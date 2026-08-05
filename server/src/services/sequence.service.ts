@@ -82,6 +82,38 @@ function getNextSendWindowStart(campaign: any): Date {
   return new Date(Date.now() + 24 * 60 * 60_000);
 }
 
+/**
+ * Atomically reserve one send against a campaign's daily_limit for the given
+ * business-day period. Returns true (and counts the send) if within the cap,
+ * false if it would exceed it. Replaces a non-atomic count-then-compare that
+ * two overlapping processDueSteps() calls (the worker tick racing a
+ * launch()-triggered run) could both pass before either finished sending.
+ */
+async function reserveCampaignDailySend(campaignId: string, periodStart: Date, limit: number): Promise<boolean> {
+  const { data, error } = await supabaseAdmin.rpc('reserve_campaign_daily_send', {
+    p_campaign_id: campaignId,
+    p_period_start: periodStart.toISOString(),
+    p_limit: limit,
+  });
+  if (!error) return data === true;
+  // Fail closed if the atomic RPC is missing (e.g. migration 036 not
+  // applied) rather than falling back to a check+increment that concurrent
+  // sends could race past the daily cap.
+  console.error(`[Sequence] reserve_campaign_daily_send RPC unavailable, denying send: ${error.message}`);
+  return false;
+}
+
+/** Return a reserved-but-unused daily-send slot (the send never happened). */
+async function refundCampaignDailySend(campaignId: string, periodStart: Date): Promise<void> {
+  const { error } = await supabaseAdmin.rpc('refund_campaign_daily_send', {
+    p_campaign_id: campaignId,
+    p_period_start: periodStart.toISOString(),
+  });
+  if (error) {
+    console.error(`[Sequence] Failed to refund daily send for campaign ${campaignId}:`, error.message);
+  }
+}
+
 // ============================================
 // Step Processing
 // ============================================
@@ -221,34 +253,11 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
     }
   }
 
-  // Check daily limit — only gates email sends; delay/condition/webhook_wait steps
-  // don't consume send quota and shouldn't stall a day behind schedule because the
-  // campaign happened to be at its email cap. Uses the campaign's timezone so
-  // "today" matches the sender's business day.
-  if (nextStep.step_type === 'email') {
-    const dailyLimit = cc.campaigns.daily_limit || 0;
-    if (dailyLimit > 0) {
-      const tz = cc.campaigns.timezone || 'UTC';
-      const todayStart = startOfDayInTimezone(tz);
-      const { count: sentToday, error: countErr } = await supabaseAdmin
-        .from('campaign_activities')
-        .select('*', { count: 'exact', head: true })
-        .eq('campaign_id', cc.campaign_id)
-        .eq('activity_type', 'sent')
-        .gte('occurred_at', todayStart.toISOString());
-      if (countErr) throw new Error(`Failed to fetch daily send count: ${countErr.message}`);
-      if (sentToday !== null && sentToday >= dailyLimit) {
-        // Reschedule to next send window so the sequence worker doesn't
-        // re-pick this contact every 30 seconds until midnight.
-        const nextWindow = getNextSendWindowStart(cc.campaigns);
-        await supabaseAdmin
-          .from('campaign_contacts')
-          .update({ next_send_at: nextWindow.toISOString() })
-          .eq('id', campaignContactId);
-        return;
-      }
-    }
-  }
+  // The daily-limit check moved into processEmailStep() — it now atomically
+  // reserves a slot (see reserveCampaignDailySend below) instead of counting
+  // today's sends and checking against the cap, which raced when the 30s
+  // worker tick and a launch()-triggered call both processed a due contact
+  // for the same campaign at once.
 
   // Process based on step type
   switch (nextStep.step_type) {
@@ -315,9 +324,26 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
   // Plan enforcement: owner of this campaign.
   const ownerId: string | undefined = cc.campaigns?.user_id;
 
+  // Per-campaign daily send limit — atomically reserve a slot (see
+  // reserveCampaignDailySend above). Uses the campaign's timezone so "today"
+  // matches the sender's business day.
+  const dailyLimit = cc.campaigns?.daily_limit || 0;
+  const dailyPeriodStart = startOfDayInTimezone(cc.campaigns?.timezone || 'UTC');
+  if (dailyLimit > 0 && !(await reserveCampaignDailySend(cc.campaign_id, dailyPeriodStart, dailyLimit))) {
+    // Reschedule to next send window so the sequence worker doesn't re-pick
+    // this contact every 30 seconds until midnight.
+    const nextWindow = getNextSendWindowStart(cc.campaigns);
+    await supabaseAdmin
+      .from('campaign_contacts')
+      .update({ next_send_at: nextWindow.toISOString() })
+      .eq('id', cc.id);
+    return;
+  }
+
   // Monthly email cap — atomically reserve a slot. If exhausted, reschedule to
   // the start of next month so the contact auto-resumes when the quota resets.
   if (ownerId && !(await billingService.reserveEmailQuota(ownerId))) {
+    if (dailyLimit > 0) await refundCampaignDailySend(cc.campaign_id, dailyPeriodStart);
     const now = new Date();
     const nextPeriod = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
     await supabaseAdmin
@@ -362,13 +388,15 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     .maybeSingle();
   if (nullifyErr) {
     if (ownerId) await billingService.refundEmailQuota(ownerId);
+    if (dailyLimit > 0) await refundCampaignDailySend(cc.campaign_id, dailyPeriodStart);
     throw new Error(`Failed to lock contact ${cc.id} for processing: ${nullifyErr.message}`);
   }
   if (!claimed) {
     // Lost the race to a concurrent processDueSteps() run — the other caller
     // already claimed this contact for this step. Don't send a duplicate, and
-    // give back the quota slot reserved above (the winner reserved its own).
+    // give back the slots reserved above (the winner reserved its own).
     if (ownerId) await billingService.refundEmailQuota(ownerId);
+    if (dailyLimit > 0) await refundCampaignDailySend(cc.campaign_id, dailyPeriodStart);
     console.log(`[Sequence] Contact ${cc.id} already claimed by a concurrent run — skipping`);
     return;
   }
@@ -392,8 +420,14 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
   } catch (err: any) {
     console.error(`[Sequence] Email send failed for ${cc.contacts.email}:`, err.message);
 
-    // The send never happened — give back the quota slot reserved above.
+    // The send never happened — give back the slots reserved above.
     if (ownerId) await billingService.refundEmailQuota(ownerId);
+    if (dailyLimit > 0) await refundCampaignDailySend(cc.campaign_id, dailyPeriodStart);
+
+    // sendCampaignEmail annotates the error with the account it had already
+    // reserved a warm-up/ramp slot on (once SMTP selection succeeded) —
+    // give that back too so a failed send doesn't burn ramp capacity.
+    if (err.smtpAccountId) sse.refundWarmupSend(err.smtpAccountId).catch(() => {});
 
     // Check for bounce: Number(undefined) = NaN which fails >= 500, so also check the string form
     const responseCode = Number(err.responseCode);

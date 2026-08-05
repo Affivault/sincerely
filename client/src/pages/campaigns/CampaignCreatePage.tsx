@@ -187,6 +187,14 @@ export function CampaignCreatePage() {
 
   const [steps, setSteps] = useState<FlowStep[]>([]);
   const [editingStep, setEditingStep] = useState<number | null>(null);
+  // Tracks the live editingStep for async callbacks (e.g. handleGenerateEmail)
+  // that need to check whether the user has since switched steps — a plain
+  // closure over `editingStep` only ever sees the value from when the async
+  // function was invoked, not what it changed to while the request was in flight.
+  const editingStepRef = useRef(editingStep);
+  useEffect(() => {
+    editingStepRef.current = editingStep;
+  }, [editingStep]);
   const [showContactModal, setShowContactModal] = useState(false);
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
   const [contactSearch, setContactSearch] = useState('');
@@ -643,17 +651,27 @@ export function CampaignCreatePage() {
 
   const handleGenerateEmail = async () => {
     if (!aiGoal || editingStep === null) return;
+    const targetStep = editingStep;
     setAiGenerating(true);
     try {
       const { data } = await apiClient.post('/sara/generate-email', {
         goal: aiGoal, tone: aiTone, product: aiProduct,
       });
-      updateStep(editingStep, { subject: data.subject, body_html: data.body_html });
-      // Push generated body into the live WYSIWYG editor (it won't reload from state)
-      window.dispatchEvent(new CustomEvent('ai-reply-insert', { detail: { html: data.body_html } }));
-      setShowAiModal(false);
-      setAiGoal('');
-      toast.success('Email generated');
+      // Always persist the result to the step it was generated for, even if
+      // the user has since switched to editing a different step.
+      updateStep(targetStep, { subject: data.subject, body_html: data.body_html });
+      if (editingStepRef.current === targetStep) {
+        // Only push into the live WYSIWYG editor (it won't reload from state)
+        // and close the modal if the user is still looking at this step —
+        // otherwise the global event would overwrite whatever step they've
+        // since opened with content meant for a different one.
+        window.dispatchEvent(new CustomEvent('ai-reply-insert', { detail: { html: data.body_html } }));
+        setShowAiModal(false);
+        setAiGoal('');
+        toast.success('Email generated');
+      } else {
+        toast.success(`Email generated for step ${targetStep + 1}`);
+      }
     } catch {
       toast.error('Generation failed');
     } finally {
@@ -736,6 +754,8 @@ export function CampaignCreatePage() {
 
   // ── Validation ──
   const emailSteps = steps.filter((s) => s.step_type === 'email');
+  const conditionSteps = steps.filter((s) => s.step_type === 'condition');
+  const webhookWaitSteps = steps.filter((s) => s.step_type === 'webhook_wait');
   const sectionIssues: Record<number, string[]> = {
     0: [
       !campaignForm.name && 'Campaign name',
@@ -746,6 +766,8 @@ export function CampaignCreatePage() {
       steps.length > 0 && emailSteps.length === 0 && 'No email steps in sequence',
       emailSteps.some((s) => !s.subject) && 'Some emails missing subject',
       emailSteps.some((s) => !s.body_html) && 'Some emails missing body',
+      conditionSteps.some((s) => !s.condition_field || !s.condition_operator) && 'Some conditions missing a field or comparison',
+      webhookWaitSteps.some((s) => !s.webhook_event) && 'Some webhook-wait steps missing an event',
     ].filter(Boolean) as string[],
     2: [
       selectedContactIds.length === 0 && 'No recipients selected',

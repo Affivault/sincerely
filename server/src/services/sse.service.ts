@@ -14,10 +14,18 @@ const UTILIZATION_WEIGHT = 0.4;
 /**
  * Select the best SMTP account for sending the next email in a campaign.
  * Uses a scoring algorithm based on health score and current utilization.
+ *
+ * Pass `reserve: true` when the caller is about to actually send — this
+ * atomically claims the winning account's warm-up/ramp slot before
+ * returning it, so a concurrent processDueSteps() run can't also pick it.
+ * Leave it false (the default) for read-only previews like the dashboard's
+ * "which account would be used next" endpoint — reserving there would burn
+ * real ramp capacity every time someone just looks at the page.
  */
 export async function selectBestSender(
   userId: string,
-  campaignId: string
+  campaignId: string,
+  reserve = false
 ): Promise<SseSelectionResult> {
   // First try campaign-specific SMTP pool
   const { data: poolAccounts } = await supabaseAdmin
@@ -78,36 +86,93 @@ export async function selectBestSender(
     return { account: a, score };
   });
 
-  // Sort by score descending and pick the best
+  // Sort by score descending and pick the best.
   scored.sort((a, b) => b.score - a.score);
-  const best = scored[0];
+
+  if (!reserve) {
+    const best = scored[0];
+    return {
+      account: best.account,
+      reason: `Selected ${best.account.label} (score: ${best.score.toFixed(1)}, health: ${best.account.health_score}, utilization: ${best.account.sends_today}/${warmupAllowance(best.account)})`,
+      all_exhausted: false,
+    };
+  }
+
+  // Caller is about to send: try to atomically reserve a slot on each
+  // candidate, best first. The filter above is just a snapshot — a
+  // concurrent processDueSteps() run (worker tick racing a launch()-
+  // triggered call) can exhaust the same account's ramp allowance between
+  // the read and the reserve, so fall through to the next-best candidate on
+  // a lost race instead of over-sending on the account the snapshot said was fine.
+  for (const candidate of scored) {
+    const limit = warmupAllowance(candidate.account);
+    if (!(await reserveWarmupSend(candidate.account.id, limit))) continue;
+    return {
+      account: candidate.account,
+      reason: `Selected ${candidate.account.label} (score: ${candidate.score.toFixed(1)}, health: ${candidate.account.health_score}, utilization: ${candidate.account.sends_today}/${limit})`,
+      all_exhausted: false,
+    };
+  }
 
   return {
-    account: best.account,
-    reason: `Selected ${best.account.label} (score: ${best.score.toFixed(1)}, health: ${best.account.health_score}, utilization: ${best.account.sends_today}/${warmupAllowance(best.account)})`,
-    all_exhausted: false,
+    account: null,
+    reason: 'All accounts have reached their daily sending limit',
+    all_exhausted: true,
   };
 }
 
 /**
- * Record a successful send - increment counters and update health.
+ * Atomically reserve one warm-up/daily send slot on an SMTP account. Returns
+ * true and increments sends_today if within the allowance (limit<=0 means
+ * unlimited), false if it would exceed it or the account no longer exists.
+ * Use this at selection time, before the SMTP send, and refund with
+ * refundWarmupSend() if the send doesn't actually happen.
  */
-export async function recordSend(accountId: string): Promise<void> {
+export async function reserveWarmupSend(accountId: string, limit: number): Promise<boolean> {
+  const { data, error } = await supabaseAdmin.rpc('reserve_warmup_send', {
+    p_account_id: accountId,
+    p_limit: limit,
+  });
+  if (!error) return data === true;
+  // Fail closed if the atomic RPC is missing (e.g. migration 036 not
+  // applied) rather than falling back to a check+increment that concurrent
+  // sends could race past the ramp cap.
+  console.error(`[SSE] reserve_warmup_send RPC unavailable, denying send: ${error.message}`);
+  return false;
+}
+
+/** Return a warm-up slot reserved via reserveWarmupSend() that wasn't used (the send failed). */
+export async function refundWarmupSend(accountId: string): Promise<void> {
+  const { error } = await supabaseAdmin.rpc('refund_warmup_send', { p_account_id: accountId });
+  if (error) {
+    console.error(`[SSE] Failed to refund warm-up send for ${accountId}:`, error.message);
+  }
+}
+
+/**
+ * Record a successful send - increment counters and update health.
+ *
+ * @param alreadyReserved Pass true when the caller already atomically
+ *   reserved this send's sends_today slot via reserveWarmupSend() (the
+ *   internal campaign-send pipeline does, at selection time) — incrementing
+ *   it again here would double-count that send against the ramp cap. The
+ *   public "record an external send" API route does NOT reserve first, so
+ *   it leaves this false and gets the original increment-both behavior.
+ */
+export async function recordSend(accountId: string, alreadyReserved = false): Promise<void> {
   try {
-    // Increment both counters atomically via RPC. Two calls are needed because the
-    // generic increment_field RPC only handles one field at a time.
-    await Promise.all([
-      supabaseAdmin.rpc('increment_field', {
+    await supabaseAdmin.rpc('increment_field', {
+      table_name: 'smtp_accounts',
+      field_name: 'total_sent',
+      row_id: accountId,
+    });
+    if (!alreadyReserved) {
+      await supabaseAdmin.rpc('increment_field', {
         table_name: 'smtp_accounts',
         field_name: 'sends_today',
         row_id: accountId,
-      }),
-      supabaseAdmin.rpc('increment_field', {
-        table_name: 'smtp_accounts',
-        field_name: 'total_sent',
-        row_id: accountId,
-      }),
-    ]);
+      });
+    }
   } catch {
     // Fallback: direct update if RPC doesn't exist
     try {
@@ -120,8 +185,8 @@ export async function recordSend(accountId: string): Promise<void> {
         await supabaseAdmin
           .from('smtp_accounts')
           .update({
-            sends_today: data.sends_today + 1,
             total_sent: data.total_sent + 1,
+            ...(!alreadyReserved ? { sends_today: data.sends_today + 1 } : {}),
           })
           .eq('id', accountId);
       }

@@ -151,7 +151,7 @@ const NOT_A_NAME =
 export function nameFor(email, context = '') {
   const local = String(email).split('@')[0].toLowerCase();
   const parts = local.split(/[._-]+/).filter((p) => p.length > 1 && /^[a-z]+$/.test(p));
-  if (parts.length >= 2 && !NOT_A_NAME.test(parts[0])) {
+  if (parts.length >= 2 && !NOT_A_NAME.test(parts[0]) && !NOT_A_NAME.test(parts[1])) {
     return { first_name: capitalise(parts[0]), last_name: capitalise(parts[1]) };
   }
 

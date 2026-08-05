@@ -41,6 +41,9 @@ const MAX_MENU_LISTS = 10;
 const BULK_LIMIT = 25;
 
 const EMAIL_PATTERN = /[a-z0-9._%+'-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
+// Anchored variant for validating that a whole string IS an email address
+// (as opposed to EMAIL_PATTERN's job of finding one inside arbitrary text).
+const EMAIL_PATTERN_FULL = new RegExp(`^${EMAIL_PATTERN.source}$`, 'i');
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                            */
@@ -296,9 +299,16 @@ async function rebuildContextMenusImpl() {
  * @returns {Promise<object|null>} A person shape, or null if nothing was found.
  */
 async function personFromContext(info, tab) {
-  const fromLink = info.linkUrl && info.linkUrl.startsWith('mailto:')
-    ? extractEmail(decodeURIComponent(info.linkUrl.slice('mailto:'.length)))
-    : null;
+  let fromLink = null;
+  if (info.linkUrl && info.linkUrl.startsWith('mailto:')) {
+    try {
+      fromLink = extractEmail(decodeURIComponent(info.linkUrl.slice('mailto:'.length)));
+    } catch {
+      // Malformed %-escapes in the mailto (e.g. a literal "%" in the subject
+      // query string) — fall back to the raw text rather than losing the click.
+      fromLink = extractEmail(info.linkUrl.slice('mailto:'.length));
+    }
+  }
   const email = fromLink || extractEmail(info.selectionText);
 
   if (email) {
@@ -736,7 +746,7 @@ async function handleAddToList(payload) {
     const { listId, person } = payload;
     const email = String(person?.email || '').trim().toLowerCase();
     if (!listId) throw new ApiError('Pick a list first.', { code: 'NO_LIST' });
-    if (!EMAIL_PATTERN.test(email)) throw new ApiError(`"${email}" doesn't look like an email address.`, { code: 'BAD_EMAIL' });
+    if (!EMAIL_PATTERN_FULL.test(email)) throw new ApiError(`"${email}" doesn't look like an email address.`, { code: 'BAD_EMAIL' });
 
     const settings = await getSettings();
 
@@ -1264,7 +1274,7 @@ async function handleBulkAdd(payload) {
     const byEmail = new Map();
     for (const row of rows) {
       const email = String(row.email || '').trim().toLowerCase();
-      if (!EMAIL_PATTERN.test(email) || byEmail.has(email)) continue;
+      if (!EMAIL_PATTERN_FULL.test(email) || byEmail.has(email)) continue;
       byEmail.set(email, { ...row, email });
       if (byEmail.size >= BULK_LIMIT) break;
     }
@@ -1375,7 +1385,7 @@ async function handleRemoveFromList(payload) {
 async function handleSuppress(payload) {
   try {
     const email = String(payload.email || '').trim().toLowerCase();
-    if (!EMAIL_PATTERN.test(email)) throw new ApiError(`"${email}" doesn't look like an email address.`, { code: 'BAD_EMAIL' });
+    if (!EMAIL_PATTERN_FULL.test(email)) throw new ApiError(`"${email}" doesn't look like an email address.`, { code: 'BAD_EMAIL' });
 
     await api.suppressEmail(email, 'manual', 'Suppressed from the Chrome extension');
 

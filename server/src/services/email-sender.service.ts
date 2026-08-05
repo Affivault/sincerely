@@ -328,8 +328,9 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
   // 2. Find SMTP account
   let smtpAccount: any = null;
 
-  // Try SSE selection (multi-account pool)
-  const sseResult = await sse.selectBestSender(campaign.user_id, campaignId);
+  // Try SSE selection (multi-account pool). reserve=true: this is an actual
+  // send, so atomically claim the winning account's ramp slot now.
+  const sseResult = await sse.selectBestSender(campaign.user_id, campaignId, true);
   if (sseResult.account) {
     smtpAccount = sseResult.account;
     console.log(`[EmailSender] SSE selected: ${sseResult.reason}`);
@@ -348,7 +349,9 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
       .maybeSingle();
     if (fallback) {
       const limit = warmupAllowance(fallback);
-      if (limit === 0 || fallback.sends_today < limit) {
+      // Reserve atomically rather than check-then-use — a concurrent
+      // processDueSteps() run could otherwise claim the same last slot.
+      if (await sse.reserveWarmupSend(fallback.id, limit)) {
         smtpAccount = fallback;
         console.log(`[EmailSender] Using campaign default SMTP: ${smtpAccount?.label || smtpAccount?.id}`);
       } else {
@@ -372,13 +375,16 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
       .eq('user_id', campaign.user_id)
       .eq('is_active', true)
       .eq('is_verified', true);
-    const withCapacity = (candidates || []).find((acc: any) => {
+    // Reserve atomically per candidate (in listed order) instead of just
+    // filtering by a stale sends_today snapshot, so a concurrent
+    // processDueSteps() run can't grab the same last slot on this mailbox.
+    for (const acc of candidates || []) {
       const limit = warmupAllowance(acc);
-      return limit === 0 || acc.sends_today < limit;
-    });
-    if (withCapacity) {
-      smtpAccount = withCapacity;
-      console.log(`[EmailSender] Last resort SMTP: ${smtpAccount.label || smtpAccount.id}`);
+      if (await sse.reserveWarmupSend(acc.id, limit)) {
+        smtpAccount = acc;
+        console.log(`[EmailSender] Last resort SMTP: ${smtpAccount.label || smtpAccount.id}`);
+        break;
+      }
     }
   }
 
@@ -391,7 +397,11 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
   try {
     smtpPassword = decrypt(smtpAccount.smtp_pass_encrypted);
   } catch (err: any) {
-    throw new Error(`Failed to decrypt SMTP password for ${smtpAccount.label}: ${err.message}`);
+    // Selection above already reserved a warm-up/ramp slot on smtpAccount —
+    // annotate so the caller can refund it, same as a failed SMTP send does.
+    const wrapped = new Error(`Failed to decrypt SMTP password for ${smtpAccount.label}: ${err.message}`);
+    (wrapped as any).smtpAccountId = smtpAccount.id;
+    throw wrapped;
   }
 
   // 4. Prepare email with tracking
@@ -461,8 +471,10 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
 
   console.log(`[EmailSender] Sent to ${to} via ${smtpAccount.label || smtpAccount.smtp_host} — messageId: ${sendResult.messageId}`);
 
-  // 7. Record send in SSE
-  await sse.recordSend(smtpAccount.id).catch((err: any) => {
+  // 7. Record send in SSE. alreadyReserved=true: every selection path above
+  // (SSE pool, campaign-default fallback, last-resort fallback) already
+  // reserved this send's sends_today slot atomically before we got here.
+  await sse.recordSend(smtpAccount.id, true).catch((err: any) => {
     console.warn(`[EmailSender] SSE record failed for account ${smtpAccount.id}:`, err.message);
   });
 

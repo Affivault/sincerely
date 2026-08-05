@@ -183,7 +183,11 @@ export async function getEndpoint(userId: string, id: string): Promise<WebhookEn
     .eq('id', id)
     .eq('user_id', userId)
     .single();
-  return data;
+  // Same reveal-once rule as listEndpoints: viewing an endpoint's detail page
+  // is not the creation/regenerate moment, so the secret stays redacted here too.
+  if (!data) return data;
+  const { secret, ...rest } = data as WebhookEndpoint;
+  return { ...rest, secret: null } as WebhookEndpoint;
 }
 
 export async function createEndpoint(
@@ -229,7 +233,10 @@ export async function updateEndpoint(
     .single();
 
   if (error) throw error;
-  return data;
+  // An update (e.g. toggling is_active, editing the label) is not the
+  // reveal-once moment either — redact, same as getEndpoint/listEndpoints.
+  const { secret: _secret, ...updatedRest } = data as WebhookEndpoint;
+  return { ...updatedRest, secret: null } as WebhookEndpoint;
 }
 
 /**
