@@ -101,7 +101,7 @@ function SortableHeader({
 }
 import toast from 'react-hot-toast';
 import type { CreateContactInput, ContactWithTags, ContactList, Tag } from '@lemlist/shared';
-import { DEFAULT_PAGE_SIZE } from '../../lib/constants';
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../../lib/constants';
 
 const FOLDER_COLORS = ['#10B981', '#6366F1', '#F59E0B', '#EC4899', '#06B6D4', '#8B5CF6', '#EF4444', '#84CC16'];
 
@@ -456,6 +456,17 @@ export function ContactsListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [page, setPage] = useState(1);
+  // How many rows per page. Remembered across visits — someone working through
+  // a 5,000-contact list shouldn't have to re-pick 100 every single time.
+  const [pageSize, setPageSize] = useState<number>(() => {
+    const saved = Number(localStorage.getItem('contacts:page-size'));
+    return PAGE_SIZE_OPTIONS.includes(saved) ? saved : DEFAULT_PAGE_SIZE;
+  });
+  const changePageSize = (size: number) => {
+    setPageSize(size);
+    setPage(1);
+    localStorage.setItem('contacts:page-size', String(size));
+  };
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -528,10 +539,10 @@ export function ContactsListPage() {
   });
 
   const { data: contactsData, isLoading } = useQuery({
-    queryKey: ['contacts', page, debouncedSearch, activeListId, sortBy, sortDir, statusFilter, companyFilter],
+    queryKey: ['contacts', page, pageSize, debouncedSearch, activeListId, sortBy, sortDir, statusFilter, companyFilter],
     queryFn: () => contactsApi.list({
       page,
-      limit: DEFAULT_PAGE_SIZE,
+      limit: pageSize,
       search: debouncedSearch || undefined,
       company: companyFilter || undefined,
       list_id: activeListId || undefined,
@@ -564,6 +575,9 @@ export function ContactsListPage() {
   const [listContextMenu, setListContextMenu] = useState<{ listId: string; x: number; y: number } | null>(null);
   const [renamingListId, setRenamingListId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  /** Inline rename straight from the page title, where people look first. */
+  const [titleRenaming, setTitleRenaming] = useState(false);
+  const [titleRenameValue, setTitleRenameValue] = useState('');
 
   const folderMoveMut = useMutation({
     mutationFn: ({ listId, folderId }: { listId: string; folderId: string | null }) => listFoldersApi.moveList(listId, folderId),
@@ -576,7 +590,7 @@ export function ContactsListPage() {
   });
   const renameListMut = useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) => listsApi.update(id, { name } as any),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['lists'] }); toast.success('Renamed'); setRenamingListId(null); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['lists'] }); toast.success('Renamed'); setRenamingListId(null); setTitleRenaming(false); },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to rename'),
   });
 
@@ -975,7 +989,40 @@ export function ContactsListPage() {
             <Users className="h-4 w-4 text-[var(--indigo)]" />
           </span>
         }
-        title={currentListName}
+        title={
+          !activeListId ? currentListName : titleRenaming ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const name = titleRenameValue.trim();
+                if (name && name !== currentListName) renameListMut.mutate({ id: activeListId, name });
+                else setTitleRenaming(false);
+              }}
+            >
+              <input
+                value={titleRenameValue}
+                onChange={(e) => setTitleRenameValue(e.target.value)}
+                onBlur={() => setTitleRenaming(false)}
+                onKeyDown={(e) => { if (e.key === 'Escape') setTitleRenaming(false); }}
+                autoFocus
+                maxLength={80}
+                className="w-full max-w-md px-2 py-0.5 -ml-2 text-[22px] font-semibold tracking-[-0.02em] rounded-md border border-[var(--indigo)] bg-[var(--bg-elevated)] text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[#5B5BF5]/15"
+              />
+            </form>
+          ) : (
+            <span className="group/title inline-flex items-center gap-1.5">
+              {currentListName}
+              <button
+                type="button"
+                onClick={() => { setTitleRenameValue(currentListName); setTitleRenaming(true); }}
+                className="p-1 rounded-md opacity-0 group-hover/title:opacity-100 focus-visible:opacity-100 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
+                title="Rename this list"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            </span>
+          )
+        }
         description={totalContacts === 0
           ? 'No contacts yet — start building your audience'
           : `${totalContacts.toLocaleString()} contact${totalContacts !== 1 ? 's' : ''} in your database`
@@ -1139,12 +1186,26 @@ export function ContactsListPage() {
                               >
                                 <FolderOpen className="h-3 w-3 flex-shrink-0" />
                                 <span className="flex-1 text-left truncate">{list.name}</span>
+                                {/* The count steps aside on hover to make room
+                                    for the rename pencil — renaming was only
+                                    reachable by right-click before, which
+                                    nobody discovers. */}
                                 <span className={cn(
-                                  'text-[10px] font-semibold tabular',
+                                  'text-[10px] font-semibold tabular transition-opacity group-hover/list:opacity-0',
                                   activeListId === list.id ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]'
                                 )}>
                                   {list.contact_count || 0}
                                 </span>
+                              </button>
+                            )}
+                            {renamingListId !== list.id && (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setRenameValue(list.name); setRenamingListId(list.id); }}
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover/list:opacity-100 focus-visible:opacity-100 hover:bg-[var(--bg-active)] transition-opacity"
+                                title={`Rename "${list.name}"`}
+                              >
+                                <Pencil className="h-2.5 w-2.5 text-[var(--text-tertiary)]" />
                               </button>
                             )}
                           </div>
@@ -1536,7 +1597,7 @@ export function ContactsListPage() {
                   {contacts.map((contact: any, rowIdx: number) => {
                     const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
                     const isSelected = selectedContacts.has(contact.id);
-                    const rowNumber = (page - 1) * DEFAULT_PAGE_SIZE + rowIdx + 1;
+                    const rowNumber = (page - 1) * pageSize + rowIdx + 1;
                     // Frozen cells need an opaque bg so scrolled content can't show through.
                     const frozenBg = isSelected
                       ? 'bg-[var(--bg-active)]'
@@ -1623,24 +1684,40 @@ export function ContactsListPage() {
           </div>
         )}
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-5 px-1">
-            <p className="text-[13px] text-[var(--text-tertiary)]">
-              Showing{' '}
-              <span className="font-medium text-[var(--text-secondary)]">
-                {(page - 1) * DEFAULT_PAGE_SIZE + 1}
-              </span>
-              {' '}-{' '}
-              <span className="font-medium text-[var(--text-secondary)]">
-                {Math.min(page * DEFAULT_PAGE_SIZE, totalContacts)}
-              </span>
-              {' '}of{' '}
-              <span className="font-medium text-[var(--text-secondary)]">
-                {totalContacts.toLocaleString()}
-              </span>
-            </p>
-            <div className="flex items-center gap-1.5">
+        {/* Pagination — the rows-per-page picker shows even on a single page,
+            so it's discoverable before the list grows past one screen. */}
+        {totalContacts > 0 && (
+          <div className="flex items-center justify-between gap-4 mt-5 px-1">
+            <div className="flex items-center gap-3 min-w-0">
+              <p className="text-[13px] text-[var(--text-tertiary)] whitespace-nowrap">
+                Showing{' '}
+                <span className="font-medium text-[var(--text-secondary)]">
+                  {(page - 1) * pageSize + 1}
+                </span>
+                {' '}-{' '}
+                <span className="font-medium text-[var(--text-secondary)]">
+                  {Math.min(page * pageSize, totalContacts)}
+                </span>
+                {' '}of{' '}
+                <span className="font-medium text-[var(--text-secondary)]">
+                  {totalContacts.toLocaleString()}
+                </span>
+              </p>
+              <label className="flex items-center gap-1.5 text-[12.5px] text-[var(--text-tertiary)] whitespace-nowrap">
+                Show
+                <select
+                  value={pageSize}
+                  onChange={(e) => changePageSize(Number(e.target.value))}
+                  className="h-8 pl-2 pr-6 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[12.5px] font-medium text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 transition-all cursor-pointer"
+                >
+                  {PAGE_SIZE_OPTIONS.map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+                per page
+              </label>
+            </div>
+            <div className={cn('flex items-center gap-1.5', totalPages <= 1 && 'invisible')}>
               <button
                 disabled={page <= 1}
                 onClick={() => setPage(page - 1)}

@@ -1,13 +1,13 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Papa from 'papaparse';
 import { contactsApi, listsApi, type BulkImportResult } from '../../api/contacts.api';
 import { cn } from '../../lib/utils';
 import {
   ArrowLeft, Upload, FileText, X, Check, AlertTriangle,
   ArrowRight, Users, Loader2, CheckCircle2, XCircle, Eye,
-  FolderOpen, RotateCcw, Download, AlertCircle, MailCheck,
+  FolderOpen, RotateCcw, Download, AlertCircle, MailCheck, Plus,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -61,6 +61,7 @@ function detectMapping(header: string): string {
 
 export function BulkImportPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [step, setStep] = useState<Step>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -69,6 +70,10 @@ export function BulkImportPage() {
   const [allRows, setAllRows] = useState<Record<string, string>[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [targetListId, setTargetListId] = useState<string>('');
+  const [listMode, setListMode] = useState<'none' | 'existing' | 'new'>('none');
+  const [newListName, setNewListName] = useState('');
+  /** Set once the import creates the list, so the summary can name it. */
+  const [createdListName, setCreatedListName] = useState<string | null>(null);
   const [progress, setProgress] = useState<ImportProgress>({
     total: 0, processed: 0, imported: 0, errors: 0,
     errorDetails: [], currentBatch: 0, totalBatches: 0,
@@ -177,11 +182,46 @@ export function BulkImportPage() {
     }).length;
   }, [allRows, mapping, hasEmail]);
 
+  /** Default name for a new list: the CSV's own filename, tidied up. */
+  const suggestedListName = useMemo(() => {
+    const base = (file?.name || '').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+    if (!base) return '';
+    return base.charAt(0).toUpperCase() + base.slice(1);
+  }, [file]);
+
+  const duplicateListName = useMemo(() => {
+    const name = newListName.trim().toLowerCase();
+    if (!name) return false;
+    return (lists || []).some((l) => l.name.trim().toLowerCase() === name);
+  }, [newListName, lists]);
+
+  const listChoiceValid =
+    listMode === 'none' ||
+    (listMode === 'existing' && !!targetListId) ||
+    (listMode === 'new' && !!newListName.trim() && !duplicateListName);
+
   // Kick off the import
   const startImport = useCallback(async () => {
-    if (!mappingValid) return;
+    if (!mappingValid || !listChoiceValid) return;
     cancelRef.current = false;
     setCancelRequested(false);
+
+    // Create the list first — if this fails there's nothing to undo yet, which
+    // is much kinder than importing thousands of contacts into nowhere.
+    let listId = listMode === 'existing' ? targetListId : '';
+    if (listMode === 'new') {
+      try {
+        const created = await listsApi.create({ name: newListName.trim() });
+        listId = created.id;
+        setTargetListId(created.id);
+        setCreatedListName(created.name);
+        queryClient.invalidateQueries({ queryKey: ['lists'] });
+      } catch (err: any) {
+        toast.error(err.response?.data?.error || 'Could not create the list — nothing was imported.');
+        return;
+      }
+    }
+
     setStep('importing');
     const startedAt = Date.now();
 
@@ -225,7 +265,7 @@ export function BulkImportPage() {
       const batch = mapped.slice(i, i + BATCH_SIZE);
       const batchNum = Math.floor(i / BATCH_SIZE) + 1;
       try {
-        const result: BulkImportResult = await contactsApi.bulkCreate(batch, targetListId || undefined);
+        const result: BulkImportResult = await contactsApi.bulkCreate(batch, listId || undefined);
         imported += result.imported;
         errors += result.errors;
         if (result.error_details && errorDetails.length < 200) {
@@ -257,7 +297,8 @@ export function BulkImportPage() {
       durationMs: Date.now() - startedAt,
     });
     setStep('complete');
-  }, [allRows, mapping, mappingValid, targetListId]);
+    queryClient.invalidateQueries({ queryKey: ['lists'] });
+  }, [allRows, mapping, mappingValid, listChoiceValid, listMode, targetListId, newListName, queryClient]);
 
   const cancel = () => {
     cancelRef.current = true;
@@ -276,6 +317,9 @@ export function BulkImportPage() {
     setAllRows([]);
     setMapping({});
     setTargetListId('');
+    setListMode('none');
+    setNewListName('');
+    setCreatedListName(null);
     setCompletedResult(null);
     setProgress({ total: 0, processed: 0, imported: 0, errors: 0, errorDetails: [], currentBatch: 0, totalBatches: 0 });
     setStep('upload');
@@ -540,25 +584,86 @@ export function BulkImportPage() {
 
           {/* List assignment */}
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-            <label className="flex items-start gap-3">
+            <div className="flex items-start gap-3">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#5B5BF5]/10 text-[var(--indigo)] flex-shrink-0 mt-0.5">
                 <FolderOpen className="h-4 w-4" />
               </span>
               <div className="flex-1 min-w-0">
                 <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">Add to a list <span className="font-normal text-[var(--text-tertiary)]">(optional)</span></p>
-                <p className="text-[11px] text-[var(--text-tertiary)] mb-2">Imported contacts will be added to this list as well as your main contacts database.</p>
-                <select
-                  value={targetListId}
-                  onChange={(e) => setTargetListId(e.target.value)}
-                  className="w-full h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 transition-all"
-                >
-                  <option value="">No list — just add to All Contacts</option>
-                  {(lists || []).map((l) => (
-                    <option key={l.id} value={l.id}>{l.name} ({l.contact_count} contacts)</option>
+                <p className="text-[11px] text-[var(--text-tertiary)] mb-2.5">Imported contacts always land in All Contacts. A list groups this batch so you can target it in a campaign.</p>
+
+                {/* Three-way choice — creating the list here saves a detour to
+                    the lists page and back before every import. */}
+                <div className="flex items-center gap-1 p-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] mb-2.5">
+                  {([
+                    { id: 'none', label: 'No list' },
+                    { id: 'existing', label: 'Existing list' },
+                    { id: 'new', label: 'New list' },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => {
+                        setListMode(opt.id);
+                        if (opt.id !== 'existing') setTargetListId('');
+                        if (opt.id === 'new' && !newListName) setNewListName(suggestedListName);
+                      }}
+                      className={cn(
+                        'flex-1 inline-flex items-center justify-center gap-1.5 h-7 rounded-md text-[12px] font-medium transition-colors',
+                        listMode === opt.id
+                          ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.06)]'
+                          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                      )}
+                    >
+                      {opt.id === 'new' && <Plus className="h-3 w-3" />}
+                      {opt.label}
+                    </button>
                   ))}
-                </select>
+                </div>
+
+                {listMode === 'existing' && (
+                  (lists || []).length === 0 ? (
+                    <p className="text-[12px] text-[var(--text-tertiary)]">
+                      You don't have any lists yet — switch to <span className="font-medium text-[var(--text-primary)]">New list</span> to create one as part of this import.
+                    </p>
+                  ) : (
+                    <select
+                      value={targetListId}
+                      onChange={(e) => setTargetListId(e.target.value)}
+                      className="w-full h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 transition-all"
+                    >
+                      <option value="">Choose a list…</option>
+                      {(lists || []).map((l) => (
+                        <option key={l.id} value={l.id}>{l.name} ({l.contact_count} contacts)</option>
+                      ))}
+                    </select>
+                  )
+                )}
+
+                {listMode === 'new' && (
+                  <div>
+                    <input
+                      value={newListName}
+                      onChange={(e) => setNewListName(e.target.value)}
+                      placeholder="e.g. Q3 UK brokers"
+                      maxLength={80}
+                      className={cn(
+                        'w-full h-9 px-3 rounded-lg border bg-[var(--bg-elevated)] text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none transition-all focus:ring-2 focus:ring-[#5B5BF5]/15',
+                        duplicateListName ? 'border-amber-500/50 focus:border-amber-500' : 'border-[var(--border-subtle)] focus:border-[var(--indigo)]'
+                      )}
+                    />
+                    <p className={cn(
+                      'text-[11px] mt-1',
+                      duplicateListName ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-tertiary)]'
+                    )}>
+                      {duplicateListName
+                        ? `You already have a list called "${newListName.trim()}" — pick another name, or choose it under Existing list.`
+                        : 'The list is created when the import starts, with these contacts in it.'}
+                    </p>
+                  </div>
+                )}
               </div>
-            </label>
+            </div>
           </div>
 
           {/* Validation summary */}
@@ -600,11 +705,13 @@ export function BulkImportPage() {
             </button>
             <button
               onClick={startImport}
-              disabled={!mappingValid || importableCount === 0}
+              disabled={!mappingValid || importableCount === 0 || !listChoiceValid}
+              title={!listChoiceValid ? 'Choose a list, name a new one, or switch to "No list"' : undefined}
               className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-[12.5px] font-semibold hover:bg-[#4F46E5] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
             >
               <Users className="h-3.5 w-3.5" />
               Import {importableCount.toLocaleString()} contact{importableCount === 1 ? '' : 's'}
+              {listMode === 'new' && newListName.trim() && !duplicateListName && ` into "${newListName.trim()}"`}
             </button>
           </div>
         </div>
@@ -744,8 +851,9 @@ export function BulkImportPage() {
               </h2>
               <p className="text-[12.5px] text-[var(--text-secondary)] mt-1">
                 Processed {completedResult.total.toLocaleString()} rows in {(completedResult.durationMs / 1000).toFixed(1)} seconds
-                {targetListId && lists && (() => {
-                  const list = lists.find((l) => l.id === targetListId);
+                {(() => {
+                  if (createdListName) return ` · Added to the new list "${createdListName}"`;
+                  const list = targetListId ? (lists || []).find((l) => l.id === targetListId) : null;
                   return list ? ` · Added to "${list.name}"` : '';
                 })()}.
               </p>
