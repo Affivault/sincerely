@@ -20,3 +20,8 @@ export const CONTACT_STATUS_COLORS: Record<string, string> = {
 };
 
 export const DEFAULT_PAGE_SIZE = 25;
+
+/** Rows-per-page choices offered in list views.
+ *  Capped at 100 because the API clamps `limit` there (server/src/utils/
+ *  pagination.ts) — offering more would silently return 100 and skip rows. */
+export const PAGE_SIZE_OPTIONS = [25, 50, 75, 100];
