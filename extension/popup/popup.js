@@ -117,6 +117,7 @@ const el = {
   findAll: document.getElementById('find-all'),
 
   noEmailHelp: document.getElementById('no-email-help'),
+  suppressBlock: document.getElementById('suppress-block'),
   prospectFind: document.getElementById('prospect-find'),
   prospectResult: document.getElementById('prospect-result'),
   searchByName: document.getElementById('search-by-name'),
@@ -552,7 +553,21 @@ function syncButtons() {
   el.bulkAdd.disabled = !state.selectedListId;
   el.bulkLabel.textContent = `Add all ${bulk.length} addresses on this page`;
 
-  el.noEmailHelp.classList.toggle('hidden', hasEmail);
+  /*
+   * Offer the finders only when there is somebody to look for.
+   *
+   * Read from the form, not from `state.person`: both finders search on a name,
+   * and the name can be one the user has just typed rather than one scraped off
+   * the page. Gating on the scrape alone hid the controls from the very person
+   * filling the fields in to use them.
+   *
+   * With genuinely nothing entered — "Nobody detected", empty form — the block
+   * is offering to search for nobody, so it stays out of the way.
+   */
+  const typed = readForm();
+  const someoneToFind = Boolean(typed.first_name || typed.last_name);
+  el.noEmailHelp.classList.toggle('hidden', hasEmail || !someoneToFind);
+  el.suppressBlock.classList.toggle('hidden', !hasEmail);
 
   // Nudge the user into the details when there's nothing to act on yet.
   const summary = hasEmail ? 'Edit details' : 'Enter an email address';

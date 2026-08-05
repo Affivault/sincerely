@@ -368,6 +368,71 @@ try {
     () => !!document.getElementById('sincerely-panel-host')?.shadowRoot?.querySelector('.panel')
   );
   check('no panel on the LinkedIn feed, only on profiles', onFeed === false);
+
+  /* ---------- and does not come back after it has been taken down ---------- */
+
+  /*
+   * `ensureRoot()` recreates the panel's host, so any render landing after the
+   * panel is removed resurrects it on a page that should not have one. Copying
+   * the address arms a 1.6s timer to clear the "Copied" confirmation; leaving
+   * the profile inside that window used to put the whole panel back on the feed.
+   */
+  // The collapse check above left the panel collapsed in storage, and a
+  // collapsed panel draws no identity for settled() to wait on.
+  await options.evaluate(() => chrome.storage.local.set({ panelCollapsed: false }));
+
+  const leaver = await context.newPage();
+  await leaver.goto('https://www.linkedin.com/in/sam-rivera/');
+  await settled(leaver);
+
+  // Give the panel an address, or the second card slot offers "Find email"
+  // instead of "Copy email" and there is nothing to click — which would let the
+  // resurrection check below pass without ever arming the timer it tests.
+  await leaver.evaluate(() => {
+    const modal = document.createElement('div');
+    modal.setAttribute('role', 'dialog');
+    modal.innerHTML = '<h3>Contact info</h3><a href="mailto:sam.rivera@northwind.example.org">x</a>';
+    document.querySelector('main').appendChild(modal);
+  });
+  await leaver.waitForFunction(
+    () =>
+      [...(document.getElementById('sincerely-panel-host')?.shadowRoot?.querySelectorAll('.quick-btn') || [])]
+        .some((b) => /Copy/.test(b.textContent)),
+    null,
+    { timeout: 15000 }
+  );
+
+  await leaver.evaluate(() => {
+    const shadow = document.getElementById('sincerely-panel-host').shadowRoot;
+    [...shadow.querySelectorAll('.quick-btn')].find((b) => /Copy/.test(b.textContent))?.click();
+  });
+  // The confirmation has to actually appear, or the timer under test never
+  // starts and the resurrection check below passes for the wrong reason.
+  check(
+    'copying the address confirms on the button',
+    await leaver.evaluate(() =>
+      [...document.getElementById('sincerely-panel-host').shadowRoot.querySelectorAll('.quick-btn')].some(
+        (b) => b.textContent.trim() === 'Copied'
+      )
+    )
+  );
+  /*
+   * A *same-document* navigation, which is the only way this bug exists.
+   * `goto` tears down the JS context and takes every pending timer with it, so
+   * a hard navigation here would pass against the broken build. LinkedIn routes
+   * client-side, the content script keeps running, and the panel's URL watcher
+   * removes the panel — then the still-pending timer renders it straight back.
+   */
+  await leaver.evaluate(() => {
+    history.pushState({}, '', '/feed/');
+    window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+  });
+  await leaver.waitForTimeout(3000);
+  check(
+    'a pending confirmation cannot resurrect the panel after navigating away',
+    (await leaver.evaluate(() => !!document.getElementById('sincerely-panel-host'))) === false
+  );
+  await leaver.close();
 } catch (err) {
   failures.push(`harness threw: ${err.message}`);
   console.log(`\n  HARNESS ERROR: ${err.stack}`);

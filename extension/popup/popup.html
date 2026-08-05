@@ -118,13 +118,19 @@
             </div>
           </div>
 
-          <button id="suppress" class="btn-danger-quiet btn-block" type="button" disabled>
-            Never contact again
-          </button>
-          <p class="footnote">
-            Removing takes them off one list. Suppressing blocks every future send and
-            survives re-imports.
-          </p>
+          <!-- Hidden outright when there is no address, rather than shown
+               disabled beside a paragraph about what suppressing would do.
+               With "Nobody detected" on screen it is pure noise, and a greyed
+               destructive button reads as something that has gone wrong. -->
+          <div id="suppress-block">
+            <button id="suppress" class="btn-danger-quiet btn-block" type="button" disabled>
+              Never contact again
+            </button>
+            <p class="footnote">
+              Removing takes them off one list. Suppressing blocks every future send and
+              survives re-imports.
+            </p>
+          </div>
         </div>
       </section>
 
