@@ -243,6 +243,7 @@
    * preserves insertion order — once a cache passes this size.
    */
   const CONTACT_INFO_CACHE_LIMIT = 300;
+  /** Works on a Map or a Set: both preserve insertion order and expose keys(). */
   function evictOldest(map, limit) {
     while (map.size > limit) {
       map.delete(map.keys().next().value);
@@ -287,6 +288,23 @@
    */
   const CONTACT_INFO_ATTEMPTS = 3;
   const contactInfoAttempts = new Map();
+
+  /**
+   * Profiles whose answer is settled for good — nothing more to try.
+   *
+   * The retry above exists for exactly one situation: a read that ran before
+   * LinkedIn had drawn the profile. Once the profile *is* drawn and a full read
+   * has still found nothing, asking again cannot produce a different answer, and
+   * doing it anyway is what puts the panel back into "Checking contact info…"
+   * every few seconds on everyone whose address simply isn't shared. So the
+   * retry is spent on the case it was written for and no other.
+   */
+  const contactInfoFinal = new Set();
+
+  /** Has LinkedIn drawn the profile itself yet? `main h1` is the person's name. */
+  function profileRendered() {
+    return Boolean(document.querySelector('main h1'));
+  }
 
   function attemptsSoFar(publicId) {
     return contactInfoAttempts.get(publicId) || 0;
@@ -894,8 +912,7 @@
     if (inFlight) return inFlight;
 
     const previous = contactInfoSettled.get(publicId);
-    if (previous?.emails.length > 0) return previous;
-    if (previous && attemptsSoFar(publicId) >= CONTACT_INFO_ATTEMPTS) return previous;
+    if (previous && contactInfoFinal.has(publicId)) return previous;
 
     const run = (async () => {
       const result = { emails: [], websites: [] };
@@ -988,13 +1005,23 @@
       contactInfoSettled.set(publicId, value);
       evictOldest(contactInfoSettled, CONTACT_INFO_CACHE_LIMIT);
       /*
-       * Release the in-flight entry when there was nothing to show, so the next
-       * scrape genuinely re-runs instead of being handed this same empty answer.
-       * A result with an address stays cached: it cannot improve, and re-opening
-       * the dialog on a profile we have already read is pure cost to the user.
+       * Is there any point asking again?
+       *
+       * Only when the read came back empty *and* the profile still had not
+       * rendered — that is the early-read case the retry exists for. An address
+       * found, a profile that rendered, or a spent budget all mean this is the
+       * answer, and the entry stays cached so nothing reopens the dialog.
        */
-      if (value.emails.length === 0 && contactInfoCache.get(publicId) === run) {
-        contactInfoCache.delete(publicId);
+      const worthRetrying =
+        value.emails.length === 0 &&
+        !profileRendered() &&
+        attemptsSoFar(publicId) < CONTACT_INFO_ATTEMPTS;
+
+      if (worthRetrying) {
+        if (contactInfoCache.get(publicId) === run) contactInfoCache.delete(publicId);
+      } else {
+        contactInfoFinal.add(publicId);
+        evictOldest(contactInfoFinal, CONTACT_INFO_CACHE_LIMIT);
       }
     };
 
@@ -1084,10 +1111,7 @@
      * instant one empty result settled — is what stopped the retry from ever
      * being attempted, no matter how many mutations later the page rendered.
      */
-    const pendingContactInfo =
-      !deep &&
-      emails.length === 0 &&
-      (!contactInfoSettled.has(publicId) || attemptsSoFar(publicId) < CONTACT_INFO_ATTEMPTS);
+    const pendingContactInfo = !deep && emails.length === 0 && !contactInfoFinal.has(publicId);
 
     // The company's domain, for finding an address when the profile has none.
     // A personal site is a better signal than nothing, and the finder rejects

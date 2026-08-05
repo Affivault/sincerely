@@ -807,11 +807,21 @@ try {
   /* ---------------- 401 handling ---------------- */
 
   await popup.evaluate((key) => chrome.storage.local.set({ apiKey: key }), REVOKED_API_KEY);
+  /*
+   * The Prospector check above left an error in #status. Waiting for "#status
+   * has the error class" is therefore already satisfied on entry, and this
+   * asserted against the *previous* message — so a real auth failure and no
+   * auth call at all looked identical. Wait for the text to actually change.
+   */
+  const staleStatus = await popup.textContent('#status');
   await popup.fill('#email', 'someone@else.example.com');
   await settled(popup);
   await popup.waitForFunction(
-    () => document.getElementById('status')?.classList.contains('error'),
-    null,
+    (before) => {
+      const node = document.getElementById('status');
+      return node?.classList.contains('error') && node.textContent !== before;
+    },
+    staleStatus,
     { timeout: 15000 }
   );
   const authStatus = await popup.textContent('#status');
