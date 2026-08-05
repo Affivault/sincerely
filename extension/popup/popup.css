@@ -30,6 +30,20 @@ html {
   max-height: 600px;
 }
 
+/*
+ * As the sidebar, the same markup fills whatever width Chrome gives it and runs
+ * the full height of the window. 400×600 is a *popup* constraint, not a design
+ * one — keeping it here would leave a narrow column pinned against the edge of
+ * a panel the user can resize.
+ */
+html.surface-sidepanel,
+html.surface-sidepanel body {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+}
+
 body {
   width: 400px;
   max-height: 600px;

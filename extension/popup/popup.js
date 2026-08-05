@@ -117,6 +117,9 @@ const el = {
   findAll: document.getElementById('find-all'),
 
   noEmailHelp: document.getElementById('no-email-help'),
+  sitePermission: document.getElementById('site-permission'),
+  sitePermissionText: document.getElementById('site-permission-text'),
+  sitePermissionGrant: document.getElementById('site-permission-grant'),
   suppressBlock: document.getElementById('suppress-block'),
   prospectFind: document.getElementById('prospect-find'),
   prospectResult: document.getElementById('prospect-result'),
@@ -128,6 +131,18 @@ const el = {
 
   status: document.getElementById('status'),
 };
+
+/**
+ * Popup or sidebar.
+ *
+ * Both are this same page — the manifest points the side panel at it with
+ * `?surface=sidepanel`, so there is one implementation of the UI rather than
+ * two that drift. Only three things differ: how it is sized, whether Escape
+ * closes it, and whether it follows the active tab.
+ */
+const SURFACE = new URLSearchParams(location.search).get('surface') || 'popup';
+const IS_SIDEBAR = SURFACE === 'sidepanel';
+document.documentElement.classList.toggle('surface-sidepanel', IS_SIDEBAR);
 
 const state = {
   person: null,
@@ -2072,6 +2087,7 @@ function wireEvents() {
   el.suppress.addEventListener('click', suppressPerson);
   el.searchByName.addEventListener('click', searchByName);
   el.prospectFind.addEventListener('click', prospectFind);
+  el.sitePermissionGrant.addEventListener('click', grantSite);
   el.scan.addEventListener('click', scanSite);
   el.scanAdd.addEventListener('click', addScanned);
   el.scanNewOnly.addEventListener('click', selectNewOnly);
@@ -2097,7 +2113,9 @@ function wireEvents() {
         toggleListPop(false);
         return;
       }
-      window.close();
+      // A popup is dismissed with Escape; the sidebar is a place, and closing
+      // it out from under someone who meant to clear a field would be rude.
+      if (!IS_SIDEBAR) window.close();
       return;
     }
     if (event.key === 'Enter' && event.target === document.body && !el.add.disabled) {
@@ -2107,12 +2125,60 @@ function wireEvents() {
   });
 }
 
-async function init() {
-  // Resolve the theme before first paint so the popup never flashes light on a
-  // dark setup.
-  await initTheme();
-  wireEvents();
+/**
+ * Offer to read this site, when Chrome has not let us.
+ *
+ * @param {string|null} origin
+ */
+let pendingSiteOrigin = null;
+function showSitePermission(origin) {
+  pendingSiteOrigin = origin;
+  el.sitePermission.classList.toggle('hidden', !origin);
+  if (!origin) return;
+  el.sitePermissionText.textContent = `Sincerely can't read ${new URL(origin).host} yet.`;
+  el.sitePermissionGrant.disabled = false;
+  el.sitePermissionGrant.textContent = 'Allow on this site';
+}
 
+/**
+ * Ask Chrome for this one site.
+ *
+ * `permissions.request` needs a user gesture from an extension page, which the
+ * sidebar is — so it can ask for itself rather than sending the user to the
+ * options page and back.
+ */
+async function grantSite() {
+  if (!pendingSiteOrigin) return;
+  el.sitePermissionGrant.disabled = true;
+  el.sitePermissionGrant.textContent = 'Asking Chrome…';
+
+  let granted = false;
+  try {
+    granted = await chrome.permissions.request({ origins: [`${pendingSiteOrigin}/*`] });
+  } catch {
+    granted = false;
+  }
+
+  if (!granted) {
+    el.sitePermissionGrant.disabled = false;
+    el.sitePermissionGrant.textContent = 'Allow on this site';
+    setStatus('Chrome did not grant access to this site.', { variant: 'error' });
+    return;
+  }
+
+  showSitePermission(null);
+  retarget();
+}
+
+/**
+ * Read whatever tab is in front of the user now.
+ *
+ * A popup is opened over one page and dies with it, so this used to be all of
+ * `init`. The sidebar outlives the page it was opened from — switch tab, follow
+ * a link, click through to the next profile, and it is still there, showing the
+ * last person it read unless it goes and looks again.
+ */
+async function loadActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const context = await send('GET_CONTEXT', { tabId: tab?.id });
 
@@ -2123,11 +2189,19 @@ async function init() {
     return;
   }
 
+  /*
+   * Both directions, every time. The popup ran this once and then died, so
+   * only ever *showing* a screen was enough. The sidebar runs it again on each
+   * tab switch — leaving the previous screen up would stack the setup panel on
+   * top of the main one once a key was added.
+   */
   if (!context.data.hasKey) {
     /* The dot is hardcoded green with a "Connected" tooltip. On the setup
        screen — where there is no key at all — that was simply untrue. */
     el.connDot.classList.add('hidden');
     el.setup.classList.remove('hidden');
+    el.main.classList.add('hidden');
+    el.actionBar.classList.add('hidden');
     return;
   }
 
@@ -2137,12 +2211,18 @@ async function init() {
     // Key stored but unusable until Chrome grants the origin: not connected.
     el.connDot.classList.add('hidden');
     el.setup.classList.remove('hidden');
+    el.main.classList.add('hidden');
+    el.actionBar.classList.add('hidden');
     askForPermission(context.data.needsPermission);
     return;
   }
 
+  el.connDot.classList.remove('hidden');
+  el.setup.classList.add('hidden');
   el.main.classList.remove('hidden');
   el.actionBar.classList.remove('hidden');
+
+  showSitePermission(context.data.needsSitePermission || null);
   state.person = context.data.person;
   state.appUrl = String(context.data.appUrl || '').replace(/\/+$/, '');
   state.tabUrl = tab?.url || '';
@@ -2163,8 +2243,12 @@ async function init() {
    * it strands the keyboard on a control that does nothing. With an address in
    * hand, Enter adds to the shown destination straight away.
    */
-  if (hasEmail) el.add.focus();
-  else el.email.focus();
+  // Not in the sidebar: it is already on screen, and grabbing focus on every
+  // tab switch would take the cursor out of whatever the user is typing.
+  if (!IS_SIDEBAR) {
+    if (hasEmail) el.add.focus();
+    else el.email.focus();
+  }
 
   await Promise.all([
     loadLists(context.data.lastListId),
@@ -2172,6 +2256,43 @@ async function init() {
     deepenPerson(tab?.id),
   ]);
 }
+
+/**
+ * Re-read the page, discarding what belonged to the last one.
+ *
+ * Everything here is about a specific person on a specific page, so carrying it
+ * across a tab switch would show the previous profile's memberships, warnings
+ * and duplicate hints beside the new one's name — worse than showing nothing.
+ */
+let retargetTimer = null;
+function retarget() {
+  clearTimeout(retargetTimer);
+  // One navigation fires several of these; settle before doing the work.
+  retargetTimer = setTimeout(() => {
+    Object.assign(state, {
+      person: null,
+      contact: null,
+      memberships: [],
+      engagement: null,
+      suppressed: false,
+      possibleDuplicate: null,
+      suppressArmed: false,
+      bulkArmed: false,
+      looking: false,
+    });
+    clearStatus();
+    loadActiveTab().catch((err) =>
+      setStatus(err?.message || 'Could not read that page.', { variant: 'error' })
+    );
+  }, 250);
+}
+
+/*
+ * Reachable from the test suite. A real side panel reads the tab underneath it,
+ * which Playwright cannot stage — opened as a tab it would only ever read
+ * itself — so the re-read is driven directly instead of being left unchecked.
+ */
+window.__sincerelyRetarget = retarget;
 
 /**
  * Ask the page for LinkedIn's contact info, after the popup is already drawn.
@@ -2213,6 +2334,28 @@ async function deepenPerson(tabId) {
   renderAll();
   setStatus(`Found ${person.email} on this profile.`, { variant: 'success' });
   await refreshStanding();
+}
+
+async function init() {
+  // Resolve the theme before first paint so nothing flashes light on a dark
+  // setup.
+  await initTheme();
+  wireEvents();
+
+  if (IS_SIDEBAR) {
+    chrome.tabs.onActivated.addListener(retarget);
+    chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+      /*
+       * `status: complete` alone misses client-side routing, which is most of
+       * LinkedIn — moving between profiles changes the URL without a reload,
+       * and that is exactly the case this surface exists for.
+       */
+      if (!tab?.active) return;
+      if (changeInfo.status === 'complete' || changeInfo.url) retarget();
+    });
+  }
+
+  await loadActiveTab();
 }
 
 init().catch((err) => {

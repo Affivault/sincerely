@@ -486,14 +486,63 @@ async function handleDeepScrape(payload) {
   return { ok: true, data: { person } };
 }
 
+/**
+ * The origin this tab would need granting, or null if nothing is missing.
+ *
+ * The sidebar changed what this means. A popup is opened by clicking the
+ * toolbar icon, and that click grants `activeTab` for the tab underneath — so
+ * reading an ordinary website always worked. The sidebar stays open and follows
+ * the user from tab to tab, and no click happens on the way, so `activeTab`
+ * covers only the tab it was opened over. On every other site the scrape simply
+ * returned nothing and the panel said "Nobody detected", which is indis-
+ * tinguishable from a page with no addresses on it.
+ *
+ * @param {number} tabId
+ * @returns {Promise<string|null>}
+ */
+async function missingSitePermission(tabId) {
+  let url;
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    /*
+     * `tab.url` is why this needs the `tabs` permission. Without it Chrome
+     * redacts the URL of any tab the extension cannot already reach — which is
+     * precisely the tabs this function exists to ask about, so there would be no
+     * origin to name in the request.
+     */
+    url = new URL(tab.url || '');
+  } catch {
+    return null;
+  }
+
+  // Nothing to grant on a page no extension may script.
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+
+  try {
+    const granted = await chrome.permissions.contains({ origins: [`${url.origin}/*`] });
+    return granted ? null : url.origin;
+  } catch {
+    return null;
+  }
+}
+
 async function handleGetContext(payload) {
   const settings = await getSettings();
   // Fast path only. See handleDeepScrape.
   const person = payload.tabId ? await scrapeTab(payload.tabId) : null;
 
+  /*
+   * Only worth asking about when the read actually came back empty-handed. A
+   * declared host like LinkedIn scrapes fine without any extra grant, and
+   * prompting there would be asking for something we do not need.
+   */
+  const needsSite =
+    !person && payload.tabId ? await missingSitePermission(payload.tabId) : null;
+
   return {
     ok: true,
     data: {
+      needsSitePermission: needsSite,
       hasKey: Boolean(settings.apiKey),
       apiBaseUrl: settings.apiBaseUrl,
       keyPrefix: settings.apiKey ? `${settings.apiKey.slice(0, 12)}…` : null,
@@ -1803,8 +1852,36 @@ async function handleConnectApply(payload) {
 /* ------------------------------------------------------------------ */
 
 /** @type {Record<string, (payload: any) => Promise<any>>} */
+/**
+ * Open the sidebar for the tab the click came from.
+ *
+ * `chrome.sidePanel` is not exposed to content scripts, so the launcher button
+ * in the page asks for this instead. Chrome requires the call to be traceable
+ * to a user gesture; a message sent straight out of a click handler qualifies.
+ *
+ * @param {object} _payload
+ * @param {chrome.runtime.MessageSender} [sender]
+ */
+async function handleOpenSidePanel(_payload, sender) {
+  const tabId = sender?.tab?.id;
+  const windowId = sender?.tab?.windowId;
+  if (typeof tabId !== 'number' && typeof windowId !== 'number') {
+    return { ok: false, error: { message: 'No tab to open the sidebar for.' } };
+  }
+
+  try {
+    // windowId is the more forgiving of the two: a tab that navigates between
+    // the click and this call would make the tab-scoped form throw.
+    await chrome.sidePanel.open(typeof windowId === 'number' ? { windowId } : { tabId });
+    return { ok: true, data: { opened: true } };
+  } catch (err) {
+    return { ok: false, error: { message: err?.message || 'Chrome refused to open the sidebar.' } };
+  }
+}
+
 const HANDLERS = {
   GET_CONTEXT: handleGetContext,
+  OPEN_SIDE_PANEL: handleOpenSidePanel,
   DEEP_SCRAPE: handleDeepScrape,
   LIST_LISTS: handleListLists,
   CREATE_LIST: handleCreateList,
@@ -1825,11 +1902,13 @@ const HANDLERS = {
   CONNECT_FROM_TAB: handleConnectFromTab,
 };
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const handler = HANDLERS[message?.type];
   if (!handler) return false;
 
-  handler(message.payload || {})
+  // `sender` is passed through because opening the sidebar needs to know which
+  // tab asked. Every other handler takes only the payload and ignores it.
+  handler(message.payload || {}, sender)
     .then(sendResponse)
     .catch((err) => sendResponse(toErrorPayload(err)));
 
@@ -1852,7 +1931,23 @@ async function syncConnectScript() {
   if (appUrl) await ensureConnectScript(appUrl);
 }
 
+/**
+ * Make the toolbar icon open the sidebar.
+ *
+ * There is no popup any more — one surface, reached the same way from every
+ * page. This setting does not survive a service-worker restart, so it is
+ * re-applied on startup as well as on install.
+ */
+async function useSidePanel() {
+  try {
+    await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  } catch {
+    // A failure here must not take the rest of startup down with it.
+  }
+}
+
 chrome.runtime.onInstalled.addListener(async (details) => {
+  await useSidePanel();
   await rebuildContextMenus();
   await refreshBadge();
   await syncConnectScript();
@@ -1864,6 +1959,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 });
 
 chrome.runtime.onStartup.addListener(async () => {
+  await useSidePanel();
   await rebuildContextMenus();
   await refreshBadge();
   await syncConnectScript();

@@ -26,6 +26,7 @@ const el = {
   theme: document.getElementById('theme'),
   appUrl: document.getElementById('app-url'),
   showBadge: document.getElementById('show-badge'),
+  showLauncher: document.getElementById('show-launcher'),
   autoTag: document.getElementById('auto-tag'),
   autoTagName: document.getElementById('auto-tag-name'),
   apiUrl: document.getElementById('api-url'),
@@ -92,6 +93,8 @@ async function load() {
   el.verifyBeforeAdd.checked = Boolean(settings.verifyBeforeAdd);
   el.appUrl.value = settings.appUrl || '';
   el.showBadge.checked = Boolean(settings.showBadge);
+  // Stored as "hidden", shown as "show" — the checkbox reads better positive.
+  el.showLauncher.checked = !settings.launcherHidden;
   el.autoOpenContactInfo.checked = Boolean(settings.autoOpenContactInfo);
   el.autoTag.checked = Boolean(settings.autoTag);
   el.autoTagName.value = settings.autoTagName || '';
@@ -279,6 +282,10 @@ el.apiUrl.addEventListener('change', () => {
   if (el.appUrl.value.trim()) return;
   const guess = guessAppUrl(normaliseBaseUrl(el.apiUrl.value));
   if (guess) el.appUrl.value = guess;
+});
+
+el.showLauncher.addEventListener('change', () => {
+  setSettings({ launcherHidden: !el.showLauncher.checked });
 });
 
 el.showBadge.addEventListener('change', () => {

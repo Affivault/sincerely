@@ -77,28 +77,33 @@ try {
   /* ================================================================ */
 
   /*
-   * The old `deepen()` bailed out whenever a deep read was already running.
-   * Navigate mid-read and the new profile's call returned instantly, and
-   * nothing re-triggered it once the old one finished — so the second profile
-   * never got an address at all.
+   * A deep read that is still running when the user moves on must not stop the
+   * next profile getting one of its own. This used to be a fault in the in-page
+   * panel's `deepen()`, which bailed whenever a read was already in flight and
+   * had nothing to re-trigger it afterwards; with the panel replaced by the
+   * sidebar the concurrency lives in the scraper, so it is driven straight
+   * through DEEP_SCRAPE here rather than through a UI that no longer exists.
    */
   const profile = await context.newPage();
   await profile.goto('https://www.linkedin.com/in/priya-raman/');
   await profile.waitForLoadState('domcontentloaded');
 
-  // Wait for the panel to exist, so the first profile's deep read has started.
-  await profile.waitForFunction(
-    () => document.getElementById('sincerely-panel-host')?.shadowRoot?.querySelector('.panel'),
-    null,
-    { timeout: 20000 }
+  const profileTabId = await worker.evaluate(async () => {
+    const tabs = await chrome.tabs.query({});
+    return tabs.find((t) => (t.url || '').includes('priya-raman'))?.id ?? null;
+  });
+
+  // Start the first profile's read and deliberately leave it running.
+  const firstRead = worker.evaluate(
+    (id) => chrome.tabs.sendMessage(id, { type: 'SINCERELY_SCRAPE_DEEP' }).catch(() => null),
+    profileTabId
   );
 
   /*
-   * Now move to another profile the way LinkedIn does — pushState and a DOM
-   * swap, with no document reload. That distinction is the whole test: a full
+   * Move to another profile the way LinkedIn does — pushState and a DOM swap,
+   * with no document reload. That distinction is the whole test: a full
    * navigation tears down the content script and takes the in-flight state with
-   * it, so the bug cannot reproduce. Only an SPA navigation leaves the previous
-   * profile's deep read running while the next one asks for its own.
+   * it, so the bug cannot reproduce.
    */
   await profile.evaluate(() => {
     history.pushState({}, '', '/in/quiet-profile/');
@@ -107,19 +112,20 @@ try {
     main.querySelector('#ci').setAttribute('href', '/in/quiet-profile/overlay/contact-info/');
   });
 
-  const found = await profile.waitForFunction(
-    () => {
-      const text = document.getElementById('sincerely-panel-host')?.shadowRoot?.querySelector('.panel')?.textContent || '';
-      return text.includes('@') ? text : null;
-    },
-    null,
-    { timeout: 25000 }
-  ).then((h) => h.jsonValue()).catch(() => null);
+  let second = null;
+  for (let i = 0; i < 20 && !second?.email; i += 1) {
+    second = await worker.evaluate(
+      (id) => chrome.tabs.sendMessage(id, { type: 'SINCERELY_SCRAPE_DEEP' }).catch(() => null),
+      profileTabId
+    );
+    if (!second?.email) await profile.waitForTimeout(400);
+  }
+  await firstRead;
 
   check(
     'a profile opened during another profile’s deep read still gets its address',
-    typeof found === 'string' && found.includes(ADDRESS),
-    String(found).slice(0, 120)
+    second?.email === ADDRESS,
+    second?.email || 'none'
   );
   await profile.close();
 

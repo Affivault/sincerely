@@ -28,7 +28,7 @@ const BROWSER = [
   'connect.mjs',
   'tabconnect.mjs',
   'coldstart.mjs',
-  'panel.mjs',
+  'launcher.mjs',
   'listbar.mjs',
   'scan.mjs',
   'fastpath.mjs',
