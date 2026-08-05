@@ -23,7 +23,11 @@ export const crmController = {
 
   // Tasks
   async listTasks(req: AuthRequest, res: Response, next: NextFunction) {
-    try { res.json(await crmService.listTasks(req.userId!)); } catch (err) { next(err); }
+    try {
+      const contactId = typeof req.query.contact_id === 'string' ? req.query.contact_id : undefined;
+      const dealId = typeof req.query.deal_id === 'string' ? req.query.deal_id : undefined;
+      res.json(await crmService.listTasks(req.userId!, { contactId, dealId }));
+    } catch (err) { next(err); }
   },
   async createTask(req: AuthRequest, res: Response, next: NextFunction) {
     try { res.status(201).json(await crmService.createTask(req.userId!, req.body)); } catch (err) { next(err); }
@@ -40,7 +44,9 @@ export const crmController = {
     try {
       const from = typeof req.query.from === 'string' ? req.query.from : undefined;
       const to = typeof req.query.to === 'string' ? req.query.to : undefined;
-      res.json(await crmService.listEvents(req.userId!, from, to));
+      const contactId = typeof req.query.contact_id === 'string' ? req.query.contact_id : undefined;
+      const dealId = typeof req.query.deal_id === 'string' ? req.query.deal_id : undefined;
+      res.json(await crmService.listEvents(req.userId!, from, to, { contactId, dealId }));
     } catch (err) { next(err); }
   },
   async createEvent(req: AuthRequest, res: Response, next: NextFunction) {
@@ -51,5 +57,31 @@ export const crmController = {
   },
   async deleteEvent(req: AuthRequest, res: Response, next: NextFunction) {
     try { await crmService.deleteEvent(req.userId!, req.params.id); res.status(204).send(); } catch (err) { next(err); }
+  },
+
+  /* ── Notes ── */
+  async listNotes(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const contactId = typeof req.query.contact_id === 'string' ? req.query.contact_id : undefined;
+      const dealId = typeof req.query.deal_id === 'string' ? req.query.deal_id : undefined;
+      res.json(await crmService.listNotes(req.userId!, { contactId, dealId }));
+    } catch (err) { next(err); }
+  },
+
+  async createNote(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.status(201).json(await crmService.createNote(req.userId!, req.body)); } catch (err) { next(err); }
+  },
+
+  async updateNote(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await crmService.updateNote(req.userId!, req.params.id, req.body)); } catch (err) { next(err); }
+  },
+
+  async deleteNote(req: AuthRequest, res: Response, next: NextFunction) {
+    try { await crmService.deleteNote(req.userId!, req.params.id); res.status(204).send(); } catch (err) { next(err); }
+  },
+
+  /** Everything CRM knows about one contact, for the profile page. */
+  async contactSummary(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await crmService.contactSummary(req.userId!, req.params.contactId)); } catch (err) { next(err); }
   },
 };

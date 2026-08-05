@@ -265,7 +265,9 @@ export function BulkImportPage() {
       const batch = mapped.slice(i, i + BATCH_SIZE);
       const batchNum = Math.floor(i / BATCH_SIZE) + 1;
       try {
-        const result: BulkImportResult = await contactsApi.bulkCreate(batch, listId || undefined);
+        // The filename travels with every batch so each contact remembers
+        // which import it arrived in.
+        const result: BulkImportResult = await contactsApi.bulkCreate(batch, listId || undefined, file?.name);
         imported += result.imported;
         errors += result.errors;
         if (result.error_details && errorDetails.length < 200) {
@@ -298,7 +300,7 @@ export function BulkImportPage() {
     });
     setStep('complete');
     queryClient.invalidateQueries({ queryKey: ['lists'] });
-  }, [allRows, mapping, mappingValid, listChoiceValid, listMode, targetListId, newListName, queryClient]);
+  }, [allRows, mapping, mappingValid, listChoiceValid, listMode, targetListId, newListName, queryClient, file]);
 
   const cancel = () => {
     cancelRef.current = true;

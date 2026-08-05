@@ -71,7 +71,7 @@ export const contactsController = {
 
   async bulkCreate(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { contacts, list_id } = req.body || {};
+      const { contacts, list_id, import_source } = req.body || {};
       if (!Array.isArray(contacts)) {
         res.status(400).json({ error: 'Request body must include a contacts array' });
         return;
@@ -84,7 +84,7 @@ export const contactsController = {
         res.status(413).json({ error: 'Batch too large — send at most 1000 contacts per request' });
         return;
       }
-      const result = await contactsService.bulkCreate(req.userId!, contacts, list_id || undefined);
+      const result = await contactsService.bulkCreate(req.userId!, contacts, list_id || undefined, import_source || undefined);
       res.json(result);
     } catch (err) { next(err); }
   },

@@ -6,8 +6,9 @@ import { analyticsApi } from '../../api/analytics.api';
 import { crmApi } from '../../api/crm.api';
 import { inboxApi } from '../../api/inbox.api';
 import { suppressionApi } from '../../api/suppression.api';
-import { DealModal, EventModal } from '../crm/CrmPage';
+import { DealModal, EventModal } from '../crm/DealsPage';
 import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
+import { ContactHistory, ContactOrigin } from '../../components/crm/ContactHistory';
 import { EmailBody } from '../../components/shared/EmailBody';
 import { DEAL_STAGES, type Deal, type CrmEvent } from '@lemlist/shared';
 import { Spinner } from '../../components/ui/Spinner';
@@ -74,7 +75,7 @@ export function ContactDetailPage() {
   const [dealModal, setDealModal] = useState<Partial<Deal> | null | undefined>(undefined);
   const [eventModal, setEventModal] = useState<Partial<CrmEvent> | null | undefined>(undefined);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
-  const [detailTab, setDetailTab] = useState<'emails' | 'activity'>('emails');
+  const [detailTab, setDetailTab] = useState<'history' | 'emails' | 'activity'>('history');
   const [openEmailId, setOpenEmailId] = useState<string | null>(null);
 
   const { data: contact, isLoading } = useQuery({
@@ -310,10 +311,14 @@ export function ContactDetailPage() {
               {contact.linkedin_url && <InfoRow icon={Linkedin} label="LinkedIn" value={contact.linkedin_url} isLink />}
               {contact.website && <InfoRow icon={Globe} label="Website" value={contact.website} isLink />}
             </div>
-            <div className="mt-3 pt-3 border-t border-[var(--border-subtle)] text-[11px] text-[var(--text-tertiary)] space-y-1">
-              <p>Source: {contact.source}</p>
-              <p>Created: {formatDate(contact.created_at)}</p>
-              <p>Updated: {formatDate(contact.updated_at)}</p>
+            <div className="mt-3 pt-3 border-t border-[var(--border-subtle)] space-y-1.5">
+              <ContactOrigin
+                source={contact.source}
+                importSource={contact.import_source}
+                importedAt={contact.imported_at}
+                createdAt={contact.created_at}
+              />
+              <p className="text-[11px] text-[var(--text-tertiary)]">Added {formatDate(contact.created_at)} · updated {formatDate(contact.updated_at)}</p>
             </div>
           </div>
 
@@ -434,8 +439,9 @@ export function ContactDetailPage() {
         <div className="lg:col-span-2 card p-0 overflow-hidden">
           <div className="flex items-center gap-1 px-4 h-11 border-b border-[var(--border-subtle)]">
             {([
+              { id: 'history' as const, label: 'History', count: 0 },
               { id: 'emails' as const, label: 'Conversations', count: emails.length },
-              { id: 'activity' as const, label: 'Activity', count: activity.length },
+              { id: 'activity' as const, label: 'Campaign events', count: activity.length },
             ]).map((t) => (
               <button
                 key={t.id}
@@ -451,7 +457,17 @@ export function ContactDetailPage() {
             ))}
           </div>
 
-          {detailTab === 'emails' ? (
+          {detailTab === 'history' ? (
+            <div className="p-3">
+              <ContactHistory
+                contactId={contact.id}
+                contactName={fullName}
+                contactEmail={contact.email}
+                emails={sortedEmails}
+                campaignActivity={activity}
+              />
+            </div>
+          ) : detailTab === 'emails' ? (
             sortedEmails.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-14">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elevated)] mb-2"><MailOpen className="h-4 w-4 text-[var(--text-tertiary)]" /></span>

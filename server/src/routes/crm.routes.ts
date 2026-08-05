@@ -20,3 +20,12 @@ crmRoutes.get('/events', crmController.listEvents);
 crmRoutes.post('/events', crmController.createEvent);
 crmRoutes.put('/events/:id', crmController.updateEvent);
 crmRoutes.delete('/events/:id', crmController.deleteEvent);
+
+// Notes
+crmRoutes.get('/notes', crmController.listNotes);
+crmRoutes.post('/notes', crmController.createNote);
+crmRoutes.put('/notes/:id', crmController.updateNote);
+crmRoutes.delete('/notes/:id', crmController.deleteNote);
+
+// Everything CRM holds about one contact, in one request
+crmRoutes.get('/contact/:contactId/summary', crmController.contactSummary);

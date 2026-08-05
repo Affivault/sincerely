@@ -334,7 +334,10 @@ export const contactsService = {
   async bulkCreate(
     userId: string,
     contacts: Array<Record<string, any>>,
-    listId?: string
+    listId?: string,
+    /** Filename of the CSV this batch came from, recorded on every row so a
+     *  lead's origin is still answerable months later. */
+    importSource?: string,
   ): Promise<{
     total: number;
     imported: number;
@@ -343,6 +346,8 @@ export const contactsService = {
     error_details: { email: string; reason: string }[];
   }> {
     const total = contacts.length;
+    const cleanSource = (importSource || '').trim().slice(0, 200) || null;
+    const importedAt = cleanSource ? new Date().toISOString() : null;
     const errorDetails: { email: string; reason: string }[] = [];
     const valid: any[] = [];
     const ALLOWED_FIELDS = new Set([
@@ -368,6 +373,10 @@ export const contactsService = {
         source: 'csv_import',
         email,
       };
+      if (cleanSource) {
+        row.import_source = cleanSource;
+        row.imported_at = importedAt;
+      }
       for (const [k, v] of Object.entries(c)) {
         if (!ALLOWED_FIELDS.has(k) || k === 'email') continue;
         if (v == null) continue;

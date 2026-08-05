@@ -16,8 +16,16 @@ function pick(body: any, keys: readonly string[]): Record<string, any> {
 }
 
 const DEAL_KEYS = ['title', 'company', 'contact_name', 'contact_email', 'contact_id', 'value', 'currency', 'stage', 'expected_close_date', 'notes', 'position'] as const;
-const TASK_KEYS = ['title', 'due_date', 'priority', 'deal_id', 'contact_name', 'notes', 'is_done'] as const;
-const EVENT_KEYS = ['title', 'type', 'starts_at', 'ends_at', 'contact_name', 'contact_email', 'location', 'notes', 'deal_id'] as const;
+const TASK_KEYS = ['title', 'due_date', 'priority', 'type', 'all_day', 'deal_id', 'contact_id', 'contact_name', 'notes', 'is_done'] as const;
+const EVENT_KEYS = ['title', 'type', 'starts_at', 'ends_at', 'all_day', 'contact_id', 'contact_name', 'contact_email', 'location', 'notes', 'outcome', 'deal_id'] as const;
+const NOTE_KEYS = ['body', 'contact_id', 'deal_id', 'pinned'] as const;
+
+const TASK_TYPES = ['todo', 'call', 'meeting', 'email', 'follow_up', 'deadline'];
+
+/** Linked records the activity views render inline, so one request is enough. */
+const LINKED = 'contact:contacts(id, email, first_name, last_name, company), deal:deals(id, title, stage)';
+const TASK_SELECT = `*, ${LINKED}`;
+const EVENT_SELECT = `*, ${LINKED}`;
 
 /** Coerce/validate deal input in place so bad payloads 400 instead of 500ing at the DB. */
 function sanitizeDealInput(input: Record<string, any>) {
@@ -129,11 +137,14 @@ export const crmService = {
   },
 
   /* ── Tasks ── */
-  async listTasks(userId: string) {
-    const { data, error } = await supabaseAdmin
+  async listTasks(userId: string, filters?: { contactId?: string; dealId?: string }) {
+    let q = supabaseAdmin
       .from('crm_tasks')
-      .select('*')
-      .eq('user_id', userId)
+      .select(TASK_SELECT)
+      .eq('user_id', userId);
+    if (filters?.contactId) q = q.eq('contact_id', filters.contactId);
+    if (filters?.dealId) q = q.eq('deal_id', filters.dealId);
+    const { data, error } = await q
       .order('is_done', { ascending: true })
       .order('due_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false });
@@ -145,11 +156,16 @@ export const crmService = {
     if (!body.title || !String(body.title).trim()) throw new AppError('Task title is required', 400);
     const input = pick(body, TASK_KEYS as any);
     if (input.priority && !TASK_PRIORITIES.includes(input.priority)) throw new AppError('Invalid priority', 400);
+    if (input.type && !TASK_TYPES.includes(input.type)) throw new AppError('Invalid task type', 400);
     if (input.deal_id) await assertOwned(userId, 'deals', input.deal_id, 'Deal');
+    if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
+    // Created already ticked (logging something you just did) still needs a
+    // completion time, or it drops out of "completed today".
+    if (input.is_done && !input.completed_at) input.completed_at = new Date().toISOString();
     const { data, error } = await supabaseAdmin
       .from('crm_tasks')
       .insert({ ...input, user_id: userId })
-      .select()
+      .select(TASK_SELECT)
       .single();
     if (error) throw new AppError(error.message, 500);
     return data;
@@ -158,13 +174,19 @@ export const crmService = {
   async updateTask(userId: string, id: string, body: any) {
     const input = pick(body, TASK_KEYS as any);
     if (input.priority && !TASK_PRIORITIES.includes(input.priority)) throw new AppError('Invalid priority', 400);
+    if (input.type && !TASK_TYPES.includes(input.type)) throw new AppError('Invalid task type', 400);
     if (input.deal_id) await assertOwned(userId, 'deals', input.deal_id, 'Deal');
+    if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
+    // Ticking sets the completion time; un-ticking clears it, so a re-opened
+    // task can't linger in yesterday's "done" pile.
+    if (input.is_done === true) input.completed_at = new Date().toISOString();
+    if (input.is_done === false) input.completed_at = null;
     const { data, error } = await supabaseAdmin
       .from('crm_tasks')
       .update(input)
       .eq('id', id)
       .eq('user_id', userId)
-      .select()
+      .select(TASK_SELECT)
       .single();
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Task not found', 404);
@@ -177,10 +199,12 @@ export const crmService = {
   },
 
   /* ── Events (calendar) ── */
-  async listEvents(userId: string, from?: string, to?: string) {
-    let query = supabaseAdmin.from('crm_events').select('*').eq('user_id', userId);
+  async listEvents(userId: string, from?: string, to?: string, filters?: { contactId?: string; dealId?: string }) {
+    let query = supabaseAdmin.from('crm_events').select(EVENT_SELECT).eq('user_id', userId);
     if (from) query = query.gte('starts_at', from);
     if (to) query = query.lte('starts_at', to);
+    if (filters?.contactId) query = query.eq('contact_id', filters.contactId);
+    if (filters?.dealId) query = query.eq('deal_id', filters.dealId);
     const { data, error } = await query.order('starts_at', { ascending: true });
     if (error) throw new AppError(error.message, 500);
     return data || [];
@@ -192,10 +216,12 @@ export const crmService = {
     const input = pick(body, EVENT_KEYS as any);
     if (input.type && !EVENT_TYPES.includes(input.type)) throw new AppError('Invalid event type', 400);
     if (input.deal_id) await assertOwned(userId, 'deals', input.deal_id, 'Deal');
+    if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
+    await autoLinkContact(userId, input);
     const { data, error } = await supabaseAdmin
       .from('crm_events')
       .insert({ ...input, user_id: userId })
-      .select()
+      .select(EVENT_SELECT)
       .single();
     if (error) throw new AppError(error.message, 500);
     return data;
@@ -205,12 +231,13 @@ export const crmService = {
     const input = pick(body, EVENT_KEYS as any);
     if (input.type && !EVENT_TYPES.includes(input.type)) throw new AppError('Invalid event type', 400);
     if (input.deal_id) await assertOwned(userId, 'deals', input.deal_id, 'Deal');
+    if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
     const { data, error } = await supabaseAdmin
       .from('crm_events')
       .update(input)
       .eq('id', id)
       .eq('user_id', userId)
-      .select()
+      .select(EVENT_SELECT)
       .single();
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Event not found', 404);
@@ -220,5 +247,72 @@ export const crmService = {
   async deleteEvent(userId: string, id: string) {
     const { error } = await supabaseAdmin.from('crm_events').delete().eq('id', id).eq('user_id', userId);
     if (error) throw new AppError(error.message, 500);
+  },
+
+  /* ── Notes ── */
+  async listNotes(userId: string, filters?: { contactId?: string; dealId?: string }) {
+    let q = supabaseAdmin
+      .from('crm_notes')
+      .select('*, deal:deals(id, title, stage)')
+      .eq('user_id', userId);
+    if (filters?.contactId) q = q.eq('contact_id', filters.contactId);
+    if (filters?.dealId) q = q.eq('deal_id', filters.dealId);
+    // Pinned first, then newest — the standing context before the running log.
+    const { data, error } = await q
+      .order('pinned', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (error) throw new AppError(error.message, 500);
+    return data || [];
+  },
+
+  async createNote(userId: string, body: any) {
+    if (!body.body || !String(body.body).trim()) throw new AppError('Note body is required', 400);
+    const input = pick(body, NOTE_KEYS as any);
+    if (!input.contact_id && !input.deal_id) throw new AppError('A note must be attached to a contact or a deal', 400);
+    if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
+    if (input.deal_id) await assertOwned(userId, 'deals', input.deal_id, 'Deal');
+    const { data, error } = await supabaseAdmin
+      .from('crm_notes')
+      .insert({ ...input, body: String(input.body).trim(), user_id: userId })
+      .select('*, deal:deals(id, title, stage)')
+      .single();
+    if (error) throw new AppError(error.message, 500);
+    return data;
+  },
+
+  async updateNote(userId: string, id: string, body: any) {
+    const input = pick(body, NOTE_KEYS as any);
+    if (input.body !== undefined && !String(input.body).trim()) throw new AppError('Note body is required', 400);
+    const { data, error } = await supabaseAdmin
+      .from('crm_notes')
+      .update(input)
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select('*, deal:deals(id, title, stage)')
+      .single();
+    if (error) throw new AppError(error.message, 500);
+    if (!data) throw new AppError('Note not found', 404);
+    return data;
+  },
+
+  async deleteNote(userId: string, id: string) {
+    const { error } = await supabaseAdmin.from('crm_notes').delete().eq('id', id).eq('user_id', userId);
+    if (error) throw new AppError(error.message, 500);
+  },
+
+  /**
+   * Everything CRM holds about one contact, in a single round-trip — the
+   * profile page needs all four lists at once and four sequential requests
+   * made it feel slow.
+   */
+  async contactSummary(userId: string, contactId: string) {
+    await assertOwned(userId, 'contacts', contactId, 'Contact');
+    const [deals, tasks, events, notes] = await Promise.all([
+      this.listDeals(userId, { contactId }),
+      this.listTasks(userId, { contactId }),
+      this.listEvents(userId, undefined, undefined, { contactId }),
+      this.listNotes(userId, { contactId }),
+    ]);
+    return { deals, tasks, events, notes };
   },
 };

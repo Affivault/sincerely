@@ -20,6 +20,11 @@ export interface Contact {
   dcs_smtp_ok: boolean | null;
   dcs_verified_at: string | null;
   dcs_fail_reason: string | null;
+  /** How many live lead lists this contact belongs to (migration 036). */
+  list_count?: number;
+  /** Filename of the CSV this contact was imported from, if any. */
+  import_source?: string | null;
+  imported_at?: string | null;
   created_at: string;
   updated_at: string;
 }
