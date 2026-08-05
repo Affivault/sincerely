@@ -80,7 +80,10 @@ await shot(options, '03-options-connected');
 
 /* ---- popup: nobody detected (opened on a blank tab) ---- */
 const popup = await context.newPage();
-await popup.setViewportSize({ width: 400, height: 700 });
+// Chrome caps a popup at 600px tall and sizes it to its content below that, so
+// a taller viewport prints a slab of tab background under the action bar that
+// no user ever sees — and makes the short states look broken in review.
+await popup.setViewportSize({ width: 400, height: 600 });
 await popup.goto(`chrome-extension://${id}/popup/popup.html`);
 await popup.waitForFunction(() => !document.getElementById('main')?.classList.contains('hidden'), null, {
   timeout: 15000,

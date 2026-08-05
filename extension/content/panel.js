@@ -56,6 +56,8 @@
     findDomain: '',
     /** Which collapsible sections are open. Absent means open. */
     openSections: {},
+    /** Briefly true after Copy, so the button can confirm it worked. */
+    copied: false,
     busy: false,
     message: null,
   };
@@ -187,7 +189,12 @@
       .quick-btn.primary:hover:not(:disabled) .quick-ico {
         background: linear-gradient(180deg, #5A5AF0 0%, #4646E5 100%);
       }
-      .quick-btn.danger:hover:not(:disabled) .quick-ico { background: #FEE9EC; color: #BE123C; }
+      /* Done is a *result*, not a disabled control: it stays fully opaque. */
+      .quick-btn.done, .quick-btn.done:disabled { opacity: 1; cursor: default; }
+      .quick-btn.done .quick-ico {
+        background: #ECFDF5; color: #047857; box-shadow: inset 0 0 0 1px rgba(16,185,129,.35);
+      }
+      .quick-btn.done .quick-label { color: #047857; }
       .quick-label {
         font-size: 11.5px; font-weight: 500; line-height: 1.3; text-align: center;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
@@ -266,11 +273,6 @@
       .found-row .addr { flex: 1; min-width: 0; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
       /* Uppercase micro-labels, as the app labels its sections. */
-      label.lbl {
-        display: block; margin-bottom: 5px;
-        font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
-        color: #8F8E97;
-      }
 
       select.sel, input.txt {
         width: 100%; height: 32px; padding: 0 9px;
@@ -302,11 +304,6 @@
       }
       .btn:active:not(:disabled) { transform: translateY(.5px); }
       .btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
-      /* Already on the list is a satisfied state, not a failure. */
-      .btn.done, .btn.done:disabled {
-        opacity: 1; background: #ECFDF5; color: #047857;
-        border: 1px solid rgba(16,185,129,.35); box-shadow: none;
-      }
       /* Native select arrows look like the operating system, not the product. */
       select.sel {
         appearance: none; -webkit-appearance: none;
@@ -320,9 +317,7 @@
       }
       .btn.secondary:hover:not(:disabled) { background: #EFEDEA; border-color: #C9C5BE; box-shadow: none; }
 
-      /* Inside a titled section now, so it brings no rule or heading of its own. */
       .rows { margin: 0; }
-      .rows-title { display: none; }
       .row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #ECEAE6; }
       .row:last-child { border-bottom: 0; }
       .row-main { flex: 1; min-width: 0; }
@@ -384,7 +379,8 @@
         .quick-btn { color: #F4F4F3; }
         .quick-ico { background: #262626; color: #F4F4F3; }
         .quick-btn:hover:not(:disabled) .quick-ico { background: #303030; }
-        .quick-btn.danger:hover:not(:disabled) .quick-ico { background: rgba(239,68,68,.14); color: #F87171; }
+        .quick-btn.done .quick-ico { background: rgba(34,197,94,.12); color: #4ADE80; box-shadow: inset 0 0 0 1px rgba(34,197,94,.3); }
+        .quick-btn.done .quick-label { color: #4ADE80; }
 
         .sec { border-top-color: #262626; }
         .sec-head { color: #F4F4F3; }
@@ -425,8 +421,13 @@
 
   let lastSignature = null;
 
+  let copiedTimer = null;
+
   function removePanel() {
     lastSignature = null;
+    clearTimeout(copiedTimer);
+    copiedTimer = null;
+    state.copied = false;
     document.getElementById(HOST_ID)?.remove();
     root = null;
   }
@@ -522,6 +523,7 @@
       state.lists.map((l) => `${l.id}:${l.contact_count}`),
       state.selectedListId,
       state.openSections,
+      state.copied,
       state.prospect === undefined ? 'none' : state.prospect,
       state.found,
       state.message,
@@ -534,6 +536,8 @@
     search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
     block: '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
     open: '<path d="M14 3h7v7"/><path d="M21 3 10 14"/><path d="M19 14v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6"/>',
+    check: '<path d="m20 6-11 11-5-5"/>',
+    copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
     chevron: '<path d="m6 9 6 6 6-6"/>',
   };
 
@@ -612,6 +616,22 @@
 
   function render() {
     /*
+     * Never build a panel on a page that should not have one.
+     *
+     * `ensureRoot()` recreates its host if it has gone, so *any* render that
+     * lands after the panel was taken down puts it back — and several do land
+     * late: the copy confirmation's timer, and `setMessage` from an add that
+     * was still in flight when the user navigated. Without this the panel
+     * reappears on the LinkedIn feed seconds after leaving a profile. One guard
+     * here covers every one of those paths, where patching each caller would
+     * miss the next one.
+     */
+    if (!panelContext()) {
+      removePanel();
+      return;
+    }
+
+    /*
      * Rebuilding the DOM is the only way this panel updates, so a render that
      * changes nothing is not free — it drops focus out of the domain box
      * mid-typing, resets the scroll position, and makes the panel visibly
@@ -634,8 +654,15 @@
     head.appendChild(logo);
     if (!state.collapsed) head.appendChild(el('span', 'title', 'sincerely'));
 
-    const toggle = el('button', null, state.collapsed ? '‹' : '×');
-    toggle.title = state.collapsed ? 'Open Sincerely' : 'Collapse';
+    /*
+     * Chevrons, not a cross. On a docked rail a × reads as "dismiss this", and
+     * a panel that looks dismissed-for-good is one people do not try to get
+     * back. An arrow pointing at the edge says where it is going.
+     */
+    const toggle = el('button', null, state.collapsed ? '‹' : '›');
+    toggle.title = state.collapsed ? 'Open Sincerely' : 'Hide the panel';
+    toggle.setAttribute('aria-label', state.collapsed ? 'Open Sincerely' : 'Hide the Sincerely panel');
+    toggle.setAttribute('aria-expanded', String(!state.collapsed));
     toggle.addEventListener('click', async () => {
       state.collapsed = !state.collapsed;
       await chrome.storage.local.set({ [COLLAPSED_KEY]: state.collapsed });
@@ -800,30 +827,75 @@
     const target = state.lists.find((l) => l.id === state.selectedListId);
     const alreadyOn = Boolean(target) && state.memberships.some((m) => m.id === target.id);
 
+    /*
+     * Already on the chosen list is a *satisfied* state, not a failure. Drawn
+     * as a plain disabled button it reads as broken — the old primary button
+     * had a green "done" treatment for exactly this reason and rebuilding the
+     * card lost it.
+     */
     card.appendChild(
       quickAction({
         label: alreadyOn ? 'On list' : 'Add to list',
-        glyph: 'add',
-        variant: 'primary',
+        glyph: alreadyOn ? 'check' : 'add',
+        variant: alreadyOn ? 'done' : 'primary',
         disabled: state.busy || !person.email || state.lists.length === 0 || alreadyOn,
-        title: target
-          ? alreadyOn
-            ? `Already on "${target.name}"`
-            : `Add to "${target.name}"`
-          : 'Choose a lead list below first',
+        /*
+         * Name the thing that is actually missing. This used to say "choose a
+         * lead list below" whenever no list was selected — including when the
+         * profile has no address, where the picker below isn't drawn at all, so
+         * it pointed at a control that wasn't on screen.
+         */
+        title: !person.email
+          ? 'No address for this person yet'
+          : state.lists.length === 0
+            ? 'No lead lists on this account yet'
+            : alreadyOn
+              ? `Already on "${target.name}"`
+              : target
+                ? `Add to "${target.name}"`
+                : 'Choose a lead list below first',
         onClick: addToList,
       })
     );
 
-    card.appendChild(
-      quickAction({
-        label: 'Find email',
-        glyph: 'search',
-        disabled: state.busy || Boolean(person.email),
-        title: person.email ? 'This profile already has an address' : 'Look this person up',
-        onClick: findEmail,
-      })
-    );
+    /*
+     * The second slot follows the address rather than sitting dead half the time.
+     *
+     * With one, copying it is the thing people actually want. Without one, this
+     * takes you to the finder — it does **not** run the prospect search. That
+     * search costs a credit, and promoting it to a top-level icon with no price
+     * next to it, clickable while the free contact-info read was still running,
+     * was a way to spend money by accident. The paid route keeps its own button
+     * further down, under the free one, with the cost written beside it.
+     */
+    if (person.email) {
+      card.appendChild(
+        quickAction({
+          label: state.copied ? 'Copied' : 'Copy email',
+          glyph: state.copied ? 'check' : 'copy',
+          variant: state.copied ? 'done' : undefined,
+          disabled: state.busy,
+          title: `Copy ${person.email}`,
+          onClick: () => copyEmail(person.email),
+        })
+      );
+    } else {
+      card.appendChild(
+        quickAction({
+          label: 'Find email',
+          glyph: 'search',
+          disabled: state.busy || state.lookingForEmail,
+          title: state.lookingForEmail
+            ? 'Still reading this profile’s contact info…'
+            : 'Go to the finder — nothing is charged',
+          onClick: () => {
+            state.openSections.contact = true;
+            render();
+            focusFinder();
+          },
+        })
+      );
+    }
 
     card.appendChild(
       quickAction({
@@ -840,6 +912,69 @@
     );
 
     return card;
+  }
+
+  /**
+   * Put the cursor in the domain box, wherever the section happens to be.
+   *
+   * Done straight after render rather than through a state flag: a flag has to
+   * survive the no-op render guard, and pressing Find a second time changes
+   * nothing about the state, so the guard would skip the repaint and the focus
+   * with it.
+   */
+  function focusFinder() {
+    const input = ensureRoot().querySelector('.finder input.txt');
+    if (!input) return;
+    input.focus();
+    input.scrollIntoView?.({ block: 'nearest' });
+  }
+
+  /**
+   * Put the address on the clipboard.
+   *
+   * @param {string} address
+   */
+  async function copyEmail(address) {
+    if (!address) return;
+    let ok = false;
+
+    try {
+      await navigator.clipboard.writeText(address);
+      ok = true;
+    } catch {
+      /*
+       * The Clipboard API needs a secure context and user activation, and a
+       * page's permissions policy can refuse it outright. The selection trick
+       * still works in all of those cases.
+       */
+      try {
+        const scratch = document.createElement('textarea');
+        scratch.value = address;
+        scratch.setAttribute('readonly', '');
+        scratch.style.cssText = 'position:fixed;top:-1000px;opacity:0;';
+        document.body.appendChild(scratch);
+        scratch.select();
+        ok = document.execCommand('copy');
+        scratch.remove();
+      } catch {
+        ok = false;
+      }
+    }
+
+    if (!ok) {
+      return setMessage('Could not reach the clipboard — select the address and copy it.', 'error');
+    }
+
+    state.copied = true;
+    render();
+    // Long enough to be seen, short enough that the button doesn't stay lying
+    // about its own state. Cleared on teardown so it can't fire into a panel
+    // that has gone.
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => {
+      state.copied = false;
+      render();
+    }, 1600);
   }
 
   /**

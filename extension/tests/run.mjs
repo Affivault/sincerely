@@ -33,6 +33,14 @@ const BROWSER = [
   'scan.mjs',
   'fastpath.mjs',
   'regressions.mjs',
+  /*
+   * Screenshots of every surface, last because it asserts nothing — it only
+   * produces the images the UI gets judged from. It sat in this directory
+   * unlisted, so those images went stale for weeks while the panel was
+   * rebuilt underneath them, which is exactly how a design regression ships
+   * unnoticed.
+   */
+  'shots.mjs',
 ];
 
 const only = process.argv[2];
