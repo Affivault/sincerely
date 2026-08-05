@@ -28,13 +28,28 @@ export const teamService = {
       .single();
     if (error) throw new AppError(error.message, 500);
 
-    // Add the owner as a member
-    await supabaseAdmin.from('team_members').insert({
+    // Add the owner as a member. team_members.user_id is unique, so if a
+    // concurrent call (e.g. two open tabs on a brand-new account) already
+    // won this race and inserted first, this fails instead of silently
+    // succeeding — discard the org we just created and defer to theirs
+    // rather than leaving two orgs behind with only one reachable.
+    const { error: memberError } = await supabaseAdmin.from('team_members').insert({
       org_id: org.id,
       user_id: userId,
       role: 'owner',
       email: user?.user?.email,
     });
+
+    if (memberError) {
+      await supabaseAdmin.from('organizations').delete().eq('id', org.id);
+      const { data: winner } = await supabaseAdmin
+        .from('team_members')
+        .select('*, organizations(*)')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (winner) return winner.organizations;
+      throw new AppError(memberError.message, 500);
+    }
 
     return org;
   },
