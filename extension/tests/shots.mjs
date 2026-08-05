@@ -110,12 +110,25 @@ await popup.waitForTimeout(1200);
 await shot(popup, '07-popup-error');
 await popup.close();
 
-/* ---- LinkedIn panel ---- */
+/* ---- the sidebar, at the shape Chrome actually gives it ---- */
+const sidebar = await context.newPage();
+// Chrome's side panel opens near this width and runs the full window height.
+await sidebar.setViewportSize({ width: 400, height: 860 });
+await sidebar.goto(`chrome-extension://${id}/popup/popup.html?surface=sidepanel`);
+await sidebar.waitForFunction(() => !document.getElementById('main')?.classList.contains('hidden'), null, {
+  timeout: 15000,
+});
+await sidebar.fill('#email', 'jane.doe@acme.com');
+await sidebar.waitForTimeout(1800);
+await shot(sidebar, '08-sidebar');
+await sidebar.close();
+
+/* ---- the in-page launcher that opens it ---- */
 const li = await context.newPage();
 await li.setViewportSize({ width: 1280, height: 900 });
 await li.goto('https://www.linkedin.com/in/priya-raman/');
-await li.waitForTimeout(6000);
-await shot(li, '08-linkedin-panel');
+await li.waitForTimeout(4000);
+await shot(li, '09-linkedin-launcher');
 await li.close();
 
 await context.close();

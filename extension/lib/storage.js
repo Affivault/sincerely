@@ -6,7 +6,7 @@
  * a credential should stay on the machine it was entered on.
  */
 
-/** @typedef {{apiBaseUrl: string, apiKey: string, lastListId: string|null, verifyBeforeAdd: boolean, autoTag: boolean, autoTagName: string, appUrl: string, showBadge: boolean, autoOpenContactInfo: boolean}} Settings */
+/** @typedef {{apiBaseUrl: string, apiKey: string, lastListId: string|null, verifyBeforeAdd: boolean, autoTag: boolean, autoTagName: string, appUrl: string, showBadge: boolean, autoOpenContactInfo: boolean, launcherHidden: boolean}} Settings */
 
 /**
  * The live API. Keep this in step with the deployment's VITE_API_URL — it is
@@ -38,6 +38,13 @@ const DEFAULTS = {
    * LinkedIn's UI, so it can be turned off.
    */
   autoOpenContactInfo: true,
+  /**
+   * Hide the in-page button that opens the sidebar. Stored inverted — false is
+   * the default and means "shown" — because the button dismisses itself, and a
+   * setting that only ever gets written when somebody hides it is simpler than
+   * one that has to be seeded on install.
+   */
+  launcherHidden: false,
 };
 
 /**

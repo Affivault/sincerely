@@ -547,7 +547,7 @@ lib/theme.css          Design system, ported from client/src/index.css
 lib/theme.js           Light/dark/system resolution, mirroring ThemeContext
 fonts/                 Inter + JetBrains Mono (bundled, never fetched)
 content/scraper.js     Classic script: LinkedIn/Gmail/generic adapters, floating button
-content/panel.js       In-page side panel on LinkedIn and Gmail
+content/launcher.js    In-page button that opens the sidebar
 content/list-select.js Row checkboxes + bulk bar on search results
 content/connect.js     Runs on the app's own pages; relays a key on one-click connect
 popup/                 Main UI

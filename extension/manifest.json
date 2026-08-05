@@ -5,11 +5,13 @@
   "description": "Add and remove people from your Sincerely campaigns from LinkedIn, Gmail, or any page.",
   "minimum_chrome_version": "116",
   "permissions": [
-    "storage",
     "activeTab",
-    "scripting",
     "contextMenus",
-    "notifications"
+    "notifications",
+    "scripting",
+    "sidePanel",
+    "storage",
+    "tabs"
   ],
   "optional_host_permissions": [
     "http://*/*",
@@ -28,8 +30,7 @@
     "type": "module"
   },
   "action": {
-    "default_popup": "popup/popup.html",
-    "default_title": "Sincerely \u2014 add to campaign",
+    "default_title": "Sincerely \u2014 open the sidebar",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",
@@ -65,8 +66,8 @@
       ],
       "js": [
         "content/scraper.js",
-        "content/panel.js",
-        "content/list-select.js"
+        "content/list-select.js",
+        "content/launcher.js"
       ],
       "run_at": "document_idle"
     },
@@ -100,5 +101,8 @@
       },
       "description": "Open Sincerely campaign manager"
     }
+  },
+  "side_panel": {
+    "default_path": "popup/popup.html?surface=sidepanel"
   }
 }
