@@ -3,6 +3,7 @@ import { AppError } from '../middleware/error.middleware.js';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { fireEvent } from './webhook.service.js';
 import { segmentsService } from './segments.service.js';
+import { UNLISTED_LIST_ID } from '@lemlist/shared';
 import Papa from 'papaparse';
 import fs from 'node:fs';
 
@@ -22,13 +23,34 @@ interface ListParams {
   sort_order?: string;
 }
 
+/**
+ * The "Not in Lists" view is resolved against contacts.list_count (migration
+ * 036), which a trigger keeps equal to the number of non-trashed lists a
+ * contact belongs to. Doing it that way — rather than fetching every listed
+ * contact id and negating — keeps it a single indexed predicate that composes
+ * with search, sort, status filters and pagination, at any list size.
+ */
+function isUnlisted(listId?: string): boolean {
+  return listId === UNLISTED_LIST_ID;
+}
+
+/** Turn the "column doesn't exist" error into an instruction, once. */
+function assertListCountColumn(error: { message?: string } | null): void {
+  if (error?.message && /list_count/.test(error.message) && /column/i.test(error.message)) {
+    throw new AppError(
+      '"Not in Lists" needs database migration 036_contact_list_count.sql — run it in Supabase, then reload.',
+      503,
+    );
+  }
+}
+
 export const contactsService = {
   async list(userId: string, params: ListParams) {
     const { page, limit, from, to } = getPagination(params);
 
     // If filtering by list_id, get contact IDs in that list first
     let listContactIds: string[] | null = null;
-    if (params.list_id) {
+    if (params.list_id && !isUnlisted(params.list_id)) {
       const { data: listContacts } = await supabaseAdmin
         .from('list_contacts')
         .select('contact_id')
@@ -60,6 +82,11 @@ export const contactsService = {
     // Filter by list contacts if specified
     if (listContactIds) {
       query = query.in('id', listContactIds);
+    }
+
+    // "Not in Lists" — everyone with no live list membership.
+    if (isUnlisted(params.list_id)) {
+      query = query.eq('list_count', 0);
     }
 
     // Filter by tag contacts if specified
@@ -125,7 +152,7 @@ export const contactsService = {
     query = query.order(sortBy, { ascending: sortOrder }).range(from, to);
 
     const { data, count, error } = await query;
-    if (error) throw new AppError(error.message, 500);
+    if (error) { assertListCountColumn(error); throw new AppError(error.message, 500); }
 
     const contacts = (data || []).map((c: any) => ({
       ...c,
@@ -598,6 +625,8 @@ export const contactsService = {
 
     if (contactIds && contactIds.length > 0) {
       query = query.in('id', contactIds);
+    } else if (isUnlisted(listId)) {
+      query = query.eq('list_count', 0);
     } else if (listId) {
       // No explicit selection — the caller is exporting whatever list they're
       // currently viewing, so scope to it instead of the whole account.
@@ -613,7 +642,7 @@ export const contactsService = {
     }
 
     const { data, error } = await query;
-    if (error) throw new AppError(error.message, 500);
+    if (error) { assertListCountColumn(error); throw new AppError(error.message, 500); }
 
     if (format === 'json') {
       return { data, format: 'json' };
@@ -636,7 +665,7 @@ export const contactsService = {
     const empty = { total: 0, valid: 0, risky: 0, invalid: 0, not_found: 0, unverified: 0, with_linkedin: 0 };
 
     let listContactIds: string[] | null = null;
-    if (listId) {
+    if (listId && !isUnlisted(listId)) {
       const { data: lc } = await supabaseAdmin
         .from('list_contacts')
         .select('contact_id')
@@ -650,9 +679,10 @@ export const contactsService = {
       .select('dcs_verified_at, dcs_score, dcs_syntax_ok, dcs_domain_ok, is_bounced, linkedin_url')
       .eq('user_id', userId);
     if (listContactIds) q = q.in('id', listContactIds);
+    if (isUnlisted(listId)) q = q.eq('list_count', 0);
 
     const { data, error } = await q;
-    if (error) throw new AppError(error.message, 500);
+    if (error) { assertListCountColumn(error); throw new AppError(error.message, 500); }
 
     const rows = data || [];
     const out = { ...empty, total: rows.length };

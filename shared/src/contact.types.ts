@@ -127,6 +127,14 @@ export interface CreateContactListInput {
 
 export interface UpdateContactListInput extends Partial<CreateContactListInput> {}
 
+/**
+ * Sentinel `list_id` for the automatic "Not in Lists" view — every contact
+ * that belongs to no live (non-trashed) lead list. It is not a row in
+ * contact_lists; the server resolves it against contacts.list_count.
+ */
+export const UNLISTED_LIST_ID = '__unlisted__';
+export const UNLISTED_LIST_NAME = 'Not in Lists';
+
 // ============================================
 // SAVED SEGMENTS (Dynamic Filters)
 // ============================================
