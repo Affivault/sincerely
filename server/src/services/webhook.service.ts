@@ -444,7 +444,17 @@ async function deliverWebhook(
  * Test a webhook endpoint by sending a test event.
  */
 export async function testEndpoint(userId: string, endpointId: string): Promise<{ success: boolean; status_code: number | null }> {
-  const endpoint = await getEndpoint(userId, endpointId);
+  // Deliberately bypass getEndpoint()'s secret redaction: a test delivery must
+  // be signed with the endpoint's real secret, the same as a live fireEvent
+  // delivery, or a receiver validating HMAC signatures against "Send test"
+  // will always see it fail even though production traffic is signed fine.
+  const { data } = await supabaseAdmin
+    .from('webhook_endpoints')
+    .select('*')
+    .eq('id', endpointId)
+    .eq('user_id', userId)
+    .single();
+  const endpoint = data as WebhookEndpoint | null;
   if (!endpoint) throw new Error('Endpoint not found');
 
   const payload: WebhookPayload = {

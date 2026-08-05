@@ -437,8 +437,17 @@ export function DeveloperPage() {
                       <p className="text-xs text-[var(--text-tertiary)] truncate font-mono">{ep.url}</p>
                     </div>
                     <span className="text-xs text-[var(--text-tertiary)]">{ep.events.length} events</span>
-                    <button onClick={() => testEndpointMutation.mutate(ep.id)} className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[11px] font-medium bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
-                      <Zap className="h-3 w-3" /> Test
+                    <button
+                      onClick={() => testEndpointMutation.mutate(ep.id)}
+                      disabled={testEndpointMutation.isPending && testEndpointMutation.variables === ep.id}
+                      className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[11px] font-medium bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50"
+                    >
+                      {testEndpointMutation.isPending && testEndpointMutation.variables === ep.id ? (
+                        <RefreshCw className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Zap className="h-3 w-3" />
+                      )}
+                      Test
                     </button>
                     <button
                       onClick={() => {
