@@ -54,7 +54,7 @@ export const listsService = {
       .eq('id', id)
       .eq('user_id', userId)
       .eq('is_trashed', false)
-      .single();
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('List not found', 404);
@@ -96,7 +96,7 @@ export const listsService = {
       .eq('id', id)
       .eq('user_id', userId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('List not found', 404);

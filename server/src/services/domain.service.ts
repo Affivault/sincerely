@@ -407,7 +407,7 @@ export const domainService = {
       .select('*')
       .eq('id', id)
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Domain not found', 404);

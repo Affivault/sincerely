@@ -83,7 +83,7 @@ export const smtpService = {
       .select('*')
       .eq('id', id)
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('SMTP account not found', 404);
@@ -140,7 +140,7 @@ export const smtpService = {
         .eq('id', id)
         .eq('user_id', userId)
         .select()
-        .single();
+        .maybeSingle();
       if (!error) {
         if (!data) throw new AppError('SMTP account not found', 404);
         const { smtp_pass_encrypted, ...rest } = data as any;

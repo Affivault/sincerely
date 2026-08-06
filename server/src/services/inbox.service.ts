@@ -358,7 +358,7 @@ export const inboxService = {
       .select('*, contacts(first_name, last_name, email), campaigns(name), smtp_accounts(id, email_address, label)')
       .eq('id', id)
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Message not found', 404);

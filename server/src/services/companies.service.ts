@@ -145,7 +145,7 @@ export const companiesService = {
       .eq('id', id)
       .eq('user_id', userId)
       .select()
-      .single();
+      .maybeSingle();
     if (error) {
       if (error.code === '23505') throw new AppError('Another company already uses that name', 409);
       assertCompaniesTable(error);
@@ -169,7 +169,7 @@ export const companiesService = {
       .eq('id', contactId)
       .eq('user_id', userId)
       .select('id, company_id')
-      .single();
+      .maybeSingle();
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Contact not found', 404);
     return data;

@@ -65,8 +65,20 @@ const VERBS: Array<{ words: string[]; kind: QuickAddKind }> = [
 
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
+// 3-letter prefixes that double as ordinary English words ("sun", "sat", "wed")
+// are excluded from abbreviation matching below — otherwise "email team about
+// sun campaign" gets misread as a date reference to next Sunday.
+const AMBIGUOUS_DAY_ABBREVIATIONS = new Set(['sun', 'sat', 'wed']);
+
 /** Words consumed by date parsing, so they don't end up in the subject. */
-interface DateMatch { at: Date; label: string; consumed: string[] }
+interface DateMatch {
+  at: Date;
+  label: string;
+  consumed: string[];
+  /** Set for matches that already resolved an exact moment ("in 30 min") —
+   *  skips the default 9am / explicit-time layering applied to bare dates. */
+  precise?: boolean;
+}
 
 function atTime(base: Date, hours: number, minutes: number): Date {
   const d = new Date(base);
@@ -131,13 +143,25 @@ function matchDate(tokens: string[], now: Date): DateMatch | null {
           d.setDate(d.getDate() + n * 7);
           return { at: d, label: `in ${n} week${n === 1 ? '' : 's'}`, consumed: [tokens[i], tokens[i + 1], tokens[i + 2]] };
         }
+        if (unit.startsWith('hour') || unit === 'hr' || unit === 'hrs') {
+          const d = new Date(now);
+          d.setMinutes(d.getMinutes() + n * 60);
+          return { at: d, label: `in ${n} hour${n === 1 ? '' : 's'}`, consumed: [tokens[i], tokens[i + 1], tokens[i + 2]], precise: true };
+        }
+        if (unit.startsWith('min')) {
+          const d = new Date(now);
+          d.setMinutes(d.getMinutes() + n);
+          return { at: d, label: `in ${n} minute${n === 1 ? '' : 's'}`, consumed: [tokens[i], tokens[i + 1], tokens[i + 2]], precise: true };
+        }
       }
     }
 
     // "monday" / "next monday" / "mon"
     const next = t === 'next' && i + 1 < lower.length;
     const dayToken = next ? lower[i + 1] : t;
-    const dayIdx = WEEKDAYS.findIndex((w) => w === dayToken || w.slice(0, 3) === dayToken);
+    const dayIdx = WEEKDAYS.findIndex((w) =>
+      w === dayToken || (!AMBIGUOUS_DAY_ABBREVIATIONS.has(dayToken) && w.slice(0, 3) === dayToken)
+    );
     if (dayIdx !== -1) {
       const d = new Date(now);
       let delta = (dayIdx - d.getDay() + 7) % 7;
@@ -188,7 +212,10 @@ export function parseQuickAdd(input: string, now: Date = new Date()): QuickAdd |
   let when: Date | null = null;
   let whenLabel: string | null = null;
 
-  if (date) {
+  if (date?.precise) {
+    when = date.at;
+    whenLabel = date.label;
+  } else if (date) {
     when = atTime(date.at, time ? time.hours : 9, time ? time.minutes : 0);
     whenLabel = time ? `${date.label} at ${formatClock(when)}` : date.label;
   } else if (time) {

@@ -219,7 +219,14 @@ export const prospectingService = {
       .upsert(contactRow, { onConflict: 'user_id,email' })
       .select('id')
       .single();
-    if (contactError) throw new AppError(contactError.message, 500);
+    if (contactError) {
+      // Contact write failed → refund; the user was charged for nothing.
+      await supabaseAdmin.from('prospect_credit_ledger').insert({
+        user_id: userId, delta: 1, kind: 'refund', reason: 'contact_write_error',
+        provider: provider.id, provider_person_id: personId, bucket: spentBucket,
+      });
+      throw new AppError(contactError.message, 500);
+    }
 
     const { error: revealInsertError } = await supabaseAdmin.from('prospect_reveals').insert({
       user_id: userId,
@@ -242,6 +249,11 @@ export const prospectingService = {
         });
         alreadyRevealed = true;
       } else {
+        // Any other insert failure → refund; the reveal was never recorded.
+        await supabaseAdmin.from('prospect_credit_ledger').insert({
+          user_id: userId, delta: 1, kind: 'refund', reason: 'reveal_insert_error',
+          provider: provider.id, provider_person_id: personId, bucket: spentBucket,
+        });
         throw new AppError(revealInsertError.message, 500);
       }
     }

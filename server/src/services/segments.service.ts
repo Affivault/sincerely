@@ -54,7 +54,7 @@ export const segmentsService = {
       .select('*')
       .eq('id', id)
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Segment not found', 404);
@@ -101,7 +101,7 @@ export const segmentsService = {
       .eq('id', id)
       .eq('user_id', userId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Segment not found', 404);
