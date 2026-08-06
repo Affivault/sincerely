@@ -16,51 +16,78 @@ import { isUnlimited, ADMIN_EMAILS } from '@lemlist/shared';
 
 /* ─── Nav shape ─────────────────────────────────────────────────── */
 type NavLeaf = { kind?: 'leaf'; name: string; href: string; icon: React.ElementType; match?: string[] };
-type NavGroup = { kind: 'group'; name: string; href: string; icon: React.ElementType; id: string; children: NavLeaf[] };
+type NavGroup = {
+  kind: 'group'; name: string; href: string; icon: React.ElementType; id: string;
+  children: NavLeaf[];
+  /** Extra routes that belong to this group but aren't a child row. */
+  match?: string[];
+};
 type NavItem = NavLeaf | NavGroup;
 
 const isGroup = (item: NavItem): item is NavGroup => (item as NavGroup).kind === 'group';
 
-/* ─── Nav definitions ───────────────────────────────────────────── */
-const workspaceNav: NavItem[] = [
-  { name: 'Today',     href: '/dashboard', icon: LayoutDashboard, match: ['/dashboard'] },
-  { name: 'Unibox',    href: '/inbox',     icon: Inbox },
-  { name: 'Deals',     href: '/deals',     icon: Handshake, match: ['/deals', '/crm'] },
-  { name: 'Calendar',  href: '/calendar',  icon: CalendarDays, match: ['/calendar'] },
-  { name: 'Activities', href: '/tasks',    icon: ListTodo, match: ['/tasks'] },
-];
+/* ─── Nav definitions ───────────────────────────────────────────────
+   Six destinations, not seventeen.
 
-const campaignsNav: NavItem[] = [
+   The old sidebar listed every page at the top level, which made the rail a
+   table of contents rather than a map: fourteen rows, no hierarchy, and the
+   thing you needed was as buried as the thing you didn't. Now the top level
+   answers "which part of the job am I doing?" — reach the inbox, the leads,
+   the campaigns, the pipeline, the diary — and the pages inside each live one
+   disclosure away. ⌘K still gets you anywhere in two keystrokes, so nothing
+   is further than it was for anyone who knows what they want. */
+
+const primaryNav: NavItem[] = [
+  { name: 'Today',  href: '/dashboard', icon: LayoutDashboard, match: ['/dashboard'] },
+  { name: 'Unibox', href: '/inbox',     icon: Inbox },
   {
     kind: 'group', id: 'campaigns',
     name: 'Campaigns', href: '/campaigns', icon: Megaphone,
     children: [
-      { name: 'All campaigns',  href: '/campaigns',       icon: Layers },
-      { name: 'Email accounts', href: '/email-accounts',  icon: AtSign },
-      { name: 'Analytics',      href: '/analytics',       icon: BarChart3 },
-      { name: 'Templates',      href: '/templates',       icon: FileText },
-      { name: 'Schedules',      href: '/schedules',       icon: CalendarClock },
+      { name: 'All campaigns',  href: '/campaigns',      icon: Layers },
+      { name: 'Templates',      href: '/templates',      icon: FileText },
+      { name: 'Schedules',      href: '/schedules',      icon: CalendarClock },
+      { name: 'Email accounts', href: '/email-accounts', icon: AtSign },
+      { name: 'Analytics',      href: '/analytics',      icon: BarChart3 },
     ],
   },
-];
-
-const leadsNav: NavItem[] = [
-  { name: 'Prospector', href: '/prospector', icon: Radar },
-  { name: 'Lead Lists', href: '/contacts', icon: Users },
-  { name: 'Companies',  href: '/companies', icon: Building2 },
-];
-
-const toolsNav: NavItem[] = [
-  { name: 'Integrations', href: '/integrations', icon: Blocks },
-  { name: 'Webhooks',     href: '/developer',    icon: Webhook },
-  { name: 'Toolkit',      href: '/toolkit',      icon: Wrench },
+  {
+    kind: 'group', id: 'leads',
+    name: 'Leads', href: '/contacts', icon: Users,
+    children: [
+      { name: 'Lead lists', href: '/contacts',   icon: Users },
+      { name: 'Companies',  href: '/companies',  icon: Building2 },
+      { name: 'Prospector', href: '/prospector', icon: Radar },
+    ],
+  },
+  /* Deals stays its own destination — a pipeline is somewhere you go, not a
+     page you find inside something else. */
+  { name: 'Deals', href: '/deals', icon: Handshake, match: ['/deals', '/crm'] },
+  {
+    kind: 'group', id: 'calendar',
+    name: 'Calendar', href: '/calendar', icon: CalendarDays,
+    children: [
+      { name: 'Calendar',   href: '/calendar', icon: CalendarDays },
+      { name: 'Activities', href: '/tasks',    icon: ListTodo },
+    ],
+  },
 ];
 
 /* Every route that lives inside the settings workspace (SettingsShell owns
    the detail nav there — the app sidebar shows a single entry for all of it). */
 const SETTINGS_ROUTES = ['/settings', '/team', '/billing', '/domains', '/suppression', '/verification'];
 
-const settingsNav: NavItem[] = [
+/* Utility rows: needed occasionally, never the reason you opened the app. */
+const utilityNav: NavItem[] = [
+  {
+    kind: 'group', id: 'tools',
+    name: 'Tools', href: '/integrations', icon: Wrench,
+    children: [
+      { name: 'Integrations', href: '/integrations', icon: Blocks },
+      { name: 'Webhooks',     href: '/developer',    icon: Webhook },
+      { name: 'Toolkit',      href: '/toolkit',      icon: Wrench },
+    ],
+  },
   { name: 'Settings', href: '/settings', icon: Settings, match: SETTINGS_ROUTES },
 ];
 
@@ -70,8 +97,20 @@ const adminNav: NavItem[] = [
   { name: 'Admin', href: '/admin', icon: ShieldCheck },
 ];
 
-/* Routes that belong inside the Campaigns group */
-const CAMPAIGN_ROUTES = ['/campaigns', '/email-accounts', '/analytics', '/templates', '/schedules'];
+const ALL_GROUPS: NavGroup[] = [...primaryNav, ...utilityNav].filter(isGroup);
+
+function routeMatches(pathname: string, route: string): boolean {
+  return pathname === route || pathname.startsWith(route + '/');
+}
+
+/** Every route a group owns: its children plus anything declared in `match`. */
+function groupRoutes(group: NavGroup): string[] {
+  return [...group.children.map((c) => c.href), ...(group.match || [])];
+}
+
+function isGroupActive(group: NavGroup, pathname: string): boolean {
+  return groupRoutes(group).some((r) => routeMatches(pathname, r));
+}
 
 /* ─── Row styling (the Attio look) ──────────────────────────────────
    Inactive rows are quiet text on the gray rail. The ACTIVE row is a
@@ -150,25 +189,27 @@ function NavGroupItem({ item, collapsed, expanded, onToggle }: {
 }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const isParentActive = CAMPAIGN_ROUTES.some((r) =>
-    location.pathname === r || location.pathname.startsWith(r + '/')
-  );
+  const isParentActive = isGroupActive(item, location.pathname);
   const Icon = item.icon;
+
+  /* With the children hidden the parent is the only thing on screen that can
+     say where you are, so it takes the raised card. Expanded, it stays quiet
+     and lets the active child carry it. */
+  const showActiveCard = isParentActive && (collapsed || !expanded);
 
   return (
     <div>
       <div
         role="button"
         tabIndex={0}
+        aria-expanded={collapsed ? undefined : expanded}
         onClick={() => (collapsed ? navigate(item.href) : onToggle())}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); collapsed ? navigate(item.href) : onToggle(); } }}
         title={collapsed ? item.name : undefined}
         className={cn(
           rowBase, 'cursor-pointer',
           collapsed ? 'justify-center h-8 w-8 mx-auto' : 'h-[30px] gap-2.5 px-2',
-          /* The parent stays quiet — only real pages get the raised card.
-             When a child route is active the parent brightens its text. */
-          collapsed && isParentActive ? rowActive : rowInactive,
+          showActiveCard ? rowActive : rowInactive,
           !collapsed && isParentActive && 'text-[var(--text-primary)]',
         )}
       >
@@ -182,8 +223,10 @@ function NavGroupItem({ item, collapsed, expanded, onToggle }: {
             <span className="flex-1 text-[13px] font-medium truncate leading-none">{item.name}</span>
             <ChevronRight
               className={cn(
+                /* Always faintly there: the whole nav now depends on people
+                   realising these rows open. */
                 'h-3.5 w-3.5 flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
-                'opacity-0 group-hover:opacity-100',
+                'opacity-50 group-hover:opacity-100',
                 expanded && 'rotate-90 opacity-100',
               )}
               strokeWidth={2}
@@ -301,27 +344,29 @@ export function Sidebar() {
   const workspaceName = user?.email?.split('@')[0] || 'Workspace';
   const unreadCount = useUnreadCount();
 
+  /* Nothing is expanded by default — a six-row rail is the point. Whichever
+     group you're inside opens itself below. */
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
     try {
       const saved = localStorage.getItem('sidebar.expandedGroups');
-      return new Set(saved ? JSON.parse(saved) : ['campaigns']);
+      return new Set<string>(saved ? JSON.parse(saved) : []);
     } catch {
-      return new Set(['campaigns']);
+      return new Set<string>();
     }
   });
 
+  // Navigating into a group's territory opens it, so the child you landed on
+  // is visible and its siblings are one glance away. Runs on route change
+  // only, so collapsing a group while sitting inside it stays collapsed.
   useEffect(() => {
-    const inCampaigns = CAMPAIGN_ROUTES.some((r) =>
-      location.pathname === r || location.pathname.startsWith(r + '/')
-    );
-    if (inCampaigns) {
-      setExpandedGroups((prev) => {
-        if (prev.has('campaigns')) return prev;
-        const next = new Set(prev);
-        next.add('campaigns');
-        return next;
-      });
-    }
+    const active = ALL_GROUPS.find((g) => isGroupActive(g, location.pathname));
+    if (!active) return;
+    setExpandedGroups((prev) => {
+      if (prev.has(active.id)) return prev;
+      const next = new Set(prev);
+      next.add(active.id);
+      return next;
+    });
   }, [location.pathname]);
 
   const handleToggleGroup = (id: string) => {
@@ -347,22 +392,21 @@ export function Sidebar() {
         'flex-1 py-3 overflow-y-auto overflow-x-hidden',
         collapsed ? 'px-2' : 'px-2.5'
       )}>
-        <NavSection items={workspaceNav} badges={{ '/inbox': unreadCount }} {...sectionProps} />
-        <div className={cn(collapsed ? 'mt-1' : 'mt-4')}>
-          <NavSection items={campaignsNav} {...sectionProps} />
+        <NavSection items={primaryNav} badges={{ '/inbox': unreadCount }} {...sectionProps} />
+
+        {/* The utility rows sit below a rule rather than under a heading —
+            they're a footnote to the nav, not a sixth department. */}
+        <div className={cn(
+          collapsed ? 'mt-3 pt-3' : 'mt-4 pt-3',
+          'border-t border-[var(--border-subtle)]',
+        )}>
+          <NavSection items={utilityNav} {...sectionProps} />
+          {!!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase()) && (
+            <div className="mt-px">
+              <NavSection items={adminNav} {...sectionProps} />
+            </div>
+          )}
         </div>
-        <div className="mt-px">
-          <NavSection items={leadsNav} {...sectionProps} />
-        </div>
-        <NavSection title="Tools" items={toolsNav} {...sectionProps} />
-        <div className={cn(collapsed ? 'mt-1' : 'mt-4')}>
-          <NavSection items={settingsNav} {...sectionProps} />
-        </div>
-        {!!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase()) && (
-          <div className="mt-px">
-            <NavSection items={adminNav} {...sectionProps} />
-          </div>
-        )}
       </nav>
 
       {/* Plan usage — quiet until it matters, loud when the cap nears */}

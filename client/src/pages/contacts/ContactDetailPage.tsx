@@ -13,6 +13,7 @@ import { ContactHistory, ContactOrigin } from '../../components/crm/ContactHisto
 import { EmailBody } from '../../components/shared/EmailBody';
 import { DEAL_STAGES, type Deal, type CrmEvent } from '@lemlist/shared';
 import { Spinner } from '../../components/ui/Spinner';
+import { InlineEdit } from '../../components/ui/InlineEdit';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/shared/Avatar';
@@ -42,6 +43,7 @@ import {
   ChevronDown,
   MailOpen,
   Ban,
+  ExternalLink,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -154,6 +156,19 @@ export function ContactDetailPage() {
     onError: () => toast.error('Failed to move contact'),
   });
 
+  // Inline edits save straight from the field. Any rejection is rethrown so
+  // InlineEdit can put the previous value back on screen.
+  const saveField = async (patch: Record<string, unknown>) => {
+    try {
+      await contactsApi.update(id!, patch as any);
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || 'Could not save that change');
+      throw e;
+    }
+  };
+  const field = (key: string) => (next: string) => saveField({ [key]: next || null });
+
   const suppressMutation = useMutation({
     mutationFn: () => suppressionApi.add(contact!.email, 'manual'),
     onSuccess: () => {
@@ -225,7 +240,22 @@ export function ContactDetailPage() {
         <div className="flex items-center gap-3.5 min-w-0">
           <Avatar name={fullName || contact.email} email={contact.email} size="xl" />
           <div className="min-w-0">
-            <h1 className="text-[18px] font-semibold text-[var(--text-primary)] truncate">{fullName || contact.email}</h1>
+            <InlineEdit
+              value={fullName}
+              placeholder={contact.email}
+              ariaLabel="name"
+              textClassName="text-[18px] font-semibold text-[var(--text-primary)]"
+              inputClassName="text-[18px] font-semibold"
+              onSave={(next) => {
+                // First token is the given name, the remainder the surname, so
+                // "van der Berg" stays in one piece.
+                const trimmed = next.trim();
+                const cut = trimmed.indexOf(' ');
+                return saveField(cut === -1
+                  ? { first_name: trimmed || null, last_name: null }
+                  : { first_name: trimmed.slice(0, cut), last_name: trimmed.slice(cut + 1).trim() || null });
+              }}
+            />
             <p className="text-[12.5px] text-[var(--text-secondary)] truncate">
               {[contact.job_title, contact.company].filter(Boolean).join(' · ') || contact.email}
             </p>
@@ -307,12 +337,25 @@ export function ContactDetailPage() {
           <div className="card p-4">
             <h2 className="text-[11px] font-bold text-[var(--text-tertiary)] mb-3">Contact Info</h2>
             <div className="space-y-2.5">
-              <InfoRow icon={Mail} label="Email" value={contact.email} copyable />
-              {contact.company && <InfoRow icon={Building2} label="Company" value={contact.company} />}
-              {contact.job_title && <InfoRow icon={Briefcase} label="Job Title" value={contact.job_title} />}
-              {contact.phone && <InfoRow icon={Phone} label="Phone" value={contact.phone} />}
-              {contact.linkedin_url && <InfoRow icon={Linkedin} label="LinkedIn" value={contact.linkedin_url} isLink />}
-              {contact.website && <InfoRow icon={Globe} label="Website" value={contact.website} isLink />}
+              {/* Every field renders whether or not it's filled — you can't type
+                  into a row the UI hides because it's empty. */}
+              <InfoRow
+                icon={Mail}
+                label="Email"
+                value={contact.email}
+                copyable
+                onSave={(next) => {
+                  // The address is this record's identity — it can be corrected
+                  // but never cleared, so guard before the request goes out.
+                  if (!next.trim()) { toast.error('A contact needs an email address'); return Promise.reject(new Error('empty')); }
+                  return saveField({ email: next.trim() });
+                }}
+              />
+              <InfoRow icon={Building2} label="Company" value={contact.company} onSave={field('company')} />
+              <InfoRow icon={Briefcase} label="Job Title" value={contact.job_title} onSave={field('job_title')} />
+              <InfoRow icon={Phone} label="Phone" value={contact.phone} onSave={field('phone')} />
+              <InfoRow icon={Linkedin} label="LinkedIn" value={contact.linkedin_url} isLink onSave={field('linkedin_url')} />
+              <InfoRow icon={Globe} label="Website" value={contact.website} isLink onSave={field('website')} />
             </div>
             <div className="mt-3 pt-3 border-t border-[var(--border-subtle)] space-y-1.5">
               <ContactOrigin
@@ -613,17 +656,20 @@ function InfoRow({
   value,
   isLink,
   copyable,
+  onSave,
 }: {
   icon: React.ElementType;
   label: string;
-  value: string;
+  value?: string | null;
   isLink?: boolean;
   copyable?: boolean;
+  /** Supply this and the value becomes the input — click it and type. */
+  onSave?: (next: string) => Promise<unknown>;
 }) {
   const [copied, setCopied] = useState(false);
 
   function handleCopy() {
-    navigator.clipboard.writeText(value).then(() => {
+    navigator.clipboard.writeText(value || '').then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }).catch(() => {
@@ -636,10 +682,22 @@ function InfoRow({
       <Icon className="h-4 w-4 text-[var(--text-secondary)] mt-0.5 shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="text-xs text-[var(--text-secondary)]">{label}</p>
-        <div className="flex items-center gap-1.5">
-          {isLink ? (
+        <div className="flex items-center gap-1.5 min-w-0">
+          {onSave ? (
+            <span className="min-w-0 flex-1">
+              <InlineEdit
+                value={value}
+                placeholder={`Add ${label.toLowerCase()}`}
+                ariaLabel={label.toLowerCase()}
+                type={isLink ? 'url' : 'text'}
+                textClassName="text-sm text-[var(--text-primary)]"
+                inputClassName="text-sm"
+                onSave={onSave}
+              />
+            </span>
+          ) : isLink ? (
             <a
-              href={value.startsWith('http') ? value : `https://${value}`}
+              href={(value || '').startsWith('http') ? value! : `https://${value}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-[var(--text-primary)] hover:underline truncate block"
@@ -649,7 +707,18 @@ function InfoRow({
           ) : (
             <p className="text-sm text-[var(--text-primary)] truncate">{value}</p>
           )}
-          {copyable && (
+          {onSave && isLink && value && (
+            <a
+              href={value.startsWith('http') ? value : `https://${value}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`Open ${label}`}
+              className="shrink-0 opacity-0 group-hover/inforow:opacity-100 transition-opacity p-0.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+            >
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+          {copyable && value && (
             <button
               onClick={handleCopy}
               title="Copy to clipboard"

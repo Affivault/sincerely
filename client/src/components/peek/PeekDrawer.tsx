@@ -9,6 +9,8 @@ import { inboxApi } from '../../api/inbox.api';
 import { analyticsApi } from '../../api/analytics.api';
 import { Avatar } from '../shared/Avatar';
 import { Spinner } from '../ui/Spinner';
+import { InlineEdit, InlineSelect } from '../ui/InlineEdit';
+import { COMPANY_SIZE_OPTIONS } from '../../lib/constants';
 import { ContactHistory } from '../crm/ContactHistory';
 import { cn } from '../../lib/utils';
 import { usePeek } from './usePeek';
@@ -41,12 +43,61 @@ function Row({ icon: Icon, value, href }: { icon: typeof Mail; value?: string | 
     : <div>{body}</div>;
 }
 
+/**
+ * The same row, but the value is the input. Empty fields still render — you
+ * can't fill in a phone number that the UI hides because it's blank.
+ */
+function EditRow({
+  icon: Icon, label, value, onSave, type = 'text', href,
+}: {
+  icon: typeof Mail;
+  label: string;
+  value?: string | null;
+  onSave: (next: string) => Promise<unknown>;
+  type?: 'text' | 'email' | 'url' | 'tel';
+  href?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 min-w-0 group/row">
+      <Icon className="h-3.5 w-3.5 text-[var(--text-tertiary)] flex-shrink-0" />
+      <span className="flex-1 min-w-0">
+        <InlineEdit value={value} onSave={onSave} placeholder={label} type={type} ariaLabel={label} />
+      </span>
+      {href && value ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          title={`Open ${label}`}
+          className="flex-shrink-0 p-1 rounded text-[var(--text-muted)] opacity-0 group-hover/row:opacity-100 hover:text-[var(--indigo)] transition-opacity"
+        >
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
 function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
   const { openPeek } = usePeek();
+  const qc = useQueryClient();
   const { data: contact, isLoading } = useQuery({
     queryKey: ['contacts', id],
     queryFn: () => contactsApi.get(id),
   });
+
+  // One saver for every field: patch, refresh, and let InlineEdit roll the
+  // value back itself if the request is rejected.
+  const save = async (patch: Record<string, string | null>) => {
+    try {
+      await contactsApi.update(id, patch as any);
+      qc.invalidateQueries({ queryKey: ['contacts'] });
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || 'Could not save that change');
+      throw e;
+    }
+  };
+  const field = (key: string) => (next: string) => save({ [key]: next || null });
 
   const { data: emailsPage } = useQuery({
     queryKey: ['contact-emails', contact?.email],
@@ -75,7 +126,22 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
       <div className="flex items-start gap-3 px-4 py-4 border-b border-[var(--border-subtle)]">
         <Avatar name={name || contact.email} email={contact.email} size="lg" />
         <div className="flex-1 min-w-0">
-          <h2 className="text-[16px] font-semibold text-[var(--text-primary)] truncate">{name || 'Unnamed contact'}</h2>
+          <InlineEdit
+            value={name}
+            placeholder="Unnamed contact"
+            ariaLabel="name"
+            textClassName="text-[16px] font-semibold text-[var(--text-primary)]"
+            inputClassName="text-[16px] font-semibold"
+            onSave={(next) => {
+              // Everything before the first space is the first name; the rest
+              // is the surname, so "van der Berg" survives intact.
+              const trimmed = next.trim();
+              const cut = trimmed.indexOf(' ');
+              return save(cut === -1
+                ? { first_name: trimmed || null, last_name: null }
+                : { first_name: trimmed.slice(0, cut), last_name: trimmed.slice(cut + 1).trim() || null });
+            }}
+          />
           <p className="text-[12.5px] text-[var(--text-tertiary)] truncate">
             {[contact.job_title, contact.company].filter(Boolean).join(' · ') || contact.email}
           </p>
@@ -102,12 +168,26 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
             <ArrowRight className="h-3 w-3 text-[var(--text-muted)] flex-shrink-0" />
           </button>
         ) : (
-          <Row icon={Building2} value={contact.company} />
+          <EditRow icon={Building2} label="Company" value={contact.company} onSave={field('company')} />
         )}
-        <Row icon={Briefcase} value={contact.job_title} />
-        <Row icon={Phone} value={contact.phone} />
-        <Row icon={Linkedin} value={contact.linkedin_url} href={contact.linkedin_url || undefined} />
-        <Row icon={Globe} value={contact.website} href={contact.website || undefined} />
+        <EditRow icon={Briefcase} label="Job title" value={contact.job_title} onSave={field('job_title')} />
+        <EditRow icon={Phone} label="Phone" value={contact.phone} onSave={field('phone')} type="tel" />
+        <EditRow
+          icon={Linkedin}
+          label="LinkedIn"
+          value={contact.linkedin_url}
+          onSave={field('linkedin_url')}
+          type="url"
+          href={contact.linkedin_url || undefined}
+        />
+        <EditRow
+          icon={Globe}
+          label="Website"
+          value={contact.website}
+          onSave={field('website')}
+          type="url"
+          href={contact.website || undefined}
+        />
       </div>
 
       {/* The whole relationship, same component the profile page uses */}
@@ -135,6 +215,16 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
     onError: () => toast.error('Could not update the stage'),
   });
 
+  const save = async (patch: Record<string, unknown>) => {
+    try {
+      await crmApi.updateDeal(id, patch as any);
+      qc.invalidateQueries({ queryKey: ['crm'] });
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || 'Could not save that change');
+      throw e;
+    }
+  };
+
   if (isLoading) return <div className="flex items-center justify-center py-20"><Spinner size="md" /></div>;
   if (!deal) {
     return (
@@ -156,7 +246,14 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
           <Handshake className="h-5 w-5 text-[var(--indigo)]" />
         </span>
         <div className="flex-1 min-w-0">
-          <h2 className="text-[16px] font-semibold text-[var(--text-primary)] truncate">{deal.title}</h2>
+          <InlineEdit
+            value={deal.title}
+            placeholder="Untitled deal"
+            ariaLabel="deal title"
+            textClassName="text-[16px] font-semibold text-[var(--text-primary)]"
+            inputClassName="text-[16px] font-semibold"
+            onSave={(next) => save({ title: next })}
+          />
           <p className="text-[12.5px] text-[var(--text-tertiary)] truncate">
             {[deal.company, leadName].filter(Boolean).join(' · ') || 'No company yet'}
           </p>
@@ -171,9 +268,23 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
       </div>
 
       <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
-        <p className="text-[22px] font-semibold tabular text-[var(--text-primary)] tracking-[-0.02em] leading-none">
-          {(deal.value || 0).toLocaleString('en-US', { style: 'currency', currency: deal.currency || 'USD', maximumFractionDigits: 0 })}
-        </p>
+        <InlineEdit
+          value={deal.value ?? ''}
+          type="number"
+          placeholder="Add a value"
+          ariaLabel="deal value"
+          textClassName="text-[22px] font-semibold tabular text-[var(--text-primary)] tracking-[-0.02em] leading-none"
+          inputClassName="text-[22px] font-semibold tabular"
+          format={(v) => Number(v).toLocaleString('en-US', {
+            style: 'currency', currency: deal.currency || 'USD', maximumFractionDigits: 0,
+          })}
+          onSave={(next) => {
+            // People type "12,500" and "$12.5k" — take the digits, refuse the rest.
+            const n = Number(next.replace(/[^0-9.-]/g, ''));
+            if (!Number.isFinite(n)) { toast.error('That value isn’t a number'); return Promise.reject(new Error('nan')); }
+            return save({ value: n });
+          }}
+        />
         {deal.expected_close_date && (
           <p className="text-[11.5px] text-[var(--text-tertiary)] mt-1">
             Expected {new Date(deal.expected_close_date).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
@@ -203,12 +314,16 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
       </div>
 
-      {deal.notes && (
-        <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
-          <p className="text-[11px] font-semibold text-[var(--text-tertiary)] mb-1">Notes</p>
-          <p className="text-[12.5px] text-[var(--text-secondary)] whitespace-pre-wrap">{deal.notes}</p>
-        </div>
-      )}
+      <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
+        <p className="text-[11px] font-semibold text-[var(--text-tertiary)] mb-1">Notes</p>
+        <InlineEdit
+          value={deal.notes}
+          multiline
+          placeholder="Add a note — ⌘↵ to save"
+          ariaLabel="deal notes"
+          onSave={(next) => save({ notes: next || null })}
+        />
+      </div>
 
       {/* The lead behind the deal — one hop, still without leaving the page */}
       {deal.contact_id && (
@@ -237,10 +352,23 @@ function PeekLink({ contactId, label }: { contactId: string; label: string }) {
 
 function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
   const { openPeek } = usePeek();
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['company-summary', id],
     queryFn: () => companiesApi.summary(id),
   });
+
+  const save = async (patch: Record<string, string | null>) => {
+    try {
+      await companiesApi.update(id, patch as any);
+      qc.invalidateQueries({ queryKey: ['company-summary', id] });
+      qc.invalidateQueries({ queryKey: ['companies'] });
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || 'Could not save that change');
+      throw e;
+    }
+  };
+  const field = (key: string) => (next: string) => save({ [key]: next || null });
 
   if (isLoading) return <div className="flex items-center justify-center py-20"><Spinner size="md" /></div>;
   if (!data) {
@@ -262,7 +390,14 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
           <Building2 className="h-5 w-5" />
         </span>
         <div className="flex-1 min-w-0">
-          <h2 className="text-[16px] font-semibold text-[var(--text-primary)] truncate">{company.name}</h2>
+          <InlineEdit
+            value={company.name}
+            placeholder="Unnamed company"
+            ariaLabel="company name"
+            textClassName="text-[16px] font-semibold text-[var(--text-primary)]"
+            inputClassName="text-[16px] font-semibold"
+            onSave={(next) => save({ name: next })}
+          />
           <p className="text-[12.5px] text-[var(--text-tertiary)] truncate">
             {[company.industry, company.location].filter(Boolean).join(' · ') || company.domain || 'No details yet'}
           </p>
@@ -295,10 +430,31 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
       </div>
 
       <div className="px-4 py-3 space-y-1.5 border-b border-[var(--border-subtle)]">
-        <Row icon={Globe} value={company.domain || company.website} href={company.website || (company.domain ? `https://${company.domain}` : undefined)} />
-        <Row icon={Factory} value={company.industry} />
-        <Row icon={MapPin} value={company.location} />
-        <Row icon={Linkedin} value={company.linkedin_url} href={company.linkedin_url || undefined} />
+        <EditRow
+          icon={Globe}
+          label="Domain"
+          value={company.domain}
+          onSave={field('domain')}
+          href={company.website || (company.domain ? `https://${company.domain}` : undefined)}
+        />
+        <EditRow icon={Factory} label="Industry" value={company.industry} onSave={field('industry')} />
+        <EditRow icon={MapPin} label="Location" value={company.location} onSave={field('location')} />
+        <div className="flex items-center gap-2 min-w-0">
+          <Users className="h-3.5 w-3.5 text-[var(--text-tertiary)] flex-shrink-0" />
+          <InlineSelect
+            value={(company.size || '') as string}
+            options={COMPANY_SIZE_OPTIONS}
+            onSave={(next) => save({ size: next || null })}
+          />
+        </div>
+        <EditRow
+          icon={Linkedin}
+          label="LinkedIn"
+          value={company.linkedin_url}
+          onSave={field('linkedin_url')}
+          type="url"
+          href={company.linkedin_url || undefined}
+        />
       </div>
 
       {/* Who works here — the question that was unanswerable before */}

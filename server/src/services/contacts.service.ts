@@ -7,6 +7,30 @@ import { UNLISTED_LIST_ID } from '@lemlist/shared';
 import Papa from 'papaparse';
 import fs from 'node:fs';
 
+/**
+ * Columns a client is allowed to write on a contact.
+ *
+ * The update used to forward the whole request body to Postgres, which meant
+ * `user_id` was writable — a caller could hand their own contact to another
+ * account, and `id`, `list_count` and the verification columns were equally
+ * open. Anything not named here is dropped rather than rejected, so a client
+ * sending back a whole contact record still works.
+ */
+const UPDATABLE_CONTACT_FIELDS = [
+  'email', 'first_name', 'last_name', 'company', 'company_id', 'job_title',
+  'phone', 'linkedin_url', 'website', 'location', 'custom_fields',
+  'is_unsubscribed', 'is_bounced',
+] as const;
+
+function pickUpdatable(input: any): Record<string, any> {
+  const out: Record<string, any> = {};
+  if (!input || typeof input !== 'object') return out;
+  for (const key of UPDATABLE_CONTACT_FIELDS) {
+    if (input[key] !== undefined) out[key] = input[key];
+  }
+  return out;
+}
+
 interface ListParams {
   page?: number;
   limit?: number;
@@ -292,17 +316,33 @@ export const contactsService = {
   },
 
   async update(userId: string, id: string, input: any) {
-    const { tag_ids, ...contactData } = input;
+    const { tag_ids } = input || {};
+    const contactData = pickUpdatable(input);
 
-    const { data, error } = await supabaseAdmin
-      .from('contacts')
-      .update(contactData)
-      .eq('id', id)
-      .eq('user_id', userId)
-      .select()
-      .single();
+    if (contactData.email !== undefined && !String(contactData.email).trim()) {
+      throw new AppError('A contact needs an email address', 400);
+    }
 
-    if (error) throw new AppError(error.message, 500);
+    const hasFields = Object.keys(contactData).length > 0;
+    if (!hasFields && !Array.isArray(tag_ids)) throw new AppError('Nothing to update', 400);
+
+    // A tags-only edit still has to confirm the contact is this user's before
+    // touching contact_tags, so read it rather than issuing an empty update.
+    const query = supabaseAdmin.from('contacts');
+    const { data, error } = hasFields
+      ? await query.update(contactData).eq('id', id).eq('user_id', userId).select().single()
+      : await query.select().eq('id', id).eq('user_id', userId).maybeSingle();
+
+    if (error) {
+      // 23505 = the (user_id, email) unique constraint — a real, explainable
+      // conflict rather than a server fault.
+      if ((error as any).code === '23505') {
+        throw new AppError('Another contact already uses that email address', 409);
+      }
+      // PGRST116 = .single() matched no row, i.e. not this user's contact.
+      if ((error as any).code === 'PGRST116') throw new AppError('Contact not found', 404);
+      throw new AppError(error.message, 500);
+    }
     if (!data) throw new AppError('Contact not found', 404);
 
     // Apply tag updates when tag_ids is explicitly provided
