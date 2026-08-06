@@ -25,3 +25,17 @@ export const DEFAULT_PAGE_SIZE = 25;
  *  Capped at 100 because the API clamps `limit` there (server/src/utils/
  *  pagination.ts) — offering more would silently return 100 and skip rows. */
 export const PAGE_SIZE_OPTIONS = [25, 50, 75, 100];
+
+/** Headcount buckets, matching the ranges the prospector filters on so a
+ *  company sized here can be found by the same search later. */
+export const COMPANY_SIZE_OPTIONS = [
+  { value: '', label: 'Headcount unknown' },
+  { value: '1-10', label: '1–10' },
+  { value: '11-50', label: '11–50' },
+  { value: '51-200', label: '51–200' },
+  { value: '201-500', label: '201–500' },
+  { value: '501-1000', label: '501–1,000' },
+  { value: '1001-5000', label: '1,001–5,000' },
+  { value: '5001-10000', label: '5,001–10,000' },
+  { value: '10001+', label: '10,000+' },
+];
