@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contactsApi } from '../../api/contacts.api';
+import { companiesApi } from '../../api/companies.api';
 import { crmApi } from '../../api/crm.api';
 import { inboxApi } from '../../api/inbox.api';
 import { analyticsApi } from '../../api/analytics.api';
@@ -13,7 +14,7 @@ import { cn } from '../../lib/utils';
 import { usePeek } from './usePeek';
 import {
   X, ExternalLink, Mail, Building2, Briefcase, Phone, Linkedin, Globe,
-  Handshake, ArrowRight,
+  Handshake, ArrowRight, Users, MapPin, Factory,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { DEAL_STAGES, type DealStage } from '@lemlist/shared';
@@ -41,6 +42,7 @@ function Row({ icon: Icon, value, href }: { icon: typeof Mail; value?: string | 
 }
 
 function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
+  const { openPeek } = usePeek();
   const { data: contact, isLoading } = useQuery({
     queryKey: ['contacts', id],
     queryFn: () => contactsApi.get(id),
@@ -90,7 +92,18 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
       {/* Details */}
       <div className="px-4 py-3 space-y-1.5 border-b border-[var(--border-subtle)]">
         <Row icon={Mail} value={contact.email} href={`mailto:${contact.email}`} />
-        <Row icon={Building2} value={contact.company} />
+        {contact.company_id ? (
+          <button
+            onClick={() => openPeek('company', contact.company_id!)}
+            className="flex items-center gap-2 min-w-0 w-full text-left hover:text-[var(--indigo)]"
+          >
+            <Building2 className="h-3.5 w-3.5 text-[var(--text-tertiary)] flex-shrink-0" />
+            <span className="text-[12.5px] text-[var(--text-secondary)] truncate hover:text-[var(--indigo)]">{contact.company}</span>
+            <ArrowRight className="h-3 w-3 text-[var(--text-muted)] flex-shrink-0" />
+          </button>
+        ) : (
+          <Row icon={Building2} value={contact.company} />
+        )}
         <Row icon={Briefcase} value={contact.job_title} />
         <Row icon={Phone} value={contact.phone} />
         <Row icon={Linkedin} value={contact.linkedin_url} href={contact.linkedin_url || undefined} />
@@ -221,6 +234,134 @@ function PeekLink({ contactId, label }: { contactId: string; label: string }) {
   );
 }
 
+
+function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
+  const { openPeek } = usePeek();
+  const { data, isLoading } = useQuery({
+    queryKey: ['company-summary', id],
+    queryFn: () => companiesApi.summary(id),
+  });
+
+  if (isLoading) return <div className="flex items-center justify-center py-20"><Spinner size="md" /></div>;
+  if (!data) {
+    return (
+      <div className="px-4 py-16 text-center">
+        <p className="text-[13px] font-medium text-[var(--text-primary)]">That company no longer exists</p>
+        <button onClick={onClose} className="mt-2 text-[12px] text-[var(--indigo)] hover:underline">Close</button>
+      </div>
+    );
+  }
+
+  const { company, contacts, deals } = data;
+  const openDeals = deals.filter((d) => d.stage !== 'won' && d.stage !== 'lost');
+
+  return (
+    <>
+      <div className="flex items-start gap-3 px-4 py-4 border-b border-[var(--border-subtle)]">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elevated)] text-[var(--text-secondary)] flex-shrink-0">
+          <Building2 className="h-5 w-5" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-[16px] font-semibold text-[var(--text-primary)] truncate">{company.name}</h2>
+          <p className="text-[12.5px] text-[var(--text-tertiary)] truncate">
+            {[company.industry, company.location].filter(Boolean).join(' · ') || company.domain || 'No details yet'}
+          </p>
+        </div>
+        <Link
+          to="/companies"
+          onClick={onClose}
+          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
+        >
+          <ExternalLink className="h-3 w-3" /> All
+        </Link>
+      </div>
+
+      {/* What this account is worth right now */}
+      <div className="grid grid-cols-3 divide-x divide-[var(--border-subtle)] border-b border-[var(--border-subtle)]">
+        <div className="px-3 py-3">
+          <p className="text-[17px] font-semibold tabular text-[var(--text-primary)] leading-none">{contacts.length}</p>
+          <p className="text-[10.5px] text-[var(--text-tertiary)] mt-1">People</p>
+        </div>
+        <div className="px-3 py-3">
+          <p className="text-[17px] font-semibold tabular text-[var(--text-primary)] leading-none">{openDeals.length}</p>
+          <p className="text-[10.5px] text-[var(--text-tertiary)] mt-1">Open deals</p>
+        </div>
+        <div className="px-3 py-3">
+          <p className="text-[17px] font-semibold tabular text-[var(--text-primary)] leading-none">
+            {(company.open_value || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0, notation: 'compact' })}
+          </p>
+          <p className="text-[10.5px] text-[var(--text-tertiary)] mt-1">Open value</p>
+        </div>
+      </div>
+
+      <div className="px-4 py-3 space-y-1.5 border-b border-[var(--border-subtle)]">
+        <Row icon={Globe} value={company.domain || company.website} href={company.website || (company.domain ? `https://${company.domain}` : undefined)} />
+        <Row icon={Factory} value={company.industry} />
+        <Row icon={MapPin} value={company.location} />
+        <Row icon={Linkedin} value={company.linkedin_url} href={company.linkedin_url || undefined} />
+      </div>
+
+      {/* Who works here — the question that was unanswerable before */}
+      <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
+        <p className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-tertiary)] mb-2">
+          <Users className="h-3 w-3" /> People
+        </p>
+        {contacts.length === 0 ? (
+          <p className="text-[12px] text-[var(--text-tertiary)]">Nobody linked to this company yet.</p>
+        ) : (
+          <div className="space-y-1">
+            {contacts.map((c) => {
+              const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || c.email;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => openPeek('contact', c.id)}
+                  className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left hover:bg-[var(--bg-hover)] transition-colors"
+                >
+                  <Avatar name={name} email={c.email} size="sm" />
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[12.5px] font-medium text-[var(--text-primary)] truncate">{name}</span>
+                    <span className="block text-[11px] text-[var(--text-tertiary)] truncate">{c.job_title || c.email}</span>
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5 text-[var(--text-muted)] flex-shrink-0" />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* What's open here */}
+      <div className="px-4 py-3">
+        <p className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-tertiary)] mb-2">
+          <Handshake className="h-3 w-3" /> Deals
+        </p>
+        {deals.length === 0 ? (
+          <p className="text-[12px] text-[var(--text-tertiary)]">No deals attached to this company yet.</p>
+        ) : (
+          <div className="space-y-1">
+            {deals.map((d) => (
+              <button
+                key={d.id}
+                onClick={() => openPeek('deal', d.id)}
+                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left hover:bg-[var(--bg-hover)] transition-colors"
+              >
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[12.5px] font-medium text-[var(--text-primary)] truncate">{d.title}</span>
+                  <span className="block text-[11px] text-[var(--text-tertiary)] capitalize">{d.stage}</span>
+                </span>
+                <span className="text-[12px] font-semibold tabular text-[var(--text-primary)] flex-shrink-0">
+                  {(d.value || 0).toLocaleString('en-US', { style: 'currency', currency: d.currency || 'USD', maximumFractionDigits: 0 })}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 export function PeekDrawer() {
   const { target, closePeek } = usePeek();
 
@@ -244,7 +385,7 @@ export function PeekDrawer() {
       <aside
         role="dialog"
         aria-modal="true"
-        aria-label={target.type === 'contact' ? 'Contact details' : 'Deal details'}
+        aria-label={`${target.type} details`}
         className="absolute right-0 top-0 h-full w-full max-w-[520px] bg-[var(--bg-surface)] border-l border-[var(--border-subtle)] shadow-[var(--shadow-xl)] overflow-y-auto"
         style={{ animation: 'slideInRight 220ms var(--ease-out) both' }}
       >
@@ -256,9 +397,9 @@ export function PeekDrawer() {
           <X className="h-4 w-4" />
         </button>
 
-        {target.type === 'contact'
-          ? <ContactPeek id={target.id} onClose={closePeek} />
-          : <DealPeek id={target.id} onClose={closePeek} />}
+        {target.type === 'contact' ? <ContactPeek id={target.id} onClose={closePeek} />
+          : target.type === 'deal' ? <DealPeek id={target.id} onClose={closePeek} />
+          : <CompanyPeek id={target.id} onClose={closePeek} />}
       </aside>
     </div>,
     document.body,

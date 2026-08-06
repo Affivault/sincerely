@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers, Blocks,
   ChevronRight, Wrench, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck,
-  CalendarDays, ListTodo,
+  CalendarDays, ListTodo, Building2,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
@@ -47,6 +47,7 @@ const campaignsNav: NavItem[] = [
 const leadsNav: NavItem[] = [
   { name: 'Prospector', href: '/prospector', icon: Radar },
   { name: 'Lead Lists', href: '/contacts', icon: Users },
+  { name: 'Companies',  href: '/companies', icon: Building2 },
 ];
 
 const toolsNav: NavItem[] = [

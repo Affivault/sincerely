@@ -8,7 +8,7 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 export type SearchHitType =
-  | 'contact' | 'deal' | 'campaign' | 'list' | 'activity' | 'meeting' | 'template' | 'message';
+  | 'contact' | 'company' | 'deal' | 'campaign' | 'list' | 'activity' | 'meeting' | 'template' | 'message';
 
 export interface SearchHit {
   id: string;
@@ -31,6 +31,7 @@ export interface SearchResults {
 
 export const SEARCH_TYPE_LABEL: Record<SearchHitType, string> = {
   contact: 'People',
+  company: 'Companies',
   deal: 'Deals',
   campaign: 'Campaigns',
   list: 'Lead lists',

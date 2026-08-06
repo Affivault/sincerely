@@ -177,3 +177,50 @@ export interface ContactCrmSummary {
   events: CrmEvent[];
   notes: CrmNote[];
 }
+
+/* ── Companies ──────────────────────────────────────────────────────────
+   The missing primitive. "Company" used to be free text on a contact, so
+   the app could never answer "who else works here, and what's open there?" */
+
+export interface Company {
+  id: string;
+  user_id: string;
+  name: string;
+  /** Matching key maintained by the database — read-only to clients. */
+  normalized_name: string | null;
+  domain: string | null;
+  website: string | null;
+  industry: string | null;
+  size: string | null;
+  location: string | null;
+  linkedin_url: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Rollups, present on list/detail responses. */
+  contact_count?: number;
+  deal_count?: number;
+  open_value?: number;
+}
+
+export interface CreateCompanyInput {
+  name: string;
+  domain?: string | null;
+  website?: string | null;
+  industry?: string | null;
+  size?: string | null;
+  location?: string | null;
+  linkedin_url?: string | null;
+  notes?: string | null;
+}
+export interface UpdateCompanyInput extends Partial<CreateCompanyInput> {}
+
+/** Everything on a company's page, in one request. */
+export interface CompanySummary {
+  company: Company;
+  contacts: Array<{
+    id: string; email: string; first_name: string | null; last_name: string | null;
+    job_title: string | null; dcs_score: number | null;
+  }>;
+  deals: Deal[];
+}

@@ -20,6 +20,7 @@ const PAGE_TITLES: [prefix: string, name: string][] = [
   ['/inbox', 'Unibox'],
   ['/dashboard/overview', 'Performance'],
   ['/deals', 'Deals'],
+  ['/companies', 'Companies'],
   ['/calendar', 'Calendar'],
   ['/tasks', 'Activities'],
   ['/crm', 'Deals'],

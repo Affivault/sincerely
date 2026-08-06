@@ -6,7 +6,7 @@ import {
   FileText, Webhook, Send, Globe, ShieldOff, ShieldCheck, UserPlus,
   CalendarClock, Wrench, Plus, Search, Sun, Moon, LogOut, CornerDownLeft, Blocks,
   ArrowUp, ArrowDown, Handshake, ListTodo, CalendarDays, Phone, Mail,
-  CheckSquare, Loader2, type LucideIcon,
+  CheckSquare, Loader2, Building2, type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useTheme } from '../context/ThemeContext';
@@ -43,11 +43,12 @@ interface CommandItem {
   href?: string;
   run?: () => void;
   /** Set on record hits that can open in the peek drawer. */
-  peek?: { type: 'contact' | 'deal'; id: string };
+  peek?: { type: 'contact' | 'deal' | 'company'; id: string };
 }
 
 const HIT_ICON: Record<SearchHitType, LucideIcon> = {
   contact: Users,
+  company: Building2,
   deal: Handshake,
   campaign: Megaphone,
   list: Users,
@@ -188,7 +189,9 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       href: h.href,
       // People and deals open over the page you're on. Everything else is a
       // destination, so it still navigates.
-      peek: h.type === 'contact' || h.type === 'deal' ? { type: h.type, id: h.id } : undefined,
+      peek: h.type === 'contact' || h.type === 'deal' || h.type === 'company'
+        ? { type: h.type, id: h.id }
+        : undefined,
     }));
   }, [results, trimmed]);
 
