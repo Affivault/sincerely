@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, type ReactNode } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { crmApi } from '../../api/crm.api';
+import { ActivityModal, MeetingModal, ContactPicker, toDateInput } from '../../components/crm/CrmPrimitives';
 import { contactsApi } from '../../api/contacts.api';
 import { inboxApi } from '../../api/inbox.api';
 import { Modal } from '../../components/ui/Modal';
@@ -15,16 +16,16 @@ import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import {
   Handshake, ListTodo, Calendar as CalendarIcon, Plus, Trash2,
-  ChevronLeft, ChevronRight, Phone, Users as UsersIcon, Building2,
-  CalendarClock, CheckCircle2, Circle, Flag, GripVertical,
+  Phone, Users as UsersIcon, Building2,
+  CalendarClock, CheckCircle2, Circle, GripVertical,
   X, Pencil, Clock, ArrowUpRight, ArrowDownLeft, Mail, StickyNote,
   Link2, Trophy, MailOpen, Briefcase,
 } from 'lucide-react';
 import {
   DEAL_STAGES,
   type Deal, type DealStage, type CreateDealInput,
-  type CrmTask, type CreateTaskInput, type TaskPriority,
-  type CrmEvent, type CreateEventInput, type EventType,
+  type CrmTask, type TaskPriority,
+  type CrmEvent, type EventType,
   type ContactWithTags,
 } from '@lemlist/shared';
 
@@ -33,20 +34,6 @@ function fmtMoney(v: number, currency = 'USD'): string {
   try {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(v || 0);
   } catch { return `$${Math.round(v || 0).toLocaleString()}`; }
-}
-function toDateInput(iso?: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-function toLocalInput(iso?: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-function fromLocalInput(v: string): string | null {
-  return v ? new Date(v).toISOString() : null;
 }
 function dealAge(iso?: string | null): string {
   if (!iso) return '—';
@@ -94,100 +81,7 @@ const EVENT_META: Record<EventType, { label: string; icon: typeof Phone; dot: st
   meeting: { label: 'Meeting', icon: UsersIcon, dot: 'bg-emerald-500', chip: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
 };
 
-/** Deal <select> options for linking a task/event to a deal. */
-function useDealOptions() {
-  const { data } = useQuery({ queryKey: ['crm', 'deals'], queryFn: () => crmApi.listDeals() });
-  return [{ value: '', label: 'No deal' }, ...(data || []).map(d => ({ value: d.id, label: d.title }))];
-}
-
 /* ─── Lead picker ─────────────────────────────────── */
-/**
- * Attach a real platform contact to a deal: search your contact base and
- * link, or just type a free-text name for someone who isn't a contact yet.
- */
-function LeadPicker({
-  linkedName, linkedEmail, name, onName, onLink, onUnlink,
-}: {
-  linkedName: string | null;
-  linkedEmail: string | null;
-  name: string;
-  onName: (v: string) => void;
-  onLink: (c: ContactWithTags) => void;
-  onUnlink: () => void;
-}) {
-  const [focused, setFocused] = useState(false);
-  const [debounced, setDebounced] = useState('');
-  const isLinked = !!linkedEmail;
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(name.trim()), 250);
-    return () => clearTimeout(t);
-  }, [name]);
-
-  const { data: results } = useQuery({
-    queryKey: ['crm', 'lead-search', debounced],
-    queryFn: () => contactsApi.list({ search: debounced, limit: 6 }),
-    enabled: !isLinked && debounced.length >= 2,
-  });
-
-  if (isLinked) {
-    return (
-      <div>
-        <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Lead</label>
-        <div className="flex items-center gap-2.5 rounded-lg border border-[var(--indigo)]/30 bg-[var(--indigo-subtle)]/40 px-2.5 h-10">
-          <Avatar name={linkedName} email={linkedEmail} size="md" />
-          <div className="flex-1 min-w-0 leading-tight">
-            <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{linkedName || linkedEmail}</p>
-            <p className="text-[10.5px] text-[var(--text-tertiary)] truncate">{linkedEmail}</p>
-          </div>
-          <span className="hidden sm:inline-flex items-center gap-1 text-[10.5px] font-medium text-[var(--indigo)]"><Link2 className="h-3 w-3" /> Linked</span>
-          <button type="button" onClick={onUnlink} className="icon-btn h-6 w-6" title="Unlink lead"><X className="h-3.5 w-3.5" /></button>
-        </div>
-      </div>
-    );
-  }
-
-  const options = results?.data || [];
-  const open = focused && debounced.length >= 2 && options.length > 0;
-
-  return (
-    <div className="relative">
-      <Input
-        label="Lead"
-        value={name}
-        onChange={e => onName(e.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setTimeout(() => setFocused(false), 150)}
-        placeholder="Search contacts or type a name…"
-        autoComplete="off"
-      />
-      {open && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] overflow-hidden">
-          {options.map(c => {
-            const full = [c.first_name, c.last_name].filter(Boolean).join(' ');
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); onLink(c); }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-              >
-                <Avatar name={full || c.email} email={c.email} size="md" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{full || c.email}</p>
-                  <p className="text-[11px] text-[var(--text-tertiary)] truncate">{c.email}{c.company ? ` · ${c.company}` : ''}</p>
-                </div>
-                <Link2 className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-              </button>
-            );
-          })}
-        </div>
-      )}
-      <p className="mt-1 text-[11px] text-[var(--text-tertiary)]">Pick a contact to sync this deal with your leads, or type any name.</p>
-    </div>
-  );
-}
-
 /* ─── Deal modal ──────────────────────────────────── */
 export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClose: () => void }) {
   const qc = useQueryClient();
@@ -241,10 +135,11 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
     <Modal isOpen onClose={onClose} title={editing ? 'Edit deal' : 'New deal'} size="md">
       <form onSubmit={(e) => { e.preventDefault(); if (form.title.trim()) save.mutate(); }} className="space-y-4">
         <Input label="Deal name" value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Northbeam — annual plan" required autoFocus />
-        <LeadPicker
-          linkedName={form.contact_name || null}
-          linkedEmail={form.contact_email || null}
-          name={form.contact_name || ''}
+        <ContactPicker
+          label="Lead"
+          contactId={form.contact_id || null}
+          contactName={form.contact_name || ''}
+          contactEmail={form.contact_email || null}
           onName={v => set('contact_name', v)}
           onLink={linkContact}
           onUnlink={() => setForm(f => ({ ...f, contact_id: null, contact_email: null, contact_name: '' }))}
@@ -268,128 +163,6 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
           <div className="flex gap-2">
             <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
             <Button variant="primary" type="submit" disabled={save.isPending || !form.title.trim()}>{save.isPending ? 'Saving…' : editing ? 'Save' : 'Add deal'}</Button>
-          </div>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-/* ─── Task modal ──────────────────────────────────── */
-function TaskModal({ task, onClose }: { task: Partial<CrmTask> | null; onClose: () => void }) {
-  const qc = useQueryClient();
-  const editing = !!task?.id;
-  const [form, setForm] = useState<CreateTaskInput & { priority: TaskPriority }>({
-    title: task?.title || '',
-    contact_name: task?.contact_name || '',
-    priority: (task?.priority as TaskPriority) || 'normal',
-    due_date: toDateInput(task?.due_date) || '',
-    deal_id: task?.deal_id || '',
-    notes: task?.notes || '',
-  });
-  const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
-  const dealOptions = useDealOptions();
-
-  const save = useMutation({
-    mutationFn: () => {
-      const payload = { ...form, deal_id: form.deal_id || null, due_date: form.due_date ? new Date(form.due_date + 'T09:00').toISOString() : null };
-      return editing ? crmApi.updateTask(task!.id!, payload) : crmApi.createTask(payload);
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm', 'tasks'] }); toast.success(editing ? 'Task updated' : 'Task added'); onClose(); },
-    onError: () => toast.error('Failed to save task'),
-  });
-  const del = useMutation({
-    mutationFn: () => crmApi.deleteTask(task!.id!),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm', 'tasks'] }); toast.success('Task deleted'); onClose(); },
-  });
-
-  return (
-    <Modal isOpen onClose={onClose} title={editing ? 'Edit task' : 'New task'} size="md">
-      <form onSubmit={(e) => { e.preventDefault(); if (form.title.trim()) save.mutate(); }} className="space-y-4">
-        <Input label="Task" value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Send proposal to Sarah" required autoFocus />
-        <div className="grid grid-cols-3 gap-4">
-          <Input label="Due date" type="date" value={form.due_date || ''} onChange={e => set('due_date', e.target.value)} />
-          <Select label="Priority" options={[{ value: 'high', label: 'High' }, { value: 'normal', label: 'Normal' }, { value: 'low', label: 'Low' }]} value={form.priority} onChange={e => set('priority', e.target.value)} />
-          <Input label="Contact" value={form.contact_name || ''} onChange={e => set('contact_name', e.target.value)} placeholder="Sarah Chen" />
-        </div>
-        <Select label="Linked deal" options={dealOptions} value={form.deal_id || ''} onChange={e => set('deal_id', e.target.value)} />
-        <div>
-          <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Notes</label>
-          <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} rows={2} className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]" />
-        </div>
-        <div className="flex items-center justify-between pt-2">
-          {editing ? (
-            <button type="button" onClick={() => del.mutate()} className="flex items-center gap-1.5 text-[12px] font-medium text-rose-500 hover:text-rose-600 transition-colors">
-              <Trash2 className="h-3.5 w-3.5" /> Delete
-            </button>
-          ) : <span />}
-          <div className="flex gap-2">
-            <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
-            <Button variant="primary" type="submit" disabled={save.isPending || !form.title.trim()}>{save.isPending ? 'Saving…' : editing ? 'Save' : 'Add task'}</Button>
-          </div>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-/* ─── Event modal ─────────────────────────────────── */
-export function EventModal({ event, onClose }: { event: Partial<CrmEvent> | null; onClose: () => void }) {
-  const qc = useQueryClient();
-  const editing = !!event?.id;
-  const [form, setForm] = useState<CreateEventInput & { type: EventType }>({
-    title: event?.title || '',
-    type: (event?.type as EventType) || 'meeting',
-    starts_at: toLocalInput(event?.starts_at) || toLocalInput(new Date().toISOString()),
-    contact_name: event?.contact_name || '',
-    // Keep the lead's email so the event stays linked to the contact record.
-    contact_email: event?.contact_email || null,
-    location: event?.location || '',
-    deal_id: event?.deal_id || '',
-    notes: event?.notes || '',
-  });
-  const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
-  const dealOptions = useDealOptions();
-
-  const save = useMutation({
-    mutationFn: () => {
-      const payload = { ...form, deal_id: form.deal_id || null, contact_email: form.contact_email || null, starts_at: fromLocalInput(form.starts_at) as string };
-      return editing ? crmApi.updateEvent(event!.id!, payload) : crmApi.createEvent(payload);
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm', 'events'] }); toast.success(editing ? 'Event updated' : 'Event booked'); onClose(); },
-    onError: () => toast.error('Failed to save event'),
-  });
-  const del = useMutation({
-    mutationFn: () => crmApi.deleteEvent(event!.id!),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm', 'events'] }); toast.success('Event deleted'); onClose(); },
-  });
-
-  return (
-    <Modal isOpen onClose={onClose} title={editing ? 'Edit event' : 'Book a call or meeting'} size="md">
-      <form onSubmit={(e) => { e.preventDefault(); if (form.title.trim() && form.starts_at) save.mutate(); }} className="space-y-4">
-        <Input label="Title" value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Discovery call — Northbeam" required autoFocus />
-        <div className="grid grid-cols-2 gap-4">
-          <Select label="Type" options={[{ value: 'meeting', label: 'Meeting' }, { value: 'call', label: 'Call' }]} value={form.type} onChange={e => set('type', e.target.value)} />
-          <Input label="When" type="datetime-local" value={form.starts_at} onChange={e => set('starts_at', e.target.value)} required />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Input label="Contact" value={form.contact_name || ''} onChange={e => set('contact_name', e.target.value)} placeholder="Sarah Chen" />
-          <Input label="Location / link" value={form.location || ''} onChange={e => set('location', e.target.value)} placeholder="Google Meet, Zoom…" />
-        </div>
-        <Select label="Linked deal" options={dealOptions} value={form.deal_id || ''} onChange={e => set('deal_id', e.target.value)} />
-        <div>
-          <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Notes</label>
-          <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} rows={2} className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]" />
-        </div>
-        <div className="flex items-center justify-between pt-2">
-          {editing ? (
-            <button type="button" onClick={() => del.mutate()} className="flex items-center gap-1.5 text-[12px] font-medium text-rose-500 hover:text-rose-600 transition-colors">
-              <Trash2 className="h-3.5 w-3.5" /> Delete
-            </button>
-          ) : <span />}
-          <div className="flex gap-2">
-            <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
-            <Button variant="primary" type="submit" disabled={save.isPending || !form.title.trim()}>{save.isPending ? 'Saving…' : editing ? 'Save' : 'Book it'}</Button>
           </div>
         </div>
       </form>
@@ -922,14 +695,14 @@ export function DealsPage() {
           events={events}
           onClose={() => setDrawerId(null)}
           onEdit={(d) => setDealModal(d)}
-          onAddTask={(d) => setTaskModal({ deal_id: d.id, contact_name: leadName(d) })}
-          onBookEvent={(d) => setEventModal({ deal_id: d.id, contact_name: leadName(d), contact_email: leadEmail(d), title: `Call — ${d.company || leadName(d) || d.title}` })}
+          onAddTask={(d) => setTaskModal({ deal_id: d.id, contact_id: d.contact_id, contact_name: leadName(d) })}
+          onBookEvent={(d) => setEventModal({ deal_id: d.id, contact_id: d.contact_id, contact_name: leadName(d), contact_email: leadEmail(d), title: `Call — ${d.company || leadName(d) || d.title}` })}
         />
       )}
 
       {dealModal !== undefined && <DealModal deal={dealModal} onClose={() => setDealModal(undefined)} />}
-      {taskModal !== undefined && <TaskModal task={taskModal} onClose={() => setTaskModal(undefined)} />}
-      {eventModal !== undefined && <EventModal event={eventModal} onClose={() => setEventModal(undefined)} />}
+      {taskModal !== undefined && <ActivityModal task={taskModal} onClose={() => setTaskModal(undefined)} />}
+      {eventModal !== undefined && <MeetingModal event={eventModal} onClose={() => setEventModal(undefined)} />}
     </div>
   );
 }
