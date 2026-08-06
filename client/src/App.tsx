@@ -22,6 +22,7 @@ const EmailAccountsPage    = lazy(() => import('./pages/smtp/EmailAccountsPage')
 const SmtpGuidePage        = lazy(() => import('./pages/smtp/SmtpGuidePage').then(m => ({ default: m.SmtpGuidePage })));
 const AnalyticsDashboardPage = lazy(() => import('./pages/analytics/AnalyticsDashboardPage').then(m => ({ default: m.AnalyticsDashboardPage })));
 const InboxPage            = lazy(() => import('./pages/inbox/InboxPage').then(m => ({ default: m.InboxPage })));
+const TodayPage            = lazy(() => import('./pages/dashboard/TodayPage').then(m => ({ default: m.TodayPage })));
 const DealsPage            = lazy(() => import('./pages/crm/DealsPage').then(m => ({ default: m.DealsPage })));
 const TasksPage            = lazy(() => import('./pages/crm/TasksPage').then(m => ({ default: m.TasksPage })));
 const CalendarPage         = lazy(() => import('./pages/crm/CalendarPage').then(m => ({ default: m.CalendarPage })));
@@ -106,7 +107,9 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route path="/dashboard"          element={<DashboardPage />} />
+          {/* Home is the worklist; the analytics dashboard moves one click away. */}
+          <Route path="/dashboard"          element={<TodayPage />} />
+          <Route path="/dashboard/overview" element={<DashboardPage />} />
           <Route path="/contacts"           element={<ContactsListPage />} />
           <Route path="/contacts/import"    element={<BulkImportPage />} />
           <Route path="/contacts/:id"       element={<ContactDetailPage />} />
