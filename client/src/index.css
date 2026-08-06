@@ -954,3 +954,10 @@
 .sx-logo--dark { display: none; }
 .dark .sx-logo--light { display: none; }
 .dark .sx-logo--dark { display: block; }
+
+
+/* Peek drawer — slides in from the right edge over the current page. */
+@keyframes slideInRight {
+  from { transform: translateX(16px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}

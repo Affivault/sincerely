@@ -5,6 +5,7 @@ import { Header } from './Header';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { UpgradeNag } from '../UpgradeNag';
 import { CommandPalette } from '../CommandPalette';
+import { PeekDrawer } from '../peek/PeekDrawer';
 import { ShortcutsOverlay } from '../ShortcutsOverlay';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { SidebarProvider, useSidebar } from '../../context/SidebarContext';
@@ -216,6 +217,8 @@ function AppContent() {
         </main>
       </div>
       <CommandPalette open={open} onClose={closePalette} />
+      {/* Any page can open a record over itself; state lives in the URL. */}
+      <PeekDrawer />
       <ShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   );

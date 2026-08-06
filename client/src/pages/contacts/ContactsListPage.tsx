@@ -6,6 +6,7 @@ import Papa from 'papaparse';
 import { useDebounce } from '../../hooks/useDebounce';
 import { contactsApi, listsApi, tagsApi } from '../../api/contacts.api';
 import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME } from '@lemlist/shared';
+import { usePeek } from '../../components/peek/usePeek';
 import { listFoldersApi, type ListFolder } from '../../api/list-folders.api';
 import { verificationApi } from '../../api/verification.api';
 import { settingsApi } from '../../api/settings.api';
@@ -486,6 +487,7 @@ const DEFAULT_COLUMNS: ColumnId[] = ['email', 'status', 'company', 'location', '
 export function ContactsListPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { openPeek } = usePeek();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [page, setPage] = useState(1);
@@ -1811,7 +1813,11 @@ export function ContactsListPage() {
                     return (
                       <tr
                         key={contact.id}
-                        onClick={() => navigate(`/contacts/${contact.id}`)}
+                        onClick={(e) => {
+                          // ⌘/ctrl-click still opens the full profile in a tab.
+                          if (e.metaKey || e.ctrlKey) { window.open(`/contacts/${contact.id}`, '_blank'); return; }
+                          openPeek('contact', contact.id);
+                        }}
                         className={cn(
                           'group cursor-pointer transition-colors duration-150',
                           isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]'

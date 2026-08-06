@@ -13,6 +13,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useDebounce } from '../hooks/useDebounce';
 import { searchApi } from '../api/search.api';
+import { usePeek } from './peek/usePeek';
 import { crmApi } from '../api/crm.api';
 import toast from 'react-hot-toast';
 import {
@@ -41,6 +42,8 @@ interface CommandItem {
   keywords?: string;
   href?: string;
   run?: () => void;
+  /** Set on record hits that can open in the peek drawer. */
+  peek?: { type: 'contact' | 'deal'; id: string };
 }
 
 const HIT_ICON: Record<SearchHitType, LucideIcon> = {
@@ -86,6 +89,7 @@ interface CommandPaletteProps {
 export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { openPeek } = usePeek();
   const { theme, toggleTheme } = useTheme();
   const { signOut } = useAuth();
   const [query, setQuery] = useState('');
@@ -182,6 +186,9 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       icon: HIT_ICON[h.type] || Search,
       group: SEARCH_TYPE_LABEL[h.type],
       href: h.href,
+      // People and deals open over the page you're on. Everything else is a
+      // destination, so it still navigates.
+      peek: h.type === 'contact' || h.type === 'deal' ? { type: h.type, id: h.id } : undefined,
     }));
   }, [results, trimmed]);
 
@@ -236,6 +243,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   const runItem = (item: CommandItem) => {
     if (item.run) { item.run(); return; }
+    if (item.peek) { openPeek(item.peek.type, item.peek.id); onClose(); return; }
     if (item.href) { navigate(item.href); onClose(); }
   };
 
