@@ -31,15 +31,16 @@ type NavItem = NavLeaf | NavGroup;
 const isGroup = (item: NavItem): item is NavGroup => (item as NavGroup).kind === 'group';
 
 /* ─── Nav definitions ───────────────────────────────────────────────
-   Six destinations, not seventeen.
+   Organised, not hidden.
 
-   The old sidebar listed every page at the top level, which made the rail a
-   table of contents rather than a map: fourteen rows, no hierarchy, and the
-   thing you needed was as buried as the thing you didn't. Now the top level
-   answers "which part of the job am I doing?" — reach the inbox, the leads,
-   the campaigns, the pipeline, the diary — and the pages inside each live one
-   disclosure away. ⌘K still gets you anywhere in two keystrokes, so nothing
-   is further than it was for anyone who knows what they want. */
+   The old sidebar listed every page at one flat level, which made the rail a
+   table of contents rather than a map: fourteen equal rows, no sense of what
+   belonged with what. The fix is grouping — Templates and Schedules sit under
+   Campaigns, Companies and Prospector beside Lead lists — but grouping earns
+   its keep by giving structure, not by taking pages off the screen. So the
+   groups start open: everything you had is still visible, just gathered under
+   the thing it belongs to. Collapsing is a choice you make, not a default you
+   have to undo. */
 
 const primaryNav: NavItem[] = [
   /* Today is the worklist; Dashboard is the numbers. Both are top-level —
@@ -105,6 +106,19 @@ const adminNav: NavItem[] = [
 ];
 
 const ALL_GROUPS: NavGroup[] = [...primaryNav, ...utilityNav].filter(isGroup);
+
+/* Open on first run. Grouping is meant to organise the rail, not hide it —
+   every page you work in stays on screen, indented under the thing it belongs
+   to, and collapsing is yours to do rather than mine to assume. Tools stays
+   shut because it isn't why anyone opens the app. */
+const DEFAULT_EXPANDED = primaryNav.filter(isGroup).map((g) => g.id);
+
+/* Versioned: anyone who used the app before this shipped has ["campaigns"]
+   saved from the old single-group default, which under the new nav would
+   leave Leads and Calendar shut — the one thing this change exists to avoid.
+   A new key lets the new default reach people who already have a preference
+   for a nav that no longer exists. */
+const EXPANDED_KEY = 'sidebar.expandedGroups.v2';
 
 function routeMatches(pathname: string, route: string): boolean {
   return pathname === route || pathname.startsWith(route + '/');
@@ -354,15 +368,12 @@ export function Sidebar() {
   const workspaceName = user?.email?.split('@')[0] || 'Workspace';
   const unreadCount = useUnreadCount();
 
-  /* Nothing is expanded by default — a six-row rail is the point. Whichever
-     group you're inside opens itself below. */
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem('sidebar.expandedGroups');
-      return new Set<string>(saved ? JSON.parse(saved) : []);
-    } catch {
-      return new Set<string>();
-    }
+      const saved = localStorage.getItem(EXPANDED_KEY);
+      if (saved) return new Set<string>(JSON.parse(saved));
+    } catch { /* fall through to the default */ }
+    return new Set<string>(DEFAULT_EXPANDED);
   });
 
   // Navigating into a group's territory opens it, so the child you landed on
@@ -383,7 +394,7 @@ export function Sidebar() {
     setExpandedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
-      try { localStorage.setItem('sidebar.expandedGroups', JSON.stringify([...next])); } catch { /* ignore */ }
+      try { localStorage.setItem(EXPANDED_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
       return next;
     });
   };
