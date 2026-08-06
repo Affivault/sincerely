@@ -1,30 +1,82 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, Send, Globe, ShieldOff, ShieldCheck, UserPlus,
   CalendarClock, Wrench, Plus, Search, Sun, Moon, LogOut, CornerDownLeft, Blocks,
-  ArrowUp, ArrowDown, type LucideIcon,
+  ArrowUp, ArrowDown, Handshake, ListTodo, CalendarDays, Phone, Mail,
+  CheckSquare, Loader2, type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useDebounce } from '../hooks/useDebounce';
-import { campaignsApi } from '../api/campaigns.api';
+import { searchApi } from '../api/search.api';
+import { crmApi } from '../api/crm.api';
+import toast from 'react-hot-toast';
+import {
+  parseQuickAdd, SEARCH_TYPE_LABEL,
+  type SearchHit, type SearchHitType, type QuickAddKind,
+} from '@lemlist/shared';
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Command palette.
+
+   Search is meant to be the primary navigation, not a shortcut to the nav.
+   So this looks across every object the user owns — people, deals, emails,
+   lists, activities, meetings, templates — and can create work outright
+   when what you typed reads like an instruction ("call ada tomorrow 3pm").
+   ═══════════════════════════════════════════════════════════════════════ */
 
 interface CommandItem {
   id: string;
   label: string;
+  /** Second line, for record hits. */
+  sublabel?: string | null;
+  /** Right-aligned hint. */
+  meta?: string | null;
   icon: LucideIcon;
   group: string;
-  /** extra search terms */
   keywords?: string;
-  /** navigation target */
   href?: string;
-  /** custom action — takes precedence over href */
   run?: () => void;
 }
+
+const HIT_ICON: Record<SearchHitType, LucideIcon> = {
+  contact: Users,
+  deal: Handshake,
+  campaign: Megaphone,
+  list: Users,
+  activity: ListTodo,
+  meeting: CalendarDays,
+  template: FileText,
+  message: Inbox,
+};
+
+const QUICK_ADD_ICON: Record<QuickAddKind, LucideIcon> = {
+  call: Phone,
+  meeting: CalendarDays,
+  email: Mail,
+  todo: CheckSquare,
+  deal: Handshake,
+};
+
+const QUICK_ADD_VERB: Record<QuickAddKind, string> = {
+  call: 'Log a call',
+  meeting: 'Book a meeting',
+  email: 'Schedule an email',
+  todo: 'Add a to-do',
+  deal: 'Create a deal',
+};
+
+/** Record groups come first — you searched for a thing, not a page. */
+const GROUP_ORDER = [
+  'Create',
+  ...Object.values(SEARCH_TYPE_LABEL),
+  'Navigate',
+  'Actions',
+];
 
 interface CommandPaletteProps {
   open: boolean;
@@ -33,6 +85,7 @@ interface CommandPaletteProps {
 
 export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { theme, toggleTheme } = useTheme();
   const { signOut } = useAuth();
   const [query, setQuery] = useState('');
@@ -40,10 +93,13 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const items = useMemo<CommandItem[]>(() => [
+  const staticItems = useMemo<CommandItem[]>(() => [
     // Navigate
-    { id: 'nav-dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Navigate', href: '/dashboard', keywords: 'home overview' },
+    { id: 'nav-dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Navigate', href: '/dashboard', keywords: 'home overview today' },
     { id: 'nav-inbox', label: 'Unibox', icon: Inbox, group: 'Navigate', href: '/inbox', keywords: 'messages replies email' },
+    { id: 'nav-deals', label: 'Deals', icon: Handshake, group: 'Navigate', href: '/deals', keywords: 'pipeline crm opportunities' },
+    { id: 'nav-calendar', label: 'Calendar', icon: CalendarDays, group: 'Navigate', href: '/calendar', keywords: 'meetings schedule diary' },
+    { id: 'nav-tasks', label: 'Activities', icon: ListTodo, group: 'Navigate', href: '/tasks', keywords: 'tasks todo follow-ups calls' },
     { id: 'nav-campaigns', label: 'Campaigns', icon: Megaphone, group: 'Navigate', href: '/campaigns', keywords: 'sequences outreach' },
     { id: 'nav-analytics', label: 'Analytics', icon: BarChart3, group: 'Navigate', href: '/analytics', keywords: 'stats reports metrics' },
     { id: 'nav-templates', label: 'Templates', icon: FileText, group: 'Navigate', href: '/templates', keywords: 'emails snippets' },
@@ -61,6 +117,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     // Create
     { id: 'new-campaign', label: 'New campaign', icon: Plus, group: 'Create', href: '/campaigns/new', keywords: 'create sequence add' },
     { id: 'import-contacts', label: 'Import contacts', icon: Users, group: 'Create', href: '/contacts/import', keywords: 'upload csv add leads' },
+    { id: 'new-deal', label: 'New deal', icon: Handshake, group: 'Create', href: '/deals', keywords: 'opportunity pipeline add' },
     // Actions
     {
       id: 'toggle-theme',
@@ -73,37 +130,83 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     { id: 'sign-out', label: 'Sign out', icon: LogOut, group: 'Actions', keywords: 'logout exit leave', run: () => { signOut(); onClose(); } },
   ], [theme, toggleTheme, signOut, onClose]);
 
-  // Jump straight to a specific campaign by name, not just the Campaigns list page.
-  const debouncedQuery = useDebounce(query, 200);
-  const trimmedDebounced = debouncedQuery.trim();
-  const { data: campaignResults } = useQuery({
-    queryKey: ['command-palette', 'campaigns', trimmedDebounced],
-    queryFn: () => campaignsApi.list({ search: trimmedDebounced, limit: 5 }),
-    enabled: open && trimmedDebounced.length >= 2,
-    staleTime: 30_000,
+  const debouncedQuery = useDebounce(query, 180);
+  const trimmed = debouncedQuery.trim();
+
+  const { data: results, isFetching } = useQuery({
+    queryKey: ['search', trimmed],
+    queryFn: () => searchApi.query(trimmed),
+    enabled: open && trimmed.length >= 2,
+    staleTime: 15_000,
   });
 
-  const campaignItems = useMemo<CommandItem[]>(() => {
-    if (trimmedDebounced.length < 2) return [];
-    return (campaignResults?.data ?? []).map((c) => ({
-      id: `campaign-${c.id}`,
-      label: c.name,
-      icon: Megaphone,
-      group: 'Campaigns',
-      href: `/campaigns/${c.id}`,
+  /* ── Quick add ──────────────────────────────────────────────────────
+     Parsed off the raw query, not the debounced one, so the offer appears
+     as you type rather than a beat behind. */
+  const quickAdd = useMemo(() => parseQuickAdd(query), [query]);
+
+  const createQuick = useMutation({
+    mutationFn: async () => {
+      if (!quickAdd) return null;
+      if (quickAdd.kind === 'deal') {
+        return crmApi.createDeal({ title: quickAdd.subject });
+      }
+      if (quickAdd.kind === 'meeting') {
+        return crmApi.createEvent({
+          title: quickAdd.subject,
+          type: 'meeting',
+          starts_at: quickAdd.when || new Date().toISOString(),
+        });
+      }
+      return crmApi.createTask({
+        title: quickAdd.subject,
+        type: quickAdd.kind === 'call' ? 'call' : quickAdd.kind === 'email' ? 'email' : 'todo',
+        due_date: quickAdd.when,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['crm'] });
+      toast.success(quickAdd?.kind === 'deal' ? 'Deal created' : quickAdd?.kind === 'meeting' ? 'Meeting booked' : 'Activity scheduled');
+      onClose();
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Could not create that'),
+  });
+
+  const hitItems = useMemo<CommandItem[]>(() => {
+    if (trimmed.length < 2) return [];
+    return (results?.hits ?? []).map((h: SearchHit) => ({
+      id: `${h.type}-${h.id}`,
+      label: h.title,
+      sublabel: h.subtitle,
+      meta: h.meta,
+      icon: HIT_ICON[h.type] || Search,
+      group: SEARCH_TYPE_LABEL[h.type],
+      href: h.href,
     }));
-  }, [campaignResults, trimmedDebounced]);
+  }, [results, trimmed]);
+
+  const quickItem = useMemo<CommandItem[]>(() => {
+    if (!quickAdd) return [];
+    return [{
+      id: 'quick-add',
+      label: `${QUICK_ADD_VERB[quickAdd.kind]}: ${quickAdd.subject}`,
+      sublabel: quickAdd.whenLabel ? `Scheduled for ${quickAdd.whenLabel}` : 'No date — add one later',
+      icon: QUICK_ADD_ICON[quickAdd.kind],
+      group: 'Create',
+      run: () => createQuick.mutate(),
+    }];
+  }, [quickAdd, createQuick]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return items;
-    const staticMatches = items.filter((it) =>
+    if (!q) return staticItems;
+    const staticMatches = staticItems.filter((it) =>
       `${it.label} ${it.group} ${it.keywords ?? ''}`.toLowerCase().includes(q)
     );
-    return [...campaignItems, ...staticMatches];
-  }, [items, campaignItems, query]);
+    return [...quickItem, ...hitItems, ...staticMatches];
+  }, [staticItems, hitItems, quickItem, query]);
 
-  // Group while preserving the flat order used for keyboard navigation
+  // Group, keeping the flat order the keyboard walks through.
   const groups = useMemo(() => {
     const map = new Map<string, CommandItem[]>();
     for (const it of filtered) {
@@ -111,23 +214,25 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       arr.push(it);
       map.set(it.group, arr);
     }
-    return [...map.entries()];
+    return [...map.entries()].sort(
+      (a, b) => (GROUP_ORDER.indexOf(a[0]) + 1 || 99) - (GROUP_ORDER.indexOf(b[0]) + 1 || 99),
+    );
   }, [filtered]);
 
-  // Reset state whenever the palette opens
+  /** Keyboard order must match render order, or Enter picks the wrong row. */
+  const flatItems = useMemo(() => groups.flatMap(([, items]) => items), [groups]);
+
   useEffect(() => {
     if (open) {
       setQuery('');
       setActive(0);
-      // focus on next frame so the element is mounted
       requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [open]);
 
-  // Re-anchor whenever the result set changes shape — not just on query edits
-  // — so a highlighted row can't silently become a different item once the
-  // debounced campaign search resolves underneath the keyboard selection.
-  useEffect(() => { setActive(0); }, [filtered]);
+  // Re-anchor whenever the result set changes shape, so a highlighted row
+  // can't silently become a different record once search resolves under it.
+  useEffect(() => { setActive(0); }, [flatItems]);
 
   const runItem = (item: CommandItem) => {
     if (item.run) { item.run(); return; }
@@ -138,60 +243,60 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.preventDefault(); onClose(); }
-      else if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(a + 1, filtered.length - 1)); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(a + 1, flatItems.length - 1)); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
-      else if (e.key === 'Enter') { e.preventDefault(); const it = filtered[active]; if (it) runItem(it); }
+      else if (e.key === 'Enter') { e.preventDefault(); const it = flatItems[active]; if (it) runItem(it); }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [open, filtered, active]);
+  }, [open, flatItems, active]);
 
-  // Keep the active row scrolled into view
   useEffect(() => {
     if (!open || !listRef.current) return;
-    const el = listRef.current.querySelector<HTMLElement>(`[data-index="${active}"]`);
-    el?.scrollIntoView({ block: 'nearest' });
+    listRef.current.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [active, open]);
 
   if (!open) return null;
 
+  const searching = isFetching && trimmed.length >= 2;
   let flatIndex = -1;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center px-4 pt-[14vh]">
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-[3px] animate-fade-in"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-[3px] animate-fade-in" onClick={onClose} />
 
-      {/* Panel */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
-        className="relative w-full max-w-[560px] overflow-hidden rounded-[14px] glass shadow-[var(--shadow-xl)]"
+        className="relative w-full max-w-[600px] overflow-hidden rounded-[14px] glass shadow-[var(--shadow-xl)]"
         style={{ animation: 'cmdkIn 200ms var(--ease-out) both' }}
       >
         {/* Search row */}
         <div className="flex items-center gap-2.5 px-4 h-[52px] border-b border-[var(--border-subtle)]">
-          <Search className="h-4 w-4 text-[var(--text-tertiary)] flex-shrink-0" strokeWidth={2} />
+          {searching
+            ? <Loader2 className="h-4 w-4 text-[var(--indigo)] flex-shrink-0 animate-spin" />
+            : <Search className="h-4 w-4 text-[var(--text-tertiary)] flex-shrink-0" strokeWidth={2} />}
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search pages and actions…"
+            placeholder="Search people, deals, emails… or type “call ada tomorrow 3pm”"
             className="flex-1 bg-transparent text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none"
           />
           <kbd className="kbd flex-shrink-0">esc</kbd>
         </div>
 
         {/* Results */}
-        <div ref={listRef} className="max-h-[min(56vh,420px)] overflow-y-auto py-2">
-          {filtered.length === 0 ? (
+        <div ref={listRef} className="max-h-[min(60vh,460px)] overflow-y-auto py-2">
+          {flatItems.length === 0 ? (
             <div className="px-4 py-10 text-center">
-              <p className="text-[13px] text-[var(--text-secondary)]">No results for “{query}”</p>
-              <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Try a page name or an action.</p>
+              <p className="text-[13px] text-[var(--text-secondary)]">
+                {searching ? 'Searching…' : `No results for “${query}”`}
+              </p>
+              <p className="text-[12px] text-[var(--text-tertiary)] mt-1">
+                Try a name, a company, an email subject — or start with “call”, “meet” or “deal” to create something.
+              </p>
             </div>
           ) : (
             groups.map(([group, groupItems]) => (
@@ -204,6 +309,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                   const index = flatIndex;
                   const isActive = index === active;
                   const Icon = item.icon;
+                  const busy = item.id === 'quick-add' && createQuick.isPending;
                   return (
                     <button
                       key={item.id}
@@ -211,7 +317,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                       onClick={() => runItem(item)}
                       onMouseMove={() => setActive(index)}
                       className={cn(
-                        'group/cmd w-full flex items-center gap-3 px-2 h-9 rounded-[8px] text-left transition-colors duration-100',
+                        'group/cmd w-full flex items-center gap-3 px-2 py-1.5 rounded-[8px] text-left transition-colors duration-100',
                         isActive ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]'
                       )}
                     >
@@ -219,14 +325,24 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                         'flex h-6 w-6 items-center justify-center rounded-md flex-shrink-0 transition-colors',
                         isActive ? 'bg-[var(--indigo)] text-white' : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
                       )}>
-                        <Icon className="h-3.5 w-3.5" strokeWidth={2} />
+                        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" strokeWidth={2} />}
                       </span>
-                      <span className={cn(
-                        'flex-1 text-[13px] truncate',
-                        isActive ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]'
-                      )}>
-                        {item.label}
+                      <span className="flex-1 min-w-0">
+                        <span className={cn(
+                          'block text-[13px] truncate',
+                          isActive ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]'
+                        )}>
+                          {item.label}
+                        </span>
+                        {item.sublabel && (
+                          <span className="block text-[11px] text-[var(--text-tertiary)] truncate">{item.sublabel}</span>
+                        )}
                       </span>
+                      {item.meta && (
+                        <span className="hidden sm:block text-[11px] text-[var(--text-tertiary)] truncate max-w-[34%] flex-shrink-0">
+                          {item.meta}
+                        </span>
+                      )}
                       {isActive && (
                         <CornerDownLeft className="h-3.5 w-3.5 text-[var(--indigo)] flex-shrink-0" strokeWidth={2} />
                       )}
@@ -249,6 +365,11 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             <kbd className="kbd"><CornerDownLeft className="h-2.5 w-2.5" /></kbd>
             to select
           </span>
+          {results && trimmed.length >= 2 && (
+            <span className="ml-auto tabular">
+              {results.hits.length} result{results.hits.length === 1 ? '' : 's'} · {results.took_ms}ms
+            </span>
+          )}
         </div>
       </div>
     </div>
