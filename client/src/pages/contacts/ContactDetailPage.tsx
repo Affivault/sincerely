@@ -6,7 +6,8 @@ import { analyticsApi } from '../../api/analytics.api';
 import { crmApi } from '../../api/crm.api';
 import { inboxApi } from '../../api/inbox.api';
 import { suppressionApi } from '../../api/suppression.api';
-import { DealModal, EventModal } from '../crm/DealsPage';
+import { DealModal } from '../crm/DealsPage';
+import { MeetingModal } from '../../components/crm/CrmPrimitives';
 import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
 import { ContactHistory, ContactOrigin } from '../../components/crm/ContactHistory';
 import { EmailBody } from '../../components/shared/EmailBody';
@@ -204,7 +205,9 @@ export function ContactDetailPage() {
     return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
   const money = (v: number) => `$${Math.round(v || 0).toLocaleString()}`;
-  const eventPrefill = { contact_name: fullName || contact.email, contact_email: contact.email };
+  // contact_id is what puts the meeting on this profile's history — the
+  // server can also match on email, but don't rely on that when we know it.
+  const eventPrefill = { contact_id: contact.id, contact_name: fullName || contact.email, contact_email: contact.email };
 
   return (
     <div className="space-y-5">
@@ -598,7 +601,7 @@ export function ContactDetailPage() {
       )}
 
       {dealModal !== undefined && <DealModal deal={dealModal} onClose={() => setDealModal(undefined)} />}
-      {eventModal !== undefined && <EventModal event={eventModal} onClose={() => setEventModal(undefined)} />}
+      {eventModal !== undefined && <MeetingModal event={eventModal} onClose={() => setEventModal(undefined)} />}
       {showCampaignModal && <AddToCampaignModal contactIds={[contact.id]} onClose={() => setShowCampaignModal(false)} />}
     </div>
   );
