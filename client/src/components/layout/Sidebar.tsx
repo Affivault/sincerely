@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers, Blocks,
   ChevronRight, Wrench, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck,
-  CalendarDays, ListTodo, Building2,
+  CalendarDays, ListTodo, Building2, Sun,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
@@ -15,7 +15,11 @@ import { billingApi } from '../../api/billing.api';
 import { isUnlimited, ADMIN_EMAILS } from '@lemlist/shared';
 
 /* ─── Nav shape ─────────────────────────────────────────────────── */
-type NavLeaf = { kind?: 'leaf'; name: string; href: string; icon: React.ElementType; match?: string[] };
+type NavLeaf = {
+  kind?: 'leaf'; name: string; href: string; icon: React.ElementType; match?: string[];
+  /** Match the path exactly, for a route that is the prefix of a sibling. */
+  exact?: boolean;
+};
 type NavGroup = {
   kind: 'group'; name: string; href: string; icon: React.ElementType; id: string;
   children: NavLeaf[];
@@ -38,8 +42,11 @@ const isGroup = (item: NavItem): item is NavGroup => (item as NavGroup).kind ===
    is further than it was for anyone who knows what they want. */
 
 const primaryNav: NavItem[] = [
-  { name: 'Today',  href: '/dashboard', icon: LayoutDashboard, match: ['/dashboard'] },
-  { name: 'Unibox', href: '/inbox',     icon: Inbox },
+  /* Today is the worklist; Dashboard is the numbers. Both are top-level —
+     moving the dashboard behind a link inside Today made it feel deleted. */
+  { name: 'Today',     href: '/dashboard',          icon: Sun, exact: true },
+  { name: 'Dashboard', href: '/dashboard/overview', icon: LayoutDashboard },
+  { name: 'Unibox',    href: '/inbox',              icon: Inbox },
   {
     kind: 'group', id: 'campaigns',
     name: 'Campaigns', href: '/campaigns', icon: Megaphone,
@@ -125,9 +132,12 @@ const rowActive =
 
 function useIsActive(item: NavLeaf): boolean {
   const location = useLocation();
-  return item.match
-    ? item.match.some((r) => location.pathname === r || location.pathname.startsWith(r + '/'))
-    : location.pathname === item.href || location.pathname.startsWith(item.href + '/');
+  const routes = item.match || [item.href];
+  // Without `exact`, /dashboard would also claim /dashboard/overview and both
+  // rows would light up at once.
+  return item.exact
+    ? routes.includes(location.pathname)
+    : routes.some((r) => routeMatches(location.pathname, r));
 }
 
 /* ─── NavLeafItem ───────────────────────────────────────────────── */
