@@ -46,13 +46,23 @@ export const searchService = {
     if (q.length < 2) return { hits: [], took_ms: 0 };
     const like = `%${q}%`;
 
-    const [contacts, deals, campaigns, lists, activities, meetings, templates, messages] = await Promise.all([
+    const [contacts, companies, deals, campaigns, lists, activities, meetings, templates, messages] = await Promise.all([
       attempt('contacts', async () => {
         const { data, error } = await supabaseAdmin
           .from('contacts')
           .select('id, email, first_name, last_name, company, job_title')
           .eq('user_id', userId)
           .or(`email.ilike.${like},first_name.ilike.${like},last_name.ilike.${like},company.ilike.${like}`)
+          .limit(PER_TYPE);
+        if (error) throw new Error(error.message);
+        return (data || []) as any[];
+      }),
+      attempt('companies', async () => {
+        const { data, error } = await supabaseAdmin
+          .from('companies')
+          .select('id, name, domain, industry, location')
+          .eq('user_id', userId)
+          .or(`name.ilike.${like},domain.ilike.${like},industry.ilike.${like}`)
           .limit(PER_TYPE);
         if (error) throw new Error(error.message);
         return (data || []) as any[];
@@ -142,6 +152,17 @@ export const searchService = {
         subtitle: c.email,
         meta: [c.job_title, c.company].filter(Boolean).join(' · ') || null,
         href: `/contacts/${c.id}`,
+      });
+    }
+
+    for (const co of companies) {
+      hits.push({
+        id: co.id,
+        type: 'company',
+        title: co.name,
+        subtitle: co.domain || null,
+        meta: [co.industry, co.location].filter(Boolean).join(' · ') || null,
+        href: `/companies?peek=company:${co.id}`,
       });
     }
 

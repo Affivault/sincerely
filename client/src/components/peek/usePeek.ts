@@ -9,12 +9,12 @@ import { useSearchParams } from 'react-router-dom';
    open one without threading props or a provider through the tree.
    ═══════════════════════════════════════════════════════════════════════ */
 
-export type PeekType = 'contact' | 'deal';
+export type PeekType = 'contact' | 'deal' | 'company';
 
 export interface PeekTarget { type: PeekType; id: string }
 
 const PARAM = 'peek';
-const VALID: PeekType[] = ['contact', 'deal'];
+const VALID: PeekType[] = ['contact', 'deal', 'company'];
 
 export function parsePeek(raw: string | null): PeekTarget | null {
   if (!raw) return null;

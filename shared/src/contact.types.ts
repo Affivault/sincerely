@@ -22,6 +22,8 @@ export interface Contact {
   dcs_fail_reason: string | null;
   /** How many live lead lists this contact belongs to (migration 036). */
   list_count?: number;
+  /** The company this contact belongs to (migration 038). */
+  company_id?: string | null;
   /** Filename of the CSV this contact was imported from, if any. */
   import_source?: string | null;
   imported_at?: string | null;

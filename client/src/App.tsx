@@ -24,6 +24,7 @@ const AnalyticsDashboardPage = lazy(() => import('./pages/analytics/AnalyticsDas
 const InboxPage            = lazy(() => import('./pages/inbox/InboxPage').then(m => ({ default: m.InboxPage })));
 const TodayPage            = lazy(() => import('./pages/dashboard/TodayPage').then(m => ({ default: m.TodayPage })));
 const DealsPage            = lazy(() => import('./pages/crm/DealsPage').then(m => ({ default: m.DealsPage })));
+const CompaniesPage        = lazy(() => import('./pages/companies/CompaniesPage').then(m => ({ default: m.CompaniesPage })));
 const TasksPage            = lazy(() => import('./pages/crm/TasksPage').then(m => ({ default: m.TasksPage })));
 const CalendarPage         = lazy(() => import('./pages/crm/CalendarPage').then(m => ({ default: m.CalendarPage })));
 const ProspectorPage       = lazy(() => import('./pages/prospector/ProspectorPage').then(m => ({ default: m.ProspectorPage })));
@@ -124,6 +125,7 @@ export default function App() {
           <Route path="/analytics"          element={<AnalyticsDashboardPage />} />
           <Route path="/inbox"              element={<InboxPage />} />
           <Route path="/deals"              element={<DealsPage />} />
+          <Route path="/companies"          element={<CompaniesPage />} />
           <Route path="/tasks"              element={<TasksPage />} />
           <Route path="/calendar"           element={<CalendarPage />} />
           {/* CRM used to be one tabbed page; keep old links working. */}
