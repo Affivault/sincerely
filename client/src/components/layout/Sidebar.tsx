@@ -23,7 +23,7 @@ const isGroup = (item: NavItem): item is NavGroup => (item as NavGroup).kind ===
 
 /* ─── Nav definitions ───────────────────────────────────────────── */
 const workspaceNav: NavItem[] = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Today',     href: '/dashboard', icon: LayoutDashboard, match: ['/dashboard'] },
   { name: 'Unibox',    href: '/inbox',     icon: Inbox },
   { name: 'Deals',     href: '/deals',     icon: Handshake, match: ['/deals', '/crm'] },
   { name: 'Calendar',  href: '/calendar',  icon: CalendarDays, match: ['/calendar'] },
