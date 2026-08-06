@@ -15,3 +15,4 @@ export * from './crm.types.js';
 export * from './prospecting.types.js';
 export * from './email-finder.types.js';
 export * from './admin.types.js';
+export * from './search.types.js';

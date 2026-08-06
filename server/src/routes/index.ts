@@ -26,6 +26,7 @@ import { listFoldersRoutes } from './list-folders.routes.js';
 import { sendingSchedulesRoutes } from './sending-schedules.routes.js';
 import { billingRoutes } from './billing.routes.js';
 import { crmRoutes } from './crm.routes.js';
+import { searchRoutes } from './search.routes.js';
 import { prospectingRoutes } from './prospecting.routes.js';
 import { adminRoutes } from './admin.routes.js';
 
@@ -62,5 +63,6 @@ routes.use('/list-folders', listFoldersRoutes);
 routes.use('/sending-schedules', sendingSchedulesRoutes);
 routes.use('/billing', billingRoutes);
 routes.use('/crm', crmRoutes);
+routes.use('/search', searchRoutes);
 routes.use('/prospecting', prospectingRoutes);
 routes.use('/admin', adminRoutes);
