@@ -136,7 +136,7 @@ export const campaignsService = {
       .select('*')
       .eq('id', id)
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Campaign not found', 404);

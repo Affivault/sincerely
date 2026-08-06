@@ -103,7 +103,7 @@ export const campaignFoldersService = {
       .eq('id', id)
       .eq('user_id', userId)
       .select()
-      .single();
+      .maybeSingle();
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Folder not found', 404);
     return data;

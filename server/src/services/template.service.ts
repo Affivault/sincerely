@@ -458,7 +458,7 @@ export const templateService = {
       .from('email_templates')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Template not found', 404);
@@ -491,7 +491,7 @@ export const templateService = {
       .eq('id', id)
       .eq('user_id', userId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Template not found', 404);
@@ -553,7 +553,7 @@ export const templateService = {
       .from('sequence_templates')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Sequence not found', 404);
@@ -586,7 +586,7 @@ export const templateService = {
       .eq('id', id)
       .eq('user_id', userId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Sequence not found', 404);

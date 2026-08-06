@@ -31,7 +31,7 @@ export const campaignStepsService = {
       .eq('id', stepId)
       .eq('campaign_id', campaignId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Step not found', 404);

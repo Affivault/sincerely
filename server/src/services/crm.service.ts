@@ -125,7 +125,7 @@ export const crmService = {
       .eq('id', id)
       .eq('user_id', userId)
       .select(DEAL_SELECT)
-      .single();
+      .maybeSingle();
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Deal not found', 404);
     return data;
@@ -187,7 +187,7 @@ export const crmService = {
       .eq('id', id)
       .eq('user_id', userId)
       .select(TASK_SELECT)
-      .single();
+      .maybeSingle();
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Task not found', 404);
     return data;
@@ -238,7 +238,7 @@ export const crmService = {
       .eq('id', id)
       .eq('user_id', userId)
       .select(EVENT_SELECT)
-      .single();
+      .maybeSingle();
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Event not found', 404);
     return data;
@@ -289,7 +289,7 @@ export const crmService = {
       .eq('id', id)
       .eq('user_id', userId)
       .select('*, deal:deals(id, title, stage)')
-      .single();
+      .maybeSingle();
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Note not found', 404);
     return data;

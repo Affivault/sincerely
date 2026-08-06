@@ -44,7 +44,7 @@ export const listFoldersService = {
 
   async update(userId: string, id: string, input: { name?: string; color?: string; icon?: string; position?: number }) {
     const { data, error } = await supabaseAdmin
-      .from('list_folders').update(input).eq('id', id).eq('user_id', userId).select().single();
+      .from('list_folders').update(input).eq('id', id).eq('user_id', userId).select().maybeSingle();
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Folder not found', 404);
     return data;
