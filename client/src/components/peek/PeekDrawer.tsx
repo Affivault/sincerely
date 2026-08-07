@@ -403,11 +403,11 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
           </p>
         </div>
         <Link
-          to="/companies"
+          to={`/companies/${company.id}`}
           onClick={onClose}
           className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
         >
-          <ExternalLink className="h-3 w-3" /> All
+          <ExternalLink className="h-3 w-3" /> Full page
         </Link>
       </div>
 

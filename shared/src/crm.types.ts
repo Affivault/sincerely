@@ -222,6 +222,15 @@ export interface CreateCompanyInput {
 export interface UpdateCompanyInput extends Partial<CreateCompanyInput> {}
 
 /** Everything on a company's page, in one request. */
+/** The account's whole history, pooled from every person at it. */
+export interface CompanyActivity {
+  contacts: Array<{ id: string; email: string; first_name: string | null; last_name: string | null }>;
+  messages: any[];
+  notes: CrmNote[];
+  tasks: CrmTask[];
+  events: CrmEvent[];
+}
+
 export interface CompanySummary {
   company: Company;
   contacts: Array<{

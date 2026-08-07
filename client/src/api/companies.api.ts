@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Company, CompanySummary, CreateCompanyInput, UpdateCompanyInput } from '@lemlist/shared';
+import type { Company, CompanySummary, CompanyActivity, CreateCompanyInput, UpdateCompanyInput } from '@lemlist/shared';
 
 export const companiesApi = {
   list: async (search?: string) =>
@@ -8,6 +8,10 @@ export const companiesApi = {
   /** The company, its people and its deals in one request. */
   summary: async (id: string) =>
     (await apiClient.get<CompanySummary>(`/companies/${id}/summary`)).data,
+
+  /** Everything that's happened with this account, across all its people. */
+  activity: async (id: string) =>
+    (await apiClient.get<CompanyActivity>(`/companies/${id}/activity`)).data,
 
   /** Returns the existing company when the name matches one already there. */
   create: async (input: CreateCompanyInput) =>

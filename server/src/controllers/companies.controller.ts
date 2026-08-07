@@ -14,6 +14,10 @@ export const companiesController = {
     try { res.json(await companiesService.summary(req.userId!, req.params.id)); } catch (err) { next(err); }
   },
 
+  async activity(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await companiesService.activity(req.userId!, req.params.id)); } catch (err) { next(err); }
+  },
+
   async create(req: AuthRequest, res: Response, next: NextFunction) {
     try { res.status(201).json(await companiesService.createOrGet(req.userId!, req.body)); } catch (err) { next(err); }
   },
