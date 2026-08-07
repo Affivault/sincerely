@@ -100,8 +100,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   const staticItems = useMemo<CommandItem[]>(() => [
     // Navigate
-    { id: 'nav-today', label: 'Today', icon: Sun, group: 'Navigate', href: '/dashboard', keywords: 'home worklist agenda overdue' },
-    { id: 'nav-dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Navigate', href: '/dashboard/overview', keywords: 'performance overview stats numbers' },
+    { id: 'nav-dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Navigate', href: '/dashboard', keywords: 'home overview performance stats numbers' },
     { id: 'nav-inbox', label: 'Unibox', icon: Inbox, group: 'Navigate', href: '/inbox', keywords: 'messages replies email' },
     { id: 'nav-deals', label: 'Deals', icon: Handshake, group: 'Navigate', href: '/deals', keywords: 'pipeline crm opportunities' },
     { id: 'nav-calendar', label: 'Calendar', icon: CalendarDays, group: 'Navigate', href: '/calendar', keywords: 'meetings schedule diary' },

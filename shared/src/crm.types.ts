@@ -9,6 +9,8 @@ export interface DealContact {
   first_name: string | null;
   last_name: string | null;
   company: string | null;
+  /** Set once the contact is linked to a company record. */
+  company_id: string | null;
   job_title: string | null;
   phone: string | null;
   linkedin_url: string | null;
@@ -19,6 +21,8 @@ export interface Deal {
   user_id: string;
   title: string;
   company: string | null;
+  /** Set once the deal is linked to a company record (migration 038). */
+  company_id: string | null;
   contact_name: string | null;
   contact_email: string | null;
   contact_id: string | null;

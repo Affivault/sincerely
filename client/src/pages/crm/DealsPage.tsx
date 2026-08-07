@@ -12,6 +12,7 @@ import { Select } from '../../components/ui/Select';
 import { Spinner } from '../../components/ui/Spinner';
 import { Avatar } from '../../components/shared/Avatar';
 import { SearchInput } from '../../components/shared/SearchInput';
+import { usePeek } from '../../components/peek/usePeek';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import {
@@ -66,6 +67,14 @@ function leadName(d: Deal): string | null {
 }
 function leadEmail(d: Deal): string | null {
   return d.contact?.email || d.contact_email || null;
+}
+/** The lead's contact record, when the deal is actually linked to one. */
+function leadId(d: Deal): string | null {
+  return d.contact_id || d.contact?.id || null;
+}
+/** The account this deal belongs to — its own link, or the lead's. */
+function dealCompanyId(d: Deal): string | null {
+  return d.company_id || d.contact?.company_id || null;
 }
 
 const STAGE_DOT: Record<DealStage, string> = {
@@ -179,6 +188,33 @@ const STAGE_ACTIVE: Record<DealStage, string> = {
   lost: 'bg-rose-500 text-white border-rose-500',
 };
 
+/**
+ * A company or person shown on a deal, as a way through to their history
+ * rather than a label. Falls back to plain text when there's nothing to
+ * open — a dead link is worse than no link.
+ */
+function CrossLink({ icon: Icon, label, onClick }: {
+  icon: React.ElementType; label: string; onClick?: () => void;
+}) {
+  const body = (
+    <>
+      <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+      <span className="truncate">{label}</span>
+    </>
+  );
+  if (!onClick) return <span className="inline-flex items-center gap-1 min-w-0">{body}</span>;
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      title={`Open ${label}`}
+      className="inline-flex items-center gap-1 min-w-0 rounded transition-colors hover:text-[var(--indigo)] hover:underline focus:outline-none focus-visible:text-[var(--indigo)]"
+    >
+      {body}
+    </button>
+  );
+}
+
 export function DealDrawer({
   deal, tasks, events, onClose, onEdit, onAddTask, onBookEvent,
 }: {
@@ -192,7 +228,11 @@ export function DealDrawer({
 }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { openPeek } = usePeek();
   const [show, setShow] = useState(false);
+
+  const contactId = leadId(deal);
+  const companyId = dealCompanyId(deal);
 
   useEffect(() => {
     setShow(true);
@@ -264,10 +304,31 @@ export function DealDrawer({
             </div>
           </div>
           <h2 className="text-[17px] font-semibold text-[var(--text-primary)] leading-snug tracking-[-0.01em]">{deal.title}</h2>
+          {/* Both are doors: the company opens everyone who works there and
+              every deal against the account; the person opens their own
+              history. Neither costs you this drawer — peeks stack over it. */}
           {(deal.company || name) && (
             <div className="mt-1.5 flex items-center gap-2.5 text-[12.5px] text-[var(--text-tertiary)]">
-              {deal.company && <span className="inline-flex items-center gap-1"><Building2 className="h-3.5 w-3.5" />{deal.company}</span>}
-              {name && <span className="inline-flex items-center gap-1"><UsersIcon className="h-3.5 w-3.5" />{name}</span>}
+              {deal.company && (
+                <CrossLink
+                  icon={Building2}
+                  label={deal.company}
+                  onClick={
+                    companyId
+                      ? () => openPeek('company', companyId)
+                      // Not linked to a company record yet — take them to the
+                      // accounts list filtered to this name rather than nowhere.
+                      : () => navigate(`/companies?q=${encodeURIComponent(deal.company!)}`)
+                  }
+                />
+              )}
+              {name && (
+                <CrossLink
+                  icon={UsersIcon}
+                  label={name}
+                  onClick={contactId ? () => openPeek('contact', contactId) : undefined}
+                />
+              )}
             </div>
           )}
         </div>
@@ -463,6 +524,15 @@ function Section({ title, count, actionLabel, onAction, icon: Icon, children }: 
 
 /* ─── Pipeline (deals kanban) ─────────────────────── */
 function PipelineBoard({ deals, tasks, events, onEdit, dragDisabled }: { deals: Deal[]; tasks: CrmTask[]; events: CrmEvent[]; onEdit: (d: Deal) => void; dragDisabled?: boolean }) {
+  const { openPeek } = usePeek();
+  const navigate = useNavigate();
+  // Peek the account when the deal is linked to one; otherwise show the
+  // accounts list filtered to the name we do have.
+  const onOpenCompany = (d: Deal) => {
+    const id = dealCompanyId(d);
+    if (id) openPeek('company', id);
+    else if (d.company) navigate(`/companies?q=${encodeURIComponent(d.company)}`);
+  };
   const qc = useQueryClient();
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<{ stage: DealStage; index: number } | null>(null);
@@ -533,12 +603,18 @@ function PipelineBoard({ deals, tasks, events, onEdit, dragDisabled }: { deals: 
                     {dropHere && over!.index === idx && dragId !== d.id && (
                       <div className="h-0.5 my-1 rounded-full bg-[var(--indigo)]" />
                     )}
-                    <button
+                    {/* A div, not a button: the company and lead inside are
+                        themselves clickable, and a button inside a button is
+                        invalid markup that browsers resolve unpredictably. */}
+                    <div
+                      role="button"
+                      tabIndex={0}
                       draggable={!dragDisabled}
                       onDragStart={() => { if (!dragDisabled) setDragId(d.id); }}
                       onDragEnd={() => { setDragId(null); setOver(null); }}
                       onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); const after = e.clientY > r.top + r.height / 2; setOver({ stage: stage.id, index: after ? idx + 1 : idx }); }}
                       onClick={() => onEdit(d)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit(d); } }}
                       className={cn(
                         'group w-full text-left rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5 my-1 shadow-[var(--shadow-sm)] hover:border-[var(--border-default)] hover:shadow-[var(--shadow-md)] transition-all',
                         dragDisabled ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
@@ -552,18 +628,36 @@ function PipelineBoard({ deals, tasks, events, onEdit, dragDisabled }: { deals: 
                       <div className="mt-2 flex items-center gap-2 flex-wrap">
                         <span className="text-[12px] font-semibold text-[var(--text-primary)] tabular">{fmtMoney(d.value, d.currency)}</span>
                         {d.company && (
-                          <span className="inline-flex items-center gap-1 text-[10.5px] text-[var(--text-tertiary)] truncate max-w-[110px]">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onOpenCompany(d); }}
+                            title={`Open ${d.company}`}
+                            className="inline-flex items-center gap-1 text-[10.5px] text-[var(--text-tertiary)] truncate max-w-[110px] rounded transition-colors hover:text-[var(--indigo)] hover:underline"
+                          >
                             <Building2 className="h-3 w-3 flex-shrink-0" />{d.company}
-                          </span>
+                          </button>
                         )}
                       </div>
                       {(lead || closeInfo || lc.tasks > 0 || lc.events > 0) && (
                         <div className="mt-1.5 flex items-center gap-2 text-[10.5px] text-[var(--text-tertiary)]">
-                          {lead && (
-                            <span className="inline-flex items-center gap-1 min-w-0 flex-shrink" title={leadEmail(d) || lead}>
-                              <Avatar name={lead} email={leadEmail(d)} size="xs" />
-                              <span className="truncate max-w-[92px]">{lead}</span>
-                            </span>
+                          {lead && (leadId(d)
+                            ? (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); openPeek('contact', leadId(d)!); }}
+                                title={`Open ${leadEmail(d) || lead}`}
+                                className="inline-flex items-center gap-1 min-w-0 flex-shrink rounded transition-colors hover:text-[var(--indigo)]"
+                              >
+                                <Avatar name={lead} email={leadEmail(d)} size="xs" />
+                                <span className="truncate max-w-[92px] hover:underline">{lead}</span>
+                              </button>
+                            )
+                            : (
+                              <span className="inline-flex items-center gap-1 min-w-0 flex-shrink" title={leadEmail(d) || lead}>
+                                <Avatar name={lead} email={leadEmail(d)} size="xs" />
+                                <span className="truncate max-w-[92px]">{lead}</span>
+                              </span>
+                            )
                           )}
                           <span className="flex-1" />
                           {closeInfo && (
@@ -575,7 +669,7 @@ function PipelineBoard({ deals, tasks, events, onEdit, dragDisabled }: { deals: 
                           {lc.events > 0 && <span className="inline-flex items-center gap-1 flex-shrink-0"><CalendarIcon className="h-3 w-3" /> {lc.events}</span>}
                         </div>
                       )}
-                    </button>
+                    </div>
                   </div>
                 );
               })}

@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers, Blocks,
   ChevronRight, Wrench, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck,
-  CalendarDays, ListTodo, Building2, Sun,
+  CalendarDays, ListTodo, Building2,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
@@ -43,11 +43,8 @@ const isGroup = (item: NavItem): item is NavGroup => (item as NavGroup).kind ===
    have to undo. */
 
 const primaryNav: NavItem[] = [
-  /* Today is the worklist; Dashboard is the numbers. Both are top-level —
-     moving the dashboard behind a link inside Today made it feel deleted. */
-  { name: 'Today',     href: '/dashboard',          icon: Sun, exact: true },
-  { name: 'Dashboard', href: '/dashboard/overview', icon: LayoutDashboard },
-  { name: 'Unibox',    href: '/inbox',              icon: Inbox },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Unibox',    href: '/inbox',     icon: Inbox },
   {
     kind: 'group', id: 'campaigns',
     name: 'Campaigns', href: '/campaigns', icon: Megaphone,
@@ -147,8 +144,8 @@ const rowActive =
 function useIsActive(item: NavLeaf): boolean {
   const location = useLocation();
   const routes = item.match || [item.href];
-  // Without `exact`, /dashboard would also claim /dashboard/overview and both
-  // rows would light up at once.
+  // Prefix matching is right for /contacts owning /contacts/:id, but wrong
+  // for a route that is the prefix of a sibling — those opt into `exact`.
   return item.exact
     ? routes.includes(location.pathname)
     : routes.some((r) => routeMatches(location.pathname, r));
