@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contactsApi, listsApi } from '../../api/contacts.api';
 import { analyticsApi } from '../../api/analytics.api';
@@ -17,6 +17,7 @@ import { InlineEdit } from '../../components/ui/InlineEdit';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/shared/Avatar';
+import { QuickCompose } from '../../components/shared/QuickCompose';
 import { formatDate, formatDateTime, cn } from '../../lib/utils';
 import {
   ArrowLeft,
@@ -351,7 +352,25 @@ export function ContactDetailPage() {
                   return saveField({ email: next.trim() });
                 }}
               />
-              <InfoRow icon={Building2} label="Company" value={contact.company} onSave={field('company')} />
+              {/* Once the lead is linked to an account, the company stops
+                  being a text field and becomes the way into it. */}
+              {contact.company_id ? (
+                <div className="flex items-start gap-3">
+                  <Building2 className="h-4 w-4 text-[var(--text-secondary)] mt-0.5 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-[var(--text-secondary)]">Company</p>
+                    <Link
+                      to={`/companies/${contact.company_id}`}
+                      className="group inline-flex items-center gap-1 text-sm text-[var(--text-primary)] hover:text-[var(--indigo)] transition-colors min-w-0"
+                    >
+                      <span className="truncate">{contact.company || 'View account'}</span>
+                      <ArrowUpRight className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <InfoRow icon={Building2} label="Company" value={contact.company} onSave={field('company')} />
+              )}
               <InfoRow icon={Briefcase} label="Job Title" value={contact.job_title} onSave={field('job_title')} />
               <InfoRow icon={Phone} label="Phone" value={contact.phone} onSave={field('phone')} />
               <InfoRow icon={Linkedin} label="LinkedIn" value={contact.linkedin_url} isLink onSave={field('linkedin_url')} />
@@ -514,7 +533,17 @@ export function ContactDetailPage() {
               />
             </div>
           ) : detailTab === 'emails' ? (
-            sortedEmails.length === 0 ? (
+            <>
+              {/* Reading a thread and wanting to reply is one thought, so the
+                  composer sits with the thread rather than in another tab. */}
+              <div className="p-3 border-b border-[var(--border-subtle)]">
+                <QuickCompose
+                  to={contact.email}
+                  toName={fullName || null}
+                  defaultSubject={sortedEmails[0]?.subject || null}
+                />
+              </div>
+              {sortedEmails.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-14">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elevated)] mb-2"><MailOpen className="h-4 w-4 text-[var(--text-tertiary)]" /></span>
                 <p className="text-[12.5px] font-medium text-[var(--text-primary)]">No emails yet</p>
@@ -549,7 +578,8 @@ export function ContactDetailPage() {
                   );
                 })}
               </div>
-            )
+            )}
+            </>
           ) : (
             activity.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-14">

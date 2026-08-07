@@ -106,6 +106,76 @@ export const companiesService = {
   },
 
   /**
+   * Everything that has happened with this account, across every person at
+   * it. A company's history is the union of its people's — you don't
+   * remember which of the three contacts at Acme sent the pricing question,
+   * you remember Acme asked.
+   */
+  async activity(userId: string, id: string) {
+    await this.get(userId, id); // ownership, and a 404 before any fan-out
+
+    const { data: people } = await supabaseAdmin
+      .from('contacts')
+      .select('id, email, first_name, last_name')
+      .eq('user_id', userId)
+      .eq('company_id', id)
+      .limit(200);
+
+    const contacts = people || [];
+    const ids = contacts.map((c: any) => c.id);
+    const emails = contacts.map((c: any) => c.email).filter(Boolean);
+
+    // No people means no history to gather — and an `.in()` on an empty list
+    // is a query that can only return nothing.
+    if (ids.length === 0) return { messages: [], notes: [], tasks: [], events: [], contacts: [] };
+
+    const [messages, notes, tasks, events] = await Promise.all([
+      emails.length
+        ? supabaseAdmin
+            .from('inbox_messages')
+            .select('id, subject, from_email, to_email, contact_email, contact_name, direction, received_at, body_text')
+            .eq('user_id', userId)
+            .in('contact_email', emails)
+            .order('received_at', { ascending: false })
+            .limit(100)
+        : Promise.resolve({ data: [], error: null } as any),
+      supabaseAdmin
+        .from('crm_notes')
+        .select('*')
+        .eq('user_id', userId)
+        .in('contact_id', ids)
+        .order('created_at', { ascending: false })
+        .limit(100),
+      supabaseAdmin
+        .from('crm_tasks')
+        .select('*')
+        .eq('user_id', userId)
+        .in('contact_id', ids)
+        .order('due_date', { ascending: true })
+        .limit(100),
+      supabaseAdmin
+        .from('crm_events')
+        .select('*')
+        .eq('user_id', userId)
+        .in('contact_id', ids)
+        .order('starts_at', { ascending: false })
+        .limit(100),
+    ]);
+
+    // crm_notes arrives with migration 037; an account that hasn't run it
+    // should still see its emails rather than a 500.
+    const rows = (r: any) => (r?.error ? [] : r?.data || []);
+
+    return {
+      contacts,
+      messages: rows(messages),
+      notes: rows(notes),
+      tasks: rows(tasks),
+      events: rows(events),
+    };
+  },
+
+  /**
    * Create, or return the existing company when the name normalises to one
    * already there. Callers get a company either way, which is what makes
    * "link this contact to its company" safe to call blindly.

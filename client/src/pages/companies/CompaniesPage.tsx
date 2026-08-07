@@ -342,7 +342,12 @@ export function CompaniesPage() {
                 {rows.map((c: Company, rowIdx: number) => (
                   <tr
                     key={c.id}
-                    onClick={() => openPeek('company', c.id)}
+                    onClick={(e) => {
+                      // Same gesture as the contacts table: peek by default,
+                      // full page in a new tab when you mean to stay there.
+                      if (e.metaKey || e.ctrlKey) { window.open(`/companies/${c.id}`, '_blank'); return; }
+                      openPeek('company', c.id);
+                    }}
                     className="group cursor-pointer transition-colors duration-150 hover:bg-[var(--bg-hover)]"
                   >
                     <td className="sticky left-0 z-[1] bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] pl-3 pr-2 py-1.5 border-b border-[var(--border-subtle)]">
