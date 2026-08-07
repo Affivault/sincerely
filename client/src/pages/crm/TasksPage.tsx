@@ -13,10 +13,11 @@ import {
 } from '../../components/crm/CrmPrimitives';
 import {
   CheckSquare, Plus, Handshake, User, CalendarDays, ListTodo, Flame, Check,
+  Linkedin, Copy,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CrmTask, TaskType } from '@lemlist/shared';
-import { TASK_TYPES } from '@lemlist/shared';
+import { TASK_TYPES, isLinkedinStep } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Activities.
@@ -83,10 +84,54 @@ function StatCard({ icon: Icon, label, value, tone }: {
   );
 }
 
+/* A LinkedIn touch raised by a sequence is work you do somewhere else, so
+   the row carries the two things that make that quick: the words, on the
+   clipboard, and the profile, in a new tab. Ticking the box is what tells
+   the sequence to move on. */
+function LinkedinTaskActions({ task }: { task: CrmTask }) {
+  const [copied, setCopied] = useState(false);
+  const { payload, target_url: url } = task;
+
+  const copy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!payload) return;
+    navigator.clipboard.writeText(payload).then(
+      () => { setCopied(true); setTimeout(() => setCopied(false), 1800); },
+      () => toast.error('Could not copy that'),
+    );
+  };
+
+  return (
+    <span className="hidden sm:flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+      {payload && (
+        <button
+          onClick={copy}
+          title={payload}
+          className="inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-[10.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors"
+        >
+          {copied ? <Check className="h-3 w-3 text-[var(--success)]" /> : <Copy className="h-3 w-3" />}
+          {copied ? 'Copied' : 'Copy message'}
+        </button>
+      )}
+      {url && (
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-sky-500/10 text-[10.5px] font-semibold text-sky-700 dark:text-sky-400 hover:bg-sky-500/20 transition-colors"
+        >
+          <Linkedin className="h-3 w-3" /> Open profile
+        </a>
+      )}
+    </span>
+  );
+}
+
 function TaskRow({ task, onEdit, onToggle }: {
   task: CrmTask; onEdit: (t: CrmTask) => void; onToggle: (t: CrmTask) => void;
 }) {
-  const Icon = TASK_TYPE_ICON[task.type] || CheckSquare;
+  const linkedin = isLinkedinStep(task.channel || '');
+  const Icon = linkedin ? Linkedin : (TASK_TYPE_ICON[task.type] || CheckSquare);
   const due = dueLabel(task.due_date);
   const contactName = task.contact
     ? [task.contact.first_name, task.contact.last_name].filter(Boolean).join(' ') || task.contact.email
@@ -105,7 +150,10 @@ function TaskRow({ task, onEdit, onToggle }: {
         <Checkbox checked={task.is_done} onChange={() => onToggle(task)} aria-label={`Complete ${task.title}`} />
       </span>
 
-      <span className={cn('flex h-7 w-7 items-center justify-center rounded-lg flex-shrink-0', TASK_TYPE_TONE[task.type] || TASK_TYPE_TONE.todo)}>
+      <span className={cn(
+        'flex h-7 w-7 items-center justify-center rounded-lg flex-shrink-0',
+        linkedin ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400' : (TASK_TYPE_TONE[task.type] || TASK_TYPE_TONE.todo),
+      )}>
         <Icon className="h-3.5 w-3.5" />
       </span>
 
@@ -145,6 +193,10 @@ function TaskRow({ task, onEdit, onToggle }: {
           )}
         </div>
       </div>
+
+      {linkedin && !task.is_done && (
+        <LinkedinTaskActions task={task} />
+      )}
 
       {task.priority !== 'normal' && (
         <span className={cn('hidden sm:inline-flex items-center h-5 px-2 rounded-full border text-[10px] font-semibold capitalize flex-shrink-0', PRIORITY_TONE[task.priority])}>

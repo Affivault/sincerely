@@ -41,6 +41,8 @@ export interface CampaignStep {
   delay_hours: number;
   delay_minutes: number;
   skip_if_replied: boolean;
+  /** Connection-request note (linkedin_connect only), max 300 chars. */
+  linkedin_note?: string | null;
   condition_field: string | null;
   condition_operator: string | null;
   condition_value: string | null;
@@ -125,6 +127,8 @@ export interface CreateStepInput {
   webhook_event?: string;
   webhook_timeout_hours?: number;
   send_at_local_time?: string;
+  /** Connection-request note (linkedin_connect only), max 300 chars. */
+  linkedin_note?: string;
 }
 
 export interface UpdateStepInput extends Partial<CreateStepInput> {}

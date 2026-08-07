@@ -85,6 +85,19 @@ export interface CrmTask {
   notes: string | null;
   created_at: string;
   updated_at: string;
+
+  /* Set when a campaign step raised this task rather than a person.
+     A LinkedIn touch is work the sequence can't do itself, so it parks the
+     contact here and resumes when the task is ticked off. */
+  /** 'linkedin_connect' | 'linkedin_message' | 'linkedin_visit'. */
+  channel?: string | null;
+  /** The exact words to send, already personalised. */
+  payload?: string | null;
+  /** Where to go and do it — usually the contact's LinkedIn profile. */
+  target_url?: string | null;
+  campaign_contact_id?: string | null;
+  campaign_step_id?: string | null;
+
   /** Embedded when the API is asked for linked records. */
   contact?: { id: string; email: string; first_name: string | null; last_name: string | null; company: string | null } | null;
   deal?: { id: string; title: string; stage: DealStage } | null;
