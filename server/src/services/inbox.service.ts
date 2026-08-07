@@ -6,6 +6,7 @@ import { decrypt } from '../utils/encryption.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
 import { sendViaSmtp } from './email-sender.service.js';
 import { processReply } from './sara.service.js';
+import { SaraStatus } from '@lemlist/shared';
 import { fireEvent } from './webhook.service.js';
 import { billingService } from './billing.service.js';
 
@@ -652,6 +653,16 @@ export const inboxService = {
       thread_id: original.thread_id || original.message_id,
       received_at: new Date().toISOString(),
     });
+
+    // A SARA-approved draft that just went out — flip it to Sent so it drops
+    // out of the pending queue and counts toward the "Sent Today" stat
+    // (previously never set anywhere, so that stat was permanently 0).
+    if (original.sara_status === SaraStatus.Approved) {
+      await supabaseAdmin
+        .from('inbox_messages')
+        .update({ sara_status: SaraStatus.Sent })
+        .eq('id', messageId);
+    }
 
     return { success: true, message_id: newMessageId };
   },

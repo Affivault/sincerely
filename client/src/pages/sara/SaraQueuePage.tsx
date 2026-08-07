@@ -102,7 +102,7 @@ export function SaraQueuePage() {
       const nextIdx = messages.findIndex((m: any) => m.id === selectedId) + 1;
       setSelectedId(messages[nextIdx]?.id || null);
     },
-    onError: () => toast.error('Failed to approve'),
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to approve'),
   });
 
   const dismissMutation = useMutation({
@@ -114,7 +114,7 @@ export function SaraQueuePage() {
       const nextIdx = messages.findIndex((m: any) => m.id === selectedId) + 1;
       setSelectedId(messages[nextIdx]?.id || null);
     },
-    onError: () => toast.error('Failed to dismiss'),
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to dismiss'),
   });
 
   const messages = queue?.messages || [];

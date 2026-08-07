@@ -1,4 +1,4 @@
-import { CampaignStatus, StepType, ContactCampaignStatus } from './enums.js';
+import { CampaignStatus, StepType, ContactCampaignStatus, ConditionField, ConditionOperator, WebhookEventType } from './enums.js';
 
 export interface Campaign {
   id: string;
@@ -43,12 +43,12 @@ export interface CampaignStep {
   skip_if_replied: boolean;
   /** Connection-request note (linkedin_connect only), max 300 chars. */
   linkedin_note?: string | null;
-  condition_field: string | null;
-  condition_operator: string | null;
+  condition_field: ConditionField | null;
+  condition_operator: ConditionOperator | null;
   condition_value: string | null;
   true_branch_step: number | null;
   false_branch_step: number | null;
-  webhook_event: string | null;
+  webhook_event: WebhookEventType | null;
   webhook_timeout_hours: number | null;
   send_at_local_time: string | null;
   created_at: string;
@@ -119,12 +119,12 @@ export interface CreateStepInput {
   delay_hours?: number;
   delay_minutes?: number;
   skip_if_replied?: boolean;
-  condition_field?: string;
-  condition_operator?: string;
+  condition_field?: ConditionField;
+  condition_operator?: ConditionOperator;
   condition_value?: string;
   true_branch_step?: number;
   false_branch_step?: number;
-  webhook_event?: string;
+  webhook_event?: WebhookEventType;
   webhook_timeout_hours?: number;
   send_at_local_time?: string;
   /** Connection-request note (linkedin_connect only), max 300 chars. */
