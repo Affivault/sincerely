@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { crmApi } from '../../api/crm.api';
 import { Checkbox } from '../ui/Checkbox';
+import { QuickCompose } from '../shared/QuickCompose';
+import { EmailBody } from '../shared/EmailBody';
 import { cn } from '../../lib/utils';
 import {
   ActivityModal, MeetingModal, TASK_TYPE_ICON, TASK_TYPE_TONE,
@@ -11,7 +13,7 @@ import {
 import {
   StickyNote, Pin, Trash2, Plus, CalendarPlus, CheckSquare, Phone, Users,
   ArrowUpRight, ArrowDownLeft, MousePointerClick, MessageSquare, AlertTriangle,
-  Mail, Handshake, Clock, MapPin, Send,
+  Mail, Handshake, Clock, MapPin, Send, ChevronDown, Settings2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CrmNote, CrmTask, CrmEvent } from '@lemlist/shared';
@@ -38,6 +40,8 @@ type Entry = {
   note?: CrmNote;
   task?: CrmTask;
   event?: CrmEvent;
+  /** The raw inbox message, so the row can expand to the full body. */
+  email?: any;
 };
 
 const CAMPAIGN_ICON: Record<string, typeof Mail> = {
@@ -54,6 +58,171 @@ const CAMPAIGN_TONE: Record<string, string> = {
   bounced: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
   error: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
 };
+
+type ComposeTab = 'note' | 'email' | 'activity' | 'meeting';
+
+const COMPOSE_TABS: { id: ComposeTab; label: string; icon: typeof Mail }[] = [
+  { id: 'note', label: 'Note', icon: StickyNote },
+  { id: 'email', label: 'Email', icon: Mail },
+  { id: 'activity', label: 'Activity', icon: CheckSquare },
+  { id: 'meeting', label: 'Call / meeting', icon: CalendarPlus },
+];
+
+/** Local datetime string for an <input type="datetime-local">. */
+function localInput(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/* The 90% case for an activity is a title and a day. Anything richer opens
+   the full form, which is one click away rather than the only way in. */
+function QuickActivity({ contactId, contactName, onDone, onDetail }: {
+  contactId: string; contactName: string; onDone: () => void; onDetail: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [type, setType] = useState<CrmTask['type']>('follow_up');
+  const [due, setDue] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return localInput(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9, 0));
+  });
+
+  const create = useMutation({
+    mutationFn: () => crmApi.createTask({
+      title: title.trim(),
+      type,
+      due_date: due ? new Date(due).toISOString() : null,
+      contact_id: contactId,
+      contact_name: contactName,
+    } as any),
+    onSuccess: () => { setTitle(''); onDone(); toast.success('Activity scheduled'); },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not schedule that'),
+  });
+
+  return (
+    <div className="space-y-2">
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter' && title.trim()) create.mutate(); }}
+        placeholder={`What needs doing with ${contactName}?`}
+        className="w-full h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
+      />
+      <div className="flex items-center gap-2 flex-wrap">
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value as CrmTask['type'])}
+          className="h-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+        >
+          <option value="follow_up">Follow-up</option>
+          <option value="call">Call</option>
+          <option value="email">Email</option>
+          <option value="todo">To-do</option>
+          <option value="deadline">Deadline</option>
+        </select>
+        <input
+          type="datetime-local"
+          value={due}
+          onChange={(e) => setDue(e.target.value)}
+          className="h-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+        />
+        <button
+          onClick={onDetail}
+          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[11.5px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+        >
+          <Settings2 className="h-3 w-3" /> More options
+        </button>
+        <span className="flex-1" />
+        <button
+          onClick={() => title.trim() && create.mutate()}
+          disabled={!title.trim() || create.isPending}
+          className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-white text-[12px] font-semibold disabled:opacity-40 hover:bg-[#4F46E5] transition-colors"
+        >
+          <CheckSquare className="h-3.5 w-3.5" /> {create.isPending ? 'Saving…' : 'Schedule'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function QuickMeeting({ contactId, contactName, contactEmail, onDone, onDetail }: {
+  contactId: string; contactName: string; contactEmail: string;
+  onDone: () => void; onDetail: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [type, setType] = useState<'call' | 'meeting'>('call');
+  const [starts, setStarts] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return localInput(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 10, 0));
+  });
+
+  const create = useMutation({
+    mutationFn: () => {
+      const start = new Date(starts);
+      const end = new Date(start.getTime() + 30 * 60_000);
+      return crmApi.createEvent({
+        title: title.trim() || `${type === 'call' ? 'Call' : 'Meeting'} — ${contactName}`,
+        type,
+        starts_at: start.toISOString(),
+        ends_at: end.toISOString(),
+        contact_id: contactId,
+        contact_name: contactName,
+        contact_email: contactEmail,
+      } as any);
+    },
+    onSuccess: () => { setTitle(''); onDone(); toast.success('Added to the calendar'); },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not book that'),
+  });
+
+  return (
+    <div className="space-y-2">
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') create.mutate(); }}
+        placeholder={`${type === 'call' ? 'Call' : 'Meeting'} — ${contactName}`}
+        className="w-full h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
+      />
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="inline-flex rounded-lg border border-[var(--border-subtle)] overflow-hidden">
+          {(['call', 'meeting'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setType(t)}
+              className={cn(
+                'h-7 px-2.5 text-[12px] font-medium transition-colors',
+                type === t ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)]',
+              )}
+            >
+              {t === 'call' ? 'Call' : 'Meeting'}
+            </button>
+          ))}
+        </div>
+        <input
+          type="datetime-local"
+          value={starts}
+          onChange={(e) => setStarts(e.target.value)}
+          className="h-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+        />
+        <button
+          onClick={onDetail}
+          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[11.5px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+        >
+          <Settings2 className="h-3 w-3" /> More options
+        </button>
+        <span className="flex-1" />
+        <button
+          onClick={() => create.mutate()}
+          disabled={create.isPending}
+          className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-white text-[12px] font-semibold disabled:opacity-40 hover:bg-[#4F46E5] transition-colors"
+        >
+          <CalendarPlus className="h-3.5 w-3.5" /> {create.isPending ? 'Saving…' : 'Book'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function dayHeading(d: Date): string {
   const today = startOfDay(new Date());
@@ -92,7 +261,9 @@ export function ContactHistory({
   const [activityModal, setActivityModal] = useState<Partial<CrmTask> | null>(null);
   const [activityOpen, setActivityOpen] = useState(false);
   const [meetingModal, setMeetingModal] = useState<Partial<CrmEvent> | null>(null);
-  const [filter, setFilter] = useState<'all' | 'notes' | 'emails' | 'meetings'>('all');
+  const [filter, setFilter] = useState<'all' | 'notes' | 'emails' | 'meetings' | 'campaign'>('all');
+  const [compose, setCompose] = useState<ComposeTab>('note');
+  const [openEmail, setOpenEmail] = useState<string | null>(null);
 
   const { data: summary } = useQuery({
     queryKey: ['contact-crm', contactId],
@@ -149,6 +320,7 @@ export function ContactHistory({
         meta: outbound ? 'You sent' : `${contactName || contactEmail} replied`,
         icon: outbound ? ArrowUpRight : ArrowDownLeft,
         tone: outbound ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+        email: m,
       });
     }
 
@@ -222,7 +394,8 @@ export function ContactHistory({
   const visible = useMemo(() => {
     if (filter === 'all') return entries;
     if (filter === 'notes') return entries.filter((e) => e.kind === 'note');
-    if (filter === 'emails') return entries.filter((e) => e.kind === 'email_in' || e.kind === 'email_out' || e.kind === 'campaign');
+    if (filter === 'emails') return entries.filter((e) => e.kind === 'email_in' || e.kind === 'email_out');
+    if (filter === 'campaign') return entries.filter((e) => e.kind === 'campaign');
     return entries.filter((e) => e.kind === 'event' || e.kind === 'task');
   }, [entries, filter]);
 
@@ -233,47 +406,97 @@ export function ContactHistory({
     .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
 
   const seed = { contact_id: contactId, contact_name: contactName || contactEmail };
+  // The thread they're most likely replying to.
+  const lastSubject = emails.length
+    ? [...emails].sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime())[0]?.subject || null
+    : null;
 
   return (
     <div className="space-y-3">
-      {/* ── Compose: a note is the most common thing to add ── */}
-      <div className="card p-3">
-        <textarea
-          value={noteDraft}
-          onChange={(e) => setNoteDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && noteDraft.trim()) addNote.mutate(noteDraft.trim());
-          }}
-          rows={2}
-          placeholder={`Log a note about ${contactName || contactEmail}… (⌘↵ to save)`}
-          className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 py-2 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-all"
-        />
-        <div className="flex items-center gap-2 mt-2">
-          <button
-            onClick={() => { setActivityModal({ ...seed } as Partial<CrmTask>); setActivityOpen(true); }}
-            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-          >
-            <CheckSquare className="h-3.5 w-3.5" /> Schedule activity
-          </button>
-          <button
-            onClick={() => setMeetingModal({
-              contact_id: contactId,
-              contact_name: contactName || contactEmail,
-              contact_email: contactEmail,
-              title: `Call — ${contactName || contactEmail}`,
-            } as Partial<CrmEvent>)}
-            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-          >
-            <CalendarPlus className="h-3.5 w-3.5" /> Book meeting
-          </button>
-          <span className="flex-1" />
-          <button
-            onClick={() => noteDraft.trim() && addNote.mutate(noteDraft.trim())}
-            disabled={!noteDraft.trim() || addNote.isPending}
-            className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-white text-[12px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#4F46E5] transition-colors"
-          >
-            <StickyNote className="h-3.5 w-3.5" /> {addNote.isPending ? 'Saving…' : 'Save note'}
-          </button>
+      {/* ── Compose ────────────────────────────────────────────────────
+         Everything you can do to a person, in one place, chosen by tab
+         rather than scattered across pages: write to them, note what was
+         said, put the next step in the diary. The bar stays put; only the
+         panel beneath it changes. */}
+      <div className="card p-0 overflow-hidden">
+        <div className="flex items-center gap-0.5 px-2 h-10 border-b border-[var(--border-subtle)]">
+          {COMPOSE_TABS.map((t) => {
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setCompose(t.id)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors',
+                  compose === t.id
+                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                    : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]',
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" /> {t.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="p-3">
+          {compose === 'note' ? (
+            <>
+              <textarea
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && noteDraft.trim()) addNote.mutate(noteDraft.trim());
+                }}
+                rows={2}
+                placeholder={`Log a note about ${contactName || contactEmail}… (⌘↵ to save)`}
+                className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 py-2 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-all"
+              />
+              <div className="flex items-center mt-2">
+                <span className="flex-1" />
+                <button
+                  onClick={() => noteDraft.trim() && addNote.mutate(noteDraft.trim())}
+                  disabled={!noteDraft.trim() || addNote.isPending}
+                  className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-white text-[12px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#4F46E5] transition-colors"
+                >
+                  <StickyNote className="h-3.5 w-3.5" /> {addNote.isPending ? 'Saving…' : 'Save note'}
+                </button>
+              </div>
+            </>
+          ) : compose === 'email' ? (
+            contactEmail ? (
+              <QuickCompose
+                alwaysOpen
+                to={contactEmail}
+                toName={contactName || null}
+                defaultSubject={lastSubject}
+              />
+            ) : (
+              <p className="text-[12px] text-[var(--text-tertiary)] py-2">
+                This lead has no email address yet — add one and you can write to them from here.
+              </p>
+            )
+          ) : compose === 'activity' ? (
+            <QuickActivity
+              contactId={contactId}
+              contactName={contactName || contactEmail}
+              onDone={invalidate}
+              onDetail={() => { setActivityModal({ ...seed } as Partial<CrmTask>); setActivityOpen(true); }}
+            />
+          ) : (
+            <QuickMeeting
+              contactId={contactId}
+              contactName={contactName || contactEmail}
+              contactEmail={contactEmail}
+              onDone={invalidate}
+              onDetail={() => setMeetingModal({
+                contact_id: contactId,
+                contact_name: contactName || contactEmail,
+                contact_email: contactEmail,
+                title: `Call — ${contactName || contactEmail}`,
+              } as Partial<CrmEvent>)}
+            />
+          )}
         </div>
       </div>
 
@@ -371,10 +594,11 @@ export function ContactHistory({
       <div className="card p-0 overflow-hidden">
         <div className="flex items-center gap-1 px-3 h-10 border-b border-[var(--border-subtle)]">
           {([
-            { id: 'all' as const, label: 'Everything' },
-            { id: 'emails' as const, label: 'Emails' },
-            { id: 'notes' as const, label: 'Notes' },
-            { id: 'meetings' as const, label: 'Calls & meetings' },
+            { id: 'all' as const, label: 'Everything', n: entries.length },
+            { id: 'emails' as const, label: 'Emails', n: entries.filter((e) => e.kind === 'email_in' || e.kind === 'email_out').length },
+            { id: 'notes' as const, label: 'Notes', n: entries.filter((e) => e.kind === 'note').length },
+            { id: 'meetings' as const, label: 'Calls & meetings', n: entries.filter((e) => e.kind === 'event' || e.kind === 'task').length },
+            { id: 'campaign' as const, label: 'Campaign', n: entries.filter((e) => e.kind === 'campaign').length },
           ]).map((f) => (
             <button
               key={f.id}
@@ -387,6 +611,7 @@ export function ContactHistory({
               )}
             >
               {f.label}
+              {f.n > 0 && <span className="ml-1 text-[10.5px] tabular opacity-70">{f.n}</span>}
             </button>
           ))}
         </div>
@@ -437,13 +662,29 @@ export function ContactHistory({
                         <span className="text-[10.5px] tabular text-[var(--text-muted)] flex-shrink-0 ml-auto">{timeOf(e.at)}</span>
                       </div>
                       {e.meta && <p className="text-[11px] text-[var(--text-tertiary)]">{e.meta}</p>}
-                      {e.detail && (
+                      {e.detail && !(e.email && openEmail === e.id) && (
                         <p className={cn(
                           'text-[12px] text-[var(--text-secondary)] mt-1',
                           e.kind === 'note' ? 'whitespace-pre-wrap' : 'line-clamp-2',
                         )}>
                           {e.kind === 'note' ? e.detail : preview(e.detail)}
                         </p>
+                      )}
+                      {e.email && (
+                        <>
+                          <button
+                            onClick={() => setOpenEmail(openEmail === e.id ? null : e.id)}
+                            className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] transition-colors"
+                          >
+                            <ChevronDown className={cn('h-3 w-3 transition-transform', openEmail === e.id && 'rotate-180')} />
+                            {openEmail === e.id ? 'Hide message' : 'Read message'}
+                          </button>
+                          {openEmail === e.id && (
+                            <div className="mt-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] overflow-hidden">
+                              <EmailBody html={e.email.body_html} text={e.email.body_text} />
+                            </div>
+                          )}
+                        </>
                       )}
                       {e.note && (
                         <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">

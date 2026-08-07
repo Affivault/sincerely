@@ -123,7 +123,10 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
   return (
     <>
       {/* Identity */}
-      <div className="flex items-start gap-3 px-4 py-4 border-b border-[var(--border-subtle)]">
+      {/* pr-12 clears the absolutely-positioned close button, which otherwise
+          sits on top of the right end of the "Full page" link and swallows
+          the click that was meant to open the record. */}
+      <div className="flex items-start gap-3 pl-4 pr-12 py-4 border-b border-[var(--border-subtle)]">
         <Avatar name={name || contact.email} email={contact.email} size="lg" />
         <div className="flex-1 min-w-0">
           <InlineEdit
@@ -148,7 +151,6 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
         <Link
           to={`/contacts/${contact.id}`}
-          onClick={onClose}
           className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
         >
           <ExternalLink className="h-3 w-3" /> Full page
@@ -241,7 +243,10 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
 
   return (
     <>
-      <div className="flex items-start gap-3 px-4 py-4 border-b border-[var(--border-subtle)]">
+      {/* pr-12 clears the absolutely-positioned close button, which otherwise
+          sits on top of the right end of the "Full page" link and swallows
+          the click that was meant to open the record. */}
+      <div className="flex items-start gap-3 pl-4 pr-12 py-4 border-b border-[var(--border-subtle)]">
         <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] flex-shrink-0">
           <Handshake className="h-5 w-5 text-[var(--indigo)]" />
         </span>
@@ -260,7 +265,6 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
         <Link
           to="/deals"
-          onClick={onClose}
           className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
         >
           <ExternalLink className="h-3 w-3" /> Pipeline
@@ -385,7 +389,10 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
 
   return (
     <>
-      <div className="flex items-start gap-3 px-4 py-4 border-b border-[var(--border-subtle)]">
+      {/* pr-12 clears the absolutely-positioned close button, which otherwise
+          sits on top of the right end of the "Full page" link and swallows
+          the click that was meant to open the record. */}
+      <div className="flex items-start gap-3 pl-4 pr-12 py-4 border-b border-[var(--border-subtle)]">
         <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elevated)] text-[var(--text-secondary)] flex-shrink-0">
           <Building2 className="h-5 w-5" />
         </span>
@@ -404,7 +411,6 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
         <Link
           to={`/companies/${company.id}`}
-          onClick={onClose}
           className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
         >
           <ExternalLink className="h-3 w-3" /> Full page
