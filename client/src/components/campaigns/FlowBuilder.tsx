@@ -906,9 +906,9 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
   // can hold a contact up to its timeout, so it adds its worst-case duration
   // AFTER too, the same way a delay node does)
   steps.forEach((step, i) => {
-    // Email built-in waits count only when no Wait node sits directly above
-    // (the engine gives explicit Wait nodes precedence over built-in timing).
-    if (step.step_type === 'email' && steps[i - 1]?.step_type !== 'delay') {
+    // Email/LinkedIn built-in waits count only when no Wait node sits directly
+    // above (the engine gives explicit Wait nodes precedence over built-in timing).
+    if ((step.step_type === 'email' || isLinkedinStep(step.step_type)) && steps[i - 1]?.step_type !== 'delay') {
       cumulative += stepDelayInDays(step);
     }
     dayOffsets.push(Math.round(cumulative));

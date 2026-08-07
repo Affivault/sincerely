@@ -212,11 +212,18 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
   }
 
   // Fetch all steps for this campaign, ordered
-  const { data: steps } = await supabaseAdmin
+  const { data: steps, error: stepsError } = await supabaseAdmin
     .from('campaign_steps')
     .select('*')
     .eq('campaign_id', cc.campaign_id)
     .order('step_order');
+
+  // A failed fetch is not "campaign has no steps" — throwing lets the
+  // caller's catch-all mark the contact errored (and retryable via support)
+  // instead of wrongly completing it on a transient DB hiccup.
+  if (stepsError) {
+    throw new Error(`Failed to fetch steps for campaign ${cc.campaign_id}: ${stepsError.message}`);
+  }
 
   if (!steps || steps.length === 0) {
     await markCompleted(campaignContactId);
@@ -299,11 +306,14 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
 
     if (count && count > 0) {
       // Skip this step, advance to next
-      const { data: steps } = await supabaseAdmin
+      const { data: steps, error: stepsError } = await supabaseAdmin
         .from('campaign_steps')
         .select('*')
         .eq('campaign_id', cc.campaign_id)
         .order('step_order');
+      // A failed fetch must not be treated as "no more steps" — advanceToNextStep
+      // would wrongly mark the contact completed on a transient DB hiccup.
+      if (stepsError) throw new Error(`Failed to fetch steps for campaign ${cc.campaign_id}: ${stepsError.message}`);
       await advanceToNextStep(cc.id, step.step_order, steps || []);
       return;
     }
@@ -318,11 +328,12 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     .eq('activity_type', 'sent');
   if (alreadySent && alreadySent > 0) {
     // Already sent for this step — advance to next
-    const { data: steps } = await supabaseAdmin
+    const { data: steps, error: stepsError } = await supabaseAdmin
       .from('campaign_steps')
       .select('*')
       .eq('campaign_id', cc.campaign_id)
       .order('step_order');
+    if (stepsError) throw new Error(`Failed to fetch steps for campaign ${cc.campaign_id}: ${stepsError.message}`);
     await advanceToNextStep(cc.id, step.step_order, steps || []);
     return;
   }
@@ -800,11 +811,20 @@ export async function resumeAfterTask(taskId: string): Promise<void> {
 
   if (!cc || cc.status !== 'active') return;
 
-  const { data: steps } = await supabaseAdmin
+  const { data: steps, error: stepsError } = await supabaseAdmin
     .from('campaign_steps')
     .select('*')
     .eq('campaign_id', cc.campaign_id)
     .order('step_order');
+
+  // A failed fetch must not be treated as "no more steps" (advanceToNextStep
+  // would wrongly complete the contact) and there's no automatic retry for
+  // this path, so leave waiting_for_task_id set — better a visibly-stuck
+  // contact than one silently marked completed with steps skipped.
+  if (stepsError) {
+    console.error(`[Sequence] resumeAfterTask: failed to fetch steps for campaign ${cc.campaign_id}: ${stepsError.message}`);
+    return;
+  }
 
   await supabaseAdmin
     .from('campaign_contacts')

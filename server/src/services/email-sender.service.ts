@@ -512,18 +512,42 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
   }).catch(() => {});
 
   // 10. Advance to next step
-  const { data: currentStep } = await supabaseAdmin
+  const { data: currentStep, error: currentStepError } = await supabaseAdmin
     .from('campaign_steps')
     .select('step_order')
     .eq('id', stepId)
     .single();
 
+  // The email is already sent — never throw here (see advanceError comment
+  // below). A failed fetch must not be treated as "no more steps" (which
+  // would wrongly complete the contact) nor silently ignored (which would
+  // leave next_send_at null and the contact stuck forever). Retry shortly.
+  if (currentStepError) {
+    console.error(`[EmailSender] Sent OK but failed to fetch current step ${stepId}: ${currentStepError.message}`);
+    const { error: retryError } = await supabaseAdmin
+      .from('campaign_contacts')
+      .update({ next_send_at: new Date(Date.now() + 5 * 60000).toISOString() })
+      .eq('id', campaignContactId);
+    if (retryError) console.error(`[EmailSender] Failed to schedule retry for contact ${campaignContactId}: ${retryError.message}`);
+    return;
+  }
+
   if (currentStep) {
-    const { data: allSteps } = await supabaseAdmin
+    const { data: allSteps, error: allStepsError } = await supabaseAdmin
       .from('campaign_steps')
       .select('step_order, step_type, delay_days, delay_hours, delay_minutes')
       .eq('campaign_id', campaignId)
       .order('step_order');
+
+    if (allStepsError) {
+      console.error(`[EmailSender] Sent OK but failed to fetch steps for campaign ${campaignId}: ${allStepsError.message}`);
+      const { error: retryError } = await supabaseAdmin
+        .from('campaign_contacts')
+        .update({ next_send_at: new Date(Date.now() + 5 * 60000).toISOString() })
+        .eq('id', campaignContactId);
+      if (retryError) console.error(`[EmailSender] Failed to schedule retry for contact ${campaignContactId}: ${retryError.message}`);
+      return;
+    }
 
     const nextStepOrder = currentStep.step_order + 1;
     const nextStep = allSteps?.find((s: any) => s.step_order === nextStepOrder);

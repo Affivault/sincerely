@@ -6,6 +6,7 @@ import { suppressionService } from './suppression.service.js';
 import { billingService } from './billing.service.js';
 import { crmService } from './crm.service.js';
 import { settingsService } from './settings.service.js';
+import { inboxService } from './inbox.service.js';
 import { AppError } from '../middleware/error.middleware.js';
 
 /**
@@ -427,8 +428,26 @@ export async function approveReply(
   userId: string,
   editedReply?: string
 ): Promise<void> {
+  const { data: original, error: fetchError } = await supabaseAdmin
+    .from('inbox_messages')
+    .select('id, sara_draft_reply')
+    .eq('id', messageId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (fetchError) throw new AppError(fetchError.message, 500);
+  if (!original) throw new AppError('Message not found', 404);
+
+  const replyText = editedReply || original.sara_draft_reply;
+  if (!replyText) throw new AppError('No draft reply to send — edit a reply before approving', 400);
+
+  // "Approve" means "send it" — this used to only flip sara_status and fire a
+  // webhook, so clicking "Approve & send" never actually emailed the contact.
+  // Send first: a failed send should leave the message in pending_review
+  // rather than being silently marked approved with nothing delivered.
+  await inboxService.reply(userId, messageId, replyText);
+
   const update: Record<string, any> = {
-    sara_status: SaraStatus.Approved,
+    sara_status: SaraStatus.Sent,
     sara_reviewed_at: new Date().toISOString(),
     sara_reviewed_by: userId,
   };
@@ -436,15 +455,12 @@ export async function approveReply(
     update.sara_draft_reply = editedReply;
   }
 
-  const { data, error } = await supabaseAdmin
+  const { error } = await supabaseAdmin
     .from('inbox_messages')
     .update(update)
     .eq('id', messageId)
-    .eq('user_id', userId)
-    .select('id')
-    .maybeSingle();
+    .eq('user_id', userId);
   if (error) throw new AppError(error.message, 500);
-  if (!data) throw new AppError('Message not found', 404);
 
   fireEvent(userId, 'sara.reply_approved', { message_id: messageId, edited: !!editedReply }).catch(() => {});
 }
