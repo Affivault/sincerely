@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { resumeAfterTask } from './sequence.service.js';
 
 const DEAL_STAGES = ['lead', 'qualified', 'proposal', 'won', 'lost'];
 const TASK_PRIORITIES = ['low', 'normal', 'high'];
@@ -16,7 +17,7 @@ function pick(body: any, keys: readonly string[]): Record<string, any> {
 }
 
 const DEAL_KEYS = ['title', 'company', 'company_id', 'contact_name', 'contact_email', 'contact_id', 'value', 'currency', 'stage', 'expected_close_date', 'notes', 'position'] as const;
-const TASK_KEYS = ['title', 'due_date', 'priority', 'type', 'all_day', 'deal_id', 'contact_id', 'contact_name', 'notes', 'is_done'] as const;
+const TASK_KEYS = ['title', 'due_date', 'priority', 'type', 'all_day', 'deal_id', 'contact_id', 'contact_name', 'notes', 'is_done', 'channel', 'payload', 'target_url'] as const;
 const EVENT_KEYS = ['title', 'type', 'starts_at', 'ends_at', 'all_day', 'contact_id', 'contact_name', 'contact_email', 'location', 'notes', 'outcome', 'deal_id'] as const;
 const NOTE_KEYS = ['body', 'contact_id', 'deal_id', 'pinned'] as const;
 
@@ -192,6 +193,14 @@ export const crmService = {
       .maybeSingle();
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Task not found', 404);
+
+    // A LinkedIn touch raised by a sequence parks its contact until someone
+    // does it. Ticking it off is what tells the sequence to carry on — and it
+    // must never be able to fail the request that ticked it.
+    if (input.is_done === true && (data as any).campaign_contact_id) {
+      resumeAfterTask(id).catch((e) => console.warn('[CRM] sequence resume failed:', e?.message));
+    }
+
     return data;
   },
 

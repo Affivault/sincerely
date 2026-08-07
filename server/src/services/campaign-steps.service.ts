@@ -1,6 +1,28 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 
+/**
+ * Columns a client may write on a step. Both add() and update() used to spread
+ * the request body straight into Postgres, which meant `campaign_id` was
+ * writable — an update could move a step into another campaign, and `id` was
+ * open too. Unknown keys are dropped rather than rejected, so a client posting
+ * back a whole step still works.
+ */
+const STEP_KEYS = [
+  'step_type', 'step_order', 'subject', 'subject_b', 'body_html', 'body_html_b',
+  'body_text', 'delay_days', 'delay_hours', 'delay_minutes', 'skip_if_replied',
+  'condition_field', 'condition_operator', 'condition_value',
+  'true_branch_step', 'false_branch_step', 'webhook_event', 'webhook_timeout_hours',
+  'linkedin_note',
+] as const;
+
+function pickStep(input: any): Record<string, any> {
+  const out: Record<string, any> = {};
+  if (!input || typeof input !== 'object') return out;
+  for (const k of STEP_KEYS) if (input[k] !== undefined) out[k] = input[k];
+  return out;
+}
+
 export const campaignStepsService = {
   async list(campaignId: string) {
     const { data, error } = await supabaseAdmin
@@ -16,7 +38,7 @@ export const campaignStepsService = {
   async add(campaignId: string, input: any) {
     const { data, error } = await supabaseAdmin
       .from('campaign_steps')
-      .insert({ ...input, campaign_id: campaignId })
+      .insert({ ...pickStep(input), campaign_id: campaignId })
       .select()
       .single();
 
@@ -25,9 +47,11 @@ export const campaignStepsService = {
   },
 
   async update(campaignId: string, stepId: string, input: any) {
+    const patch = pickStep(input);
+    if (Object.keys(patch).length === 0) throw new AppError('Nothing to update', 400);
     const { data, error } = await supabaseAdmin
       .from('campaign_steps')
-      .update(input)
+      .update(patch)
       .eq('id', stepId)
       .eq('campaign_id', campaignId)
       .select()

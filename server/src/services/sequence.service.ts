@@ -6,6 +6,7 @@ import { suppressionService } from './suppression.service.js';
 import { billingService } from './billing.service.js';
 import * as sse from './sse.service.js';
 import { nowInTimezone, partsInTimezone, startOfDayInTimezone, tzWallTimeToUtc } from '../utils/timezone.js';
+import { isLinkedinStep } from '@lemlist/shared';
 
 /**
  * Sequence Engine Service
@@ -272,6 +273,11 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
       break;
     case 'webhook_wait':
       await processWebhookWaitStep(cc, nextStep);
+      break;
+    case 'linkedin_connect':
+    case 'linkedin_message':
+    case 'linkedin_visit':
+      await processLinkedinStep(cc, nextStep, steps);
       break;
     default:
       // Unknown step type - skip to next
@@ -688,6 +694,128 @@ async function processWebhookWaitStep(cc: any, step: any): Promise<void> {
   }).catch(() => {});
 }
 
+/* ── LinkedIn ────────────────────────────────────────────────────────────
+   A LinkedIn step becomes a task, not a send.
+
+   There is no public LinkedIn API for connection requests or messages to
+   people you aren't connected to. Tools that claim otherwise drive a browser
+   with the user's session cookie, which breaks LinkedIn's User Agreement and
+   gets accounts restricted. So the engine does the part it can do honestly:
+   it works out WHO, WHEN and exactly WHAT to say, personalises it, and parks
+   the contact until a human completes the task. Completing it resumes the
+   sequence — see resumeAfterTask below. */
+
+const LINKEDIN_VERB: Record<string, string> = {
+  linkedin_connect: 'Connect on LinkedIn',
+  linkedin_message: 'Message on LinkedIn',
+  linkedin_visit: 'View LinkedIn profile',
+};
+
+async function processLinkedinStep(cc: any, step: any, steps: any[]): Promise<void> {
+  const contact = cc.contacts || {};
+  const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || contact.email;
+
+  // No profile means the step can't be done at all. Skipping and moving on
+  // beats parking the contact forever on work nobody can complete.
+  if (!contact.linkedin_url) {
+    await supabaseAdmin.from('campaign_activities').insert({
+      campaign_contact_id: cc.id,
+      activity_type: 'skipped',
+      metadata: { step_order: step.step_order, step_type: step.step_type, reason: 'no_linkedin_url' },
+    }).then(() => {}, () => {});
+    await advanceToNextStep(cc.id, step.step_order, steps);
+    return;
+  }
+
+  // Claim the contact first, on the same compare-and-swap the email path uses:
+  // two workers reaching this step at once must not raise two tasks.
+  const { data: claimed } = await supabaseAdmin
+    .from('campaign_contacts')
+    .update({ current_step_order: step.step_order, next_send_at: null })
+    .eq('id', cc.id)
+    .eq('status', 'active')
+    .not('next_send_at', 'is', null)
+    .select('id')
+    .maybeSingle();
+  if (!claimed) return;
+
+  const message = step.step_type === 'linkedin_connect'
+    ? interpolateMergeTags(step.linkedin_note || '', contact)
+    : interpolateMergeTags(step.body_text || step.body_html || '', contact);
+
+  const { data: task, error } = await supabaseAdmin
+    .from('crm_tasks')
+    .insert({
+      user_id: cc.campaigns.user_id,
+      title: `${LINKEDIN_VERB[step.step_type] || 'LinkedIn'} — ${name}`,
+      type: 'todo',
+      due_date: new Date().toISOString(),
+      contact_id: cc.contact_id,
+      contact_name: name,
+      channel: step.step_type,
+      payload: message || null,
+      target_url: contact.linkedin_url,
+      campaign_contact_id: cc.id,
+      campaign_step_id: step.id,
+    })
+    .select('id')
+    .single();
+
+  if (error || !task) {
+    // Migration 039 not run, or the insert failed. Put the contact back on the
+    // clock rather than stranding it — a retry in a minute is recoverable,
+    // a permanently parked contact is not.
+    console.warn('[Sequence] could not raise LinkedIn task:', error?.message);
+    await supabaseAdmin
+      .from('campaign_contacts')
+      .update({ next_send_at: new Date(Date.now() + 60_000).toISOString() })
+      .eq('id', cc.id);
+    return;
+  }
+
+  await supabaseAdmin
+    .from('campaign_contacts')
+    .update({ waiting_for_task_id: task.id })
+    .eq('id', cc.id);
+
+  fireEvent(cc.campaigns.user_id, 'sequence.step_executed', {
+    campaign_id: cc.campaign_id,
+    contact_id: cc.contact_id,
+    step_type: step.step_type,
+    step_order: step.step_order,
+    task_id: task.id,
+  }).catch(() => {});
+}
+
+/**
+ * Hand control back to the sequence once a human has done the LinkedIn touch.
+ * Called when a task carrying campaign_contact_id is marked done.
+ */
+export async function resumeAfterTask(taskId: string): Promise<void> {
+  const { data: cc } = await supabaseAdmin
+    .from('campaign_contacts')
+    .select('id, campaign_id, current_step_order, status')
+    .eq('waiting_for_task_id', taskId)
+    .maybeSingle();
+
+  if (!cc || cc.status !== 'active') return;
+
+  const { data: steps } = await supabaseAdmin
+    .from('campaign_steps')
+    .select('*')
+    .eq('campaign_id', cc.campaign_id)
+    .order('step_order');
+
+  await supabaseAdmin
+    .from('campaign_contacts')
+    .update({ waiting_for_task_id: null })
+    .eq('id', cc.id);
+
+  // advanceToNextStep owns the delay arithmetic for whatever comes next, so
+  // the LinkedIn path doesn't get its own copy of that logic to drift.
+  await advanceToNextStep(cc.id, cc.current_step_order || 0, steps || []);
+}
+
 /**
  * Resume a contact that was waiting for a webhook event.
  * Called when the webhook event bus receives a matching event.
@@ -812,7 +940,9 @@ async function advanceToNextStep(
     // Honor the next email step's built-in "send N after previous step"
     // timing even when we got here by skipping a step (skip_if_replied,
     // condition branch): the wait belongs to the email, not to the path.
-    const builtinMs = nextStep.step_type === 'email'
+    // Steps that carry their own "N days after the previous step" wait:
+    // emails and LinkedIn touches both do.
+    const builtinMs = (nextStep.step_type === 'email' || isLinkedinStep(nextStep.step_type))
       ? ((nextStep.delay_days || 0) * 86400000) + ((nextStep.delay_hours || 0) * 3600000) + ((nextStep.delay_minutes || 0) * 60000)
       : 0;
     await supabaseAdmin

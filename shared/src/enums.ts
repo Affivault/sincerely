@@ -12,6 +12,22 @@ export enum StepType {
   Delay = 'delay',
   Condition = 'condition',
   WebhookWait = 'webhook_wait',
+  /* LinkedIn touches. Each becomes a task in assisted mode — see
+     migration 039 for why there is no direct-send path. */
+  LinkedinConnect = 'linkedin_connect',
+  LinkedinMessage = 'linkedin_message',
+  LinkedinVisit = 'linkedin_visit',
+}
+
+/** Steps that act on LinkedIn rather than over email. */
+export const LINKEDIN_STEP_TYPES: string[] = [
+  StepType.LinkedinConnect,
+  StepType.LinkedinMessage,
+  StepType.LinkedinVisit,
+];
+
+export function isLinkedinStep(type: string): boolean {
+  return LINKEDIN_STEP_TYPES.includes(type);
 }
 
 // Condition fields for sequence branching

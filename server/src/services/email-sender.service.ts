@@ -8,6 +8,7 @@ import { fireEvent } from './webhook.service.js';
 import * as sse from './sse.service.js';
 import { checkAndAutoCompleteCampaign } from './sequence.service.js';
 import { warmupAllowance } from '@lemlist/shared';
+import { isLinkedinStep } from '@lemlist/shared';
 
 /**
  * Email Sender Service
@@ -538,7 +539,10 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
       // Built-in per-email timing: an email step's own delay fields mean
       // "send this long after the previous step" — no separate delay node
       // needed. The anti-spam throttle still applies as a floor.
-      const builtinMs = nextStep.step_type === 'email'
+      // Steps that carry their own "N days after the previous step" wait:
+      // emails and LinkedIn touches both do. Delay and condition nodes don't,
+      // and a step that ignores its own delay fires the instant it's reached.
+      const builtinMs = (nextStep.step_type === 'email' || isLinkedinStep(nextStep.step_type))
         ? ((nextStep.delay_days || 0) * 86400000) + ((nextStep.delay_hours || 0) * 3600000) + ((nextStep.delay_minutes || 0) * 60000)
         : 0;
       const waitMs = Math.max(delaySecs * 1000, builtinMs);

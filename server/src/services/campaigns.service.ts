@@ -215,7 +215,7 @@ export const campaignsService = {
       .eq('campaign_id', id);
 
     if (!stepsExist || stepsExist === 0) {
-      throw new AppError('Campaign must have at least one email step', 400);
+      throw new AppError('Campaign must have at least one step', 400);
     }
 
     // Count contacts
@@ -462,6 +462,7 @@ export const campaignsService = {
         false_branch_step: s.false_branch_step,
         webhook_event: s.webhook_event,
         webhook_timeout_hours: s.webhook_timeout_hours,
+        linkedin_note: s.linkedin_note,
       }));
       const { error: stepsError } = await supabaseAdmin.from('campaign_steps').insert(stepRows);
       if (stepsError) throw new AppError(`Failed to clone campaign steps: ${stepsError.message}`, 500);

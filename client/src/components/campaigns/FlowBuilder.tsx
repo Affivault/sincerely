@@ -22,8 +22,9 @@ import {
   Copy,
   Check,
   AlertTriangle,
+  Linkedin,
 } from 'lucide-react';
-import { StepType, ConditionField, ConditionOperator } from '@lemlist/shared';
+import { StepType, ConditionField, ConditionOperator, isLinkedinStep, LINKEDIN_NOTE_MAX } from '@lemlist/shared';
 import type { CreateStepInput } from '@lemlist/shared';
 import { campaignsApi } from '../../api/campaigns.api';
 import { cn } from '../../lib/utils';
@@ -106,6 +107,18 @@ const stepTypeConfig: Record<string, {
     icon: Webhook,
     label: 'Webhook Wait',
   },
+  linkedin_connect: {
+    icon: Linkedin,
+    label: 'LinkedIn invite',
+  },
+  linkedin_message: {
+    icon: Linkedin,
+    label: 'LinkedIn message',
+  },
+  linkedin_visit: {
+    icon: Linkedin,
+    label: 'Profile visit',
+  },
 };
 
 const conditionFieldOptions = [
@@ -180,6 +193,27 @@ function AddStepMenu({ onAdd, showAbove }: AddStepMenuProps) {
             ))}
             <div className="border-t border-[var(--border-subtle)] my-1" />
             {[
+              { type: StepType.LinkedinConnect, icon: Linkedin, label: 'LinkedIn invite', desc: 'Connection request, with a note', accent: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' },
+              { type: StepType.LinkedinMessage, icon: Linkedin, label: 'LinkedIn message', desc: 'Message someone you know', accent: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' },
+              { type: StepType.LinkedinVisit, icon: Linkedin, label: 'Profile visit', desc: 'Show up in their notifications', accent: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' },
+            ].map(({ type, icon: Icon, label, desc, accent }) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => { onAdd(type); setIsOpen(false); }}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 hover:bg-[var(--bg-hover)] transition-colors text-left"
+              >
+                <div className={cn('flex h-7 w-7 items-center justify-center rounded-md border flex-shrink-0', accent)}>
+                  <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[12px] font-semibold text-[var(--text-primary)]">{label}</p>
+                  <p className="text-[10.5px] text-[var(--text-tertiary)] leading-tight">{desc}</p>
+                </div>
+              </button>
+            ))}
+            <div className="border-t border-[var(--border-subtle)] my-1" />
+            {[
               { type: StepType.Condition, icon: GitBranch, label: 'Condition', desc: 'If/else branch logic', accent: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20' },
               { type: StepType.WebhookWait, icon: Webhook, label: 'Webhook Wait', desc: 'Wait for external event', accent: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20' },
             ].map(({ type, icon: Icon, label, desc, accent }) => (
@@ -234,6 +268,16 @@ const getStepColors = (stepType: string) => {
         iconBg: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20',
         borderColor: 'border-l-[3px] border-l-cyan-500',
         badgeBg: 'bg-cyan-500 text-white',
+      };
+    // LinkedIn's own blue, so a channel switch is visible at a glance down
+    // the flow rather than needing the label read.
+    case 'linkedin_connect':
+    case 'linkedin_message':
+    case 'linkedin_visit':
+      return {
+        iconBg: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20',
+        borderColor: 'border-l-[3px] border-l-sky-500',
+        badgeBg: 'bg-sky-500 text-white',
       };
     default:
       return {
@@ -397,6 +441,89 @@ function FlowNode({
                   <span className="text-[11.5px] text-[var(--text-tertiary)] whitespace-nowrap">
                     {stepDelayInDays(step) > 0 ? 'after the previous step' : '— immediately after previous'}
                   </span>
+                </div>
+              )}
+
+              {/* LinkedIn timing — same control, so a channel switch doesn't
+                  change how you set the wait. */}
+              {isLinkedinStep(step.step_type) && index > 0 && !timedByDelayNode && (
+                <div
+                  className="mt-2.5 inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 pl-2.5 pr-2.5 h-8"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Clock className="h-3 w-3 text-sky-500 flex-shrink-0" strokeWidth={2.2} />
+                  <span className="text-[11.5px] font-medium text-[var(--text-secondary)]">Do this</span>
+                  <DelayUnit value={step.delay_days || 0} unit="d" onChange={(v) => onUpdate({ delay_days: v })} />
+                  <DelayUnit value={step.delay_hours || 0} unit="h" onChange={(v) => onUpdate({ delay_hours: v })} />
+                  <span className="text-[11.5px] text-[var(--text-tertiary)] whitespace-nowrap">
+                    {stepDelayInDays(step) > 0 ? 'after the previous step' : '— immediately after previous'}
+                  </span>
+                </div>
+              )}
+
+              {/* LinkedIn wording. An invite's note is capped by LinkedIn at
+                  300 characters; a message has no subject and no HTML. */}
+              {isLinkedinStep(step.step_type) && isEditing && (
+                <div className="mt-3 space-y-2" onClick={(e) => e.stopPropagation()}>
+                  {step.step_type === 'linkedin_connect' && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-semibold text-[var(--text-secondary)]">
+                          Invite note <span className="font-normal text-[var(--text-tertiary)]">(optional)</span>
+                        </label>
+                        <span className={cn(
+                          'text-[10.5px] tabular',
+                          (step.linkedin_note || '').length > LINKEDIN_NOTE_MAX
+                            ? 'text-[var(--error)] font-semibold'
+                            : 'text-[var(--text-muted)]',
+                        )}>
+                          {(step.linkedin_note || '').length}/{LINKEDIN_NOTE_MAX}
+                        </span>
+                      </div>
+                      <textarea
+                        value={step.linkedin_note || ''}
+                        onChange={(e) => onUpdate({ linkedin_note: e.target.value })}
+                        rows={3}
+                        maxLength={LINKEDIN_NOTE_MAX}
+                        placeholder="Hi {{first_name}} — saw you're leading growth at {{company}}. Would love to connect."
+                        className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 py-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-sky-500"
+                      />
+                      <p className="mt-1 text-[10.5px] text-[var(--text-tertiary)]">
+                        Invites without a note are accepted more often — leave it empty and it's sent bare.
+                      </p>
+                    </div>
+                  )}
+
+                  {step.step_type === 'linkedin_message' && (
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[var(--text-secondary)] mb-1">Message</label>
+                      <textarea
+                        value={step.body_text || ''}
+                        onChange={(e) => onUpdate({ body_text: e.target.value })}
+                        rows={4}
+                        placeholder="Thanks for connecting, {{first_name}}…"
+                        className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 py-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-sky-500"
+                      />
+                      <p className="mt-1 text-[10.5px] text-[var(--text-tertiary)]">
+                        Only reaches people you're already connected to — put an invite step before this one.
+                      </p>
+                    </div>
+                  )}
+
+                  {step.step_type === 'linkedin_visit' && (
+                    <p className="text-[11.5px] text-[var(--text-tertiary)]">
+                      Nothing to write — a visit shows up in their notifications and often earns a look back.
+                    </p>
+                  )}
+
+                  <div className="flex items-start gap-2 rounded-lg border border-sky-500/25 bg-sky-500/[0.06] px-2.5 py-2">
+                    <Linkedin className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-[10.5px] text-[var(--text-secondary)] leading-snug">
+                      LinkedIn has no API for this, so the step lands in your Activities queue when it's due —
+                      personalised, with the profile one click away. Tick it off and the sequence carries on.
+                      Leads without a LinkedIn URL skip the step.
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -647,6 +774,10 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
     condition_value: type === StepType.Condition ? '' : undefined,
     webhook_event: type === StepType.WebhookWait ? '' : undefined,
     webhook_timeout_hours: type === StepType.WebhookWait ? 72 : undefined,
+    // An invite carries a note; a message carries plain text (LinkedIn has no
+    // subject and no HTML); a visit carries nothing at all.
+    linkedin_note: type === StepType.LinkedinConnect ? '' : undefined,
+    body_text: type === StepType.LinkedinMessage ? '' : undefined,
   });
 
   const addStep = useCallback((type: StepType, atIndex?: number) => {
@@ -659,11 +790,20 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
     if (type === StepType.Email && insertAt > 0) {
       newStep.delay_days = 3;
     }
+    // A LinkedIn touch straight after an email reads as coordinated rather
+    // than automated if it waits a day.
+    if (isLinkedinStep(type) && insertAt > 0) {
+      newStep.delay_days = 1;
+    }
 
     const newSteps = [...steps];
     newSteps.splice(insertAt, 0, newStep);
     onStepsChange(newSteps);
-    if (type === StepType.Email || type === StepType.Condition || type === StepType.WebhookWait) {
+    if (
+      type === StepType.Email || type === StepType.Condition ||
+      type === StepType.WebhookWait ||
+      type === StepType.LinkedinConnect || type === StepType.LinkedinMessage
+    ) {
       onEditStep(insertAt);
     }
   }, [steps, onStepsChange, onEditStep]);
