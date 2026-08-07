@@ -31,9 +31,11 @@ function assertCompaniesTable(error: { message?: string; code?: string } | null)
 
 export const companiesService = {
   async list(userId: string, search?: string) {
+    // Deals come back as rows rather than a count so the list can show open
+    // value — the one number that makes an accounts table worth reading.
     let q = supabaseAdmin
       .from('companies')
-      .select('*, contacts(count), deals(count)')
+      .select('*, contacts(count), deals(value, stage)')
       .eq('user_id', userId);
 
     if (search && search.trim()) {
@@ -44,13 +46,18 @@ export const companiesService = {
     const { data, error } = await q.order('name', { ascending: true }).limit(500);
     if (error) { assertCompaniesTable(error); throw new AppError(error.message, 500); }
 
-    return (data || []).map((c: any) => ({
-      ...c,
-      contact_count: c.contacts?.[0]?.count ?? 0,
-      deal_count: c.deals?.[0]?.count ?? 0,
-      contacts: undefined,
-      deals: undefined,
-    }));
+    return (data || []).map((c: any) => {
+      const deals: Array<{ value: number | null; stage: string }> = c.deals || [];
+      const open = deals.filter((d) => d.stage !== 'won' && d.stage !== 'lost');
+      return {
+        ...c,
+        contact_count: c.contacts?.[0]?.count ?? 0,
+        deal_count: deals.length,
+        open_value: open.reduce((s, d) => s + (Number(d.value) || 0), 0),
+        contacts: undefined,
+        deals: undefined,
+      };
+    });
   },
 
   async get(userId: string, id: string) {

@@ -4,17 +4,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { crmApi } from '../../api/crm.api';
 import { inboxApi } from '../../api/inbox.api';
 import { campaignsApi } from '../../api/campaigns.api';
-import { useAuth } from '../../context/AuthContext';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { Skeleton } from '../../components/ui/Skeleton';
-import { Avatar } from '../../components/shared/Avatar';
 import { cn } from '../../lib/utils';
+import { ActivityModal, TASK_TYPE_ICON, startOfDay, sameDay } from '../../components/crm/CrmPrimitives';
 import {
-  ActivityModal, TASK_TYPE_ICON, TASK_TYPE_TONE, dueLabel, DUE_TONE, startOfDay, sameDay,
-} from '../../components/crm/CrmPrimitives';
-import {
-  Flame, CalendarDays, Inbox, CheckSquare, ArrowRight, Phone, Users,
-  Snowflake, Megaphone, BarChart3, Sun, Sunrise, Moon, PartyPopper, Plus,
+  CheckSquare, ChevronRight, Phone, Users, Inbox, Snowflake, Megaphone,
+  Plus, PartyPopper,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CrmTask, CrmEvent, Deal } from '@lemlist/shared';
@@ -22,22 +18,18 @@ import type { CrmTask, CrmEvent, Deal } from '@lemlist/shared';
 /* ═══════════════════════════════════════════════════════════════════════
    Today.
 
-   The old home was a report: funnels, leaderboards, deliverability scores.
-   Useful on a Friday, useless on a Tuesday morning — it told you what had
-   happened, never what to do. This is the worklist version: the things
-   that are late, the things due now, the people waiting on a reply, and
-   the deals quietly going cold. Analytics still exists, one click away.
+   This is a queue, not a dashboard. The first version counted the same
+   things twice — four tiles reading "Overdue 3", then a panel listing
+   those same three — and painted six sections in six accent colours, so
+   a paused campaign shouted exactly as loudly as a deal about to die.
+   Everything below is one list, in the order you should work it: what's
+   late, then what's booked, then what's due. Signals that are worth
+   knowing but aren't tasks sit underneath in a single quiet strip, and
+   the numbers live on the Dashboard where numbers belong.
    ═══════════════════════════════════════════════════════════════════════ */
 
 /** Deals untouched for this long are treated as going cold. */
 const STALE_DAYS = 14;
-
-function greeting(now: Date): { text: string; icon: typeof Sun } {
-  const h = now.getHours();
-  if (h < 12) return { text: 'Good morning', icon: Sunrise };
-  if (h < 18) return { text: 'Good afternoon', icon: Sun };
-  return { text: 'Good evening', icon: Moon };
-}
 
 function daysSince(iso?: string | null): number | null {
   if (!iso) return null;
@@ -46,75 +38,57 @@ function daysSince(iso?: string | null): number | null {
   return Math.floor((Date.now() - d.getTime()) / 86_400_000);
 }
 
-function Tile({ icon: Icon, label, value, tone, to }: {
-  icon: typeof Flame; label: string; value: number; tone?: string; to: string;
-}) {
-  return (
-    <Link
-      to={to}
-      className="panel px-4 py-3 flex items-center gap-3 hover:border-[var(--indigo)]/40 hover:bg-[var(--bg-hover)] transition-colors"
-    >
-      <span className={cn(
-        'flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0',
-        value > 0 && tone ? tone : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]',
-      )}>
-        <Icon className="h-4 w-4" />
-      </span>
-      <span className="min-w-0">
-        <span className="block text-[18px] font-semibold tabular text-[var(--text-primary)] leading-none tracking-[-0.02em]">{value}</span>
-        <span className="block text-[11px] text-[var(--text-tertiary)] mt-1">{label}</span>
-      </span>
-    </Link>
-  );
+function clock(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-function SectionCard({ icon: Icon, title, count, tone, action, children }: {
-  icon: typeof Flame; title: string; count?: number; tone?: string;
-  action?: { label: string; to: string };
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="panel overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50">
-        <Icon className={cn('h-3.5 w-3.5', tone || 'text-[var(--text-tertiary)]')} />
-        <h2 className={cn('text-[12.5px] font-semibold', tone || 'text-[var(--text-primary)]')}>{title}</h2>
-        {count != null && <span className="text-[11px] tabular text-[var(--text-tertiary)]">{count}</span>}
-        {action && (
-          <Link to={action.to} className="ml-auto inline-flex items-center gap-1 text-[11.5px] font-medium text-[var(--indigo)] hover:underline">
-            {action.label} <ArrowRight className="h-3 w-3" />
-          </Link>
-        )}
-      </div>
-      {children}
-    </div>
-  );
+/** "3 days late", for the only rows allowed to use the alarm colour. */
+function lateBy(iso: string, today: Date): string {
+  const days = Math.round((today.getTime() - startOfDay(new Date(iso)).getTime()) / 86_400_000);
+  if (days <= 0) return 'Late';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days} days late`;
+  const weeks = Math.floor(days / 7);
+  return weeks === 1 ? 'A week late' : `${weeks} weeks late`;
 }
 
-function ActivityRow({ task, onToggle, onOpen }: {
-  task: CrmTask; onToggle: (t: CrmTask) => void; onOpen: (t: CrmTask) => void;
+/* One row shape for both kinds of work, so the day reads as a single list
+   rather than two lists that happen to be stacked. */
+type Row =
+  | { kind: 'task'; at: number; task: CrmTask; late: boolean }
+  | { kind: 'meeting'; at: number; event: CrmEvent };
+
+function TaskRow({ task, late, today, onToggle, onOpen }: {
+  task: CrmTask; late: boolean; today: Date;
+  onToggle: (t: CrmTask) => void; onOpen: (t: CrmTask) => void;
 }) {
   const Icon = TASK_TYPE_ICON[task.type] || CheckSquare;
-  const due = dueLabel(task.due_date);
   const who = task.contact
     ? [task.contact.first_name, task.contact.last_name].filter(Boolean).join(' ') || task.contact.email
     : task.contact_name;
+
   return (
-    <div className="flex items-center gap-2.5 px-4 py-2 hover:bg-[var(--bg-hover)] transition-colors">
+    <div className={cn(
+      'group flex items-center gap-3 py-2.5 pr-4 transition-colors hover:bg-[var(--bg-hover)]',
+      // The single alarm colour in the whole page. Everything that isn't
+      // late is neutral, so late actually means something.
+      late ? 'border-l-2 border-l-[var(--error)] pl-[14px]' : 'pl-4',
+    )}>
       <Checkbox checked={false} onChange={() => onToggle(task)} aria-label={`Complete ${task.title}`} />
-      <span className={cn('flex h-6 w-6 items-center justify-center rounded-md flex-shrink-0', TASK_TYPE_TONE[task.type])}>
-        <Icon className="h-3 w-3" />
-      </span>
+      <Icon className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)]" />
       <button onClick={() => onOpen(task)} className="flex-1 min-w-0 text-left">
-        <span className="block text-[12.5px] font-medium text-[var(--text-primary)] truncate">{task.title}</span>
-        <span className="flex items-center gap-1.5 text-[11px]">
-          <span className={DUE_TONE[due.tone]}>{due.text}</span>
-          {who && <><span className="text-[var(--text-muted)]">·</span><span className="text-[var(--text-tertiary)] truncate">{who}</span></>}
-        </span>
+        <span className="block text-[13px] text-[var(--text-primary)] truncate">{task.title}</span>
+        {who && <span className="block text-[11.5px] text-[var(--text-tertiary)] truncate">{who}</span>}
       </button>
+      {late && task.due_date && (
+        <span className="flex-shrink-0 text-[11.5px] font-medium text-[var(--error)]">
+          {lateBy(task.due_date, today)}
+        </span>
+      )}
       {task.contact_id && (
         <Link
           to={`/contacts/${task.contact_id}`}
-          className="hidden sm:inline-flex h-6 px-2 items-center rounded-md border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
+          className="hidden sm:inline-flex flex-shrink-0 text-[11.5px] font-medium text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 hover:text-[var(--indigo)] transition-all"
         >
           Profile
         </Link>
@@ -123,10 +97,50 @@ function ActivityRow({ task, onToggle, onOpen }: {
   );
 }
 
+function MeetingRow({ event, onOpen }: { event: CrmEvent; onOpen: (e: CrmEvent) => void }) {
+  const Icon = event.type === 'call' ? Phone : Users;
+  return (
+    <button
+      onClick={() => onOpen(event)}
+      className="w-full flex items-center gap-3 py-2.5 pl-4 pr-4 text-left transition-colors hover:bg-[var(--bg-hover)]"
+    >
+      <span className="w-[52px] flex-shrink-0 text-[11.5px] tabular font-medium text-[var(--text-secondary)]">
+        {event.all_day ? 'All day' : clock(event.starts_at)}
+      </span>
+      <Icon className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)]" />
+      <span className="flex-1 min-w-0">
+        <span className="block text-[13px] text-[var(--text-primary)] truncate">{event.title}</span>
+        {(event.contact_name || event.location) && (
+          <span className="block text-[11.5px] text-[var(--text-tertiary)] truncate">
+            {[event.contact_name, event.location].filter(Boolean).join(' · ')}
+          </span>
+        )}
+      </span>
+    </button>
+  );
+}
+
+/** A signal, not a task: one line, a count, and the way through to it. */
+function SignalRow({ icon: Icon, label, count, to }: {
+  icon: typeof Inbox; label: string; count: number; to: string;
+}) {
+  return (
+    <Link
+      to={to}
+      className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--bg-hover)]"
+    >
+      <Icon className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)]" />
+      <span className="text-[13px] text-[var(--text-primary)]">
+        <span className="tabular font-semibold">{count}</span> {label}
+      </span>
+      <ChevronRight className="h-3.5 w-3.5 ml-auto flex-shrink-0 text-[var(--text-muted)]" />
+    </Link>
+  );
+}
+
 export function TodayPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { user } = useAuth();
   const [activityModal, setActivityModal] = useState<Partial<CrmTask> | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -135,7 +149,7 @@ export function TodayPage() {
   const { data: deals = [] } = useQuery({ queryKey: ['crm', 'deals'], queryFn: () => crmApi.listDeals() });
   const { data: unread } = useQuery({
     queryKey: ['today', 'unread'],
-    queryFn: () => inboxApi.list({ is_read: false, limit: 6 }),
+    queryFn: () => inboxApi.list({ is_read: false, limit: 1 }),
   });
   const { data: campaigns } = useQuery({ queryKey: ['campaigns', 'today'], queryFn: () => campaignsApi.list({ limit: 100 }) });
 
@@ -158,102 +172,82 @@ export function TodayPage() {
   const now = new Date();
   const today = startOfDay(now);
 
-  const { overdue, dueToday, meetingsToday, stale, needsAttention } = useMemo(() => {
+  const { rows, lateCount, staleCount, pausedCount } = useMemo(() => {
     const open = tasks.filter((t) => !t.is_done);
-    const byDue = (a: CrmTask, b: CrmTask) =>
-      new Date(a.due_date || 0).getTime() - new Date(b.due_date || 0).getTime();
+    const time = (iso?: string | null) => (iso ? new Date(iso).getTime() : 0);
 
-    const overdue = open
+    const late = open
       .filter((t) => t.due_date && startOfDay(new Date(t.due_date)) < today)
-      .sort(byDue);
-    const dueToday = open
-      .filter((t) => t.due_date && sameDay(new Date(t.due_date), today))
-      .sort(byDue);
+      .sort((a, b) => time(a.due_date) - time(b.due_date))
+      .map<Row>((task) => ({ kind: 'task', at: time(task.due_date), task, late: true }));
 
-    const meetingsToday = (events as CrmEvent[])
+    // Meetings and to-dos share one timeline: at 2pm you want to know the
+    // 3pm call is next, not that it lives in a different panel.
+    const booked = (events as CrmEvent[])
       .filter((e) => sameDay(new Date(e.starts_at), today))
-      .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
+      .map<Row>((event) => ({ kind: 'meeting', at: time(event.starts_at), event }));
 
-    // A deal is "cold" when it's still open and nothing has touched it for a
-    // fortnight — the quiet way pipelines die.
-    const stale = (deals as Deal[])
+    const due = open
+      .filter((t) => t.due_date && sameDay(new Date(t.due_date), today))
+      .map<Row>((task) => ({ kind: 'task', at: time(task.due_date), task, late: false }));
+
+    const rest = [...booked, ...due].sort((a, b) => a.at - b.at);
+
+    const staleCount = (deals as Deal[])
       .filter((d) => d.stage !== 'won' && d.stage !== 'lost')
-      .map((d) => ({ deal: d, days: daysSince(d.updated_at) ?? 0 }))
-      .filter((x) => x.days >= STALE_DAYS)
-      .sort((a, b) => b.days - a.days)
-      .slice(0, 5);
+      .filter((d) => (daysSince(d.updated_at) ?? 0) >= STALE_DAYS)
+      .length;
 
-    const running = (campaigns?.data || []) as any[];
-    const needsAttention = running
+    const pausedCount = ((campaigns?.data || []) as any[])
       .filter((c) => c.status === 'paused' || c.status === 'error')
-      .slice(0, 4);
+      .length;
 
-    return { overdue, dueToday, meetingsToday, stale, needsAttention };
+    return { rows: [...late, ...rest], lateCount: late.length, staleCount, pausedCount };
   }, [tasks, events, deals, campaigns, today]);
 
-  const unreadMessages = (unread?.data || []) as any[];
-  const unreadTotal = unread?.total ?? unreadMessages.length;
-
+  const unreadTotal = unread?.total ?? 0;
   const openActivity = (t: Partial<CrmTask> | null) => { setActivityModal(t); setModalOpen(true); };
+  const openMeeting = (e: CrmEvent) => navigate(e.contact_id ? `/contacts/${e.contact_id}` : '/calendar');
 
-  const name = (user as any)?.user_metadata?.full_name?.split(' ')[0]
-    || (user?.email ? user.email.split('@')[0] : '');
-  const { text: hello, icon: HelloIcon } = greeting(now);
-
-  const nothingToDo =
-    overdue.length === 0 && dueToday.length === 0 && meetingsToday.length === 0 &&
-    unreadMessages.length === 0 && stale.length === 0 && needsAttention.length === 0;
+  const remaining = rows.length;
+  const hasSignals = unreadTotal > 0 || staleCount > 0 || pausedCount > 0;
 
   return (
-    <div className="space-y-4 max-w-5xl">
-      {/* Greeting */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(99,102,241,0.18)]">
-            <HelloIcon className="h-5 w-5 text-[var(--indigo)]" />
-          </span>
-          <div>
-            <h1 className="text-[22px] font-semibold text-[var(--text-primary)] tracking-[-0.02em] leading-tight">
-              {hello}{name ? `, ${name}` : ''}
-            </h1>
-            <p className="text-[12.5px] text-[var(--text-secondary)]">
-              {now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
-              {overdue.length > 0
-                ? ` · ${overdue.length} thing${overdue.length === 1 ? '' : 's'} overdue`
-                : dueToday.length > 0
-                  ? ` · ${dueToday.length} due today`
-                  : ' · nothing overdue'}
-            </p>
-          </div>
+    <div className="space-y-4 max-w-3xl">
+      {/* One line of context, one action. The date and the count are the
+          only numbers here — the rest are the Dashboard's job. */}
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <h1 className="text-[19px] font-semibold text-[var(--text-primary)] tracking-[-0.02em] leading-tight">
+            Today
+          </h1>
+          <p className="text-[12.5px] text-[var(--text-secondary)] mt-0.5">
+            {now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
+            {remaining > 0 && (
+              <>
+                {' · '}
+                {lateCount > 0 && <span className="text-[var(--error)] font-medium">{lateCount} late</span>}
+                {lateCount > 0 && remaining > lateCount && ', '}
+                {remaining > lateCount && `${remaining - lateCount} to go`}
+              </>
+            )}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link to="/dashboard/overview" className="btn-secondary">
-            <BarChart3 className="h-3.5 w-3.5" /> Performance
-          </Link>
-          <button onClick={() => openActivity(null)} className="btn-primary">
-            <Plus className="h-3.5 w-3.5" /> Schedule
-          </button>
-        </div>
-      </div>
-
-      {/* Counters */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Tile icon={Flame} label="Overdue" value={overdue.length} tone="bg-rose-500/10 text-rose-600 dark:text-rose-400" to="/tasks" />
-        <Tile icon={CheckSquare} label="Due today" value={dueToday.length} tone="bg-amber-500/10 text-amber-600 dark:text-amber-400" to="/tasks" />
-        <Tile icon={CalendarDays} label="Meetings today" value={meetingsToday.length} tone="bg-violet-500/10 text-violet-600 dark:text-violet-400" to="/calendar" />
-        <Tile icon={Inbox} label="Unread replies" value={unreadTotal} tone="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" to="/inbox" />
+        <button onClick={() => openActivity(null)} className="btn-primary">
+          <Plus className="h-3.5 w-3.5" /> Schedule
+        </button>
       </div>
 
       {tasksLoading ? (
         <div className="panel p-4 space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-11 w-full" />)}</div>
-      ) : nothingToDo ? (
+      ) : remaining === 0 ? (
         <div className="panel py-14 text-center">
           <span className="flex h-12 w-12 mx-auto items-center justify-center rounded-2xl bg-emerald-500/10 mb-3">
             <PartyPopper className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
           </span>
-          <p className="text-[15px] font-semibold text-[var(--text-primary)]">You're all clear</p>
+          <p className="text-[15px] font-semibold text-[var(--text-primary)]">Nothing left today</p>
           <p className="text-[12.5px] text-[var(--text-tertiary)] mt-1 max-w-sm mx-auto">
-            Nothing overdue, nothing due today, no unread replies and no deals going cold. Good time to add prospects or start a campaign.
+            No meetings, nothing due and nothing late. Good time to add prospects or start a campaign.
           </p>
           <div className="flex items-center justify-center gap-2 mt-4">
             <Link to="/prospector" className="btn-secondary">Find prospects</Link>
@@ -261,121 +255,53 @@ export function TodayPage() {
           </div>
         </div>
       ) : (
-        <>
-          {/* Overdue first — the only bucket that costs you deals */}
-          {overdue.length > 0 && (
-            <SectionCard icon={Flame} title="Overdue" count={overdue.length} tone="text-rose-600 dark:text-rose-400" action={{ label: 'All activities', to: '/tasks' }}>
-              <div className="divide-y divide-[var(--border-subtle)]">
-                {overdue.slice(0, 6).map((t) => (
-                  <ActivityRow key={t.id} task={t} onToggle={(x) => toggle.mutate(x)} onOpen={openActivity} />
-                ))}
-              </div>
-            </SectionCard>
+        <div className="panel overflow-hidden divide-y divide-[var(--border-subtle)]">
+          {rows.map((row) =>
+            row.kind === 'meeting' ? (
+              <MeetingRow key={`e-${row.event.id}`} event={row.event} onOpen={openMeeting} />
+            ) : (
+              <TaskRow
+                key={`t-${row.task.id}`}
+                task={row.task}
+                late={row.late}
+                today={today}
+                onToggle={(x) => toggle.mutate(x)}
+                onOpen={openActivity}
+              />
+            )
           )}
-
-          {/* Today's plan: activities and meetings interleaved by time */}
-          {(dueToday.length > 0 || meetingsToday.length > 0) && (
-            <SectionCard icon={CalendarDays} title="Today" count={dueToday.length + meetingsToday.length} action={{ label: 'Calendar', to: '/calendar' }}>
-              <div className="divide-y divide-[var(--border-subtle)]">
-                {meetingsToday.map((e) => (
-                  <button
-                    key={e.id}
-                    onClick={() => navigate(e.contact_id ? `/contacts/${e.contact_id}` : '/calendar')}
-                    className="w-full flex items-center gap-2.5 px-4 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                  >
-                    <span className="w-14 flex-shrink-0 text-[11.5px] tabular font-medium text-[var(--text-tertiary)]">
-                      {e.all_day ? 'All day' : new Date(e.starts_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                    </span>
-                    <span className="flex h-6 w-6 items-center justify-center rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-400 flex-shrink-0">
-                      {e.type === 'call' ? <Phone className="h-3 w-3" /> : <Users className="h-3 w-3" />}
-                    </span>
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-[12.5px] font-medium text-[var(--text-primary)] truncate">{e.title}</span>
-                      {(e.contact_name || e.location) && (
-                        <span className="block text-[11px] text-[var(--text-tertiary)] truncate">
-                          {[e.contact_name, e.location].filter(Boolean).join(' · ')}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                ))}
-                {dueToday.map((t) => (
-                  <ActivityRow key={t.id} task={t} onToggle={(x) => toggle.mutate(x)} onOpen={openActivity} />
-                ))}
-              </div>
-            </SectionCard>
-          )}
-
-          {/* People waiting on you */}
-          {unreadMessages.length > 0 && (
-            <SectionCard icon={Inbox} title="Waiting on a reply" count={unreadTotal} tone="text-emerald-600 dark:text-emerald-400" action={{ label: 'Unibox', to: '/inbox' }}>
-              <div className="divide-y divide-[var(--border-subtle)]">
-                {unreadMessages.map((m) => (
-                  <Link
-                    key={m.id}
-                    to={`/inbox?message=${m.id}`}
-                    className="flex items-center gap-2.5 px-4 py-2 hover:bg-[var(--bg-hover)] transition-colors"
-                  >
-                    <Avatar name={m.contact_name || m.from_email} email={m.from_email} size="sm" />
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-[12.5px] font-medium text-[var(--text-primary)] truncate">
-                        {m.subject || '(no subject)'}
-                      </span>
-                      <span className="block text-[11px] text-[var(--text-tertiary)] truncate">{m.from_email}</span>
-                    </span>
-                    <span className="text-[11px] tabular text-[var(--text-tertiary)] flex-shrink-0">
-                      {new Date(m.received_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            </SectionCard>
-          )}
-
-          {/* Deals dying quietly */}
-          {stale.length > 0 && (
-            <SectionCard icon={Snowflake} title="Going cold" count={stale.length} tone="text-sky-600 dark:text-sky-400" action={{ label: 'Pipeline', to: '/deals' }}>
-              <div className="divide-y divide-[var(--border-subtle)]">
-                {stale.map(({ deal, days }) => (
-                  <Link key={deal.id} to="/deals" className="flex items-center gap-2.5 px-4 py-2 hover:bg-[var(--bg-hover)] transition-colors">
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-[12.5px] font-medium text-[var(--text-primary)] truncate">{deal.title}</span>
-                      <span className="block text-[11px] text-[var(--text-tertiary)] truncate">
-                        {[deal.company, deal.stage].filter(Boolean).join(' · ')}
-                      </span>
-                    </span>
-                    <span className="text-[11px] text-sky-600 dark:text-sky-400 flex-shrink-0">
-                      {days} days quiet
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            </SectionCard>
-          )}
-
-          {/* Campaigns that stopped */}
-          {needsAttention.length > 0 && (
-            <SectionCard icon={Megaphone} title="Campaigns needing attention" count={needsAttention.length} tone="text-amber-600 dark:text-amber-400" action={{ label: 'Campaigns', to: '/campaigns' }}>
-              <div className="divide-y divide-[var(--border-subtle)]">
-                {needsAttention.map((c) => (
-                  <Link key={c.id} to={`/campaigns/${c.id}`} className="flex items-center gap-2.5 px-4 py-2 hover:bg-[var(--bg-hover)] transition-colors">
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-[12.5px] font-medium text-[var(--text-primary)] truncate">{c.name}</span>
-                      <span className="block text-[11px] text-[var(--text-tertiary)] capitalize">{c.status}</span>
-                    </span>
-                    <ArrowRight className="h-3.5 w-3.5 text-[var(--text-muted)] flex-shrink-0" />
-                  </Link>
-                ))}
-              </div>
-            </SectionCard>
-          )}
-        </>
+        </div>
       )}
 
-      <p className="text-[11.5px] text-[var(--text-tertiary)] text-center">
-        Looking for funnels, leaderboards and deliverability?{' '}
-        <Link to="/dashboard/overview" className="text-[var(--indigo)] hover:underline">Performance overview</Link>
-      </p>
+      {/* Worth knowing, not worth a panel each. */}
+      {hasSignals && (
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--text-muted)] mb-1.5 px-0.5">
+            Worth a look
+          </p>
+          <div className="panel overflow-hidden divide-y divide-[var(--border-subtle)]">
+            {unreadTotal > 0 && (
+              <SignalRow icon={Inbox} label={unreadTotal === 1 ? 'unread reply' : 'unread replies'} count={unreadTotal} to="/inbox" />
+            )}
+            {staleCount > 0 && (
+              <SignalRow
+                icon={Snowflake}
+                label={`${staleCount === 1 ? 'deal' : 'deals'} untouched for ${STALE_DAYS}+ days`}
+                count={staleCount}
+                to="/deals"
+              />
+            )}
+            {pausedCount > 0 && (
+              <SignalRow
+                icon={Megaphone}
+                label={pausedCount === 1 ? 'campaign stopped' : 'campaigns stopped'}
+                count={pausedCount}
+                to="/campaigns"
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {modalOpen && <ActivityModal task={activityModal} onClose={() => setModalOpen(false)} />}
     </div>
