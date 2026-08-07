@@ -5,6 +5,8 @@ import { inboxApi } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
 import { templateApi } from '../../api/template.api';
 import { crmApi } from '../../api/crm.api';
+import { companiesApi } from '../../api/companies.api';
+import { contactsApi } from '../../api/contacts.api';
 import { Spinner } from '../../components/ui/Spinner';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/shared/EmptyState';
@@ -12,6 +14,8 @@ import { Avatar } from '../../components/shared/Avatar';
 import { EmailBody } from '../../components/shared/EmailBody';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { RichTextEditor, useRichTextEditorRef } from '../../components/ui/RichTextEditor';
+import { InlineEdit } from '../../components/ui/InlineEdit';
+import { usePeek } from '../../components/peek/usePeek';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import {
@@ -62,7 +66,12 @@ import {
   BadgeCheck,
   Megaphone,
   PenLine,
+  Handshake,
+  Plus,
+  Users as UsersIcon,
 } from 'lucide-react';
+
+import { DEAL_STAGES, type DealStage } from '@lemlist/shared';
 
 /* ─── Types ────────────────────────────────────────── */
 type Folder = 'inbox' | 'starred' | 'sent' | 'archived' | 'scheduled';
@@ -1310,6 +1319,291 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
+/* ─── Deal panel ─────────────────────────────────────────────────────
+   A conversation turns into a deal at a moment you can feel — they name a
+   budget, they ask for pricing. That moment happens here, in the thread,
+   so the deal gets made here too rather than in another tab five minutes
+   later when the detail has gone. Existing deals for this lead show at
+   the top; the form below opens beside the conversation, not over it. */
+function ThreadDealPanel({ msg }: { msg: Message }) {
+  const qc = useQueryClient();
+  const { openPeek } = usePeek();
+
+  const email = msg.direction === 'outbound'
+    ? (msg.contact_email || msg.to_email)
+    : (msg.contact_email || msg.from_email);
+  const leadName = msg.contact_name || (email ? email.split('@')[0] : '');
+
+  // The linked lead record is the only reliable source of the company —
+  // the address domain is a guess, and a good one only sometimes.
+  const { data: contact } = useQuery({
+    queryKey: ['contacts', msg.contact_id],
+    queryFn: () => contactsApi.get(msg.contact_id!),
+    enabled: !!msg.contact_id,
+  });
+
+  const { data: deals = [], isLoading } = useQuery({
+    queryKey: ['crm', 'deals', 'thread', msg.contact_id || null, email || null],
+    queryFn: () => crmApi.listDeals({
+      contact_id: msg.contact_id || undefined,
+      contact_email: email || undefined,
+    }),
+    enabled: !!(msg.contact_id || email),
+  });
+
+  const companyName = contact?.company || companyFromEmail(email) || '';
+  const companyId = (contact as any)?.company_id || null;
+
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [value, setValue] = useState('');
+  const [stage, setStage] = useState<DealStage>('lead');
+
+  const startCreate = () => {
+    // A deal named after the account and the thread beats "New deal" —
+    // it's the name you'd have typed, already typed.
+    const subject = baseSubject(msg.subject);
+    const who = companyName || leadName || 'New';
+    setTitle(subject ? `${who} — ${subject}` : `${who} — deal`);
+    setValue('');
+    setStage('lead');
+    setOpen(true);
+  };
+
+  const create = useMutation({
+    mutationFn: async () => {
+      // Resolve the account first so the deal lands linked rather than
+      // carrying a loose company name nothing can join on. createOrGet
+      // returns the existing record when the name already matches one.
+      let resolvedCompanyId: string | null = companyId;
+      if (!resolvedCompanyId && companyName) {
+        try {
+          const company = await companiesApi.create({ name: companyName });
+          resolvedCompanyId = company.id;
+          // Attach the lead to the same account while we're here, so the
+          // company page shows this person without a second trip.
+          if (msg.contact_id && !companyId) {
+            await companiesApi.linkContact(msg.contact_id, company.id).catch(() => {});
+          }
+        } catch {
+          // Companies may not be migrated yet — a deal without the link is
+          // still worth having, so this never blocks the create.
+        }
+      }
+
+      return crmApi.createDeal({
+        title: title.trim(),
+        value: Number(String(value).replace(/[^0-9.-]/g, '')) || 0,
+        stage,
+        company: companyName || null,
+        company_id: resolvedCompanyId,
+        contact_id: msg.contact_id || null,
+        contact_email: email || null,
+        contact_name: leadName || null,
+      });
+    },
+    onSuccess: (deal) => {
+      qc.invalidateQueries({ queryKey: ['crm'] });
+      qc.invalidateQueries({ queryKey: ['companies'] });
+      setOpen(false);
+      toast.success(`${deal.title} added to the pipeline`);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not create that deal'),
+  });
+
+  const setDealStage = useMutation({
+    mutationFn: ({ id, next }: { id: string; next: DealStage }) => crmApi.updateDeal(id, { stage: next }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['crm'] }),
+    onError: () => toast.error('Could not move that deal'),
+  });
+
+  const setDealValue = useMutation({
+    mutationFn: ({ id, next }: { id: string; next: number }) => crmApi.updateDeal(id, { value: next }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['crm'] }),
+    onError: () => toast.error('Could not update that value'),
+  });
+
+  if (!email && !msg.contact_id) return null;
+
+  return (
+    <div className="px-3.5 pb-3.5">
+      <div className="flex items-center justify-between mb-2 px-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          {deals.length > 0 ? `Deals · ${deals.length}` : 'Deal'}
+        </p>
+        {!open && (
+          <button
+            onClick={startCreate}
+            className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-[var(--indigo)] hover:underline"
+          >
+            <Plus className="h-3 w-3" /> {deals.length > 0 ? 'Add another' : 'Create'}
+          </button>
+        )}
+      </div>
+
+      {/* Existing deals — stage and value are editable right here, since
+          "they've agreed, move it to proposal" is the same moment. */}
+      {deals.map((d) => (
+        <div key={d.id} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 p-3 mb-2">
+          <button
+            onClick={() => openPeek('deal', d.id)}
+            className="group flex items-start gap-2 w-full text-left"
+          >
+            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] flex-shrink-0">
+              <Handshake className="h-3 w-3 text-[var(--indigo)]" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12.5px] font-semibold text-[var(--text-primary)] leading-snug truncate group-hover:text-[var(--indigo)] transition-colors">
+                {d.title}
+              </span>
+            </span>
+            <ArrowUpRight className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" />
+          </button>
+
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-[10px] text-[var(--text-tertiary)]">Value</span>
+            <span className="ml-auto">
+              <InlineEdit
+                value={d.value ?? ''}
+                type="number"
+                placeholder="Add a value"
+                ariaLabel="deal value"
+                textClassName="text-[12.5px] font-semibold tabular text-[var(--text-primary)]"
+                inputClassName="text-[12.5px] font-semibold tabular text-right"
+                format={(v) => Number(v).toLocaleString('en-US', {
+                  style: 'currency', currency: d.currency || 'USD', maximumFractionDigits: 0,
+                })}
+                onSave={(next) => {
+                  const n = Number(next.replace(/[^0-9.-]/g, ''));
+                  if (!Number.isFinite(n)) return Promise.reject(new Error('nan'));
+                  return setDealValue.mutateAsync({ id: d.id, next: n });
+                }}
+              />
+            </span>
+          </div>
+
+          <div className="mt-2 flex flex-wrap gap-1">
+            {DEAL_STAGES.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setDealStage.mutate({ id: d.id, next: s.id })}
+                className={cn(
+                  'h-[22px] px-1.5 rounded-md text-[10px] font-semibold transition-colors',
+                  s.id === d.stage
+                    ? 'bg-[var(--indigo)] text-white'
+                    : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+                )}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {isLoading && deals.length === 0 && <Skeleton className="h-16 w-full rounded-xl" />}
+
+      {open ? (
+        <form
+          onSubmit={(e) => { e.preventDefault(); if (title.trim()) create.mutate(); }}
+          className="rounded-xl border border-[var(--indigo)]/40 bg-[var(--bg-elevated)]/50 p-3 space-y-2.5"
+        >
+          <div>
+            <label className="block text-[10px] font-medium text-[var(--text-tertiary)] mb-1">Deal name</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              autoFocus
+              placeholder="Acme — annual plan"
+              className="w-full h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-medium text-[var(--text-tertiary)] mb-1">Value</label>
+            <input
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              inputMode="decimal"
+              placeholder="0"
+              className="w-full h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 text-[12px] tabular text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-medium text-[var(--text-tertiary)] mb-1">Stage</label>
+            <div className="flex flex-wrap gap-1">
+              {DEAL_STAGES.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setStage(s.id)}
+                  className={cn(
+                    'h-[24px] px-2 rounded-md text-[10.5px] font-semibold transition-colors',
+                    s.id === stage
+                      ? 'bg-[var(--indigo)] text-white'
+                      : 'border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]',
+                  )}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Say what gets attached, before it happens rather than after. */}
+          <div className="rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] px-2 py-1.5 space-y-0.5">
+            <p className="text-[10px] text-[var(--text-tertiary)]">Links automatically</p>
+            {leadName && (
+              <p className="text-[10.5px] text-[var(--text-secondary)] truncate">
+                <UsersIcon className="inline h-3 w-3 mr-1 -mt-px text-[var(--text-tertiary)]" />
+                {leadName}{email ? ` · ${email}` : ''}
+              </p>
+            )}
+            {companyName && (
+              <p className="text-[10.5px] text-[var(--text-secondary)] truncate">
+                <Building2 className="inline h-3 w-3 mr-1 -mt-px text-[var(--text-tertiary)]" />
+                {companyName}{companyId ? '' : ' (created if new)'}
+              </p>
+            )}
+          </div>
+
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="h-7 flex-1 rounded-lg border border-[var(--border-default)] text-[11px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!title.trim() || create.isPending}
+              className="h-7 flex-1 rounded-lg bg-[var(--indigo)] text-[11px] font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+            >
+              {create.isPending ? 'Creating…' : 'Create deal'}
+            </button>
+          </div>
+        </form>
+      ) : deals.length === 0 && !isLoading ? (
+        <button
+          onClick={startCreate}
+          className="w-full rounded-xl border border-dashed border-[var(--border-default)] px-3 py-3 text-left hover:border-[var(--indigo)]/50 hover:bg-[var(--bg-hover)] transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
+              <Handshake className="h-3 w-3 text-[var(--text-tertiary)]" />
+            </span>
+            <span className="text-[11.5px] text-[var(--text-secondary)]">
+              No deal yet — <span className="text-[var(--indigo)] font-medium">create one</span>
+            </span>
+          </span>
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function ContactContextPanel({ msg, stats, onCopyEmail }: {
   msg: Message;
   stats: { total: number; inbound: number; outbound: number; first: string | null; last: string | null; avgReply: number | null };
@@ -1370,6 +1664,9 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
           </div>
         </div>
       </div>
+
+      {/* ── Deal — made here, where the conversation earns it ── */}
+      <ThreadDealPanel msg={msg} />
 
       {/* ── Campaign card — which sequence this thread belongs to ── */}
       {(msg.campaign_name || sendingInbox) && (

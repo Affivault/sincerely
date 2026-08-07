@@ -41,6 +41,8 @@ export interface Deal {
 export interface CreateDealInput {
   title: string;
   company?: string | null;
+  /** Link to a company record; the free-text `company` stays for display. */
+  company_id?: string | null;
   contact_name?: string | null;
   contact_email?: string | null;
   contact_id?: string | null;
