@@ -19,7 +19,7 @@ import toast from 'react-hot-toast';
    ═══════════════════════════════════════════════════════════════════════ */
 
 export function QuickCompose({
-  to, toName, defaultSubject, onSent, className,
+  to, toName, defaultSubject, onSent, className, alwaysOpen = false,
 }: {
   to: string;
   toName?: string | null;
@@ -27,9 +27,11 @@ export function QuickCompose({
   defaultSubject?: string | null;
   onSent?: () => void;
   className?: string;
+  /** Render the form directly, for places that already chose "write email". */
+  alwaysOpen?: boolean;
 }) {
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(alwaysOpen);
   const [subject, setSubject] = useState('');
   const [senderId, setSenderId] = useState('');
   const body = useRichTextEditorRef();
@@ -57,7 +59,9 @@ export function QuickCompose({
   };
 
   const cancel = () => {
-    setOpen(false);
+    // When the composer IS the panel, there's nothing to collapse back to —
+    // clearing it is the whole of "discard".
+    if (!alwaysOpen) setOpen(false);
     body.reset();
     setSubject('');
   };
@@ -82,7 +86,7 @@ export function QuickCompose({
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not send that email'),
   });
 
-  if (!open) {
+  if (!open && !alwaysOpen) {
     return (
       <button
         onClick={start}
@@ -111,7 +115,7 @@ export function QuickCompose({
         <span className="text-[11.5px] font-semibold text-[var(--text-primary)]">
           To {toName || to}
         </span>
-        <button onClick={cancel} className="ml-auto icon-btn h-6 w-6" title="Discard">
+        <button onClick={cancel} className="ml-auto icon-btn h-6 w-6" title={alwaysOpen ? 'Clear' : 'Discard'}>
           <X className="h-3.5 w-3.5" />
         </button>
       </div>

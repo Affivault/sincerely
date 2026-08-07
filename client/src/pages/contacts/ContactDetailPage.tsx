@@ -10,14 +10,12 @@ import { DealModal } from '../crm/DealsPage';
 import { MeetingModal } from '../../components/crm/CrmPrimitives';
 import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
 import { ContactHistory, ContactOrigin } from '../../components/crm/ContactHistory';
-import { EmailBody } from '../../components/shared/EmailBody';
 import { DEAL_STAGES, type Deal, type CrmEvent } from '@lemlist/shared';
 import { Spinner } from '../../components/ui/Spinner';
 import { InlineEdit } from '../../components/ui/InlineEdit';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/shared/Avatar';
-import { QuickCompose } from '../../components/shared/QuickCompose';
 import { formatDate, formatDateTime, cn } from '../../lib/utils';
 import {
   ArrowLeft,
@@ -29,9 +27,6 @@ import {
   Linkedin,
   Globe,
   Send,
-  MousePointerClick,
-  MessageSquare,
-  AlertTriangle,
   FolderOpen,
   Plus,
   X,
@@ -41,32 +36,11 @@ import {
   CalendarPlus,
   ArrowUpRight,
   ArrowDownLeft,
-  ChevronDown,
-  MailOpen,
   Ban,
   ExternalLink,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const activityIcons: Record<string, React.ElementType> = {
-  sent: Send,
-  delivered: Mail,
-  opened: Mail,
-  clicked: MousePointerClick,
-  replied: MessageSquare,
-  bounced: AlertTriangle,
-  error: AlertTriangle,
-};
-
-const activityColors: Record<string, string> = {
-  sent: 'text-[var(--text-secondary)]',
-  delivered: 'text-[var(--success)]',
-  opened: 'text-[var(--success)]',
-  clicked: 'text-[var(--text-secondary)]',
-  replied: 'text-[var(--text-primary)]',
-  bounced: 'text-[var(--error)]',
-  error: 'text-[var(--error)]',
-};
 
 export function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -79,8 +53,6 @@ export function ContactDetailPage() {
   const [dealModal, setDealModal] = useState<Partial<Deal> | null | undefined>(undefined);
   const [eventModal, setEventModal] = useState<Partial<CrmEvent> | null | undefined>(undefined);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
-  const [detailTab, setDetailTab] = useState<'history' | 'emails' | 'activity'>('history');
-  const [openEmailId, setOpenEmailId] = useState<string | null>(null);
 
   const { data: contact, isLoading } = useQuery({
     queryKey: ['contacts', id],
@@ -500,118 +472,18 @@ export function ContactDetailPage() {
           </div>
         </div>
 
-        {/* Conversations + Activity */}
-        <div className="lg:col-span-2 card p-0 overflow-hidden">
-          <div className="flex items-center gap-1 px-4 h-11 border-b border-[var(--border-subtle)]">
-            {([
-              { id: 'history' as const, label: 'History', count: 0 },
-              { id: 'emails' as const, label: 'Conversations', count: emails.length },
-              { id: 'activity' as const, label: 'Campaign events', count: activity.length },
-            ]).map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setDetailTab(t.id)}
-                className={cn('relative flex items-center gap-1.5 h-full px-2.5 text-[13px] font-medium transition-colors', detailTab === t.id ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]')}
-              >
-                {t.label}
-                {t.count > 0 && (
-                  <span className={cn('flex h-[17px] min-w-[17px] items-center justify-center rounded-[5px] px-1 text-[10.5px] font-semibold tabular', detailTab === t.id ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]')}>{t.count}</span>
-                )}
-                <span className={cn('absolute left-2 right-2 bottom-0 h-[2px] rounded-t-full transition-opacity', detailTab === t.id ? 'bg-[var(--indigo)] opacity-100' : 'opacity-0')} />
-              </button>
-            ))}
-          </div>
-
-          {detailTab === 'history' ? (
-            <div className="p-3">
-              <ContactHistory
-                contactId={contact.id}
-                contactName={fullName}
-                contactEmail={contact.email}
-                emails={sortedEmails}
-                campaignActivity={activity}
-              />
-            </div>
-          ) : detailTab === 'emails' ? (
-            <>
-              {/* Reading a thread and wanting to reply is one thought, so the
-                  composer sits with the thread rather than in another tab. */}
-              <div className="p-3 border-b border-[var(--border-subtle)]">
-                <QuickCompose
-                  to={contact.email}
-                  toName={fullName || null}
-                  defaultSubject={sortedEmails[0]?.subject || null}
-                />
-              </div>
-              {sortedEmails.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-14">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elevated)] mb-2"><MailOpen className="h-4 w-4 text-[var(--text-tertiary)]" /></span>
-                <p className="text-[12.5px] font-medium text-[var(--text-primary)]">No emails yet</p>
-                <p className="text-[11.5px] text-[var(--text-tertiary)] mt-0.5">Emails to and from this lead will appear here.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-[var(--border-subtle)]">
-                {sortedEmails.map((m) => {
-                  const outbound = m.direction === 'outbound';
-                  const open = openEmailId === m.id;
-                  return (
-                    <div key={m.id}>
-                      <button onClick={() => setOpenEmailId(open ? null : m.id)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-[var(--bg-hover)] transition-colors">
-                        <span className={cn('flex h-7 w-7 items-center justify-center rounded-lg flex-shrink-0', outbound ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400')}>
-                          {outbound ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownLeft className="h-3.5 w-3.5" />}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{m.subject || '(no subject)'}</p>
-                          <p className="text-[11.5px] text-[var(--text-tertiary)] truncate">
-                            <span className="text-[var(--text-secondary)]">{outbound ? 'You' : (fullName || m.from_email)}</span>
-                            {' · '}{new Date(m.received_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                          </p>
-                        </div>
-                        <ChevronDown className={cn('h-4 w-4 text-[var(--text-muted)] flex-shrink-0 transition-transform', open && 'rotate-180')} />
-                      </button>
-                      {open && (
-                        <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-app)]">
-                          <EmailBody html={m.body_html} text={m.body_text} />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            </>
-          ) : (
-            activity.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-14">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elevated)] mb-2"><Send className="h-4 w-4 text-[var(--text-tertiary)]" /></span>
-                <p className="text-[12.5px] font-medium text-[var(--text-primary)]">No activity yet</p>
-                <p className="text-[11.5px] text-[var(--text-tertiary)] mt-0.5">Sends, opens, clicks and replies show up here.</p>
-              </div>
-            ) : (
-              <div className="p-4 space-y-1">
-                {activity.map((item: any) => {
-                  const Icon = activityIcons[item.activity_type] || Send;
-                  const color = activityColors[item.activity_type] || 'text-[var(--text-secondary)]';
-                  return (
-                    <div key={item.id} className="flex items-start gap-3 py-2 border-b border-[var(--border-subtle)] last:border-0">
-                      <span className={cn('flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--bg-elevated)] flex-shrink-0 mt-0.5', color)}>
-                        <Icon className="h-3.5 w-3.5" />
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] text-[var(--text-primary)]">
-                          <span className="font-medium capitalize">{item.activity_type}</span>
-                          {item.step_subject && <span className="text-[var(--text-secondary)]"> — {item.step_subject}</span>}
-                        </p>
-                        <p className="text-[11px] text-[var(--text-tertiary)]">
-                          {item.campaign_name} · {formatDateTime(item.occurred_at)}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )
-          )}
+        {/* Everything you can do with this person, and everything that has
+            already happened, in one column. Three tabs used to split a single
+            story: the emails were in one, the notes in another, the campaign
+            events in a third, and none of them let you reply. */}
+        <div className="lg:col-span-2">
+          <ContactHistory
+            contactId={contact.id}
+            contactName={fullName}
+            contactEmail={contact.email}
+            emails={sortedEmails}
+            campaignActivity={activity}
+          />
         </div>
       </div>
 
