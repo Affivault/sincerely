@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { companiesApi } from '../../api/companies.api';
 import { PageHeader } from '../../components/shared/PageHeader';
@@ -10,8 +11,13 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { useDebounce } from '../../hooks/useDebounce';
 import { usePeek } from '../../components/peek/usePeek';
-import { cn } from '../../lib/utils';
-import { Building2, Plus, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import { useColumnLayout, GUTTER_W } from '../../components/table/useColumnLayout';
+import { SortableHeader, DraggableHeader, ResizeHandle } from '../../components/table/TableParts';
+import { cn, formatDate } from '../../lib/utils';
+import {
+  Building2, Plus, Users, Handshake, Globe, MapPin, Factory,
+  Linkedin, CircleDollarSign, CalendarPlus, ExternalLink,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Company } from '@lemlist/shared';
 
@@ -21,13 +27,99 @@ import type { Company } from '@lemlist/shared';
    Account-shaped view of the same data: who works where, what's open
    there, how much it's worth.
 
-   Presented as a table, not a card grid. Every other list in this app is
-   a dense sortable table, and a grid of cards here made the page read as
-   if it came from a different product — cards also cost four times the
-   height to say less, which is the wrong trade for a list you scan.
+   Laid out as the contacts table, not as something that resembles it —
+   the sizing, reordering and sort behaviour come from the same module, so
+   the two pages can't drift into feeling like different products.
    ═══════════════════════════════════════════════════════════════════════ */
 
-type SortKey = 'name' | 'contact_count' | 'deal_count' | 'open_value' | 'industry' | 'location';
+type SortKey =
+  | 'name' | 'contact_count' | 'deal_count' | 'open_value'
+  | 'industry' | 'location' | 'domain' | 'size' | 'created_at';
+
+const NAME_COL_ID = '__company__';
+const NAME_COL_W = 260;
+const ACTIONS_W = 60;
+
+interface ColumnDef {
+  id: string;
+  label: string;
+  icon?: React.ElementType;
+  sortKey?: SortKey;
+  align?: 'right';
+  render: (c: any) => React.ReactNode;
+}
+
+const money = (n: number) =>
+  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+
+const blank = <span className="text-[var(--text-muted)]">—</span>;
+
+const ALL_COLUMNS: ColumnDef[] = [
+  {
+    id: 'contact_count', label: 'People', icon: Users, sortKey: 'contact_count', align: 'right',
+    render: (c) => <span className="tabular">{c.contact_count ?? 0}</span>,
+  },
+  {
+    id: 'deal_count', label: 'Deals', icon: Handshake, sortKey: 'deal_count', align: 'right',
+    render: (c) => <span className="tabular">{c.deal_count ?? 0}</span>,
+  },
+  {
+    id: 'open_value', label: 'Open value', icon: CircleDollarSign, sortKey: 'open_value', align: 'right',
+    render: (c) => (c.open_value
+      ? <span className="tabular font-medium text-[var(--text-primary)]">{money(c.open_value)}</span>
+      : blank),
+  },
+  {
+    id: 'industry', label: 'Industry', icon: Factory, sortKey: 'industry',
+    render: (c) => c.industry || blank,
+  },
+  {
+    id: 'location', label: 'Location', icon: MapPin, sortKey: 'location',
+    render: (c) => c.location || blank,
+  },
+  {
+    id: 'domain', label: 'Domain', icon: Globe, sortKey: 'domain',
+    render: (c) => (c.domain
+      ? (
+        <a
+          href={c.website || `https://${c.domain}`}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 hover:text-[var(--indigo)] hover:underline truncate"
+        >
+          {c.domain}
+        </a>
+      )
+      : blank),
+  },
+  {
+    id: 'size', label: 'Headcount', icon: Users, sortKey: 'size',
+    render: (c) => c.size || blank,
+  },
+  {
+    id: 'linkedin_url', label: 'LinkedIn', icon: Linkedin,
+    render: (c) => (c.linkedin_url
+      ? (
+        <a
+          href={c.linkedin_url}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 hover:text-[var(--indigo)] hover:underline"
+        >
+          Profile <ExternalLink className="h-3 w-3" />
+        </a>
+      )
+      : blank),
+  },
+  {
+    id: 'created_at', label: 'Added', icon: CalendarPlus, sortKey: 'created_at',
+    render: (c) => <span className="tabular">{formatDate(c.created_at)}</span>,
+  },
+];
+
+const DEFAULT_COLUMNS = ['contact_count', 'deal_count', 'open_value', 'industry', 'location', 'domain'];
 
 function NewCompanyModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
@@ -78,37 +170,32 @@ function NewCompanyModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function SortHeader({ label, colKey, sortBy, sortDir, onSort, align }: {
-  label: string; colKey: SortKey; sortBy: SortKey; sortDir: 'asc' | 'desc';
-  onSort: (k: SortKey) => void; align?: 'right';
-}) {
-  const active = sortBy === colKey;
-  return (
-    <button
-      onClick={() => onSort(colKey)}
-      className={cn(
-        'flex items-center gap-1 group/sort transition-colors',
-        align === 'right' && 'ml-auto flex-row-reverse',
-        active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
-      )}
-    >
-      <span className="text-[11px] font-medium">{label}</span>
-      {active
-        ? (sortDir === 'asc'
-            ? <ChevronUp className="h-3 w-3 flex-shrink-0" />
-            : <ChevronDown className="h-3 w-3 flex-shrink-0" />)
-        : <ChevronsUpDown className="h-3 w-3 flex-shrink-0 opacity-0 group-hover/sort:opacity-60" />}
-    </button>
-  );
-}
-
 export function CompaniesPage() {
-  const [search, setSearch] = useState('');
+  // ?q= lets other pages deep-link here — a deal card whose company isn't
+  // linked to a record yet sends you to the accounts list filtered by name.
+  const [params, setParams] = useSearchParams();
+  const [search, setSearch] = useState(() => params.get('q') || '');
   const debounced = useDebounce(search, 250);
+
+  const onSearch = (v: string) => {
+    setSearch(v);
+    const next = new URLSearchParams(params);
+    if (v) next.set('q', v); else next.delete('q');
+    setParams(next, { replace: true });
+  };
   const [showNew, setShowNew] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const { openPeek } = usePeek();
+
+  const layout = useColumnLayout({
+    storagePrefix: 'companies',
+    defaultOrder: DEFAULT_COLUMNS,
+    widthOverrides: {
+      [NAME_COL_ID]: NAME_COL_W,
+      open_value: 130, contact_count: 100, deal_count: 100, created_at: 130,
+    },
+  });
 
   const { data: companies = [], isLoading, error } = useQuery({
     queryKey: ['companies', debounced],
@@ -118,23 +205,29 @@ export function CompaniesPage() {
   // The migration is opt-in, so a 503 here means "not set up yet", not broken.
   const needsMigration = (error as any)?.response?.status === 503;
 
+  const columns = layout.order
+    .map((id) => ALL_COLUMNS.find((c) => c.id === id))
+    .filter(Boolean) as ColumnDef[];
+
   const handleSort = (k: SortKey) => {
     if (k === sortBy) { setSortDir((d) => (d === 'asc' ? 'desc' : 'asc')); return; }
     setSortBy(k);
-    // Names read best A–Z; counts and money read best biggest-first.
-    setSortDir(k === 'name' || k === 'industry' || k === 'location' ? 'asc' : 'desc');
+    // Counts and money read best biggest-first; names and places A–Z.
+    const numeric = k === 'contact_count' || k === 'deal_count' || k === 'open_value' || k === 'created_at';
+    setSortDir(numeric ? 'desc' : 'asc');
   };
 
   const rows = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1;
     return [...companies].sort((a: any, b: any) => {
+      if (sortBy === 'created_at') {
+        return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
+      }
       const av = a[sortBy];
       const bv = b[sortBy];
-      if (typeof av === 'number' || typeof bv === 'number') {
-        return ((av ?? 0) - (bv ?? 0)) * dir;
-      }
-      // Blanks sort last whichever way the column is pointing — an empty
-      // industry is never the answer to "sort by industry".
+      if (typeof av === 'number' || typeof bv === 'number') return ((av ?? 0) - (bv ?? 0)) * dir;
+      // Blanks sort last whichever way the column points — an empty industry
+      // is never the answer to "sort by industry".
       if (!av && !bv) return 0;
       if (!av) return 1;
       if (!bv) return -1;
@@ -147,8 +240,8 @@ export function CompaniesPage() {
     [companies],
   );
 
-  const money = (n: number) =>
-    n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  const tableMinWidth =
+    GUTTER_W + layout.widthOf(NAME_COL_ID) + columns.reduce((n, c) => n + layout.widthOf(c.id), 0) + ACTIONS_W;
 
   return (
     <div>
@@ -166,7 +259,7 @@ export function CompaniesPage() {
         }
         actions={
           <div className="flex items-center gap-2">
-            <SearchInput value={search} onChange={setSearch} placeholder="Search companies…" className="hidden sm:block w-56" />
+            <SearchInput value={search} onChange={onSearch} placeholder="Search companies…" className="hidden sm:block w-56" />
             <button onClick={() => setShowNew(true)} className="btn-primary">
               <Plus className="h-3.5 w-3.5" /> New company
             </button>
@@ -204,66 +297,84 @@ export function CompaniesPage() {
       ) : (
         <div className="panel overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full border-separate border-spacing-0 text-left">
+            <table
+              className="border-separate border-spacing-0 text-left table-fixed w-full"
+              style={{ minWidth: tableMinWidth }}
+            >
+              <colgroup>
+                <col style={{ width: GUTTER_W }} />
+                <col style={{ width: layout.widthOf(NAME_COL_ID) }} />
+                {columns.map((col) => <col key={col.id} style={{ width: layout.widthOf(col.id) }} />)}
+                {/* Filler — soaks up slack so the set widths stay exact */}
+                <col />
+                <col style={{ width: ACTIONS_W }} />
+              </colgroup>
+
               <thead>
                 <tr>
-                  <th className="bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-3 py-[7px]">
-                    <SortHeader label="Company" colKey="name" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                  <th className="sticky left-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] pl-3 pr-2 py-[7px]" />
+                  <th className="relative sticky left-[44px] z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-3 py-[7px] shadow-[inset_-1px_0_0_var(--border-subtle)]">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <Building2 className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />
+                      <SortableHeader label="Company" colKey="name" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                    </span>
+                    <ResizeHandle
+                      onPointerDown={(e) => layout.startResize(NAME_COL_ID, e)}
+                      onDoubleClick={() => layout.resetWidth(NAME_COL_ID)}
+                    />
                   </th>
-                  <th className="bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-3 py-[7px] w-[92px]">
-                    <SortHeader label="People" colKey="contact_count" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} align="right" />
-                  </th>
-                  <th className="bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-3 py-[7px] w-[92px]">
-                    <SortHeader label="Deals" colKey="deal_count" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} align="right" />
-                  </th>
-                  <th className="bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-3 py-[7px] w-[120px]">
-                    <SortHeader label="Open value" colKey="open_value" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} align="right" />
-                  </th>
-                  <th className="hidden md:table-cell bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-3 py-[7px] w-[160px]">
-                    <SortHeader label="Industry" colKey="industry" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
-                  </th>
-                  <th className="hidden lg:table-cell bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-3 py-[7px] w-[180px]">
-                    <SortHeader label="Location" colKey="location" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
-                  </th>
+
+                  {columns.map((col) => (
+                    <DraggableHeader key={col.id} id={col.id} layout={layout}>
+                      {col.icon && <col.icon className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />}
+                      {col.sortKey
+                        ? <SortableHeader label={col.label} colKey={col.sortKey} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                        : <span className="text-[11px] font-medium text-[var(--text-tertiary)] truncate">{col.label}</span>}
+                    </DraggableHeader>
+                  ))}
+
+                  <th className="bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]" />
+                  <th className="sticky right-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]" />
                 </tr>
               </thead>
+
               <tbody>
-                {rows.map((c: Company) => (
+                {rows.map((c: Company, rowIdx: number) => (
                   <tr
                     key={c.id}
                     onClick={() => openPeek('company', c.id)}
-                    className="group cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
+                    className="group cursor-pointer transition-colors duration-150 hover:bg-[var(--bg-hover)]"
                   >
-                    <td className="border-b border-[var(--border-subtle)] px-3 py-[7px]">
-                      <div className="flex items-center gap-2.5 min-w-0">
+                    <td className="sticky left-0 z-[1] bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] pl-3 pr-2 py-1.5 border-b border-[var(--border-subtle)]">
+                      <span className="text-[10.5px] tabular text-[var(--text-muted)] select-none">{rowIdx + 1}</span>
+                    </td>
+
+                    <td className="sticky left-[44px] z-[1] bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] px-3 py-1.5 border-b border-[var(--border-subtle)] shadow-[inset_-1px_0_0_var(--border-subtle)]">
+                      <span className="flex items-center gap-2.5 min-w-0">
                         <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">
                           <Building2 className="h-3 w-3" />
                         </span>
-                        <span className="min-w-0">
-                          <span className="block text-[12.5px] font-medium text-[var(--text-primary)] truncate">{c.name}</span>
-                          {c.domain && (
-                            <span className="block text-[11px] text-[var(--text-tertiary)] truncate">{c.domain}</span>
-                          )}
-                        </span>
-                      </div>
+                        <span className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{c.name}</span>
+                      </span>
                     </td>
-                    <td className="border-b border-[var(--border-subtle)] px-3 py-[7px] text-right text-[12.5px] tabular text-[var(--text-secondary)]">
-                      {c.contact_count ?? 0}
-                    </td>
-                    <td className="border-b border-[var(--border-subtle)] px-3 py-[7px] text-right text-[12.5px] tabular text-[var(--text-secondary)]">
-                      {c.deal_count ?? 0}
-                    </td>
-                    <td className={cn(
-                      'border-b border-[var(--border-subtle)] px-3 py-[7px] text-right text-[12.5px] tabular',
-                      c.open_value ? 'font-medium text-[var(--text-primary)]' : 'text-[var(--text-muted)]',
-                    )}>
-                      {c.open_value ? money(c.open_value) : '—'}
-                    </td>
-                    <td className="hidden md:table-cell border-b border-[var(--border-subtle)] px-3 py-[7px] text-[12.5px] text-[var(--text-secondary)] truncate">
-                      {c.industry || <span className="text-[var(--text-muted)]">—</span>}
-                    </td>
-                    <td className="hidden lg:table-cell border-b border-[var(--border-subtle)] px-3 py-[7px] text-[12.5px] text-[var(--text-secondary)] truncate">
-                      {c.location || <span className="text-[var(--text-muted)]">—</span>}
+
+                    {columns.map((col) => (
+                      <td
+                        key={col.id}
+                        className={cn(
+                          'px-3 py-1.5 border-b border-[var(--border-subtle)] text-[12.5px] text-[var(--text-secondary)] truncate',
+                          col.align === 'right' && 'text-right',
+                        )}
+                      >
+                        {col.render(c)}
+                      </td>
+                    ))}
+
+                    <td className="border-b border-[var(--border-subtle)]" />
+                    <td className="sticky right-0 z-[1] bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] px-2 py-1.5 border-b border-[var(--border-subtle)] shadow-[inset_1px_0_0_var(--border-subtle)] text-right">
+                      <span className="text-[11px] font-medium text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity">
+                        Open
+                      </span>
                     </td>
                   </tr>
                 ))}

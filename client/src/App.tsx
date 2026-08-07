@@ -22,7 +22,6 @@ const EmailAccountsPage    = lazy(() => import('./pages/smtp/EmailAccountsPage')
 const SmtpGuidePage        = lazy(() => import('./pages/smtp/SmtpGuidePage').then(m => ({ default: m.SmtpGuidePage })));
 const AnalyticsDashboardPage = lazy(() => import('./pages/analytics/AnalyticsDashboardPage').then(m => ({ default: m.AnalyticsDashboardPage })));
 const InboxPage            = lazy(() => import('./pages/inbox/InboxPage').then(m => ({ default: m.InboxPage })));
-const TodayPage            = lazy(() => import('./pages/dashboard/TodayPage').then(m => ({ default: m.TodayPage })));
 const DealsPage            = lazy(() => import('./pages/crm/DealsPage').then(m => ({ default: m.DealsPage })));
 const CompaniesPage        = lazy(() => import('./pages/companies/CompaniesPage').then(m => ({ default: m.CompaniesPage })));
 const TasksPage            = lazy(() => import('./pages/crm/TasksPage').then(m => ({ default: m.TasksPage })));
@@ -108,9 +107,10 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          {/* Home is the worklist; the analytics dashboard moves one click away. */}
-          <Route path="/dashboard"          element={<TodayPage />} />
-          <Route path="/dashboard/overview" element={<DashboardPage />} />
+          <Route path="/dashboard"          element={<DashboardPage />} />
+          {/* Today briefly lived here and the dashboard was pushed to /overview.
+              Kept as a redirect so bookmarks and old links still land. */}
+          <Route path="/dashboard/overview" element={<Navigate to="/dashboard" replace />} />
           <Route path="/contacts"           element={<ContactsListPage />} />
           <Route path="/contacts/import"    element={<BulkImportPage />} />
           <Route path="/contacts/:id"       element={<ContactDetailPage />} />

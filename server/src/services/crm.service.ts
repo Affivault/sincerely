@@ -6,7 +6,7 @@ const TASK_PRIORITIES = ['low', 'normal', 'high'];
 const EVENT_TYPES = ['call', 'meeting'];
 
 /** Embed the linked contact so the client can show live lead data on deals. */
-const DEAL_SELECT = '*, contact:contacts(id, email, first_name, last_name, company, job_title, phone, linkedin_url)';
+const DEAL_SELECT = '*, contact:contacts(id, email, first_name, last_name, company, company_id, job_title, phone, linkedin_url)';
 
 /** Keep only known columns from a request body so callers can't write arbitrary fields. */
 function pick(body: any, keys: readonly string[]): Record<string, any> {
@@ -15,7 +15,7 @@ function pick(body: any, keys: readonly string[]): Record<string, any> {
   return out;
 }
 
-const DEAL_KEYS = ['title', 'company', 'contact_name', 'contact_email', 'contact_id', 'value', 'currency', 'stage', 'expected_close_date', 'notes', 'position'] as const;
+const DEAL_KEYS = ['title', 'company', 'company_id', 'contact_name', 'contact_email', 'contact_id', 'value', 'currency', 'stage', 'expected_close_date', 'notes', 'position'] as const;
 const TASK_KEYS = ['title', 'due_date', 'priority', 'type', 'all_day', 'deal_id', 'contact_id', 'contact_name', 'notes', 'is_done'] as const;
 const EVENT_KEYS = ['title', 'type', 'starts_at', 'ends_at', 'all_day', 'contact_id', 'contact_name', 'contact_email', 'location', 'notes', 'outcome', 'deal_id'] as const;
 const NOTE_KEYS = ['body', 'contact_id', 'deal_id', 'pinned'] as const;
@@ -102,6 +102,7 @@ export const crmService = {
     const input = pick(body, DEAL_KEYS as any);
     sanitizeDealInput(input);
     if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
+    if (input.company_id) await assertOwned(userId, 'companies', input.company_id, 'Company');
     await autoLinkContact(userId, input);
     const { data, error } = await supabaseAdmin
       .from('deals')
@@ -116,6 +117,7 @@ export const crmService = {
     const input = pick(body, DEAL_KEYS as any);
     sanitizeDealInput(input);
     if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
+    if (input.company_id) await assertOwned(userId, 'companies', input.company_id, 'Company');
     if (input.contact_email !== undefined && input.contact_id === undefined) {
       await autoLinkContact(userId, input);
     }
@@ -217,6 +219,7 @@ export const crmService = {
     if (input.type && !EVENT_TYPES.includes(input.type)) throw new AppError('Invalid event type', 400);
     if (input.deal_id) await assertOwned(userId, 'deals', input.deal_id, 'Deal');
     if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
+    if (input.company_id) await assertOwned(userId, 'companies', input.company_id, 'Company');
     await autoLinkContact(userId, input);
     const { data, error } = await supabaseAdmin
       .from('crm_events')

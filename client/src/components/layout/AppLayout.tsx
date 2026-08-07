@@ -15,10 +15,7 @@ import { cn } from '../../lib/utils';
 
 /* Route → page name, used for document titles (wayfinding) */
 const PAGE_TITLES: [prefix: string, name: string][] = [
-  // Longest prefix first — the lookup is first-match-wins, so '/dashboard'
-  // above '/dashboard/overview' would swallow it.
-  ['/dashboard/overview', 'Dashboard'],
-  ['/dashboard', 'Today'],
+  ['/dashboard', 'Dashboard'],
   ['/campaigns', 'Campaigns'],
   ['/inbox', 'Unibox'],
   ['/deals', 'Deals'],
