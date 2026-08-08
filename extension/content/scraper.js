@@ -41,6 +41,14 @@
   // "protest.com" contains "test.com").
   const NOISE_DOMAIN = /^(?:[a-z0-9-]+\.)*(gstatic|googletagmanager|doubleclick|google-analytics|sentry|cloudflareinsights)\.(com|io|net)$/i;
 
+  /**
+   * A LinkedIn member profile, as opposed to the feed, search, or a company
+   * page. Only here is the page "about one person", which is what makes
+   * scoping the email sweep both possible and necessary.
+   */
+  const ON_LINKEDIN_PROFILE =
+    /(^|\.)linkedin\.com$/i.test(location.hostname) && /^\/in\//.test(location.pathname);
+
   /* ---------------------------------------------------------------- */
   /* Generic helpers                                                  */
   /* ---------------------------------------------------------------- */
@@ -84,9 +92,65 @@
     return { first_name: parts[0], last_name: parts.slice(1).join(' ') };
   }
 
-  /** @param {Element|null} el */
+  /**
+   * Screen-reader-only text. LinkedIn's design system clips these off-screen
+   * rather than hiding them, so `textContent` picks them up and `innerText`
+   * does too — clipping is not `display:none`.
+   */
+  const SR_ONLY = '.visually-hidden, .a11y-text, .sr-only, .screen-reader-text';
+
+  /**
+   * A string that is the same thing twice — "Ada LovelaceAda Lovelace" — is
+   * one thing. LinkedIn prints the name once for sighted users and once for
+   * screen readers, so this is the exact shape that reaches us when the
+   * stripping above misses a variant class name.
+   *
+   * @param {string} value
+   * @returns {string}
+   */
+  function collapseDoubled(value) {
+    const v = String(value || '').trim();
+    if (v.length < 4) return v;
+
+    // Joined with no separator: even length, both halves identical.
+    if (v.length % 2 === 0) {
+      const half = v.length / 2;
+      if (v.slice(0, half) === v.slice(half)) return v.slice(0, half).trim();
+    }
+    // Joined by whitespace, which is what a normalising pass leaves behind.
+    const mid = Math.floor(v.length / 2);
+    for (const cut of [mid, mid + 1]) {
+      const left = v.slice(0, cut).trim();
+      const right = v.slice(cut).trim();
+      if (left && left === right) return left;
+    }
+    return v;
+  }
+
+  /**
+   * Visible text of an element.
+   *
+   * Not `textContent`: LinkedIn renders the same string twice on profile
+   * headings — once in a `span[aria-hidden="true"]` for sighted users, once in
+   * a clipped span for screen readers — and `textContent` concatenates both.
+   * That is what produced names like "Ada LovelaceAda Lovelace", and the
+   * surname of every scraped lead was wrong because of it.
+   *
+   * @param {Element|null} el
+   */
   function text(el) {
-    return el ? String(el.textContent || '').replace(/\s+/g, ' ').trim() : '';
+    if (!el) return '';
+
+    // Cloned so nothing is removed from the live page; the scraper must never
+    // change what the user is looking at.
+    let source = el;
+    if (el.querySelector && el.querySelector(SR_ONLY)) {
+      source = el.cloneNode(true);
+      for (const hidden of source.querySelectorAll(SR_ONLY)) hidden.remove();
+    }
+
+    const raw = String(source.textContent || '').replace(/\s+/g, ' ').trim();
+    return collapseDoubled(raw);
   }
 
   /**
@@ -110,14 +174,37 @@
   function collectEmails() {
     const found = new Set();
 
+    /*
+     * On a LinkedIn profile, "everything on the page" is mostly OTHER PEOPLE:
+     * People also viewed, the feed rail, suggested connections, and the
+     * viewer's own account details in embedded payloads. Sweeping all of it
+     * attributed a stranger's address — often the user's own — to whichever
+     * profile happened to be open, and wrote it to the contact record.
+     *
+     * So on a profile the sweep is scoped to the parts that belong to THIS
+     * person: the profile body and any open dialog, which on this page means
+     * the Contact info overlay.
+     */
+    const profileScoped = ON_LINKEDIN_PROFILE;
+    const scopes = profileScoped
+      ? [document.querySelector('main')].filter(Boolean)
+      : [document.body].filter(Boolean);
+
     for (const link of document.querySelectorAll('a[href^="mailto:"]')) {
+      // A mailto in the sidebar is somebody else's.
+      if (profileScoped && !scopes.some((scope) => scope.contains(link))
+        && !link.closest('[role="dialog"], .artdeco-modal')) continue;
       const raw = decodeURIComponent(link.getAttribute('href').slice('mailto:'.length)).split('?')[0];
       const email = (raw.match(EMAIL_PATTERN) || [])[0];
       if (email && isPlausibleEmail(email.toLowerCase())) found.add(email.toLowerCase());
     }
 
-    // Gmail and several CRMs stash the real address in an attribute.
+    // Gmail and several CRMs stash the real address in an attribute. Same
+    // scoping rule: on a profile, an attribute outside the profile body
+    // belongs to somebody else.
     for (const node of document.querySelectorAll('[email], [data-email]')) {
+      if (profileScoped && !scopes.some((scope) => scope.contains(node))
+        && !node.closest('[role="dialog"], .artdeco-modal')) continue;
       const value = (node.getAttribute('email') || node.getAttribute('data-email') || '').toLowerCase();
       if (EMAIL_TEST.test(value) && isPlausibleEmail(value)) found.add(value);
     }
@@ -138,13 +225,17 @@
       }
     }
 
-    // Body text last, and capped — innerText on a huge page is expensive and
-    // the tail end is almost always footer noise.
-    const body = document.body ? document.body.innerText.slice(0, 60000) : '';
-    for (const match of body.match(EMAIL_PATTERN) || []) {
-      const email = match.toLowerCase();
-      if (isPlausibleEmail(email)) found.add(email);
-      if (found.size > 25) break;
+    // Text sweep last, and capped — innerText on a huge page is expensive and
+    // the tail end is almost always footer noise. Scoped to the profile body
+    // on LinkedIn, for the reason above; the whole page everywhere else,
+    // where a page is about one thing.
+    for (const scope of scopes) {
+      const body = (scope.innerText || '').slice(0, 60000);
+      for (const match of body.match(EMAIL_PATTERN) || []) {
+        const email = match.toLowerCase();
+        if (isPlausibleEmail(email)) found.add(email);
+        if (found.size > 25) break;
+      }
     }
 
     return [...found];
@@ -748,7 +839,38 @@
    *
    * @returns {string[]}
    */
-  function emailsFromEmbeddedPayloads() {
+  /**
+   * Addresses that were already embedded in the page before anyone asked
+   * about this profile — LinkedIn's own bootstrap, which carries the SIGNED-IN
+   * member's account details.
+   *
+   * Taken once, on load, and subtracted from every later read. Without it, a
+   * profile with no published email came back with the viewer's own address
+   * and wrote it to the lead: every prospect in the list ended up being you.
+   *
+   * Snapshotting rather than trying to identify "the viewer's email" is
+   * deliberate — it needs no knowledge of LinkedIn's payload shape, so it
+   * cannot be broken by a rename.
+   */
+  let ambientEmails = null;
+  /**
+   * Which profile the snapshot belongs to. LinkedIn is a single-page app, so
+   * without this the address fetched for the person you looked at a minute ago
+   * is still sitting in the payloads and reads as "fresh" on the next profile
+   * — attributing one prospect's email to another, which is worse than
+   * attributing none.
+   */
+  let ambientPath = null;
+
+  function ambientEmailSnapshot() {
+    if (ambientEmails && ambientPath === location.pathname) return ambientEmails;
+    ambientPath = location.pathname;
+    ambientEmails = new Set(scanEmbeddedPayloads());
+    return ambientEmails;
+  }
+
+  /** The raw scan. `emailsFromEmbeddedPayloads` is this, minus the ambient set. */
+  function scanEmbeddedPayloads() {
     const found = new Set();
     // `code` is the documented carrier; the id prefix varies by release, so
     // every `code` block is considered and non-JSON ones simply fail to parse.
@@ -768,6 +890,16 @@
       if (found.size > 5) break;
     }
     return [...found];
+  }
+
+  /**
+   * What LinkedIn fetched for THIS profile: everything in the payloads now,
+   * less whatever was already there when the page loaded.
+   * @returns {string[]}
+   */
+  function emailsFromEmbeddedPayloads() {
+    const ambient = ambientEmailSnapshot();
+    return scanEmbeddedPayloads().filter((email) => !ambient.has(email));
   }
 
   /**
@@ -1367,5 +1499,13 @@
     scrape({ deep }).then(sendResponse, () => sendResponse(null));
     return true;
   });
+
+  /*
+   * Take the ambient snapshot now, while the page holds only what LinkedIn
+   * embedded at load. Waiting until the first read would fold this profile's
+   * own fetched address into the "ignore" set — the snapshot is only
+   * meaningful if it is taken before anybody asks about this person.
+   */
+  if (ON_LINKEDIN_PROFILE) ambientEmailSnapshot();
 
 })();
