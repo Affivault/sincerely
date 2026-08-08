@@ -17,7 +17,13 @@
         </span>
         <div>
           <h1>Extension settings</h1>
-          <p class="page-sub">Connect the Chrome extension to your Sincerely account.</p>
+          <p class="page-sub">
+            Connect the Chrome extension to your Sincerely account.
+            <!-- Printed so "am I running the current build?" is answerable
+                 without diffing files. An unpacked extension never updates on
+                 its own, so this is the only honest signal. -->
+            <span class="page-version">v<span id="ext-version">–</span></span>
+          </p>
         </div>
       </header>
 

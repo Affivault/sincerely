@@ -427,6 +427,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && (changes.agentState || changes.agentPaused || changes.apiKey)) renderAgent();
 });
 
+// Which build is actually loaded. Unpacked extensions never self-update, so
+// the number here is the only way to tell a stale copy from a current one.
+const versionEl = document.getElementById('ext-version');
+if (versionEl) versionEl.textContent = chrome.runtime.getManifest().version;
+
 initTheme()
   .then(load)
   .then(renderAgent)
