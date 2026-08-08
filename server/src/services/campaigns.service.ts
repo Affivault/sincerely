@@ -295,6 +295,11 @@ export const campaignsService = {
     // waiting (by design — see processWebhookWaitStep), so they're excluded
     // here too: resetting next_send_at would re-run that same webhook_wait
     // step and restart its timeout window from scratch on every relaunch.
+    //
+    // A contact parked on a LinkedIn task is the same situation: it has no
+    // next_send_at while a human or the agent works the task. Waking it would
+    // re-run the step and raise a SECOND invite for the same person, leaving
+    // the first task orphaned in the queue.
     const { data: resetActive, error: actErr } = await supabaseAdmin
       .from('campaign_contacts')
       .update({ next_send_at: firstSendAt, error_message: null })
@@ -302,6 +307,7 @@ export const campaignsService = {
       .eq('status', 'active')
       .is('next_send_at', null)
       .is('waiting_for_webhook', null)
+      .is('waiting_for_task_id', null)
       .select('id');
     if (actErr) console.error('[Campaign] Error resetting active contacts:', actErr.message);
 
