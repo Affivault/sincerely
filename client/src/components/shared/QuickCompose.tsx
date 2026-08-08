@@ -32,7 +32,14 @@ export function QuickCompose({
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(alwaysOpen);
-  const [subject, setSubject] = useState('');
+  // alwaysOpen renders the form directly, skipping the collapsed "Write to…"
+  // button whose click normally seeds this from defaultSubject via start() —
+  // seed it here too so the "Re: <last thread>" pre-fill isn't silently lost.
+  const [subject, setSubject] = useState(() =>
+    alwaysOpen && defaultSubject
+      ? (/^re:/i.test(defaultSubject) ? defaultSubject : `Re: ${defaultSubject}`)
+      : ''
+  );
   const [senderId, setSenderId] = useState('');
   const body = useRichTextEditorRef();
 

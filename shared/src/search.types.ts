@@ -201,7 +201,12 @@ export function parseQuickAdd(input: string, now: Date = new Date()): QuickAdd |
   const date = matchDate(withoutTime, now);
 
   const consumed = new Set((date?.consumed || []).map((c) => c.toLowerCase()));
-  const subjectTokens = withoutTime.filter((t) => !consumed.has(t.toLowerCase()));
+  // A precise relative-time phrase ("in 30 min") wins over an explicit clock
+  // time ("3pm") below and never reads `time` at all — so if we built the
+  // subject from `withoutTime`, the clock time would vanish with no trace
+  // instead of at least surviving as plain subject text.
+  const subjectSource = date?.precise && time ? rest : withoutTime;
+  const subjectTokens = subjectSource.filter((t) => !consumed.has(t.toLowerCase()));
   // Trailing connectives left dangling by removing the date read badly.
   while (subjectTokens.length && ['on', 'at', 'this', 'with'].includes(subjectTokens[subjectTokens.length - 1].toLowerCase())) {
     subjectTokens.pop();

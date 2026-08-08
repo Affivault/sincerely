@@ -234,11 +234,24 @@ export interface CreateCompanyInput {
 }
 export interface UpdateCompanyInput extends Partial<CreateCompanyInput> {}
 
+/** One inbox message as projected for a company's activity feed — a subset of InboxMessage plus the sender's resolved name. */
+export interface CompanyActivityMessage {
+  id: string;
+  subject: string | null;
+  from_email: string;
+  to_email: string;
+  contact_email: string | null;
+  contact_name: string | null;
+  direction: 'inbound' | 'outbound';
+  received_at: string;
+  body_text: string | null;
+}
+
 /** Everything on a company's page, in one request. */
 /** The account's whole history, pooled from every person at it. */
 export interface CompanyActivity {
   contacts: Array<{ id: string; email: string; first_name: string | null; last_name: string | null }>;
-  messages: any[];
+  messages: CompanyActivityMessage[];
   notes: CrmNote[];
   tasks: CrmTask[];
   events: CrmEvent[];

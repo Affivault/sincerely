@@ -833,17 +833,25 @@ export async function resumeWebhookWait(
 
   if (!cc) return;
 
-  // Clear webhook wait state and advance
+  // Clear webhook wait state; advanceToNextStep owns the delay arithmetic for
+  // whatever comes next, so it honors the next step's own built-in delay
+  // instead of sending immediately.
   await supabaseAdmin
     .from('campaign_contacts')
     .update({
       waiting_for_webhook: null,
       webhook_wait_until: null,
       webhook_received_at: new Date().toISOString(),
-      current_step_order: (cc.current_step_order || 0) + 1,
-      next_send_at: new Date().toISOString(),
     })
     .eq('id', campaignContactId);
+
+  const { data: steps } = await supabaseAdmin
+    .from('campaign_steps')
+    .select('*')
+    .eq('campaign_id', cc.campaign_id)
+    .order('step_order');
+
+  await advanceToNextStep(campaignContactId, cc.current_step_order || 0, steps || []);
 }
 
 /**
@@ -854,7 +862,7 @@ export async function processWebhookTimeouts(): Promise<number> {
   try {
     const { data: timedOut, error } = await supabaseAdmin
       .from('campaign_contacts')
-      .select('id, current_step_order')
+      .select('id, campaign_id, current_step_order')
       .not('waiting_for_webhook', 'is', null)
       .lt('webhook_wait_until', new Date().toISOString());
 
@@ -866,10 +874,19 @@ export async function processWebhookTimeouts(): Promise<number> {
         .update({
           waiting_for_webhook: null,
           webhook_wait_until: null,
-          current_step_order: (cc.current_step_order || 0) + 1,
-          next_send_at: new Date().toISOString(),
         })
         .eq('id', cc.id);
+
+      // advanceToNextStep owns the delay arithmetic for whatever comes next,
+      // so a timed-out wait honors the next step's own built-in delay
+      // instead of sending immediately.
+      const { data: steps } = await supabaseAdmin
+        .from('campaign_steps')
+        .select('*')
+        .eq('campaign_id', cc.campaign_id)
+        .order('step_order');
+
+      await advanceToNextStep(cc.id, cc.current_step_order || 0, steps || []);
     }
 
     return timedOut.length;

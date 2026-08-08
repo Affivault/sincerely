@@ -559,9 +559,9 @@ export function PeekDrawer() {
           <X className="h-4 w-4" />
         </button>
 
-        {target.type === 'contact' ? <ContactPeek id={target.id} onClose={closePeek} />
-          : target.type === 'deal' ? <DealPeek id={target.id} onClose={closePeek} />
-          : <CompanyPeek id={target.id} onClose={closePeek} />}
+        {target.type === 'contact' ? <ContactPeek key={target.id} id={target.id} onClose={closePeek} />
+          : target.type === 'deal' ? <DealPeek key={target.id} id={target.id} onClose={closePeek} />
+          : <CompanyPeek key={target.id} id={target.id} onClose={closePeek} />}
       </aside>
     </div>,
     document.body,
