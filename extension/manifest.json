@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Sincerely — Campaign Manager",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Add and remove people from your Sincerely campaigns from LinkedIn, Gmail, or any page.",
   "minimum_chrome_version": "116",
   "permissions": [
