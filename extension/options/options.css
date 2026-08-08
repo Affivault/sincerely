@@ -274,3 +274,14 @@ code {
   margin-top: 10px;
   margin-bottom: 14px;
 }
+
+/* Build number in the page subtitle — quiet, but always readable. */
+.page-version {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--surface-2, rgba(128, 128, 128, 0.12));
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}

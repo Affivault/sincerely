@@ -708,3 +708,28 @@ yours. Start below the defaults on a new or low-activity account.
 
 Selectors track LinkedIn's markup, which changes. A step failing with "No
 Connect button on this profile" is usually that.
+
+
+## Keeping it up to date
+
+An unpacked extension never updates itself. Chrome loads whatever is on disk
+at the moment you press reload, and nothing after that.
+
+**Clone the repo rather than unzipping a copy.** Then updating is:
+
+```
+git pull
+```
+
+…followed by the reload arrow on the extension's card at `chrome://extensions`.
+The reload matters: without it Chrome keeps the running service worker, so new
+background code does not take effect even though the files on disk changed.
+
+The version in the manifest is bumped whenever the extension changes, and it's
+printed on the options page — so "am I on the current build?" is one glance
+rather than a diff.
+
+Real automatic updates need the Chrome Web Store. Chrome only honours a
+manifest `update_url` for extensions installed from the store or pushed by
+enterprise policy; a sideloaded `.crx` cannot self-update on a normal profile.
+That is the step to take when people other than you are running this.
