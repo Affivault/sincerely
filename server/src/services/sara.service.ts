@@ -7,6 +7,7 @@ import { billingService } from './billing.service.js';
 import { crmService } from './crm.service.js';
 import { settingsService } from './settings.service.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { checkAndAutoCompleteCampaign } from './sequence.service.js';
 
 /**
  * SARA → CRM: when a reply is classified as interested/meeting, create a
@@ -398,13 +399,22 @@ export async function processReply(messageId: string, requestingUserId?: string)
     }
     // Stop campaign sequence
     if (message.campaign_contact_id) {
-      await supabaseAdmin
+      const { data: stoppedCc } = await supabaseAdmin
         .from('campaign_contacts')
         .update({
           status: result.intent === SaraIntent.Unsubscribe ? 'unsubscribed' : 'bounced',
           completed_at: new Date().toISOString(),
         })
-        .eq('id', message.campaign_contact_id);
+        .eq('id', message.campaign_contact_id)
+        .select('campaign_id')
+        .single();
+      // A terminal contact status can leave a campaign with nothing left to
+      // send — same follow-up every other terminal-status path in the
+      // codebase makes, so the campaign flips to "completed" instead of
+      // sitting in "running" forever.
+      if (stoppedCc?.campaign_id) {
+        checkAndAutoCompleteCampaign(stoppedCc.campaign_id).catch(() => {});
+      }
     }
     // Mark as approved so it no longer appears in the pending review queue
     await supabaseAdmin

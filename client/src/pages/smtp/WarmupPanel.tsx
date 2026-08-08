@@ -221,7 +221,9 @@ export function WarmupPanel({ onAddMailbox }: { onAddMailbox?: () => void }) {
                       <span className="text-[var(--text-secondary)]">
                         {a.complete ? <span className="text-emerald-600 dark:text-emerald-400 font-medium">Ramp complete · full volume</span> : <>Day {a.day} of {a.ramp_days} · sending up to <span className="font-semibold text-[var(--text-primary)]">{a.allowance}/day</span></>}
                       </span>
-                      <span className="text-[var(--text-tertiary)] tabular">{pct}%</span>
+                      <span className="text-[var(--text-tertiary)] tabular">
+                        {!a.complete && a.ramp_days > a.day && `~${a.ramp_days - a.day}d left · `}{pct}%
+                      </span>
                     </div>
                     <div className="h-1.5 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
                       <div className={cn('h-full transition-all duration-500', a.complete ? 'bg-emerald-500' : 'bg-amber-500')} style={{ width: `${pct}%` }} />

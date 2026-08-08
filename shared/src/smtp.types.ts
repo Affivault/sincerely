@@ -101,7 +101,11 @@ export function warmupAllowance(a: WarmupPlanFields): number {
   const ramp = Math.max(1, a.warmup_ramp_days > 0 ? a.warmup_ramp_days : 30);
   const day = warmupDayNumber(a.warmup_started_at);
   if (day >= ramp) return target;
-  return Math.max(start, Math.round(start + (target - start) * (day / ramp)));
+  const raw = Math.round(start + (target - start) * (day / ramp));
+  // Clamp toward the ramp's own direction: climbing to a higher target
+  // floors at `start`, but a target lowered below `start` mid-ramp must
+  // still be able to step down instead of getting floored back up to it.
+  return target >= start ? Math.max(start, raw) : Math.min(start, raw);
 }
 
 /** True once the ramp has run its course and the mailbox can graduate to full volume. */

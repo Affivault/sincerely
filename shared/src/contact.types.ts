@@ -1,3 +1,5 @@
+import type { CampaignStatus, ContactCampaignStatus } from './enums.js';
+
 export interface Contact {
   id: string;
   user_id: string;
@@ -71,10 +73,10 @@ export interface ContactCampaignMembership {
   campaign_contact_id: string;
   campaign_id: string;
   campaign_name: string | null;
-  campaign_status: string | null;
+  campaign_status: CampaignStatus | null;
   /** Lead list the campaign is bound to; null when it isn't bound to one. */
   campaign_list_id: string | null;
-  status: string;
+  status: ContactCampaignStatus;
   current_step_order: number;
   next_send_at: string | null;
   completed_at: string | null;
