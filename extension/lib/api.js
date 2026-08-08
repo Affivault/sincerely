@@ -681,3 +681,33 @@ export async function testConnection() {
 
   return { ok: true, listCount: Array.isArray(lists) ? lists.length : 0, canWrite };
 }
+
+/* ------------------------------------------------------------------ */
+/* LinkedIn agent                                                     */
+/* ------------------------------------------------------------------ */
+/**
+ * The three calls the LinkedIn agent makes. Note what isn't here: nothing
+ * sends a cookie, a session, or anything about the LinkedIn login. The
+ * server answers with a public profile URL and the message the user already
+ * wrote, and hears back only "done" or "failed".
+ */
+
+/** "Is there anything to do right now?" — usually the answer is no. */
+export async function agentNext() {
+  return request('/linkedin/agent/next');
+}
+
+export async function agentDone(taskId) {
+  return request(`/linkedin/agent/tasks/${encodeURIComponent(taskId)}/done`, {
+    method: 'POST',
+    body: {},
+  });
+}
+
+/** `fatal` stops the agent — a checkpoint is not something to retry into. */
+export async function agentFailed(taskId, reason, fatal = false) {
+  return request(`/linkedin/agent/tasks/${encodeURIComponent(taskId)}/failed`, {
+    method: 'POST',
+    body: { reason: String(reason || '').slice(0, 500), fatal: !!fatal },
+  });
+}

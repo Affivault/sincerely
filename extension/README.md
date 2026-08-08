@@ -664,3 +664,47 @@ There is no campaign endpoint in that list, and that is the point — see
 "added" from "was already there": the server upserts, so its reply counts a
 repeat as a success and cannot distinguish them. One request covers the whole
 batch, rather than a membership lookup per person.
+
+
+## LinkedIn agent
+
+The extension also runs the LinkedIn steps of your Sincerely campaigns —
+connection requests, messages and profile visits — in **your own browser**, in
+**your own logged-in session**.
+
+### Why an extension and not a server
+
+LinkedIn has no API for connection requests or messages to people you aren't
+connected to. The alternative is storing your LinkedIn session cookie on a
+server and replaying it from a datacentre IP, which is what gets accounts
+restricted and would mean handing your login to someone else.
+
+Here, nothing about your LinkedIn session ever leaves this browser. The
+extension asks Sincerely one question — "is there anything to do?" — and reports
+back "done" or "failed". The only data it receives is a public profile URL and
+the message you already wrote.
+
+### What keeps it safe
+
+- **Your session, your IP.** The same browser you use LinkedIn in anyway.
+- **Conservative ceilings.** 15 invites a day by default; LinkedIn starts
+  restricting accounts somewhere around 100 invites a week.
+- **Random gaps.** 45–180 seconds between actions, never a fixed interval.
+- **Working hours only.** Weekdays 9–5 in your timezone by default.
+- **Stops on trouble.** A checkpoint, a warning or the weekly invite limit
+  pauses everything for an hour instead of retrying into it.
+- **Background tabs.** Profiles open inactive, so the machine stays yours.
+- **One at a time.** Never a batch — batching is the pattern that gets noticed.
+
+All of these are editable in Sincerely under **Tools → LinkedIn**. Pause it just
+on this machine from the checkbox on this options page.
+
+### Honest limits
+
+LinkedIn's User Agreement prohibits automated activity. This is the same
+approach lemlist, Apollo and Snov.io take, and the caps above are set to keep
+usage indistinguishable from a busy person — but the risk is not zero and it is
+yours. Start below the defaults on a new or low-activity account.
+
+Selectors track LinkedIn's markup, which changes. A step failing with "No
+Connect button on this profile" is usually that.

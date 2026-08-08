@@ -28,6 +28,7 @@ import { billingRoutes } from './billing.routes.js';
 import { crmRoutes } from './crm.routes.js';
 import { searchRoutes } from './search.routes.js';
 import { companiesRoutes } from './companies.routes.js';
+import { linkedinRoutes } from './linkedin.routes.js';
 import { prospectingRoutes } from './prospecting.routes.js';
 import { adminRoutes } from './admin.routes.js';
 
@@ -66,5 +67,6 @@ routes.use('/billing', billingRoutes);
 routes.use('/crm', crmRoutes);
 routes.use('/search', searchRoutes);
 routes.use('/companies', companiesRoutes);
+routes.use('/linkedin', linkedinRoutes);
 routes.use('/prospecting', prospectingRoutes);
 routes.use('/admin', adminRoutes);

@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers, Blocks,
   ChevronRight, Wrench, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck,
-  CalendarDays, ListTodo, Building2,
+  CalendarDays, ListTodo, Building2, Linkedin,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
@@ -88,6 +88,7 @@ const utilityNav: NavItem[] = [
     kind: 'group', id: 'tools',
     name: 'Tools', href: '/integrations', icon: Wrench,
     children: [
+      { name: 'LinkedIn',     href: '/linkedin',     icon: Linkedin },
       { name: 'Integrations', href: '/integrations', icon: Blocks },
       { name: 'Webhooks',     href: '/developer',    icon: Webhook },
       { name: 'Toolkit',      href: '/toolkit',      icon: Wrench },

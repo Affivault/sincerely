@@ -1910,6 +1910,7 @@ const HANDLERS = {
   TEST_CONNECTION: handleTestConnection,
   CONNECT_APPLY: handleConnectApply,
   CONNECT_FROM_TAB: handleConnectFromTab,
+  AGENT_TICK_NOW: async () => { await agentTick(); return { ok: true }; },
 };
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -1924,6 +1925,134 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Keeps the message channel open for the async reply above.
   return true;
+});
+
+
+/* ------------------------------------------------------------------ */
+/* LinkedIn agent                                                     */
+/* ------------------------------------------------------------------ */
+/**
+ * Runs the LinkedIn steps of a campaign in this browser, in the user's own
+ * logged-in session. The server decides whether anything should happen —
+ * working hours, daily allowance, how long since the last action — and this
+ * side does the clicking.
+ *
+ * The shape is deliberately "ask, wait, do one thing, go quiet". Batching
+ * would be faster and is exactly what an account gets restricted for.
+ */
+
+const AGENT_ALARM = 'sincerely-agent';
+/** How often to ask when there is nothing to do. The server sets the pace. */
+const AGENT_IDLE_MINUTES = 1;
+/** A profile that never finishes loading must not hang the agent forever. */
+const AGENT_ACT_TIMEOUT_MS = 60_000;
+
+/** Guards against a slow tick overlapping the next alarm. */
+let agentBusy = false;
+
+async function agentState(patch) {
+  const prev = (await chrome.storage.local.get('agentState')).agentState || {};
+  await chrome.storage.local.set({ agentState: { ...prev, ...patch, at: Date.now() } });
+}
+
+/** A random gap inside the server's range — a fixed interval is a fingerprint. */
+function agentGap(gap) {
+  const min = (gap?.min_seconds ?? 45) * 1000;
+  const max = Math.max(min, (gap?.max_seconds ?? 180) * 1000);
+  return min + Math.random() * (max - min);
+}
+
+/**
+ * Open the profile, let the content script act, close the tab.
+ *
+ * The tab opens INACTIVE on purpose: this is meant to run in the background
+ * of a normal working day, not to take the machine over.
+ */
+async function agentPerform(action) {
+  let tab = null;
+  try {
+    tab = await chrome.tabs.create({ url: action.profile_url, active: false });
+  } catch (err) {
+    return { ok: false, reason: `Could not open the profile: ${err?.message || err}` };
+  }
+
+  try {
+    return await new Promise((resolve) => {
+      const timer = setTimeout(
+        () => resolve({ ok: false, reason: 'Timed out waiting for LinkedIn' }),
+        AGENT_ACT_TIMEOUT_MS,
+      );
+
+      const onUpdated = async (tabId, info) => {
+        if (tabId !== tab.id || info.status !== 'complete') return;
+        chrome.tabs.onUpdated.removeListener(onUpdated);
+        try {
+          const reply = await chrome.tabs.sendMessage(tab.id, { type: 'AGENT_ACT', action });
+          clearTimeout(timer);
+          resolve(reply || { ok: false, reason: 'No answer from the page' });
+        } catch (err) {
+          clearTimeout(timer);
+          resolve({ ok: false, reason: `Page script unavailable: ${err?.message || err}` });
+        }
+      };
+      chrome.tabs.onUpdated.addListener(onUpdated);
+    });
+  } finally {
+    if (tab?.id) chrome.tabs.remove(tab.id).catch(() => {});
+  }
+}
+
+async function agentTick() {
+  if (agentBusy) return;
+  agentBusy = true;
+  try {
+    const { apiKey, agentPaused } = await getSettings();
+    if (!apiKey) { await agentState({ status: 'no_key' }); return; }
+    if (agentPaused) { await agentState({ status: 'paused_local' }); return; }
+
+    const next = await api.agentNext();
+
+    if (!next?.action) {
+      await agentState({ status: next?.reason || 'nothing_due', used: next?.used || null, error: null });
+      return;
+    }
+
+    await agentState({ status: 'working', current: next.action.title, error: null });
+
+    // The wait goes BEFORE the action, not after: it separates this action
+    // from the previous one regardless of how long that one took.
+    await new Promise((r) => setTimeout(r, agentGap(next.gap)));
+
+    const result = await agentPerform(next.action);
+
+    if (result.ok) {
+      await api.agentDone(next.action.task_id);
+      await agentState({ status: 'done_one', last: next.action.title, error: null });
+    } else {
+      await api.agentFailed(next.action.task_id, result.reason, result.fatal);
+      await agentState({
+        status: result.fatal ? 'blocked' : 'skipped_one',
+        last: result.reason,
+        error: null,
+      });
+      if (result.fatal) {
+        notify('LinkedIn paused the agent', result.reason);
+      }
+    }
+  } catch (err) {
+    // An auth problem is worth saying out loud; a transient one isn't.
+    await agentState({ status: 'error', error: String(err?.message || err) });
+  } finally {
+    agentBusy = false;
+  }
+}
+
+function startAgent() {
+  chrome.alarms.create(AGENT_ALARM, { periodInMinutes: AGENT_IDLE_MINUTES });
+}
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === AGENT_ALARM) agentTick();
 });
 
 /* ------------------------------------------------------------------ */
@@ -1961,6 +2090,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   await rebuildContextMenus();
   await refreshBadge();
   await syncConnectScript();
+  startAgent();
 
   // First run: send them straight to setup, since nothing works without a key.
   if (details.reason === 'install') {
@@ -1973,11 +2103,14 @@ chrome.runtime.onStartup.addListener(async () => {
   await rebuildContextMenus();
   await refreshBadge();
   await syncConnectScript();
+  startAgent();
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== 'local') return;
-  if (changes.apiKey) refreshBadge();
+  if (changes.apiKey) { refreshBadge(); agentTick(); }
+  // Resuming should feel immediate rather than waiting out the alarm.
+  if (changes.agentPaused && changes.agentPaused.newValue === false) agentTick();
   /*
    * Both, not just the last-used one. The right-click menu is built from
    * `cachedLists`, so a list created or deleted in the web app left the menu
