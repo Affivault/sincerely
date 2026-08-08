@@ -24,6 +24,7 @@ const AnalyticsDashboardPage = lazy(() => import('./pages/analytics/AnalyticsDas
 const InboxPage            = lazy(() => import('./pages/inbox/InboxPage').then(m => ({ default: m.InboxPage })));
 const DealsPage            = lazy(() => import('./pages/crm/DealsPage').then(m => ({ default: m.DealsPage })));
 const CompaniesPage        = lazy(() => import('./pages/companies/CompaniesPage').then(m => ({ default: m.CompaniesPage })));
+const LinkedinPage         = lazy(() => import('./pages/linkedin/LinkedinPage').then(m => ({ default: m.LinkedinPage })));
 const CompanyDetailPage    = lazy(() => import('./pages/companies/CompanyDetailPage').then(m => ({ default: m.CompanyDetailPage })));
 const TasksPage            = lazy(() => import('./pages/crm/TasksPage').then(m => ({ default: m.TasksPage })));
 const CalendarPage         = lazy(() => import('./pages/crm/CalendarPage').then(m => ({ default: m.CalendarPage })));
@@ -127,6 +128,7 @@ export default function App() {
           <Route path="/inbox"              element={<InboxPage />} />
           <Route path="/deals"              element={<DealsPage />} />
           <Route path="/companies"          element={<CompaniesPage />} />
+          <Route path="/linkedin"           element={<LinkedinPage />} />
           <Route path="/companies/:id"      element={<CompanyDetailPage />} />
           <Route path="/tasks"              element={<TasksPage />} />
           <Route path="/calendar"           element={<CalendarPage />} />

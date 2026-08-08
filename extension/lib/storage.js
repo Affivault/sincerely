@@ -6,7 +6,7 @@
  * a credential should stay on the machine it was entered on.
  */
 
-/** @typedef {{apiBaseUrl: string, apiKey: string, lastListId: string|null, verifyBeforeAdd: boolean, autoTag: boolean, autoTagName: string, appUrl: string, showBadge: boolean, autoOpenContactInfo: boolean, launcherHidden: boolean}} Settings */
+/** @typedef {{apiBaseUrl: string, apiKey: string, lastListId: string|null, verifyBeforeAdd: boolean, autoTag: boolean, autoTagName: string, appUrl: string, showBadge: boolean, autoOpenContactInfo: boolean, launcherHidden: boolean, agentPaused: boolean}} Settings */
 
 /**
  * The live API. Keep this in step with the deployment's VITE_API_URL — it is
@@ -38,6 +38,13 @@ const DEFAULTS = {
    * LinkedIn's UI, so it can be turned off.
    */
   autoOpenContactInfo: true,
+  /**
+   * Stop the LinkedIn agent from this machine, without touching the account
+   * settings — useful when you want your browser back for an hour. Must be
+   * listed here: getSettings reads the DEFAULTS keys, so a key missing from
+   * this object always comes back undefined.
+   */
+  agentPaused: false,
   /**
    * Hide the in-page button that opens the sidebar. Stored inverted — false is
    * the default and means "shown" — because the button dismisses itself, and a

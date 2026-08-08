@@ -369,6 +369,65 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     .catch((err) => showResult(err?.message || 'Something went wrong.', 'error'));
 });
 
+
+/* ------------------------------------------------------------------ */
+/* LinkedIn agent                                                     */
+/* ------------------------------------------------------------------ */
+/**
+ * A status line and a local pause. Everything with consequences — the daily
+ * limits, the working hours, the master switch — lives in Sincerely, where
+ * there is room to explain why the numbers are what they are.
+ */
+
+const AGENT_LABEL = {
+  no_key: 'Add an API key above to start.',
+  disabled: 'Turned off in Sincerely (Tools → LinkedIn).',
+  paused: 'Paused by Sincerely.',
+  paused_local: 'Paused on this machine.',
+  outside_work_days: 'Outside your working days — waiting.',
+  outside_work_hours: 'Outside your working hours — waiting.',
+  daily_limit_reached: "Today's limit reached — resumes tomorrow.",
+  nothing_due: 'Connected. Nothing due right now.',
+  working: 'Working on a step…',
+  done_one: 'Finished a step.',
+  skipped_one: 'Skipped one.',
+  blocked: 'Stopped — LinkedIn needs your attention.',
+  error: 'Could not reach Sincerely.',
+};
+
+const AGENT_TONE = {
+  blocked: 'error', error: 'error',
+  no_key: 'warn', disabled: 'warn', paused: 'warn', paused_local: 'warn',
+  nothing_due: 'success', done_one: 'success', working: 'success',
+};
+
+async function renderAgent() {
+  const box = document.getElementById('agent-status');
+  if (!box) return;
+  const { agentState = {}, agentPaused, apiKey } = await chrome.storage.local.get(
+    ['agentState', 'agentPaused', 'apiKey'],
+  );
+  const key = agentPaused ? 'paused_local' : (apiKey ? (agentState.status || 'nothing_due') : 'no_key');
+  const detail = agentState.error || agentState.last || '';
+  box.className = `result ${AGENT_TONE[key] || ''}`.trim();
+  box.textContent = `${AGENT_LABEL[key] || key}${detail ? ` — ${String(detail).slice(0, 140)}` : ''}`;
+
+  const toggle = document.getElementById('agent-paused');
+  if (toggle) toggle.checked = !!agentPaused;
+}
+
+document.getElementById('agent-paused')?.addEventListener('change', async (e) => {
+  await chrome.storage.local.set({ agentPaused: e.target.checked });
+  renderAgent();
+});
+
+// The service worker writes progress here, so the line stays live while the
+// page is open rather than going stale the moment it loads.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && (changes.agentState || changes.agentPaused || changes.apiKey)) renderAgent();
+});
+
 initTheme()
   .then(load)
+  .then(renderAgent)
   .catch((err) => showResult(err?.message || 'Failed to load settings.', 'error'));
