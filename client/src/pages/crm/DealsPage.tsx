@@ -20,7 +20,7 @@ import {
   Phone, Users as UsersIcon, Building2,
   CalendarClock, CheckCircle2, Circle, GripVertical,
   X, Pencil, Clock, ArrowUpRight, ArrowDownLeft, Mail, StickyNote,
-  Link2, Trophy, MailOpen, Briefcase,
+  Link2, Trophy, MailOpen, Briefcase, Download,
 } from 'lucide-react';
 import {
   DEAL_STAGES,
@@ -75,6 +75,28 @@ function leadId(d: Deal): string | null {
 /** The account this deal belongs to — its own link, or the lead's. */
 function dealCompanyId(d: Deal): string | null {
   return d.company_id || d.contact?.company_id || null;
+}
+
+function csvCell(v: string | number | null | undefined): string {
+  const s = v == null ? '' : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Export the given deals as a CSV file the browser downloads directly — no server round-trip. */
+function exportDealsCsv(deals: Deal[]) {
+  const header = ['Title', 'Company', 'Lead name', 'Lead email', 'Stage', 'Value', 'Expected close date', 'Notes'];
+  const rows = deals.map(d => [
+    d.title, d.company, leadName(d), leadEmail(d), DEAL_STAGES.find(s => s.id === d.stage)?.label || d.stage,
+    d.value || 0, d.expected_close_date ? toDateInput(d.expected_close_date) : '', d.notes,
+  ].map(csvCell).join(','));
+  const csv = [header.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `deals-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 const STAGE_DOT: Record<DealStage, string> = {
@@ -165,7 +187,7 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
         </div>
         <div className="flex items-center justify-between pt-2">
           {editing ? (
-            <button type="button" onClick={() => del.mutate()} className="flex items-center gap-1.5 text-[12px] font-medium text-rose-500 hover:text-rose-600 transition-colors">
+            <button type="button" onClick={() => { if (confirm(`Delete "${form.title}"? This can't be undone.`)) del.mutate(); }} className="flex items-center gap-1.5 text-[12px] font-medium text-rose-500 hover:text-rose-600 transition-colors">
               <Trash2 className="h-3.5 w-3.5" /> Delete
             </button>
           ) : <span />}
@@ -739,6 +761,11 @@ export function DealsPage() {
         </div>
         <div className="flex items-center gap-2">
           <SearchInput value={query} onChange={setQuery} placeholder="Search deals, companies, leads…" className="hidden sm:block w-56" />
+          {deals.length > 0 && (
+            <Button variant="secondary" onClick={() => exportDealsCsv(visibleDeals)} title="Export the deals shown below as a CSV file">
+              <Download className="h-4 w-4" /> Export CSV
+            </Button>
+          )}
           <Button variant="primary" onClick={() => setDealModal(null)}><Plus className="h-4 w-4" /> New deal</Button>
         </div>
       </div>

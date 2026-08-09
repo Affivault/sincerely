@@ -312,7 +312,7 @@ export function AssetBuilderPage() {
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
-                        onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(t.id); }}
+                        onClick={(e) => { e.stopPropagation(); if (confirm(`Delete "${t.name}"?`)) deleteMutation.mutate(t.id); }}
                         className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                       >
                         <Trash2 className="h-4 w-4" />
