@@ -165,7 +165,10 @@ function FunnelViz({ sent, opened, clicked, replied, bounced }: {
     <div className="space-y-2 py-2">
       {bars.map((bar, i) => {
         const pct = sent > 0 ? (bar.count / sent) * 100 : 0;
-        const prev = i > 0 ? bars[i - 1].count : null;
+        // Bounces happen at send time, before opens/clicks/replies — they
+        // aren't the next stage in the funnel, so no "dropped into" reading
+        // makes sense for this row.
+        const prev = i > 0 && bar.label !== 'Bounced' ? bars[i - 1].count : null;
         const dropped = prev !== null && prev > 0 ? prev - bar.count : null;
         const dropPct = dropped !== null && prev ? ((dropped / prev) * 100).toFixed(0) : null;
         return (

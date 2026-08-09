@@ -358,7 +358,7 @@ export async function getCampaignPool(campaignId: string): Promise<string[]> {
  * Reset daily send counts (should be called by a daily cron job).
  */
 export async function resetDailySendCounts(): Promise<number> {
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('smtp_accounts')
     .update({
       sends_today: 0,
@@ -366,12 +366,14 @@ export async function resetDailySendCounts(): Promise<number> {
     })
     .gt('sends_today', 0)
     .select('id');
+  if (error) throw new Error(`Failed to reset sends_today: ${error.message}`);
 
   // Reset the separate warm-up traffic counter too.
-  await supabaseAdmin
+  const { error: warmupError } = await supabaseAdmin
     .from('smtp_accounts')
     .update({ warmup_sent_today: 0 })
     .gt('warmup_sent_today', 0);
+  if (warmupError) throw new Error(`Failed to reset warmup_sent_today: ${warmupError.message}`);
 
   return data?.length || 0;
 }

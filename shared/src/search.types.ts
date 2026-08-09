@@ -120,7 +120,7 @@ function matchDate(tokens: string[], now: Date): DateMatch | null {
     const t = lower[i];
 
     if (t === 'today' || t === 'tonight') {
-      return { at: new Date(now), label: 'today', consumed: [tokens[i]] };
+      return { at: new Date(now), label: t, consumed: [tokens[i]] };
     }
     if (t === 'tomorrow' || t === 'tmr' || t === 'tmrw') {
       const d = new Date(now);
@@ -221,7 +221,8 @@ export function parseQuickAdd(input: string, now: Date = new Date()): QuickAdd |
     when = date.at;
     whenLabel = date.label;
   } else if (date) {
-    when = atTime(date.at, time ? time.hours : 9, time ? time.minutes : 0);
+    const defaultHour = date.label === 'tonight' ? 19 : 9;
+    when = atTime(date.at, time ? time.hours : defaultHour, time ? time.minutes : 0);
     whenLabel = time ? `${date.label} at ${formatClock(when)}` : date.label;
   } else if (time) {
     // A time with no day means today — unless today's has passed.
