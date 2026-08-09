@@ -266,6 +266,41 @@
   }
 
   /**
+   * Who this profile is, remembered across reads.
+   *
+   * The deep read opens LinkedIn's Contact info overlay to find an address.
+   * While that overlay is up the profile's own heading is no longer in the
+   * DOM, so re-reading the page at that moment returns an empty name, an
+   * empty company and an empty title. The lead was then saved with an email
+   * and nothing else — the name that had been on screen a second earlier was
+   * simply gone.
+   *
+   * Identity is therefore captured on the first (fast) read and only ever
+   * filled in, never blanked: a later read that finds nothing keeps what is
+   * already known.
+   */
+  const identityByProfile = new Map();
+
+  /**
+   * @param {string} publicId
+   * @param {{name: string, headline: string, company: string, jobTitle: string}} found
+   * @returns {{name: string, headline: string, company: string, jobTitle: string}}
+   */
+  function rememberIdentity(publicId, found) {
+    const known = identityByProfile.get(publicId)
+      || { name: '', headline: '', company: '', jobTitle: '' };
+    for (const key of ['name', 'headline', 'company', 'jobTitle']) {
+      const value = String(found[key] || '').trim();
+      // Only ever an upgrade. An empty read means the overlay is open, not
+      // that the profile has no name.
+      if (value && !known[key]) known[key] = value;
+    }
+    identityByProfile.set(publicId, known);
+    evictOldest(identityByProfile, 20);
+    return known;
+  }
+
+  /**
    * LinkedIn's CSRF token, which is simply the JSESSIONID cookie's value.
    * Required on its internal API, and absent when the user is signed out.
    */
@@ -1190,14 +1225,14 @@
     const publicId = linkedInPublicId();
     if (!publicId) return null;
 
-    const name = firstText([
+    const rawName = firstText([
       'main h1',
       '.pv-text-details__left-panel h1',
       '.text-heading-xlarge',
       'h1',
     ]);
 
-    const headline = firstText([
+    const rawHeadline = firstText([
       '.text-body-medium.break-words',
       '.pv-text-details__left-panel .text-body-medium',
       'main .text-body-medium',
@@ -1205,19 +1240,35 @@
 
     // The top card's current-company button is the most reliable company
     // signal; the experience section is the fallback.
-    let company = firstText([
+    let rawCompany = firstText([
       'button[aria-label^="Current company"] .pv-text-details__right-panel-item-text',
       '.pv-text-details__right-panel-item-text',
       '[data-field="experience_company_logo"] + div span[aria-hidden="true"]',
     ]);
 
     // Headlines are overwhelmingly "Title at Company".
-    let jobTitle = headline;
-    const atMatch = headline.match(/^(.*?)\s+(?:at|@)\s+(.*)$/i);
+    let rawJobTitle = rawHeadline;
+    const atMatch = rawHeadline.match(/^(.*?)\s+(?:at|@)\s+(.*)$/i);
     if (atMatch) {
-      jobTitle = atMatch[1].trim();
-      if (!company) company = atMatch[2].trim();
+      rawJobTitle = atMatch[1].trim();
+      if (!rawCompany) rawCompany = atMatch[2].trim();
     }
+
+    /*
+     * Fold this read into what is already known about the profile. On the deep
+     * pass the Contact info overlay is open and every selector above comes
+     * back empty; taking that at face value is what stripped the name off a
+     * lead the moment its email was found.
+     */
+    const identity = rememberIdentity(publicId, {
+      name: rawName,
+      headline: rawHeadline,
+      company: rawCompany,
+      jobTitle: rawJobTitle,
+    });
+    const name = identity.name;
+    const company = identity.company;
+    const jobTitle = identity.jobTitle;
 
     // Anything already in the DOM (the overlay may be open), plus what the
     // contact-info routes gave us. Order matters: a selection the user made

@@ -2307,6 +2307,27 @@ window.__sincerelyRetarget = retarget;
  *
  * @param {number|undefined} tabId
  */
+/**
+ * Only the fields that actually carry a value.
+ *
+ * Merging a later, narrower read over an earlier, richer one must never lose
+ * information: a null in the new object means "I didn't see it", not "it is
+ * empty".
+ *
+ * @param {Record<string, any>|null} person
+ * @returns {Record<string, any>}
+ */
+function preferFilled(person) {
+  const out = {};
+  for (const [key, value] of Object.entries(person || {})) {
+    if (value === null || value === undefined) continue;
+    if (typeof value === 'string' && value.trim() === '') continue;
+    if (Array.isArray(value) && value.length === 0) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
 async function deepenPerson(tabId) {
   if (!tabId || !state.person?.contact_info_pending) return;
 
@@ -2321,7 +2342,11 @@ async function deepenPerson(tabId) {
     return;
   }
 
-  state.person = { ...state.person, ...person, contact_info_pending: false };
+  // Field-wise, not a plain spread. The deep read happens with LinkedIn's
+  // Contact info overlay open, and anything it could not see comes back null —
+  // so `{...old, ...new}` wiped the name, company and title that the fast pass
+  // had already found, leaving a lead that was an email and nothing else.
+  state.person = { ...state.person, ...preferFilled(person), contact_info_pending: false };
 
   // The user may have typed while we were away; their address wins.
   if (el.email.value.trim() !== '') {
