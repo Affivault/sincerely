@@ -8,6 +8,7 @@ import { crmService } from './crm.service.js';
 import { settingsService } from './settings.service.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { checkAndAutoCompleteCampaign } from './sequence.service.js';
+import { inboxService } from './inbox.service.js';
 
 /**
  * SARA → CRM: when a reply is classified as interested/meeting, create a
@@ -437,8 +438,25 @@ export async function approveReply(
   userId: string,
   editedReply?: string
 ): Promise<void> {
+  const { data: message, error: fetchError } = await supabaseAdmin
+    .from('inbox_messages')
+    .select('sara_draft_reply, smtp_account_id')
+    .eq('id', messageId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (fetchError) throw new AppError(fetchError.message, 500);
+  if (!message) throw new AppError('Message not found', 404);
+
+  const replyText = editedReply ?? message.sara_draft_reply;
+  if (!replyText) throw new AppError('No draft reply text to send', 400);
+
+  // Actually send the reply before flipping the status — a failed send (no
+  // SMTP account, quota exceeded, etc.) should surface as an error and leave
+  // the message in the review queue, not silently mark it "approved".
+  await inboxService.reply(userId, messageId, replyText, message.smtp_account_id || undefined);
+
   const update: Record<string, any> = {
-    sara_status: SaraStatus.Approved,
+    sara_status: SaraStatus.Sent,
     sara_reviewed_at: new Date().toISOString(),
     sara_reviewed_by: userId,
   };
@@ -446,15 +464,12 @@ export async function approveReply(
     update.sara_draft_reply = editedReply;
   }
 
-  const { data, error } = await supabaseAdmin
+  const { error } = await supabaseAdmin
     .from('inbox_messages')
     .update(update)
     .eq('id', messageId)
-    .eq('user_id', userId)
-    .select('id')
-    .maybeSingle();
+    .eq('user_id', userId);
   if (error) throw new AppError(error.message, 500);
-  if (!data) throw new AppError('Message not found', 404);
 
   fireEvent(userId, 'sara.reply_approved', { message_id: messageId, edited: !!editedReply }).catch(() => {});
 }
