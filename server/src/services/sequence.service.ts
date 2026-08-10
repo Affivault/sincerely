@@ -212,12 +212,18 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
   }
 
   // Fetch all steps for this campaign, ordered
-  const { data: steps } = await supabaseAdmin
+  const { data: steps, error: stepsError } = await supabaseAdmin
     .from('campaign_steps')
     .select('*')
     .eq('campaign_id', cc.campaign_id)
     .order('step_order');
 
+  if (stepsError) {
+    // A transient fetch failure is not "this campaign has no steps" — let the
+    // processNextStep safety net mark the contact 'error' instead of wrongly
+    // completing it.
+    throw new Error(`Failed to fetch campaign steps for ${cc.campaign_id}: ${stepsError.message}`);
+  }
   if (!steps || steps.length === 0) {
     await markCompleted(campaignContactId);
     return;
@@ -299,11 +305,15 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
 
     if (count && count > 0) {
       // Skip this step, advance to next
-      const { data: steps } = await supabaseAdmin
+      const { data: steps, error: stepsError } = await supabaseAdmin
         .from('campaign_steps')
         .select('*')
         .eq('campaign_id', cc.campaign_id)
         .order('step_order');
+      // A fetch error here must not be treated as "no steps left" — that
+      // would wrongly mark the contact completed. Let it throw and surface
+      // as a genuine error instead.
+      if (stepsError) throw new Error(`Failed to fetch campaign steps for ${cc.campaign_id}: ${stepsError.message}`);
       await advanceToNextStep(cc.id, step.step_order, steps || []);
       return;
     }
@@ -318,11 +328,12 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     .eq('activity_type', 'sent');
   if (alreadySent && alreadySent > 0) {
     // Already sent for this step — advance to next
-    const { data: steps } = await supabaseAdmin
+    const { data: steps, error: stepsError } = await supabaseAdmin
       .from('campaign_steps')
       .select('*')
       .eq('campaign_id', cc.campaign_id)
       .order('step_order');
+    if (stepsError) throw new Error(`Failed to fetch campaign steps for ${cc.campaign_id}: ${stepsError.message}`);
     await advanceToNextStep(cc.id, step.step_order, steps || []);
     return;
   }
@@ -800,11 +811,20 @@ export async function resumeAfterTask(taskId: string): Promise<void> {
 
   if (!cc || cc.status !== 'active') return;
 
-  const { data: steps } = await supabaseAdmin
+  const { data: steps, error: stepsError } = await supabaseAdmin
     .from('campaign_steps')
     .select('*')
     .eq('campaign_id', cc.campaign_id)
     .order('step_order');
+
+  if (stepsError) {
+    // No retry loop drives this path (it fires once, off a task completion
+    // webhook), so a transient error can't be silently treated as "no more
+    // steps" — that would wrongly complete the contact. Leave it visibly
+    // stuck (still active, current_step_order unchanged) instead.
+    console.error(`[Sequence] resumeAfterTask: failed to fetch steps for campaign ${cc.campaign_id}: ${stepsError.message}`);
+    return;
+  }
 
   await supabaseAdmin
     .from('campaign_contacts')
@@ -833,6 +853,20 @@ export async function resumeWebhookWait(
 
   if (!cc) return;
 
+  const { data: steps, error: stepsError } = await supabaseAdmin
+    .from('campaign_steps')
+    .select('*')
+    .eq('campaign_id', cc.campaign_id)
+    .order('step_order');
+
+  if (stepsError) {
+    // Leave waiting_for_webhook untouched on a fetch failure so a retry of
+    // this same event (or the timeout sweep) gets another chance, instead of
+    // clearing the wait state and then wrongly completing the contact below.
+    console.error(`[Sequence] resumeWebhookWait: failed to fetch steps for campaign ${cc.campaign_id}: ${stepsError.message}`);
+    return;
+  }
+
   // Clear webhook wait state; advanceToNextStep owns the delay arithmetic for
   // whatever comes next, so it honors the next step's own built-in delay
   // instead of sending immediately.
@@ -844,12 +878,6 @@ export async function resumeWebhookWait(
       webhook_received_at: new Date().toISOString(),
     })
     .eq('id', campaignContactId);
-
-  const { data: steps } = await supabaseAdmin
-    .from('campaign_steps')
-    .select('*')
-    .eq('campaign_id', cc.campaign_id)
-    .order('step_order');
 
   await advanceToNextStep(campaignContactId, cc.current_step_order || 0, steps || []);
 }
@@ -869,6 +897,23 @@ export async function processWebhookTimeouts(): Promise<number> {
     if (error || !timedOut || timedOut.length === 0) return 0;
 
     for (const cc of timedOut) {
+      // advanceToNextStep owns the delay arithmetic for whatever comes next,
+      // so a timed-out wait honors the next step's own built-in delay
+      // instead of sending immediately.
+      const { data: steps, error: stepsError } = await supabaseAdmin
+        .from('campaign_steps')
+        .select('*')
+        .eq('campaign_id', cc.campaign_id)
+        .order('step_order');
+
+      if (stepsError) {
+        // Leave waiting_for_webhook set so the next sweep retries this
+        // contact, instead of clearing it here and wrongly completing the
+        // contact below on a transient fetch failure.
+        console.error(`[Sequence] processWebhookTimeouts: failed to fetch steps for campaign ${cc.campaign_id}: ${stepsError.message}`);
+        continue;
+      }
+
       await supabaseAdmin
         .from('campaign_contacts')
         .update({
@@ -876,15 +921,6 @@ export async function processWebhookTimeouts(): Promise<number> {
           webhook_wait_until: null,
         })
         .eq('id', cc.id);
-
-      // advanceToNextStep owns the delay arithmetic for whatever comes next,
-      // so a timed-out wait honors the next step's own built-in delay
-      // instead of sending immediately.
-      const { data: steps } = await supabaseAdmin
-        .from('campaign_steps')
-        .select('*')
-        .eq('campaign_id', cc.campaign_id)
-        .order('step_order');
 
       await advanceToNextStep(cc.id, cc.current_step_order || 0, steps || []);
     }

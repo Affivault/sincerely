@@ -559,7 +559,7 @@ function FlowNode({
                     <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Condition Field</label>
                     <select
                       value={step.condition_field || ''}
-                      onChange={(e) => onUpdate({ condition_field: e.target.value })}
+                      onChange={(e) => onUpdate({ condition_field: (e.target.value || undefined) as ConditionField | undefined })}
                       className="w-full h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-sm focus:border-[var(--text-primary)] focus:ring-2 focus:ring-[var(--text-primary)]/20"
                     >
                       <option value="">Select field...</option>
@@ -573,7 +573,7 @@ function FlowNode({
                       <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Operator</label>
                       <select
                         value={step.condition_operator || ''}
-                        onChange={(e) => onUpdate({ condition_operator: e.target.value })}
+                        onChange={(e) => onUpdate({ condition_operator: (e.target.value || undefined) as ConditionOperator | undefined })}
                         className="w-full h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-sm focus:border-[var(--text-primary)] focus:ring-2 focus:ring-[var(--text-primary)]/20"
                       >
                         <option value="">Select...</option>
@@ -769,8 +769,8 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
     delay_hours: 0,
     delay_minutes: 0,
     skip_if_replied: type === StepType.Email ? true : undefined,
-    condition_field: type === StepType.Condition ? '' : undefined,
-    condition_operator: type === StepType.Condition ? '' : undefined,
+    condition_field: undefined,
+    condition_operator: undefined,
     condition_value: type === StepType.Condition ? '' : undefined,
     webhook_event: type === StepType.WebhookWait ? '' : undefined,
     webhook_timeout_hours: type === StepType.WebhookWait ? 72 : undefined,
@@ -906,9 +906,11 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
   // can hold a contact up to its timeout, so it adds its worst-case duration
   // AFTER too, the same way a delay node does)
   steps.forEach((step, i) => {
-    // Email built-in waits count only when no Wait node sits directly above
-    // (the engine gives explicit Wait nodes precedence over built-in timing).
-    if (step.step_type === 'email' && steps[i - 1]?.step_type !== 'delay') {
+    // Built-in waits (email and LinkedIn steps both carry one — see
+    // isLinkedinStep in the sequence/email-sender engine) count only when no
+    // Wait node sits directly above (the engine gives explicit Wait nodes
+    // precedence over built-in timing).
+    if ((step.step_type === 'email' || isLinkedinStep(step.step_type)) && steps[i - 1]?.step_type !== 'delay') {
       cumulative += stepDelayInDays(step);
     }
     dayOffsets.push(Math.round(cumulative));
