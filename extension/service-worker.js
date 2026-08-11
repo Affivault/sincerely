@@ -762,7 +762,7 @@ async function handleAddToList(payload) {
       }
     }
 
-    const { contact, created } = await api.resolveOrCreateContact({ ...person, email });
+    const { contact, created, enriched } = await api.resolveOrCreateContact({ ...person, email });
 
     /*
      * Whether they were already on this list has to be established before
@@ -799,6 +799,8 @@ async function handleAddToList(payload) {
       data: {
         contactId: contact.id,
         contactCreated: created,
+        /** Which blank fields this scrape filled in on an existing contact. */
+        enriched: enriched || null,
         alreadyOnList,
         added: result?.success ?? 0,
         failed: result?.failed ?? 0,
