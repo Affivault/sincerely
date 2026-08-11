@@ -27,6 +27,7 @@ import {
   Eye, MousePointerClick, MessageSquare, Send, AlertTriangle, Rocket,
   RotateCcw, Plus, FolderOpen, ListPlus, Sparkles, Loader2, X, Timer,
   Zap, FileText, TrendingUp, ShieldCheck, Brain, Wand2, CalendarClock,
+  Trophy,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { StepType } from '@lemlist/shared';
@@ -182,6 +183,7 @@ export function CampaignCreatePage() {
     delay_between_emails_min: 50,
     delay_between_emails_max: 200,
     stop_on_reply: true,
+    ab_auto_promote: false,
     track_opens: true,
     track_clicks: true,
     include_unsubscribe: false,
@@ -404,6 +406,7 @@ export function CampaignCreatePage() {
           existingCampaign.delay_between_emails ??
           200,
         stop_on_reply: existingCampaign.stop_on_reply ?? true,
+        ab_auto_promote: existingCampaign.ab_auto_promote ?? false,
         track_opens: existingCampaign.track_opens ?? true,
         track_clicks: existingCampaign.track_clicks ?? true,
         include_unsubscribe: existingCampaign.include_unsubscribe ?? false,
@@ -1286,6 +1289,13 @@ export function CampaignCreatePage() {
                     label="Stop on reply"
                     description="Pause sending when a contact replies"
                     icon={MessageSquare}
+                  />
+                  <ToggleSwitch
+                    checked={campaignForm.ab_auto_promote === true}
+                    onChange={(v) => setCampaignForm({ ...campaignForm, ab_auto_promote: v })}
+                    label="Auto-pick the A/B winner"
+                    description="Once a variant wins significantly, send only that one"
+                    icon={Trophy}
                   />
                   <ToggleSwitch
                     checked={campaignForm.track_opens !== false}

@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import { twoProportionPValue } from '../utils/stats.js';
 import { AppError } from '../middleware/error.middleware.js';
 
 function calcRate(value: number, total: number): number {
@@ -38,8 +39,24 @@ async function fetchAllRows<T = any>(buildQuery: (from: number, to: number) => a
   return rows;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   Deciding an A/B test.
+
+   This used to call a result "statistically significant" when the two open
+   rates differed by two percentage points and each arm had thirty sends.
+   That is not significance, it is a rounding error with a rosette on it:
+   at n=30, two points is one extra open, and a coin lands that way all the
+   time. Telling someone to rewrite their sequence on the strength of it is
+   worse than telling them nothing.
+
+   Now it runs a real two-proportion z-test and reports the p-value, which
+   also means the promote-the-winner button below is acting on something.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/** Below this per arm, don't call it either way however tempting the gap. */
 const MIN_AB_SAMPLE = 30;
-const MIN_AB_GAP = 2; // percentage points
+/** Two-sided. The convention, and strict enough to keep noise out. */
+const AB_ALPHA = 0.05;
 
 export const analyticsService = {
   async overview(userId: string, days?: number) {
@@ -649,9 +666,17 @@ export const analyticsService = {
 
       const minSent = Math.min(stats.a.sent, stats.b.sent);
       const hasEnoughData = minSent >= MIN_AB_SAMPLE;
-      const openDiff = Math.abs(bOpenRate - aOpenRate);
-      const significant = hasEnoughData && openDiff >= MIN_AB_GAP;
-      const winner: 'a' | 'b' | null = significant ? (bOpenRate > aOpenRate ? 'b' : 'a') : null;
+      // Opens, because the subject line is what a subject-line test moves.
+      const pValue = twoProportionPValue(stats.a.opened, stats.a.sent, stats.b.opened, stats.b.sent);
+      const significant = hasEnoughData && pValue !== null && pValue < AB_ALPHA;
+
+      // `leading` is the one that's ahead; `winner` is the one you should act
+      // on. Keeping them apart is the difference between "B is up so far" and
+      // "B is up and the gap is unlikely to be chance" — the first is worth
+      // showing, only the second is worth rewriting a sequence over.
+      const leading: 'a' | 'b' | null =
+        bOpenRate === aOpenRate ? null : bOpenRate > aOpenRate ? 'b' : 'a';
+      const winner: 'a' | 'b' | null = significant ? leading : null;
 
       return {
         step_number: step.step_order,
@@ -661,7 +686,10 @@ export const analyticsService = {
         variant_a: { ...stats.a, open_rate: aOpenRate, click_rate: aClickRate, reply_rate: aReplyRate },
         variant_b: { ...stats.b, open_rate: bOpenRate, click_rate: bClickRate, reply_rate: bReplyRate },
         winner,
+        leading,
         significant,
+        p_value: pValue,
+        has_enough_data: hasEnoughData,
         min_sample: MIN_AB_SAMPLE,
       };
     });

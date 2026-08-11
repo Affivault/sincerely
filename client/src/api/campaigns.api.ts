@@ -42,6 +42,12 @@ export const campaignsApi = {
     return data;
   },
 
+  /** End an A/B test: the chosen variant becomes the step's only copy. */
+  promoteAbVariant: async (id: string, stepId: string, variant: 'a' | 'b') => {
+    const { data } = await apiClient.post(`/campaigns/${id}/steps/${stepId}/promote-variant`, { variant });
+    return data;
+  },
+
   launch: async (id: string) => {
     const { data } = await apiClient.post<Campaign>(`/campaigns/${id}/launch`);
     return data;

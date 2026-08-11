@@ -7,6 +7,37 @@ import { settingsService } from './settings.service.js';
 import { extractTags, TAG_LABELS, TAG_SOURCE_FIELD, SENDER_TAGS, LINK_TAGS } from '@lemlist/shared';
 import type { PersonalizationAudit, PersonalizationTag } from '@lemlist/shared';
 
+/**
+ * Columns a client may write to a campaign.
+ *
+ * `create` and `update` used to forward the request body straight to
+ * Postgres. `user_id` is a column on this table, so a crafted PUT could set
+ * it to somebody else's id and hand them the campaign — mailbox binding,
+ * audience and all — while removing it from the owner's account. Same shape
+ * of hole as the one closed on contacts and campaign steps. Anything not
+ * named here is dropped: id, user_id, timestamps, computed counters.
+ */
+const UPDATABLE_CAMPAIGN_FIELDS = new Set([
+  'name', 'status', 'smtp_account_id', 'scheduled_at', 'timezone',
+  'send_window_start', 'send_window_end', 'send_days',
+  'dcs_threshold', 'daily_limit',
+  'delay_between_emails', 'delay_between_emails_min', 'delay_between_emails_max',
+  'stop_on_reply', 'ab_auto_promote', 'track_opens', 'track_clicks', 'include_unsubscribe',
+]);
+
+/** `status` is lifecycle, driven by launch/pause/resume — never by a form post. */
+const CREATABLE_CAMPAIGN_FIELDS = new Set(
+  [...UPDATABLE_CAMPAIGN_FIELDS].filter((f) => f !== 'status'),
+);
+
+function pickCampaignFields(input: any, allowed: Set<string>): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const [key, value] of Object.entries(input || {})) {
+    if (allowed.has(key)) out[key] = value;
+  }
+  return out;
+}
+
 interface ListParams {
   page?: number;
   limit?: number;
@@ -162,7 +193,7 @@ export const campaignsService = {
 
     const { data, error } = await supabaseAdmin
       .from('campaigns')
-      .insert({ ...input, user_id: userId, status: 'draft' })
+      .insert({ ...pickCampaignFields(input, CREATABLE_CAMPAIGN_FIELDS), user_id: userId, status: 'draft' })
       .select()
       .single();
 
@@ -183,7 +214,7 @@ export const campaignsService = {
 
     const { data, error } = await supabaseAdmin
       .from('campaigns')
-      .update(input)
+      .update(pickCampaignFields(input, UPDATABLE_CAMPAIGN_FIELDS))
       .eq('id', id)
       .eq('user_id', userId)
       .select()
@@ -327,6 +358,68 @@ export const campaignsService = {
     // Worst gaps first — that's the order someone wants to read them in.
     tags.sort((a, b) => (b.missing / Math.max(b.total, 1)) - (a.missing / Math.max(a.total, 1)));
     return { total_contacts: totalContacts, tags };
+  },
+
+  /**
+   * Make a variant the only variant.
+   *
+   * The analytics service has computed a winner since the day A/B testing
+   * shipped, and nothing has ever been able to act on it — the test told you
+   * which subject line was better and then kept sending both. This ends the
+   * test: the winning copy moves into the live slot, the B columns are
+   * cleared, and every send from here uses it.
+   *
+   * Deliberately allowed on a *running* campaign, which is the only time it
+   * is any use. That is safe in a way that editing steps is not: no step is
+   * added, removed or reordered, so `current_step_order` still points where
+   * it did for every contact mid-sequence. Contacts already sent the losing
+   * variant keep it in their history — this changes what happens next, not
+   * what happened.
+   */
+  async promoteAbVariant(userId: string, campaignId: string, stepId: string, variant: 'a' | 'b') {
+    if (variant !== 'a' && variant !== 'b') {
+      throw new AppError('Variant must be "a" or "b"', 400);
+    }
+    await this.assertOwnership(userId, campaignId);
+
+    const { data: step, error: stepError } = await supabaseAdmin
+      .from('campaign_steps')
+      .select('id, subject, subject_b, body_html, body_html_b, ab_promoted_variant')
+      .eq('id', stepId)
+      .eq('campaign_id', campaignId)
+      .maybeSingle();
+    if (stepError) throw new AppError(stepError.message, 500);
+    if (!step) throw new AppError('Step not found', 404);
+    if (!step.subject_b && !step.body_html_b) {
+      throw new AppError('This step has no B variant to decide', 400);
+    }
+
+    const update: Record<string, any> = {
+      subject_b: null,
+      body_html_b: null,
+      ab_promoted_variant: variant,
+      ab_promoted_at: new Date().toISOString(),
+    };
+    if (variant === 'b') {
+      // Only move across the halves that were actually being tested. A step
+      // testing subjects alone has body_html_b null, and copying that over
+      // the live body would blank the email.
+      if (step.subject_b) update.subject = step.subject_b;
+      if (step.body_html_b) update.body_html = step.body_html_b;
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('campaign_steps')
+      .update(update)
+      .eq('id', stepId)
+      .eq('campaign_id', campaignId)
+      .select()
+      .single();
+    if (error) throw new AppError(error.message, 500);
+
+    fireEvent(userId, 'campaign.updated', { campaign_id: campaignId, ab_promoted: { step_id: stepId, variant } })
+      .catch((err: any) => console.error('[Campaign] Webhook error:', err?.message ?? String(err)));
+    return data;
   },
 
   async launch(userId: string, id: string) {

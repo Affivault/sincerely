@@ -61,8 +61,14 @@ export interface AbTestStep {
   subject_b: string;
   variant_a: AbVariantStats;
   variant_b: AbVariantStats;
+  /** Ahead *and* unlikely to be chance — the one worth acting on. */
   winner: 'a' | 'b' | null;
+  /** Simply ahead. Shown, but never promoted on. */
+  leading: 'a' | 'b' | null;
   significant: boolean;
+  /** Two-sided p-value from a two-proportion z-test on open rate. */
+  p_value: number | null;
+  has_enough_data: boolean;
   min_sample: number;
 }
 

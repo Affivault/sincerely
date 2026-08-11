@@ -20,6 +20,8 @@ export interface Campaign {
   delay_between_emails_min: number;
   delay_between_emails_max: number;
   stop_on_reply: boolean;
+  /** End an A/B test on its own once a variant wins significantly. */
+  ab_auto_promote: boolean;
   track_opens: boolean;
   track_clicks: boolean;
   include_unsubscribe: boolean;
@@ -103,6 +105,7 @@ export interface CreateCampaignInput {
   delay_between_emails_min?: number;
   delay_between_emails_max?: number;
   stop_on_reply?: boolean;
+  ab_auto_promote?: boolean;
   track_opens?: boolean;
   track_clicks?: boolean;
   include_unsubscribe?: boolean;

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   analyticsApi,
   type TrendDataPoint,
@@ -11,6 +11,7 @@ import {
 } from '../../api/analytics.api';
 import type { OverviewAnalytics } from '../../api/analytics.api';
 import { apiClient } from '../../api/client';
+import { campaignsApi } from '../../api/campaigns.api';
 import { Spinner } from '../../components/ui/Spinner';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Badge } from '../../components/ui/Badge';
@@ -23,6 +24,7 @@ import { Avatar } from '../../components/shared/Avatar';
 import { useTheme } from '../../context/ThemeContext';
 import { Link } from 'react-router-dom';
 import { cn } from '../../lib/utils';
+import toast from 'react-hot-toast';
 import {
   LineChart, Line,
   BarChart, Bar,
@@ -827,6 +829,21 @@ export function AnalyticsDashboardPage() {
     enabled: !!selectedId && campaignTab === 'abtest',
   });
 
+  const queryClient = useQueryClient();
+
+  // Settling a test rewrites the step's live copy, so refetch the report and
+  // the campaign that owns it rather than patching the cache by hand.
+  const promoteVariant = useMutation({
+    mutationFn: ({ stepId, variant }: { stepId: string; variant: 'a' | 'b' }) =>
+      campaignsApi.promoteAbVariant(selectedId, stepId, variant),
+    onSuccess: (_data, { variant }) => {
+      queryClient.invalidateQueries({ queryKey: ['analytics', 'ab-test', selectedId] });
+      queryClient.invalidateQueries({ queryKey: ['campaigns', selectedId] });
+      toast.success(`Variant ${variant.toUpperCase()} is now the only version sent`);
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Could not promote that variant'),
+  });
+
   const { data: campaignContacts } = useQuery({
     queryKey: ['analytics', 'campaign-contacts', selectedId],
     queryFn: () => analyticsApi.campaignContacts(selectedId),
@@ -1442,18 +1459,19 @@ export function AnalyticsDashboardPage() {
                               {step.step_number}
                             </span>
                             <h4 className="text-[13px] font-semibold text-[var(--text-primary)]">Step {step.step_number} — A/B Test</h4>
-                            {step.winner && (
-                              <span className={cn(
-                                'ml-auto text-[11px] font-semibold px-2.5 py-1 rounded-full',
-                                'bg-emerald-500/10 text-emerald-500'
-                              )}>
+                            {step.winner ? (
+                              <span className="ml-auto text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-500">
                                 Variant {step.winner.toUpperCase()} wins
-                                {step.significant && ' (significant)'}
                               </span>
-                            )}
-                            {!step.significant && step.variant_a.sent < step.min_sample && (
+                            ) : !step.has_enough_data ? (
                               <span className="ml-auto text-[11px] text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded-full">
-                                Need {step.min_sample}+ sends per variant for significance
+                                Needs {step.min_sample}+ sends per variant before this can be called
+                              </span>
+                            ) : (
+                              <span className="ml-auto text-[11px] text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-2.5 py-1 rounded-full">
+                                {step.leading
+                                  ? `Variant ${step.leading.toUpperCase()} ahead — still within chance`
+                                  : 'Dead level'}
                               </span>
                             )}
                           </div>
@@ -1473,18 +1491,42 @@ export function AnalyticsDashboardPage() {
                               isWinner={step.winner === 'b'}
                             />
                           </div>
-                          {step.winner && (
+                          {step.winner ? (
                             <div className="px-5 pb-4">
-                              <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/8 border border-emerald-500/20 text-[12px] text-emerald-600 dark:text-emerald-400">
+                              <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-emerald-500/8 border border-emerald-500/20 text-[12px] text-emerald-600 dark:text-emerald-400">
                                 <Trophy className="h-4 w-4 flex-shrink-0" />
-                                <span>
-                                  Variant {step.winner.toUpperCase()} outperforms by{' '}
+                                <span className="flex-1 min-w-[240px]">
+                                  Variant {step.winner.toUpperCase()} is ahead by{' '}
                                   <strong>{Math.abs(step.variant_a.open_rate - step.variant_b.open_rate).toFixed(1)}pp</strong> on open rate
-                                  {step.significant ? ' — statistically significant result.' : '.'}
+                                  {step.p_value !== null && (
+                                    <> — a gap this large would turn up by chance in fewer than{' '}
+                                      <strong>{step.p_value < 0.001 ? '1 in 1,000' : `1 in ${Math.round(1 / step.p_value)}`}</strong>{' '}
+                                      tests of two identical subject lines.</>
+                                  )}
                                 </span>
+                                {/* The whole point of running the test. Until now it
+                                    reported a winner and kept sending both. */}
+                                <Button
+                                  size="sm"
+                                  onClick={() => promoteVariant.mutate({ stepId: step.step_id, variant: step.winner! })}
+                                  disabled={promoteVariant.isPending}
+                                >
+                                  <Trophy className="h-3 w-3" />
+                                  Send only {step.winner.toUpperCase()} from now on
+                                </Button>
                               </div>
                             </div>
-                          )}
+                          ) : step.leading && step.has_enough_data ? (
+                            <div className="px-5 pb-4">
+                              <p className="text-[11.5px] text-[var(--text-tertiary)] leading-relaxed">
+                                Variant {step.leading.toUpperCase()} is ahead by{' '}
+                                {Math.abs(step.variant_a.open_rate - step.variant_b.open_rate).toFixed(1)}pp, but at these
+                                volumes a gap that size turns up by chance often enough
+                                {step.p_value !== null && ` (p = ${step.p_value.toFixed(2)})`} that it isn’t worth
+                                acting on yet. Leave it running.
+                              </p>
+                            </div>
+                          ) : null}
                         </div>
                       ))}
                     </div>
