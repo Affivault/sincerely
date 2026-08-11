@@ -7,6 +7,7 @@ import { SkeletonList } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { SettingsShell } from '../../components/shared/SettingsShell';
@@ -344,6 +345,7 @@ export function DomainDetailPanel({
 }
 
 export function DomainsPage() {
+  const confirm = useConfirm();
   const queryClient = useQueryClient();
   const [showAddModal, setShowAddModal] = useState(false);
   const [newDomain, setNewDomain] = useState('');
@@ -541,7 +543,10 @@ export function DomainsPage() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (confirm(`Remove ${domain.domain}?`)) deleteMutation.mutate(domain.id);
+                      confirm(
+                        { title: `Remove ${domain.domain}?`, body: 'Sincerely stops tracking its DNS records. The records themselves stay at your registrar.', tone: 'danger', confirmLabel: 'Remove' },
+                        () => deleteMutation.mutate(domain.id),
+                      );
                     }}
                     className="icon-btn hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
                   >

@@ -6,6 +6,7 @@ import { SkeletonList } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { SettingsShell } from '../../components/shared/SettingsShell';
@@ -26,6 +27,7 @@ const REASON_LABELS: Record<string, { label: string; color: string; dot: string 
 };
 
 export function SuppressionPage() {
+  const confirm = useConfirm();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState('');
@@ -188,7 +190,10 @@ export function SuppressionPage() {
                       <td className="px-4 py-2.5 text-[12px] text-[var(--text-secondary)] tabular">{formatDate(entry.created_at)}</td>
                       <td className="px-4 py-2.5 text-right">
                         <button
-                          onClick={() => { if (confirm(`Remove ${entry.email} from suppression list?`)) removeMut.mutate(entry.email); }}
+                          onClick={() => confirm(
+                            { title: `Let ${entry.email} back in?`, body: 'Removing them from the suppression list means campaigns can email them again.', confirmLabel: 'Remove from list' },
+                            () => removeMut.mutate(entry.email),
+                          )}
                           className="icon-btn opacity-0 group-hover:opacity-100 hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
                         >
                           <Trash2 className="h-3 w-3" />

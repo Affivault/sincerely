@@ -5,6 +5,7 @@ import { companiesApi } from '../../api/companies.api';
 import { crmApi } from '../../api/crm.api';
 import { Spinner } from '../../components/ui/Spinner';
 import { InlineEdit, InlineSelect } from '../../components/ui/InlineEdit';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { Avatar } from '../../components/shared/Avatar';
 import { QuickCompose } from '../../components/shared/QuickCompose';
 import { usePeek } from '../../components/peek/usePeek';
@@ -99,6 +100,7 @@ function InfoRow({ icon: Icon, label, value, onSave, href, type }: {
 }
 
 export function CompanyDetailPage() {
+  const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -253,7 +255,14 @@ export function CompanyDetailPage() {
           )}
           <button
             onClick={() => {
-              if (confirm(`Delete ${company.name}? Its people and deals are kept — only the account record goes.`)) remove.mutate();
+              confirm(
+                {
+                  title: `Delete ${company.name}?`,
+                  body: 'Its people and deals are kept — only the account record goes.',
+                  tone: 'danger',
+                },
+                () => remove.mutate(),
+              );
             }}
             className="icon-btn h-8 w-8 hover:text-[var(--error)]"
             title="Delete company"

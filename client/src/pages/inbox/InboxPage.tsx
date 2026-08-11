@@ -15,6 +15,7 @@ import { EmailBody } from '../../components/shared/EmailBody';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { RichTextEditor, useRichTextEditorRef } from '../../components/ui/RichTextEditor';
 import { InlineEdit } from '../../components/ui/InlineEdit';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { usePeek } from '../../components/peek/usePeek';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
@@ -2020,6 +2021,7 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
 
 /* ─── Main InboxPage ──────────────────────────────── */
 export function InboxPage() {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const [folder, setFolder] = useState<Folder>('inbox');
   const [tagFilter, setTagFilter] = useState('all');
@@ -3054,9 +3056,14 @@ export function InboxPage() {
               // across the whole mailbox. Confirm with that made explicit so a
               // click meant for "this view" doesn't silently wipe unread status
               // on messages the user hasn't even looked at yet.
-              if (confirm('Mark every unread message in your mailbox as read — not just this view?')) {
-                markAllReadMut.mutate();
-              }
+              confirm(
+                {
+                  title: 'Mark the whole mailbox as read?',
+                  body: 'This clears unread across every folder and tag — not just what you can see here.',
+                  confirmLabel: 'Mark all read',
+                },
+                () => markAllReadMut.mutate(),
+              );
             }}
             disabled={markAllReadMut.isPending}
             title="Mark all read (entire mailbox)"

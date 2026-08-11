@@ -25,6 +25,7 @@ import {
 import { cn, formatDateTime } from '../../lib/utils';
 import { API_URL } from '../../lib/constants';
 import { PageHeader } from '../../components/shared/PageHeader';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
 
 const ALL_EVENTS = Object.values(WebhookEventType) as WebhookEventType[];
@@ -51,6 +52,7 @@ function tabFromUrl(): Tab {
 }
 
 export function DeveloperPage() {
+  const confirm = useConfirm();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>(tabFromUrl);
 
@@ -450,11 +452,14 @@ export function DeveloperPage() {
                       Test
                     </button>
                     <button
-                      onClick={() => {
-                        if (confirm(`Regenerate the signing secret for "${ep.label}"? Any receiver still checking the old signature will start failing verification until updated.`)) {
-                          regenerateSecretMutation.mutate(ep.id);
-                        }
-                      }}
+                      onClick={() => confirm(
+                        {
+                          title: `Regenerate the signing secret for "${ep.label}"?`,
+                          body: 'Any receiver still checking the old signature starts failing verification until you update it there too.',
+                          confirmLabel: 'Regenerate',
+                        },
+                        () => regenerateSecretMutation.mutate(ep.id),
+                      )}
                       disabled={regenerateSecretMutation.isPending}
                       className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[11px] font-medium bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50"
                     >
@@ -464,7 +469,10 @@ export function DeveloperPage() {
                       <Clock className="h-3 w-3" /> Logs
                     </button>
                     <button
-                      onClick={() => { if (confirm(`Delete the webhook endpoint "${ep.label}"? This cannot be undone.`)) deleteEndpointMutation.mutate(ep.id); }}
+                      onClick={() => confirm(
+                        { title: `Delete the endpoint "${ep.label}"?`, body: 'Sincerely stops posting events to it. Its delivery log goes too.', tone: 'danger' },
+                        () => deleteEndpointMutation.mutate(ep.id),
+                      )}
                       className="icon-btn hover:text-rose-500 hover:bg-rose-500/10"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -721,15 +729,14 @@ export function DeveloperPage() {
                     )}
                   </div>
                   <button
-                    onClick={() => {
-                      if (
-                        confirm(
-                          `Issue a new secret for "${key.name}"?\n\nThe current one stops working immediately. Use this when the key was never copied, or may have leaked.`
-                        )
-                      ) {
-                        rotateKeyMutation.mutate(key.id);
-                      }
-                    }}
+                    onClick={() => confirm(
+                      {
+                        title: `Issue a new secret for "${key.name}"?`,
+                        body: 'The current one stops working immediately. Use this when the key was never copied, or may have leaked.',
+                        confirmLabel: 'Issue new secret',
+                      },
+                      () => rotateKeyMutation.mutate(key.id),
+                    )}
                     disabled={rotateKeyMutation.isPending}
                     className="p-1.5 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-xs flex items-center gap-1 disabled:opacity-50"
                     title="The stored key is hashed and cannot be shown again — this issues a fresh one"
@@ -738,14 +745,20 @@ export function DeveloperPage() {
                   </button>
                   {key.is_active && (
                     <button
-                      onClick={() => { if (confirm(`Revoke the API key "${key.name}"? Anything using it will stop working immediately.`)) revokeKeyMutation.mutate(key.id); }}
+                      onClick={() => confirm(
+                        { title: `Revoke "${key.name}"?`, body: 'Anything still authenticating with this key stops working immediately.', tone: 'danger', confirmLabel: 'Revoke' },
+                        () => revokeKeyMutation.mutate(key.id),
+                      )}
                       className="p-1.5 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-xs flex items-center gap-1"
                     >
                       <Shield className="h-3 w-3" /> Revoke
                     </button>
                   )}
                   <button
-                    onClick={() => { if (confirm(`Delete the API key "${key.name}"? This cannot be undone.`)) deleteKeyMutation.mutate(key.id); }}
+                    onClick={() => confirm(
+                      { title: `Delete "${key.name}"?`, body: 'The key record and its usage history are removed for good.', tone: 'danger' },
+                      () => deleteKeyMutation.mutate(key.id),
+                    )}
                     className="p-1.5 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                   >
                     <Trash2 className="h-3.5 w-3.5" />

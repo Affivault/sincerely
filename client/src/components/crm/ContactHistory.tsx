@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { crmApi } from '../../api/crm.api';
 import { Checkbox } from '../ui/Checkbox';
+import { useConfirm } from '../ui/ConfirmDialog';
 import { QuickCompose } from '../shared/QuickCompose';
 import { EmailBody } from '../shared/EmailBody';
 import { cn } from '../../lib/utils';
@@ -256,6 +257,7 @@ export function ContactHistory({
   /** Campaign send/open/click/reply events. */
   campaignActivity: any[];
 }) {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const [noteDraft, setNoteDraft] = useState('');
   const [activityModal, setActivityModal] = useState<Partial<CrmTask> | null>(null);
@@ -695,7 +697,10 @@ export function ContactHistory({
                             <Pin className="h-3 w-3" /> {e.note.pinned ? 'Unpin' : 'Pin'}
                           </button>
                           <button
-                            onClick={() => { if (confirm('Delete this note?')) removeNote.mutate(e.note!.id); }}
+                            onClick={() => confirm(
+                              { title: 'Delete this note?', tone: 'danger' },
+                              () => removeNote.mutate(e.note!.id),
+                            )}
                             className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--error)]"
                           >
                             <Trash2 className="h-3 w-3" /> Delete

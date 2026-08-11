@@ -7,6 +7,7 @@ import { SkeletonList } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { Card } from '../../components/shared/Card';
 import { cn } from '../../lib/utils';
@@ -157,6 +158,7 @@ type Tab = 'mailboxes' | 'domains' | 'warmup';
 const VALID_TABS: Tab[] = ['mailboxes', 'domains', 'warmup'];
 
 export function EmailAccountsPage() {
+  const confirm = useConfirm();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   // Lets other pages (e.g. the Toolkit's Warm-up card) link straight to a
@@ -452,7 +454,14 @@ export function EmailAccountsPage() {
                           <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                             <button onClick={() => testMutation.mutate(account.id)} disabled={testingId === account.id} className="icon-btn h-7 px-2 text-[11.5px]" title="Test connection"><TestTube className="h-3 w-3" /> {testingId === account.id ? 'Testing…' : 'Test'}</button>
                             <button onClick={() => openEdit(account)} className="icon-btn h-7 w-7" title="Edit"><Settings className="h-3 w-3" /></button>
-                            <button onClick={() => { if (confirm(`Remove ${account.email_address}?`)) deleteMutation.mutate(account.id); }} className="icon-btn h-7 w-7 hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]" title="Remove"><Trash2 className="h-3 w-3" /></button>
+                            <button
+                              onClick={() => confirm(
+                                { title: `Disconnect ${account.email_address}?`, body: 'Campaigns sending from this mailbox will stop until you connect it again.', tone: 'danger', confirmLabel: 'Disconnect' },
+                                () => deleteMutation.mutate(account.id),
+                              )}
+                              className="icon-btn h-7 w-7 hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
+                              title="Remove"
+                            ><Trash2 className="h-3 w-3" /></button>
                           </div>
                         </td>
                       </tr>
@@ -510,7 +519,16 @@ export function EmailAccountsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <button onClick={(e) => { e.stopPropagation(); if (confirm(`Remove ${domain.domain}?`)) deleteDomainMutation.mutate(domain.id); }} className="icon-btn h-7 w-7 hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"><Trash2 className="h-3 w-3" /></button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          confirm(
+                            { title: `Remove ${domain.domain}?`, body: 'Sincerely stops tracking its DNS records. The records themselves stay at your registrar.', tone: 'danger', confirmLabel: 'Remove' },
+                            () => deleteDomainMutation.mutate(domain.id),
+                          );
+                        }}
+                        className="icon-btn h-7 w-7 hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
+                      ><Trash2 className="h-3 w-3" /></button>
                       {expanded ? <ChevronDown className="h-4 w-4 text-[var(--text-tertiary)]" /> : <ChevronRight className="h-4 w-4 text-[var(--text-tertiary)]" />}
                     </div>
                   </button>

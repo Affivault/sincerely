@@ -5,6 +5,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { SettingsShell } from '../../components/shared/SettingsShell';
 import { Avatar } from '../../components/shared/Avatar';
@@ -44,6 +45,7 @@ function RoleBadge({ role }: { role: string }) {
 }
 
 export function TeamPage() {
+  const confirm = useConfirm();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -267,7 +269,10 @@ export function TeamPage() {
                     )}
                     {isOwner && !isSelf && member.role !== 'owner' && (
                       <button
-                        onClick={() => { if (confirm(`Remove ${member.email}?`)) removeMemberMut.mutate(member.id); }}
+                        onClick={() => confirm(
+                          { title: `Remove ${member.email}?`, body: 'They lose access to this workspace immediately. Their campaigns and mailboxes stay.', tone: 'danger', confirmLabel: 'Remove' },
+                          () => removeMemberMut.mutate(member.id),
+                        )}
                         className="icon-btn hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
                         title="Remove member"
                       >

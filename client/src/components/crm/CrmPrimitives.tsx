@@ -5,6 +5,7 @@ import { contactsApi } from '../../api/contacts.api';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
+import { useConfirm } from '../ui/ConfirmDialog';
 import { Avatar } from '../shared/Avatar';
 import { cn } from '../../lib/utils';
 import {
@@ -224,6 +225,7 @@ export function ActivityModal({
   defaults?: Partial<CrmTask>;
   onClose: () => void;
 }) {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const editing = !!task?.id;
   const seed = { ...defaults, ...(task || {}) } as Partial<CrmTask>;
@@ -283,7 +285,10 @@ export function ActivityModal({
         <div className="flex items-center justify-between w-full">
           {editing ? (
             <button
-              onClick={() => { if (confirm('Delete this activity?')) remove.mutate(); }}
+              onClick={() => confirm(
+                { title: 'Delete this activity?', body: 'It disappears from the contact’s history and from your task list.', tone: 'danger' },
+                () => remove.mutate(),
+              )}
               className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[var(--error)] hover:underline"
             >
               <Trash2 className="h-3.5 w-3.5" /> Delete
@@ -388,6 +393,7 @@ export function MeetingModal({
   defaults?: Partial<CrmEvent>;
   onClose: () => void;
 }) {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const editing = !!event?.id;
   const seed = { ...defaults, ...(event || {}) } as Partial<CrmEvent>;
@@ -456,7 +462,10 @@ export function MeetingModal({
         <div className="flex items-center justify-between w-full">
           {editing ? (
             <button
-              onClick={() => { if (confirm('Delete this meeting?')) remove.mutate(); }}
+              onClick={() => confirm(
+                { title: 'Delete this meeting?', body: 'It is removed from your calendar and from the contact’s history.', tone: 'danger' },
+                () => remove.mutate(),
+              )}
               className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[var(--error)] hover:underline"
             >
               <Trash2 className="h-3.5 w-3.5" /> Delete

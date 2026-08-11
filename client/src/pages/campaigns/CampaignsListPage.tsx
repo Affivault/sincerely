@@ -10,6 +10,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { PageHeader } from '../../components/shared/PageHeader';
@@ -55,6 +56,7 @@ const STATUS_TABS = [
 const FOLDER_COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EC4899', '#06B6D4', '#8B5CF6', '#EF4444', '#84CC16'];
 
 export function CampaignsListPage() {
+  const confirm = useConfirm();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
@@ -63,7 +65,7 @@ export function CampaignsListPage() {
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [editingFolder, setEditingFolder] = useState<CampaignFolder | null>(null);
   const [folderAnalyticsId, setFolderAnalyticsId] = useState<string | null>(null);
-  const [contextMenuFor, setContextMenuFor] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [contextMenuFor, setContextMenuFor] = useState<{ id: string; name: string; x: number; y: number } | null>(null);
   const [showStartChooser, setShowStartChooser] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [draggingCampaignId, setDraggingCampaignId] = useState<string | null>(null);
@@ -449,7 +451,7 @@ export function CampaignsListPage() {
                           pauseBusy={pauseMut.isPending && pauseMut.variables === campaign.id}
                           resumeBusy={resumeMut.isPending && resumeMut.variables === campaign.id}
                           onEdit={()   => navigate(`/campaigns/${campaign.id}/edit`)}
-                          onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setContextMenuFor({ id: campaign.id, x: e.clientX, y: e.clientY }); }}
+                          onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setContextMenuFor({ id: campaign.id, name: campaign.name, x: e.clientX, y: e.clientY }); }}
                           dragging={draggingCampaignId === campaign.id}
                           onDragStart={() => setDraggingCampaignId(campaign.id)}
                           onDragEnd={() => { setDraggingCampaignId(null); setDropFolderKey(null); }}
@@ -506,7 +508,10 @@ export function CampaignsListPage() {
             <Copy className="h-3.5 w-3.5" /> Duplicate
           </button>
           <button
-            onClick={() => { if (confirm('Delete this campaign?')) { deleteMut.mutate(contextMenuFor.id); setContextMenuFor(null); } }}
+            onClick={() => confirm(
+              { title: `Delete "${contextMenuFor.name}"?`, body: 'The sequence, its schedule and its stats go with it. Contacts stay in their lists.', tone: 'danger' },
+              () => { deleteMut.mutate(contextMenuFor.id); setContextMenuFor(null); },
+            )}
             className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-2"
           >
             <Trash2 className="h-3.5 w-3.5" /> Delete
@@ -931,6 +936,7 @@ function ConfigItem({ icon: Icon, label, value }: { icon: any; label: string; va
 /* ─── Folder modal ──────────────────────────────────────────────── */
 
 function FolderModal({ initial, parentId, parentName, onClose }: { initial: CampaignFolder | null; parentId?: string | null; parentName?: string; onClose: () => void }) {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const [name, setName] = useState(initial?.name || '');
   const [color, setColor] = useState(initial?.color || FOLDER_COLORS[0]);
@@ -960,7 +966,10 @@ function FolderModal({ initial, parentId, parentName, onClose }: { initial: Camp
         <div className="flex items-center justify-between w-full">
           {initial ? (
             <button
-              onClick={() => { if (confirm(`Delete folder "${initial.name}"? Campaigns inside will not be deleted.`)) deleteMut.mutate(); }}
+              onClick={() => confirm(
+                { title: `Delete the folder "${initial.name}"?`, body: 'The campaigns inside are kept — they move back out to the top level.', tone: 'danger', confirmLabel: 'Delete folder' },
+                () => deleteMut.mutate(),
+              )}
               className="text-[12px] font-medium text-[var(--error)] hover:underline"
             >
               Delete folder

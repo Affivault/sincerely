@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { integrationsApi } from '../../api/integrations.api';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import {
   INTEGRATION_CATALOG,
   type IntegrationProviderMeta,
@@ -333,6 +334,7 @@ function ProviderModal({
   onOAuthStart: () => void;
   onClose: () => void;
 }) {
+  const confirm = useConfirm();
   const queryClient = useQueryClient();
   const [config, setConfig] = useState<Record<string, string>>(() => {
     // Toggles start from the stored value (default on).
@@ -678,9 +680,15 @@ function ProviderModal({
               </button>
               <button
                 onClick={() => {
-                  if (window.confirm(`Disconnect ${meta.name}? Its credentials will be deleted.`)) {
-                    disconnectMutation.mutate();
-                  }
+                  confirm(
+                    {
+                      title: `Disconnect ${meta.name}?`,
+                      body: 'Its stored credentials are deleted. Anything Sincerely pushes there stops until you reconnect.',
+                      tone: 'danger',
+                      confirmLabel: 'Disconnect',
+                    },
+                    () => disconnectMutation.mutate(),
+                  );
                 }}
                 disabled={disconnectMutation.isPending}
                 className="ml-auto inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-[12px] font-medium text-[#dc2626] hover:bg-[rgba(220,38,38,0.06)] transition-all disabled:opacity-50"

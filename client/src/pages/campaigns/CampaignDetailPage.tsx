@@ -6,6 +6,7 @@ import { analyticsApi } from '../../api/analytics.api';
 import { Spinner } from '../../components/ui/Spinner';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { StatCard } from '../../components/shared/StatCard';
 import { Avatar } from '../../components/shared/Avatar';
@@ -45,6 +46,7 @@ import type { CampaignStep } from '@lemlist/shared';
 type TabId = 'overview' | 'sequence' | 'contacts';
 
 export function CampaignDetailPage() {
+  const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -252,7 +254,10 @@ export function CampaignDetailPage() {
           )}
           {(campaign.status === 'draft' || campaign.status === 'completed' || campaign.status === 'cancelled') && (
             <button
-              onClick={() => { if (confirm('Delete this campaign permanently?')) deleteMutation.mutate(); }}
+              onClick={() => confirm(
+                { title: 'Delete this campaign?', body: 'The sequence, its schedule and its stats go with it. Contacts stay in their lists.', tone: 'danger' },
+                () => deleteMutation.mutate(),
+              )}
               disabled={deleteMutation.isPending}
               className="icon-btn hover:text-rose-500 hover:bg-rose-500/10 disabled:opacity-50 disabled:pointer-events-none"
               title="Delete"

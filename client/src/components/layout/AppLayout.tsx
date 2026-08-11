@@ -7,6 +7,7 @@ import { UpgradeNag } from '../UpgradeNag';
 import { CommandPalette } from '../CommandPalette';
 import { PeekDrawer } from '../peek/PeekDrawer';
 import { ShortcutsOverlay } from '../ShortcutsOverlay';
+import { ConfirmProvider } from '../ui/ConfirmDialog';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { SidebarProvider, useSidebar } from '../../context/SidebarContext';
 import { CommandPaletteProvider, useCommandPalette } from '../../context/CommandPaletteContext';
@@ -230,7 +231,9 @@ export function AppLayout() {
     <ThemeProvider>
       <SidebarProvider>
         <CommandPaletteProvider>
-          <AppContent />
+          <ConfirmProvider>
+            <AppContent />
+          </ConfirmProvider>
         </CommandPaletteProvider>
       </SidebarProvider>
     </ThemeProvider>
