@@ -28,6 +28,17 @@ apiClient.interceptors.request.use(async (config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
+    /*
+     * Fold the server's reference id into the message the UI will show.
+     * Failures that can't be explained get one, and it is the only thing that
+     * ties what someone saw on screen to the line in the server log — without
+     * it, "it didn't work" is where diagnosis starts and usually ends.
+     */
+    const payload = error.response?.data;
+    if (payload?.ref && typeof payload.error === 'string' && !payload.error.includes(payload.ref)) {
+      payload.error = `${payload.error} (ref ${payload.ref})`;
+    }
+
     // Plan-limit hit — pop the upgrade modal.
     if (error.response?.status === 403 && error.response?.data?.code === 'UPGRADE_REQUIRED') {
       notifyUpgrade(error.response.data.error);
