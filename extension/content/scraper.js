@@ -265,6 +265,45 @@
     return match ? decodeURIComponent(match[1]) : null;
   }
 
+  /** Page names that are not people, however name-shaped they look. */
+  const PAGE_TITLE_NOISE =
+    /^(contact info|feed|messaging|notifications|my network|jobs|search|linkedin|home|sign ?up|log ?in)$/i;
+
+  /**
+   * The profile's name, taken from the document title.
+   *
+   * The last line of defence, and the only one that survives the deep read:
+   * opening Contact info pushes a new route, LinkedIn re-renders, and the
+   * profile heading leaves the DOM entirely — but the tab still says who this
+   * is. Without this, a profile whose first read happened while the overlay
+   * was already open had no name available anywhere.
+   *
+   * Conservative by design. Anything that doesn't look like a person's name is
+   * rejected rather than guessed at: a wrong name is worse than none.
+   *
+   * @param {string} [title]
+   * @returns {string}
+   */
+  function nameFromDocumentTitle(title = document.title) {
+    let t = String(title || '')
+      .replace(/^\(\d+\+?\)\s*/, '')            // "(20) " unread badge
+      .replace(/\s*[|·]\s*LinkedIn\s*$/i, '')
+      .trim();
+    // Older titles read "Name - Title - Company".
+    if (t.includes(' - ')) t = t.split(' - ')[0].trim();
+
+    if (!t || t.length > 60) return '';
+    if (PAGE_TITLE_NOISE.test(t)) return '';
+    if (/[@\/]|https?:/i.test(t)) return '';
+
+    const words = t.split(/\s+/);
+    if (words.length < 2 || words.length > 5) return '';
+    // Every word starts with a letter — \p{L}, not \w, so "Björn Åkesson"
+    // and non-Latin names are not thrown away.
+    if (!words.every((w) => /^\p{L}/u.test(w))) return '';
+    return t;
+  }
+
   /**
    * Who this profile is, remembered across reads.
    *
@@ -898,8 +937,12 @@
   let ambientPath = null;
 
   function ambientEmailSnapshot() {
-    if (ambientEmails && ambientPath === location.pathname) return ambientEmails;
-    ambientPath = location.pathname;
+    // Keyed on the profile, not the path: the deep read pushes an overlay route
+    // onto the same person, and re-snapshotting there would capture the
+    // address LinkedIn had just fetched and then subtract it as "ambient".
+    const key = linkedInPublicId() || location.pathname;
+    if (ambientEmails && ambientPath === key) return ambientEmails;
+    ambientPath = key;
     ambientEmails = new Set(scanEmbeddedPayloads());
     return ambientEmails;
   }
@@ -1261,7 +1304,8 @@
      * lead the moment its email was found.
      */
     const identity = rememberIdentity(publicId, {
-      name: rawName,
+      // The title is the fallback that outlives the overlay.
+      name: rawName || nameFromDocumentTitle(),
       headline: rawHeadline,
       company: rawCompany,
       jobTitle: rawJobTitle,
@@ -1317,7 +1361,12 @@
       company: company || null,
       company_domain: companyDomain,
       job_title: jobTitle || null,
-      linkedin_url: `${location.origin}${location.pathname}`.replace(/\/$/, ''),
+      /*
+       * Built from the slug, never from the live path. The deep read pushes
+       * /in/<id>/overlay/contact-info/ before reading, so anything taken from
+       * location at that moment saved a URL that is not the person's profile.
+       */
+      linkedin_url: `${location.origin}/in/${encodeURIComponent(publicId)}`,
       source: 'linkedin',
       source_url: location.href,
       contact_info_pending: pendingContactInfo,
