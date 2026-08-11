@@ -8,7 +8,7 @@ import * as sse from './sse.service.js';
 import { nowInTimezone, partsInTimezone, startOfDayInTimezone, tzWallTimeToUtc } from '../utils/timezone.js';
 import { renderMergeTags, personalize, previewPersonalization, SENDER_TAGS, LINK_TAGS } from '@lemlist/shared';
 import { settingsService } from './settings.service.js';
-import { isLinkedinStep } from '@lemlist/shared';
+import { isLinkedinStep, inferTimezone } from '@lemlist/shared';
 
 /**
  * Sequence Engine Service
@@ -25,10 +25,30 @@ import { isLinkedinStep } from '@lemlist/shared';
 // ============================================
 
 /**
- * Check if current time is within the campaign's send window and active days.
+ * Which clock this contact's send window is measured against.
+ *
+ * `campaign_contacts.contact_timezone` has been in the schema since the first
+ * migration and was read by nothing, so every campaign has always sent on the
+ * *sender's* clock — a London-configured 09:00–17:00 window reaching a San
+ * Francisco prospect at one in the morning. When the campaign opts in and we
+ * managed to place the contact, their own zone is used instead.
+ *
+ * Falling back to the campaign timezone matters: a contact we can't place is
+ * no worse off than before, whereas guessing at one would be worse.
  */
-function isWithinSendWindow(campaign: any): boolean {
-  const tz = campaign.timezone || 'UTC';
+function effectiveTimezone(campaign: any, campaignContact?: any): string {
+  if (campaign?.send_in_recipient_timezone && campaignContact?.contact_timezone) {
+    return campaignContact.contact_timezone;
+  }
+  return campaign?.timezone || 'UTC';
+}
+
+/**
+ * Check if current time is within the send window and active days, on
+ * whichever clock applies to this contact.
+ */
+function isWithinSendWindow(campaign: any, campaignContact?: any): boolean {
+  const tz = effectiveTimezone(campaign, campaignContact);
   const now = nowInTimezone(tz);
 
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -54,8 +74,8 @@ function isWithinSendWindow(campaign: any): boolean {
  * Calculate when the next valid send window opens (in real UTC time).
  * Looks up to 7 days ahead to find the next active day + window start.
  */
-function getNextSendWindowStart(campaign: any): Date {
-  const tz = campaign.timezone || 'UTC';
+function getNextSendWindowStart(campaign: any, campaignContact?: any): Date {
+  const tz = effectiveTimezone(campaign, campaignContact);
   const now = nowInTimezone(tz);
 
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -115,6 +135,33 @@ async function refundCampaignDailySend(campaignId: string, periodStart: Date): P
   if (error) {
     console.error(`[Sequence] Failed to refund daily send for campaign ${campaignId}:`, error.message);
   }
+}
+
+/**
+ * Work out and store a contact's timezone, once.
+ *
+ * Written to campaign_contacts rather than contacts because a contact's
+ * placement is a property of this enrolment: re-importing a lead list with a
+ * better `location` should improve the next campaign without silently moving
+ * the send times of one already in flight.
+ *
+ * Returns null when the location is missing or too vague to place, and stores
+ * nothing — so the next attempt tries again, which is what you want after a
+ * list is enriched.
+ */
+async function ensureContactTimezone(campaignContactId: string, contact: any): Promise<string | null> {
+  const zone = inferTimezone(contact?.location);
+  if (!zone) return null;
+  const { error } = await supabaseAdmin
+    .from('campaign_contacts')
+    .update({ contact_timezone: zone })
+    .eq('id', campaignContactId);
+  if (error) {
+    // A pre-042 database has no column to write to. Use the zone for this
+    // send anyway rather than falling back to the sender's clock.
+    console.warn(`[Sequence] Could not store contact_timezone for ${campaignContactId}: ${error.message}`);
+  }
+  return zone;
 }
 
 // ============================================
@@ -188,10 +235,16 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
     return;
   }
 
+  // Place the contact on first use, so a campaign switched on mid-flight
+  // starts honouring local time without needing its audience re-imported.
+  if (cc.campaigns?.send_in_recipient_timezone && cc.contact_timezone === null) {
+    cc.contact_timezone = await ensureContactTimezone(cc.id, cc.contacts);
+  }
+
   // Check send window (skip if outside active hours/days)
-  if (!isWithinSendWindow(cc.campaigns)) {
+  if (!isWithinSendWindow(cc.campaigns, cc)) {
     // Reschedule to the start of the next valid send window
-    const nextWindow = getNextSendWindowStart(cc.campaigns);
+    const nextWindow = getNextSendWindowStart(cc.campaigns, cc);
     await supabaseAdmin
       .from('campaign_contacts')
       .update({ next_send_at: nextWindow.toISOString() })
@@ -344,14 +397,16 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
   const ownerId: string | undefined = cc.campaigns?.user_id;
 
   // Per-campaign daily send limit — atomically reserve a slot (see
-  // reserveCampaignDailySend above). Uses the campaign's timezone so "today"
-  // matches the sender's business day.
+  // reserveCampaignDailySend above). Deliberately the *campaign's* timezone
+  // even when the send window follows the recipient's: a daily cap is the
+  // sender's quota, so its day has to roll over once, on the sender's clock.
+  // Per-recipient days would reset the same cap at two dozen different hours.
   const dailyLimit = cc.campaigns?.daily_limit || 0;
   const dailyPeriodStart = startOfDayInTimezone(cc.campaigns?.timezone || 'UTC');
   if (dailyLimit > 0 && !(await reserveCampaignDailySend(cc.campaign_id, dailyPeriodStart, dailyLimit))) {
     // Reschedule to next send window so the sequence worker doesn't re-pick
     // this contact every 30 seconds until midnight.
-    const nextWindow = getNextSendWindowStart(cc.campaigns);
+    const nextWindow = getNextSendWindowStart(cc.campaigns, cc);
     await supabaseAdmin
       .from('campaign_contacts')
       .update({ next_send_at: nextWindow.toISOString() })

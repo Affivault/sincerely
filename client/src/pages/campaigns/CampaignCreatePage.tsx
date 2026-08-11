@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
-import { PersonalizationPanel, countGaps } from '../../components/campaigns/PersonalizationPanel';
+import { PersonalizationPanel, TimezoneCoverageNote, countGaps, shouldPauseLaunch } from '../../components/campaigns/PersonalizationPanel';
 import { previewPersonalization, countSpinVariants } from '@lemlist/shared';
 import { smtpApi } from '../../api/smtp.api';
 import { contactsApi, listsApi } from '../../api/contacts.api';
@@ -28,6 +28,7 @@ import {
   RotateCcw, Plus, FolderOpen, ListPlus, Sparkles, Loader2, X, Timer,
   Zap, FileText, TrendingUp, ShieldCheck, Brain, Wand2, CalendarClock,
   Trophy,
+  Globe,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { StepType } from '@lemlist/shared';
@@ -184,6 +185,7 @@ export function CampaignCreatePage() {
     delay_between_emails_max: 200,
     stop_on_reply: true,
     ab_auto_promote: false,
+    send_in_recipient_timezone: false,
     track_opens: true,
     track_clicks: true,
     include_unsubscribe: false,
@@ -407,6 +409,7 @@ export function CampaignCreatePage() {
           200,
         stop_on_reply: existingCampaign.stop_on_reply ?? true,
         ab_auto_promote: existingCampaign.ab_auto_promote ?? false,
+        send_in_recipient_timezone: existingCampaign.send_in_recipient_timezone ?? false,
         track_opens: existingCampaign.track_opens ?? true,
         track_clicks: existingCampaign.track_clicks ?? true,
         include_unsubscribe: existingCampaign.include_unsubscribe ?? false,
@@ -672,7 +675,7 @@ export function CampaignCreatePage() {
     // it is advice, not a gate.
     try {
       const audit = await campaignsApi.personalization(campaignId);
-      if (countGaps(audit) > 0) {
+      if (shouldPauseLaunch(audit, campaignForm.send_in_recipient_timezone === true)) {
         setPendingAudit({ audit, campaignId, scheduledIso });
         setLaunching(false);
         return;
@@ -1289,6 +1292,13 @@ export function CampaignCreatePage() {
                     label="Stop on reply"
                     description="Pause sending when a contact replies"
                     icon={MessageSquare}
+                  />
+                  <ToggleSwitch
+                    checked={campaignForm.send_in_recipient_timezone === true}
+                    onChange={(v) => setCampaignForm({ ...campaignForm, send_in_recipient_timezone: v })}
+                    label="Use each recipient's local time"
+                    description="Your sending window follows their clock, not yours"
+                    icon={Globe}
                   />
                   <ToggleSwitch
                     checked={campaignForm.ab_auto_promote === true}
@@ -2121,8 +2131,8 @@ export function CampaignCreatePage() {
                 <Modal
                   isOpen={!!pendingAudit}
                   onClose={() => setPendingAudit(null)}
-                  title="Some contacts are missing details your copy uses"
-                  description="Those emails will send with a gap where the value should be."
+                  title="Worth a look before this goes out"
+                  description="Nothing here blocks the launch — it just isn’t worth finding out afterwards."
                   size="lg"
                   footer={
                     <div className="flex items-center justify-between w-full gap-2">
@@ -2147,11 +2157,16 @@ export function CampaignCreatePage() {
                 >
                   {pendingAudit && (
                     <div className="space-y-3">
-                      <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed">
-                        Give a tag a fallback — <code className="text-[var(--text-primary)]">{'{{first_name | there}}'}</code> —
-                        and contacts without a value get the fallback instead of a blank.
-                      </p>
+                      {countGaps(pendingAudit.audit) > 0 && (
+                        <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed">
+                          Give a tag a fallback — <code className="text-[var(--text-primary)]">{'{{first_name | there}}'}</code> —
+                          and contacts without a value get the fallback instead of a blank.
+                        </p>
+                      )}
                       <PersonalizationPanel audit={pendingAudit.audit} emptyHint={false} />
+                      {campaignForm.send_in_recipient_timezone && (
+                        <TimezoneCoverageNote coverage={pendingAudit.audit.timezone_coverage} />
+                      )}
                     </div>
                   )}
                 </Modal>

@@ -22,6 +22,8 @@ export interface Campaign {
   stop_on_reply: boolean;
   /** End an A/B test on its own once a variant wins significantly. */
   ab_auto_promote: boolean;
+  /** Measure the send window against each recipient's own clock. */
+  send_in_recipient_timezone: boolean;
   track_opens: boolean;
   track_clicks: boolean;
   include_unsubscribe: boolean;
@@ -106,6 +108,7 @@ export interface CreateCampaignInput {
   delay_between_emails_max?: number;
   stop_on_reply?: boolean;
   ab_auto_promote?: boolean;
+  send_in_recipient_timezone?: boolean;
   track_opens?: boolean;
   track_clicks?: boolean;
   include_unsubscribe?: boolean;
@@ -154,7 +157,15 @@ export interface PersonalizationTag {
   total: number;
 }
 
+/** How much of an audience could be placed on a clock of its own. */
+export interface TimezoneCoverage {
+  placed: number;
+  total: number;
+}
+
 export interface PersonalizationAudit {
   total_contacts: number;
   tags: PersonalizationTag[];
+  /** null when the database predates migration 042. */
+  timezone_coverage?: TimezoneCoverage | null;
 }

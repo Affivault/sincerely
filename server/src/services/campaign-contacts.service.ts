@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { inferTimezone } from '@lemlist/shared';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 
 export const campaignContactsService = {
@@ -103,18 +104,43 @@ export const campaignContactsService = {
     const newIds = finalIds.filter((id) => !alreadyEnrolledIds.has(id));
 
     if (newIds.length > 0) {
+      // Place each contact on a clock at enrolment, so the campaign page can
+      // say how much of the audience it can reach in local time *before* the
+      // campaign runs, rather than discovering the coverage one send at a time.
+      // Contacts it can't place are left null and fall back to the campaign's
+      // own timezone, exactly as they did before this existed.
+      const { data: locations } = await supabaseAdmin
+        .from('contacts')
+        .select('id, location')
+        .in('id', newIds);
+      const zoneByContact = new Map<string, string | null>(
+        (locations || []).map((c: any) => [c.id, inferTimezone(c.location)]),
+      );
+
       const rows = newIds.map((contactId) => ({
         campaign_id: campaignId,
         contact_id: contactId,
         status: 'pending',
         current_step_order: 0,
+        contact_timezone: zoneByContact.get(contactId) ?? null,
       }));
 
       const { error } = await supabaseAdmin
         .from('campaign_contacts')
         .insert(rows);
 
-      if (error) throw new AppError(error.message, 500);
+      if (error) {
+        // Pre-042 databases have no contact_timezone column. Enrolling people
+        // matters more than placing them — retry without it.
+        if (/contact_timezone/.test(error.message)) {
+          const { error: retryError } = await supabaseAdmin
+            .from('campaign_contacts')
+            .insert(rows.map(({ contact_timezone, ...rest }) => rest));
+          if (retryError) throw new AppError(retryError.message, 500);
+        } else {
+          throw new AppError(error.message, 500);
+        }
+      }
     }
 
     // Update campaign total_contacts

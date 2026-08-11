@@ -5,7 +5,7 @@ import { fireEvent } from './webhook.service.js';
 import { processDueSteps } from './sequence.service.js';
 import { settingsService } from './settings.service.js';
 import { extractTags, TAG_LABELS, TAG_SOURCE_FIELD, SENDER_TAGS, LINK_TAGS } from '@lemlist/shared';
-import type { PersonalizationAudit, PersonalizationTag } from '@lemlist/shared';
+import type { PersonalizationAudit, PersonalizationTag, TimezoneCoverage } from '@lemlist/shared';
 
 /**
  * Columns a client may write to a campaign.
@@ -22,7 +22,7 @@ const UPDATABLE_CAMPAIGN_FIELDS = new Set([
   'send_window_start', 'send_window_end', 'send_days',
   'dcs_threshold', 'daily_limit',
   'delay_between_emails', 'delay_between_emails_min', 'delay_between_emails_max',
-  'stop_on_reply', 'ab_auto_promote', 'track_opens', 'track_clicks', 'include_unsubscribe',
+  'stop_on_reply', 'ab_auto_promote', 'send_in_recipient_timezone', 'track_opens', 'track_clicks', 'include_unsubscribe',
 ]);
 
 /** `status` is lifecycle, driven by launch/pause/resume — never by a form post. */
@@ -273,7 +273,11 @@ export const campaignsService = {
         .from('campaign_contacts')
         .select('*', { count: 'exact', head: true })
         .eq('campaign_id', id);
-      return { total_contacts: count || 0, tags: [] };
+      return {
+        total_contacts: count || 0,
+        tags: [],
+        timezone_coverage: await this.timezoneCoverage(id, count || 0),
+      };
     }
 
     // Sender tags are answered by the account, not the audience — one check
@@ -357,7 +361,39 @@ export const campaignsService = {
 
     // Worst gaps first — that's the order someone wants to read them in.
     tags.sort((a, b) => (b.missing / Math.max(b.total, 1)) - (a.missing / Math.max(a.total, 1)));
-    return { total_contacts: totalContacts, tags };
+    return {
+      total_contacts: totalContacts,
+      tags,
+      timezone_coverage: await this.timezoneCoverage(id, totalContacts),
+    };
+  },
+
+  /**
+   * How many of a campaign's contacts we could place on a clock.
+   *
+   * Only meaningful once the campaign opts into local-time sending, but
+   * computed either way so the toggle can say what turning it on would buy
+   * — "612 of 800 placed" is the difference between a useful feature and one
+   * that quietly does nothing for three quarters of the list.
+   */
+  async timezoneCoverage(campaignId: string, totalContacts?: number): Promise<TimezoneCoverage | null> {
+    const { count: placed, error } = await supabaseAdmin
+      .from('campaign_contacts')
+      .select('*', { count: 'exact', head: true })
+      .eq('campaign_id', campaignId)
+      .not('contact_timezone', 'is', null);
+    // No column yet (pre-042) — report nothing rather than a misleading zero.
+    if (error) return null;
+
+    let total = totalContacts;
+    if (total === undefined) {
+      const { count } = await supabaseAdmin
+        .from('campaign_contacts')
+        .select('*', { count: 'exact', head: true })
+        .eq('campaign_id', campaignId);
+      total = count || 0;
+    }
+    return { placed: placed || 0, total };
   },
 
   /**

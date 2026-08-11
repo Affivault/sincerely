@@ -7,7 +7,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
-import { PersonalizationPanel } from '../../components/campaigns/PersonalizationPanel';
+import { PersonalizationPanel, TimezoneCoverageNote } from '../../components/campaigns/PersonalizationPanel';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { StatCard } from '../../components/shared/StatCard';
 import { Avatar } from '../../components/shared/Avatar';
@@ -381,6 +381,11 @@ export function CampaignDetailPage() {
                     </span>
                   </div>
                   <PersonalizationPanel audit={personalization} />
+                  {campaign.send_in_recipient_timezone && (
+                    <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                      <TimezoneCoverageNote coverage={personalization.timezone_coverage} />
+                    </div>
+                  )}
                 </div>
               )}
             </>

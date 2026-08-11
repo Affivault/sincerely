@@ -1,6 +1,6 @@
-import type { PersonalizationAudit, PersonalizationTag } from '@lemlist/shared';
+import type { PersonalizationAudit, PersonalizationTag, TimezoneCoverage } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
-import { AlertTriangle, Check, CircleSlash, Link2, User } from 'lucide-react';
+import { AlertTriangle, Check, CircleSlash, Globe, Link2, User } from 'lucide-react';
 
 /* ═══════════════════════════════════════════════════════════════════════
    What the copy asks for, and how much of the audience can answer it.
@@ -17,6 +17,26 @@ const NOTABLE_SHARE = 0.02;
 export function countGaps(audit: PersonalizationAudit | undefined): number {
   if (!audit) return 0;
   return audit.tags.filter(isGap).length;
+}
+
+/**
+ * Is there anything here worth stopping a launch to say?
+ *
+ * Merge-tag gaps, or — when the campaign asked to send in local time — an
+ * audience it can only place part of. The second matters because the feature
+ * silently does nothing for whoever it can't place, and finding that out
+ * after the send is finding it out too late.
+ */
+export function shouldPauseLaunch(
+  audit: PersonalizationAudit | undefined,
+  usesRecipientTimezone: boolean,
+): boolean {
+  if (!audit) return false;
+  if (countGaps(audit) > 0) return true;
+  if (!usesRecipientTimezone) return false;
+  const coverage = audit.timezone_coverage;
+  if (!coverage || coverage.total === 0) return false;
+  return (coverage.total - coverage.placed) / coverage.total > NOTABLE_SHARE;
 }
 
 function isGap(tag: PersonalizationTag): boolean {
@@ -47,6 +67,36 @@ function describe(tag: PersonalizationTag): string {
     return `${tag.missing.toLocaleString()} of ${tag.total.toLocaleString()} are missing it — those get your fallback text.`;
   }
   return `${tag.missing.toLocaleString()} of ${tag.total.toLocaleString()} are missing it — those emails send with a gap where it should be.`;
+}
+
+/**
+ * "612 of 800 placed" — how much of the audience local-time sending can
+ * actually reach on its own clock. Shown only when the campaign asked for
+ * it, and only when there's something to say: a fully-placed audience needs
+ * no reassurance, and an unmigrated database has nothing to report.
+ */
+export function TimezoneCoverageNote({ coverage }: { coverage?: TimezoneCoverage | null }) {
+  if (!coverage || coverage.total === 0) return null;
+  const unplaced = coverage.total - coverage.placed;
+  if (unplaced <= 0) {
+    return (
+      <p className="flex items-center gap-2 text-[11.5px] text-emerald-600 dark:text-emerald-400">
+        <Globe className="h-3.5 w-3.5 flex-shrink-0" />
+        All {coverage.total.toLocaleString()} contacts have a location we could place on a clock.
+      </p>
+    );
+  }
+  return (
+    <p className="flex items-start gap-2 text-[11.5px] text-[var(--text-secondary)] leading-snug">
+      <Globe className="h-3.5 w-3.5 flex-shrink-0 mt-px text-[var(--text-tertiary)]" />
+      <span>
+        <strong className="text-[var(--text-primary)]">{coverage.placed.toLocaleString()} of{' '}
+        {coverage.total.toLocaleString()}</strong> contacts have a location specific enough to place on
+        a clock. The other {unplaced.toLocaleString()} use the campaign’s own timezone, as they would
+        have anyway — add a city or country to their location to place them.
+      </span>
+    </p>
+  );
 }
 
 export function PersonalizationPanel({
