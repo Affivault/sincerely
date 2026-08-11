@@ -1077,11 +1077,24 @@ async function addToList() {
     return;
   }
 
-  const { added, contactCreated, alreadyOnList, listName, contactId } = response.data;
+  const { added, contactCreated, alreadyOnList, listName, contactId, enriched } = response.data;
+
+  // Field names as stored, turned into something worth reading.
+  const FIELD_LABEL = {
+    first_name: 'first name',
+    last_name: 'last name',
+    company: 'company',
+    job_title: 'job title',
+    linkedin_url: 'LinkedIn URL',
+  };
+  const filledIn = (enriched || []).map((key) => FIELD_LABEL[key] || key);
 
   if (added > 0 && !alreadyOnList) {
     const parts = [`Added to "${listName}".`];
     if (contactCreated) parts.push('New contact created.');
+    // Worth saying: re-adding somebody is how a thin record gets repaired,
+    // and silence would make it look like nothing happened.
+    else if (filledIn.length) parts.push(`Filled in their ${listWords(filledIn)}.`);
     setStatus(parts.join(' '), {
       variant: 'success',
       actions: [
@@ -2326,6 +2339,12 @@ function preferFilled(person) {
     out[key] = value;
   }
   return out;
+}
+
+/** ["a","b","c"] -> "a, b and c". */
+function listWords(items) {
+  if (items.length <= 1) return items[0] || '';
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
 async function deepenPerson(tabId) {

@@ -438,9 +438,60 @@ export async function createContact(person) {
  * @param {object} person
  * @returns {Promise<{contact: object, created: boolean}>}
  */
+/**
+ * Fields a scrape can supply that are worth filling in on a contact that
+ * already exists. Not `email` — that is the identity we looked them up by.
+ */
+const ENRICHABLE = ['first_name', 'last_name', 'company', 'job_title', 'linkedin_url'];
+
+/**
+ * What this scrape knows that the stored contact doesn't.
+ *
+ * Gaps only. A value already on the record wins, always: the user may have
+ * corrected a name by hand, and a scrape must never argue with that.
+ *
+ * @param {Record<string, any>} existing
+ * @param {Record<string, any>} person
+ * @returns {Record<string, string>}
+ */
+function fillableGaps(existing, person) {
+  const patch = {};
+  for (const key of ENRICHABLE) {
+    const have = String(existing?.[key] ?? '').trim();
+    const found = String(person?.[key] ?? '').trim();
+    if (!have && found) patch[key] = found;
+  }
+  return patch;
+}
+
+/** Update a contact in place. Only the keys given are touched. */
+export async function updateContact(id, patch) {
+  return request(`/contacts/${encodeURIComponent(id)}`, { method: 'PUT', body: patch });
+}
+
 export async function resolveOrCreateContact(person) {
   const existing = await findContactByEmail(person.email);
-  if (existing) return { contact: existing, created: false };
+  if (existing) {
+    /*
+     * Re-adding somebody is the natural way to repair a thin record — it is
+     * what anyone would try after finding a lead saved with an email and no
+     * name. Until now it did nothing at all: the existing contact was returned
+     * untouched, so a blank name stayed blank no matter how many times the
+     * profile was scraped again.
+     */
+    const gaps = fillableGaps(existing, person);
+    if (Object.keys(gaps).length > 0) {
+      try {
+        const updated = await updateContact(existing.id, gaps);
+        return { contact: updated || existing, created: false, enriched: Object.keys(gaps) };
+      } catch (err) {
+        // Filling gaps is a bonus. Failing it must never fail the add, which
+        // is what the user actually asked for.
+        console.warn('[Sincerely] Could not fill in contact details:', err?.message);
+      }
+    }
+    return { contact: existing, created: false };
+  }
 
   try {
     return { contact: await createContact(person), created: true };
