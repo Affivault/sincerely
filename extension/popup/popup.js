@@ -146,6 +146,12 @@ document.documentElement.classList.toggle('surface-sidepanel', IS_SIDEBAR);
 
 const state = {
   person: null,
+  /**
+   * The person before the last re-read. LinkedIn's overlay routes make Chrome
+   * report a navigation that isn't one, and this is what a same-person re-read
+   * merges back into rather than starting from nothing.
+   */
+  lastPerson: null,
   contact: null,
   memberships: [],
   engagement: null,
@@ -2236,15 +2242,32 @@ async function loadActiveTab() {
   el.actionBar.classList.remove('hidden');
 
   showSitePermission(context.data.needsSitePermission || null);
-  state.person = context.data.person;
+
+  /*
+   * A re-read of the SAME person tops up what we already had; it never
+   * replaces it. This is the fix for "as soon as it finds the email it forgets
+   * the name": finding the email pushes /overlay/contact-info/ onto the URL,
+   * Chrome reports a navigation, the panel re-read the page with the overlay
+   * covering the profile heading, and a wholesale assignment here wrote those
+   * empty values straight into the form.
+   */
+  const incoming = context.data.person;
+  const previous = state.person || state.lastPerson;
+  const samePerson = Boolean(
+    incoming && previous
+    && profileKeyOf(incoming.linkedin_url || tab?.url || '')
+       === profileKeyOf(previous.linkedin_url || '')
+  );
+  state.person = samePerson ? { ...previous, ...preferFilled(incoming) } : incoming;
+  state.lastPerson = state.person || previous || null;
   state.appUrl = String(context.data.appUrl || '').replace(/\/+$/, '');
   state.tabUrl = tab?.url || '';
   showPageEmails();
-  fillForm(context.data.person);
+  fillForm(state.person);
   renderAll();
 
   // If the page gave us nothing usable, the details are where the work is.
-  const hasEmail = Boolean(context.data.person?.email);
+  const hasEmail = Boolean(state.person?.email);
   if (!hasEmail) toggleDetails(true);
 
   /*
@@ -2277,12 +2300,42 @@ async function loadActiveTab() {
  * across a tab switch would show the previous profile's memberships, warnings
  * and duplicate hints beside the new one's name — worse than showing nothing.
  */
+/**
+ * Which person a URL is about.
+ *
+ * LinkedIn's overlay routes — /in/<slug>/overlay/contact-info/ — are the same
+ * person, not a new page. Reducing to the slug is what lets the panel tell a
+ * real navigation from the extension's own read.
+ *
+ * @param {string} url
+ * @returns {string}
+ */
+function profileKeyOf(url) {
+  try {
+    const u = new URL(url);
+    if (/(^|\.)linkedin\.com$/i.test(u.hostname)) {
+      const match = u.pathname.match(/^\/in\/([^/]+)/);
+      if (match) return `linkedin:${decodeURIComponent(match[1]).toLowerCase()}`;
+    }
+    return `${u.origin}${u.pathname}`;
+  } catch {
+    return String(url || '');
+  }
+}
+
 let retargetTimer = null;
 function retarget() {
   clearTimeout(retargetTimer);
   // One navigation fires several of these; settle before doing the work.
   retargetTimer = setTimeout(() => {
     Object.assign(state, {
+      /*
+       * Held on to, not thrown away. loadActiveTab merges it back when the
+       * re-read turns out to be the same person — which is the common case,
+       * since the deep read pushes an overlay route and Chrome reports that
+       * as a URL change.
+       */
+      lastPerson: state.person || state.lastPerson || null,
       person: null,
       contact: null,
       memberships: [],
@@ -2395,6 +2448,13 @@ async function init() {
        * and that is exactly the case this surface exists for.
        */
       if (!tab?.active) return;
+      /*
+       * The extension's own deep read pushes /in/<slug>/overlay/contact-info/
+       * to make LinkedIn fetch the address. That is not the user going
+       * anywhere, and treating it as navigation restarted the whole read
+       * mid-flight. Same person, same panel — nothing to do.
+       */
+      if (changeInfo.url && profileKeyOf(changeInfo.url) === profileKeyOf(state.tabUrl || '')) return;
       if (changeInfo.status === 'complete' || changeInfo.url) retarget();
     });
   }
