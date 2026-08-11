@@ -58,6 +58,12 @@ export const campaignsController = {
   },
 
   // Lifecycle
+  async personalizationAudit(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await campaignsService.personalizationAudit(req.userId!, req.params.id));
+    } catch (err) { next(err); }
+  },
+
   async launch(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const campaign = await campaignsService.launch(req.userId!, req.params.id);

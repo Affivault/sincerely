@@ -8,6 +8,8 @@ import { fireEvent } from './webhook.service.js';
 import * as sse from './sse.service.js';
 import { checkAndAutoCompleteCampaign } from './sequence.service.js';
 import { warmupAllowance } from '@lemlist/shared';
+import { renderMergeTags } from '../utils/merge-tags.js';
+import { settingsService } from './settings.service.js';
 import { isLinkedinStep } from '@lemlist/shared';
 
 /**
@@ -422,6 +424,20 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
     finalHtml = finalHtml.replace(/\{\{unsubscribe_link\}\}/gi, unsubUrl);
   }
 
+  // The sequence engine deferred the {{sender_*}} tags because none of this
+  // was settled yet: which mailbox would win SSE selection, and so what name
+  // the recipient would see. It is settled now, so fill them — and, being the
+  // last stage before the wire, sweep up anything still in braces. A tag this
+  // platform cannot answer is a tag the prospect must never be shown.
+  const senderIdentity = {
+    ...(campaign.user_id ? await settingsService.senderIdentity(campaign.user_id) : {}),
+    email: smtpAccount.email_address,
+  };
+  const fillSenderTags = (text: string) => renderMergeTags(text, { sender: senderIdentity });
+  const finalSubject = fillSenderTags(subject);
+  finalHtml = fillSenderTags(finalHtml);
+  const finalText = fillSenderTags(bodyText);
+
   if (campaign.track_clicks !== false) {
     finalHtml = wrapLinks(finalHtml, trackingId);
   }
@@ -455,9 +471,9 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
       from: fromAddress,
       to,
       replyTo: smtpAccount.reply_to || undefined,
-      subject,
+      subject: finalSubject,
       html: finalHtml,
-      text: bodyText,
+      text: finalText,
       messageId,
       headers: emailHeaders,
     });
@@ -491,7 +507,7 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
       message_id: messageId,
       occurred_at: new Date().toISOString(),
       metadata: {
-        subject, to,
+        subject: finalSubject, to,
         smtp_account_id: smtpAccount.id,
         smtp_label: smtpAccount.label,
         tracking_id: trackingId,

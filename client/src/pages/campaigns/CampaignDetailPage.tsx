@@ -7,6 +7,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { PersonalizationPanel } from '../../components/campaigns/PersonalizationPanel';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { StatCard } from '../../components/shared/StatCard';
 import { Avatar } from '../../components/shared/Avatar';
@@ -63,6 +64,14 @@ export function CampaignDetailPage() {
   });
 
   const isRunning = campaign?.status === 'running';
+
+  // Only fetched when the sequence tab is open — it walks the whole audience.
+  const { data: personalization } = useQuery({
+    queryKey: ['campaigns', id, 'personalization'],
+    queryFn: () => campaignsApi.personalization(id!),
+    enabled: !!id && activeTab === 'sequence',
+    staleTime: 60_000,
+  });
 
   const { data: analytics } = useQuery({
     queryKey: ['analytics', 'campaign', id],
@@ -355,9 +364,26 @@ export function CampaignDetailPage() {
           {(!campaign.steps || campaign.steps.length === 0) ? (
             <p className="py-8 text-center text-sm text-tertiary">No steps in this campaign.</p>
           ) : (
-            campaign.steps.map((step: CampaignStep, index: number) => (
-              <SequenceStepCard key={step.id} step={step} index={index} />
-            ))
+            <>
+              {campaign.steps.map((step: CampaignStep, index: number) => (
+                <SequenceStepCard key={step.id} step={step} index={index} />
+              ))}
+
+              {/* What this copy asks of the audience. Worth seeing on a
+                  running campaign too — it explains odd-reading emails
+                  without waiting for a prospect to point them out. */}
+              {personalization && personalization.tags.length > 0 && (
+                <div className="panel p-4">
+                  <div className="flex items-baseline justify-between mb-3">
+                    <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Personalization</h3>
+                    <span className="text-[11.5px] text-[var(--text-tertiary)]">
+                      across {personalization.total_contacts.toLocaleString()} contact{personalization.total_contacts === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  <PersonalizationPanel audit={personalization} />
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

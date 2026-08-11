@@ -3,6 +3,9 @@ import { AppError } from '../middleware/error.middleware.js';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { fireEvent } from './webhook.service.js';
 import { processDueSteps } from './sequence.service.js';
+import { settingsService } from './settings.service.js';
+import { extractTags, TAG_LABELS, TAG_SOURCE_FIELD, SENDER_TAGS, LINK_TAGS } from '../utils/merge-tags.js';
+import type { PersonalizationAudit, PersonalizationTag } from '@lemlist/shared';
 
 interface ListParams {
   page?: number;
@@ -200,6 +203,130 @@ export const campaignsService = {
 
     if (error) throw new AppError(error.message, 500);
     fireEvent(userId, 'campaign.deleted', { campaign_id: id }).catch((err: any) => console.error('[Campaign] Webhook error:', err?.message ?? String(err)));
+  },
+
+  /**
+   * What this campaign's copy asks for, and how much of it the audience can
+   * actually answer.
+   *
+   * A merge tag with no value behind it used to be invisible until a prospect
+   * replied to point it out. This counts, before a single email goes out, how
+   * many of the contacts about to receive the sequence are missing each field
+   * it references — so "142 of 800 have no company" is something you find out
+   * while you can still fix it.
+   *
+   * Tags carrying a fallback are reported but never counted as gaps: they
+   * degrade to readable copy by design, which is the whole point of writing
+   * one.
+   */
+  async personalizationAudit(userId: string, id: string): Promise<PersonalizationAudit> {
+    await this.assertOwnership(userId, id);
+
+    const { data: steps } = await supabaseAdmin
+      .from('campaign_steps')
+      .select('subject, subject_b, body_html, body_html_b, body_text, linkedin_note')
+      .eq('campaign_id', id);
+
+    // Every distinct tag across every step, in both A and B variants.
+    const used = new Map<string, boolean>();
+    for (const step of steps || []) {
+      const copy = [step.subject, step.subject_b, step.body_html, step.body_html_b, step.body_text, step.linkedin_note];
+      for (const text of copy) {
+        for (const { name, hasFallback } of extractTags(text || '')) {
+          used.set(name, (used.get(name) ?? true) && hasFallback);
+        }
+      }
+    }
+    if (used.size === 0) {
+      const { count } = await supabaseAdmin
+        .from('campaign_contacts')
+        .select('*', { count: 'exact', head: true })
+        .eq('campaign_id', id);
+      return { total_contacts: count || 0, tags: [] };
+    }
+
+    // Sender tags are answered by the account, not the audience — one check
+    // for the whole campaign rather than a count across contacts.
+    const sender = await settingsService.senderIdentity(userId);
+    const senderValue: Record<string, string> = {
+      sender_name: sender.name || '',
+      sender_first_name: (sender.name || '').split(/\s+/)[0] || '',
+      sender_company: sender.company || '',
+      sender_email: 'set per mailbox',
+    };
+
+    // The contact columns this campaign's copy actually reads. Only these are
+    // fetched — several tags can share one column (city and country both come
+    // from `location`), so the set is usually smaller than the tag list.
+    const neededFields = [...new Set(
+      [...used.keys()].map((name) => TAG_SOURCE_FIELD[name]).filter(Boolean),
+    )];
+
+    // One walk through the audience tallying blanks per column, rather than a
+    // count query per tag. Paged because PostgREST caps a response at 1000
+    // rows and a silent truncation here would under-report the gaps — the one
+    // thing this audit exists to get right.
+    const blanks: Record<string, number> = Object.fromEntries(neededFields.map((f) => [f, 0]));
+    let totalContacts = 0;
+    if (neededFields.length > 0) {
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data: rows, error } = await supabaseAdmin
+          .from('campaign_contacts')
+          .select(`contacts!inner(${neededFields.join(', ')})`)
+          .eq('campaign_id', id)
+          .range(from, from + PAGE - 1);
+        if (error) throw new AppError(error.message, 500);
+        const page = rows || [];
+        for (const row of page) {
+          totalContacts++;
+          const contact = (row as any).contacts || {};
+          for (const field of neededFields) {
+            const v = contact[field];
+            if (v === null || v === undefined || String(v).trim() === '') blanks[field]++;
+          }
+        }
+        if (page.length < PAGE) break;
+      }
+    } else {
+      const { count } = await supabaseAdmin
+        .from('campaign_contacts')
+        .select('*', { count: 'exact', head: true })
+        .eq('campaign_id', id);
+      totalContacts = count || 0;
+    }
+
+    const tags: PersonalizationTag[] = [];
+    for (const [name, hasFallback] of used) {
+      const label = TAG_LABELS[name] || name.replace(/_/g, ' ');
+
+      if (LINK_TAGS.includes(name)) {
+        tags.push({ name, label, scope: 'link', has_fallback: hasFallback, missing: 0, total: totalContacts });
+        continue;
+      }
+
+      if (SENDER_TAGS.includes(name)) {
+        tags.push({
+          name, label, scope: 'sender', has_fallback: hasFallback,
+          missing: senderValue[name] ? 0 : 1, total: 1,
+        });
+        continue;
+      }
+
+      const field = TAG_SOURCE_FIELD[name];
+      if (!field) {
+        // A tag nothing can fill — usually a leftover placeholder from a
+        // template. Without a fallback it renders as a hole in the sentence.
+        tags.push({ name, label, scope: 'unknown', has_fallback: hasFallback, missing: hasFallback ? 0 : totalContacts, total: totalContacts });
+        continue;
+      }
+
+      tags.push({ name, label, scope: 'contact', has_fallback: hasFallback, missing: blanks[field] || 0, total: totalContacts });
+    }
+
+    // Worst gaps first — that's the order someone wants to read them in.
+    tags.sort((a, b) => (b.missing / Math.max(b.total, 1)) - (a.missing / Math.max(a.total, 1)));
+    return { total_contacts: totalContacts, tags };
   },
 
   async launch(userId: string, id: string) {

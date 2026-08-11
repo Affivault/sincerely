@@ -133,3 +133,25 @@ export interface CreateStepInput {
 }
 
 export interface UpdateStepInput extends Partial<CreateStepInput> {}
+
+/**
+ * One merge tag a campaign's copy uses, and how much of the audience can
+ * answer it. `missing` is a count of contacts with no value for the field
+ * behind the tag — except for `sender` scope, where the whole campaign is a
+ * single subject and `total` is 1.
+ */
+export interface PersonalizationTag {
+  name: string;
+  label: string;
+  /** Where the value comes from: the contact, the account, or nowhere. */
+  scope: 'contact' | 'sender' | 'link' | 'unknown';
+  /** Written as `{{tag | something}}`, so a gap degrades to readable copy. */
+  has_fallback: boolean;
+  missing: number;
+  total: number;
+}
+
+export interface PersonalizationAudit {
+  total_contacts: number;
+  tags: PersonalizationTag[];
+}

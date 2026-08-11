@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { stripeService } from './stripe.service.js';
+import type { SenderIdentity } from '../utils/merge-tags.js';
 
 export interface UserSettings {
   id: string;
@@ -116,6 +117,9 @@ export const settingsService = {
       if (UPDATABLE_KEYS.has(key)) filtered[key] = value;
     }
     if (Object.keys(filtered).length === 0) return settingsService.get(userId);
+
+    // The name and company behind {{sender_*}} may have just changed.
+    invalidateSenderIdentity(userId);
 
     for (let attempt = 0; attempt < 4; attempt++) {
       const { data, error } = await supabaseAdmin
@@ -244,4 +248,46 @@ export const settingsService = {
     const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (error) throw new AppError(`Failed to delete auth user: ${error.message}`, 500);
   },
+
+  /**
+   * Who the `{{sender_*}}` tags refer to.
+   *
+   * Read once per send, so it is memoised briefly — settings change rarely
+   * and a minute of staleness on a signature name costs nothing, whereas a
+   * round trip per recipient on an eight-hundred-contact campaign does.
+   * Never throws: a missing settings row must not stop a campaign, it just
+   * means those tags fall back to whatever the copy says after the pipe.
+   */
+  async senderIdentity(userId: string): Promise<SenderIdentity> {
+    const cached = senderCache.get(userId);
+    if (cached && cached.expires > Date.now()) return cached.value;
+
+    let value: SenderIdentity = {};
+    try {
+      const { data } = await supabaseAdmin
+        .from('user_settings')
+        .select('first_name, last_name, company')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (data) {
+        value = {
+          name: [data.first_name, data.last_name].filter(Boolean).join(' ').trim() || null,
+          company: data.company || null,
+        };
+      }
+    } catch {
+      // Fall through with an empty identity.
+    }
+
+    senderCache.set(userId, { value, expires: Date.now() + SENDER_CACHE_MS });
+    return value;
+  },
 };
+
+const SENDER_CACHE_MS = 60_000;
+const senderCache = new Map<string, { value: SenderIdentity; expires: number }>();
+
+/** Drop a user's memoised sender identity after they edit their profile. */
+export function invalidateSenderIdentity(userId: string): void {
+  senderCache.delete(userId);
+}

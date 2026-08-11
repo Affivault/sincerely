@@ -13,6 +13,9 @@ campaignRoutes.delete('/:id', campaignsController.delete);
 // Clone
 campaignRoutes.post('/:id/clone', campaignsController.clone);
 
+// What the copy asks for vs. what the audience can answer — read before launch
+campaignRoutes.get('/:id/personalization', campaignsController.personalizationAudit);
+
 // Lifecycle
 campaignRoutes.post('/:id/launch', campaignsController.launch);
 campaignRoutes.post('/:id/pause', campaignsController.pause);

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
+import { PersonalizationPanel, countGaps } from '../../components/campaigns/PersonalizationPanel';
 import { smtpApi } from '../../api/smtp.api';
 import { contactsApi, listsApi } from '../../api/contacts.api';
 import { sendingSchedulesApi, type SendingSchedule } from '../../api/sending-schedules.api';
@@ -30,6 +31,7 @@ import toast from 'react-hot-toast';
 import { StepType } from '@lemlist/shared';
 import type {
   CreateCampaignInput, CreateStepInput, CampaignStep, SmtpAccount, ContactWithTags,
+  PersonalizationAudit,
 } from '@lemlist/shared';
 
 // <input type="datetime-local"> reads/writes local wall-clock time, not UTC —
@@ -498,6 +500,11 @@ export function CampaignCreatePage() {
 
   const [launching, setLaunching] = useState(false);
   const [showLaunchConfirm, setShowLaunchConfirm] = useState(false);
+  // Set when a launch is paused to show merge-tag gaps; carries the saved
+  // campaign so confirming doesn't repeat the save.
+  const [pendingAudit, setPendingAudit] = useState<
+    { audit: PersonalizationAudit; campaignId: string; scheduledIso: string | null } | null
+  >(null);
   // Explicit start choice so a campaign never fires the instant you launch
   // unless you deliberately choose "Send now".
   const [sendMode, setSendMode] = useState<'now' | 'schedule'>('now');
@@ -604,6 +611,28 @@ export function CampaignCreatePage() {
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to save'),
   });
 
+  /**
+   * Actually launch, once the campaign is saved and any personalization gaps
+   * have been seen. Split out from handleSaveAndLaunch so "Launch anyway"
+   * doesn't have to re-run the save it already did.
+   */
+  const finishLaunch = async (campaignId: string, scheduledIso: string | null) => {
+    setLaunching(true);
+    try {
+      await campaignsApi.launch(campaignId);
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      toast.success(scheduledIso
+        ? `Campaign scheduled for ${new Date(scheduledIso).toLocaleString()}`
+        : 'Campaign launched!');
+      navigate(`/campaigns/${campaignId}`);
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to launch');
+    }
+    setLaunching(false);
+    setShowLaunchConfirm(false);
+    setPendingAudit(null);
+  };
+
   const handleSaveAndLaunch = async () => {
     if (!campaignForm.name) {
       toast.error('Campaign name is required');
@@ -629,20 +658,26 @@ export function CampaignCreatePage() {
     // directly) so a failed/cancelled schedule attempt never leaks a stale
     // scheduled_at into a later, unrelated save (e.g. "Save draft").
     setLaunching(true);
+    const campaignId = await saveCampaign({ scheduled_at: scheduledIso });
+    if (!campaignId) { setLaunching(false); return; }
+
+    // Last honest look at the copy before it goes out: which merge tags does
+    // this sequence use, and how many of these contacts can actually answer
+    // them. Silence here is the old behaviour — you found out when someone
+    // replied to "Hi ,". A failed audit must never block a launch, though;
+    // it is advice, not a gate.
     try {
-      const campaignId = await saveCampaign({ scheduled_at: scheduledIso });
-      if (!campaignId) { setLaunching(false); return; }
-      await campaignsApi.launch(campaignId);
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
-      toast.success(scheduledIso
-        ? `Campaign scheduled for ${new Date(scheduledIso).toLocaleString()}`
-        : 'Campaign launched!');
-      navigate(`/campaigns/${campaignId}`);
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to launch');
+      const audit = await campaignsApi.personalization(campaignId);
+      if (countGaps(audit) > 0) {
+        setPendingAudit({ audit, campaignId, scheduledIso });
+        setLaunching(false);
+        return;
+      }
+    } catch {
+      // Couldn't check — carry on and launch.
     }
-    setLaunching(false);
-    setShowLaunchConfirm(false);
+
+    await finishLaunch(campaignId, scheduledIso);
   };
 
   const updateStep = (index: number, updates: Partial<CreateStepInput>) => {
@@ -2068,6 +2103,47 @@ export function CampaignCreatePage() {
                     Back to audience
                   </Button>
                 </div>
+
+                {/* Paused mid-launch: the copy asks for things some of these
+                    contacts can't answer. Advice, not a gate — the launch is
+                    one click away, it just isn't a click made blind. */}
+                <Modal
+                  isOpen={!!pendingAudit}
+                  onClose={() => setPendingAudit(null)}
+                  title="Some contacts are missing details your copy uses"
+                  description="Those emails will send with a gap where the value should be."
+                  size="lg"
+                  footer={
+                    <div className="flex items-center justify-between w-full gap-2">
+                      <button
+                        onClick={() => { setPendingAudit(null); setShowLaunchConfirm(false); setWizardStep(1); }}
+                        className="text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                      >
+                        Go back and edit the sequence
+                      </button>
+                      <div className="flex gap-2">
+                        <Button variant="secondary" onClick={() => setPendingAudit(null)}>Cancel</Button>
+                        <Button
+                          onClick={() => pendingAudit && finishLaunch(pendingAudit.campaignId, pendingAudit.scheduledIso)}
+                          disabled={launching}
+                        >
+                          <Rocket className="h-3.5 w-3.5" />
+                          {launching ? 'Working…' : 'Launch anyway'}
+                        </Button>
+                      </div>
+                    </div>
+                  }
+                >
+                  {pendingAudit && (
+                    <div className="space-y-3">
+                      <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed">
+                        Give a tag a fallback — <code className="text-[var(--text-primary)]">{'{{first_name | there}}'}</code> —
+                        and contacts without a value get the fallback instead of a blank.
+                      </p>
+                      <PersonalizationPanel audit={pendingAudit.audit} emptyHint={false} />
+                    </div>
+                  )}
+                </Modal>
 
                 <Modal isOpen={showLaunchConfirm} onClose={() => setShowLaunchConfirm(false)} title={sendMode === 'schedule' ? 'Schedule campaign' : 'Launch campaign'}>
                   <div className="space-y-4">

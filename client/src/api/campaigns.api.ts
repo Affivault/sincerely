@@ -8,6 +8,7 @@ import type {
   CreateStepInput,
   UpdateStepInput,
   PaginatedResponse,
+  PersonalizationAudit,
 } from '@lemlist/shared';
 
 export const campaignsApi = {
@@ -33,6 +34,12 @@ export const campaignsApi = {
 
   delete: async (id: string) => {
     await apiClient.delete(`/campaigns/${id}`);
+  },
+
+  /** What the copy asks for vs. what the audience can answer. */
+  personalization: async (id: string) => {
+    const { data } = await apiClient.get<PersonalizationAudit>(`/campaigns/${id}/personalization`);
+    return data;
   },
 
   launch: async (id: string) => {

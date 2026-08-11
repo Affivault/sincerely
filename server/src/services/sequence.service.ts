@@ -6,6 +6,8 @@ import { suppressionService } from './suppression.service.js';
 import { billingService } from './billing.service.js';
 import * as sse from './sse.service.js';
 import { nowInTimezone, partsInTimezone, startOfDayInTimezone, tzWallTimeToUtc } from '../utils/timezone.js';
+import { renderMergeTags, SENDER_TAGS, LINK_TAGS } from '../utils/merge-tags.js';
+import { settingsService } from './settings.service.js';
 import { isLinkedinStep } from '@lemlist/shared';
 
 /**
@@ -750,9 +752,16 @@ async function processLinkedinStep(cc: any, step: any, steps: any[]): Promise<vo
     .maybeSingle();
   if (!claimed) return;
 
-  const message = step.step_type === 'linkedin_connect'
-    ? interpolateMergeTags(step.linkedin_note || '', contact)
-    : interpolateMergeTags(step.body_text || step.body_html || '', contact);
+  // A LinkedIn note has no mailbox behind it and no unsubscribe link, so
+  // there is nothing to defer — resolve every tag here, including the
+  // sender's own details, and leave nothing in braces for the user to paste.
+  const sender = cc.campaigns?.user_id
+    ? await settingsService.senderIdentity(cc.campaigns.user_id)
+    : null;
+  const linkedinCopy = step.step_type === 'linkedin_connect'
+    ? step.linkedin_note || ''
+    : step.body_text || step.body_html || '';
+  const message = renderMergeTags(linkedinCopy, { contact, sender });
 
   const { data: task, error } = await supabaseAdmin
     .from('crm_tasks')
@@ -1090,52 +1099,54 @@ function htmlToText(html: string): string {
     .trim();
 }
 
+/**
+ * Fill the tags a contact can answer for.
+ *
+ * Sender tags and the unsubscribe link are deliberately left standing:
+ * neither is knowable until sendCampaignEmail has picked a mailbox, and it
+ * finishes the job there. Everything else is resolved or removed here, so
+ * no raw `{{tag}}` can reach a prospect.
+ */
 export function interpolateMergeTags(text: string, contact: any): string {
-  return text
-    .replace(/\{\{first_name\}\}/gi, contact.first_name || '')
-    .replace(/\{\{last_name\}\}/gi, contact.last_name || '')
-    .replace(/\{\{email\}\}/gi, contact.email || '')
-    .replace(/\{\{company\}\}/gi, contact.company || '')
-    .replace(/\{\{full_name\}\}/gi, `${contact.first_name || ''} ${contact.last_name || ''}`.trim())
-    .replace(/\{\{job_title\}\}/gi, contact.job_title || '')
-    .replace(/\{\{phone\}\}/gi, contact.phone || '')
-    .replace(/\{\{city\}\}/gi, contact.city || '')
-    .replace(/\{\{country\}\}/gi, contact.country || '')
-    .replace(/\{\{linkedin_url\}\}/gi, contact.linkedin_url || '')
-    .replace(/\{\{website\}\}/gi, contact.website || '')
-    .replace(/\{\{custom_field_1\}\}/gi, contact.custom_field_1 || '')
-    .replace(/\{\{custom_field_2\}\}/gi, contact.custom_field_2 || '');
+  return renderMergeTags(text, { contact, defer: [...SENDER_TAGS, ...LINK_TAGS] });
 }
 
 /**
  * Realistic sample contact for previews / test sends, so a test email reads
- * naturally ("Hi Alex,") instead of showing raw {{first_name}} tags. Any
- * leftover unknown {{tag}} is blanked so nothing raw ever ships.
+ * naturally ("Hi Alex,") instead of showing raw {{first_name}} tags.
+ *
+ * The shape mirrors a real contacts row exactly — `location` rather than the
+ * city/country that column never had, `custom_fields` as the jsonb map it
+ * really is. A preview built on fields the database doesn't have is a
+ * preview that agrees with nothing.
  */
 export const SAMPLE_PREVIEW_CONTACT = {
   first_name: 'Alex',
   last_name: 'Morgan',
-  full_name: 'Alex Morgan',
   email: 'alex.morgan@example.com',
   company: 'Acme Inc',
   job_title: 'Head of Growth',
   phone: '+1 (555) 123-4567',
-  city: 'San Francisco',
-  country: 'United States',
+  location: 'San Francisco, California, United States',
   linkedin_url: 'https://linkedin.com/in/alexmorgan',
   website: 'https://acme.example.com',
-  custom_field_1: 'Sample 1',
-  custom_field_2: 'Sample 2',
+  custom_fields: { custom_field_1: 'Sample 1', custom_field_2: 'Sample 2' },
 };
 
+const SAMPLE_PREVIEW_SENDER = { name: 'Jordan Lee', email: 'jordan@yourcompany.com', company: 'Your Company' };
+
 /**
- * Fill merge tags with sample data and strip any leftover unknown tags.
- * {{unsubscribe_link}} is resolved to a sample URL first (it isn't a contact
- * field, so interpolateMergeTags never touches it) so previews/test sends
- * don't silently blank out the unsubscribe link.
+ * Render copy the way a recipient will actually receive it.
+ *
+ * This used to be more forgiving than the real send — it stripped unknown
+ * tags while the send path shipped them raw — so a template could look
+ * flawless in preview and arrive with `{{pain_point}}` intact. It now runs
+ * the same renderer with the same rules, filled from sample data. What you
+ * see here is what goes out.
  */
 export function previewWithSampleData(text: string): string {
-  return interpolateMergeTags(text || '', SAMPLE_PREVIEW_CONTACT)
-    .replace(/\{\{\s*unsubscribe_link\s*\}\}/gi, 'https://example.com/unsubscribe/preview')
-    .replace(/\{\{\s*[\w.-]+\s*\}\}/g, '');
+  return renderMergeTags(text || '', {
+    contact: SAMPLE_PREVIEW_CONTACT,
+    sender: SAMPLE_PREVIEW_SENDER,
+  }).replace(/\{\{\s*unsubscribe_link\s*\}\}/gi, 'https://example.com/unsubscribe/preview');
 }
