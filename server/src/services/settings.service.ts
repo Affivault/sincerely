@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { stripeService } from './stripe.service.js';
-import type { SenderIdentity } from '../utils/merge-tags.js';
+import type { SenderIdentity } from '@lemlist/shared';
 
 export interface UserSettings {
   id: string;

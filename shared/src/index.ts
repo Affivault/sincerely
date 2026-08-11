@@ -17,3 +17,4 @@ export * from './email-finder.types.js';
 export * from './admin.types.js';
 export * from './search.types.js';
 export * from './linkedin.types.js';
+export * from './merge-tags.js';

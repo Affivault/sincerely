@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
 import { PersonalizationPanel, countGaps } from '../../components/campaigns/PersonalizationPanel';
+import { previewPersonalization, countSpinVariants } from '@lemlist/shared';
 import { smtpApi } from '../../api/smtp.api';
 import { contactsApi, listsApi } from '../../api/contacts.api';
 import { sendingSchedulesApi, type SendingSchedule } from '../../api/sending-schedules.api';
@@ -2618,19 +2619,32 @@ function RecipientPreview({ subject, bodyHtml, fromName, fromEmail }: {
   fromName: string;
   fromEmail: string;
 }) {
-  const fillers: Record<string, string> = {
-    first_name: 'Sarah', last_name: 'Chen', company: 'Acme Inc',
-    job_title: 'Head of Sales', industry: 'SaaS',
-  };
-  const previewHtml = (bodyHtml || '').replace(/\{\{(\w+)\}\}/g, (_, k) => fillers[k] || `[${k}]`);
-  const previewSubject = subject.replace(/\{\{(\w+)\}\}/g, (_, k) => fillers[k] || `[${k}]`);
+  // Was a third renderer with its own sample names and its own idea of what
+  // a tag meant — it showed `[pain_point]` where the sender shipped raw
+  // braces. Both now run the one renderer in `shared`, so this preview is
+  // the email, not an impression of it.
+  const [variation, setVariation] = useState(0);
+  const seed = `preview-${variation}`;
+  const previewHtml = previewPersonalization(bodyHtml || '', { spinSeed: seed });
+  const previewSubject = previewPersonalization(subject || '', { spinSeed: seed });
+  const variants = Math.max(countSpinVariants(subject || ''), countSpinVariants(bodyHtml || ''));
 
   return (
     <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)]">
         <Eye className="h-3 w-3 text-[var(--indigo)]" />
         <span className="text-[10.5px] font-bold text-[var(--text-secondary)]">Inbox preview</span>
-        <span className="ml-auto text-[10px] text-[var(--text-tertiary)]">sample data</span>
+        {variants > 1 ? (
+          <button
+            onClick={() => setVariation((v) => v + 1)}
+            className="ml-auto text-[10px] text-[var(--indigo)] hover:underline"
+            title={`Spintax makes ${variants.toLocaleString()} wordings of this email`}
+          >
+            1 of {variants.toLocaleString()} wordings — show another
+          </button>
+        ) : (
+          <span className="ml-auto text-[10px] text-[var(--text-tertiary)]">sample data</span>
+        )}
       </div>
 
       <div className="bg-white text-gray-900 px-3.5 py-2.5 border-b border-gray-200">

@@ -6,7 +6,7 @@ import { suppressionService } from './suppression.service.js';
 import { billingService } from './billing.service.js';
 import * as sse from './sse.service.js';
 import { nowInTimezone, partsInTimezone, startOfDayInTimezone, tzWallTimeToUtc } from '../utils/timezone.js';
-import { renderMergeTags, SENDER_TAGS, LINK_TAGS } from '../utils/merge-tags.js';
+import { renderMergeTags, personalize, previewPersonalization, SENDER_TAGS, LINK_TAGS } from '@lemlist/shared';
 import { settingsService } from './settings.service.js';
 import { isLinkedinStep } from '@lemlist/shared';
 
@@ -761,7 +761,7 @@ async function processLinkedinStep(cc: any, step: any, steps: any[]): Promise<vo
   const linkedinCopy = step.step_type === 'linkedin_connect'
     ? step.linkedin_note || ''
     : step.body_text || step.body_html || '';
-  const message = renderMergeTags(linkedinCopy, { contact, sender });
+  const message = personalize(linkedinCopy, { contact, sender, spinSeed: `${step.id}:${cc.contact_id}` });
 
   const { data: task, error } = await supabaseAdmin
     .from('crm_tasks')
@@ -1080,7 +1080,7 @@ export async function checkAndAutoCompleteCampaign(campaignId: string): Promise<
  * Convert HTML to readable plain text, preserving paragraph breaks and whitespace.
  * Improves deliverability — spam filters check plain text quality.
  */
-function htmlToText(html: string): string {
+export function htmlToText(html: string): string {
   return html
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi, '\n\n')
@@ -1106,47 +1106,23 @@ function htmlToText(html: string): string {
  * neither is knowable until sendCampaignEmail has picked a mailbox, and it
  * finishes the job there. Everything else is resolved or removed here, so
  * no raw `{{tag}}` can reach a prospect.
+ *
+ * Spintax is *not* applied here. It has to run after the sender tags are
+ * filled — a deferred `{{sender_name}}` is still double-braced, but any
+ * merge fallback that survived into this pass would look exactly like a
+ * spin group to the spinner. The send path spins once, at the end.
  */
 export function interpolateMergeTags(text: string, contact: any): string {
   return renderMergeTags(text, { contact, defer: [...SENDER_TAGS, ...LINK_TAGS] });
 }
 
 /**
- * Realistic sample contact for previews / test sends, so a test email reads
- * naturally ("Hi Alex,") instead of showing raw {{first_name}} tags.
+ * Preview a step the way a recipient will receive it.
  *
- * The shape mirrors a real contacts row exactly — `location` rather than the
- * city/country that column never had, `custom_fields` as the jsonb map it
- * really is. A preview built on fields the database doesn't have is a
- * preview that agrees with nothing.
+ * The sample data and the renderer both live in `shared` now, so the campaign
+ * editor's preview, a test send and a real send cannot drift apart again.
  */
-export const SAMPLE_PREVIEW_CONTACT = {
-  first_name: 'Alex',
-  last_name: 'Morgan',
-  email: 'alex.morgan@example.com',
-  company: 'Acme Inc',
-  job_title: 'Head of Growth',
-  phone: '+1 (555) 123-4567',
-  location: 'San Francisco, California, United States',
-  linkedin_url: 'https://linkedin.com/in/alexmorgan',
-  website: 'https://acme.example.com',
-  custom_fields: { custom_field_1: 'Sample 1', custom_field_2: 'Sample 2' },
-};
-
-const SAMPLE_PREVIEW_SENDER = { name: 'Jordan Lee', email: 'jordan@yourcompany.com', company: 'Your Company' };
-
-/**
- * Render copy the way a recipient will actually receive it.
- *
- * This used to be more forgiving than the real send — it stripped unknown
- * tags while the send path shipped them raw — so a template could look
- * flawless in preview and arrive with `{{pain_point}}` intact. It now runs
- * the same renderer with the same rules, filled from sample data. What you
- * see here is what goes out.
- */
-export function previewWithSampleData(text: string): string {
-  return renderMergeTags(text || '', {
-    contact: SAMPLE_PREVIEW_CONTACT,
-    sender: SAMPLE_PREVIEW_SENDER,
-  }).replace(/\{\{\s*unsubscribe_link\s*\}\}/gi, 'https://example.com/unsubscribe/preview');
+export function previewWithSampleData(text: string, spinSeed = 'preview'): string {
+  return previewPersonalization(text, { spinSeed });
 }
+

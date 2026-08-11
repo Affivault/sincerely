@@ -4,7 +4,7 @@ import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { fireEvent } from './webhook.service.js';
 import { processDueSteps } from './sequence.service.js';
 import { settingsService } from './settings.service.js';
-import { extractTags, TAG_LABELS, TAG_SOURCE_FIELD, SENDER_TAGS, LINK_TAGS } from '../utils/merge-tags.js';
+import { extractTags, TAG_LABELS, TAG_SOURCE_FIELD, SENDER_TAGS, LINK_TAGS } from '@lemlist/shared';
 import type { PersonalizationAudit, PersonalizationTag } from '@lemlist/shared';
 
 interface ListParams {

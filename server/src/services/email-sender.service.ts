@@ -6,9 +6,9 @@ import { decrypt } from '../utils/encryption.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
 import { fireEvent } from './webhook.service.js';
 import * as sse from './sse.service.js';
-import { checkAndAutoCompleteCampaign } from './sequence.service.js';
+import { checkAndAutoCompleteCampaign, htmlToText } from './sequence.service.js';
 import { warmupAllowance } from '@lemlist/shared';
-import { renderMergeTags } from '../utils/merge-tags.js';
+import { renderMergeTags, spin } from '@lemlist/shared';
 import { settingsService } from './settings.service.js';
 import { isLinkedinStep } from '@lemlist/shared';
 
@@ -434,9 +434,23 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
     email: smtpAccount.email_address,
   };
   const fillSenderTags = (text: string) => renderMergeTags(text, { sender: senderIdentity });
-  const finalSubject = fillSenderTags(subject);
-  finalHtml = fillSenderTags(finalHtml);
-  const finalText = fillSenderTags(bodyText);
+
+  // Then spintax, last of all: `{Hi|Hey}` picks one wording per recipient so
+  // a thousand-contact campaign doesn't leave a thousand byte-identical
+  // bodies, which is exactly the pattern filters score against and which
+  // quietly undoes the reputation-spreading the sharding engine is doing.
+  //
+  // Seeded by step and contact, so the choice is stable: a follow-up quoting
+  // the first email, and a retry after a transient SMTP failure, must not
+  // arrive rephrased. Subject and body get different seeds so their choices
+  // are independent — but both are fixed for this recipient.
+  const spinFor = (part: string) => `${stepId}:${campaignContactId}:${part}`;
+  const finalSubject = spin(fillSenderTags(subject), spinFor('subject'));
+  finalHtml = spin(fillSenderTags(finalHtml), spinFor('body'));
+  // Derived from the spun HTML rather than spun on its own: two independent
+  // spins of the same copy can land on different branches, and a plaintext
+  // part that contradicts the HTML part is worse than having no spintax.
+  const finalText = htmlToText(finalHtml) || fillSenderTags(bodyText);
 
   if (campaign.track_clicks !== false) {
     finalHtml = wrapLinks(finalHtml, trackingId);

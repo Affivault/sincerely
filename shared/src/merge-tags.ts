@@ -170,6 +170,160 @@ export function extractTags(text: string): { name: string; hasFallback: boolean 
   return [...seen].map(([name, hasFallback]) => ({ name, hasFallback }));
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   Spintax.
+
+   Eight hundred byte-identical bodies leaving a warmed pool of mailboxes
+   is the exact shape filters look for, and it quietly undoes the work the
+   sharding engine is doing to spread reputation around. `{Hi|Hey|Hello}`
+   lets one template leave as many.
+
+   The choice is deterministic, seeded by the recipient: the same contact
+   always gets the same wording. That matters more than it sounds. Follow-up
+   steps quote the first email, previews have to match what was sent, and a
+   resend after a transient SMTP failure must not arrive rephrased.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/** Innermost `{a|b|c}` — no nested braces, so nesting resolves inside-out. */
+const SPIN_PATTERN = /\{([^{}]*\|[^{}]*)\}/;
+
+/** FNV-1a. Small, stable, and not trying to be a hash function for security. */
+function seedFrom(seed: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/**
+ * Avalanche the bits before anyone takes a modulus of them.
+ *
+ * Multiplying by an odd constant leaves the low bit exactly as it was, so a
+ * plain FNV round feeding `% 2` returns the same answer forever: every
+ * two-option group in a message picked the same branch, and `{a|b} {a|b}`
+ * could only ever produce "a a" or "b b". This mixes the high bits down
+ * (the murmur3 finaliser) so the low bits actually move.
+ */
+function mix(h: number): number {
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x21f0aaad);
+  h ^= h >>> 15;
+  h = Math.imul(h, 0xd35a2d97);
+  h ^= h >>> 15;
+  return h >>> 0;
+}
+
+/**
+ * Pick one option from every `{a|b|c}` group in `text`.
+ *
+ * Nested groups work — `{Hi|{Hey|Hello}} there` — because the innermost
+ * group always matches first and collapses before its parent is considered.
+ *
+ * A merge tag is never mistaken for spintax: `{{first_name}}` has no pipe
+ * inside a single brace pair, and a fallback like `{{company|your team}}`
+ * is double-braced, so the inner `{company|your team}` would match — which
+ * is why spintax must run *after* merge tags are resolved. Callers get that
+ * ordering for free through `personalize()`.
+ */
+export function spin(text: string, seed: string): string {
+  if (!text || !text.includes('|')) return text || '';
+
+  let out = text;
+  let salt = seedFrom(seed);
+  // Bounded: each pass removes one group, and a template with more than a
+  // few hundred is a runaway, not a legitimate one.
+  for (let guard = 0; guard < 500; guard++) {
+    const match = SPIN_PATTERN.exec(out);
+    if (!match) break;
+    const options = match[1].split('|');
+    // Re-seed per group so `{a|b} {a|b}` can differ, while staying a pure
+    // function of the recipient — same contact, same message, every time.
+    salt = mix(salt ^ (match.index + 0x9e3779b9));
+    const choice = options[salt % options.length] ?? '';
+    out = out.slice(0, match.index) + choice + out.slice(match.index + match[0].length);
+  }
+  return out;
+}
+
+/** Every wording a template can produce, for the editor's variation count. */
+export function countSpinVariants(text: string): number {
+  if (!text) return 1;
+  let total = 1;
+  let out = text;
+  for (let guard = 0; guard < 500; guard++) {
+    const match = SPIN_PATTERN.exec(out);
+    if (!match) break;
+    total *= match[1].split('|').length;
+    if (total > 1e6) return 1e6;
+    out = out.slice(0, match.index) + match[1].split('|')[0] + out.slice(match.index + match[0].length);
+  }
+  return total;
+}
+
+/**
+ * The whole pipeline, in the only order that works: merge tags first so a
+ * `{{company|your team}}` fallback is already gone by the time spintax
+ * looks for single-brace groups, then one wording chosen for this recipient.
+ */
+export function personalize(text: string, ctx: MergeContext & { spinSeed?: string }): string {
+  const filled = renderMergeTags(text, ctx);
+  return ctx.spinSeed ? spin(filled, ctx.spinSeed) : filled;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Preview.
+
+   There used to be three renderers: this one, the sender's, and a third in
+   the campaign editor with its own sample names and its own idea of what a
+   tag meant. They disagreed, which is how `{{pain_point}}` reached real
+   inboxes while every preview looked perfect. One renderer, one sample,
+   one answer — that is the entire point of this living in `shared`.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * A believable contact for previews and test sends, shaped exactly like a
+ * real contacts row — `location` rather than the city/country columns that
+ * never existed, `custom_fields` as the jsonb map it really is. A preview
+ * built on fields the database doesn't have agrees with nothing.
+ */
+export const SAMPLE_PREVIEW_CONTACT = {
+  first_name: 'Alex',
+  last_name: 'Morgan',
+  email: 'alex.morgan@example.com',
+  company: 'Acme Inc',
+  job_title: 'Head of Growth',
+  phone: '+1 (555) 123-4567',
+  location: 'San Francisco, California, United States',
+  linkedin_url: 'https://linkedin.com/in/alexmorgan',
+  website: 'https://acme.example.com',
+  custom_fields: { custom_field_1: 'Sample 1', custom_field_2: 'Sample 2' },
+};
+
+export const SAMPLE_PREVIEW_SENDER: SenderIdentity = {
+  name: 'Jordan Lee',
+  email: 'jordan@yourcompany.com',
+  company: 'Your Company',
+};
+
+/**
+ * Render copy the way a recipient will actually receive it.
+ *
+ * `spinSeed` is exposed so the editor can offer "show me another variation"
+ * — every seed is a wording some real contact will get.
+ */
+export function previewPersonalization(
+  text: string,
+  opts?: { sender?: SenderIdentity | null; spinSeed?: string },
+): string {
+  return personalize(text || '', {
+    contact: SAMPLE_PREVIEW_CONTACT,
+    sender: opts?.sender ?? SAMPLE_PREVIEW_SENDER,
+    spinSeed: opts?.spinSeed ?? 'preview',
+  }).replace(/\{\{\s*unsubscribe_link\s*\}\}/gi, 'https://example.com/unsubscribe/preview');
+}
+
 /** Human labels for the audit and the editor's tag menu. */
 export const TAG_LABELS: Record<string, string> = {
   first_name: 'First name',
