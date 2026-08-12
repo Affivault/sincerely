@@ -6,6 +6,7 @@ import { fireEvent } from '../services/webhook.service.js';
 import * as sse from '../services/sse.service.js';
 import { suppressionService } from '../services/suppression.service.js';
 
+import { TRACKING_HEALTH_MARKER } from '../services/tracking-domain.service.js';
 const router = Router();
 
 // 1x1 transparent GIF pixel
@@ -50,6 +51,22 @@ function parseTrackingId(trackingId: string): { campaignContactId: string; stepI
  * GET /api/track/open/:trackingId
  * Records an email open event and returns a 1x1 transparent pixel.
  */
+/**
+ * Proof that a request reached *this* application.
+ *
+ * A custom tracking domain is only activated once it has answered here, and
+ * the body is checked for the marker rather than the status code: a parked
+ * domain, a hosting placeholder or a catch-all CDN all return 200 happily,
+ * and activating on one of those would break every link in every email the
+ * account subsequently sends.
+ *
+ * Unauthenticated on purpose — the check runs from outside, against the
+ * customer's own hostname, before anything trusts it.
+ */
+router.get('/health', (_req: Request, res: Response) => {
+  res.type('text/plain').send(TRACKING_HEALTH_MARKER);
+});
+
 router.get('/open/:trackingId', async (req: Request, res: Response) => {
   // Always return the pixel immediately, even if tracking fails
   res.set({

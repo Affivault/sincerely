@@ -22,6 +22,7 @@ import { SMTP_PRESETS, warmupAllowance } from '@lemlist/shared';
 import { SmtpAccountModal } from './SmtpAccountModal';
 import { WarmupPanel } from './WarmupPanel';
 import { StatusBadge, DomainDetailPanel } from '../domains/DomainsPage';
+import { TrackingDomainPanel } from '../../components/domains/TrackingDomainPanel';
 
 /* ─── Quick-connect providers ─────────────────────── */
 interface QuickConnectProvider { preset: SmtpPreset; icon: React.ReactNode; description: string; }
@@ -476,6 +477,15 @@ export function EmailAccountsPage() {
       )}
 
       {/* ── Domains tab ── */}
+      {tab === 'domains' && (
+        <div className="mb-4">
+          {/* Sits with the sending domains because it is the same job — which
+              domains vouch for this email — even though this one is about the
+              links inside rather than the address it came from. */}
+          <TrackingDomainPanel />
+        </div>
+      )}
+
       {tab === 'domains' && (
         domains.length === 0 ? (
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center">

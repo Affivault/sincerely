@@ -10,6 +10,7 @@ import { checkAndAutoCompleteCampaign, htmlToText } from './sequence.service.js'
 import { warmupAllowance } from '@lemlist/shared';
 import { renderMergeTags, spin } from '@lemlist/shared';
 import { settingsService } from './settings.service.js';
+import { trackingBaseUrl } from './tracking-domain.service.js';
 import { isLinkedinStep } from '@lemlist/shared';
 
 /**
@@ -287,8 +288,8 @@ function generateTrackingId(campaignContactId: string, stepId: string): string {
   return Buffer.from(`${payload}:${hmac}`).toString('base64url');
 }
 
-function injectTrackingPixel(html: string, trackingId: string): string {
-  const pixelUrl = `${env.TRACKING_BASE_URL}/api/track/open/${trackingId}`;
+function injectTrackingPixel(html: string, trackingId: string, base: string): string {
+  const pixelUrl = `${base}/api/track/open/${trackingId}`;
   const pixel = `<img src="${pixelUrl}" width="1" height="1" style="display:none;border:0;" alt="" />`;
   if (html.includes('</body>')) {
     return html.replace('</body>', `${pixel}</body>`);
@@ -296,7 +297,7 @@ function injectTrackingPixel(html: string, trackingId: string): string {
   return html + pixel;
 }
 
-function wrapLinks(html: string, trackingId: string): string {
+function wrapLinks(html: string, trackingId: string, base: string): string {
   return html.replace(
     /href=(["'])(https?:\/\/[^"']+)\1/gi,
     (_match, quote, url) => {
@@ -304,7 +305,7 @@ function wrapLinks(html: string, trackingId: string): string {
         return `href=${quote}${url}${quote}`;
       }
       const encoded = Buffer.from(url).toString('base64url');
-      const trackUrl = `${env.TRACKING_BASE_URL}/api/track/click/${trackingId}?url=${encoded}`;
+      const trackUrl = `${base}/api/track/click/${trackingId}?url=${encoded}`;
       return `href=${quote}${trackUrl}${quote}`;
     }
   );
@@ -421,7 +422,17 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
   const trackingId = generateTrackingId(campaignContactId, stepId);
   let finalHtml = bodyHtml;
 
-  const unsubUrl = `${env.TRACKING_BASE_URL}/api/track/unsubscribe/${trackingId}`;
+  // Links carry the account's own domain when it has a verified one. Spam
+  // filters judge the domains *inside* a message, so a shared link host makes
+  // every account's deliverability hostage to every other account's sending.
+  // Falls back to the shared host whenever anything is unset or unproven —
+  // the unsubscribe link is built from this, and one that 404s turns an
+  // annoyed recipient into a spam complaint.
+  const trackingBase = campaign.user_id
+    ? await trackingBaseUrl(campaign.user_id)
+    : env.TRACKING_BASE_URL;
+
+  const unsubUrl = `${trackingBase}/api/track/unsubscribe/${trackingId}`;
   if (campaign.include_unsubscribe === true) {
     finalHtml = finalHtml.replace(/\{\{unsubscribe_link\}\}/gi, unsubUrl);
     if (!bodyHtml.match(/\{\{unsubscribe_link\}\}/i)) {
@@ -463,10 +474,10 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
   const finalText = htmlToText(finalHtml) || fillSenderTags(bodyText);
 
   if (campaign.track_clicks !== false) {
-    finalHtml = wrapLinks(finalHtml, trackingId);
+    finalHtml = wrapLinks(finalHtml, trackingId, trackingBase);
   }
   if (campaign.track_opens !== false) {
-    finalHtml = injectTrackingPixel(finalHtml, trackingId);
+    finalHtml = injectTrackingPixel(finalHtml, trackingId, trackingBase);
   }
 
   // 5. Send via relay (Vercel) or direct SMTP
