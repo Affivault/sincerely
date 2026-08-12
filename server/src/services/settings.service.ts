@@ -3,6 +3,7 @@ import { AppError } from '../middleware/error.middleware.js';
 import { stripeService } from './stripe.service.js';
 import type { SenderIdentity } from '@lemlist/shared';
 import { invalidateGuardSettings } from './bounce-guard.service.js';
+import { invalidateDomainLimit } from './domain-throttle.service.js';
 
 export interface UserSettings {
   id: string;
@@ -35,6 +36,8 @@ export interface UserSettings {
   bounce_guard_enabled: boolean;
   /** Percent. The guard also needs a minimum sample before it can act. */
   bounce_guard_threshold: number;
+  /** Most sends to one recipient company per hour. 0 = no limit. */
+  domain_hourly_limit: number;
   created_at: string;
   updated_at: string;
 }
@@ -69,6 +72,9 @@ const DEFAULTS: Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at
   // ones that do not know they need it.
   bounce_guard_enabled: true,
   bounce_guard_threshold: 8,
+  // Five an hour to one organisation is unremarkable to a gateway and still
+  // works through a large company over a day.
+  domain_hourly_limit: 5,
 };
 
 /** Columns a client may write. Everything else (id, user_id, timestamps —
@@ -137,6 +143,7 @@ export const settingsService = {
     // may the bounce guard's threshold — both are memoised on the send path.
     invalidateSenderIdentity(userId);
     invalidateGuardSettings(userId);
+    invalidateDomainLimit(userId);
 
     for (let attempt = 0; attempt < 4; attempt++) {
       const { data, error } = await supabaseAdmin

@@ -29,6 +29,8 @@ export interface UserSettings {
   /** Auto-pause a campaign whose bounce rate is damaging the sending domain. */
   bounce_guard_enabled: boolean;
   bounce_guard_threshold: number;
+  /** Most sends to one recipient company per hour. 0 = no limit. */
+  domain_hourly_limit: number;
   created_at: string;
   updated_at: string;
 }

@@ -9,6 +9,7 @@ import { nowInTimezone, partsInTimezone, startOfDayInTimezone, tzWallTimeToUtc }
 import { renderMergeTags, personalize, previewPersonalization, SENDER_TAGS, LINK_TAGS } from '@lemlist/shared';
 import { settingsService } from './settings.service.js';
 import { guardAfterBounce } from './bounce-guard.service.js';
+import * as domainThrottle from './domain-throttle.service.js';
 import { isLinkedinStep, inferTimezone } from '@lemlist/shared';
 
 /**
@@ -479,6 +480,31 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     return;
   }
 
+  // Don't let a company-sorted list land thirty messages at acme.com inside a
+  // minute — the burst a receiving gateway is built to notice, which gets the
+  // sending domain flagged at exactly the organisation you most wanted to
+  // reach. Reserved after the daily and monthly caps, so a contact deferred
+  // for this reason hasn't already spent one of those, and before the contact
+  // is claimed, so deferring costs nothing.
+  const domainReservation = ownerId
+    ? await domainThrottle.reserveDomainSend(ownerId, cc.contacts.email)
+    : { granted: true, domain: '', period: null, retryAt: null };
+
+  if (!domainReservation.granted) {
+    if (ownerId) await billingService.refundEmailQuota(ownerId);
+    if (dailyLimit > 0) await refundCampaignDailySend(cc.campaign_id, dailyPeriodStart);
+    const retryAt = domainReservation.retryAt || new Date(Date.now() + 3600_000);
+    await supabaseAdmin
+      .from('campaign_contacts')
+      .update({ next_send_at: retryAt.toISOString() })
+      .eq('id', cc.id);
+    console.log(
+      `[Sequence] Contact ${cc.id} deferred to ${retryAt.toISOString()} — ` +
+      `hourly limit reached for ${domainReservation.domain}`,
+    );
+    return;
+  }
+
   // A/B testing is a paid feature — fall back to variant A when not included.
   const abAllowed = ownerId ? await billingService.hasFeature(ownerId, 'abTesting') : true;
 
@@ -514,6 +540,7 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
   if (nullifyErr) {
     if (ownerId) await billingService.refundEmailQuota(ownerId);
     if (dailyLimit > 0) await refundCampaignDailySend(cc.campaign_id, dailyPeriodStart);
+    if (ownerId) await domainThrottle.refundDomainSend(ownerId, domainReservation);
     throw new Error(`Failed to lock contact ${cc.id} for processing: ${nullifyErr.message}`);
   }
   if (!claimed) {
@@ -522,6 +549,7 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     // give back the slots reserved above (the winner reserved its own).
     if (ownerId) await billingService.refundEmailQuota(ownerId);
     if (dailyLimit > 0) await refundCampaignDailySend(cc.campaign_id, dailyPeriodStart);
+    if (ownerId) await domainThrottle.refundDomainSend(ownerId, domainReservation);
     console.log(`[Sequence] Contact ${cc.id} already claimed by a concurrent run — skipping`);
     return;
   }
@@ -550,6 +578,7 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     // The send never happened — give back the slots reserved above.
     if (ownerId) await billingService.refundEmailQuota(ownerId);
     if (dailyLimit > 0) await refundCampaignDailySend(cc.campaign_id, dailyPeriodStart);
+    if (ownerId) await domainThrottle.refundDomainSend(ownerId, domainReservation);
 
     // sendCampaignEmail annotates failures it can explain in plain language
     // (every mailbox at capacity, none verified). Keep it where the campaign

@@ -120,6 +120,7 @@ export function SettingsPage() {
   const [stopAllOnReply, setStopAllOnReply] = useState(false);
   const [bounceGuard, setBounceGuard] = useState(true);
   const [bounceThreshold, setBounceThreshold] = useState(8);
+  const [domainLimit, setDomainLimit] = useState(5);
   const [autoVerifyContacts, setAutoVerifyContacts] = useState(true);
 
   // Password change
@@ -163,6 +164,7 @@ export function SettingsPage() {
       setStopAllOnReply((settings as any).stop_all_campaigns_on_reply ?? false);
       setBounceGuard((settings as any).bounce_guard_enabled ?? true);
       setBounceThreshold(Number((settings as any).bounce_guard_threshold ?? 8));
+      setDomainLimit(Number((settings as any).domain_hourly_limit ?? 5));
       setAutoVerifyContacts((settings as any).auto_verify_contacts ?? true);
       setHasChanges(false);
     }
@@ -224,6 +226,7 @@ export function SettingsPage() {
       stop_all_campaigns_on_reply: stopAllOnReply,
       bounce_guard_enabled: bounceGuard,
       bounce_guard_threshold: bounceThreshold,
+      domain_hourly_limit: domainLimit,
       ai_tagging_enabled: aiTaggingEnabled,
       auto_verify_contacts: autoVerifyContacts,
     });
@@ -844,6 +847,33 @@ export function SettingsPage() {
                         checked={bounceGuard}
                         onChange={(v) => { setBounceGuard(v); markChanged(); }}
                       />
+                      <label className="flex flex-wrap items-center gap-3 pl-1">
+                        <span className="text-[12.5px] text-[var(--text-secondary)]">
+                          At most
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={10000}
+                          value={domainLimit}
+                          onChange={(e) => {
+                            const next = Number(e.target.value);
+                            setDomainLimit(Number.isFinite(next) && next >= 0 ? next : 5);
+                            markChanged();
+                          }}
+                          className="w-16 h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-[12.5px] text-[var(--text-primary)] tabular focus:border-[var(--indigo)] focus:outline-none"
+                        />
+                        <span className="text-[12.5px] text-[var(--text-secondary)]">
+                          emails per hour to any one company
+                        </span>
+                        <span className="w-full text-[11.5px] text-[var(--text-tertiary)] leading-snug">
+                          A list sorted by company sends every address at one business back to back,
+                          which is the burst their mail gateway is built to notice. Gmail, Outlook and
+                          the other consumer providers are exempt &mdash; they aren&rsquo;t one
+                          organisation. Set to 0 to turn this off.
+                        </span>
+                      </label>
+
                       {bounceGuard && (
                         <label className="flex items-center gap-3 pl-1">
                           <span className="text-[12.5px] text-[var(--text-secondary)]">Pause above</span>
