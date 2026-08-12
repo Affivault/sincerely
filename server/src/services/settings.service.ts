@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { stripeService } from './stripe.service.js';
 import type { SenderIdentity } from '@lemlist/shared';
+import { invalidateGuardSettings } from './bounce-guard.service.js';
 
 export interface UserSettings {
   id: string;
@@ -30,6 +31,10 @@ export interface UserSettings {
   crm_auto_deals: boolean;
   /** When someone replies to one campaign, stop every other one for them. */
   stop_all_campaigns_on_reply: boolean;
+  /** Auto-pause a campaign whose bounce rate is damaging the sending domain. */
+  bounce_guard_enabled: boolean;
+  /** Percent. The guard also needs a minimum sample before it can act. */
+  bounce_guard_threshold: number;
   created_at: string;
   updated_at: string;
 }
@@ -59,6 +64,11 @@ const DEFAULTS: Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at
   // Off by default: switching it on changes when live campaigns stop, and
   // that is not a decision to make on someone's behalf.
   stop_all_campaigns_on_reply: false,
+  // On by default, unlike the opt-in features above. A safety brake that
+  // ships switched off protects nobody: the accounts that need it are the
+  // ones that do not know they need it.
+  bounce_guard_enabled: true,
+  bounce_guard_threshold: 8,
 };
 
 /** Columns a client may write. Everything else (id, user_id, timestamps —
@@ -123,8 +133,10 @@ export const settingsService = {
     }
     if (Object.keys(filtered).length === 0) return settingsService.get(userId);
 
-    // The name and company behind {{sender_*}} may have just changed.
+    // The name and company behind {{sender_*}} may have just changed, and so
+    // may the bounce guard's threshold — both are memoised on the send path.
     invalidateSenderIdentity(userId);
+    invalidateGuardSettings(userId);
 
     for (let attempt = 0; attempt < 4; attempt++) {
       const { data, error } = await supabaseAdmin

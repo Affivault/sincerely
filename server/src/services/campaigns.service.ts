@@ -595,12 +595,19 @@ export const campaignsService = {
       throw new AppError('Campaign must be running to pause', 400);
     }
 
-    const { data, error } = await supabaseAdmin
+    // A hand pause has no automatic reason behind it, and leaving a stale one
+    // would have the page still blaming a bounce rate the user has since
+    // fixed. Retried without the columns for a database that predates 045.
+    let { data, error } = await supabaseAdmin
       .from('campaigns')
-      .update({ status: 'paused' })
+      .update({ status: 'paused', paused_reason: null, paused_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single();
+    if (error && /paused_reason|paused_at/.test(error.message)) {
+      ({ data, error } = await supabaseAdmin
+        .from('campaigns').update({ status: 'paused' }).eq('id', id).select().single());
+    }
 
     if (error) throw new AppError(error.message, 500);
     fireEvent(userId, 'campaign.paused', { campaign: data }).catch((err: any) => console.error('[Campaign] Webhook error:', err?.message ?? String(err)));
@@ -613,12 +620,19 @@ export const campaignsService = {
       throw new AppError('Campaign must be paused to resume', 400);
     }
 
-    const { data, error } = await supabaseAdmin
+    // Resuming is the user saying the problem is dealt with, so clear both the
+    // reason it was stopped and any stall recorded before that. Whatever is
+    // still wrong will be recorded again on the next failed send.
+    let { data, error } = await supabaseAdmin
       .from('campaigns')
-      .update({ status: 'running' })
+      .update({ status: 'running', paused_reason: null, stall_reason: null, stall_since: null })
       .eq('id', id)
       .select()
       .single();
+    if (error && /paused_reason|stall_reason|stall_since/.test(error.message)) {
+      ({ data, error } = await supabaseAdmin
+        .from('campaigns').update({ status: 'running' }).eq('id', id).select().single());
+    }
 
     if (error) throw new AppError(error.message, 500);
     fireEvent(userId, 'campaign.resumed', { campaign: data }).catch((err: any) => console.error('[Campaign] Webhook error:', err?.message ?? String(err)));

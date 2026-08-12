@@ -8,6 +8,7 @@ import * as sse from './sse.service.js';
 import { nowInTimezone, partsInTimezone, startOfDayInTimezone, tzWallTimeToUtc } from '../utils/timezone.js';
 import { renderMergeTags, personalize, previewPersonalization, SENDER_TAGS, LINK_TAGS } from '@lemlist/shared';
 import { settingsService } from './settings.service.js';
+import { guardAfterBounce } from './bounce-guard.service.js';
 import { isLinkedinStep, inferTimezone } from '@lemlist/shared';
 
 /**
@@ -162,6 +163,53 @@ async function ensureContactTimezone(campaignContactId: string, contact: any): P
     console.warn(`[Sequence] Could not store contact_timezone for ${campaignContactId}: ${error.message}`);
   }
   return zone;
+}
+
+/**
+ * Remember why a campaign could not send, so the page can say so.
+ *
+ * The engine has always known — SSE works out whether every mailbox is at its
+ * daily cap, or none is verified, or the campaign's pool is empty — and the
+ * string was logged and dropped. A campaign then sat on "running" with
+ * nothing happening and nothing to explain it, which is the single most
+ * common support question this kind of product generates.
+ *
+ * Transient by design: written when a send fails for want of capacity or
+ * configuration, cleared by the next send that succeeds. `stall_since` is
+ * only stamped the first time so the page can say how long it has been stuck
+ * rather than resetting the clock every thirty seconds.
+ */
+async function recordStall(campaignId: string, reason: string | null): Promise<void> {
+  try {
+    if (reason === null) {
+      // Only clear a stall that exists, so a healthy campaign is not written
+      // to on every single send.
+      await supabaseAdmin
+        .from('campaigns')
+        .update({ stall_reason: null, stall_since: null })
+        .eq('id', campaignId)
+        .not('stall_reason', 'is', null);
+      return;
+    }
+    const { data: existing } = await supabaseAdmin
+      .from('campaigns')
+      .select('stall_reason, stall_since')
+      .eq('id', campaignId)
+      .maybeSingle();
+    await supabaseAdmin
+      .from('campaigns')
+      .update({
+        stall_reason: reason,
+        stall_since: existing?.stall_since || new Date().toISOString(),
+      })
+      .eq('id', campaignId);
+  } catch (err: any) {
+    // A pre-045 database has no such columns. Not being able to explain a
+    // stall must never itself stop the engine.
+    if (!/stall_reason|stall_since/.test(err?.message || '')) {
+      console.warn(`[Sequence] Could not record stall for ${campaignId}:`, err?.message || err);
+    }
+  }
 }
 
 // ============================================
@@ -494,12 +542,19 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
       ab_variant: step.subject_b ? (useVariantB ? 'b' : 'a') : undefined,
     });
     // (Quota already reserved above before sending.)
+    // Whatever was blocking this campaign clearly isn't any more.
+    await recordStall(cc.campaign_id, null);
   } catch (err: any) {
     console.error(`[Sequence] Email send failed for ${cc.contacts.email}:`, err.message);
 
     // The send never happened — give back the slots reserved above.
     if (ownerId) await billingService.refundEmailQuota(ownerId);
     if (dailyLimit > 0) await refundCampaignDailySend(cc.campaign_id, dailyPeriodStart);
+
+    // sendCampaignEmail annotates failures it can explain in plain language
+    // (every mailbox at capacity, none verified). Keep it where the campaign
+    // page can read it.
+    if (err.stallReason) await recordStall(cc.campaign_id, err.stallReason);
 
     // sendCampaignEmail annotates the error with the account it had already
     // reserved a warm-up/ramp slot on (once SMTP selection succeeded) —
@@ -527,6 +582,16 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
       if (bounceAccountId) {
         sse.recordBounce(bounceAccountId).catch(() => {});
       }
+
+      // The evidence just changed, so ask now rather than on a schedule: the
+      // point of the guard is to stop the *next* thousand sends, not to
+      // report on the last thousand. Deliberately awaited — letting the
+      // sequence worker pick up more contacts while a decision to stop is
+      // still in flight is exactly the window that does the damage.
+      if (cc.campaigns?.user_id) {
+        await guardAfterBounce(cc.campaigns.user_id, cc.campaign_id);
+      }
+
       checkAndAutoCompleteCampaign(cc.campaign_id).catch(() => {});
     }
 

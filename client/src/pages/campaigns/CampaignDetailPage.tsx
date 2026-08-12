@@ -24,6 +24,7 @@ import {
   MousePointerClick,
   MessageSquare,
   AlertTriangle,
+  ShieldAlert,
   Clock,
   Copy,
   GitBranch,
@@ -276,6 +277,49 @@ export function CampaignDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Why this campaign is stopped, or stuck.
+          The engine has always known — it computes "every mailbox is at its
+          daily cap", "no verified mailbox", or pauses on a bounce rate — and
+          none of it reached the screen. A campaign showing "running" with
+          nothing happening is the most common question this product
+          generates, and the answer was already in the logs. */}
+      {campaign.paused_reason && (
+        <div className="flex items-start gap-3 rounded-xl border border-[var(--error)]/30 bg-[var(--error-bg)] px-4 py-3">
+          <ShieldAlert className="h-4 w-4 flex-shrink-0 mt-0.5 text-[var(--error)]" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">
+              Sending stopped
+            </p>
+            <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed mt-0.5">
+              {campaign.paused_reason}
+            </p>
+            <p className="text-[11.5px] text-[var(--text-tertiary)] mt-1.5">
+              Clean the list — remove or re-verify the addresses that bounced — before you resume.
+              Resuming clears this message.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!campaign.paused_reason && campaign.stall_reason && campaign.status === 'running' && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-500" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">
+              Running, but nothing is going out
+              {campaign.stall_since && (
+                <span className="font-normal text-[var(--text-tertiary)]">
+                  {' '}&mdash; since {formatDateTime(campaign.stall_since)}
+                </span>
+              )}
+            </p>
+            <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed mt-0.5">
+              {campaign.stall_reason}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Tabs — segmented control */}
       <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">

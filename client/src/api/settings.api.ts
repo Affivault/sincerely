@@ -26,6 +26,9 @@ export interface UserSettings {
   crm_auto_deals: boolean;
   /** When someone replies to one campaign, stop every other one for them. */
   stop_all_campaigns_on_reply: boolean;
+  /** Auto-pause a campaign whose bounce rate is damaging the sending domain. */
+  bounce_guard_enabled: boolean;
+  bounce_guard_threshold: number;
   created_at: string;
   updated_at: string;
 }

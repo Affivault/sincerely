@@ -31,3 +31,32 @@ export function twoProportionPValue(x1: number, n1: number, x2: number, n2: numb
   const z = (p2 - p1) / se;
   return Math.min(1, 2 * (1 - normalCdf(Math.abs(z))));
 }
+
+/**
+ * Lower bound of the Wilson score interval for a proportion.
+ *
+ * The honest way to ask "is this rate genuinely above X?" on a small sample.
+ * A naive `bounced / sent > threshold` trips on two bounces out of three —
+ * 67%, and meaningless — which would pause a campaign on its third send and
+ * teach everyone to switch the protection off. This asks instead: given what
+ * we have seen, what is the *lowest* the true rate plausibly is? Only when
+ * even that pessimistic reading is above the threshold is there something
+ * worth stopping a campaign for.
+ *
+ * Wilson rather than the textbook normal interval because the normal one is
+ * badly behaved exactly where this operates — few trials, proportions near
+ * zero — and can return a negative lower bound.
+ *
+ * @param successes  Events of interest (here: bounces).
+ * @param trials     Total observations (here: sends).
+ * @param z          Standard score. 1.96 = 95% two-sided, the default.
+ */
+export function wilsonLowerBound(successes: number, trials: number, z = 1.96): number {
+  if (trials <= 0) return 0;
+  const p = successes / trials;
+  const z2 = z * z;
+  const denominator = 1 + z2 / trials;
+  const centre = p + z2 / (2 * trials);
+  const spread = z * Math.sqrt((p * (1 - p) + z2 / (4 * trials)) / trials);
+  return Math.max(0, (centre - spread) / denominator);
+}

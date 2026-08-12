@@ -118,6 +118,8 @@ export function SettingsPage() {
   const [aiAutoBounce, setAiAutoBounce] = useState(true);
   const [crmAutoDeals, setCrmAutoDeals] = useState(true);
   const [stopAllOnReply, setStopAllOnReply] = useState(false);
+  const [bounceGuard, setBounceGuard] = useState(true);
+  const [bounceThreshold, setBounceThreshold] = useState(8);
   const [autoVerifyContacts, setAutoVerifyContacts] = useState(true);
 
   // Password change
@@ -159,6 +161,8 @@ export function SettingsPage() {
       setAiAutoBounce(settings.sara_auto_bounce ?? true);
       setCrmAutoDeals((settings as any).crm_auto_deals ?? true);
       setStopAllOnReply((settings as any).stop_all_campaigns_on_reply ?? false);
+      setBounceGuard((settings as any).bounce_guard_enabled ?? true);
+      setBounceThreshold(Number((settings as any).bounce_guard_threshold ?? 8));
       setAutoVerifyContacts((settings as any).auto_verify_contacts ?? true);
       setHasChanges(false);
     }
@@ -218,6 +222,8 @@ export function SettingsPage() {
       sara_auto_bounce: aiAutoBounce,
       crm_auto_deals: crmAutoDeals,
       stop_all_campaigns_on_reply: stopAllOnReply,
+      bounce_guard_enabled: bounceGuard,
+      bounce_guard_threshold: bounceThreshold,
       ai_tagging_enabled: aiTaggingEnabled,
       auto_verify_contacts: autoVerifyContacts,
     });
@@ -832,6 +838,33 @@ export function SettingsPage() {
                         checked={stopAllOnReply}
                         onChange={(v) => { setStopAllOnReply(v); markChanged(); }}
                       />
+                      <ToggleSetting
+                        label="Stop a campaign that is bouncing"
+                        description="A bad list bounces heavily, mailbox providers read that as a spam signal, and the damage to your sending domain is not undone by stopping later. This pauses the campaign instead."
+                        checked={bounceGuard}
+                        onChange={(v) => { setBounceGuard(v); markChanged(); }}
+                      />
+                      {bounceGuard && (
+                        <label className="flex items-center gap-3 pl-1">
+                          <span className="text-[12.5px] text-[var(--text-secondary)]">Pause above</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={100}
+                            value={bounceThreshold}
+                            onChange={(e) => {
+                              const next = Number(e.target.value);
+                              setBounceThreshold(Number.isFinite(next) ? next : 8);
+                              markChanged();
+                            }}
+                            className="w-16 h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-[12.5px] text-[var(--text-primary)] tabular focus:border-[var(--indigo)] focus:outline-none"
+                          />
+                          <span className="text-[12.5px] text-[var(--text-secondary)]">% bounced</span>
+                          <span className="text-[11.5px] text-[var(--text-tertiary)]">
+                            A healthy list bounces at 2&ndash;3%. Needs 20 sends before it can act.
+                          </span>
+                        </label>
+                      )}
                     </div>
 
                     <div className="p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">

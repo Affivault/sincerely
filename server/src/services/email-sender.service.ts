@@ -392,7 +392,17 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
   }
 
   if (!smtpAccount) {
-    throw new Error('No SMTP account available. Add and configure an SMTP account first.');
+    // SSE worked out exactly why — every mailbox at its daily cap, none
+    // active and verified, none in the campaign's pool — and that string
+    // used to be logged and dropped. Carry it out with the failure so the
+    // campaign page can say what is wrong instead of showing "running" with
+    // nothing happening.
+    const err: any = new Error(
+      sseResult.reason || 'No SMTP account available. Add and configure an SMTP account first.',
+    );
+    err.stallReason = sseResult.reason || 'No active, verified mailbox is available to send from.';
+    err.stallKind = sseResult.all_exhausted ? 'capacity' : 'configuration';
+    throw err;
   }
 
   // 3. Decrypt SMTP password

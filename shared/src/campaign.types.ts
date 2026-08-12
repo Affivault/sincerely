@@ -24,6 +24,12 @@ export interface Campaign {
   ab_auto_promote: boolean;
   /** Measure the send window against each recipient's own clock. */
   send_in_recipient_timezone: boolean;
+  /** Set when something stopped the campaign on the user's behalf. */
+  paused_reason?: string | null;
+  paused_at?: string | null;
+  /** Why the engine currently cannot send. Cleared by the next send. */
+  stall_reason?: string | null;
+  stall_since?: string | null;
   track_opens: boolean;
   track_clicks: boolean;
   include_unsubscribe: boolean;
@@ -160,6 +166,19 @@ export interface PersonalizationTag {
 }
 
 /** How much of an audience could be placed on a clock of its own. */
+/** What the bounce guard sees, so a threshold is never a surprise. */
+export interface BounceVerdict {
+  sent: number;
+  bounced: number;
+  /** Observed rate, 0-1. */
+  rate: number;
+  /** Lower bound of the 95% interval -- what the decision actually uses. */
+  confidentRate: number;
+  thresholdPercent: number;
+  trip: boolean;
+  note: string;
+}
+
 export interface TimezoneCoverage {
   placed: number;
   total: number;
