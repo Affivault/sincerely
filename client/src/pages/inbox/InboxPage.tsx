@@ -70,6 +70,7 @@ import {
   Handshake,
   Plus,
   Users as UsersIcon,
+  Bot as BotIcon,
 } from 'lucide-react';
 
 import { DEAL_STAGES, type DealStage } from '@lemlist/shared';
@@ -104,6 +105,8 @@ interface Message {
   body_html: string | null;
   body_text: string | null;
   is_read: boolean;
+  /** Set when a machine sent it — never counted as a reply. */
+  auto_reply_kind?: 'out_of_office' | 'auto_reply' | null;
   is_starred?: boolean;
   is_archived?: boolean;
   direction?: string;
@@ -3170,6 +3173,21 @@ export function InboxPage() {
                         <span className="text-[9.5px] font-semibold px-1 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-tertiary)] flex-shrink-0 tabular">{conv.messageCount}</span>
                       )}
                       {conv.isStarred && <Star className="h-3 w-3 text-amber-400 fill-amber-400 flex-shrink-0" />}
+                      {/* Marked rather than hidden. It still belongs in the
+                          thread — it just isn't someone answering you, and a
+                          row that looks like a reply and isn't is how a
+                          fortnight of annual leave got counted as interest. */}
+                      {msg.auto_reply_kind && (
+                        <span
+                          className="inline-flex items-center gap-1 text-[9.5px] font-semibold px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-tertiary)] flex-shrink-0"
+                          title={msg.auto_reply_kind === 'out_of_office'
+                            ? 'Out-of-office autoresponder — not counted as a reply'
+                            : 'Automatic reply — not counted as a reply'}
+                        >
+                          <BotIcon className="h-2.5 w-2.5" />
+                          {msg.auto_reply_kind === 'out_of_office' ? 'Away' : 'Auto'}
+                        </span>
+                      )}
                     </span>
 
                     {/* Conversation: subject + snippet on one scannable line */}

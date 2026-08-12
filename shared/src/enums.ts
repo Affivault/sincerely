@@ -76,6 +76,8 @@ export enum ContactCampaignStatus {
   Active = 'active',
   Completed = 'completed',
   Replied = 'replied',
+  /** An autoresponder, not a person. Never counted as a reply. */
+  AutoReply = 'auto_reply',
   Bounced = 'bounced',
   Unsubscribed = 'unsubscribed',
   Suppressed = 'suppressed',
