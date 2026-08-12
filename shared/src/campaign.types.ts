@@ -83,6 +83,8 @@ export interface CampaignWithStats extends Campaign {
   bounced_count: number;
   active_contacts: number;
   completed_contacts: number;
+  /** Answered — the outcome a campaign exists to produce. */
+  replied_contacts?: number;
   bounced_contacts: number;
   unsubscribed_contacts: number;
   suppressed_contacts: number;

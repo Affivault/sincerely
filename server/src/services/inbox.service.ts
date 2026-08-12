@@ -9,6 +9,7 @@ import { processReply } from './sara.service.js';
 import { SaraStatus } from '@lemlist/shared';
 import { fireEvent } from './webhook.service.js';
 import { detectAutoReply } from '../utils/auto-reply.js';
+import { markReplied, stopOtherCampaignsForContact } from './sequence.service.js';
 import { billingService } from './billing.service.js';
 
 /** Reserve a monthly-quota slot before an interactive send; throws if over cap. */
@@ -1197,6 +1198,27 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
               }
 
               if (!autoReply.kind) {
+                // Stop them here, not when their next step happens to come
+                // due. A contact who replies after step two of a sequence
+                // whose step three waits five days used to stay 'active' for
+                // those five days — still shown as being worked, blocking the
+                // campaign from completing, and holding a slot in the batch
+                // the sequence worker pulls each tick.
+                const { data: enrolment } = await supabaseAdmin
+                  .from('campaign_contacts')
+                  .select('id, campaigns!inner(stop_on_reply)')
+                  .eq('id', matchedActivity.campaign_contact_id)
+                  .maybeSingle();
+
+                if (enrolment && (enrolment as any).campaigns?.stop_on_reply !== false) {
+                  await markReplied(matchedActivity.campaign_contact_id);
+                  await stopOtherCampaignsForContact(
+                    userId,
+                    matchedActivity.contact_id,
+                    matchedActivity.campaign_contact_id,
+                  );
+                }
+
                 fireEvent(userId, 'email.replied', {
                   campaign_id: matchedActivity.campaign_id,
                   contact_id: matchedActivity.contact_id,

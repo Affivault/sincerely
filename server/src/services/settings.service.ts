@@ -28,6 +28,8 @@ export interface UserSettings {
   auto_verify_contacts: boolean;
   /** SARA auto-creates a CRM deal when a reply is interested/meeting */
   crm_auto_deals: boolean;
+  /** When someone replies to one campaign, stop every other one for them. */
+  stop_all_campaigns_on_reply: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -54,6 +56,9 @@ const DEFAULTS: Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at
   ai_tagging_enabled: true,
   auto_verify_contacts: true,
   crm_auto_deals: true,
+  // Off by default: switching it on changes when live campaigns stop, and
+  // that is not a decision to make on someone's behalf.
+  stop_all_campaigns_on_reply: false,
 };
 
 /** Columns a client may write. Everything else (id, user_id, timestamps —

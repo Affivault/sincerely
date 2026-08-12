@@ -253,7 +253,10 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
     return;
   }
 
-  // Check stop_on_reply — if contact already replied, mark completed
+  // Check stop_on_reply. A reply is its own outcome, not a completion — a
+  // contact who answered at step two and one who sat through all five in
+  // silence are the two most different results a campaign produces, and until
+  // now they were both filed as 'completed'.
   if (cc.campaigns.stop_on_reply !== false) {
     const { count: replyCount } = await supabaseAdmin
       .from('campaign_activities')
@@ -261,7 +264,7 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
       .eq('campaign_contact_id', cc.id)
       .eq('activity_type', 'replied');
     if (replyCount && replyCount > 0) {
-      await markCompleted(campaignContactId);
+      await markReplied(campaignContactId);
       return;
     }
   }
@@ -1072,6 +1075,80 @@ async function advanceToNextStep(
   } else {
     await markCompleted(campaignContactId);
   }
+}
+
+/**
+ * Stop a contact because they answered.
+ *
+ * Called the moment the reply lands rather than when their next step comes
+ * due. That difference is not cosmetic: a contact replying after step two of
+ * a sequence whose step three waits five days used to sit 'active' for those
+ * five days — shown as still being worked, keeping the campaign from
+ * auto-completing, and taking one of the fifty slots the sequence worker
+ * pulls each tick away from a contact genuinely due.
+ *
+ * Idempotent, and only ever moves a contact who is still in flight: a reply
+ * arriving after they bounced or unsubscribed must not overwrite that.
+ */
+export async function markReplied(campaignContactId: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from('campaign_contacts')
+    .update({
+      status: 'replied',
+      next_send_at: null,
+      completed_at: new Date().toISOString(),
+    })
+    .eq('id', campaignContactId)
+    .in('status', ['pending', 'active'])
+    .select('campaign_id')
+    .maybeSingle();
+
+  if (error) {
+    console.error(`[Sequence] Failed to mark contact ${campaignContactId} replied:`, error.message);
+    return false;
+  }
+  if (!data) return false; // already in a terminal state — leave it alone
+
+  checkAndAutoCompleteCampaign(data.campaign_id).catch(() => {});
+  return true;
+}
+
+/**
+ * Stop every *other* live campaign for the person who just replied.
+ *
+ * Opt-in per account. Someone who has answered one sequence should not keep
+ * receiving a different one — it reads as though nobody is paying attention,
+ * which is the impression cold outreach can least afford.
+ */
+export async function stopOtherCampaignsForContact(
+  userId: string,
+  contactId: string,
+  exceptCampaignContactId: string,
+): Promise<number> {
+  const { data: settings } = await supabaseAdmin
+    .from('user_settings')
+    .select('stop_all_campaigns_on_reply')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (!settings?.stop_all_campaigns_on_reply) return 0;
+
+  const { data: stopped, error } = await supabaseAdmin
+    .from('campaign_contacts')
+    .update({ status: 'replied', next_send_at: null, completed_at: new Date().toISOString() })
+    .eq('contact_id', contactId)
+    .neq('id', exceptCampaignContactId)
+    .in('status', ['pending', 'active'])
+    .select('campaign_id');
+
+  if (error) {
+    console.error(`[Sequence] Cross-campaign stop failed for contact ${contactId}:`, error.message);
+    return 0;
+  }
+
+  for (const campaignId of new Set((stopped || []).map((r: any) => r.campaign_id))) {
+    checkAndAutoCompleteCampaign(campaignId).catch(() => {});
+  }
+  return (stopped || []).length;
 }
 
 async function markCompleted(campaignContactId: string): Promise<void> {

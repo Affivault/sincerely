@@ -24,6 +24,8 @@ export interface UserSettings {
   ai_tagging_enabled: boolean;
   auto_verify_contacts: boolean;
   crm_auto_deals: boolean;
+  /** When someone replies to one campaign, stop every other one for them. */
+  stop_all_campaigns_on_reply: boolean;
   created_at: string;
   updated_at: string;
 }

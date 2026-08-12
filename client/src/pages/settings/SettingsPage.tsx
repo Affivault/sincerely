@@ -117,6 +117,7 @@ export function SettingsPage() {
   const [aiAutoUnsubscribe, setAiAutoUnsubscribe] = useState(true);
   const [aiAutoBounce, setAiAutoBounce] = useState(true);
   const [crmAutoDeals, setCrmAutoDeals] = useState(true);
+  const [stopAllOnReply, setStopAllOnReply] = useState(false);
   const [autoVerifyContacts, setAutoVerifyContacts] = useState(true);
 
   // Password change
@@ -157,6 +158,7 @@ export function SettingsPage() {
       setAiAutoUnsubscribe(settings.sara_auto_unsubscribe ?? true);
       setAiAutoBounce(settings.sara_auto_bounce ?? true);
       setCrmAutoDeals((settings as any).crm_auto_deals ?? true);
+      setStopAllOnReply((settings as any).stop_all_campaigns_on_reply ?? false);
       setAutoVerifyContacts((settings as any).auto_verify_contacts ?? true);
       setHasChanges(false);
     }
@@ -215,6 +217,7 @@ export function SettingsPage() {
       sara_auto_unsubscribe: aiAutoUnsubscribe,
       sara_auto_bounce: aiAutoBounce,
       crm_auto_deals: crmAutoDeals,
+      stop_all_campaigns_on_reply: stopAllOnReply,
       ai_tagging_enabled: aiTaggingEnabled,
       auto_verify_contacts: autoVerifyContacts,
     });
@@ -822,6 +825,12 @@ export function SettingsPage() {
                         description="When a reply is tagged Interested or Meeting, create a qualified deal and a follow-up task in your CRM automatically"
                         checked={crmAutoDeals}
                         onChange={(v) => { setCrmAutoDeals(v); markChanged(); }}
+                      />
+                      <ToggleSetting
+                        label="One reply stops every campaign"
+                        description="When someone answers one sequence, stop the others they are in. Still receiving a different pitch after replying reads as though nobody is paying attention."
+                        checked={stopAllOnReply}
+                        onChange={(v) => { setStopAllOnReply(v); markChanged(); }}
                       />
                     </div>
 

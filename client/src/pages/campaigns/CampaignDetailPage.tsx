@@ -421,6 +421,7 @@ export function CampaignDetailPage() {
                 <option value="">All statuses</option>
                 <option value="active">Active</option>
                 <option value="pending">Pending</option>
+                <option value="replied">Replied</option>
                 <option value="completed">Completed</option>
                 <option value="bounced">Bounced</option>
                 <option value="unsubscribed">Unsubscribed</option>
@@ -537,7 +538,12 @@ function ContactProgressCard({ campaign }: { campaign: any }) {
   if (total === 0) return null;
 
   const segments = [
-    { label: 'Completed', count: campaign.completed_contacts || 0, color: 'bg-emerald-500' },
+    // Replied leads the list because it is the outcome the campaign exists to
+    // produce. Before it had a status of its own these contacts were filed as
+    // 'completed', and this bar counted them as Pending — the best result a
+    // campaign can reach, shown as not yet started.
+    { label: 'Replied', count: campaign.replied_contacts || 0, color: 'bg-emerald-500' },
+    { label: 'Completed', count: campaign.completed_contacts || 0, color: 'bg-emerald-500/50' },
     { label: 'Active', count: campaign.active_contacts || 0, color: 'bg-[var(--indigo)]' },
     { label: 'Bounced', count: campaign.bounced_contacts || 0, color: 'bg-red-500' },
     { label: 'Unsubscribed', count: campaign.unsubscribed_contacts || 0, color: 'bg-amber-500' },
