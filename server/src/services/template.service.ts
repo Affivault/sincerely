@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { writable } from '../utils/writable-fields.js';
 import type {
   EmailTemplate,
   SequenceTemplate,
@@ -439,6 +440,14 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
 
 // ─── Service ────────────────────────────────────────────────────────
 
+/**
+ * `is_preset` and `usage_count` are the platform's to set — a template that
+ * could mark itself a built-in preset would appear in every account's starter
+ * library, and a self-incremented usage count would sort itself to the top.
+ */
+const EMAIL_TEMPLATE_FIELDS = ['name', 'subject', 'body_html', 'body_text', 'category', 'tags'] as const;
+const SEQUENCE_TEMPLATE_FIELDS = ['name', 'description', 'category', 'steps', 'tags'] as const;
+
 export const templateService = {
   // Email Templates
   async listEmailTemplates(userId: string) {
@@ -487,7 +496,7 @@ export const templateService = {
   async updateEmailTemplate(userId: string, id: string, input: UpdateEmailTemplateInput) {
     const { data, error } = await supabaseAdmin
       .from('email_templates')
-      .update({ ...input, updated_at: new Date().toISOString() })
+      .update({ ...writable(input, EMAIL_TEMPLATE_FIELDS), updated_at: new Date().toISOString() })
       .eq('id', id)
       .eq('user_id', userId)
       .select()
@@ -582,7 +591,7 @@ export const templateService = {
   async updateSequenceTemplate(userId: string, id: string, input: UpdateSequenceTemplateInput) {
     const { data, error } = await supabaseAdmin
       .from('sequence_templates')
-      .update({ ...input, updated_at: new Date().toISOString() })
+      .update({ ...writable(input, SEQUENCE_TEMPLATE_FIELDS), updated_at: new Date().toISOString() })
       .eq('id', id)
       .eq('user_id', userId)
       .select()

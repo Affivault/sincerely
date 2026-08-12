@@ -1,6 +1,13 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { writable } from '../utils/writable-fields.js';
 import type { CreateContactListInput, UpdateContactListInput, BulkActionResult } from '@lemlist/shared';
+
+/**
+ * `is_default` is absent deliberately: exactly one list is the default, and
+ * that is moved by the dedicated path, not by whatever a request body says.
+ */
+const LIST_FIELDS = ['name', 'description', 'color', 'icon', 'folder_id'] as const;
 
 export const listsService = {
   async list(userId: string) {
@@ -71,7 +78,7 @@ export const listsService = {
   async create(userId: string, input: CreateContactListInput) {
     const { data, error } = await supabaseAdmin
       .from('contact_lists')
-      .insert({ ...input, user_id: userId })
+      .insert({ ...writable(input, LIST_FIELDS), user_id: userId })
       .select()
       .single();
 
@@ -92,7 +99,7 @@ export const listsService = {
 
     const { data, error } = await supabaseAdmin
       .from('contact_lists')
-      .update(input)
+      .update(writable(input, LIST_FIELDS))
       .eq('id', id)
       .eq('user_id', userId)
       .select()

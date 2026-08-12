@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import { writable } from '../utils/writable-fields.js';
 import type { AssetTemplate, CreateAssetTemplateInput, AssetTemplateLayer } from '@lemlist/shared';
 import crypto from 'crypto';
 
@@ -203,6 +204,8 @@ export async function createTemplate(
   return data;
 }
 
+const ASSET_TEMPLATE_FIELDS = ['name', 'width', 'height', 'background_color', 'layers', 'preview_url'] as const;
+
 export async function updateTemplate(
   userId: string,
   id: string,
@@ -210,7 +213,7 @@ export async function updateTemplate(
 ): Promise<AssetTemplate> {
   const { data, error } = await supabaseAdmin
     .from('asset_templates')
-    .update(input)
+    .update(writable(input, ASSET_TEMPLATE_FIELDS))
     .eq('id', id)
     .eq('user_id', userId)
     .select()

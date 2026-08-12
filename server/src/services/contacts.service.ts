@@ -292,7 +292,11 @@ export const contactsService = {
   },
 
   async create(userId: string, input: any) {
-    const { tag_ids, ...contactData } = input;
+    const { tag_ids } = input;
+    // The same allow-list update() has used since the ownership hole was
+    // closed there. create() was left spreading the raw body, so a request
+    // could still choose the row's primary key and its audit timestamps.
+    const contactData = pickUpdatable(input);
 
     const { data, error } = await supabaseAdmin
       .from('contacts')

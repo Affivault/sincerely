@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { writable } from '../utils/writable-fields.js';
 import type { CreateSegmentInput, UpdateSegmentInput, FilterConfig, SegmentCondition } from '@lemlist/shared';
 
 // Column names a segment condition may filter on. `field`/`operator` arrive
@@ -36,6 +37,13 @@ async function fetchAllContactIds(buildQuery: (from: number, to: number) => any)
   return ids;
 }
 
+/**
+ * `cached_count` / `cached_at` are the platform's — they're recomputed below
+ * whenever the filter changes, and a caller who could set them would make the
+ * segment claim a size it never had.
+ */
+const SEGMENT_FIELDS = ['name', 'description', 'icon', 'color', 'filter_config'] as const;
+
 export const segmentsService = {
   async list(userId: string) {
     const { data, error } = await supabaseAdmin
@@ -69,7 +77,7 @@ export const segmentsService = {
     const { data, error } = await supabaseAdmin
       .from('saved_segments')
       .insert({
-        ...input,
+        ...writable(input, SEGMENT_FIELDS),
         user_id: userId,
         cached_count: count,
         cached_at: new Date().toISOString(),
@@ -86,7 +94,7 @@ export const segmentsService = {
   },
 
   async update(userId: string, id: string, input: UpdateSegmentInput) {
-    let updateData: any = { ...input };
+    let updateData: any = writable(input, SEGMENT_FIELDS);
 
     // If filter_config changed, recalculate count
     if (input.filter_config) {
