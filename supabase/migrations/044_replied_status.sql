@@ -22,10 +22,22 @@
 -- Safe to run more than once.
 -- ============================================================================
 
-BEGIN;
+-- ----------------------------------------------------------------------------
+-- 1. Index campaign_activities by the contact it belongs to.
+--
+-- This is missing, and it is on the hottest path in the product. The sequence
+-- engine filters campaign_activities by campaign_contact_id four times --
+-- twice on every single send, to check whether the contact already replied
+-- and whether this exact step was already sent. Neither had an index to use,
+-- leaving only activity_type, which barely narrows anything.
+--
+-- It is created first so the backfill below uses it too.
+-- ----------------------------------------------------------------------------
+CREATE INDEX IF NOT EXISTS idx_campaign_activities_contact_type
+  ON campaign_activities (campaign_contact_id, activity_type);
 
 -- ----------------------------------------------------------------------------
--- 1. Backfill.
+-- 2. Backfill.
 --
 -- Contacts marked 'completed' who have a real reply recorded are the people
 -- this status was always meant for. Auto-replies carry activity_type
@@ -42,7 +54,7 @@ WHERE cc.status = 'completed'
   );
 
 -- ----------------------------------------------------------------------------
--- 2. Stop everything else that is mid-flight for a person who has answered.
+-- 3. Stop everything else that is mid-flight for a person who has answered.
 --
 -- Opt-in. Turning it on changes when live campaigns stop, which is not a
 -- decision to make on someone's behalf.
@@ -51,7 +63,7 @@ ALTER TABLE user_settings
   ADD COLUMN IF NOT EXISTS stop_all_campaigns_on_reply boolean NOT NULL DEFAULT false;
 
 -- ----------------------------------------------------------------------------
--- 3. Indexes.
+-- 4. Campaign page indexes.
 --
 -- The campaign page counts and filters by the new status, and the
 -- cross-campaign stop looks up every live enrolment for one contact.
@@ -61,7 +73,7 @@ CREATE INDEX IF NOT EXISTS idx_campaign_contacts_contact_active
   WHERE status IN ('pending', 'active');
 
 -- ----------------------------------------------------------------------------
--- 4. The campaign stats function has to learn the status too.
+-- 5. The campaign stats function has to learn the status too.
 --
 -- Without this, the contact-progress bar on a campaign counts every replied
 -- contact as "Pending" -- it derives pending as the total minus the statuses
@@ -151,5 +163,3 @@ RETURNS TABLE (
     GROUP BY campaign_id
   ) acts ON acts.campaign_id = ids.id;
 $function$ LANGUAGE sql STABLE;
-
-COMMIT;
