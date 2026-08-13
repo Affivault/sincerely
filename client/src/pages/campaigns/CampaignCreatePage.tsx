@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
 import { PersonalizationPanel, TimezoneCoverageNote, countGaps, shouldPauseLaunch } from '../../components/campaigns/PersonalizationPanel';
+import { ReadinessSummary } from '../../components/delivery/ReadinessPanel';
 import { previewPersonalization, countSpinVariants } from '@lemlist/shared';
 import { smtpApi } from '../../api/smtp.api';
 import { contactsApi, listsApi } from '../../api/contacts.api';
@@ -2190,6 +2191,10 @@ export function CampaignCreatePage() {
                       <p>Stop on reply: {campaignForm.stop_on_reply !== false ? 'Yes' : 'No'}</p>
                       <p>Est. completion: {estLabel}</p>
                     </div>
+                    {/* The last thing seen before the emails start going out.
+                        Renders nothing when everything checks out, so it only
+                        ever appears when there is genuinely something to say. */}
+                    <ReadinessSummary />
                     <div className="flex justify-end gap-2 pt-2">
                       <Button variant="secondary" onClick={() => setShowLaunchConfirm(false)}>Cancel</Button>
                       <Button onClick={handleSaveAndLaunch} disabled={launching}>

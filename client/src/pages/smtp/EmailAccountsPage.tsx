@@ -14,7 +14,7 @@ import { cn } from '../../lib/utils';
 import {
   Mail, Plus, Trash2, TestTube, CheckCircle2, XCircle, HelpCircle,
   ArrowRight, Settings, Globe, Search, Flame, ShieldCheck, ShieldAlert,
-  ChevronDown, ChevronRight, AlertTriangle, RefreshCw,
+  ChevronDown, ChevronRight, AlertTriangle, RefreshCw, Gauge,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { SmtpAccount, SmtpPreset, SendingDomain } from '@lemlist/shared';
@@ -23,6 +23,7 @@ import { SmtpAccountModal } from './SmtpAccountModal';
 import { WarmupPanel } from './WarmupPanel';
 import { StatusBadge, DomainDetailPanel } from '../domains/DomainsPage';
 import { TrackingDomainPanel } from '../../components/domains/TrackingDomainPanel';
+import { ReadinessPanel } from '../../components/delivery/ReadinessPanel';
 
 /* ─── Quick-connect providers ─────────────────────── */
 interface QuickConnectProvider { preset: SmtpPreset; icon: React.ReactNode; description: string; }
@@ -155,8 +156,8 @@ function SetupProgress({
 }
 
 /* ─── Page ───────────────────────────────────────────── */
-type Tab = 'mailboxes' | 'domains' | 'warmup';
-const VALID_TABS: Tab[] = ['mailboxes', 'domains', 'warmup'];
+type Tab = 'readiness' | 'mailboxes' | 'domains' | 'warmup';
+const VALID_TABS: Tab[] = ['readiness', 'mailboxes', 'domains', 'warmup'];
 
 export function EmailAccountsPage() {
   const confirm = useConfirm();
@@ -184,12 +185,15 @@ export function EmailAccountsPage() {
   const list = accounts || [];
 
   // Fresh accounts start on the Domains tab — authenticating the domain is
-  // step one of the deliverability flow. Decided once, when data first lands.
-  const pickedInitialTab = useRef(false);
+  // step one of the deliverability flow. Everyone else lands on Readiness,
+  // because "am I safe to send?" is the question this page exists to answer
+  // and it was previously spread across all three of the others. Decided
+  // once, when data first lands, and never against an explicit ?tab=.
+  const pickedInitialTab = useRef(searchParams.get('tab') !== null);
   useEffect(() => {
     if (pickedInitialTab.current || isLoading || loadingDomains) return;
     pickedInitialTab.current = true;
-    if (list.length === 0 && domains.length === 0) setTab('domains');
+    setTab(list.length === 0 && domains.length === 0 ? 'domains' : 'readiness');
   }, [isLoading, loadingDomains, list.length, domains.length]);
 
   const openAdd = () => { setEditAccount(null); setInitialPreset(null); setModalOpen(true); };
@@ -253,6 +257,7 @@ export function EmailAccountsPage() {
   const stepTab: Tab[] = ['domains', 'mailboxes', 'warmup'];
 
   const tabs: { id: Tab; label: string; icon: React.ElementType; count?: number; alert?: boolean }[] = [
+    { id: 'readiness', label: 'Readiness', icon: Gauge },
     { id: 'mailboxes', label: 'Mailboxes', icon: Mail, count: list.length },
     { id: 'domains', label: 'Domains', icon: Globe, count: domains.length, alert: domains.length > 0 && authedDomains < domains.length },
     { id: 'warmup', label: 'Warm-up', icon: Flame, count: warmingCount },
@@ -356,6 +361,9 @@ export function EmailAccountsPage() {
           );
         })}
       </div>
+
+      {/* ── Readiness tab ── */}
+      {tab === 'readiness' && <ReadinessPanel />}
 
       {/* ── Mailboxes tab ── */}
       {tab === 'mailboxes' && (
