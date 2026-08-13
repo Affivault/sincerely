@@ -223,6 +223,12 @@ export function parseQuickAdd(input: string, now: Date = new Date()): QuickAdd |
   } else if (date) {
     const defaultHour = date.label === 'tonight' ? 19 : 9;
     when = atTime(date.at, time ? time.hours : defaultHour, time ? time.minutes : 0);
+    // "today"/"tonight" with no explicit clock time defaults to a fixed hour
+    // (9am/7pm) — if that's already passed, don't silently backdate the
+    // item; treat it as due right now instead.
+    if (!time && when.getTime() <= now.getTime()) {
+      when = new Date(now);
+    }
     whenLabel = time ? `${date.label} at ${formatClock(when)}` : date.label;
   } else if (time) {
     // A time with no day means today — unless today's has passed.

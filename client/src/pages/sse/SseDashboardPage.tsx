@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { formatDailyLimit } from '@lemlist/shared';
 import { sseApi } from '../../api/sse.api';
 import {
   Shield,
@@ -177,7 +178,7 @@ export function SseDashboardPage() {
                       />
                     </div>
                     <span className="text-sm text-[var(--text-secondary)]">
-                      {account.sends_today}/{account.daily_send_limit}
+                      {account.sends_today}/{formatDailyLimit(account.daily_send_limit)}
                     </span>
                   </div>
                 </div>

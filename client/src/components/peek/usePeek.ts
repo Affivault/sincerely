@@ -35,7 +35,7 @@ export function usePeek() {
     next.set(PARAM, `${type}:${id}`);
     // A peek is a detour, not a destination — replacing keeps the back
     // button meaning "leave this page", not "step back through peeks".
-    setParams(next, { replace: false });
+    setParams(next, { replace: true });
   }, [params, setParams]);
 
   const closePeek = useCallback(() => {

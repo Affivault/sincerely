@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { SmtpAccount, SmtpPreset, SendingDomain } from '@lemlist/shared';
-import { SMTP_PRESETS, warmupAllowance } from '@lemlist/shared';
+import { SMTP_PRESETS, warmupAllowance, formatDailyLimit } from '@lemlist/shared';
 import { SmtpAccountModal } from './SmtpAccountModal';
 import { WarmupPanel } from './WarmupPanel';
 import { StatusBadge, DomainDetailPanel } from '../domains/DomainsPage';
@@ -447,7 +447,7 @@ export function EmailAccountsPage() {
                             : <button onClick={() => setTab('warmup')} className="text-[11.5px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Off</button>}
                         </td>
                         <td className="py-2.5 px-3"><span className={cn('text-[12.5px] font-semibold tabular', healthColor(account.health_score))}>{account.health_score}%</span></td>
-                        <td className="py-2.5 px-3"><span className="text-[12.5px] text-[var(--text-secondary)] tabular">{account.sends_today}<span className="text-[var(--text-muted)]">/{limit}</span></span></td>
+                        <td className="py-2.5 px-3"><span className="text-[12.5px] text-[var(--text-secondary)] tabular">{account.sends_today}<span className="text-[var(--text-muted)]">/{formatDailyLimit(limit)}</span></span></td>
                         <td className="py-2.5 pr-4 pl-3">
                           <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                             <button onClick={() => testMutation.mutate(account.id)} disabled={testingId === account.id} className="icon-btn h-7 px-2 text-[11.5px]" title="Test connection"><TestTube className="h-3 w-3" /> {testingId === account.id ? 'Testing…' : 'Test'}</button>

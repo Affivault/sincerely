@@ -43,12 +43,17 @@ webhookInboundRoutes.post('/:campaignId', async (req: Request, res: Response) =>
       return;
     }
 
-    // Filter to the specific contact by email
-    const { data: matchingContacts } = await supabaseAdmin
+    // Filter to the specific contact by email. Compare case-insensitively —
+    // stored emails aren't guaranteed lowercase (only some write paths
+    // normalize), and external systems typically send lowercase addresses.
+    const normalizedEmail = String(contact_email).trim().toLowerCase();
+    const { data: candidateContacts } = await supabaseAdmin
       .from('contacts')
-      .select('id')
-      .eq('email', contact_email)
+      .select('id, email')
       .in('id', contacts.map((c: any) => c.contact_id));
+    const matchingContacts = (candidateContacts ?? []).filter(
+      (c: any) => c.email?.trim().toLowerCase() === normalizedEmail
+    );
 
     if (!matchingContacts || matchingContacts.length === 0) {
       res.status(200).json({ matched: 0, message: 'Contact not found or not waiting' });
