@@ -27,7 +27,7 @@ import {
   Zap, FileText, TrendingUp, ShieldCheck, Brain, Wand2, CalendarClock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { StepType } from '@lemlist/shared';
+import { StepType, formatDailyLimit } from '@lemlist/shared';
 import type {
   CreateCampaignInput, CreateStepInput, CampaignStep, SmtpAccount, ContactWithTags,
 } from '@lemlist/shared';
@@ -1064,7 +1064,7 @@ export function CampaignCreatePage() {
                               />
                               <div className="flex-1 min-w-0">
                                 <p className="text-[12px] font-semibold text-[var(--text-primary)] truncate">{a.label}</p>
-                                <p className="text-[10.5px] text-[var(--text-tertiary)]">{a.email_address} · {a.daily_send_limit}/day</p>
+                                <p className="text-[10.5px] text-[var(--text-tertiary)]">{a.email_address} · {formatDailyLimit(a.daily_send_limit)}/day</p>
                               </div>
                               <span className={cn(
                                 'inline-flex items-center px-1.5 h-[18px] rounded text-[10px] font-bold flex-shrink-0',
