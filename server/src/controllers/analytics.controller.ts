@@ -47,6 +47,13 @@ export const analyticsController = {
     } catch (err) { next(err); }
   },
 
+  async sequencePerformance(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const data = await analyticsService.sequencePerformance(req.userId!, req.params.campaignId);
+      res.json(data);
+    } catch (err) { next(err); }
+  },
+
   async campaignAbTest(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const data = await analyticsService.campaignAbTest(req.userId!, req.params.campaignId);

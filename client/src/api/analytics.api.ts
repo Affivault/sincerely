@@ -1,7 +1,7 @@
 import { apiClient } from './client';
-import type { CampaignAnalytics, OverviewAnalytics, ContactActivityItem } from '@lemlist/shared';
+import type { CampaignAnalytics, OverviewAnalytics, ContactActivityItem, SequencePerformance } from '@lemlist/shared';
 
-export type { OverviewAnalytics };
+export type { OverviewAnalytics, SequencePerformance };
 
 export interface TrendDataPoint {
   date: string;
@@ -140,6 +140,12 @@ export const analyticsApi = {
 
   campaignFunnel: async (campaignId: string) => {
     const { data } = await apiClient.get<FunnelStep[]>(`/analytics/campaigns/${campaignId}/funnel`);
+    return data;
+  },
+
+  /** Which step earns the replies, and where the sequence stops paying. */
+  sequenceSteps: async (campaignId: string) => {
+    const { data } = await apiClient.get<SequencePerformance>(`/analytics/campaigns/${campaignId}/steps`);
     return data;
   },
 

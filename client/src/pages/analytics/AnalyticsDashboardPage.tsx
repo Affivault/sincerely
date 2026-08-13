@@ -24,6 +24,7 @@ import { Avatar } from '../../components/shared/Avatar';
 import { useTheme } from '../../context/ThemeContext';
 import { Link } from 'react-router-dom';
 import { cn } from '../../lib/utils';
+import { SequenceStepsPanel } from '../../components/analytics/SequenceStepsPanel';
 import toast from 'react-hot-toast';
 import {
   LineChart, Line,
@@ -1389,6 +1390,11 @@ export function AnalyticsDashboardPage() {
                       />
                     </div>
                   )}
+
+                  {/* The decision, before the detail: a step's reply rate
+                      rises through a sequence purely because the pool
+                      shrinks, so the table below flatters whatever is last. */}
+                  {selectedId && <SequenceStepsPanel campaignId={selectedId} />}
 
                   {funnelData && funnelData.length > 0 && (
                     <div className="p-5 panel">

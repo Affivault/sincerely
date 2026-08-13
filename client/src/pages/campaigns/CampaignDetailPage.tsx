@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { PersonalizationPanel, TimezoneCoverageNote } from '../../components/campaigns/PersonalizationPanel';
+import { SequenceStepsPanel } from '../../components/analytics/SequenceStepsPanel';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { StatCard } from '../../components/shared/StatCard';
 import { Avatar } from '../../components/shared/Avatar';
@@ -412,6 +413,11 @@ export function CampaignDetailPage() {
               {campaign.steps.map((step: CampaignStep, index: number) => (
                 <SequenceStepCard key={step.id} step={step} index={index} />
               ))}
+
+              {/* Which of those steps is actually earning. Here rather than
+                  only on the analytics page, because this is where somebody
+                  is looking when they decide whether to keep a follow-up. */}
+              {id && <SequenceStepsPanel campaignId={id} />}
 
               {/* What this copy asks of the audience. Worth seeing on a
                   running campaign too — it explains odd-reading emails

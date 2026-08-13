@@ -15,6 +15,7 @@ analyticsRoutes.get('/campaigns/:campaignId', analyticsController.campaign);
 analyticsRoutes.get('/campaigns/:campaignId/trend', analyticsController.campaignTrend);
 analyticsRoutes.get('/campaigns/:campaignId/contacts', analyticsController.campaignContacts);
 analyticsRoutes.get('/campaigns/:campaignId/funnel', analyticsController.campaignFunnel);
+analyticsRoutes.get('/campaigns/:campaignId/steps', analyticsController.sequencePerformance);
 analyticsRoutes.get('/campaigns/:campaignId/ab-test', analyticsController.campaignAbTest);
 analyticsRoutes.get('/campaigns/:campaignId/heatmap', analyticsController.campaignHeatmap);
 

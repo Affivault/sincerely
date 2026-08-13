@@ -60,3 +60,25 @@ export function wilsonLowerBound(successes: number, trials: number, z = 1.96): n
   const spread = z * Math.sqrt((p * (1 - p) + z2 / (4 * trials)) / trials);
   return Math.max(0, (centre - spread) / denominator);
 }
+
+/**
+ * The other end of the same interval: the highest the true rate plausibly is.
+ *
+ * The lower bound answers "is this genuinely good?". This answers "is this
+ * genuinely bad?" — which is the question worth asking before telling someone
+ * to delete a step of their sequence. Zero replies out of forty is not proof
+ * a step is worthless; it is proof the rate is below about 7%, and whether
+ * that matters depends on what the rest of the campaign manages.
+ *
+ * With zero successes this reduces to roughly the rule of three (3/n), which
+ * is the same answer arrived at honestly.
+ */
+export function wilsonUpperBound(successes: number, trials: number, z = 1.96): number {
+  if (trials <= 0) return 1;
+  const p = successes / trials;
+  const z2 = z * z;
+  const denominator = 1 + z2 / trials;
+  const centre = p + z2 / (2 * trials);
+  const spread = z * Math.sqrt((p * (1 - p) + z2 / (4 * trials)) / trials);
+  return Math.min(1, (centre + spread) / denominator);
+}
