@@ -11,6 +11,7 @@ import { settingsService } from './settings.service.js';
 import { guardAfterBounce } from './bounce-guard.service.js';
 import * as domainThrottle from './domain-throttle.service.js';
 import { isLinkedinStep, inferTimezone } from '@lemlist/shared';
+import { classifySendFailure, stallReasonFor } from '../utils/send-failure.js';
 
 /**
  * Sequence Engine Service
@@ -583,18 +584,27 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     // sendCampaignEmail annotates failures it can explain in plain language
     // (every mailbox at capacity, none verified). Keep it where the campaign
     // page can read it.
-    if (err.stallReason) await recordStall(cc.campaign_id, err.stallReason);
+    // One classifier for both send paths. The inline version this replaced
+    // only read fields the direct SMTP path sets, so relay sends — the
+    // recommended deployment — never registered a bounce at all.
+    const failureKind = classifySendFailure(err);
+    const isBounce = failureKind === 'bounce';
+
+    if (err.stallReason) {
+      await recordStall(cc.campaign_id, err.stallReason);
+    } else {
+      // Stale mailbox credentials fail every send identically. Say so on the
+      // campaign page rather than letting it grind through the whole list
+      // stamping "error" on contacts that were never the problem.
+      const kindReason = stallReasonFor(failureKind);
+      if (kindReason) await recordStall(cc.campaign_id, kindReason);
+    }
 
     // sendCampaignEmail annotates the error with the account it had already
     // reserved a warm-up/ramp slot on (once SMTP selection succeeded) —
     // give that back too so a failed send doesn't burn ramp capacity.
     if (err.smtpAccountId) sse.refundWarmupSend(err.smtpAccountId).catch(() => {});
 
-    // Check for bounce: Number(undefined) = NaN which fails >= 500, so also check the string form
-    const responseCode = Number(err.responseCode);
-    const isBounce = (!isNaN(responseCode) && responseCode >= 500)
-      || String(err.responseCode || '').startsWith('5')
-      || err.code === 'EENVELOPE';
     if (isBounce) {
       await supabaseAdmin
         .from('campaign_contacts')

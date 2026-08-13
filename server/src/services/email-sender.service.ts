@@ -212,7 +212,18 @@ async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
   }
 
   if (!response.ok || !data.success) {
-    throw new Error(`SMTP relay error: ${data.error || response.statusText}`);
+    // Carry the SMTP reply code out with the failure. Without it the sequence
+    // engine cannot tell a permanent "550 User unknown" from a transient
+    // greylist, so it filed every relay rejection as a generic error: the
+    // address was never marked bounced, other campaigns kept mailing it, the
+    // bounce rate under-reported, and the bounce guard could never fire.
+    const relayError: any = new Error(`SMTP relay error: ${data.error || response.statusText}`);
+    if (data.responseCode !== undefined) relayError.responseCode = data.responseCode;
+    if (data.code !== undefined) relayError.code = data.code;
+    // The reply text is where the code lives when the relay sends nothing
+    // more structured, which is the common case.
+    if (typeof data.error === 'string') relayError.response = data.error;
+    throw relayError;
   }
 
   return {
