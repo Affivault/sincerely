@@ -11,7 +11,8 @@
     "audit:writes": "tsx scripts/audit-write-paths.mts",
     "check:send": "tsx scripts/send-path-check.mts",
     "check:failures": "tsx scripts/send-failure-check.mts",
-    "check:readiness": "tsx scripts/readiness-check.mts"
+    "check:readiness": "tsx scripts/readiness-check.mts",
+    "check:apikeys": "tsx scripts/api-key-check.mts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

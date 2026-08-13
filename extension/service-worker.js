@@ -1650,10 +1650,25 @@ async function mintKeyFromPage(keyName, configuredBase) {
   /** @type {string[]} */
   const bases = [];
 
-  /** Reduce any URL that contains an /api/v<N> root down to that root. */
+  /**
+   * Reduce any URL that contains an /api/v<N> root down to that root.
+   *
+   * Relative values are resolved against this page first: an app whose API is
+   * proxied under its own origin publishes "/api/v1", which is correct for the
+   * app and unusable to anything outside it. Skipping those was throwing away
+   * the one candidate that is stated rather than guessed.
+   */
   const push = (raw) => {
-    if (typeof raw !== 'string') return;
-    const match = raw.match(/^https?:\/\/[^/]+(?:\/[^?#]*?)?\/api\/v\d+/i);
+    if (typeof raw !== 'string' || !raw) return;
+    let absolute = raw;
+    if (!/^https?:\/\//i.test(raw)) {
+      try {
+        absolute = new URL(raw, window.location.origin).href;
+      } catch {
+        return;
+      }
+    }
+    const match = absolute.match(/^https?:\/\/[^/]+(?:\/[^?#]*?)?\/api\/v\d+/i);
     if (match && !bases.includes(match[0])) bases.push(match[0]);
   };
 
@@ -1832,14 +1847,36 @@ async function handleConnectApply(payload) {
 
     /** @type {Record<string, string>} */
     const patch = { apiKey };
+    const appOrigin = /^https?:\/\//i.test(String(payload.appUrl || ''))
+      ? String(payload.appUrl).replace(/\/+$/, '')
+      : null;
+    if (appOrigin) patch.appUrl = appOrigin;
+
     // Only override the API URL when the app actually sent one; normalising an
     // empty string would silently reset a working self-hosted setup to the
     // default host.
-    if (/^https?:\/\//i.test(String(payload.apiBaseUrl || ''))) {
-      patch.apiBaseUrl = normaliseBaseUrl(payload.apiBaseUrl);
-    }
-    if (/^https?:\/\//i.test(String(payload.appUrl || ''))) {
-      patch.appUrl = String(payload.appUrl).replace(/\/+$/, '');
+    //
+    // A relative address ("/api/v1") is an ordinary value for an app whose API
+    // is proxied under its own origin, and it used to be dropped here without a
+    // word — leaving the extension on its built-in default host while the
+    // handshake reported success, so the key was valid and every call after it
+    // went to the wrong server. The app's own origin is the correct base to
+    // resolve it against, and it is right there in the same message.
+    const sentBase = String(payload.apiBaseUrl || '');
+    if (sentBase) {
+      const resolved = /^https?:\/\//i.test(sentBase)
+        ? sentBase
+        : appOrigin
+          ? new URL(sentBase, appOrigin).href
+          : null;
+      if (!resolved) {
+        throw new ApiError(
+          `This app reported its API as "${sentBase}", which is not an address the extension can reach. ` +
+            'Set VITE_API_URL to a full URL on your deployment, or paste the API URL by hand in the extension settings.',
+          { code: 'BAD_API_URL' }
+        );
+      }
+      patch.apiBaseUrl = normaliseBaseUrl(resolved);
     }
 
     const settings = await setSettings(patch);

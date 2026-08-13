@@ -1,5 +1,28 @@
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api/v1';
 
+/**
+ * The same address, guaranteed absolute.
+ *
+ * `VITE_API_URL` is legitimately relative on any deployment that proxies the
+ * API under the app's own origin (`/api/v1` behind a Vercel rewrite, say) —
+ * axios is perfectly happy with that, so nothing inside the app ever noticed.
+ *
+ * The Chrome extension is a different program in a different origin, and a
+ * relative path means nothing to it. It was being handed `/api/v1`, quietly
+ * rejecting it as unusable, and falling back to the default host baked into
+ * the extension — so the key handshake reported success while every request
+ * afterwards went somewhere the account does not exist. Resolving it here
+ * means everything that leaves this app carries an address that works from
+ * outside it.
+ */
+export const ABSOLUTE_API_URL = (() => {
+  try {
+    return new URL(API_URL, window.location.origin).href.replace(/\/+$/, '');
+  } catch {
+    return API_URL;
+  }
+})();
+
 export const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
   scheduled: 'bg-blue-100 text-blue-700',

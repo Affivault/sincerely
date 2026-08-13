@@ -23,7 +23,7 @@ import {
   Info,
 } from 'lucide-react';
 import { cn, formatDateTime } from '../../lib/utils';
-import { API_URL } from '../../lib/constants';
+import { API_URL, ABSOLUTE_API_URL } from '../../lib/constants';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
@@ -205,7 +205,9 @@ export function DeveloperPage() {
         rate_limit: 100,
       });
       window.postMessage(
-        { type: 'SINCERELY_EXTENSION_CONNECT', apiKey: raw_key, apiBaseUrl: API_URL },
+        // Absolute: the extension cannot resolve a relative path, and silently
+        // fell back to its built-in host when handed one.
+        { type: 'SINCERELY_EXTENSION_CONNECT', apiKey: raw_key, apiBaseUrl: ABSOLUTE_API_URL },
         window.location.origin
       );
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
