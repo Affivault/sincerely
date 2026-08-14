@@ -7,8 +7,16 @@ node run.mjs              # every suite
 node run.mjs fastpath     # just one
 ```
 
-Needs Chromium at `/opt/pw-browsers/chromium` (set `PLAYWRIGHT_BROWSERS_PATH` if
-yours lives elsewhere) and `openssl` on PATH.
+Needs a Chromium and `openssl` on PATH. The browser is found in this order:
+`CHROMIUM_PATH` if set, then `/opt/pw-browsers/chromium` if it exists, then
+whatever `npx playwright install chromium` put down. Nothing to configure on a
+fresh machine:
+
+```bash
+npx playwright install chromium
+```
+
+CI runs the whole thing on every push (`.github/workflows/ci.yml`).
 
 ## What these are
 

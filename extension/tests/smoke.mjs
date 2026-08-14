@@ -4,6 +4,7 @@
  * popup's identity / picker / add / move / remove / suppress paths.
  */
 import { chromium } from 'playwright';
+import { CHROMIUM } from './chromium.mjs';
 import { fileURLToPath } from 'node:url';
 
 // Start from the fixture every run — the mock is stateful.
@@ -44,7 +45,7 @@ const fixturePath = join(userDataDir, 'fixture.html');
 writeFileSync(fixturePath, FIXTURE);
 
 const context = await chromium.launchPersistentContext(userDataDir, {
-  executablePath: '/opt/pw-browsers/chromium',
+  executablePath: CHROMIUM,
   channel: 'chromium',
   headless: true,
   args: [`--disable-extensions-except=${EXT_PATH}`, `--load-extension=${EXT_PATH}`],

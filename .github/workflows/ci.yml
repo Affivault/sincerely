@@ -1,0 +1,74 @@
+name: CI
+
+# The checks in this repo are behavioural — they drive real services against a
+# recorded database and a real Express app over HTTP, and every one of them was
+# written because something shipped broken. Nothing ran them automatically,
+# which meant they were only as good as somebody's memory. This runs them.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: Types, checks and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # shared/ has to be built before anything typechecks against it: server
+      # and client both import from its compiled output.
+      - name: Build shared
+        run: npm run build:shared
+
+      - name: Typecheck server and client
+        run: npm run typecheck
+
+      # Bounce classification, the whole send path, per-step analytics, sending
+      # readiness, the API-key chain, and the write-path audit.
+      - name: Behavioural checks
+        run: npm run check --workspace=server
+
+      - name: Build
+        run: |
+          npm run build:server
+          npm run build:client
+
+  extension:
+    name: Extension suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: extension/tests/package-lock.json
+
+      - name: Install test deps
+        working-directory: extension/tests
+        run: npm ci
+
+      # These drive the real unpacked extension — service worker, content
+      # scripts, popup, options page — so a browser is not optional.
+      - name: Install Chromium
+        working-directory: extension/tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Run every suite
+        working-directory: extension/tests
+        run: node run.mjs

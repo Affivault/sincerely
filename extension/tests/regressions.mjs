@@ -6,6 +6,7 @@
  * Needs `mock-api.mjs` on :3001 and the LinkedIn stub. `run.mjs` starts both.
  */
 import { chromium } from 'playwright';
+import { CHROMIUM } from './chromium.mjs';
 import { spawn } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -43,7 +44,7 @@ process.on('exit', () => stub.kill());
 await new Promise((r) => setTimeout(r, 900));
 
 const context = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), 'sincerely-reg-')), {
-  executablePath: '/opt/pw-browsers/chromium',
+  executablePath: CHROMIUM,
   channel: 'chromium',
   headless: true,
   args: [

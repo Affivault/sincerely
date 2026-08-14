@@ -12,6 +12,7 @@
  * the app is redeployed with the hint.
  */
 import { chromium } from 'playwright';
+import { CHROMIUM } from './chromium.mjs';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:http';
 import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -107,7 +108,7 @@ patchedManifest.host_permissions.push(`${APP}/*`);
 writeFileSync(manifestPath, JSON.stringify(patchedManifest, null, 2));
 
 const context = await chromium.launchPersistentContext(userDataDir, {
-  executablePath: '/opt/pw-browsers/chromium',
+  executablePath: CHROMIUM,
   channel: 'chromium',
   headless: true,
   args: [`--disable-extensions-except=${extDir}`, `--load-extension=${extDir}`],

@@ -7,6 +7,7 @@
  * guard, the source guard, and that the options page notices the arrival.
  */
 import { chromium } from 'playwright';
+import { CHROMIUM } from './chromium.mjs';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -63,7 +64,7 @@ const APP_PAGE = `<!doctype html><html><head><title>Sincerely — Webhooks</titl
 const userDataDir = mkdtempSync(join(tmpdir(), 'sincerely-connect-'));
 
 const context = await chromium.launchPersistentContext(userDataDir, {
-  executablePath: '/opt/pw-browsers/chromium',
+  executablePath: CHROMIUM,
   channel: 'chromium',
   headless: true,
   args: [`--disable-extensions-except=${EXT_PATH}`, `--load-extension=${EXT_PATH}`],

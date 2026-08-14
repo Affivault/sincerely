@@ -10,6 +10,7 @@
  *     recover via the automatic retry.
  */
 import { chromium } from 'playwright';
+import { CHROMIUM } from './chromium.mjs';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -24,7 +25,7 @@ const EXT_PATH = fileURLToPath(new URL('..', import.meta.url));
 const DELAY_MS = 25000; // > the 20s normal timeout, < the 75s cold-start budget
 
 const context = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), 'cold-')), {
-  executablePath: '/opt/pw-browsers/chromium',
+  executablePath: CHROMIUM,
   channel: 'chromium',
   headless: true,
   args: [`--disable-extensions-except=${EXT_PATH}`, `--load-extension=${EXT_PATH}`],

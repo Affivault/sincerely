@@ -11,7 +11,7 @@
  *   node tests/run.mjs            every suite
  *   node tests/run.mjs fastpath   just one
  *
- * Requires: playwright, and Chromium at /opt/pw-browsers/chromium.
+ * Requires: playwright, and a Chromium — see chromium.mjs for how it is found.
  */
 import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
