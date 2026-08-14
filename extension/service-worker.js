@@ -113,6 +113,8 @@ async function refreshBadge() {
  */
 const standingCache = new Map();
 const STANDING_TTL_MS = 5 * 60_000;
+/** A failure is remembered too, but only long enough to stop a request storm. */
+const FAILED_STANDING_TTL_MS = 30_000;
 
 /**
  * Drop the cache after anything that changes a membership. The cache exists to
@@ -154,7 +156,18 @@ async function standingFor(email) {
     standingCache.set(email, { value, at: Date.now() });
     return value;
   } catch {
-    // A failed lookup should leave the badge blank, not show a wrong number.
+    /*
+     * A failed lookup leaves the badge blank rather than showing a wrong
+     * number — but it is also remembered, briefly.
+     *
+     * It used not to be, and the one thing that reliably makes this fail is
+     * the rate limit. So the cache that exists to protect the budget stopped
+     * working at exactly the moment the budget was under pressure: every
+     * profile the user scrolled past spent up to three more requests on a
+     * question that had already failed, holding the window shut. Remembering
+     * the failure for a short while is what breaks that loop.
+     */
+    standingCache.set(email, { value: null, at: Date.now() - STANDING_TTL_MS + FAILED_STANDING_TTL_MS });
     return null;
   }
 }

@@ -32,6 +32,7 @@ const BROWSER = [
   'listbar.mjs',
   'scan.mjs',
   'fastpath.mjs',
+  'ratelimit.mjs',
   'regressions.mjs',
   /*
    * Screenshots of every surface, last because it asserts nothing — it only

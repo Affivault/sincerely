@@ -249,6 +249,14 @@ console.log('\nthe rate limiter answers in the shape the extension backs off on'
   is('the calls within a limit of 2 both succeed',
      first.status === 200 && second.status === 200, `${first.status}, ${second.status}`);
   is('a third call over a limit of 2 is 429', third.status === 429, `${third.status} ${third.text.slice(0, 160)}`);
+  // Without these a client can only discover the limit by hitting it, which
+  // is what turned an ordinary burst into a user-facing "rate limit reached".
+  is('every reply publishes the remaining budget',
+     first.headers.get('x-ratelimit-remaining') === '1' && second.headers.get('x-ratelimit-remaining') === '0',
+     `${first.headers.get('x-ratelimit-remaining')}, ${second.headers.get('x-ratelimit-remaining')}`);
+  is('and the limit and window alongside it',
+     first.headers.get('x-ratelimit-limit') === '2' && Number(first.headers.get('x-ratelimit-reset')) > 0,
+     `${first.headers.get('x-ratelimit-limit')} / ${first.headers.get('x-ratelimit-reset')}`);
   is('Retry-After is set', Number(third.headers.get('retry-after')) > 0, String(third.headers.get('retry-after')));
   is('and the body carries the same number', Number(third.json?.retry_after_seconds) > 0, third.text.slice(0, 160));
 }

@@ -25,23 +25,34 @@ setInterval(() => {
   }
 }, RATE_WINDOW_MS).unref();
 
-function isRateLimited(keyId: string, limit: number): { limited: boolean; retryAfterSeconds: number } {
+interface RateVerdict {
+  limited: boolean;
+  retryAfterSeconds: number;
+  /** Requests still allowed in this window. */
+  remaining: number;
+  /** Seconds until the window rolls over and the budget is restored. */
+  resetSeconds: number;
+}
+
+function isRateLimited(keyId: string, limit: number): RateVerdict {
   const now = Date.now();
   const entry = requestCounts.get(keyId);
 
   if (!entry || now - entry.windowStart >= RATE_WINDOW_MS) {
     requestCounts.set(keyId, { count: 1, windowStart: now });
+    const resetSeconds = Math.ceil(RATE_WINDOW_MS / 1000);
     if (limit < 1) {
-      return { limited: true, retryAfterSeconds: Math.ceil(RATE_WINDOW_MS / 1000) };
+      return { limited: true, retryAfterSeconds: resetSeconds, remaining: 0, resetSeconds };
     }
-    return { limited: false, retryAfterSeconds: 0 };
+    return { limited: false, retryAfterSeconds: 0, remaining: Math.max(0, limit - 1), resetSeconds };
   }
 
   entry.count += 1;
+  const resetSeconds = Math.max(1, Math.ceil((entry.windowStart + RATE_WINDOW_MS - now) / 1000));
   if (entry.count > limit) {
-    return { limited: true, retryAfterSeconds: Math.ceil((entry.windowStart + RATE_WINDOW_MS - now) / 1000) };
+    return { limited: true, retryAfterSeconds: resetSeconds, remaining: 0, resetSeconds };
   }
-  return { limited: false, retryAfterSeconds: 0 };
+  return { limited: false, retryAfterSeconds: 0, remaining: Math.max(0, limit - entry.count), resetSeconds };
 }
 
 /**
@@ -73,7 +84,20 @@ export async function apiKeyMiddleware(req: ApiKeyRequest, res: Response, next: 
       return;
     }
 
-    const { limited, retryAfterSeconds } = isRateLimited(result.keyId, result.rateLimit);
+    const { limited, retryAfterSeconds, remaining, resetSeconds } = isRateLimited(result.keyId, result.rateLimit);
+
+    /* Publish the budget on every reply, not only when it runs out.
+     *
+     * A client that can only discover the limit by hitting it has no way to
+     * pace itself, and the Chrome extension's ordinary work is bursty by
+     * nature — one "add this person" is up to seven requests, so a handful of
+     * adds walks into the wall. It then reported "rate limit reached" as a
+     * hard failure for something that would have worked seconds later.
+     * With these it can slow down before the wall instead. */
+    res.setHeader('X-RateLimit-Limit', String(result.rateLimit));
+    res.setHeader('X-RateLimit-Remaining', String(remaining));
+    res.setHeader('X-RateLimit-Reset', String(resetSeconds));
+
     if (limited) {
       res.setHeader('Retry-After', String(retryAfterSeconds));
       res.status(429).json({ error: 'Rate limit exceeded', rate_limit: result.rateLimit, retry_after_seconds: retryAfterSeconds });

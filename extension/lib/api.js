@@ -51,6 +51,76 @@ export class ApiError extends Error {
 /** Comfortable ceiling for a server that's already awake. */
 const REQUEST_TIMEOUT_MS = 20000;
 
+/* ─────────────────────────── Rate-limit pacing ───────────────────────────
+ * API keys are limited per minute, and this extension's ordinary work is
+ * bursty by nature: one "add this person" is up to seven requests, and
+ * checking a page of search results is dozens. So the limit gets reached
+ * during entirely normal use.
+ *
+ * What made that a user-visible failure was not the limit — it was that
+ * nothing here did anything about it. The 429 handler below has always read
+ * `Retry-After` and attached it to the error, and nothing ever looked at it
+ * again: the extension knew exactly how long to wait and gave up instead,
+ * reporting "rate limit reached" for work that would have succeeded a few
+ * seconds later.
+ *
+ * Two halves now. The server publishes the remaining budget on every reply,
+ * so the last few requests of a window are spread across the time left
+ * rather than fired into the wall. And if the wall is hit anyway, the
+ * request waits out the server's own stated interval and goes again.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/** Start spreading requests out once the window has this little left. */
+const PACE_THRESHOLD = 10;
+/** However thin the budget, never stall a single request longer than this. */
+const MAX_PACE_GAP_MS = 3000;
+/** A Retry-After longer than this is not worth holding a click open for. */
+const MAX_RETRY_WAIT_MS = 45000;
+/** How many windows to wait out before admitting the limit is not lifting. */
+const MAX_RATE_RETRIES = 2;
+
+/** What the server last said about this key's budget. */
+const budget = { remaining: Infinity, resetAt: 0 };
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Serialises the gate so concurrent callers queue rather than all reading the
+ * same `remaining` and deciding, together, that there is room for one more.
+ */
+let paceQueue = Promise.resolve();
+
+/** Hold this request back just long enough that the budget outlasts the window. */
+function pace() {
+  paceQueue = paceQueue.then(async () => {
+    const msLeft = budget.resetAt - Date.now();
+    if (msLeft <= 0) {
+      // Window has rolled over; the recorded budget is stale, not spent.
+      budget.remaining = Infinity;
+      return;
+    }
+    if (budget.remaining > PACE_THRESHOLD) return;
+    if (budget.remaining <= 0) {
+      // Nothing left at all: the only useful thing to do is outlast it.
+      await sleep(Math.min(msLeft + 250, MAX_RETRY_WAIT_MS));
+      budget.remaining = Infinity;
+      return;
+    }
+    // Spread what is left across the time that is left.
+    await sleep(Math.min(msLeft / budget.remaining, MAX_PACE_GAP_MS));
+  }, () => {});
+  return paceQueue;
+}
+
+/** Record what the server just told us about the budget. */
+function noteBudget(response) {
+  const remaining = Number(response.headers.get('X-RateLimit-Remaining'));
+  const reset = Number(response.headers.get('X-RateLimit-Reset'));
+  if (!Number.isFinite(remaining) || !Number.isFinite(reset)) return;
+  budget.remaining = remaining;
+  budget.resetAt = Date.now() + reset * 1000;
+}
+
 /**
  * Second-chance timeout for a host that didn't answer the first time.
  *
@@ -65,11 +135,48 @@ const COLD_START_TIMEOUT_MS = 75000;
 class TimeoutError extends Error {}
 
 /**
+ * One request, with the per-minute budget respected on the way in and waited
+ * out on the way back.
+ *
+ * Retrying a 429 is safe for every method, including writes: the limiter sits
+ * in middleware and rejects before the route handler runs, so a rejected
+ * request changed nothing and repeating it cannot double-write.
+ *
  * @param {string} path Path below the API root, e.g. "/lists".
  * @param {{method?: string, body?: unknown, query?: Record<string, string|number|undefined>, timeoutMs?: number, retryOnTimeout?: boolean}} [opts]
  * @returns {Promise<any>} Parsed JSON, or null for 204.
  */
 async function request(path, opts = {}) {
+  for (let attemptNo = 0; ; attemptNo++) {
+    await pace();
+    try {
+      return await attemptRequest(path, opts);
+    } catch (err) {
+      const rateLimited = err instanceof ApiError && err.code === 'RATE_LIMIT';
+      // Bounded deliberately. Waiting out one window is recovery; waiting out
+      // an unbounded number of them is a click that never returns, and at
+      // that point the honest thing is to say the limit is not lifting.
+      if (!rateLimited || attemptNo >= MAX_RATE_RETRIES) throw err;
+
+      // A second refusal straight after the first is not a surprise: the
+      // window rolls over with a full budget and whatever this extension had
+      // queued goes at once, which can spend it again before this request is
+      // served.
+      const waitMs = Math.min((err.retryAfterSeconds || 60) * 1000 + 250, MAX_RETRY_WAIT_MS);
+      console.warn(`[Sincerely] Rate limited; waiting ${Math.round(waitMs / 1000)}s before trying again.`);
+      await sleep(waitMs);
+      budget.remaining = Infinity;
+      budget.resetAt = 0;
+    }
+  }
+}
+
+/**
+ * @param {string} path
+ * @param {{method?: string, body?: unknown, query?: Record<string, string|number|undefined>, timeoutMs?: number, retryOnTimeout?: boolean}} [opts]
+ * @returns {Promise<any>}
+ */
+async function attemptRequest(path, opts = {}) {
   const { apiBaseUrl, apiKey } = await getSettings();
 
   if (!apiKey) {
@@ -142,6 +249,8 @@ async function request(path, opts = {}) {
       );
     }
   }
+
+  noteBudget(response);
 
   if (response.status === 204) return null;
 

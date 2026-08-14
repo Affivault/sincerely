@@ -44,6 +44,25 @@ const coldStart = { armed: false, delayed: 0, delayMs: 25000 };
 /** Every request the extension has made, so a test can assert on cost. */
 export const calls = [];
 
+/*
+ * The per-minute budget, mirrored from apiKeyMiddleware.
+ *
+ * The real server publishes X-RateLimit-* on every authenticated reply and
+ * 429s with Retry-After when the window is spent. The extension paces itself
+ * against those headers and waits out a 429 rather than reporting it, and
+ * none of that behaviour could be tested against a mock that never says no.
+ */
+const rateLimit = {
+  /** Requests to reject with 429 before letting anything through again. */
+  reject: 0,
+  /** What to advertise as remaining, so pacing can be driven deliberately. */
+  remaining: 100,
+  limit: 100,
+  resetSeconds: 60,
+  /** Every 429 this mock has issued, so a test can assert one happened. */
+  rejections: 0,
+};
+
 let contacts = [];
 /** contact id -> [{campaign_id, status, current_step_order}] */
 let enrolments = new Map();
@@ -126,13 +145,18 @@ const timelines = new Map([
   ]],
 ]);
 
-function json(res, status, body) {
+function json(res, status, body, headers = {}) {
   const payload = body === null ? '' : JSON.stringify(body);
   res.writeHead(status, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': '*',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    // The browser cannot read a response header from another origin unless it
+    // is exposed. Without this the extension's pacing sees nothing at all.
+    'Access-Control-Expose-Headers': 'X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, Retry-After',
+    ...(res.__rateHeaders || {}),
+    ...headers,
   });
   res.end(payload);
 }
@@ -186,7 +210,25 @@ const server = createServer(async (req, res) => {
   // deliberately unauthenticated.
   if (req.method === 'GET' && url.pathname === '/__reset') {
     reset();
+    rateLimit.reject = 0;
+    rateLimit.remaining = 100;
+    rateLimit.limit = 100;
+    rateLimit.resetSeconds = 60;
+    rateLimit.rejections = 0;
     return json(res, 200, { reset: true });
+  }
+
+  /* Arm the limiter: reject the next `reject` API-key requests with 429, and
+     advertise `remaining` on the ones that get through. */
+  if (req.method === 'GET' && url.pathname === '/__arm-rate-limit') {
+    if (url.searchParams.has('reject')) rateLimit.reject = Number(url.searchParams.get('reject'));
+    if (url.searchParams.has('remaining')) rateLimit.remaining = Number(url.searchParams.get('remaining'));
+    if (url.searchParams.has('resetSeconds')) rateLimit.resetSeconds = Number(url.searchParams.get('resetSeconds'));
+    return json(res, 200, { ...rateLimit });
+  }
+
+  if (req.method === 'GET' && url.pathname === '/__rate-limit-stats') {
+    return json(res, 200, { ...rateLimit });
   }
   if (req.method === 'GET' && url.pathname === '/__minted-keys') {
     return json(res, 200, { keys: mintedKeys });
@@ -307,6 +349,26 @@ const server = createServer(async (req, res) => {
   // Mirrors apiKeyMiddleware: only sk_live_ tokens are treated as API keys.
   if (!auth.startsWith('Bearer sk_live_')) return json(res, 401, { error: 'Invalid or expired API key' });
   if (auth !== `Bearer ${VALID_KEY}`) return json(res, 401, { error: 'Invalid or expired API key' });
+
+  // Budget headers on every authenticated reply, exactly as the server sends
+  // them, so the client's pacing is driven by the real signal.
+  const rateHeaders = {
+    'X-RateLimit-Limit': String(rateLimit.limit),
+    'X-RateLimit-Remaining': String(Math.max(0, rateLimit.remaining)),
+    'X-RateLimit-Reset': String(rateLimit.resetSeconds),
+  };
+  if (rateLimit.reject > 0) {
+    rateLimit.reject -= 1;
+    rateLimit.rejections += 1;
+    return json(
+      res,
+      429,
+      { error: 'Rate limit exceeded', rate_limit: rateLimit.limit, retry_after_seconds: 1 },
+      { ...rateHeaders, 'X-RateLimit-Remaining': '0', 'Retry-After': '1' },
+    );
+  }
+  // Carried on the response so every json() below this gate publishes them.
+  res.__rateHeaders = rateHeaders;
 
   /* ---------------- Lead lists ---------------- */
 
