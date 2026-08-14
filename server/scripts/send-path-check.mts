@@ -207,10 +207,28 @@ globalThis.fetch = (async (url: any, init: any) => {
   if (target.includes('relay.test')) {
     sent = JSON.parse(init.body);
     if ((world as any).__relayRejects) {
+      // 502 with a JSON verdict, which is exactly what api/send-email.ts
+      // returns when the *destination* rejects the message. This fixture used
+      // to answer 200, which is a status the relay never sends on a failure —
+      // so the whole 5xx branch of the caller went unexercised and a bug
+      // sitting in it passed every run.
       return {
-        ok: true, status: 200, statusText: 'OK', headers: new Headers(),
-        json: async () => ({ success: false, error: (world as any).__relayRejects }),
+        ok: false, status: 502, statusText: 'Bad Gateway', headers: new Headers(),
+        json: async () => ({
+          success: false,
+          error: (world as any).__relayRejects,
+          ...((world as any).__relayCode ? { responseCode: (world as any).__relayCode } : {}),
+        }),
         text: async () => '',
+      } as any;
+    }
+    // A dead relay: a proxy's HTML error page, no JSON verdict anywhere.
+    // The caller must fall back to a direct send for this and only this.
+    if ((world as any).__relayDead) {
+      return {
+        ok: false, status: 502, statusText: 'Bad Gateway', headers: new Headers(),
+        json: async () => { throw new Error('not json'); },
+        text: async () => '<html>502 Bad Gateway</html>',
       } as any;
     }
     return {
@@ -221,6 +239,33 @@ globalThis.fetch = (async (url: any, init: any) => {
   }
   throw new Error(`unexpected fetch to ${target}`);
 }) as any;
+
+/*
+ * Direct SMTP, recorded rather than attempted.
+ *
+ * The direct path is the fallback for a broken relay, and whether it runs is
+ * itself the thing under test: a direct retry after the relay has already
+ * reported a verdict is a duplicate send. Left unstubbed it did a real DNS
+ * lookup for smtp.test on every scenario, which was slow, and — worse —
+ * failed in a way indistinguishable from the failures being asserted on.
+ *
+ * nodemailer is CJS, so its default export is a plain object and the property
+ * can be swapped; the service reads it at call time.
+ */
+const nodemailer = (await import('nodemailer')).default as any;
+const directAttempts: any[] = [];
+nodemailer.createTransport = (options: any) => {
+  directAttempts.push(options);
+  return {
+    sendMail: async () => {
+      throw Object.assign(new Error('direct SMTP is not reachable from this harness'), { code: 'ESOCKET' });
+    },
+    // The service closes the transport in a finally block; without this the
+    // stub throws over the top of the failure actually being tested.
+    close: () => {},
+    verify: async () => true,
+  };
+};
 
 const billing = await import('../src/services/billing.service.js');
 // The plan lookup is not what this harness is testing, and letting it fall
@@ -245,7 +290,7 @@ async function send(mutate?: (w: World) => void) {
   tracking.invalidateTrackingBaseUrl(USER);
   throttle.invalidateDomainLimit(USER);
   guard.invalidateGuardSettings(USER);
-  sent = null; updates = []; rpcCalls = [];
+  sent = null; updates = []; rpcCalls = []; directAttempts.length = 0;
   await processNextStep(CC);
   return sent;
 }
@@ -382,6 +427,40 @@ console.log('\na hard bounce must be recorded as a bounce, not a generic error')
   is('the contact is flagged bounced platform-wide, so other campaigns skip them',
      contactUpdate?.payload?.is_bounced === true,
      JSON.stringify(updates.map((u) => `${u.table}:${JSON.stringify(u.payload).slice(0, 60)}`)));
+}
+
+console.log('\na relay that answered must not be second-guessed by a direct retry');
+{
+  /*
+   * The relay reports every SMTP failure as HTTP 502. The caller used to read
+   * only the status, see 5xx, decide the relay was broken and re-send over
+   * direct SMTP — which on the hosts this relay exists for (Render blocks
+   * outbound SMTP) simply times out, so a bounce arrived as a timeout and the
+   * contact was never marked bounced.
+   *
+   * And 502 is also what the relay returns for its own deadline, which fires
+   * while the destination may have already accepted the message. The retry
+   * put the same email in the prospect's inbox twice.
+   */
+  await send((w) => {
+    (w as any).__relayRejects = '550 5.1.1 <maud@northbeam.io> User unknown';
+    (w as any).__relayCode = 550;
+  });
+  is('a 502 carrying a verdict is not treated as a dead relay',
+     !directAttempts.length,
+     `direct SMTP was attempted ${directAttempts.length} time(s) — that is a duplicate send`);
+
+  const ccUpdate = updates.find((u) => u.table === 'campaign_contacts' && u.payload.status);
+  is('and the bounce inside it is recorded',
+     ccUpdate?.payload?.status === 'bounced',
+     `status was "${ccUpdate?.payload?.status}"`);
+}
+{
+  // The other half: a relay that genuinely is not there must still fall back,
+  // or a proxy hiccup would stop the campaign instead of routing around it.
+  await send((w) => { (w as any).__relayDead = true; });
+  is('a 502 with no verdict does fall back to direct SMTP', directAttempts.length > 0,
+     'the relay was unreachable and nothing was tried directly');
 }
 
 console.log('\na rejected mailbox password must not be blamed on the recipient');

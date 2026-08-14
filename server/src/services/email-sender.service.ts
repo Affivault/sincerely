@@ -194,24 +194,43 @@ async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
     return sendDirect(params);
   }
 
-  // A misconfigured or missing relay endpoint returns 404, and reverse proxies
-  // return 5xx as HTML. In either case the relay isn't usable, so fall back to
-  // a direct SMTP send instead of surfacing an opaque "non-JSON response" error.
-  if (response.status === 404 || response.status === 405 || response.status >= 500) {
-    console.warn(`[SMTP Relay] Endpoint returned HTTP ${response.status}; falling back to direct SMTP`);
-    return sendDirect(params);
-  }
-
-  // Relay may still return non-JSON (e.g. an HTML error page) — parse safely.
-  let data: any = {};
+  /* Whether to fall back turns on one question: did the relay run the send?
+   *
+   * It used to turn on the status code, and the relay answers 502 for every
+   * SMTP failure — a hard "550 User unknown" included. So the body was never
+   * read: a bounce fell through to a direct SMTP attempt, which on the hosts
+   * this relay exists for (Render blocks outbound SMTP — that is the whole
+   * reason it is deployed) times out. The failure surfaced as a timeout, the
+   * contact was never marked bounced, and the classifier that would have
+   * caught it never saw the reply code.
+   *
+   * The duplicate is worse than the misfiling. The relay returns 502 for its
+   * own ERELAYDEADLINE too, which fires while the destination server may have
+   * already accepted the message; re-sending it directly puts the same email
+   * in the prospect's inbox twice.
+   *
+   * A JSON body with a boolean `success` is the relay's verdict on a send it
+   * actually attempted, and must be honoured either way. Anything else — a
+   * proxy's HTML error page, a 404 from a missing endpoint, a config error
+   * before the send was tried — means the relay never ran, and only then is a
+   * direct attempt the right move.
+   */
+  let data: any = null;
   try {
     data = await response.json();
   } catch {
-    console.warn(`[SMTP Relay] Non-JSON response (HTTP ${response.status}); falling back to direct SMTP`);
+    data = null;
+  }
+
+  if (typeof data?.success !== 'boolean') {
+    console.warn(
+      `[SMTP Relay] No verdict from the relay (HTTP ${response.status}${data?.error ? `: ${data.error}` : ''}); ` +
+      'falling back to direct SMTP',
+    );
     return sendDirect(params);
   }
 
-  if (!response.ok || !data.success) {
+  if (!data.success) {
     // Carry the SMTP reply code out with the failure. Without it the sequence
     // engine cannot tell a permanent "550 User unknown" from a transient
     // greylist, so it filed every relay rejection as a generic error: the
@@ -220,9 +239,11 @@ async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
     const relayError: any = new Error(`SMTP relay error: ${data.error || response.statusText}`);
     if (data.responseCode !== undefined) relayError.responseCode = data.responseCode;
     if (data.code !== undefined) relayError.code = data.code;
-    // The reply text is where the code lives when the relay sends nothing
-    // more structured, which is the common case.
-    if (typeof data.error === 'string') relayError.response = data.error;
+    // The server's raw reply when the relay forwards it, the message text
+    // otherwise — an older relay still in front of a newer server sends only
+    // the latter, and the code can be read out of either.
+    const replyText = typeof data.response === 'string' ? data.response : data.error;
+    if (typeof replyText === 'string') relayError.response = replyText;
     throw relayError;
   }
 
