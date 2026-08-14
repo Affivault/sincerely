@@ -18,6 +18,12 @@ function pick(body: any, keys: readonly string[]): Record<string, any> {
   return out;
 }
 
+// Quote a value for use inside a PostgREST `.or()`/`.in()` filter string so
+// commas, parens, and quotes in an email address can't break the filter syntax.
+function quoteForOr(value: string): string {
+  return `"${String(value).replace(/"/g, '""')}"`;
+}
+
 /** Surface the "run migration 038" case as an instruction, not a 500. */
 function assertCompaniesTable(error: { message?: string; code?: string } | null): void {
   const msg = error?.message || '';
@@ -133,9 +139,13 @@ export const companiesService = {
       emails.length
         ? supabaseAdmin
             .from('inbox_messages')
-            .select('id, subject, from_email, to_email, contact_email, contact_name, direction, received_at, body_text')
+            .select('id, subject, from_email, to_email, direction, received_at, body_text')
             .eq('user_id', userId)
-            .in('contact_email', emails)
+            .or(
+              `from_email.in.(${emails.map(quoteForOr).join(',')}),to_email.in.(${emails
+                .map(quoteForOr)
+                .join(',')})`
+            )
             .order('received_at', { ascending: false })
             .limit(100)
         : Promise.resolve({ data: [], error: null } as any),
@@ -164,11 +174,24 @@ export const companiesService = {
 
     // crm_notes arrives with migration 037; an account that hasn't run it
     // should still see its emails rather than a 500.
-    const rows = (r: any) => (r?.error ? [] : r?.data || []);
+    const rows = (r: any) => {
+      if (r?.error) {
+        console.error('companies.activity query failed:', r.error.message);
+        return [];
+      }
+      return r?.data || [];
+    };
+
+    // The message rows only have from_email/to_email — the "who" is whichever
+    // side isn't this company's own mailbox.
+    const messageRows = rows(messages).map((m: any) => ({
+      ...m,
+      contact_email: (m.direction === 'outbound' ? m.to_email : m.from_email) || null,
+    }));
 
     return {
       contacts,
-      messages: rows(messages),
+      messages: messageRows,
       notes: rows(notes),
       tasks: rows(tasks),
       events: rows(events),

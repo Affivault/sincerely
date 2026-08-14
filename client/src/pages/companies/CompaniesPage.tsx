@@ -16,7 +16,7 @@ import { SortableHeader, DraggableHeader, ResizeHandle } from '../../components/
 import { cn, formatDate } from '../../lib/utils';
 import {
   Building2, Plus, Users, Handshake, Globe, MapPin, Factory,
-  Linkedin, CircleDollarSign, CalendarPlus, ExternalLink,
+  Linkedin, CircleDollarSign, CalendarPlus, ExternalLink, Download,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Company } from '@lemlist/shared';
@@ -120,6 +120,28 @@ const ALL_COLUMNS: ColumnDef[] = [
 ];
 
 const DEFAULT_COLUMNS = ['contact_count', 'deal_count', 'open_value', 'industry', 'location', 'domain'];
+
+function csvCell(v: string | number | null | undefined): string {
+  const s = v == null ? '' : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Export the given companies as a CSV file the browser downloads directly — no server round-trip. */
+function exportCompaniesCsv(companies: Company[]) {
+  const header = ['Name', 'Domain', 'Industry', 'Location', 'Headcount', 'People', 'Deals', 'Open value', 'LinkedIn'];
+  const rows = (companies as any[]).map((c) => [
+    c.name, c.domain, c.industry, c.location, c.size,
+    c.contact_count ?? 0, c.deal_count ?? 0, c.open_value ?? 0, c.linkedin_url,
+  ].map(csvCell).join(','));
+  const csv = [header.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `companies-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function NewCompanyModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
@@ -260,6 +282,15 @@ export function CompaniesPage() {
         actions={
           <div className="flex items-center gap-2">
             <SearchInput value={search} onChange={onSearch} placeholder="Search companies…" className="hidden sm:block w-56" />
+            {rows.length > 0 && (
+              <button
+                onClick={() => exportCompaniesCsv(rows)}
+                className="btn-secondary"
+                title="Export the companies shown below as a CSV file"
+              >
+                <Download className="h-3.5 w-3.5" /> Export CSV
+              </button>
+            )}
             <button onClick={() => setShowNew(true)} className="btn-primary">
               <Plus className="h-3.5 w-3.5" /> New company
             </button>

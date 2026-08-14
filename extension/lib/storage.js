@@ -218,6 +218,7 @@ export function originPatternFor(baseUrl) {
     'http://127.0.0.1:3001',
     'https://skysend-api.onrender.com',
     'https://api.usesincerely.com',
+    'https://usesincerely.com',
   ];
   if (declared.includes(origin)) return null;
   return `${origin}/*`;
