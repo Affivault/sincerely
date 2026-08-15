@@ -1980,10 +1980,10 @@ async function agentPerform(action) {
 
   try {
     return await new Promise((resolve) => {
-      const timer = setTimeout(
-        () => resolve({ ok: false, reason: 'Timed out waiting for LinkedIn' }),
-        AGENT_ACT_TIMEOUT_MS,
-      );
+      const timer = setTimeout(() => {
+        chrome.tabs.onUpdated.removeListener(onUpdated);
+        resolve({ ok: false, reason: 'Timed out waiting for LinkedIn' });
+      }, AGENT_ACT_TIMEOUT_MS);
 
       const onUpdated = async (tabId, info) => {
         if (tabId !== tab.id || info.status !== 'complete') return;

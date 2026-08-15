@@ -24,6 +24,12 @@ function quoteForOr(value: string): string {
   return `"${String(value).replace(/"/g, '""')}"`;
 }
 
+/** Reject a company_id that doesn't belong to this user before it's persisted. */
+async function assertCompanyOwned(userId: string, companyId: string): Promise<void> {
+  const { data } = await supabaseAdmin.from('companies').select('id').eq('id', companyId).eq('user_id', userId).maybeSingle();
+  if (!data) throw new AppError('Company not found', 404);
+}
+
 /** Surface the "run migration 038" case as an instruction, not a 500. */
 function assertCompaniesTable(error: { message?: string; code?: string } | null): void {
   const msg = error?.message || '';
@@ -263,6 +269,7 @@ export const companiesService = {
 
   /** Attach a contact to a company (creating it by name when needed). */
   async linkContact(userId: string, contactId: string, companyId: string | null) {
+    if (companyId) await assertCompanyOwned(userId, companyId);
     const { data, error } = await supabaseAdmin
       .from('contacts')
       .update({ company_id: companyId })

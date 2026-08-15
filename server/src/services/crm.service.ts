@@ -295,6 +295,8 @@ export const crmService = {
   async updateNote(userId: string, id: string, body: any) {
     const input = pick(body, NOTE_KEYS as any);
     if (input.body !== undefined && !String(input.body).trim()) throw new AppError('Note body is required', 400);
+    if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
+    if (input.deal_id) await assertOwned(userId, 'deals', input.deal_id, 'Deal');
     const { data, error } = await supabaseAdmin
       .from('crm_notes')
       .update(input)

@@ -124,7 +124,7 @@ export function CompanyDetailPage() {
       qc.invalidateQueries({ queryKey: ['company-summary', id] });
       qc.invalidateQueries({ queryKey: ['companies'] });
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || 'Could not save that change');
+      toast.error(e?.response?.data?.error || 'Could not save that change');
       throw e;
     }
   };

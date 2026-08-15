@@ -136,7 +136,7 @@ export function ContactDetailPage() {
       await contactsApi.update(id!, patch as any);
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || 'Could not save that change');
+      toast.error(e?.response?.data?.error || 'Could not save that change');
       throw e;
     }
   };

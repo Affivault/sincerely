@@ -93,7 +93,7 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
       await contactsApi.update(id, patch as any);
       qc.invalidateQueries({ queryKey: ['contacts'] });
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || 'Could not save that change');
+      toast.error(e?.response?.data?.error || 'Could not save that change');
       throw e;
     }
   };
@@ -222,7 +222,7 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
       await crmApi.updateDeal(id, patch as any);
       qc.invalidateQueries({ queryKey: ['crm'] });
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || 'Could not save that change');
+      toast.error(e?.response?.data?.error || 'Could not save that change');
       throw e;
     }
   };
@@ -368,7 +368,7 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
       qc.invalidateQueries({ queryKey: ['company-summary', id] });
       qc.invalidateQueries({ queryKey: ['companies'] });
     } catch (e: any) {
-      toast.error(e?.response?.data?.error?.message || 'Could not save that change');
+      toast.error(e?.response?.data?.error || 'Could not save that change');
       throw e;
     }
   };
