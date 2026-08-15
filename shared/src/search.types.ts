@@ -166,9 +166,12 @@ function matchDate(tokens: string[], now: Date): DateMatch | null {
       const d = new Date(now);
       let delta = (dayIdx - d.getDay() + 7) % 7;
       // A bare weekday means the NEXT one — "monday" said on a Monday is a
-      // week away, not this morning, which has already happened.
+      // week away, not this morning, which has already happened. "next
+      // monday" means the same upcoming Monday, not a further one — it used
+      // to add an extra 7 days on every day except the one that IS that
+      // weekday, so "next monday" jumped a confusing 13 days away on a
+      // Tuesday instead of the coming 6.
       if (delta === 0) delta = 7;
-      if (next && delta < 7) delta += 7;
       d.setDate(d.getDate() + delta);
       const label = next ? `next ${WEEKDAYS[dayIdx]}` : WEEKDAYS[dayIdx];
       return { at: d, label, consumed: next ? [tokens[i], tokens[i + 1]] : [tokens[i]] };

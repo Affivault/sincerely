@@ -323,6 +323,16 @@ export const contactsService = {
       throw new AppError('A contact needs an email address', 400);
     }
 
+    if (contactData.company_id) {
+      const { data: company } = await supabaseAdmin
+        .from('companies')
+        .select('id')
+        .eq('id', contactData.company_id)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!company) throw new AppError('Company not found', 404);
+    }
+
     const hasFields = Object.keys(contactData).length > 0;
     if (!hasFields && !Array.isArray(tag_ids)) throw new AppError('Nothing to update', 400);
 
