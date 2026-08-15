@@ -11,9 +11,43 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { SettingsShell } from '../../components/shared/SettingsShell';
 import { Card } from '../../components/shared/Card';
 import { formatDate, cn } from '../../lib/utils';
-import { ShieldOff, Plus, Trash2, Upload, Search, X, Filter } from 'lucide-react';
+import { ShieldOff, Plus, Trash2, Upload, Search, X, Filter, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { DEFAULT_PAGE_SIZE } from '../../lib/constants';
+
+function csvCell(v: string | number | null | undefined): string {
+  const s = v == null ? '' : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/**
+ * Export every suppressed email matching the current search/reason filter —
+ * not just the current page — as a CSV the browser downloads directly.
+ * The list is paginated server-side, so this walks every page first.
+ */
+async function exportSuppressionCsv(search: string, reason: string) {
+  const header = ['Email', 'Reason', 'Notes', 'Added'];
+  const rows: string[] = [];
+  let page = 1;
+  let totalPages = 1;
+  do {
+    const res = await suppressionApi.list({ page, limit: 100, search: search || undefined, reason: reason || undefined });
+    totalPages = res.total_pages || 1;
+    for (const entry of res.data) {
+      const meta = REASON_LABELS[entry.reason] || REASON_LABELS.manual;
+      rows.push([entry.email, meta.label, entry.notes, formatDate(entry.created_at)].map(csvCell).join(','));
+    }
+    page++;
+  } while (page <= totalPages);
+  const csv = [header.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `suppression-list-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 /* Shared select styling that matches the Input primitive */
 const SELECT_CLS = 'w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-[13px] text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-[border-color,box-shadow]';
@@ -37,6 +71,18 @@ export function SuppressionPage() {
   const [addReason, setAddReason] = useState<string>('manual');
   const [addNotes, setAddNotes] = useState('');
   const [bulkText, setBulkText] = useState('');
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await exportSuppressionCsv(search, reasonFilter);
+    } catch {
+      toast.error('Failed to export suppression list');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ['suppression', page, search, reasonFilter],
@@ -106,6 +152,15 @@ export function SuppressionPage() {
         meta={data?.total !== undefined ? <span className="tabular">{data.total.toLocaleString()} suppressed</span> : undefined}
         actions={
           <>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleExport}
+              disabled={exporting || !data?.total}
+              title="Export the full suppression list (matching the current search/filter) as a CSV file"
+            >
+              <Download className="h-3.5 w-3.5" /> {exporting ? 'Exporting…' : 'Export CSV'}
+            </Button>
             <Button variant="secondary" size="sm" onClick={() => setShowBulkModal(true)}>
               <Upload className="h-3.5 w-3.5" /> Import
             </Button>
