@@ -204,7 +204,15 @@ export function extractFromHtml(html, pageUrl) {
 
   // 2. mailto: links — the most reliable signal on any page.
   for (const match of html.matchAll(/href=["']mailto:([^"'?]+)/gi)) {
-    add(decodeURIComponent(match[1]), html.slice(Math.max(0, match.index - 200), match.index));
+    // A malformed %-escape (obfuscation, CMS artifacts) throws here; one bad
+    // link on one page shouldn't kill every address harvested from the rest.
+    let decoded;
+    try {
+      decoded = decodeURIComponent(match[1]);
+    } catch {
+      decoded = match[1];
+    }
+    add(decoded, html.slice(Math.max(0, match.index - 200), match.index));
   }
 
   // 3. Body text, after undoing the usual obfuscations. Tags are stripped so

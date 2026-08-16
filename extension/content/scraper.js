@@ -194,7 +194,15 @@
       // A mailto in the sidebar is somebody else's.
       if (profileScoped && !scopes.some((scope) => scope.contains(link))
         && !link.closest('[role="dialog"], .artdeco-modal')) continue;
-      const raw = decodeURIComponent(link.getAttribute('href').slice('mailto:'.length)).split('?')[0];
+      const href = link.getAttribute('href').slice('mailto:'.length);
+      // A malformed %-escape throws; one bad mailto: shouldn't blank the
+      // whole scrape (name, company, title, every other candidate email).
+      let raw;
+      try {
+        raw = decodeURIComponent(href).split('?')[0];
+      } catch {
+        raw = href.split('?')[0];
+      }
       const email = (raw.match(EMAIL_PATTERN) || [])[0];
       if (email && isPlausibleEmail(email.toLowerCase())) found.add(email.toLowerCase());
     }

@@ -293,6 +293,7 @@ export const contactsService = {
 
   async create(userId: string, input: any) {
     const { tag_ids, ...contactData } = input;
+    if (contactData.email) contactData.email = String(contactData.email).trim().toLowerCase();
 
     const { data, error } = await supabaseAdmin
       .from('contacts')
@@ -319,8 +320,9 @@ export const contactsService = {
     const { tag_ids } = input || {};
     const contactData = pickUpdatable(input);
 
-    if (contactData.email !== undefined && !String(contactData.email).trim()) {
-      throw new AppError('A contact needs an email address', 400);
+    if (contactData.email !== undefined) {
+      contactData.email = String(contactData.email).trim().toLowerCase();
+      if (!contactData.email) throw new AppError('A contact needs an email address', 400);
     }
 
     if (contactData.company_id) {
