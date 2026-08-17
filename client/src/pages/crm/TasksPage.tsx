@@ -30,6 +30,17 @@ import { TASK_TYPES, isLinkedinStep } from '@lemlist/shared';
 
 type Bucket = { id: string; label: string; hint?: string; tasks: CrmTask[]; tone: string };
 
+// Tomorrow relative to *now*, not the task's stale due date — a task overdue
+// by several days must clear in one push, not one day per click. Keeps
+// whatever time of day it was already scheduled for.
+function pushToTomorrow(dueDate: string): Date {
+  const original = new Date(dueDate);
+  const next = new Date();
+  next.setHours(original.getHours(), original.getMinutes(), original.getSeconds(), original.getMilliseconds());
+  next.setDate(next.getDate() + 1);
+  return next;
+}
+
 function bucketTasks(tasks: CrmTask[]): Bucket[] {
   const today = startOfDay(new Date());
   const tomorrow = new Date(today.getTime() + 86_400_000);
@@ -248,15 +259,13 @@ export function TasksPage() {
   // whatever time of day it was already scheduled for.
   const snooze = useMutation({
     mutationFn: (t: CrmTask) => {
-      const due = new Date(t.due_date!);
-      due.setDate(due.getDate() + 1);
+      const due = pushToTomorrow(t.due_date!);
       return crmApi.updateTask(t.id, { due_date: due.toISOString() });
     },
     onMutate: async (t) => {
       await qc.cancelQueries({ queryKey: ['crm', 'tasks'] });
       const prev = qc.getQueryData<CrmTask[]>(['crm', 'tasks']);
-      const due = new Date(t.due_date!);
-      due.setDate(due.getDate() + 1);
+      const due = pushToTomorrow(t.due_date!);
       qc.setQueryData<CrmTask[]>(['crm', 'tasks'], (old) =>
         (old || []).map((x) => (x.id === t.id ? { ...x, due_date: due.toISOString() } : x)));
       return { prev };
@@ -266,6 +275,28 @@ export function TasksPage() {
       toast.error('Could not reschedule that');
     },
     onSuccess: () => toast.success('Pushed to tomorrow'),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['crm'] }),
+  });
+
+  // One toast for the whole batch, not one per task — clearing a dozen
+  // overdue items shouldn't paper the screen in identical toasts.
+  const snoozeAll = useMutation({
+    mutationFn: (list: CrmTask[]) =>
+      Promise.all(list.map((t) => crmApi.updateTask(t.id, { due_date: pushToTomorrow(t.due_date!).toISOString() }))),
+    onMutate: async (list) => {
+      await qc.cancelQueries({ queryKey: ['crm', 'tasks'] });
+      const prev = qc.getQueryData<CrmTask[]>(['crm', 'tasks']);
+      const ids = new Set(list.map((t) => t.id));
+      const dueById = new Map(list.map((t) => [t.id, pushToTomorrow(t.due_date!).toISOString()]));
+      qc.setQueryData<CrmTask[]>(['crm', 'tasks'], (old) =>
+        (old || []).map((x) => (ids.has(x.id) ? { ...x, due_date: dueById.get(x.id)! } : x)));
+      return { prev };
+    },
+    onError: (_e, _list, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['crm', 'tasks'], ctx.prev);
+      toast.error('Could not reschedule those');
+    },
+    onSuccess: (_r, list) => toast.success(`Pushed ${list.length} to tomorrow`),
     onSettled: () => qc.invalidateQueries({ queryKey: ['crm'] }),
   });
 
@@ -376,7 +407,17 @@ export function TasksPage() {
                 <div className="flex items-baseline gap-2 px-4 py-2.5 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50">
                   <h3 className={cn('text-[12.5px] font-semibold', b.tone)}>{b.label}</h3>
                   <span className="text-[11px] tabular text-[var(--text-tertiary)]">{b.tasks.length}</span>
-                  {b.hint && <span className="text-[11px] text-[var(--text-muted)] ml-auto">{b.hint}</span>}
+                  {b.id === 'overdue' && b.tasks.length > 1 ? (
+                    <button
+                      onClick={() => snoozeAll.mutate(b.tasks)}
+                      disabled={snoozeAll.isPending}
+                      className="ml-auto text-[11px] font-medium text-[var(--indigo)] hover:underline disabled:opacity-50"
+                    >
+                      Push all to tomorrow
+                    </button>
+                  ) : (
+                    b.hint && <span className="text-[11px] text-[var(--text-muted)] ml-auto">{b.hint}</span>
+                  )}
                 </div>
                 <div className="p-1.5">
                   {b.tasks.map((t) => (

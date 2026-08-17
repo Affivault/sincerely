@@ -755,7 +755,16 @@
 
       const found = new Set();
       for (const link of modal.querySelectorAll('a[href^="mailto:"]')) {
-        const address = decodeURIComponent(link.getAttribute('href').slice(7)).split('?')[0].toLowerCase();
+        const href = link.getAttribute('href').slice(7);
+        // A malformed %-escape throws; one bad mailto: shouldn't discard
+        // everything already gathered and skip the dismiss(modal) below.
+        let raw;
+        try {
+          raw = decodeURIComponent(href);
+        } catch {
+          raw = href;
+        }
+        const address = raw.split('?')[0].toLowerCase();
         if (EMAIL_TEST.test(address) && isPlausibleEmail(address)) found.add(address);
       }
       /*
