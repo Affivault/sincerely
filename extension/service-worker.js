@@ -351,7 +351,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 
   if (info.menuItemId === MENU_SUPPRESS) {
-    const result = await handleSuppress({ email: person.email, removeFromActive: true });
+    const result = await handleSuppress({ email: person.email, removeFromLists: true });
     if (result.ok) {
       notify('Suppressed', `${person.email} will not be emailed again${result.data.removedFrom ? `, and was taken off ${result.data.removedFrom} list(s)` : ''}.`);
     } else {
@@ -1036,11 +1036,22 @@ async function handleBulkAddProfiles(payload) {
       );
     }
 
+    /*
+     * De-duplicated before counting. Two selected rows can resolve to the same
+     * contact — the same person listed twice, or two reveals returning one
+     * address — and the id then went in twice, which double-counted them in
+     * both "added" and "already on the list" and made the totals disagree with
+     * the number of people ticked.
+     */
+    const uniqueIds = [...new Set(contactIds)];
+
     // Who was on it already, so the result can distinguish new from repeat:
     // the server upserts and counts both as a success.
-    const before = await api.listContactIds(listId).catch(() => new Set());
-    const result = await api.addToList(listId, contactIds);
-    const alreadyOnList = contactIds.filter((id) => before.has(id)).length;
+    const before = await api.listContactIds(listId).catch(() => null);
+    const result = await api.addToList(listId, uniqueIds);
+    // null means the read failed, which is not the same as "nobody was on it".
+    // Counting it as the latter reported every repeat as a fresh add.
+    const alreadyOnList = before ? uniqueIds.filter((id) => before.has(id)).length : null;
     await setSettings({ lastListId: listId });
     invalidateStandingCache();
 
@@ -1048,7 +1059,7 @@ async function handleBulkAddProfiles(payload) {
     if (settings.autoTag && settings.autoTagName) {
       try {
         const tag = await api.ensureTag(settings.autoTagName);
-        await api.tagContacts(contactIds, [tag.id]);
+        await api.tagContacts(uniqueIds, [tag.id]);
       } catch (tagErr) {
         console.warn('[Sincerely] Could not tag added profiles:', tagErr?.message);
       }
@@ -1058,7 +1069,12 @@ async function handleBulkAddProfiles(payload) {
       ok: true,
       data: {
         requested: people.length,
-        added: Math.max(0, (result?.success ?? 0) - alreadyOnList),
+        // With no "before" read there is no honest split between new and
+        // repeat, so report the total and let the UI say so rather than
+        // inventing a breakdown.
+        added: alreadyOnList === null
+          ? (result?.success ?? 0)
+          : Math.max(0, (result?.success ?? 0) - alreadyOnList),
         alreadyOnList,
         failed: result?.failed ?? 0,
         revealed,
@@ -1332,14 +1348,19 @@ async function handleBulkAdd(payload) {
       }
     }
 
-    const contactIds = emails.map((e) => known.get(e)?.id).filter(Boolean);
+    // Deduplicated: a pasted list routinely repeats an address, and two of
+    // them resolving to one contact sent the same id twice — double-counted
+    // in both totals, so the numbers disagreed with what was pasted.
+    const contactIds = [...new Set(emails.map((e) => known.get(e)?.id).filter(Boolean))];
     if (contactIds.length === 0) {
       throw new ApiError('None of these addresses could be turned into contacts.', { code: 'NO_CONTACTS' });
     }
 
-    const before = await api.listContactIds(listId).catch(() => new Set());
+    // null means the read failed, which is not "nobody was on the list" —
+    // treating it as that reported every repeat as a fresh add.
+    const before = await api.listContactIds(listId).catch(() => null);
     const result = await api.addToList(listId, contactIds);
-    const alreadyOnList = contactIds.filter((id) => before.has(id)).length;
+    const alreadyOnList = before ? contactIds.filter((id) => before.has(id)).length : null;
     await setSettings({ lastListId: listId });
     invalidateStandingCache();
 
@@ -1361,7 +1382,9 @@ async function handleBulkAdd(payload) {
       data: {
         requested: emails.length,
         created,
-        added: Math.max(0, (result?.success ?? 0) - alreadyOnList),
+        added: alreadyOnList === null
+          ? (result?.success ?? 0)
+          : Math.max(0, (result?.success ?? 0) - alreadyOnList),
         alreadyOnList,
         failed: result?.failed ?? 0,
         listId,
@@ -1394,6 +1417,11 @@ async function handleRemoveFromList(payload) {
  * back. Suppression is what actually sticks, so this does both — suppress the
  * address account-wide, then take them off every lead list they're on, so no
  * campaign drawing from those lists picks them up again.
+ *
+ * `removeFromLists` is the name the handler reads. Both callers used to send
+ * `removeFromActive`, which nothing looked at — the default happened to be the
+ * same thing, so it worked, and would have silently ignored anyone who set it
+ * to false meaning to leave the person on their lists.
  *
  * @param {{email: string, contactId?: string, removeFromLists?: boolean}} payload
  */
@@ -2028,28 +2056,68 @@ async function agentPerform(action) {
     return { ok: false, reason: `Could not open the profile: ${err?.message || err}` };
   }
 
+  /** Set once, by whichever of the three paths below gets there first. */
+  let onUpdated = null;
+  let timer = null;
+  const done = (settle) => (value) => {
+    if (timer) clearTimeout(timer);
+    if (onUpdated) chrome.tabs.onUpdated.removeListener(onUpdated);
+    onUpdated = null;
+    settle(value);
+  };
+
   try {
     return await new Promise((resolve) => {
-      const timer = setTimeout(
-        () => resolve({ ok: false, reason: 'Timed out waiting for LinkedIn' }),
-        AGENT_ACT_TIMEOUT_MS,
-      );
+      /*
+       * The listener is removed on every exit, not only on the one where the
+       * page loaded. It used to be taken off inside the handler, so a profile
+       * that never finished loading left it registered for the life of the
+       * worker — holding a closure over a tab that had already been closed,
+       * and running on every tab update in the browser. One leak per timed-out
+       * action, unbounded.
+       */
+      const finish = done(resolve);
+      timer = setTimeout(() => finish({ ok: false, reason: 'Timed out waiting for LinkedIn' }), AGENT_ACT_TIMEOUT_MS);
 
-      const onUpdated = async (tabId, info) => {
-        if (tabId !== tab.id || info.status !== 'complete') return;
-        chrome.tabs.onUpdated.removeListener(onUpdated);
+      /*
+       * Exactly once. Two paths can reach it — the load event and the
+       * already-loaded check — and acting twice would send a second connection
+       * request to the same person, which is precisely the behaviour that gets
+       * an account restricted.
+       */
+      let dispatched = false;
+      const dispatch = async () => {
+        if (dispatched) return;
+        dispatched = true;
         try {
           const reply = await chrome.tabs.sendMessage(tab.id, { type: 'AGENT_ACT', action });
-          clearTimeout(timer);
-          resolve(reply || { ok: false, reason: 'No answer from the page' });
+          finish(reply || { ok: false, reason: 'No answer from the page' });
         } catch (err) {
-          clearTimeout(timer);
-          resolve({ ok: false, reason: `Page script unavailable: ${err?.message || err}` });
+          finish({ ok: false, reason: `Page script unavailable: ${err?.message || err}` });
         }
       };
+
+      onUpdated = (tabId, info) => {
+        if (tabId !== tab.id || info.status !== 'complete') return;
+        dispatch();
+      };
       chrome.tabs.onUpdated.addListener(onUpdated);
+
+      /*
+       * And check the tab as it stands, because the listener is attached after
+       * the tab was created and a cached page can reach 'complete' in the gap.
+       * That event is then never seen: the action sat out the full sixty-second
+       * timeout and was reported to the server as a failure, on a profile that
+       * had loaded fine.
+       */
+      chrome.tabs.get(tab.id).then(
+        (current) => { if (current?.status === 'complete' && onUpdated) dispatch(); },
+        () => {},
+      );
     });
   } finally {
+    if (onUpdated) chrome.tabs.onUpdated.removeListener(onUpdated);
+    if (timer) clearTimeout(timer);
     if (tab?.id) chrome.tabs.remove(tab.id).catch(() => {});
   }
 }

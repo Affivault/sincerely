@@ -52,6 +52,9 @@ export const calls = [];
  * against those headers and waits out a 429 rather than reporting it, and
  * none of that behaviour could be tested against a mock that never says no.
  */
+/** What the LinkedIn agent has been told to do, and what it reported back. */
+const agent = { queue: [], handedOut: [], done: [], failed: [] };
+
 const rateLimit = {
   /** Requests to reject with 429 before letting anything through again. */
   reject: 0,
@@ -215,6 +218,10 @@ const server = createServer(async (req, res) => {
     rateLimit.limit = 100;
     rateLimit.resetSeconds = 60;
     rateLimit.rejections = 0;
+    agent.queue = [];
+    agent.handedOut = [];
+    agent.done = [];
+    agent.failed = [];
     return json(res, 200, { reset: true });
   }
 
@@ -229,6 +236,22 @@ const server = createServer(async (req, res) => {
 
   if (req.method === 'GET' && url.pathname === '/__rate-limit-stats') {
     return json(res, 200, { ...rateLimit });
+  }
+
+  /* Queue one action for the agent to pick up on its next tick. */
+  if (req.method === 'GET' && url.pathname === '/__queue-agent-action') {
+    agent.queue.push({
+      task_id: url.searchParams.get('taskId') || `task-${agent.queue.length + 1}`,
+      channel: url.searchParams.get('channel') || 'linkedin_visit',
+      profile_url: url.searchParams.get('profileUrl') || 'https://www.linkedin.com/in/agent-target/',
+      message: url.searchParams.get('message') || '',
+      title: 'Agent action',
+    });
+    return json(res, 200, { queued: agent.queue.length });
+  }
+
+  if (req.method === 'GET' && url.pathname === '/__agent-stats') {
+    return json(res, 200, { ...agent });
   }
   if (req.method === 'GET' && url.pathname === '/__minted-keys') {
     return json(res, 200, { keys: mintedKeys });
@@ -632,6 +655,31 @@ const server = createServer(async (req, res) => {
   if (req.method === 'GET' && path === '/suppression/check') {
     return json(res, 200, { suppressed: suppressed.has((url.searchParams.get('email') || '').toLowerCase()) });
   }
+  /* ---------------- LinkedIn agent ---------------- */
+  /*
+   * The agent had no coverage of any kind, which is a poor place to be blind:
+   * it is the only part of this extension that clicks things on somebody's
+   * real LinkedIn account, and a wrong verdict is reported straight back here
+   * and recorded against the task.
+   */
+  if (req.method === 'GET' && path === '/linkedin/agent/next') {
+    const action = agent.queue.shift() || null;
+    if (action) agent.handedOut.push(action.task_id);
+    return json(res, 200, {
+      action,
+      reason: action ? null : 'nothing_due',
+      gap: { min_seconds: 0, max_seconds: 0 },
+    });
+  }
+  if (req.method === 'POST' && /^\/linkedin\/agent\/tasks\/[^/]+\/done$/.test(path)) {
+    agent.done.push(path.split('/')[4]);
+    return json(res, 200, { ok: true });
+  }
+  if (req.method === 'POST' && /^\/linkedin\/agent\/tasks\/[^/]+\/failed$/.test(path)) {
+    agent.failed.push({ taskId: path.split('/')[4], reason: body?.reason, fatal: Boolean(body?.fatal) });
+    return json(res, 200, { ok: true });
+  }
+
   if (req.method === 'POST' && path === '/suppression') {
     suppressed.add(String(body.email).toLowerCase());
     return json(res, 201, { email: body.email, reason: body.reason });

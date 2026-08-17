@@ -1196,7 +1196,7 @@ async function suppressPerson() {
   const response = await send('SUPPRESS_PERSON', {
     email,
     contactId: state.contact?.id || null,
-    removeFromActive: true,
+    removeFromLists: true,
   });
 
   if (!response.ok) {

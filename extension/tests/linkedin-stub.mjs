@@ -93,6 +93,54 @@ const profile = (slug, name, headline) => `<!doctype html><html><head><title>${n
   </script>
 </body></html>`;
 
+/**
+ * A profile shaped for the LinkedIn agent, with LinkedIn's real button markup.
+ *
+ * The detail that matters: every control carries BOTH visible text and an
+ * aria-label, and they say different things. LinkedIn's Connect button reads
+ * "Connect" and is labelled "Invite Rowan Fitz to connect"; Send reads "Send"
+ * and is labelled "Send now". Any matcher that concatenates the two before
+ * testing sees "connect invite rowan fitz to connect" and matches neither.
+ */
+const AGENT_SLUG = 'agent-target';
+const AGENT_PROFILE = `<!doctype html><html><head><title>Rowan Fitz | LinkedIn</title></head>
+<body>
+  <main>
+    <h1>Rowan Fitz</h1>
+    <div class="text-body-medium break-words">VP Engineering at Northwind Capital</div>
+    <button aria-label="Message Rowan Fitz"><span aria-hidden="true">Message</span></button>
+    <button id="connect" aria-label="Invite Rowan Fitz to connect"><span aria-hidden="true">Connect</span></button>
+  </main>
+  <script>
+    window.__agent = { invitesSent: 0, note: null, noteOpened: 0 };
+    document.getElementById('connect').addEventListener('click', function () {
+      if (document.getElementById('invite-modal')) return;
+      var modal = document.createElement('div');
+      modal.id = 'invite-modal';
+      modal.setAttribute('role', 'dialog');
+      modal.innerHTML =
+        '<h2>Add a note to your invitation?</h2>' +
+        '<button id="add-note" aria-label="Add a note to your invitation"><span>Add a note</span></button>' +
+        '<button id="send-btn" aria-label="Send now"><span>Send</span></button>';
+      document.body.appendChild(modal);
+      document.getElementById('add-note').addEventListener('click', function () {
+        window.__agent.noteOpened += 1;
+        if (document.getElementById('custom-message')) return;
+        var field = document.createElement('textarea');
+        field.id = 'custom-message';
+        field.name = 'message';
+        modal.appendChild(field);
+      });
+      document.getElementById('send-btn').addEventListener('click', function () {
+        var field = document.getElementById('custom-message');
+        window.__agent.note = field ? field.value : null;
+        window.__agent.invitesSent += 1;
+        modal.remove();
+      });
+    });
+  </script>
+</body></html>`;
+
 const ROUTER_ONLY_PROFILE = `<!doctype html><html><head><title>Dana Okafor | LinkedIn</title></head>
 <body>
   <main>
@@ -250,6 +298,7 @@ createServer({ key, cert }, (req, res) => {
     'Set-Cookie': 'JSESSIONID="ajax:1234567890"; Path=/',
   });
 
+  if (url.pathname.includes(AGENT_SLUG)) return res.end(AGENT_PROFILE);
   if (url.pathname.includes(LATE_SLUG)) return res.end(LATE_ANCHOR_PROFILE);
   if (url.pathname.includes(TAP_SLUG)) return res.end(TAP_ONLY_PROFILE);
   if (url.pathname.includes(ROUTER_SLUG)) return res.end(ROUTER_ONLY_PROFILE);

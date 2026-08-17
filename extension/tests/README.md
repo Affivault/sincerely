@@ -45,6 +45,10 @@ obvious the moment you drive the actual extension.
 | `listbar.mjs` | Row checkboxes and the bulk bar on LinkedIn search results. |
 | `scan.mjs` | Scanning a company site and putting the results on a list. |
 | `fastpath.mjs` | Connect deep-links to the API keys tab; LinkedIn never blocks the UI. |
+| `ratelimit.mjs` | A key that runs out of budget: the client paces itself, waits out a 429 and retries, and still reports a wall that will not lift. |
+| `agent.mjs` | The LinkedIn agent, both halves — `act.js` clicking the real button markup, and the worker's ask/open/act/report loop. |
+| `regressions.mjs` | Bugs that shipped once and must not ship again. |
+| `shots.mjs` | Screenshots of every surface. Asserts nothing; produces the images the UI is judged from. |
 
 ## The LinkedIn stub
 
