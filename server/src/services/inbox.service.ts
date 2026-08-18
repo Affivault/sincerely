@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { escapeHtml, textToHtml } from '../utils/html.js';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { decrypt } from '../utils/encryption.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
@@ -613,12 +614,12 @@ export const inboxService = {
       : `Re: ${original.subject || '(no subject)'}`;
 
     // Use rich HTML from editor if provided, otherwise convert plain text
-    const userHtml = bodyHtml || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${body.replace(/\n/g, '<br/>')}</div>`;
+    const userHtml = bodyHtml || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${textToHtml(body)}</div>`;
     const htmlBody = `${userHtml}
 <br/>
 <div style="padding-left:12px;border-left:2px solid #e0e0e0;margin-top:16px;color:#666;">
-  <p style="margin:0 0 4px;font-size:12px;color:#999;">On ${new Date(original.received_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}, ${original.from_email} wrote:</p>
-  ${original.body_html || `<p>${original.body_text || ''}</p>`}
+  <p style="margin:0 0 4px;font-size:12px;color:#999;">On ${new Date(original.received_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}, ${escapeHtml(original.from_email)} wrote:</p>
+  ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}
 </div>`;
 
     await assertSendQuota(userId);
@@ -695,14 +696,14 @@ export const inboxService = {
     const noteHtml = noteHtmlRaw
       ? `${noteHtmlRaw}<hr style="border:none;border-top:1px solid #e0e0e0;margin:16px 0;"/>`
       : note
-        ? `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;margin-bottom:16px;">${note.replace(/\n/g, '<br/>')}</div><hr style="border:none;border-top:1px solid #e0e0e0;margin:16px 0;"/>`
+        ? `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;margin-bottom:16px;">${textToHtml(note)}</div><hr style="border:none;border-top:1px solid #e0e0e0;margin:16px 0;"/>`
         : '';
 
     const htmlBody = `${noteHtml}
 <p style="margin:0 0 8px;font-size:12px;color:#999;">---------- Forwarded message ----------</p>
-<p style="margin:0 0 4px;font-size:12px;color:#999;">From: ${original.from_email}<br/>Date: ${new Date(original.received_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}<br/>Subject: ${original.subject || '(no subject)'}<br/>To: ${original.to_email}</p>
+<p style="margin:0 0 4px;font-size:12px;color:#999;">From: ${escapeHtml(original.from_email)}<br/>Date: ${new Date(original.received_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}<br/>Subject: ${escapeHtml(original.subject || '(no subject)')}<br/>To: ${escapeHtml(original.to_email)}</p>
 <br/>
-${original.body_html || `<p>${original.body_text || ''}</p>`}`;
+${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
 
     await assertSendQuota(userId);
     await sendWithQuotaRefund(userId, () => sendViaSmtp({
@@ -748,7 +749,7 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
     const domain = smtpAccount.email_address?.split('@')[1] || 'usesincerely.com';
     const messageId = `<${crypto.randomUUID()}@${domain}>`;
     // Use rich HTML from editor if provided, otherwise convert plain text
-    const htmlBody = input.body_html || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${input.body.replace(/\n/g, '<br/>')}</div>`;
+    const htmlBody = input.body_html || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${textToHtml(input.body)}</div>`;
 
     await assertSendQuota(userId);
     await sendWithQuotaRefund(userId, () => sendViaSmtp({
@@ -792,7 +793,7 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
 
     const domain = smtpAccount.email_address?.split('@')[1] || 'usesincerely.com';
     const messageId = `<${crypto.randomUUID()}@${domain}>`;
-    const htmlBody = input.body_html || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${input.body.replace(/\n/g, '<br/>')}</div>`;
+    const htmlBody = input.body_html || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${textToHtml(input.body)}</div>`;
 
     const { data, error } = await supabaseAdmin.from('inbox_messages').insert({
       user_id: userId,
@@ -835,12 +836,12 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
       ? original.subject
       : `Re: ${original.subject || '(no subject)'}`;
 
-    const userHtml = bodyHtml || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${body.replace(/\n/g, '<br/>')}</div>`;
+    const userHtml = bodyHtml || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${textToHtml(body)}</div>`;
     const htmlBody = `${userHtml}
 <br/>
 <div style="padding-left:12px;border-left:2px solid #e0e0e0;margin-top:16px;color:#666;">
-  <p style="margin:0 0 4px;font-size:12px;color:#999;">On ${new Date(original.received_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}, ${original.from_email} wrote:</p>
-  ${original.body_html || `<p>${original.body_text || ''}</p>`}
+  <p style="margin:0 0 4px;font-size:12px;color:#999;">On ${new Date(original.received_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}, ${escapeHtml(original.from_email)} wrote:</p>
+  ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}
 </div>`;
 
     const { data, error } = await supabaseAdmin.from('inbox_messages').insert({
@@ -957,7 +958,7 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
       replyText = `Hi ${firstName},\n\n${prompt}\n\nPlease let me know if you have any questions.\n\nBest regards`;
     }
 
-    const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${replyText.replace(/\n/g, '<br/>')}</div>`;
+    const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${textToHtml(replyText)}</div>`;
 
     return { html, text: replyText };
   },

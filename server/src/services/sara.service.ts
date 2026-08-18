@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import { textToParagraphs } from '../utils/html.js';
 import { SaraIntent, SaraAction, SaraStatus } from '@lemlist/shared';
 import type { SaraClassificationResult, SaraQueueStats } from '@lemlist/shared';
 import { fireEvent } from './webhook.service.js';
@@ -679,7 +680,10 @@ Best regards,
 {{sender_name}}`;
   }
 
-  const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.7;color:#1a1a1a;max-width:560px;"><p style="margin:0 0 12px;">${bodyText.replace(/\n\n/g, '</p><p style="margin:0 0 12px;">').replace(/\n/g, '<br/>')}</p></div>`;
+  // Escaped before the paragraphs are built, not after: a draft that quotes
+  // the prospect's own words carries whatever they wrote, and an angle bracket
+  // in it used to become markup in the reply that went back to them.
+  const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.7;color:#1a1a1a;max-width:560px;">${textToParagraphs(bodyText)}</div>`;
 
   return {
     subject,
