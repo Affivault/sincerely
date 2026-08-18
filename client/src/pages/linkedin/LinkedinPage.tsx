@@ -80,6 +80,15 @@ export function LinkedinPage() {
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not save that'),
   });
 
+  // Quick actions (header toggle, "Resume now") send a bare partial patch
+  // outside the staged draft — they must not clear `draft` on success, or a
+  // pending edit to limits/pacing/hours gets silently discarded.
+  const saveQuick = useMutation({
+    mutationFn: (patch: Partial<LinkedinSettings>) => linkedinApi.update(patch),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['linkedin'] }); toast.success('Saved'); },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not save that'),
+  });
+
   const needsMigration = (error as any)?.response?.status === 503;
 
   if (needsMigration) {
@@ -116,7 +125,7 @@ export function LinkedinPage() {
         description="Runs the LinkedIn steps of your campaigns in your own browser"
         actions={
           <button
-            onClick={() => save.mutate({ enabled: !s.enabled })}
+            onClick={() => saveQuick.mutate({ enabled: !s.enabled })}
             className={s.enabled ? 'btn-secondary' : 'btn-primary'}
           >
             {s.enabled ? <><Pause className="h-3.5 w-3.5" /> Turn off</> : <><Play className="h-3.5 w-3.5" /> Turn on</>}
@@ -151,7 +160,7 @@ export function LinkedinPage() {
         </span>
         {pausedNow && (
           <button
-            onClick={() => save.mutate({ paused_until: null, pause_reason: null } as any)}
+            onClick={() => saveQuick.mutate({ paused_until: null, pause_reason: null } as any)}
             className="text-[11.5px] font-semibold text-[var(--indigo)] hover:underline"
           >
             Resume now

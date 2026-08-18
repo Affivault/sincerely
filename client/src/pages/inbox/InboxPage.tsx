@@ -2135,6 +2135,11 @@ export function InboxPage() {
   /* ── Invalidation ── */
   const invalidate = useCallback(() => {
     qc.invalidateQueries({ queryKey: ['inbox'] });
+    // 'inbox-unread-count' is a separate top-level key (Sidebar/Header badge,
+    // tab title, favicon dot, desktop notifications) — not a prefix match of
+    // 'inbox', so it needs its own invalidation or it goes stale until the
+    // hook's 30s poll happens to catch up.
+    qc.invalidateQueries({ queryKey: ['inbox-unread-count'] });
   }, [qc]);
 
   const [syncErrors, setSyncErrors] = useState<string[]>([]);

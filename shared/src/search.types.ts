@@ -166,9 +166,12 @@ function matchDate(tokens: string[], now: Date): DateMatch | null {
       const d = new Date(now);
       let delta = (dayIdx - d.getDay() + 7) % 7;
       // A bare weekday means the NEXT one — "monday" said on a Monday is a
-      // week away, not this morning, which has already happened.
+      // week away, not this morning, which has already happened. "next
+      // monday" means the same upcoming Monday, not a further one — it used
+      // to add an extra 7 days on every day except the one that IS that
+      // weekday, so "next monday" jumped a confusing 13 days away on a
+      // Tuesday instead of the coming 6.
       if (delta === 0) delta = 7;
-      if (next && delta < 7) delta += 7;
       d.setDate(d.getDate() + delta);
       const label = next ? `next ${WEEKDAYS[dayIdx]}` : WEEKDAYS[dayIdx];
       return { at: d, label, consumed: next ? [tokens[i], tokens[i + 1]] : [tokens[i]] };
@@ -223,6 +226,12 @@ export function parseQuickAdd(input: string, now: Date = new Date()): QuickAdd |
   } else if (date) {
     const defaultHour = date.label === 'tonight' ? 19 : 9;
     when = atTime(date.at, time ? time.hours : defaultHour, time ? time.minutes : 0);
+    // "today"/"tonight" with no explicit clock time defaults to a fixed hour
+    // (9am/7pm) — if that's already passed, don't silently backdate the
+    // item; treat it as due right now instead.
+    if (!time && when.getTime() <= now.getTime()) {
+      when = new Date(now);
+    }
     whenLabel = time ? `${date.label} at ${formatClock(when)}` : date.label;
   } else if (time) {
     // A time with no day means today — unless today's has passed.

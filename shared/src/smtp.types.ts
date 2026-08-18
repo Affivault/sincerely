@@ -97,6 +97,10 @@ export function warmupDayNumber(startedAt: string | null): number {
 export function warmupAllowance(a: WarmupPlanFields): number {
   if (!a.warmup_mode || !a.warmup_started_at) return a.daily_send_limit;
   const target = a.warmup_daily_target > 0 ? a.warmup_daily_target : a.daily_send_limit;
+  // 0 means "unlimited" everywhere else in the codebase (see sse.service.ts) —
+  // ramping arithmetic toward a target of 0 would throttle an unlimited
+  // account down to zero sends once warm-up completes, so short-circuit.
+  if (target === 0) return 0;
   const start = Math.max(1, a.warmup_start_volume > 0 ? a.warmup_start_volume : 4);
   const ramp = Math.max(1, a.warmup_ramp_days > 0 ? a.warmup_ramp_days : 30);
   const day = warmupDayNumber(a.warmup_started_at);
@@ -119,6 +123,11 @@ export function warmupSendTarget(a: WarmupPlanFields): number {
   if (!a.warmup_mode || !a.warmup_started_at) return 0;
   const day = warmupDayNumber(a.warmup_started_at);
   return Math.min(4 + day, 20);
+}
+
+/** Render a daily send cap for display — 0 means unlimited everywhere in this app. */
+export function formatDailyLimit(limit: number): string {
+  return limit === 0 ? 'Unlimited' : String(limit);
 }
 
 export interface WarmupAccountStatus {

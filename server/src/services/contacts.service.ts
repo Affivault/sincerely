@@ -298,6 +298,14 @@ export const contactsService = {
     // could still choose the row's primary key and its audit timestamps.
     const contactData = pickUpdatable(input);
 
+    // And the same casing rule, so a contact created through this path
+    // matches one created through any other. Addresses are looked up by
+    // exact match all over this codebase; one stored with capitals is a
+    // duplicate waiting to happen.
+    if (contactData.email !== undefined) {
+      contactData.email = String(contactData.email).trim().toLowerCase();
+    }
+
     const { data, error } = await supabaseAdmin
       .from('contacts')
       .insert({ ...contactData, user_id: userId, source: 'manual' })
@@ -323,8 +331,19 @@ export const contactsService = {
     const { tag_ids } = input || {};
     const contactData = pickUpdatable(input);
 
-    if (contactData.email !== undefined && !String(contactData.email).trim()) {
-      throw new AppError('A contact needs an email address', 400);
+    if (contactData.email !== undefined) {
+      contactData.email = String(contactData.email).trim().toLowerCase();
+      if (!contactData.email) throw new AppError('A contact needs an email address', 400);
+    }
+
+    if (contactData.company_id) {
+      const { data: company } = await supabaseAdmin
+        .from('companies')
+        .select('id')
+        .eq('id', contactData.company_id)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!company) throw new AppError('Company not found', 404);
     }
 
     const hasFields = Object.keys(contactData).length > 0;

@@ -780,6 +780,24 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
     body_text: type === StepType.LinkedinMessage ? '' : undefined,
   });
 
+  // Condition steps store true_branch_step/false_branch_step as raw array
+  // indices — removing or reordering steps without remapping them leaves
+  // existing conditions silently pointed at the wrong step (or one that no
+  // longer exists).
+  const remapConditionBranches = useCallback(
+    (newSteps: FlowStep[], remap: (value: number) => number | null) =>
+      newSteps.map((s) =>
+        s.step_type === StepType.Condition
+          ? {
+              ...s,
+              true_branch_step: s.true_branch_step != null ? remap(s.true_branch_step) ?? undefined : s.true_branch_step,
+              false_branch_step: s.false_branch_step != null ? remap(s.false_branch_step) ?? undefined : s.false_branch_step,
+            }
+          : s
+      ),
+    []
+  );
+
   const addStep = useCallback((type: StepType, atIndex?: number) => {
     const insertAt = atIndex ?? steps.length;
     const newStep = makeStep(type);
@@ -798,7 +816,14 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
 
     const newSteps = [...steps];
     newSteps.splice(insertAt, 0, newStep);
-    onStepsChange(newSteps);
+    // Inserting shifts every existing step at/after insertAt up by one, so
+    // any condition branch pointing there must shift too — same reason
+    // removeStep/moveStep remap below.
+    const remapped = remapConditionBranches(newSteps, (value) =>
+      value >= insertAt ? value + 1 : value
+    );
+    onStepsChange(remapped);
+    if (editingStep !== null && editingStep >= insertAt) onEditStep(editingStep + 1);
     if (
       type === StepType.Email || type === StepType.Condition ||
       type === StepType.WebhookWait ||
@@ -806,25 +831,7 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
     ) {
       onEditStep(insertAt);
     }
-  }, [steps, onStepsChange, onEditStep]);
-
-  // Condition steps store true_branch_step/false_branch_step as raw array
-  // indices — removing or reordering steps without remapping them leaves
-  // existing conditions silently pointed at the wrong step (or one that no
-  // longer exists).
-  const remapConditionBranches = useCallback(
-    (newSteps: FlowStep[], remap: (value: number) => number | null) =>
-      newSteps.map((s) =>
-        s.step_type === StepType.Condition
-          ? {
-              ...s,
-              true_branch_step: s.true_branch_step != null ? remap(s.true_branch_step) ?? undefined : s.true_branch_step,
-              false_branch_step: s.false_branch_step != null ? remap(s.false_branch_step) ?? undefined : s.false_branch_step,
-            }
-          : s
-      ),
-    []
-  );
+  }, [steps, onStepsChange, onEditStep, editingStep, remapConditionBranches]);
 
   const removeStep = useCallback((index: number) => {
     const remapped = remapConditionBranches(

@@ -251,8 +251,12 @@ async function standingFor(email) {
 async function updateTabBadge(tabId, url) {
   const { apiKey, showBadge } = await getSettings();
   if (!apiKey || !showBadge || !canBadge(url)) {
-    // Leave the global "no key" badge alone; only clear per-tab marks.
-    if (apiKey) await chrome.action.setBadgeText({ tabId, text: '' }).catch(() => {});
+    // Leave the global "no key" badge alone; only clear per-tab marks. A
+    // tab-specific badge (set with an explicit tabId) overrides the global
+    // one in Chrome, so it must be cleared even when there's no key at all —
+    // otherwise a tab visited before the key was removed keeps showing a
+    // stale count forever, masking the "!" warning.
+    await chrome.action.setBadgeText({ tabId, text: '' }).catch(() => {});
     return;
   }
 

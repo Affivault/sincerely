@@ -321,11 +321,15 @@ export async function batchVerify(
   let query = supabaseAdmin
     .from('contacts')
     .select('id, email, is_bounced')
-    .eq('user_id', userId)
-    .is('dcs_verified_at', null);
+    .eq('user_id', userId);
 
   if (contactIds && contactIds.length > 0) {
+    // An explicit selection is verified regardless of prior status — the
+    // caller picked these contacts on purpose, possibly to re-check ones
+    // that already have a DCS score.
     query = query.in('id', contactIds);
+  } else {
+    query = query.is('dcs_verified_at', null);
   }
 
   const { data: contacts } = await query.limit(100);

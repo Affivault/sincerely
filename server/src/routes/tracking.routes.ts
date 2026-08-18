@@ -5,6 +5,7 @@ import { env } from '../config/env.js';
 import { fireEvent } from '../services/webhook.service.js';
 import * as sse from '../services/sse.service.js';
 import { suppressionService } from '../services/suppression.service.js';
+import { checkAndAutoCompleteCampaign } from '../services/sequence.service.js';
 
 import { TRACKING_HEALTH_MARKER } from '../services/tracking-domain.service.js';
 const router = Router();
@@ -259,6 +260,8 @@ async function performUnsubscribe(campaignContactId: string, stepId: string | nu
         .from('campaign_contacts')
         .update({ status: 'unsubscribed', next_send_at: null })
         .eq('id', campaignContactId);
+
+      checkAndAutoCompleteCampaign(cc.campaign_id).catch(() => {});
 
       await supabaseAdmin
         .from('contacts')
