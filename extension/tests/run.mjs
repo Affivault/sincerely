@@ -31,9 +31,13 @@ const BROWSER = [
   'launcher.mjs',
   'listbar.mjs',
   'scan.mjs',
+  'scan-limits.mjs',
   'fastpath.mjs',
+  'popup-errors.mjs',
+  'request-cost.mjs',
   'ratelimit.mjs',
   'agent.mjs',
+  'scraper-variants.mjs',
   'regressions.mjs',
   /*
    * Screenshots of every surface, last because it asserts nothing — it only

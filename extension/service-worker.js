@@ -116,6 +116,36 @@ const STANDING_TTL_MS = 5 * 60_000;
 /** A failure is remembered too, but only long enough to stop a request storm. */
 const FAILED_STANDING_TTL_MS = 30_000;
 
+/** List memberships for a whole page, memoised — see membershipCounts(). */
+const MEMBERSHIP_TTL_MS = 60_000;
+let membershipCache = null;
+
+/**
+ * Contact searches by surname, memoised.
+ *
+ * Checking a LinkedIn results page costs one search per distinct surname on
+ * it, which is most of the page — and scrolling back over people already
+ * checked repeated every one of them. The answer only changes when a contact
+ * is created or edited, and everything that does either already invalidates
+ * the standing cache.
+ */
+const SEARCH_TTL_MS = 60_000;
+const searchCache = new Map();
+
+async function searchContactsCached(surname) {
+  const key = String(surname || '').trim().toLowerCase();
+  if (!key) return [];
+  const hit = searchCache.get(key);
+  if (hit && Date.now() - hit.at < SEARCH_TTL_MS) return hit.results;
+
+  const results = await api.searchContacts(surname, 25).catch(() => null);
+  // A failed search is not an answer, and caching it would report people as
+  // unknown for a minute because one request went wrong.
+  if (results === null) return [];
+  searchCache.set(key, { results, at: Date.now() });
+  return results;
+}
+
 /**
  * Drop the cache after anything that changes a membership. The cache exists to
  * spare the rate limit on repeated reads, not to survive our own writes — a
@@ -123,6 +153,45 @@ const FAILED_STANDING_TTL_MS = 30_000;
  */
 function invalidateStandingCache() {
   standingCache.clear();
+  // Memberships and name searches are the other halves of the same answer, and
+  // every writer that calls this has just changed one of them.
+  membershipCache = null;
+  searchCache.clear();
+}
+
+/**
+ * How many lead lists each contact is on, for a whole page at a time.
+ *
+ * One read of the lists plus one of each list's members. That is a handful of
+ * requests rather than two per person — but it is a handful *per scroll*, and
+ * on an account with twenty lists that is twenty-one requests every time a
+ * LinkedIn results page comes into view, against a budget of a hundred a
+ * minute. Scrolling a search page was spending most of it on an answer that
+ * had not changed.
+ *
+ * So it is memoised for a short while, and dropped by the same invalidation
+ * that clears the standing cache — every write that could change a membership
+ * already calls it.
+ */
+async function membershipCounts() {
+  if (membershipCache && Date.now() - membershipCache.at < MEMBERSHIP_TTL_MS) {
+    return membershipCache.counts;
+  }
+
+  const lists = await api.listLists().catch(() => []);
+  /** @type {Map<string, number>} contact id → how many lists they're on */
+  const counts = new Map();
+  let complete = true;
+  for (const list of lists) {
+    const ids = await api.listContactIds(list.id).catch(() => null);
+    if (ids === null) { complete = false; continue; }
+    for (const id of ids) counts.set(id, (counts.get(id) || 0) + 1);
+  }
+
+  // A partial read is worth using once and not worth remembering: caching it
+  // would keep reporting people as being on fewer lists than they are.
+  if (complete) membershipCache = { counts, at: Date.now() };
+  return counts;
 }
 
 /** Only sites with a declared content script can be badged without a click. */
@@ -797,6 +866,9 @@ async function handleAddToList(payload) {
         const tag = await api.ensureTag(settings.autoTagName);
         await api.tagContacts([contact.id], [tag.id]);
       } catch (tagErr) {
+        // The remembered tag id is the likeliest thing to have gone stale
+        // (deleted in the web app), so drop it and let the next add re-resolve.
+        api.invalidateTagCache();
         console.warn('[Sincerely] Could not tag contact:', tagErr?.message);
       }
     }
@@ -893,11 +965,9 @@ async function handleCheckKnown(payload) {
     /** @type {object[]} */
     const pool = [];
     for (const surname of surnames) {
-      try {
-        pool.push(...(await api.searchContacts(surname, 25)));
-      } catch {
-        // Partial knowledge is still useful; carry on with what we have.
-      }
+      // Memoised: scrolling back over people already checked used to repeat
+      // every one of these searches, and they are most of what a page costs.
+      pool.push(...(await searchContactsCached(surname)));
     }
 
     /*
@@ -914,13 +984,7 @@ async function handleCheckKnown(payload) {
      * Now it is one read of the lists plus one read of each list's members —
      * a handful of requests regardless of how many people are on screen.
      */
-    const lists = await api.listLists().catch(() => []);
-    /** @type {Map<string, number>} contact id → how many lists they're on */
-    const listCounts = new Map();
-    for (const list of lists) {
-      const ids = await api.listContactIds(list.id).catch(() => new Set());
-      for (const id of ids) listCounts.set(id, (listCounts.get(id) || 0) + 1);
-    }
+    const listCounts = await membershipCounts();
 
     const suppression = await api
       .listSuppressed()
@@ -985,7 +1049,7 @@ async function handleBulkAddProfiles(payload) {
     /** @type {object[]} */
     const pool = [];
     for (const surname of surnames) {
-      pool.push(...(await api.searchContacts(surname, 25).catch(() => [])));
+      pool.push(...(await searchContactsCached(surname)));
     }
 
     /** @type {string[]} */
@@ -1061,6 +1125,9 @@ async function handleBulkAddProfiles(payload) {
         const tag = await api.ensureTag(settings.autoTagName);
         await api.tagContacts(uniqueIds, [tag.id]);
       } catch (tagErr) {
+        // The remembered tag id is the likeliest thing to have gone stale
+        // (deleted in the web app), so drop it and let the next add re-resolve.
+        api.invalidateTagCache();
         console.warn('[Sincerely] Could not tag added profiles:', tagErr?.message);
       }
     }
@@ -1370,6 +1437,9 @@ async function handleBulkAdd(payload) {
         const tag = await api.ensureTag(settings.autoTagName);
         await api.tagContacts(contactIds, [tag.id]);
       } catch (tagErr) {
+        // The remembered tag id is the likeliest thing to have gone stale
+        // (deleted in the web app), so drop it and let the next add re-resolve.
+        api.invalidateTagCache();
         console.warn('[Sincerely] Could not tag bulk contacts:', tagErr?.message);
       }
     }
@@ -2238,6 +2308,9 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
    * add with a 404 the user cannot act on. Only a browser restart fixed it.
    */
   if (changes.lastListId || changes.cachedLists) rebuildContextMenus();
+  // A different tag name means a different tag; the remembered one no longer
+  // answers the question that was asked.
+  if (changes.autoTagName) api.invalidateTagCache();
   if (changes.appUrl?.newValue) ensureConnectScript(changes.appUrl.newValue);
 });
 

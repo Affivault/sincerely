@@ -141,6 +141,58 @@ const AGENT_PROFILE = `<!doctype html><html><head><title>Rowan Fitz | LinkedIn</
   </script>
 </body></html>`;
 
+/*
+ * Markup variants, one per shape LinkedIn actually ships.
+ *
+ * The adapter carries a fallback chain per field — four selectors for the
+ * name, three for the headline, three for the company — and the existing
+ * fixtures only ever exercise the last one in each chain. So the top-card
+ * markup, which is what most real profiles use and the most reliable company
+ * signal the adapter has, was never read by a test. Nor was any of the name
+ * cleaning: LinkedIn appends pronouns, connection degree and credentials to
+ * the visible name, and every one of those ends up in a stored last name if
+ * it is not stripped.
+ */
+const VARIANTS = {
+  // The top card: name and company in the panels, not in a bare h1.
+  'variant-topcard': `
+    <div class="pv-text-details__left-panel">
+      <h1>Ines Okonkwo</h1>
+      <div class="text-body-medium">Chief Revenue Officer</div>
+    </div>
+    <button aria-label="Current company: Northwind Capital. Click to skip to experience card">
+      <span class="pv-text-details__right-panel-item-text">Northwind Capital</span>
+    </button>`,
+
+  // "Title @ Company" rather than "Title at Company".
+  'variant-at-sign': `
+    <h1>Tomas Bergqvist</h1>
+    <div class="text-body-medium break-words">Partner @ Northwind Capital</div>`,
+
+  // A headline that is a title and nothing else.
+  'variant-no-company': `
+    <h1>Ruth Adeyemi</h1>
+    <div class="text-body-medium break-words">Software Engineer</div>`,
+
+  // Pronouns and the connection degree, both appended to the visible name.
+  'variant-pronouns': `
+    <h1>Priya Raman (she/her) · 2nd</h1>
+    <div class="text-body-medium break-words">Head of Partnerships at Northwind Capital</div>`,
+
+  // Trailing credentials.
+  'variant-credentials': `
+    <h1>Jane Doe, MBA, CFA</h1>
+    <div class="text-body-medium break-words">Analyst at Northwind Capital</div>`,
+
+  // The name printed twice — once for sighted users, once for screen readers.
+  'variant-doubled': `
+    <h1>Ada Lovelace<span class="visually-hidden">Ada Lovelace</span></h1>
+    <div class="text-body-medium break-words">Mathematician at Northwind Capital</div>`,
+};
+
+const variantPage = (slug) => `<!doctype html><html><head><title>Profile | LinkedIn</title></head>
+<body><main>${VARIANTS[slug]}</main></body></html>`;
+
 const ROUTER_ONLY_PROFILE = `<!doctype html><html><head><title>Dana Okafor | LinkedIn</title></head>
 <body>
   <main>
@@ -285,7 +337,7 @@ createServer({ key, cert }, (req, res) => {
      */
     const delay = url.pathname.includes(QUIET_SLUG) ? 0 : 1200;
     return setTimeout(() => {
-      res.writeHead(404, { 'Content-Type': 'text/html' });
+      res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end('');
     }, delay);
   }
@@ -294,10 +346,16 @@ createServer({ key, cert }, (req, res) => {
   // Voyager route is skipped entirely, which would make the quiet profile pass
   // for the wrong reason.
   res.writeHead(200, {
-    'Content-Type': 'text/html',
+    // charset declared, as linkedin.com does. Without it the browser decodes
+    // UTF-8 as latin-1 and a middot arrives as "Â·" — which is a fault in the
+    // fixture, not in the page it stands for, and would have been read as one.
+    'Content-Type': 'text/html; charset=utf-8',
     'Set-Cookie': 'JSESSIONID="ajax:1234567890"; Path=/',
   });
 
+  for (const slug of Object.keys(VARIANTS)) {
+    if (url.pathname.includes(slug)) return res.end(variantPage(slug));
+  }
   if (url.pathname.includes(AGENT_SLUG)) return res.end(AGENT_PROFILE);
   if (url.pathname.includes(LATE_SLUG)) return res.end(LATE_ANCHOR_PROFILE);
   if (url.pathname.includes(TAP_SLUG)) return res.end(TAP_ONLY_PROFILE);

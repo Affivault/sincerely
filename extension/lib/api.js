@@ -674,19 +674,45 @@ export async function listTags() {
  * @param {string} [color]
  * @returns {Promise<{id: string, name: string}>}
  */
+/**
+ * The auto-tag, remembered.
+ *
+ * Every add applies the same tag, and resolving it meant listing every tag on
+ * the account first — one wasted request on every single add, against a budget
+ * that one add already spends five of. A tag id does not change once it
+ * exists, so this is read once and kept.
+ */
+const tagCache = new Map();
+
+/** Forget it, after a tag write fails or the configured name changes. */
+export function invalidateTagCache() {
+  tagCache.clear();
+}
+
 export async function ensureTag(name, color = '#5B5BF5') {
   const wanted = name.trim().toLowerCase();
+  const cached = tagCache.get(wanted);
+  if (cached) return cached;
+
   const existing = (await listTags()).find((t) => String(t.name).trim().toLowerCase() === wanted);
-  if (existing) return existing;
+  if (existing) {
+    tagCache.set(wanted, existing);
+    return existing;
+  }
 
   try {
-    return await request('/tags', { method: 'POST', body: { name: name.trim(), color } });
+    const created = await request('/tags', { method: 'POST', body: { name: name.trim(), color } });
+    if (created) tagCache.set(wanted, created);
+    return created;
   } catch (err) {
     // 409 means it appeared between our read and our write — re-read rather
     // than failing an add over a tag.
     if (err instanceof ApiError && err.status === 409) {
       const found = (await listTags()).find((t) => String(t.name).trim().toLowerCase() === wanted);
-      if (found) return found;
+      if (found) {
+        tagCache.set(wanted, found);
+        return found;
+      }
     }
     throw err;
   }
