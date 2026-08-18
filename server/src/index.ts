@@ -6,6 +6,7 @@ import { startVerificationWorker } from './jobs/workers/verification.worker.js';
 import { scheduleInboxSync } from './jobs/schedulers/inbox.scheduler.js';
 import { startSseMaintenanceScheduler } from './jobs/schedulers/sse-maintenance.scheduler.js';
 import { startWarmupScheduler } from './jobs/schedulers/warmup.scheduler.js';
+import { startAbPromoteScheduler } from './jobs/schedulers/ab-promote.scheduler.js';
 
 const port = parseInt(env.PORT, 10);
 
@@ -69,6 +70,15 @@ const server = app.listen(port, () => {
     console.log('Warm-up scheduler started');
   } catch (err: any) {
     console.warn('Warm-up scheduler failed to start:', err.message);
+  }
+
+  // End settled A/B tests on campaigns that asked for it (cross-tenant).
+  try {
+    const abPromote = startAbPromoteScheduler();
+    if (abPromote) disposers.push(() => abPromote.stop());
+    console.log('A/B auto-promote scheduler started');
+  } catch (err: any) {
+    console.warn('A/B auto-promote scheduler failed to start:', err.message);
   }
 });
 

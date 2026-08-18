@@ -44,6 +44,53 @@ const coldStart = { armed: false, delayed: 0, delayMs: 25000 };
 /** Every request the extension has made, so a test can assert on cost. */
 export const calls = [];
 
+/*
+ * The per-minute budget, mirrored from apiKeyMiddleware.
+ *
+ * The real server publishes X-RateLimit-* on every authenticated reply and
+ * 429s with Retry-After when the window is spent. The extension paces itself
+ * against those headers and waits out a 429 rather than reporting it, and
+ * none of that behaviour could be tested against a mock that never says no.
+ */
+/*
+ * Failures a test can arm on any endpoint.
+ *
+ * The popup's error branches are most of its behaviour and none of them could
+ * be reached against a mock that always says yes. Each entry fires a set
+ * number of times and then retires, so a suite can make exactly one call fail
+ * and watch what the UI does with it.
+ */
+const armedFailures = [];
+
+/** The armed failure matching this request, consuming one of its uses. */
+function takeFailure(method, path) {
+  const index = armedFailures.findIndex(
+    (f) => (!f.method || f.method === method) && path.startsWith(f.path),
+  );
+  if (index === -1) return null;
+  const failure = armedFailures[index];
+  failure.times -= 1;
+  if (failure.times <= 0) armedFailures.splice(index, 1);
+  return failure;
+}
+
+/** How the site crawl behaved: what it fetched, and how much at once. */
+const crawl = { inFlight: 0, peak: 0, fetched: [] };
+
+/** What the LinkedIn agent has been told to do, and what it reported back. */
+const agent = { queue: [], handedOut: [], done: [], failed: [] };
+
+const rateLimit = {
+  /** Requests to reject with 429 before letting anything through again. */
+  reject: 0,
+  /** What to advertise as remaining, so pacing can be driven deliberately. */
+  remaining: 100,
+  limit: 100,
+  resetSeconds: 60,
+  /** Every 429 this mock has issued, so a test can assert one happened. */
+  rejections: 0,
+};
+
 let contacts = [];
 /** contact id -> [{campaign_id, status, current_step_order}] */
 let enrolments = new Map();
@@ -126,13 +173,18 @@ const timelines = new Map([
   ]],
 ]);
 
-function json(res, status, body) {
+function json(res, status, body, headers = {}) {
   const payload = body === null ? '' : JSON.stringify(body);
   res.writeHead(status, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': '*',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    // The browser cannot read a response header from another origin unless it
+    // is exposed. Without this the extension's pacing sees nothing at all.
+    'Access-Control-Expose-Headers': 'X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, Retry-After',
+    ...(res.__rateHeaders || {}),
+    ...headers,
   });
   res.end(payload);
 }
@@ -186,7 +238,71 @@ const server = createServer(async (req, res) => {
   // deliberately unauthenticated.
   if (req.method === 'GET' && url.pathname === '/__reset') {
     reset();
+    rateLimit.reject = 0;
+    rateLimit.remaining = 100;
+    rateLimit.limit = 100;
+    rateLimit.resetSeconds = 60;
+    rateLimit.rejections = 0;
+    armedFailures.length = 0;
+    crawl.inFlight = 0;
+    crawl.peak = 0;
+    crawl.fetched = [];
+    agent.queue = [];
+    agent.handedOut = [];
+    agent.done = [];
+    agent.failed = [];
     return json(res, 200, { reset: true });
+  }
+
+  /* Arm the limiter: reject the next `reject` API-key requests with 429, and
+     advertise `remaining` on the ones that get through. */
+  if (req.method === 'GET' && url.pathname === '/__arm-rate-limit') {
+    if (url.searchParams.has('reject')) rateLimit.reject = Number(url.searchParams.get('reject'));
+    if (url.searchParams.has('remaining')) rateLimit.remaining = Number(url.searchParams.get('remaining'));
+    if (url.searchParams.has('resetSeconds')) rateLimit.resetSeconds = Number(url.searchParams.get('resetSeconds'));
+    return json(res, 200, { ...rateLimit });
+  }
+
+  if (req.method === 'GET' && url.pathname === '/__rate-limit-stats') {
+    return json(res, 200, { ...rateLimit });
+  }
+
+  /*
+   * Make the next `times` calls to `path` fail with `status`.
+   * e.g. /__arm-failure?path=/contacts&method=POST&status=403&scope=write
+   */
+  if (req.method === 'GET' && url.pathname === '/__arm-failure') {
+    const status = Number(url.searchParams.get('status') || 500);
+    armedFailures.push({
+      path: url.searchParams.get('path') || '/',
+      method: url.searchParams.get('method') || null,
+      status,
+      times: Number(url.searchParams.get('times') || 1),
+      body: url.searchParams.get('scope')
+        ? { error: `API key lacks required scope: ${url.searchParams.get('scope')}`, required_scope: url.searchParams.get('scope') }
+        : { error: url.searchParams.get('message') || `Deliberate ${status} from the mock` },
+    });
+    return json(res, 200, { armed: armedFailures.length });
+  }
+
+  /* Queue one action for the agent to pick up on its next tick. */
+  if (req.method === 'GET' && url.pathname === '/__queue-agent-action') {
+    agent.queue.push({
+      task_id: url.searchParams.get('taskId') || `task-${agent.queue.length + 1}`,
+      channel: url.searchParams.get('channel') || 'linkedin_visit',
+      profile_url: url.searchParams.get('profileUrl') || 'https://www.linkedin.com/in/agent-target/',
+      message: url.searchParams.get('message') || '',
+      title: 'Agent action',
+    });
+    return json(res, 200, { queued: agent.queue.length });
+  }
+
+  if (req.method === 'GET' && url.pathname === '/__agent-stats') {
+    return json(res, 200, { ...agent });
+  }
+
+  if (req.method === 'GET' && url.pathname === '/__crawl-stats') {
+    return json(res, 200, { peak: crawl.peak, fetched: crawl.fetched });
   }
   if (req.method === 'GET' && url.pathname === '/__minted-keys') {
     return json(res, 200, { keys: mintedKeys });
@@ -206,6 +322,14 @@ const server = createServer(async (req, res) => {
    * rather than only on correctness — the per-key limit is 100/minute, so a
    * handler that answers correctly in 145 requests is still broken.
    */
+  /* Every API call in order, so a test can say which requests an action made
+     rather than only how many. */
+  if (req.method === 'GET' && url.pathname === '/__call-log') {
+    return json(res, 200, {
+      calls: calls.filter((c) => !c.path.startsWith('/__')).map((c) => `${c.method} ${c.path}`),
+    });
+  }
+
   if (req.method === 'GET' && url.pathname === '/__call-count') {
     return json(res, 200, { total: calls.filter((c) => !c.path.startsWith('/__')).length });
   }
@@ -255,6 +379,61 @@ const server = createServer(async (req, res) => {
   // A small company site for the harvester: a homepage that links onward, a
   // contact page, and a team page whose addresses are obfuscated the way real
   // sites obfuscate them.
+  /* ---------------- a site built to test the crawl's own limits -------- */
+  /*
+   * handleScanSite fetches somebody else's server, so its restraint is a
+   * feature: a page cap, a small concurrency pool, a timeout, a byte ceiling
+   * and an HTML-only filter. All of it existed and none of it was ever
+   * exercised — the parser had tests, the crawler did not.
+   */
+  if (req.method === 'GET' && url.pathname.startsWith('/big')) {
+    // A page that never answers, so the per-page timeout is the only way out.
+    if (url.pathname === '/big/hang') return; // deliberately no response
+
+    if (url.pathname === '/big/doc.pdf') {
+      res.writeHead(200, { 'Content-Type': 'application/pdf' });
+      return res.end('%PDF-1.4 pretend@northwind.example.org');
+    }
+
+    if (url.pathname === '/big/huge') {
+      // Declared far over the 2MB ceiling; the body is never read.
+      res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': '9000000' });
+      return res.end('<html><body>huge@northwind.example.org</body></html>');
+    }
+
+    crawl.inFlight += 1;
+    crawl.peak = Math.max(crawl.peak, crawl.inFlight);
+    crawl.fetched.push(url.pathname);
+
+    const finish = (body) => {
+      crawl.inFlight -= 1;
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(`<!doctype html><html><head><title>Big</title></head><body>${body}</body></html>`);
+    };
+
+    if (url.pathname === '/big' || url.pathname === '/big/') {
+      /*
+       * Forty links the crawler should decline to follow — it only follows
+       * paths that look like they hold people (contact/team/about/…) — and
+       * twelve it should, so both halves of that judgement are asserted: the
+       * cap on what it does fetch, and that it fetches the right ones.
+       */
+      const noise = Array.from({ length: 40 }, (_, i) => `<a href="/big/p${i}">Page ${i}</a>`).join(' ');
+      const links = `${noise} ${Array.from({ length: 12 }, (_, i) => `<a href="/big/team-${i}">Team ${i}</a>`).join(' ')}`;
+      return setTimeout(
+        () => finish(`<h1>Big site</h1>${links}
+          <a href="/big/doc.pdf">Brochure</a>
+          <a href="/big/huge">Huge</a>
+          <a href="/big/hang">Slow</a>
+          <a href="https://elsewhere.example.net/team">Somewhere else</a>`),
+        30,
+      );
+    }
+
+    const n = url.pathname.replace(/^\/big\/(p|team-)/, '');
+    return setTimeout(() => finish(`<p>person${n}@northwind.example.org</p>`), 30);
+  }
+
   if (req.method === 'GET' && ['/', '/contact', '/team', '/about'].includes(url.pathname)) {
     const cf = (email, key = 0x2a) => {
       let hex = key.toString(16).padStart(2, '0');
@@ -307,6 +486,29 @@ const server = createServer(async (req, res) => {
   // Mirrors apiKeyMiddleware: only sk_live_ tokens are treated as API keys.
   if (!auth.startsWith('Bearer sk_live_')) return json(res, 401, { error: 'Invalid or expired API key' });
   if (auth !== `Bearer ${VALID_KEY}`) return json(res, 401, { error: 'Invalid or expired API key' });
+
+  // Budget headers on every authenticated reply, exactly as the server sends
+  // them, so the client's pacing is driven by the real signal.
+  const rateHeaders = {
+    'X-RateLimit-Limit': String(rateLimit.limit),
+    'X-RateLimit-Remaining': String(Math.max(0, rateLimit.remaining)),
+    'X-RateLimit-Reset': String(rateLimit.resetSeconds),
+  };
+  if (rateLimit.reject > 0) {
+    rateLimit.reject -= 1;
+    rateLimit.rejections += 1;
+    return json(
+      res,
+      429,
+      { error: 'Rate limit exceeded', rate_limit: rateLimit.limit, retry_after_seconds: 1 },
+      { ...rateHeaders, 'X-RateLimit-Remaining': '0', 'Retry-After': '1' },
+    );
+  }
+  // Carried on the response so every json() below this gate publishes them.
+  res.__rateHeaders = rateHeaders;
+
+  const armed = takeFailure(req.method, path);
+  if (armed) return json(res, armed.status, armed.body);
 
   /* ---------------- Lead lists ---------------- */
 
@@ -570,6 +772,31 @@ const server = createServer(async (req, res) => {
   if (req.method === 'GET' && path === '/suppression/check') {
     return json(res, 200, { suppressed: suppressed.has((url.searchParams.get('email') || '').toLowerCase()) });
   }
+  /* ---------------- LinkedIn agent ---------------- */
+  /*
+   * The agent had no coverage of any kind, which is a poor place to be blind:
+   * it is the only part of this extension that clicks things on somebody's
+   * real LinkedIn account, and a wrong verdict is reported straight back here
+   * and recorded against the task.
+   */
+  if (req.method === 'GET' && path === '/linkedin/agent/next') {
+    const action = agent.queue.shift() || null;
+    if (action) agent.handedOut.push(action.task_id);
+    return json(res, 200, {
+      action,
+      reason: action ? null : 'nothing_due',
+      gap: { min_seconds: 0, max_seconds: 0 },
+    });
+  }
+  if (req.method === 'POST' && /^\/linkedin\/agent\/tasks\/[^/]+\/done$/.test(path)) {
+    agent.done.push(path.split('/')[4]);
+    return json(res, 200, { ok: true });
+  }
+  if (req.method === 'POST' && /^\/linkedin\/agent\/tasks\/[^/]+\/failed$/.test(path)) {
+    agent.failed.push({ taskId: path.split('/')[4], reason: body?.reason, fatal: Boolean(body?.fatal) });
+    return json(res, 200, { ok: true });
+  }
+
   if (req.method === 'POST' && path === '/suppression') {
     suppressed.add(String(body.email).toLowerCase());
     return json(res, 201, { email: body.email, reason: body.reason });

@@ -11,7 +11,7 @@
  *   node tests/run.mjs            every suite
  *   node tests/run.mjs fastpath   just one
  *
- * Requires: playwright, and Chromium at /opt/pw-browsers/chromium.
+ * Requires: playwright, and a Chromium — see chromium.mjs for how it is found.
  */
 import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
@@ -31,7 +31,13 @@ const BROWSER = [
   'launcher.mjs',
   'listbar.mjs',
   'scan.mjs',
+  'scan-limits.mjs',
   'fastpath.mjs',
+  'popup-errors.mjs',
+  'request-cost.mjs',
+  'ratelimit.mjs',
+  'agent.mjs',
+  'scraper-variants.mjs',
   'regressions.mjs',
   /*
    * Screenshots of every surface, last because it asserts nothing — it only

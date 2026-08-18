@@ -58,6 +58,22 @@ export const campaignsController = {
   },
 
   // Lifecycle
+  async personalizationAudit(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await campaignsService.personalizationAudit(req.userId!, req.params.id));
+    } catch (err) { next(err); }
+  },
+
+  /** End an A/B test by making one variant the live copy. */
+  async promoteAbVariant(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const step = await campaignsService.promoteAbVariant(
+        req.userId!, req.params.id, req.params.stepId, req.body.variant,
+      );
+      res.json(step);
+    } catch (err) { next(err); }
+  },
+
   async launch(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const campaign = await campaignsService.launch(req.userId!, req.params.id);

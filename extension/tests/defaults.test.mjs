@@ -39,7 +39,11 @@ check(
 // The declared list inside originPatternFor(); anything in host_permissions
 // must be here, or the extension prompts for access Chrome already gave it.
 const declaredBlock = storage.match(/const declared = \[([^\]]+)\]/)?.[1] || '';
-const declared = [...declaredBlock.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+// Drop whole-line comments first: an apostrophe inside one ("the app's
+// origin") would otherwise read as a string delimiter and shred the parse,
+// which surfaced as this file reporting an entry missing that was sitting
+// right there. Only leading-// lines, so the "//" in a URL survives.
+const declared = [...declaredBlock.replace(/^\s*\/\/.*$/gm, '').matchAll(/'([^']+)'/g)].map((m) => m[1]);
 check('originPatternFor() has a declared list', declared.length > 0, declared.join(' '));
 
 const apiHosts = manifest.host_permissions

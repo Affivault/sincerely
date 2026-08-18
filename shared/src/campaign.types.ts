@@ -20,6 +20,16 @@ export interface Campaign {
   delay_between_emails_min: number;
   delay_between_emails_max: number;
   stop_on_reply: boolean;
+  /** End an A/B test on its own once a variant wins significantly. */
+  ab_auto_promote: boolean;
+  /** Measure the send window against each recipient's own clock. */
+  send_in_recipient_timezone: boolean;
+  /** Set when something stopped the campaign on the user's behalf. */
+  paused_reason?: string | null;
+  paused_at?: string | null;
+  /** Why the engine currently cannot send. Cleared by the next send. */
+  stall_reason?: string | null;
+  stall_since?: string | null;
   track_opens: boolean;
   track_clicks: boolean;
   include_unsubscribe: boolean;
@@ -79,6 +89,8 @@ export interface CampaignWithStats extends Campaign {
   bounced_count: number;
   active_contacts: number;
   completed_contacts: number;
+  /** Answered — the outcome a campaign exists to produce. */
+  replied_contacts?: number;
   bounced_contacts: number;
   unsubscribed_contacts: number;
   suppressed_contacts: number;
@@ -103,6 +115,8 @@ export interface CreateCampaignInput {
   delay_between_emails_min?: number;
   delay_between_emails_max?: number;
   stop_on_reply?: boolean;
+  ab_auto_promote?: boolean;
+  send_in_recipient_timezone?: boolean;
   track_opens?: boolean;
   track_clicks?: boolean;
   include_unsubscribe?: boolean;
@@ -133,3 +147,46 @@ export interface CreateStepInput {
 }
 
 export interface UpdateStepInput extends Partial<CreateStepInput> {}
+
+/**
+ * One merge tag a campaign's copy uses, and how much of the audience can
+ * answer it. `missing` is a count of contacts with no value for the field
+ * behind the tag — except for `sender` scope, where the whole campaign is a
+ * single subject and `total` is 1.
+ */
+export interface PersonalizationTag {
+  name: string;
+  label: string;
+  /** Where the value comes from: the contact, the account, or nowhere. */
+  scope: 'contact' | 'sender' | 'link' | 'unknown';
+  /** Written as `{{tag | something}}`, so a gap degrades to readable copy. */
+  has_fallback: boolean;
+  missing: number;
+  total: number;
+}
+
+/** How much of an audience could be placed on a clock of its own. */
+/** What the bounce guard sees, so a threshold is never a surprise. */
+export interface BounceVerdict {
+  sent: number;
+  bounced: number;
+  /** Observed rate, 0-1. */
+  rate: number;
+  /** Lower bound of the 95% interval -- what the decision actually uses. */
+  confidentRate: number;
+  thresholdPercent: number;
+  trip: boolean;
+  note: string;
+}
+
+export interface TimezoneCoverage {
+  placed: number;
+  total: number;
+}
+
+export interface PersonalizationAudit {
+  total_contacts: number;
+  tags: PersonalizationTag[];
+  /** null when the database predates migration 042. */
+  timezone_coverage?: TimezoneCoverage | null;
+}

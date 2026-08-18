@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Spinner } from '../../components/ui/Spinner';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { Avatar } from '../../components/shared/Avatar';
 import { SearchInput } from '../../components/shared/SearchInput';
 import { usePeek } from '../../components/peek/usePeek';
@@ -115,6 +116,7 @@ const EVENT_META: Record<EventType, { label: string; icon: typeof Phone; dot: st
 /* ─── Lead picker ─────────────────────────────────── */
 /* ─── Deal modal ──────────────────────────────────── */
 export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClose: () => void }) {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const editing = !!deal?.id;
   const [form, setForm] = useState<CreateDealInput & { stage: DealStage }>({
@@ -187,7 +189,7 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
         </div>
         <div className="flex items-center justify-between pt-2">
           {editing ? (
-            <button type="button" onClick={() => { if (confirm(`Delete "${form.title}"? This can't be undone.`)) del.mutate(); }} className="flex items-center gap-1.5 text-[12px] font-medium text-rose-500 hover:text-rose-600 transition-colors">
+            <button type="button" onClick={() => confirm({ title: `Delete "${form.title}"?`, body: 'The deal and its history go. Linked contacts and companies stay.', tone: 'danger' }, () => del.mutate())} className="flex items-center gap-1.5 text-[12px] font-medium text-rose-500 hover:text-rose-600 transition-colors">
               <Trash2 className="h-3.5 w-3.5" /> Delete
             </button>
           ) : <span />}

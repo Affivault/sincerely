@@ -7,6 +7,7 @@
  * guard, the source guard, and that the options page notices the arrival.
  */
 import { chromium } from 'playwright';
+import { CHROMIUM } from './chromium.mjs';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -63,7 +64,7 @@ const APP_PAGE = `<!doctype html><html><head><title>Sincerely — Webhooks</titl
 const userDataDir = mkdtempSync(join(tmpdir(), 'sincerely-connect-'));
 
 const context = await chromium.launchPersistentContext(userDataDir, {
-  executablePath: '/opt/pw-browsers/chromium',
+  executablePath: CHROMIUM,
   channel: 'chromium',
   headless: true,
   args: [`--disable-extensions-except=${EXT_PATH}`, `--load-extension=${EXT_PATH}`],
@@ -204,6 +205,61 @@ try {
   check(
     'the popup no longer asks for setup',
     await popup.locator('#setup').evaluate((node) => node.classList.contains('hidden'))
+  );
+
+  /* ---------------- an API proxied under the app's own origin ---------------- */
+
+  /*
+   * The deployment shape that broke this. VITE_API_URL is legitimately
+   * relative when the API is served under the app's own origin, so the app
+   * published "/api/v1" — which the extension could make no sense of, dropped
+   * without a word, and replaced with the host baked into its own defaults.
+   * The handshake still reported success, because the key really was minted;
+   * every request after it went to a server the account does not exist on.
+   */
+  // Serve the mock API under the app's origin, the way a rewrite would.
+  await context.route(`${APP}/api/v1/**`, async (route) => {
+    const request = route.request();
+    const headers = request.headers();
+    const upstream = await fetch(request.url().replace(APP, 'http://localhost:3001'), {
+      method: request.method(),
+      // Only the headers the API actually reads — forwarding Host/Origin
+      // wholesale is rejected by undici.
+      headers: {
+        ...(headers.authorization ? { Authorization: headers.authorization } : {}),
+        'Content-Type': 'application/json',
+      },
+      body: ['GET', 'HEAD'].includes(request.method()) ? undefined : request.postData() ?? undefined,
+    });
+    await route.fulfill({
+      status: upstream.status,
+      contentType: upstream.headers.get('content-type') || 'application/json',
+      body: await upstream.text(),
+    });
+  });
+
+  await app.bringToFront();
+  // Posted straight rather than through the button, which already carries a
+  // listener sending the absolute URL — one click would fire both.
+  await app.evaluate((key) => {
+    window.postMessage(
+      { type: 'SINCERELY_EXTENSION_CONNECT', apiKey: key, apiBaseUrl: '/api/v1' },
+      window.location.origin,
+    );
+  }, KEY);
+  await app.waitForFunction(() => window.__replies.length === 3, null, { timeout: 30000 });
+  const relative = await app.evaluate(() => window.__replies.at(-1));
+  const afterRelative = await worker.evaluate(() => chrome.storage.local.get('apiBaseUrl'));
+
+  check(
+    'a relative API URL resolves against the app, not the extension default',
+    afterRelative.apiBaseUrl === `${APP}/api/v1`,
+    afterRelative.apiBaseUrl,
+  );
+  check(
+    'and the connection genuinely works from there',
+    relative.ok === true && typeof relative.listCount === 'number',
+    JSON.stringify(relative),
   );
 
   check('no uncaught worker errors', workerErrors.length === 0, workerErrors.join(' | '));

@@ -6,6 +6,9 @@ import { analyticsApi } from '../../api/analytics.api';
 import { Spinner } from '../../components/ui/Spinner';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { PersonalizationPanel, TimezoneCoverageNote } from '../../components/campaigns/PersonalizationPanel';
+import { SequenceStepsPanel } from '../../components/analytics/SequenceStepsPanel';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { StatCard } from '../../components/shared/StatCard';
 import { Avatar } from '../../components/shared/Avatar';
@@ -22,6 +25,7 @@ import {
   MousePointerClick,
   MessageSquare,
   AlertTriangle,
+  ShieldAlert,
   Clock,
   Copy,
   GitBranch,
@@ -45,6 +49,7 @@ import type { CampaignStep } from '@lemlist/shared';
 type TabId = 'overview' | 'sequence' | 'contacts';
 
 export function CampaignDetailPage() {
+  const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -61,6 +66,14 @@ export function CampaignDetailPage() {
   });
 
   const isRunning = campaign?.status === 'running';
+
+  // Only fetched when the sequence tab is open — it walks the whole audience.
+  const { data: personalization } = useQuery({
+    queryKey: ['campaigns', id, 'personalization'],
+    queryFn: () => campaignsApi.personalization(id!),
+    enabled: !!id && activeTab === 'sequence',
+    staleTime: 60_000,
+  });
 
   const { data: analytics } = useQuery({
     queryKey: ['analytics', 'campaign', id],
@@ -252,7 +265,10 @@ export function CampaignDetailPage() {
           )}
           {(campaign.status === 'draft' || campaign.status === 'completed' || campaign.status === 'cancelled') && (
             <button
-              onClick={() => { if (confirm('Delete this campaign permanently?')) deleteMutation.mutate(); }}
+              onClick={() => confirm(
+                { title: 'Delete this campaign?', body: 'The sequence, its schedule and its stats go with it. Contacts stay in their lists.', tone: 'danger' },
+                () => deleteMutation.mutate(),
+              )}
               disabled={deleteMutation.isPending}
               className="icon-btn hover:text-rose-500 hover:bg-rose-500/10 disabled:opacity-50 disabled:pointer-events-none"
               title="Delete"
@@ -262,6 +278,49 @@ export function CampaignDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Why this campaign is stopped, or stuck.
+          The engine has always known — it computes "every mailbox is at its
+          daily cap", "no verified mailbox", or pauses on a bounce rate — and
+          none of it reached the screen. A campaign showing "running" with
+          nothing happening is the most common question this product
+          generates, and the answer was already in the logs. */}
+      {campaign.paused_reason && (
+        <div className="flex items-start gap-3 rounded-xl border border-[var(--error)]/30 bg-[var(--error-bg)] px-4 py-3">
+          <ShieldAlert className="h-4 w-4 flex-shrink-0 mt-0.5 text-[var(--error)]" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">
+              Sending stopped
+            </p>
+            <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed mt-0.5">
+              {campaign.paused_reason}
+            </p>
+            <p className="text-[11.5px] text-[var(--text-tertiary)] mt-1.5">
+              Clean the list — remove or re-verify the addresses that bounced — before you resume.
+              Resuming clears this message.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!campaign.paused_reason && campaign.stall_reason && campaign.status === 'running' && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-500" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">
+              Running, but nothing is going out
+              {campaign.stall_since && (
+                <span className="font-normal text-[var(--text-tertiary)]">
+                  {' '}&mdash; since {formatDateTime(campaign.stall_since)}
+                </span>
+              )}
+            </p>
+            <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed mt-0.5">
+              {campaign.stall_reason}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Tabs — segmented control */}
       <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
@@ -350,9 +409,36 @@ export function CampaignDetailPage() {
           {(!campaign.steps || campaign.steps.length === 0) ? (
             <p className="py-8 text-center text-sm text-tertiary">No steps in this campaign.</p>
           ) : (
-            campaign.steps.map((step: CampaignStep, index: number) => (
-              <SequenceStepCard key={step.id} step={step} index={index} />
-            ))
+            <>
+              {campaign.steps.map((step: CampaignStep, index: number) => (
+                <SequenceStepCard key={step.id} step={step} index={index} />
+              ))}
+
+              {/* Which of those steps is actually earning. Here rather than
+                  only on the analytics page, because this is where somebody
+                  is looking when they decide whether to keep a follow-up. */}
+              {id && <SequenceStepsPanel campaignId={id} />}
+
+              {/* What this copy asks of the audience. Worth seeing on a
+                  running campaign too — it explains odd-reading emails
+                  without waiting for a prospect to point them out. */}
+              {personalization && personalization.tags.length > 0 && (
+                <div className="panel p-4">
+                  <div className="flex items-baseline justify-between mb-3">
+                    <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Personalization</h3>
+                    <span className="text-[11.5px] text-[var(--text-tertiary)]">
+                      across {personalization.total_contacts.toLocaleString()} contact{personalization.total_contacts === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  <PersonalizationPanel audit={personalization} />
+                  {campaign.send_in_recipient_timezone && (
+                    <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                      <TimezoneCoverageNote coverage={personalization.timezone_coverage} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -385,6 +471,7 @@ export function CampaignDetailPage() {
                 <option value="">All statuses</option>
                 <option value="active">Active</option>
                 <option value="pending">Pending</option>
+                <option value="replied">Replied</option>
                 <option value="completed">Completed</option>
                 <option value="bounced">Bounced</option>
                 <option value="unsubscribed">Unsubscribed</option>
@@ -501,7 +588,12 @@ function ContactProgressCard({ campaign }: { campaign: any }) {
   if (total === 0) return null;
 
   const segments = [
-    { label: 'Completed', count: campaign.completed_contacts || 0, color: 'bg-emerald-500' },
+    // Replied leads the list because it is the outcome the campaign exists to
+    // produce. Before it had a status of its own these contacts were filed as
+    // 'completed', and this bar counted them as Pending — the best result a
+    // campaign can reach, shown as not yet started.
+    { label: 'Replied', count: campaign.replied_contacts || 0, color: 'bg-emerald-500' },
+    { label: 'Completed', count: campaign.completed_contacts || 0, color: 'bg-emerald-500/50' },
     { label: 'Active', count: campaign.active_contacts || 0, color: 'bg-[var(--indigo)]' },
     { label: 'Bounced', count: campaign.bounced_contacts || 0, color: 'bg-red-500' },
     { label: 'Unsubscribed', count: campaign.unsubscribed_contacts || 0, color: 'bg-amber-500' },

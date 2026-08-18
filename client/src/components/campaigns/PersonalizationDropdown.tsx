@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, User, Building2, Briefcase, Mail, Phone, Globe, Linkedin, Hash, Sparkles, MapPin, Globe2 } from 'lucide-react';
+import { ChevronDown, User, Building2, Briefcase, Mail, Phone, Globe, Linkedin, Hash, Sparkles, MapPin, Globe2, Shuffle, Repeat } from 'lucide-react';
 
 export interface MergeTag {
   label: string;
@@ -25,12 +25,36 @@ const MERGE_TAGS: MergeTag[] = [
   { label: 'Website', value: '{{website}}', icon: Globe, category: 'Professional', description: 'Website URL' },
   { label: 'LinkedIn', value: '{{linkedin_url}}', icon: Linkedin, category: 'Professional', description: 'LinkedIn profile URL' },
 
+  { label: 'Location', value: '{{location}}', icon: MapPin, category: 'Professional', description: 'Full location, as imported' },
+
+  // You — filled from your profile at send time
+  { label: 'Your Name', value: '{{sender_name}}', icon: User, category: 'You', description: 'Your name, from Settings' },
+  { label: 'Your First Name', value: '{{sender_first_name}}', icon: User, category: 'You', description: 'Just your first name' },
+  { label: 'Your Company', value: '{{sender_company}}', icon: Building2, category: 'You', description: 'Your company, from Settings' },
+  { label: 'Your Email', value: '{{sender_email}}', icon: Mail, category: 'You', description: 'The mailbox this sends from' },
+
   // Custom
-  { label: 'Custom Field 1', value: '{{custom_field_1}}', icon: Hash, category: 'Custom', description: 'Custom field 1' },
-  { label: 'Custom Field 2', value: '{{custom_field_2}}', icon: Hash, category: 'Custom', description: 'Custom field 2' },
+  { label: 'Custom Field 1', value: '{{custom_field_1}}', icon: Hash, category: 'Custom', description: 'First custom field on the contact' },
+  { label: 'Custom Field 2', value: '{{custom_field_2}}', icon: Hash, category: 'Custom', description: 'Second custom field on the contact' },
 
   // Dynamic
   { label: 'Unsubscribe Link', value: '{{unsubscribe_link}}', icon: Sparkles, category: 'Dynamic', description: 'Opt-out link' },
+];
+
+/* Two things the tag list can't express on its own, and both change what
+   actually lands in the inbox — so they're spelled out rather than left to
+   be discovered by a prospect. */
+const WRITING_TIPS = [
+  {
+    icon: Shuffle,
+    title: 'Fallbacks',
+    body: 'Write {{first_name | there}} and a contact with no first name gets “there” instead of a blank — no more “Hi ,”.',
+  },
+  {
+    icon: Repeat,
+    title: 'Spintax',
+    body: '{Hi|Hey|Hello} sends one wording per recipient, so a large campaign doesn’t leave a thousand identical emails.',
+  },
 ];
 
 interface PersonalizationDropdownProps {
@@ -136,6 +160,22 @@ export function PersonalizationDropdown({ onInsert, variant = 'button' }: Person
                   ))}
               </div>
             ))}
+
+            {!search && (
+              <div className="mt-1 border-t border-[var(--border-subtle)] pt-2">
+                {WRITING_TIPS.map((tip) => (
+                  <div key={tip.title} className="flex items-start gap-3 px-4 py-2">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] text-[var(--indigo)]">
+                      <tip.icon className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-[var(--text-primary)]">{tip.title}</p>
+                      <p className="text-xs text-[var(--text-tertiary)] leading-snug">{tip.body}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {filteredTags.length === 0 && (
               <p className="px-4 py-6 text-sm text-[var(--text-tertiary)] text-center">No variables found</p>

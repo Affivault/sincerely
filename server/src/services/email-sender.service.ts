@@ -6,8 +6,11 @@ import { decrypt } from '../utils/encryption.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
 import { fireEvent } from './webhook.service.js';
 import * as sse from './sse.service.js';
-import { checkAndAutoCompleteCampaign } from './sequence.service.js';
+import { checkAndAutoCompleteCampaign, htmlToText } from './sequence.service.js';
 import { warmupAllowance } from '@lemlist/shared';
+import { renderMergeTags, spin } from '@lemlist/shared';
+import { settingsService } from './settings.service.js';
+import { trackingBaseUrl } from './tracking-domain.service.js';
 import { isLinkedinStep } from '@lemlist/shared';
 
 /**
@@ -191,25 +194,57 @@ async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
     return sendDirect(params);
   }
 
-  // A misconfigured or missing relay endpoint returns 404, and reverse proxies
-  // return 5xx as HTML. In either case the relay isn't usable, so fall back to
-  // a direct SMTP send instead of surfacing an opaque "non-JSON response" error.
-  if (response.status === 404 || response.status === 405 || response.status >= 500) {
-    console.warn(`[SMTP Relay] Endpoint returned HTTP ${response.status}; falling back to direct SMTP`);
-    return sendDirect(params);
-  }
-
-  // Relay may still return non-JSON (e.g. an HTML error page) — parse safely.
-  let data: any = {};
+  /* Whether to fall back turns on one question: did the relay run the send?
+   *
+   * It used to turn on the status code, and the relay answers 502 for every
+   * SMTP failure — a hard "550 User unknown" included. So the body was never
+   * read: a bounce fell through to a direct SMTP attempt, which on the hosts
+   * this relay exists for (Render blocks outbound SMTP — that is the whole
+   * reason it is deployed) times out. The failure surfaced as a timeout, the
+   * contact was never marked bounced, and the classifier that would have
+   * caught it never saw the reply code.
+   *
+   * The duplicate is worse than the misfiling. The relay returns 502 for its
+   * own ERELAYDEADLINE too, which fires while the destination server may have
+   * already accepted the message; re-sending it directly puts the same email
+   * in the prospect's inbox twice.
+   *
+   * A JSON body with a boolean `success` is the relay's verdict on a send it
+   * actually attempted, and must be honoured either way. Anything else — a
+   * proxy's HTML error page, a 404 from a missing endpoint, a config error
+   * before the send was tried — means the relay never ran, and only then is a
+   * direct attempt the right move.
+   */
+  let data: any = null;
   try {
     data = await response.json();
   } catch {
-    console.warn(`[SMTP Relay] Non-JSON response (HTTP ${response.status}); falling back to direct SMTP`);
+    data = null;
+  }
+
+  if (typeof data?.success !== 'boolean') {
+    console.warn(
+      `[SMTP Relay] No verdict from the relay (HTTP ${response.status}${data?.error ? `: ${data.error}` : ''}); ` +
+      'falling back to direct SMTP',
+    );
     return sendDirect(params);
   }
 
-  if (!response.ok || !data.success) {
-    throw new Error(`SMTP relay error: ${data.error || response.statusText}`);
+  if (!data.success) {
+    // Carry the SMTP reply code out with the failure. Without it the sequence
+    // engine cannot tell a permanent "550 User unknown" from a transient
+    // greylist, so it filed every relay rejection as a generic error: the
+    // address was never marked bounced, other campaigns kept mailing it, the
+    // bounce rate under-reported, and the bounce guard could never fire.
+    const relayError: any = new Error(`SMTP relay error: ${data.error || response.statusText}`);
+    if (data.responseCode !== undefined) relayError.responseCode = data.responseCode;
+    if (data.code !== undefined) relayError.code = data.code;
+    // The server's raw reply when the relay forwards it, the message text
+    // otherwise — an older relay still in front of a newer server sends only
+    // the latter, and the code can be read out of either.
+    const replyText = typeof data.response === 'string' ? data.response : data.error;
+    if (typeof replyText === 'string') relayError.response = replyText;
+    throw relayError;
   }
 
   return {
@@ -285,8 +320,8 @@ function generateTrackingId(campaignContactId: string, stepId: string): string {
   return Buffer.from(`${payload}:${hmac}`).toString('base64url');
 }
 
-function injectTrackingPixel(html: string, trackingId: string): string {
-  const pixelUrl = `${env.TRACKING_BASE_URL}/api/track/open/${trackingId}`;
+function injectTrackingPixel(html: string, trackingId: string, base: string): string {
+  const pixelUrl = `${base}/api/track/open/${trackingId}`;
   const pixel = `<img src="${pixelUrl}" width="1" height="1" style="display:none;border:0;" alt="" />`;
   if (html.includes('</body>')) {
     return html.replace('</body>', `${pixel}</body>`);
@@ -294,7 +329,7 @@ function injectTrackingPixel(html: string, trackingId: string): string {
   return html + pixel;
 }
 
-function wrapLinks(html: string, trackingId: string): string {
+function wrapLinks(html: string, trackingId: string, base: string): string {
   return html.replace(
     /href=(["'])(https?:\/\/[^"']+)\1/gi,
     (_match, quote, url) => {
@@ -302,7 +337,7 @@ function wrapLinks(html: string, trackingId: string): string {
         return `href=${quote}${url}${quote}`;
       }
       const encoded = Buffer.from(url).toString('base64url');
-      const trackUrl = `${env.TRACKING_BASE_URL}/api/track/click/${trackingId}?url=${encoded}`;
+      const trackUrl = `${base}/api/track/click/${trackingId}?url=${encoded}`;
       return `href=${quote}${trackUrl}${quote}`;
     }
   );
@@ -390,7 +425,17 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
   }
 
   if (!smtpAccount) {
-    throw new Error('No SMTP account available. Add and configure an SMTP account first.');
+    // SSE worked out exactly why — every mailbox at its daily cap, none
+    // active and verified, none in the campaign's pool — and that string
+    // used to be logged and dropped. Carry it out with the failure so the
+    // campaign page can say what is wrong instead of showing "running" with
+    // nothing happening.
+    const err: any = new Error(
+      sseResult.reason || 'No SMTP account available. Add and configure an SMTP account first.',
+    );
+    err.stallReason = sseResult.reason || 'No active, verified mailbox is available to send from.';
+    err.stallKind = sseResult.all_exhausted ? 'capacity' : 'configuration';
+    throw err;
   }
 
   // 3. Decrypt SMTP password
@@ -409,7 +454,17 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
   const trackingId = generateTrackingId(campaignContactId, stepId);
   let finalHtml = bodyHtml;
 
-  const unsubUrl = `${env.TRACKING_BASE_URL}/api/track/unsubscribe/${trackingId}`;
+  // Links carry the account's own domain when it has a verified one. Spam
+  // filters judge the domains *inside* a message, so a shared link host makes
+  // every account's deliverability hostage to every other account's sending.
+  // Falls back to the shared host whenever anything is unset or unproven —
+  // the unsubscribe link is built from this, and one that 404s turns an
+  // annoyed recipient into a spam complaint.
+  const trackingBase = campaign.user_id
+    ? await trackingBaseUrl(campaign.user_id)
+    : env.TRACKING_BASE_URL;
+
+  const unsubUrl = `${trackingBase}/api/track/unsubscribe/${trackingId}`;
   if (campaign.include_unsubscribe === true) {
     finalHtml = finalHtml.replace(/\{\{unsubscribe_link\}\}/gi, unsubUrl);
     if (!bodyHtml.match(/\{\{unsubscribe_link\}\}/i)) {
@@ -422,11 +477,39 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
     finalHtml = finalHtml.replace(/\{\{unsubscribe_link\}\}/gi, unsubUrl);
   }
 
+  // The sequence engine deferred the {{sender_*}} tags because none of this
+  // was settled yet: which mailbox would win SSE selection, and so what name
+  // the recipient would see. It is settled now, so fill them — and, being the
+  // last stage before the wire, sweep up anything still in braces. A tag this
+  // platform cannot answer is a tag the prospect must never be shown.
+  const senderIdentity = {
+    ...(campaign.user_id ? await settingsService.senderIdentity(campaign.user_id) : {}),
+    email: smtpAccount.email_address,
+  };
+  const fillSenderTags = (text: string) => renderMergeTags(text, { sender: senderIdentity });
+
+  // Then spintax, last of all: `{Hi|Hey}` picks one wording per recipient so
+  // a thousand-contact campaign doesn't leave a thousand byte-identical
+  // bodies, which is exactly the pattern filters score against and which
+  // quietly undoes the reputation-spreading the sharding engine is doing.
+  //
+  // Seeded by step and contact, so the choice is stable: a follow-up quoting
+  // the first email, and a retry after a transient SMTP failure, must not
+  // arrive rephrased. Subject and body get different seeds so their choices
+  // are independent — but both are fixed for this recipient.
+  const spinFor = (part: string) => `${stepId}:${campaignContactId}:${part}`;
+  const finalSubject = spin(fillSenderTags(subject), spinFor('subject'));
+  finalHtml = spin(fillSenderTags(finalHtml), spinFor('body'));
+  // Derived from the spun HTML rather than spun on its own: two independent
+  // spins of the same copy can land on different branches, and a plaintext
+  // part that contradicts the HTML part is worse than having no spintax.
+  const finalText = htmlToText(finalHtml) || fillSenderTags(bodyText);
+
   if (campaign.track_clicks !== false) {
-    finalHtml = wrapLinks(finalHtml, trackingId);
+    finalHtml = wrapLinks(finalHtml, trackingId, trackingBase);
   }
   if (campaign.track_opens !== false) {
-    finalHtml = injectTrackingPixel(finalHtml, trackingId);
+    finalHtml = injectTrackingPixel(finalHtml, trackingId, trackingBase);
   }
 
   // 5. Send via relay (Vercel) or direct SMTP
@@ -455,9 +538,9 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
       from: fromAddress,
       to,
       replyTo: smtpAccount.reply_to || undefined,
-      subject,
+      subject: finalSubject,
       html: finalHtml,
-      text: bodyText,
+      text: finalText,
       messageId,
       headers: emailHeaders,
     });
@@ -491,7 +574,7 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
       message_id: messageId,
       occurred_at: new Date().toISOString(),
       metadata: {
-        subject, to,
+        subject: finalSubject, to,
         smtp_account_id: smtpAccount.id,
         smtp_label: smtpAccount.label,
         tracking_id: trackingId,

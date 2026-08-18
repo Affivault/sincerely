@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { supabaseAdmin } from '../config/supabase.js';
+import { textToHtml } from '../utils/html.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { decrypt } from '../utils/encryption.js';
 import { sendViaSmtp, formatFromHeader } from './email-sender.service.js';
@@ -187,7 +188,7 @@ async function runWarmupTick(maxGlobalSends = 60): Promise<number> {
         to: recipient.email_address,
         subject,
         text: body,
-        html: `<p>${body}</p>`,
+        html: `<p>${textToHtml(body)}</p>`,
         messageId,
         headers: { 'X-Sincerely-Warmup': token },
       });
@@ -371,7 +372,7 @@ async function runEngagementTick(maxAccounts = 15): Promise<{ opened: number; re
             to: sender.email_address,
             subject,
             text: body,
-            html: `<p>${body}</p>`,
+            html: `<p>${textToHtml(body)}</p>`,
             messageId,
             headers: { 'X-Sincerely-Warmup': token },
           });

@@ -14,6 +14,7 @@ import { DEAL_STAGES, type Deal, type CrmEvent } from '@lemlist/shared';
 import { Spinner } from '../../components/ui/Spinner';
 import { InlineEdit } from '../../components/ui/InlineEdit';
 import { Modal } from '../../components/ui/Modal';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/shared/Avatar';
 import { formatDate, formatDateTime, cn } from '../../lib/utils';
@@ -43,6 +44,7 @@ import toast from 'react-hot-toast';
 
 
 export function ContactDetailPage() {
+  const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -271,7 +273,10 @@ export function ContactDetailPage() {
             <Plus className="h-3.5 w-3.5" /> New deal
           </button>
           <button
-            onClick={() => { if (confirm(`Add ${contact.email} to the suppression list? They will no longer receive campaign emails.`)) suppressMutation.mutate(); }}
+            onClick={() => confirm(
+              { title: `Suppress ${contact.email}?`, body: 'No campaign will email this address again — including campaigns they are already part of.', confirmLabel: 'Suppress' },
+              () => suppressMutation.mutate(),
+            )}
             disabled={suppressMutation.isPending}
             className="icon-btn hover:text-amber-500 hover:bg-amber-500/10 flex-shrink-0"
             title="Add to suppression list"
@@ -279,7 +284,10 @@ export function ContactDetailPage() {
             <Ban className="h-3.5 w-3.5" />
           </button>
           <button
-            onClick={() => { if (confirm('Delete this contact?')) deleteMutation.mutate(); }}
+            onClick={() => confirm(
+              { title: 'Delete this contact?', body: 'Their notes, activity and place in every campaign go with them.', tone: 'danger' },
+              () => deleteMutation.mutate(),
+            )}
             className="icon-btn hover:text-rose-500 hover:bg-rose-500/10 flex-shrink-0"
             title="Delete contact"
           >

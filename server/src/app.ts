@@ -15,8 +15,18 @@ const app = express();
 // Middleware
 app.use(helmet());
 
-// CORS — reflect any origin (all routes require JWT auth so this is safe)
-app.use(cors({ origin: true, credentials: true }));
+// CORS — reflect any origin (all routes require JWT auth so this is safe).
+//
+// exposedHeaders matters: a browser client cannot read a non-simple response
+// header unless it is listed here, so the rate-limit budget the API-key
+// middleware publishes would be invisible to exactly the clients that need to
+// pace themselves against it — and they would be back to discovering the
+// limit by hitting it.
+app.use(cors({
+  origin: true,
+  credentials: true,
+  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset', 'Retry-After'],
+}));
 app.use(morgan('dev'));
 
 // Stripe webhook — must read the RAW body for signature verification, so it is

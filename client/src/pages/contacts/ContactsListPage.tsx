@@ -14,6 +14,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { Modal } from '../../components/ui/Modal';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
@@ -485,6 +486,7 @@ const DEFAULT_COLUMNS: ColumnId[] = ['email', 'status', 'company', 'location', '
 
 
 export function ContactsListPage() {
+  const confirm = useConfirm();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { openPeek } = usePeek();
@@ -1436,9 +1438,14 @@ export function ContactsListPage() {
 
           <div className="border-t border-[var(--border-subtle)] my-1" />
           <button
-            onClick={() => {
-              if (confirm('Move this list to trash?')) trashListMut.mutate(listContextMenu.listId);
-            }}
+            onClick={() => confirm(
+              {
+                title: 'Move this list to trash?',
+                body: 'The contacts inside are kept — only the list goes. You can restore it from Trash.',
+                confirmLabel: 'Move to trash',
+              },
+              () => trashListMut.mutate(listContextMenu.listId),
+            )}
             className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-2"
           >
             <Trash2 className="h-3.5 w-3.5" /> Move to trash
@@ -1658,11 +1665,14 @@ export function ContactsListPage() {
                 </button>
               )}
               <button
-                onClick={() => {
-                  if (confirm(`Delete ${selectedContacts.size} contacts?`)) {
-                    bulkDeleteMutation.mutate(Array.from(selectedContacts));
-                  }
-                }}
+                onClick={() => confirm(
+                  {
+                    title: `Delete ${selectedContacts.size} ${selectedContacts.size === 1 ? 'contact' : 'contacts'}?`,
+                    body: 'Their notes, activity and place in every campaign go with them.',
+                    tone: 'danger',
+                  },
+                  () => bulkDeleteMutation.mutate(Array.from(selectedContacts)),
+                )}
                 className="btn-danger text-sm h-8 rounded-lg"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -1880,7 +1890,10 @@ export function ContactsListPage() {
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
                             <button
-                              onClick={() => { if (confirm('Delete this contact?')) deleteMutation.mutate(contact.id); }}
+                              onClick={() => confirm(
+                                { title: 'Delete this contact?', body: 'Their notes, activity and place in every campaign go with them.', tone: 'danger' },
+                                () => deleteMutation.mutate(contact.id),
+                              )}
                               className="icon-btn hover:text-rose-500 hover:bg-rose-500/10"
                               title="Delete"
                             >
@@ -2385,6 +2398,7 @@ export function ContactsListPage() {
 /* ─── List folder modal ──────────────────────────────────────────── */
 
 function ListFolderModal({ initial, onClose }: { initial: ListFolder | null; onClose: () => void }) {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const [name, setName] = useState(initial?.name || '');
   const [color, setColor] = useState(initial?.color || FOLDER_COLORS[0]);
@@ -2414,7 +2428,10 @@ function ListFolderModal({ initial, onClose }: { initial: ListFolder | null; onC
         <div className="flex items-center justify-between w-full">
           {initial ? (
             <button
-              onClick={() => { if (confirm(`Delete folder "${initial.name}"? Lists inside will not be deleted.`)) deleteMut.mutate(); }}
+              onClick={() => confirm(
+                { title: `Delete the folder "${initial.name}"?`, body: 'The lists inside are kept — they move back out to the top level.', tone: 'danger', confirmLabel: 'Delete folder' },
+                () => deleteMut.mutate(),
+              )}
               className="text-[12px] font-medium text-[var(--error)] hover:underline"
             >
               Delete folder

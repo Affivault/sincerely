@@ -14,6 +14,7 @@
  * tabs and hoping.
  */
 import { chromium } from 'playwright';
+import { CHROMIUM } from './chromium.mjs';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -53,7 +54,7 @@ const PROFILE = (slug, name) => `<!doctype html>
 </body></html>`;
 
 const context = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), 'launcher-')), {
-  executablePath: '/opt/pw-browsers/chromium',
+  executablePath: CHROMIUM,
   channel: 'chromium',
   headless: true,
   args: [`--disable-extensions-except=${EXT_PATH}`, `--load-extension=${EXT_PATH}`],

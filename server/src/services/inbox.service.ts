@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { escapeHtml, textToHtml } from '../utils/html.js';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { decrypt } from '../utils/encryption.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
@@ -8,6 +9,8 @@ import { sendViaSmtp } from './email-sender.service.js';
 import { processReply } from './sara.service.js';
 import { SaraStatus } from '@lemlist/shared';
 import { fireEvent } from './webhook.service.js';
+import { detectAutoReply } from '../utils/auto-reply.js';
+import { markReplied, stopOtherCampaignsForContact } from './sequence.service.js';
 import { billingService } from './billing.service.js';
 
 /** Reserve a monthly-quota slot before an interactive send; throws if over cap. */
@@ -611,12 +614,12 @@ export const inboxService = {
       : `Re: ${original.subject || '(no subject)'}`;
 
     // Use rich HTML from editor if provided, otherwise convert plain text
-    const userHtml = bodyHtml || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${body.replace(/\n/g, '<br/>')}</div>`;
+    const userHtml = bodyHtml || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${textToHtml(body)}</div>`;
     const htmlBody = `${userHtml}
 <br/>
 <div style="padding-left:12px;border-left:2px solid #e0e0e0;margin-top:16px;color:#666;">
-  <p style="margin:0 0 4px;font-size:12px;color:#999;">On ${new Date(original.received_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}, ${original.from_email} wrote:</p>
-  ${original.body_html || `<p>${original.body_text || ''}</p>`}
+  <p style="margin:0 0 4px;font-size:12px;color:#999;">On ${new Date(original.received_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}, ${escapeHtml(original.from_email)} wrote:</p>
+  ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}
 </div>`;
 
     await assertSendQuota(userId);
@@ -693,14 +696,14 @@ export const inboxService = {
     const noteHtml = noteHtmlRaw
       ? `${noteHtmlRaw}<hr style="border:none;border-top:1px solid #e0e0e0;margin:16px 0;"/>`
       : note
-        ? `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;margin-bottom:16px;">${note.replace(/\n/g, '<br/>')}</div><hr style="border:none;border-top:1px solid #e0e0e0;margin:16px 0;"/>`
+        ? `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;margin-bottom:16px;">${textToHtml(note)}</div><hr style="border:none;border-top:1px solid #e0e0e0;margin:16px 0;"/>`
         : '';
 
     const htmlBody = `${noteHtml}
 <p style="margin:0 0 8px;font-size:12px;color:#999;">---------- Forwarded message ----------</p>
-<p style="margin:0 0 4px;font-size:12px;color:#999;">From: ${original.from_email}<br/>Date: ${new Date(original.received_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}<br/>Subject: ${original.subject || '(no subject)'}<br/>To: ${original.to_email}</p>
+<p style="margin:0 0 4px;font-size:12px;color:#999;">From: ${escapeHtml(original.from_email)}<br/>Date: ${new Date(original.received_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}<br/>Subject: ${escapeHtml(original.subject || '(no subject)')}<br/>To: ${escapeHtml(original.to_email)}</p>
 <br/>
-${original.body_html || `<p>${original.body_text || ''}</p>`}`;
+${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
 
     await assertSendQuota(userId);
     await sendWithQuotaRefund(userId, () => sendViaSmtp({
@@ -746,7 +749,7 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
     const domain = smtpAccount.email_address?.split('@')[1] || 'usesincerely.com';
     const messageId = `<${crypto.randomUUID()}@${domain}>`;
     // Use rich HTML from editor if provided, otherwise convert plain text
-    const htmlBody = input.body_html || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${input.body.replace(/\n/g, '<br/>')}</div>`;
+    const htmlBody = input.body_html || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${textToHtml(input.body)}</div>`;
 
     await assertSendQuota(userId);
     await sendWithQuotaRefund(userId, () => sendViaSmtp({
@@ -790,7 +793,7 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
 
     const domain = smtpAccount.email_address?.split('@')[1] || 'usesincerely.com';
     const messageId = `<${crypto.randomUUID()}@${domain}>`;
-    const htmlBody = input.body_html || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${input.body.replace(/\n/g, '<br/>')}</div>`;
+    const htmlBody = input.body_html || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${textToHtml(input.body)}</div>`;
 
     const { data, error } = await supabaseAdmin.from('inbox_messages').insert({
       user_id: userId,
@@ -833,12 +836,12 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
       ? original.subject
       : `Re: ${original.subject || '(no subject)'}`;
 
-    const userHtml = bodyHtml || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${body.replace(/\n/g, '<br/>')}</div>`;
+    const userHtml = bodyHtml || `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${textToHtml(body)}</div>`;
     const htmlBody = `${userHtml}
 <br/>
 <div style="padding-left:12px;border-left:2px solid #e0e0e0;margin-top:16px;color:#666;">
-  <p style="margin:0 0 4px;font-size:12px;color:#999;">On ${new Date(original.received_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}, ${original.from_email} wrote:</p>
-  ${original.body_html || `<p>${original.body_text || ''}</p>`}
+  <p style="margin:0 0 4px;font-size:12px;color:#999;">On ${new Date(original.received_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}, ${escapeHtml(original.from_email)} wrote:</p>
+  ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}
 </div>`;
 
     const { data, error } = await supabaseAdmin.from('inbox_messages').insert({
@@ -955,7 +958,7 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
       replyText = `Hi ${firstName},\n\n${prompt}\n\nPlease let me know if you have any questions.\n\nBest regards`;
     }
 
-    const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${replyText.replace(/\n/g, '<br/>')}</div>`;
+    const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${textToHtml(replyText)}</div>`;
 
     return { html, text: replyText };
   },
@@ -1067,10 +1070,14 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
             // Parse email body
             let bodyText = '';
             let bodyHtml: string | undefined;
+            let parsedHeaders: unknown = null;
             try {
               const parsed = await simpleParser(msg.source || '');
               bodyText = parsed.text || '';
               bodyHtml = parsed.html || undefined;
+              // Already parsed and, until now, thrown away — which is why an
+              // out-of-office bounce-back counted as a reply.
+              parsedHeaders = parsed.headers;
             } catch {
               const src = typeof msg.source === 'string' ? msg.source : (msg.source || '').toString();
               const bodyStart = src.indexOf('\r\n\r\n');
@@ -1111,6 +1118,11 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
               }
             }
 
+            // Is a machine talking? Decided before anything is recorded, because
+            // the answer changes what kind of activity this is, whether the
+            // sequence stops, and whether a webhook fires.
+            const autoReply = detectAutoReply(parsedHeaders, subject, bodyText);
+
             // Store
             const inboxRow: any = {
               user_id: userId,
@@ -1127,6 +1139,7 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
               received_at: envelope.date || new Date().toISOString(),
               imap_uid: imapUid,
               imap_folder: 'INBOX',
+              auto_reply_kind: autoReply.kind,
             };
             if (matchedActivity) {
               inboxRow.campaign_id = matchedActivity.campaign_id;
@@ -1134,11 +1147,24 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
               inboxRow.campaign_contact_id = matchedActivity.campaign_contact_id;
             }
 
-            const { data: saved, error: insErr } = await supabaseAdmin
+            let { data: saved, error: insErr } = await supabaseAdmin
               .from('inbox_messages')
               .insert(inboxRow)
               .select('id')
               .single();
+
+            // A database that hasn't had migration 043 applied has no
+            // auto_reply_kind column. Losing every inbound message because a
+            // migration is pending would be a far worse failure than losing
+            // the classification, so drop the column and store the mail.
+            if (insErr && /auto_reply_kind/.test(insErr.message)) {
+              const { auto_reply_kind: _dropped, ...withoutKind } = inboxRow;
+              ({ data: saved, error: insErr } = await supabaseAdmin
+                .from('inbox_messages')
+                .insert(withoutKind)
+                .select('id')
+                .single());
+            }
 
             if (insErr || !saved?.id) {
               console.error('[InboxSync] Insert failed:', insErr?.message);
@@ -1146,32 +1172,66 @@ ${original.body_html || `<p>${original.body_text || ''}</p>`}`;
             }
             newCount++;
 
-            // If matched to a campaign, record replied activity + fire webhook
+            // If matched to a campaign, record the activity. An autoresponder
+            // gets its own type rather than 'replied', so every reply-rate
+            // query excludes it by construction instead of each one
+            // remembering to — and so nothing downstream treats a fortnight
+            // of annual leave as interest.
             if (matchedActivity) {
               const { error: actErr } = await supabaseAdmin.from('campaign_activities').insert({
                 campaign_id: matchedActivity.campaign_id,
                 campaign_contact_id: matchedActivity.campaign_contact_id,
                 contact_id: matchedActivity.contact_id,
                 step_id: matchedActivity.step_id || null,
-                activity_type: 'replied',
+                activity_type: autoReply.kind ? 'auto_reply' : 'replied',
                 message_id: messageId || null,
-                metadata: { from: fromEmail, subject, inbox_message_id: saved.id },
+                metadata: {
+                  from: fromEmail,
+                  subject,
+                  inbox_message_id: saved.id,
+                  ...(autoReply.kind
+                    ? { auto_reply_kind: autoReply.kind, auto_reply_reason: autoReply.reason }
+                    : {}),
+                },
               });
               if (actErr) {
-                console.error('[InboxSync] Failed to record replied activity:', actErr.message);
+                console.error('[InboxSync] Failed to record inbound activity:', actErr.message);
               }
 
-              fireEvent(userId, 'email.replied', {
-                campaign_id: matchedActivity.campaign_id,
-                contact_id: matchedActivity.contact_id,
-                from: fromEmail,
-                subject,
-              }).catch(() => {});
+              if (!autoReply.kind) {
+                // Stop them here, not when their next step happens to come
+                // due. A contact who replies after step two of a sequence
+                // whose step three waits five days used to stay 'active' for
+                // those five days — still shown as being worked, blocking the
+                // campaign from completing, and holding a slot in the batch
+                // the sequence worker pulls each tick.
+                const { data: enrolment } = await supabaseAdmin
+                  .from('campaign_contacts')
+                  .select('id, campaigns!inner(stop_on_reply)')
+                  .eq('id', matchedActivity.campaign_contact_id)
+                  .maybeSingle();
+
+                if (enrolment && (enrolment as any).campaigns?.stop_on_reply !== false) {
+                  await markReplied(matchedActivity.campaign_contact_id);
+                  await stopOtherCampaignsForContact(
+                    userId,
+                    matchedActivity.contact_id,
+                    matchedActivity.campaign_contact_id,
+                  );
+                }
+
+                fireEvent(userId, 'email.replied', {
+                  campaign_id: matchedActivity.campaign_id,
+                  contact_id: matchedActivity.contact_id,
+                  from: fromEmail,
+                  subject,
+                }).catch(() => {});
+              }
             }
 
             // Auto-classify with SARA when AI tagging is enabled for this user.
             // Never block sync if classification fails.
-            if (aiTaggingOn) {
+            if (aiTaggingOn && !autoReply.kind) {
               processReply(saved.id).catch((e: any) => {
                 console.warn('[InboxSync] AI tag failed for', saved.id, ':', e?.message || String(e));
               });

@@ -6,6 +6,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { Card } from '../../components/shared/Card';
@@ -666,6 +667,7 @@ function SequenceDetailBody({ template }: { template: SequenceTemplate }) {
 // ─── Main Templates Page — library rail + persistent detail pane ────
 
 export function TemplatesPage() {
+  const confirm = useConfirm();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [tab, setTab] = useState<'emails' | 'sequences'>('emails');
@@ -941,7 +943,10 @@ export function TemplatesPage() {
                   onUse={() => handleUseEmail(t)}
                   onEdit={() => { setEditEmailData({ id: t.id, initial: t }); setShowEmailEditor(true); }}
                   onDuplicate={() => duplicateEmailMut.mutate(t.id)}
-                  onDelete={t.is_preset ? undefined : () => { if (confirm('Delete this template?')) deleteEmailMut.mutate(t.id); }}
+                  onDelete={t.is_preset ? undefined : () => confirm(
+                    { title: `Delete "${t.name}"?`, body: 'Campaigns already built from this template keep their copy.', tone: 'danger' },
+                    () => deleteEmailMut.mutate(t.id),
+                  )}
                 >
                   <EmailDetailBody key={t.id} template={t} />
                 </DetailShell>
@@ -965,7 +970,10 @@ export function TemplatesPage() {
                     setShowSequenceEditor(true);
                   }}
                   onDuplicate={() => duplicateSequenceMut.mutate(t.id)}
-                  onDelete={t.is_preset ? undefined : () => { if (confirm('Delete this sequence?')) deleteSequenceMut.mutate(t.id); }}
+                  onDelete={t.is_preset ? undefined : () => confirm(
+                    { title: `Delete "${t.name}"?`, body: 'Campaigns already built from this sequence keep their copy.', tone: 'danger' },
+                    () => deleteSequenceMut.mutate(t.id),
+                  )}
                 >
                   <SequenceDetailBody key={t.id} template={t} />
                 </DetailShell>

@@ -6,7 +6,12 @@ import { suppressionService } from './suppression.service.js';
 import { billingService } from './billing.service.js';
 import * as sse from './sse.service.js';
 import { nowInTimezone, partsInTimezone, startOfDayInTimezone, tzWallTimeToUtc } from '../utils/timezone.js';
-import { isLinkedinStep } from '@lemlist/shared';
+import { renderMergeTags, personalize, previewPersonalization, SENDER_TAGS, LINK_TAGS } from '@lemlist/shared';
+import { settingsService } from './settings.service.js';
+import { guardAfterBounce } from './bounce-guard.service.js';
+import * as domainThrottle from './domain-throttle.service.js';
+import { isLinkedinStep, inferTimezone } from '@lemlist/shared';
+import { classifySendFailure, stallReasonFor } from '../utils/send-failure.js';
 
 /**
  * Sequence Engine Service
@@ -23,10 +28,30 @@ import { isLinkedinStep } from '@lemlist/shared';
 // ============================================
 
 /**
- * Check if current time is within the campaign's send window and active days.
+ * Which clock this contact's send window is measured against.
+ *
+ * `campaign_contacts.contact_timezone` has been in the schema since the first
+ * migration and was read by nothing, so every campaign has always sent on the
+ * *sender's* clock — a London-configured 09:00–17:00 window reaching a San
+ * Francisco prospect at one in the morning. When the campaign opts in and we
+ * managed to place the contact, their own zone is used instead.
+ *
+ * Falling back to the campaign timezone matters: a contact we can't place is
+ * no worse off than before, whereas guessing at one would be worse.
  */
-function isWithinSendWindow(campaign: any): boolean {
-  const tz = campaign.timezone || 'UTC';
+function effectiveTimezone(campaign: any, campaignContact?: any): string {
+  if (campaign?.send_in_recipient_timezone && campaignContact?.contact_timezone) {
+    return campaignContact.contact_timezone;
+  }
+  return campaign?.timezone || 'UTC';
+}
+
+/**
+ * Check if current time is within the send window and active days, on
+ * whichever clock applies to this contact.
+ */
+function isWithinSendWindow(campaign: any, campaignContact?: any): boolean {
+  const tz = effectiveTimezone(campaign, campaignContact);
   const now = nowInTimezone(tz);
 
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -52,8 +77,8 @@ function isWithinSendWindow(campaign: any): boolean {
  * Calculate when the next valid send window opens (in real UTC time).
  * Looks up to 7 days ahead to find the next active day + window start.
  */
-function getNextSendWindowStart(campaign: any): Date {
-  const tz = campaign.timezone || 'UTC';
+function getNextSendWindowStart(campaign: any, campaignContact?: any): Date {
+  const tz = effectiveTimezone(campaign, campaignContact);
   const now = nowInTimezone(tz);
 
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -112,6 +137,80 @@ async function refundCampaignDailySend(campaignId: string, periodStart: Date): P
   });
   if (error) {
     console.error(`[Sequence] Failed to refund daily send for campaign ${campaignId}:`, error.message);
+  }
+}
+
+/**
+ * Work out and store a contact's timezone, once.
+ *
+ * Written to campaign_contacts rather than contacts because a contact's
+ * placement is a property of this enrolment: re-importing a lead list with a
+ * better `location` should improve the next campaign without silently moving
+ * the send times of one already in flight.
+ *
+ * Returns null when the location is missing or too vague to place, and stores
+ * nothing — so the next attempt tries again, which is what you want after a
+ * list is enriched.
+ */
+async function ensureContactTimezone(campaignContactId: string, contact: any): Promise<string | null> {
+  const zone = inferTimezone(contact?.location);
+  if (!zone) return null;
+  const { error } = await supabaseAdmin
+    .from('campaign_contacts')
+    .update({ contact_timezone: zone })
+    .eq('id', campaignContactId);
+  if (error) {
+    // A pre-042 database has no column to write to. Use the zone for this
+    // send anyway rather than falling back to the sender's clock.
+    console.warn(`[Sequence] Could not store contact_timezone for ${campaignContactId}: ${error.message}`);
+  }
+  return zone;
+}
+
+/**
+ * Remember why a campaign could not send, so the page can say so.
+ *
+ * The engine has always known — SSE works out whether every mailbox is at its
+ * daily cap, or none is verified, or the campaign's pool is empty — and the
+ * string was logged and dropped. A campaign then sat on "running" with
+ * nothing happening and nothing to explain it, which is the single most
+ * common support question this kind of product generates.
+ *
+ * Transient by design: written when a send fails for want of capacity or
+ * configuration, cleared by the next send that succeeds. `stall_since` is
+ * only stamped the first time so the page can say how long it has been stuck
+ * rather than resetting the clock every thirty seconds.
+ */
+async function recordStall(campaignId: string, reason: string | null): Promise<void> {
+  try {
+    if (reason === null) {
+      // Only clear a stall that exists, so a healthy campaign is not written
+      // to on every single send.
+      await supabaseAdmin
+        .from('campaigns')
+        .update({ stall_reason: null, stall_since: null })
+        .eq('id', campaignId)
+        .not('stall_reason', 'is', null);
+      return;
+    }
+    const { data: existing } = await supabaseAdmin
+      .from('campaigns')
+      .select('stall_reason, stall_since')
+      .eq('id', campaignId)
+      .maybeSingle();
+    await supabaseAdmin
+      .from('campaigns')
+      .update({
+        stall_reason: reason,
+        stall_since: existing?.stall_since || new Date().toISOString(),
+      })
+      .eq('id', campaignId);
+  } catch (err: any) {
+    // A pre-045 database has no such columns. Not being able to explain a
+    // stall must never itself stop the engine.
+    if (!/stall_reason|stall_since/.test(err?.message || '')) {
+      console.warn(`[Sequence] Could not record stall for ${campaignId}:`, err?.message || err);
+    }
   }
 }
 
@@ -186,10 +285,16 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
     return;
   }
 
+  // Place the contact on first use, so a campaign switched on mid-flight
+  // starts honouring local time without needing its audience re-imported.
+  if (cc.campaigns?.send_in_recipient_timezone && cc.contact_timezone === null) {
+    cc.contact_timezone = await ensureContactTimezone(cc.id, cc.contacts);
+  }
+
   // Check send window (skip if outside active hours/days)
-  if (!isWithinSendWindow(cc.campaigns)) {
+  if (!isWithinSendWindow(cc.campaigns, cc)) {
     // Reschedule to the start of the next valid send window
-    const nextWindow = getNextSendWindowStart(cc.campaigns);
+    const nextWindow = getNextSendWindowStart(cc.campaigns, cc);
     await supabaseAdmin
       .from('campaign_contacts')
       .update({ next_send_at: nextWindow.toISOString() })
@@ -198,7 +303,10 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
     return;
   }
 
-  // Check stop_on_reply — if contact already replied, mark completed
+  // Check stop_on_reply. A reply is its own outcome, not a completion — a
+  // contact who answered at step two and one who sat through all five in
+  // silence are the two most different results a campaign produces, and until
+  // now they were both filed as 'completed'.
   if (cc.campaigns.stop_on_reply !== false) {
     const { count: replyCount } = await supabaseAdmin
       .from('campaign_activities')
@@ -206,7 +314,7 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
       .eq('campaign_contact_id', cc.id)
       .eq('activity_type', 'replied');
     if (replyCount && replyCount > 0) {
-      await markCompleted(campaignContactId);
+      await markReplied(campaignContactId);
       return;
     }
   }
@@ -342,14 +450,16 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
   const ownerId: string | undefined = cc.campaigns?.user_id;
 
   // Per-campaign daily send limit — atomically reserve a slot (see
-  // reserveCampaignDailySend above). Uses the campaign's timezone so "today"
-  // matches the sender's business day.
+  // reserveCampaignDailySend above). Deliberately the *campaign's* timezone
+  // even when the send window follows the recipient's: a daily cap is the
+  // sender's quota, so its day has to roll over once, on the sender's clock.
+  // Per-recipient days would reset the same cap at two dozen different hours.
   const dailyLimit = cc.campaigns?.daily_limit || 0;
   const dailyPeriodStart = startOfDayInTimezone(cc.campaigns?.timezone || 'UTC');
   if (dailyLimit > 0 && !(await reserveCampaignDailySend(cc.campaign_id, dailyPeriodStart, dailyLimit))) {
     // Reschedule to next send window so the sequence worker doesn't re-pick
     // this contact every 30 seconds until midnight.
-    const nextWindow = getNextSendWindowStart(cc.campaigns);
+    const nextWindow = getNextSendWindowStart(cc.campaigns, cc);
     await supabaseAdmin
       .from('campaign_contacts')
       .update({ next_send_at: nextWindow.toISOString() })
@@ -368,6 +478,31 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
       .update({ next_send_at: nextPeriod.toISOString() })
       .eq('id', cc.id);
     console.log(`[Sequence] Monthly email limit reached for user ${ownerId} — rescheduling contact ${cc.id} to ${nextPeriod.toISOString()}`);
+    return;
+  }
+
+  // Don't let a company-sorted list land thirty messages at acme.com inside a
+  // minute — the burst a receiving gateway is built to notice, which gets the
+  // sending domain flagged at exactly the organisation you most wanted to
+  // reach. Reserved after the daily and monthly caps, so a contact deferred
+  // for this reason hasn't already spent one of those, and before the contact
+  // is claimed, so deferring costs nothing.
+  const domainReservation = ownerId
+    ? await domainThrottle.reserveDomainSend(ownerId, cc.contacts.email)
+    : { granted: true, domain: '', period: null, retryAt: null };
+
+  if (!domainReservation.granted) {
+    if (ownerId) await billingService.refundEmailQuota(ownerId);
+    if (dailyLimit > 0) await refundCampaignDailySend(cc.campaign_id, dailyPeriodStart);
+    const retryAt = domainReservation.retryAt || new Date(Date.now() + 3600_000);
+    await supabaseAdmin
+      .from('campaign_contacts')
+      .update({ next_send_at: retryAt.toISOString() })
+      .eq('id', cc.id);
+    console.log(
+      `[Sequence] Contact ${cc.id} deferred to ${retryAt.toISOString()} — ` +
+      `hourly limit reached for ${domainReservation.domain}`,
+    );
     return;
   }
 
@@ -406,6 +541,7 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
   if (nullifyErr) {
     if (ownerId) await billingService.refundEmailQuota(ownerId);
     if (dailyLimit > 0) await refundCampaignDailySend(cc.campaign_id, dailyPeriodStart);
+    if (ownerId) await domainThrottle.refundDomainSend(ownerId, domainReservation);
     throw new Error(`Failed to lock contact ${cc.id} for processing: ${nullifyErr.message}`);
   }
   if (!claimed) {
@@ -414,6 +550,7 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     // give back the slots reserved above (the winner reserved its own).
     if (ownerId) await billingService.refundEmailQuota(ownerId);
     if (dailyLimit > 0) await refundCampaignDailySend(cc.campaign_id, dailyPeriodStart);
+    if (ownerId) await domainThrottle.refundDomainSend(ownerId, domainReservation);
     console.log(`[Sequence] Contact ${cc.id} already claimed by a concurrent run — skipping`);
     return;
   }
@@ -434,23 +571,40 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
       ab_variant: step.subject_b ? (useVariantB ? 'b' : 'a') : undefined,
     });
     // (Quota already reserved above before sending.)
+    // Whatever was blocking this campaign clearly isn't any more.
+    await recordStall(cc.campaign_id, null);
   } catch (err: any) {
     console.error(`[Sequence] Email send failed for ${cc.contacts.email}:`, err.message);
 
     // The send never happened — give back the slots reserved above.
     if (ownerId) await billingService.refundEmailQuota(ownerId);
     if (dailyLimit > 0) await refundCampaignDailySend(cc.campaign_id, dailyPeriodStart);
+    if (ownerId) await domainThrottle.refundDomainSend(ownerId, domainReservation);
+
+    // sendCampaignEmail annotates failures it can explain in plain language
+    // (every mailbox at capacity, none verified). Keep it where the campaign
+    // page can read it.
+    // One classifier for both send paths. The inline version this replaced
+    // only read fields the direct SMTP path sets, so relay sends — the
+    // recommended deployment — never registered a bounce at all.
+    const failureKind = classifySendFailure(err);
+    const isBounce = failureKind === 'bounce';
+
+    if (err.stallReason) {
+      await recordStall(cc.campaign_id, err.stallReason);
+    } else {
+      // Stale mailbox credentials fail every send identically. Say so on the
+      // campaign page rather than letting it grind through the whole list
+      // stamping "error" on contacts that were never the problem.
+      const kindReason = stallReasonFor(failureKind);
+      if (kindReason) await recordStall(cc.campaign_id, kindReason);
+    }
 
     // sendCampaignEmail annotates the error with the account it had already
     // reserved a warm-up/ramp slot on (once SMTP selection succeeded) —
     // give that back too so a failed send doesn't burn ramp capacity.
     if (err.smtpAccountId) sse.refundWarmupSend(err.smtpAccountId).catch(() => {});
 
-    // Check for bounce: Number(undefined) = NaN which fails >= 500, so also check the string form
-    const responseCode = Number(err.responseCode);
-    const isBounce = (!isNaN(responseCode) && responseCode >= 500)
-      || String(err.responseCode || '').startsWith('5')
-      || err.code === 'EENVELOPE';
     if (isBounce) {
       await supabaseAdmin
         .from('campaign_contacts')
@@ -467,6 +621,16 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
       if (bounceAccountId) {
         sse.recordBounce(bounceAccountId).catch(() => {});
       }
+
+      // The evidence just changed, so ask now rather than on a schedule: the
+      // point of the guard is to stop the *next* thousand sends, not to
+      // report on the last thousand. Deliberately awaited — letting the
+      // sequence worker pick up more contacts while a decision to stop is
+      // still in flight is exactly the window that does the damage.
+      if (cc.campaigns?.user_id) {
+        await guardAfterBounce(cc.campaigns.user_id, cc.campaign_id);
+      }
+
       checkAndAutoCompleteCampaign(cc.campaign_id).catch(() => {});
     }
 
@@ -750,9 +914,16 @@ async function processLinkedinStep(cc: any, step: any, steps: any[]): Promise<vo
     .maybeSingle();
   if (!claimed) return;
 
-  const message = step.step_type === 'linkedin_connect'
-    ? interpolateMergeTags(step.linkedin_note || '', contact)
-    : interpolateMergeTags(step.body_text || step.body_html || '', contact);
+  // A LinkedIn note has no mailbox behind it and no unsubscribe link, so
+  // there is nothing to defer — resolve every tag here, including the
+  // sender's own details, and leave nothing in braces for the user to paste.
+  const sender = cc.campaigns?.user_id
+    ? await settingsService.senderIdentity(cc.campaigns.user_id)
+    : null;
+  const linkedinCopy = step.step_type === 'linkedin_connect'
+    ? step.linkedin_note || ''
+    : step.body_text || step.body_html || '';
+  const message = personalize(linkedinCopy, { contact, sender, spinSeed: `${step.id}:${cc.contact_id}` });
 
   const { data: task, error } = await supabaseAdmin
     .from('crm_tasks')
@@ -1010,6 +1181,80 @@ async function advanceToNextStep(
   }
 }
 
+/**
+ * Stop a contact because they answered.
+ *
+ * Called the moment the reply lands rather than when their next step comes
+ * due. That difference is not cosmetic: a contact replying after step two of
+ * a sequence whose step three waits five days used to sit 'active' for those
+ * five days — shown as still being worked, keeping the campaign from
+ * auto-completing, and taking one of the fifty slots the sequence worker
+ * pulls each tick away from a contact genuinely due.
+ *
+ * Idempotent, and only ever moves a contact who is still in flight: a reply
+ * arriving after they bounced or unsubscribed must not overwrite that.
+ */
+export async function markReplied(campaignContactId: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from('campaign_contacts')
+    .update({
+      status: 'replied',
+      next_send_at: null,
+      completed_at: new Date().toISOString(),
+    })
+    .eq('id', campaignContactId)
+    .in('status', ['pending', 'active'])
+    .select('campaign_id')
+    .maybeSingle();
+
+  if (error) {
+    console.error(`[Sequence] Failed to mark contact ${campaignContactId} replied:`, error.message);
+    return false;
+  }
+  if (!data) return false; // already in a terminal state — leave it alone
+
+  checkAndAutoCompleteCampaign(data.campaign_id).catch(() => {});
+  return true;
+}
+
+/**
+ * Stop every *other* live campaign for the person who just replied.
+ *
+ * Opt-in per account. Someone who has answered one sequence should not keep
+ * receiving a different one — it reads as though nobody is paying attention,
+ * which is the impression cold outreach can least afford.
+ */
+export async function stopOtherCampaignsForContact(
+  userId: string,
+  contactId: string,
+  exceptCampaignContactId: string,
+): Promise<number> {
+  const { data: settings } = await supabaseAdmin
+    .from('user_settings')
+    .select('stop_all_campaigns_on_reply')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (!settings?.stop_all_campaigns_on_reply) return 0;
+
+  const { data: stopped, error } = await supabaseAdmin
+    .from('campaign_contacts')
+    .update({ status: 'replied', next_send_at: null, completed_at: new Date().toISOString() })
+    .eq('contact_id', contactId)
+    .neq('id', exceptCampaignContactId)
+    .in('status', ['pending', 'active'])
+    .select('campaign_id');
+
+  if (error) {
+    console.error(`[Sequence] Cross-campaign stop failed for contact ${contactId}:`, error.message);
+    return 0;
+  }
+
+  for (const campaignId of new Set((stopped || []).map((r: any) => r.campaign_id))) {
+    checkAndAutoCompleteCampaign(campaignId).catch(() => {});
+  }
+  return (stopped || []).length;
+}
+
 async function markCompleted(campaignContactId: string): Promise<void> {
   const { data: cc, error: updateErr } = await supabaseAdmin
     .from('campaign_contacts')
@@ -1071,7 +1316,7 @@ export async function checkAndAutoCompleteCampaign(campaignId: string): Promise<
  * Convert HTML to readable plain text, preserving paragraph breaks and whitespace.
  * Improves deliverability — spam filters check plain text quality.
  */
-function htmlToText(html: string): string {
+export function htmlToText(html: string): string {
   return html
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi, '\n\n')
@@ -1090,52 +1335,30 @@ function htmlToText(html: string): string {
     .trim();
 }
 
+/**
+ * Fill the tags a contact can answer for.
+ *
+ * Sender tags and the unsubscribe link are deliberately left standing:
+ * neither is knowable until sendCampaignEmail has picked a mailbox, and it
+ * finishes the job there. Everything else is resolved or removed here, so
+ * no raw `{{tag}}` can reach a prospect.
+ *
+ * Spintax is *not* applied here. It has to run after the sender tags are
+ * filled — a deferred `{{sender_name}}` is still double-braced, but any
+ * merge fallback that survived into this pass would look exactly like a
+ * spin group to the spinner. The send path spins once, at the end.
+ */
 export function interpolateMergeTags(text: string, contact: any): string {
-  return text
-    .replace(/\{\{first_name\}\}/gi, contact.first_name || '')
-    .replace(/\{\{last_name\}\}/gi, contact.last_name || '')
-    .replace(/\{\{email\}\}/gi, contact.email || '')
-    .replace(/\{\{company\}\}/gi, contact.company || '')
-    .replace(/\{\{full_name\}\}/gi, `${contact.first_name || ''} ${contact.last_name || ''}`.trim())
-    .replace(/\{\{job_title\}\}/gi, contact.job_title || '')
-    .replace(/\{\{phone\}\}/gi, contact.phone || '')
-    .replace(/\{\{city\}\}/gi, contact.city || '')
-    .replace(/\{\{country\}\}/gi, contact.country || '')
-    .replace(/\{\{linkedin_url\}\}/gi, contact.linkedin_url || '')
-    .replace(/\{\{website\}\}/gi, contact.website || '')
-    .replace(/\{\{custom_field_1\}\}/gi, contact.custom_field_1 || '')
-    .replace(/\{\{custom_field_2\}\}/gi, contact.custom_field_2 || '');
+  return renderMergeTags(text, { contact, defer: [...SENDER_TAGS, ...LINK_TAGS] });
 }
 
 /**
- * Realistic sample contact for previews / test sends, so a test email reads
- * naturally ("Hi Alex,") instead of showing raw {{first_name}} tags. Any
- * leftover unknown {{tag}} is blanked so nothing raw ever ships.
+ * Preview a step the way a recipient will receive it.
+ *
+ * The sample data and the renderer both live in `shared` now, so the campaign
+ * editor's preview, a test send and a real send cannot drift apart again.
  */
-export const SAMPLE_PREVIEW_CONTACT = {
-  first_name: 'Alex',
-  last_name: 'Morgan',
-  full_name: 'Alex Morgan',
-  email: 'alex.morgan@example.com',
-  company: 'Acme Inc',
-  job_title: 'Head of Growth',
-  phone: '+1 (555) 123-4567',
-  city: 'San Francisco',
-  country: 'United States',
-  linkedin_url: 'https://linkedin.com/in/alexmorgan',
-  website: 'https://acme.example.com',
-  custom_field_1: 'Sample 1',
-  custom_field_2: 'Sample 2',
-};
-
-/**
- * Fill merge tags with sample data and strip any leftover unknown tags.
- * {{unsubscribe_link}} is resolved to a sample URL first (it isn't a contact
- * field, so interpolateMergeTags never touches it) so previews/test sends
- * don't silently blank out the unsubscribe link.
- */
-export function previewWithSampleData(text: string): string {
-  return interpolateMergeTags(text || '', SAMPLE_PREVIEW_CONTACT)
-    .replace(/\{\{\s*unsubscribe_link\s*\}\}/gi, 'https://example.com/unsubscribe/preview')
-    .replace(/\{\{\s*[\w.-]+\s*\}\}/g, '');
+export function previewWithSampleData(text: string, spinSeed = 'preview'): string {
+  return previewPersonalization(text, { spinSeed });
 }
+

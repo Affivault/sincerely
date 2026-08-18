@@ -159,10 +159,18 @@ export default async function handler(req: VercelReq, res: VercelRes) {
     }
   } catch (err: any) {
     console.error('[SMTP Relay] Error:', err.message);
+    // Forward the SMTP reply code and the server's raw reply, not just the
+    // message text. The caller classifies a failure by that code — a
+    // permanent 550 marks the contact undeliverable everywhere, a transient
+    // 451 must not, and a 535 means our own login failed and says nothing
+    // about the recipient. Without these fields it was left digging the
+    // number out of prose, which is the fallback, not the design.
     return res.status(502).json({
       success: false,
       error: err.message,
       code: err.code || undefined,
+      responseCode: typeof err.responseCode === 'number' ? err.responseCode : undefined,
+      response: typeof err.response === 'string' ? err.response : undefined,
     });
   }
 }

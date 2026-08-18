@@ -15,6 +15,7 @@ import { EmailBody } from '../../components/shared/EmailBody';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { RichTextEditor, useRichTextEditorRef } from '../../components/ui/RichTextEditor';
 import { InlineEdit } from '../../components/ui/InlineEdit';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { usePeek } from '../../components/peek/usePeek';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
@@ -69,6 +70,7 @@ import {
   Handshake,
   Plus,
   Users as UsersIcon,
+  Bot as BotIcon,
 } from 'lucide-react';
 
 import { DEAL_STAGES, type DealStage } from '@lemlist/shared';
@@ -103,6 +105,8 @@ interface Message {
   body_html: string | null;
   body_text: string | null;
   is_read: boolean;
+  /** Set when a machine sent it — never counted as a reply. */
+  auto_reply_kind?: 'out_of_office' | 'auto_reply' | null;
   is_starred?: boolean;
   is_archived?: boolean;
   direction?: string;
@@ -2020,6 +2024,7 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
 
 /* ─── Main InboxPage ──────────────────────────────── */
 export function InboxPage() {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const [folder, setFolder] = useState<Folder>('inbox');
   const [tagFilter, setTagFilter] = useState('all');
@@ -3059,9 +3064,14 @@ export function InboxPage() {
               // across the whole mailbox. Confirm with that made explicit so a
               // click meant for "this view" doesn't silently wipe unread status
               // on messages the user hasn't even looked at yet.
-              if (confirm('Mark every unread message in your mailbox as read — not just this view?')) {
-                markAllReadMut.mutate();
-              }
+              confirm(
+                {
+                  title: 'Mark the whole mailbox as read?',
+                  body: 'This clears unread across every folder and tag — not just what you can see here.',
+                  confirmLabel: 'Mark all read',
+                },
+                () => markAllReadMut.mutate(),
+              );
             }}
             disabled={markAllReadMut.isPending}
             title="Mark all read (entire mailbox)"
@@ -3168,6 +3178,21 @@ export function InboxPage() {
                         <span className="text-[9.5px] font-semibold px-1 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-tertiary)] flex-shrink-0 tabular">{conv.messageCount}</span>
                       )}
                       {conv.isStarred && <Star className="h-3 w-3 text-amber-400 fill-amber-400 flex-shrink-0" />}
+                      {/* Marked rather than hidden. It still belongs in the
+                          thread — it just isn't someone answering you, and a
+                          row that looks like a reply and isn't is how a
+                          fortnight of annual leave got counted as interest. */}
+                      {msg.auto_reply_kind && (
+                        <span
+                          className="inline-flex items-center gap-1 text-[9.5px] font-semibold px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-tertiary)] flex-shrink-0"
+                          title={msg.auto_reply_kind === 'out_of_office'
+                            ? 'Out-of-office autoresponder — not counted as a reply'
+                            : 'Automatic reply — not counted as a reply'}
+                        >
+                          <BotIcon className="h-2.5 w-2.5" />
+                          {msg.auto_reply_kind === 'out_of_office' ? 'Away' : 'Auto'}
+                        </span>
+                      )}
                     </span>
 
                     {/* Conversation: subject + snippet on one scannable line */}

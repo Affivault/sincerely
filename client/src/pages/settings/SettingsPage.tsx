@@ -117,6 +117,10 @@ export function SettingsPage() {
   const [aiAutoUnsubscribe, setAiAutoUnsubscribe] = useState(true);
   const [aiAutoBounce, setAiAutoBounce] = useState(true);
   const [crmAutoDeals, setCrmAutoDeals] = useState(true);
+  const [stopAllOnReply, setStopAllOnReply] = useState(false);
+  const [bounceGuard, setBounceGuard] = useState(true);
+  const [bounceThreshold, setBounceThreshold] = useState(8);
+  const [domainLimit, setDomainLimit] = useState(5);
   const [autoVerifyContacts, setAutoVerifyContacts] = useState(true);
 
   // Password change
@@ -157,6 +161,10 @@ export function SettingsPage() {
       setAiAutoUnsubscribe(settings.sara_auto_unsubscribe ?? true);
       setAiAutoBounce(settings.sara_auto_bounce ?? true);
       setCrmAutoDeals((settings as any).crm_auto_deals ?? true);
+      setStopAllOnReply((settings as any).stop_all_campaigns_on_reply ?? false);
+      setBounceGuard((settings as any).bounce_guard_enabled ?? true);
+      setBounceThreshold(Number((settings as any).bounce_guard_threshold ?? 8));
+      setDomainLimit(Number((settings as any).domain_hourly_limit ?? 5));
       setAutoVerifyContacts((settings as any).auto_verify_contacts ?? true);
       setHasChanges(false);
     }
@@ -215,6 +223,10 @@ export function SettingsPage() {
       sara_auto_unsubscribe: aiAutoUnsubscribe,
       sara_auto_bounce: aiAutoBounce,
       crm_auto_deals: crmAutoDeals,
+      stop_all_campaigns_on_reply: stopAllOnReply,
+      bounce_guard_enabled: bounceGuard,
+      bounce_guard_threshold: bounceThreshold,
+      domain_hourly_limit: domainLimit,
       ai_tagging_enabled: aiTaggingEnabled,
       auto_verify_contacts: autoVerifyContacts,
     });
@@ -823,6 +835,66 @@ export function SettingsPage() {
                         checked={crmAutoDeals}
                         onChange={(v) => { setCrmAutoDeals(v); markChanged(); }}
                       />
+                      <ToggleSetting
+                        label="One reply stops every campaign"
+                        description="When someone answers one sequence, stop the others they are in. Still receiving a different pitch after replying reads as though nobody is paying attention."
+                        checked={stopAllOnReply}
+                        onChange={(v) => { setStopAllOnReply(v); markChanged(); }}
+                      />
+                      <ToggleSetting
+                        label="Stop a campaign that is bouncing"
+                        description="A bad list bounces heavily, mailbox providers read that as a spam signal, and the damage to your sending domain is not undone by stopping later. This pauses the campaign instead."
+                        checked={bounceGuard}
+                        onChange={(v) => { setBounceGuard(v); markChanged(); }}
+                      />
+                      <label className="flex flex-wrap items-center gap-3 pl-1">
+                        <span className="text-[12.5px] text-[var(--text-secondary)]">
+                          At most
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={10000}
+                          value={domainLimit}
+                          onChange={(e) => {
+                            const next = Number(e.target.value);
+                            setDomainLimit(Number.isFinite(next) && next >= 0 ? next : 5);
+                            markChanged();
+                          }}
+                          className="w-16 h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-[12.5px] text-[var(--text-primary)] tabular focus:border-[var(--indigo)] focus:outline-none"
+                        />
+                        <span className="text-[12.5px] text-[var(--text-secondary)]">
+                          emails per hour to any one company
+                        </span>
+                        <span className="w-full text-[11.5px] text-[var(--text-tertiary)] leading-snug">
+                          A list sorted by company sends every address at one business back to back,
+                          which is the burst their mail gateway is built to notice. Gmail, Outlook and
+                          the other consumer providers are exempt &mdash; they aren&rsquo;t one
+                          organisation. Set to 0 to turn this off.
+                        </span>
+                      </label>
+
+                      {bounceGuard && (
+                        <label className="flex items-center gap-3 pl-1">
+                          <span className="text-[12.5px] text-[var(--text-secondary)]">Pause above</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={100}
+                            value={bounceThreshold}
+                            onChange={(e) => {
+                              const next = Number(e.target.value);
+                              setBounceThreshold(Number.isFinite(next) ? next : 8);
+                              markChanged();
+                            }}
+                            className="w-16 h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-[12.5px] text-[var(--text-primary)] tabular focus:border-[var(--indigo)] focus:outline-none"
+                          />
+                          <span className="text-[12.5px] text-[var(--text-secondary)]">% bounced</span>
+                          <span className="text-[11.5px] text-[var(--text-tertiary)]">
+                            A healthy list bounces at 2&ndash;3%. Needs 20 sends before it can act.
+                          </span>
+                        </label>
+                      )}
                     </div>
 
                     <div className="p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">

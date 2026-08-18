@@ -5,6 +5,7 @@
  * the row selectors are tested against search-shaped markup.
  */
 import { chromium } from 'playwright';
+import { CHROMIUM } from './chromium.mjs';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -55,7 +56,7 @@ ${PEOPLE.map(
 </ul></main></body></html>`;
 
 const context = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), 'list-')), {
-  executablePath: '/opt/pw-browsers/chromium',
+  executablePath: CHROMIUM,
   channel: 'chromium',
   headless: true,
   args: [`--disable-extensions-except=${EXT_PATH}`, `--load-extension=${EXT_PATH}`],

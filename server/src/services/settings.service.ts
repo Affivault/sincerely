@@ -1,6 +1,9 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { stripeService } from './stripe.service.js';
+import type { SenderIdentity } from '@lemlist/shared';
+import { invalidateGuardSettings } from './bounce-guard.service.js';
+import { invalidateDomainLimit } from './domain-throttle.service.js';
 
 export interface UserSettings {
   id: string;
@@ -27,6 +30,14 @@ export interface UserSettings {
   auto_verify_contacts: boolean;
   /** SARA auto-creates a CRM deal when a reply is interested/meeting */
   crm_auto_deals: boolean;
+  /** When someone replies to one campaign, stop every other one for them. */
+  stop_all_campaigns_on_reply: boolean;
+  /** Auto-pause a campaign whose bounce rate is damaging the sending domain. */
+  bounce_guard_enabled: boolean;
+  /** Percent. The guard also needs a minimum sample before it can act. */
+  bounce_guard_threshold: number;
+  /** Most sends to one recipient company per hour. 0 = no limit. */
+  domain_hourly_limit: number;
   created_at: string;
   updated_at: string;
 }
@@ -53,6 +64,17 @@ const DEFAULTS: Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at
   ai_tagging_enabled: true,
   auto_verify_contacts: true,
   crm_auto_deals: true,
+  // Off by default: switching it on changes when live campaigns stop, and
+  // that is not a decision to make on someone's behalf.
+  stop_all_campaigns_on_reply: false,
+  // On by default, unlike the opt-in features above. A safety brake that
+  // ships switched off protects nobody: the accounts that need it are the
+  // ones that do not know they need it.
+  bounce_guard_enabled: true,
+  bounce_guard_threshold: 8,
+  // Five an hour to one organisation is unremarkable to a gateway and still
+  // works through a large company over a day.
+  domain_hourly_limit: 5,
 };
 
 /** Columns a client may write. Everything else (id, user_id, timestamps —
@@ -116,6 +138,12 @@ export const settingsService = {
       if (UPDATABLE_KEYS.has(key)) filtered[key] = value;
     }
     if (Object.keys(filtered).length === 0) return settingsService.get(userId);
+
+    // The name and company behind {{sender_*}} may have just changed, and so
+    // may the bounce guard's threshold — both are memoised on the send path.
+    invalidateSenderIdentity(userId);
+    invalidateGuardSettings(userId);
+    invalidateDomainLimit(userId);
 
     for (let attempt = 0; attempt < 4; attempt++) {
       const { data, error } = await supabaseAdmin
@@ -244,4 +272,46 @@ export const settingsService = {
     const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (error) throw new AppError(`Failed to delete auth user: ${error.message}`, 500);
   },
+
+  /**
+   * Who the `{{sender_*}}` tags refer to.
+   *
+   * Read once per send, so it is memoised briefly — settings change rarely
+   * and a minute of staleness on a signature name costs nothing, whereas a
+   * round trip per recipient on an eight-hundred-contact campaign does.
+   * Never throws: a missing settings row must not stop a campaign, it just
+   * means those tags fall back to whatever the copy says after the pipe.
+   */
+  async senderIdentity(userId: string): Promise<SenderIdentity> {
+    const cached = senderCache.get(userId);
+    if (cached && cached.expires > Date.now()) return cached.value;
+
+    let value: SenderIdentity = {};
+    try {
+      const { data } = await supabaseAdmin
+        .from('user_settings')
+        .select('first_name, last_name, company')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (data) {
+        value = {
+          name: [data.first_name, data.last_name].filter(Boolean).join(' ').trim() || null,
+          company: data.company || null,
+        };
+      }
+    } catch {
+      // Fall through with an empty identity.
+    }
+
+    senderCache.set(userId, { value, expires: Date.now() + SENDER_CACHE_MS });
+    return value;
+  },
 };
+
+const SENDER_CACHE_MS = 60_000;
+const senderCache = new Map<string, { value: SenderIdentity; expires: number }>();
+
+/** Drop a user's memoised sender identity after they edit their profile. */
+export function invalidateSenderIdentity(userId: string): void {
+  senderCache.delete(userId);
+}

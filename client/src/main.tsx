@@ -6,7 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import { queryClient } from './lib/queryClient';
 import App from './App';
-import { API_URL } from './lib/constants';
+import { ABSOLUTE_API_URL } from './lib/constants';
 import './index.css';
 
 /**
@@ -17,8 +17,11 @@ import './index.css';
  * history, but that only works once the app has made a call; this makes it
  * immediate and exact. Nothing secret — it's the same URL every request already
  * goes to, visible in devtools.
+ *
+ * Absolute, deliberately: a relative `/api/v1` is a perfectly ordinary value
+ * here and is meaningless to another program reading it from outside.
  */
-(window as unknown as { __SINCERELY_API_URL?: string }).__SINCERELY_API_URL = API_URL;
+(window as unknown as { __SINCERELY_API_URL?: string }).__SINCERELY_API_URL = ABSOLUTE_API_URL;
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

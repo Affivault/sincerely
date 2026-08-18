@@ -292,8 +292,19 @@ export const contactsService = {
   },
 
   async create(userId: string, input: any) {
-    const { tag_ids, ...contactData } = input;
-    if (contactData.email) contactData.email = String(contactData.email).trim().toLowerCase();
+    const { tag_ids } = input;
+    // The same allow-list update() has used since the ownership hole was
+    // closed there. create() was left spreading the raw body, so a request
+    // could still choose the row's primary key and its audit timestamps.
+    const contactData = pickUpdatable(input);
+
+    // And the same casing rule, so a contact created through this path
+    // matches one created through any other. Addresses are looked up by
+    // exact match all over this codebase; one stored with capitals is a
+    // duplicate waiting to happen.
+    if (contactData.email !== undefined) {
+      contactData.email = String(contactData.email).trim().toLowerCase();
+    }
 
     const { data, error } = await supabaseAdmin
       .from('contacts')

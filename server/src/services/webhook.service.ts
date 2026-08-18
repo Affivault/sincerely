@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import { writable } from '../utils/writable-fields.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { dispatchEvent as dispatchToIntegrations } from './integrations.service.js';
 import crypto from 'crypto';
@@ -190,6 +191,13 @@ export async function getEndpoint(userId: string, id: string): Promise<WebhookEn
   return { ...rest, secret: null } as WebhookEndpoint;
 }
 
+/**
+ * `secret` is handled on its own below rather than via the allow-list, so an
+ * empty value can't blank it — an unsigned endpoint fails verification at the
+ * receiver with nothing to explain why.
+ */
+const WEBHOOK_ENDPOINT_FIELDS = ['url', 'label', 'events', 'is_active'] as const;
+
 export async function createEndpoint(
   userId: string,
   input: CreateWebhookEndpointInput
@@ -219,8 +227,8 @@ export async function updateEndpoint(
   // Never let an update clear the signing secret — a falsy/empty value here
   // (e.g. an empty-string PATCH) would silently downgrade the endpoint to
   // sending unsigned deliveries with no warning to the receiver.
-  const { secret, ...rest } = input as UpdateWebhookEndpointInput & { secret?: string };
-  const update: UpdateWebhookEndpointInput & { secret?: string } = { ...rest };
+  const { secret } = input as UpdateWebhookEndpointInput & { secret?: string };
+  const update: Record<string, any> = writable(input, WEBHOOK_ENDPOINT_FIELDS);
   if (secret) update.secret = secret;
   if (update.url) await assertSafeWebhookUrl(update.url);
 

@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
+import { PersonalizationPanel, TimezoneCoverageNote, countGaps, shouldPauseLaunch } from '../../components/campaigns/PersonalizationPanel';
+import { ReadinessSummary } from '../../components/delivery/ReadinessPanel';
+import { previewPersonalization, countSpinVariants } from '@lemlist/shared';
 import { smtpApi } from '../../api/smtp.api';
 import { contactsApi, listsApi } from '../../api/contacts.api';
 import { sendingSchedulesApi, type SendingSchedule } from '../../api/sending-schedules.api';
@@ -25,11 +28,14 @@ import {
   Eye, MousePointerClick, MessageSquare, Send, AlertTriangle, Rocket,
   RotateCcw, Plus, FolderOpen, ListPlus, Sparkles, Loader2, X, Timer,
   Zap, FileText, TrendingUp, ShieldCheck, Brain, Wand2, CalendarClock,
+  Trophy,
+  Globe,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { StepType, formatDailyLimit } from '@lemlist/shared';
 import type {
   CreateCampaignInput, CreateStepInput, CampaignStep, SmtpAccount, ContactWithTags,
+  PersonalizationAudit,
 } from '@lemlist/shared';
 
 // <input type="datetime-local"> reads/writes local wall-clock time, not UTC —
@@ -179,6 +185,8 @@ export function CampaignCreatePage() {
     delay_between_emails_min: 50,
     delay_between_emails_max: 200,
     stop_on_reply: true,
+    ab_auto_promote: false,
+    send_in_recipient_timezone: false,
     track_opens: true,
     track_clicks: true,
     include_unsubscribe: false,
@@ -401,6 +409,8 @@ export function CampaignCreatePage() {
           existingCampaign.delay_between_emails ??
           200,
         stop_on_reply: existingCampaign.stop_on_reply ?? true,
+        ab_auto_promote: existingCampaign.ab_auto_promote ?? false,
+        send_in_recipient_timezone: existingCampaign.send_in_recipient_timezone ?? false,
         track_opens: existingCampaign.track_opens ?? true,
         track_clicks: existingCampaign.track_clicks ?? true,
         include_unsubscribe: existingCampaign.include_unsubscribe ?? false,
@@ -498,6 +508,11 @@ export function CampaignCreatePage() {
 
   const [launching, setLaunching] = useState(false);
   const [showLaunchConfirm, setShowLaunchConfirm] = useState(false);
+  // Set when a launch is paused to show merge-tag gaps; carries the saved
+  // campaign so confirming doesn't repeat the save.
+  const [pendingAudit, setPendingAudit] = useState<
+    { audit: PersonalizationAudit; campaignId: string; scheduledIso: string | null } | null
+  >(null);
   // Explicit start choice so a campaign never fires the instant you launch
   // unless you deliberately choose "Send now".
   const [sendMode, setSendMode] = useState<'now' | 'schedule'>('now');
@@ -604,6 +619,28 @@ export function CampaignCreatePage() {
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to save'),
   });
 
+  /**
+   * Actually launch, once the campaign is saved and any personalization gaps
+   * have been seen. Split out from handleSaveAndLaunch so "Launch anyway"
+   * doesn't have to re-run the save it already did.
+   */
+  const finishLaunch = async (campaignId: string, scheduledIso: string | null) => {
+    setLaunching(true);
+    try {
+      await campaignsApi.launch(campaignId);
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      toast.success(scheduledIso
+        ? `Campaign scheduled for ${new Date(scheduledIso).toLocaleString()}`
+        : 'Campaign launched!');
+      navigate(`/campaigns/${campaignId}`);
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to launch');
+    }
+    setLaunching(false);
+    setShowLaunchConfirm(false);
+    setPendingAudit(null);
+  };
+
   const handleSaveAndLaunch = async () => {
     if (!campaignForm.name) {
       toast.error('Campaign name is required');
@@ -629,20 +666,26 @@ export function CampaignCreatePage() {
     // directly) so a failed/cancelled schedule attempt never leaks a stale
     // scheduled_at into a later, unrelated save (e.g. "Save draft").
     setLaunching(true);
+    const campaignId = await saveCampaign({ scheduled_at: scheduledIso });
+    if (!campaignId) { setLaunching(false); return; }
+
+    // Last honest look at the copy before it goes out: which merge tags does
+    // this sequence use, and how many of these contacts can actually answer
+    // them. Silence here is the old behaviour — you found out when someone
+    // replied to "Hi ,". A failed audit must never block a launch, though;
+    // it is advice, not a gate.
     try {
-      const campaignId = await saveCampaign({ scheduled_at: scheduledIso });
-      if (!campaignId) { setLaunching(false); return; }
-      await campaignsApi.launch(campaignId);
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
-      toast.success(scheduledIso
-        ? `Campaign scheduled for ${new Date(scheduledIso).toLocaleString()}`
-        : 'Campaign launched!');
-      navigate(`/campaigns/${campaignId}`);
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to launch');
+      const audit = await campaignsApi.personalization(campaignId);
+      if (shouldPauseLaunch(audit, campaignForm.send_in_recipient_timezone === true)) {
+        setPendingAudit({ audit, campaignId, scheduledIso });
+        setLaunching(false);
+        return;
+      }
+    } catch {
+      // Couldn't check — carry on and launch.
     }
-    setLaunching(false);
-    setShowLaunchConfirm(false);
+
+    await finishLaunch(campaignId, scheduledIso);
   };
 
   const updateStep = (index: number, updates: Partial<CreateStepInput>) => {
@@ -1250,6 +1293,20 @@ export function CampaignCreatePage() {
                     label="Stop on reply"
                     description="Pause sending when a contact replies"
                     icon={MessageSquare}
+                  />
+                  <ToggleSwitch
+                    checked={campaignForm.send_in_recipient_timezone === true}
+                    onChange={(v) => setCampaignForm({ ...campaignForm, send_in_recipient_timezone: v })}
+                    label="Use each recipient's local time"
+                    description="Your sending window follows their clock, not yours"
+                    icon={Globe}
+                  />
+                  <ToggleSwitch
+                    checked={campaignForm.ab_auto_promote === true}
+                    onChange={(v) => setCampaignForm({ ...campaignForm, ab_auto_promote: v })}
+                    label="Auto-pick the A/B winner"
+                    description="Once a variant wins significantly, send only that one"
+                    icon={Trophy}
                   />
                   <ToggleSwitch
                     checked={campaignForm.track_opens !== false}
@@ -2069,6 +2126,52 @@ export function CampaignCreatePage() {
                   </Button>
                 </div>
 
+                {/* Paused mid-launch: the copy asks for things some of these
+                    contacts can't answer. Advice, not a gate — the launch is
+                    one click away, it just isn't a click made blind. */}
+                <Modal
+                  isOpen={!!pendingAudit}
+                  onClose={() => setPendingAudit(null)}
+                  title="Worth a look before this goes out"
+                  description="Nothing here blocks the launch — it just isn’t worth finding out afterwards."
+                  size="lg"
+                  footer={
+                    <div className="flex items-center justify-between w-full gap-2">
+                      <button
+                        onClick={() => { setPendingAudit(null); setShowLaunchConfirm(false); setWizardStep(1); }}
+                        className="text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                      >
+                        Go back and edit the sequence
+                      </button>
+                      <div className="flex gap-2">
+                        <Button variant="secondary" onClick={() => setPendingAudit(null)}>Cancel</Button>
+                        <Button
+                          onClick={() => pendingAudit && finishLaunch(pendingAudit.campaignId, pendingAudit.scheduledIso)}
+                          disabled={launching}
+                        >
+                          <Rocket className="h-3.5 w-3.5" />
+                          {launching ? 'Working…' : 'Launch anyway'}
+                        </Button>
+                      </div>
+                    </div>
+                  }
+                >
+                  {pendingAudit && (
+                    <div className="space-y-3">
+                      {countGaps(pendingAudit.audit) > 0 && (
+                        <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed">
+                          Give a tag a fallback — <code className="text-[var(--text-primary)]">{'{{first_name | there}}'}</code> —
+                          and contacts without a value get the fallback instead of a blank.
+                        </p>
+                      )}
+                      <PersonalizationPanel audit={pendingAudit.audit} emptyHint={false} />
+                      {campaignForm.send_in_recipient_timezone && (
+                        <TimezoneCoverageNote coverage={pendingAudit.audit.timezone_coverage} />
+                      )}
+                    </div>
+                  )}
+                </Modal>
+
                 <Modal isOpen={showLaunchConfirm} onClose={() => setShowLaunchConfirm(false)} title={sendMode === 'schedule' ? 'Schedule campaign' : 'Launch campaign'}>
                   <div className="space-y-4">
                     <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
@@ -2088,6 +2191,10 @@ export function CampaignCreatePage() {
                       <p>Stop on reply: {campaignForm.stop_on_reply !== false ? 'Yes' : 'No'}</p>
                       <p>Est. completion: {estLabel}</p>
                     </div>
+                    {/* The last thing seen before the emails start going out.
+                        Renders nothing when everything checks out, so it only
+                        ever appears when there is genuinely something to say. */}
+                    <ReadinessSummary />
                     <div className="flex justify-end gap-2 pt-2">
                       <Button variant="secondary" onClick={() => setShowLaunchConfirm(false)}>Cancel</Button>
                       <Button onClick={handleSaveAndLaunch} disabled={launching}>
@@ -2542,19 +2649,32 @@ function RecipientPreview({ subject, bodyHtml, fromName, fromEmail }: {
   fromName: string;
   fromEmail: string;
 }) {
-  const fillers: Record<string, string> = {
-    first_name: 'Sarah', last_name: 'Chen', company: 'Acme Inc',
-    job_title: 'Head of Sales', industry: 'SaaS',
-  };
-  const previewHtml = (bodyHtml || '').replace(/\{\{(\w+)\}\}/g, (_, k) => fillers[k] || `[${k}]`);
-  const previewSubject = subject.replace(/\{\{(\w+)\}\}/g, (_, k) => fillers[k] || `[${k}]`);
+  // Was a third renderer with its own sample names and its own idea of what
+  // a tag meant — it showed `[pain_point]` where the sender shipped raw
+  // braces. Both now run the one renderer in `shared`, so this preview is
+  // the email, not an impression of it.
+  const [variation, setVariation] = useState(0);
+  const seed = `preview-${variation}`;
+  const previewHtml = previewPersonalization(bodyHtml || '', { spinSeed: seed });
+  const previewSubject = previewPersonalization(subject || '', { spinSeed: seed });
+  const variants = Math.max(countSpinVariants(subject || ''), countSpinVariants(bodyHtml || ''));
 
   return (
     <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)]">
         <Eye className="h-3 w-3 text-[var(--indigo)]" />
         <span className="text-[10.5px] font-bold text-[var(--text-secondary)]">Inbox preview</span>
-        <span className="ml-auto text-[10px] text-[var(--text-tertiary)]">sample data</span>
+        {variants > 1 ? (
+          <button
+            onClick={() => setVariation((v) => v + 1)}
+            className="ml-auto text-[10px] text-[var(--indigo)] hover:underline"
+            title={`Spintax makes ${variants.toLocaleString()} wordings of this email`}
+          >
+            1 of {variants.toLocaleString()} wordings — show another
+          </button>
+        ) : (
+          <span className="ml-auto text-[10px] text-[var(--text-tertiary)]">sample data</span>
+        )}
       </div>
 
       <div className="bg-white text-gray-900 px-3.5 py-2.5 border-b border-gray-200">

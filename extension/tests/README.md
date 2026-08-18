@@ -7,8 +7,16 @@ node run.mjs              # every suite
 node run.mjs fastpath     # just one
 ```
 
-Needs Chromium at `/opt/pw-browsers/chromium` (set `PLAYWRIGHT_BROWSERS_PATH` if
-yours lives elsewhere) and `openssl` on PATH.
+Needs a Chromium and `openssl` on PATH. The browser is found in this order:
+`CHROMIUM_PATH` if set, then `/opt/pw-browsers/chromium` if it exists, then
+whatever `npx playwright install chromium` put down. Nothing to configure on a
+fresh machine:
+
+```bash
+npx playwright install chromium
+```
+
+CI runs the whole thing on every push (`.github/workflows/ci.yml`).
 
 ## What these are
 
@@ -37,6 +45,14 @@ obvious the moment you drive the actual extension.
 | `listbar.mjs` | Row checkboxes and the bulk bar on LinkedIn search results. |
 | `scan.mjs` | Scanning a company site and putting the results on a list. |
 | `fastpath.mjs` | Connect deep-links to the API keys tab; LinkedIn never blocks the UI. |
+| `ratelimit.mjs` | A key that runs out of budget: the client paces itself, waits out a 429 and retries, and still reports a wall that will not lift. |
+| `agent.mjs` | The LinkedIn agent, both halves — `act.js` clicking the real button markup, and the worker's ask/open/act/report loop. |
+| `popup-errors.mjs` | What the popup does on a bad day: no key, a revoked one, a missing scope, a failed lookup or add, a suppressed person, a near-duplicate, a stale reply overtaken by a newer one. |
+| `request-cost.mjs` | How many requests one action actually costs, counted exactly. The per-minute limit makes this a property, not a detail. |
+| `scraper-variants.mjs` | The LinkedIn adapter against each markup shape LinkedIn ships, including everything it appends to a visible name. |
+| `scan-limits.mjs` | The site crawl's restraint: page cap, concurrency, timeout, byte ceiling, HTML-only, same-origin. |
+| `regressions.mjs` | Bugs that shipped once and must not ship again. |
+| `shots.mjs` | Screenshots of every surface. Asserts nothing; produces the images the UI is judged from. |
 
 ## The LinkedIn stub
 

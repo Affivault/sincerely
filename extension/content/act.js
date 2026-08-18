@@ -28,13 +28,26 @@
     return r.width > 0 && r.height > 0;
   }
 
-  /** Find a button by the words on it, which outlive class-name churn. */
+  /**
+   * Find a button by the words on it, which outlive class-name churn.
+   *
+   * Each label is tested on its own, and that is the whole point. LinkedIn's
+   * controls carry visible text and an aria-label that say different things —
+   * Connect reads "Connect" and is labelled "Invite Rowan Fitz to connect";
+   * Send reads "Send" and is labelled "Send now". Joining them first gives
+   * "connect invite rowan fitz to connect", which matches neither /^connect$/
+   * nor /^invite .* to connect$/, so the agent reported "No Connect button on
+   * this profile" for a profile that plainly had one — and, because the
+   * already-connected check is also an anchored match, reported the same
+   * thing for people the account was connected to already.
+   */
   function buttonByText(patterns) {
     for (const el of document.querySelectorAll('button, a[role="button"]')) {
       if (!visible(el)) continue;
-      const label = `${el.innerText || ''} ${el.getAttribute('aria-label') || ''}`
-        .replace(/\s+/g, ' ').trim().toLowerCase();
-      if (label && patterns.some((p) => p.test(label))) return el;
+      const labels = [el.innerText, el.getAttribute('aria-label'), el.getAttribute('title')]
+        .map((raw) => String(raw || '').replace(/\s+/g, ' ').trim().toLowerCase())
+        .filter(Boolean);
+      if (labels.some((label) => patterns.some((p) => p.test(label)))) return el;
     }
     return null;
   }

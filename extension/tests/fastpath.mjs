@@ -14,6 +14,7 @@
  * starts both.
  */
 import { chromium } from 'playwright';
+import { CHROMIUM } from './chromium.mjs';
 import { spawn } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -55,7 +56,7 @@ await new Promise((resolve) => setTimeout(resolve, 900));
 
 const userDataDir = mkdtempSync(join(tmpdir(), 'sincerely-fast-'));
 const context = await chromium.launchPersistentContext(userDataDir, {
-  executablePath: '/opt/pw-browsers/chromium',
+  executablePath: CHROMIUM,
   channel: 'chromium',
   headless: true,
   args: [

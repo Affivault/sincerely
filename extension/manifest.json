@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Sincerely — Campaign Manager",
-  "version": "0.2.5",
+  "version": "0.2.9",
   "description": "Add and remove people from your Sincerely campaigns from LinkedIn, Gmail, or any page.",
   "minimum_chrome_version": "116",
   "permissions": [
@@ -21,6 +21,7 @@
   "host_permissions": [
     "http://localhost:3001/*",
     "http://127.0.0.1:3001/*",
+    "http://localhost:5173/*",
     "https://skysend-api.onrender.com/*",
     "https://api.usesincerely.com/*",
     "https://www.linkedin.com/*",

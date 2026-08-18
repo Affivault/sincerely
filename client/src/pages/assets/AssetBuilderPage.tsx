@@ -21,6 +21,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
 
 const MERGE_TAGS = ['{{first_name}}', '{{last_name}}', '{{email}}', '{{company}}', '{{title}}'];
@@ -100,6 +101,7 @@ function SvgPreview({ template, params }: { template: { width: number; height: n
 }
 
 export function AssetBuilderPage() {
+  const confirm = useConfirm();
   const queryClient = useQueryClient();
   const [selectedTemplate, setSelectedTemplate] = useState<AssetTemplate | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -312,7 +314,13 @@ export function AssetBuilderPage() {
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
-                        onClick={(e) => { e.stopPropagation(); if (confirm(`Delete "${t.name}"?`)) deleteMutation.mutate(t.id); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          confirm(
+                            { title: `Delete "${t.name}"?`, body: 'Emails already sent keep the images they were built with.', tone: 'danger' },
+                            () => deleteMutation.mutate(t.id),
+                          );
+                        }}
                         className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                       >
                         <Trash2 className="h-4 w-4" />

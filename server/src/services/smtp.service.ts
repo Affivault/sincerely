@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { writable } from '../utils/writable-fields.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
 import { sendViaSmtp, formatFromHeader, describeSmtpError } from './email-sender.service.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
@@ -52,6 +53,18 @@ function stripMissingColumnKey(errorMessage: string, obj: Record<string, any>): 
   return false;
 }
 
+/**
+ * Columns a caller may set on a mailbox: how to reach the server, how it is
+ * labelled, and whether it is switched on. Everything governing *how much*
+ * it may send stays server-side.
+ */
+const SMTP_ACCOUNT_FIELDS = [
+  'label', 'email_address', 'from_name', 'reply_to',
+  'smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user',
+  'imap_host', 'imap_port', 'imap_secure', 'imap_user',
+  'daily_send_limit', 'is_active',
+] as const;
+
 export const smtpService = {
   /** Verify an smtp_accounts row belongs to this user before acting on its id alone. */
   async assertOwnership(userId: string, id: string): Promise<void> {
@@ -101,9 +114,15 @@ export const smtpService = {
       if (!input?.[key]) throw new AppError(`Missing ${key.replace('_', ' ')}`, 400);
     }
 
-    const { smtp_pass, ...rest } = input;
+    const { smtp_pass } = input;
     const smtp_pass_encrypted = encrypt(smtp_pass);
-    const row: any = { ...rest, user_id: userId, smtp_pass_encrypted };
+    // Only these columns come from the caller. Notably absent: user_id (which
+    // would hand the mailbox and its stored password to another account),
+    // smtp_pass_encrypted (which would write ciphertext past encrypt), and
+    // sends_today / health_score / warmup_* — the counters the daily cap and
+    // the warm-up ramp are enforced on, which a body could otherwise reset to
+    // zero on every request and send without limit.
+    const row: any = { ...writable(input, SMTP_ACCOUNT_FIELDS), user_id: userId, smtp_pass_encrypted };
 
     // Retry without any column the DB doesn't have yet, so shipping ahead of a
     // migration (e.g. reply_to) never blocks connecting a mailbox.
@@ -123,15 +142,14 @@ export const smtpService = {
   },
 
   async update(userId: string, id: string, input: any) {
-    const updateData: any = { ...input };
+    const updateData: any = writable(input, SMTP_ACCOUNT_FIELDS);
 
-    // Only re-encrypt when a new password is supplied; always drop the raw
-    // field so an empty `smtp_pass` (e.g. a signature-only edit) never reaches
-    // the DB as a non-existent column.
+    // Only re-encrypt when a new password is supplied. The raw field is never
+    // in the allow-list, so it cannot reach the database as itself, and the
+    // encrypted column is set here or not at all.
     if (input.smtp_pass) {
       updateData.smtp_pass_encrypted = encrypt(input.smtp_pass);
     }
-    delete updateData.smtp_pass;
 
     for (let attempt = 0; attempt < 4; attempt++) {
       const { data, error } = await supabaseAdmin

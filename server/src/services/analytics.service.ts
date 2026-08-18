@@ -1,5 +1,8 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import { twoProportionPValue, wilsonLowerBound, wilsonUpperBound } from '../utils/stats.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { MIN_STEP_SENDS } from '@lemlist/shared';
+import type { SequencePerformance, SequenceStepPerformance, StepVerdict } from '@lemlist/shared';
 
 function calcRate(value: number, total: number): number {
   if (total === 0) return 0;
@@ -38,8 +41,24 @@ async function fetchAllRows<T = any>(buildQuery: (from: number, to: number) => a
   return rows;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   Deciding an A/B test.
+
+   This used to call a result "statistically significant" when the two open
+   rates differed by two percentage points and each arm had thirty sends.
+   That is not significance, it is a rounding error with a rosette on it:
+   at n=30, two points is one extra open, and a coin lands that way all the
+   time. Telling someone to rewrite their sequence on the strength of it is
+   worse than telling them nothing.
+
+   Now it runs a real two-proportion z-test and reports the p-value, which
+   also means the promote-the-winner button below is acting on something.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/** Below this per arm, don't call it either way however tempting the gap. */
 const MIN_AB_SAMPLE = 30;
-const MIN_AB_GAP = 2; // percentage points
+/** Two-sided. The convention, and strict enough to keep noise out. */
+const AB_ALPHA = 0.05;
 
 export const analyticsService = {
   async overview(userId: string, days?: number) {
@@ -649,9 +668,17 @@ export const analyticsService = {
 
       const minSent = Math.min(stats.a.sent, stats.b.sent);
       const hasEnoughData = minSent >= MIN_AB_SAMPLE;
-      const openDiff = Math.abs(bOpenRate - aOpenRate);
-      const significant = hasEnoughData && openDiff >= MIN_AB_GAP;
-      const winner: 'a' | 'b' | null = significant ? (bOpenRate > aOpenRate ? 'b' : 'a') : null;
+      // Opens, because the subject line is what a subject-line test moves.
+      const pValue = twoProportionPValue(stats.a.opened, stats.a.sent, stats.b.opened, stats.b.sent);
+      const significant = hasEnoughData && pValue !== null && pValue < AB_ALPHA;
+
+      // `leading` is the one that's ahead; `winner` is the one you should act
+      // on. Keeping them apart is the difference between "B is up so far" and
+      // "B is up and the gap is unlikely to be chance" — the first is worth
+      // showing, only the second is worth rewriting a sequence over.
+      const leading: 'a' | 'b' | null =
+        bOpenRate === aOpenRate ? null : bOpenRate > aOpenRate ? 'b' : 'a';
+      const winner: 'a' | 'b' | null = significant ? leading : null;
 
       return {
         step_number: step.step_order,
@@ -661,7 +688,10 @@ export const analyticsService = {
         variant_a: { ...stats.a, open_rate: aOpenRate, click_rate: aClickRate, reply_rate: aReplyRate },
         variant_b: { ...stats.b, open_rate: bOpenRate, click_rate: bClickRate, reply_rate: bReplyRate },
         winner,
+        leading,
         significant,
+        p_value: pValue,
+        has_enough_data: hasEnoughData,
         min_sample: MIN_AB_SAMPLE,
       };
     });
@@ -745,4 +775,236 @@ export const analyticsService = {
       max_value: maxValue,
     };
   },
+
+  /**
+   * Which step earns the replies — and which one to stop sending.
+   *
+   * campaignFunnel() already reports what happened at each step. What it
+   * cannot do is answer whether a step is worth keeping, and the numbers on
+   * it quietly argue the wrong way: a follow-up's reply rate is measured over
+   * the survivors, so the pool shrinks at every step and the rate flatters
+   * whatever comes last. Two replies out of eighteen reads as 11% and looks
+   * like the strongest step in the sequence.
+   *
+   * So this reports share of the campaign's total replies, which does not
+   * shrink with the pool, alongside a Wilson interval on the rate — and only
+   * calls a step unproductive when even the optimistic end of that interval
+   * is well below what the campaign manages elsewhere.
+   */
+  async sequencePerformance(userId: string, campaignId: string): Promise<SequencePerformance> {
+    const { data: campaign } = await supabaseAdmin
+      .from('campaigns')
+      .select('id')
+      .eq('id', campaignId)
+      .eq('user_id', userId)
+      .single();
+
+    if (!campaign) throw new AppError('Campaign not found', 404);
+
+    const { data: stepRows } = await supabaseAdmin
+      .from('campaign_steps')
+      .select('id, step_order, subject, delay_days, step_type')
+      .eq('campaign_id', campaignId)
+      .order('step_order', { ascending: true });
+
+    // Only email steps send anything, so only they can earn a reply. A
+    // LinkedIn or wait step sitting in the list with zero sends would
+    // otherwise be reported as the worst performer in the sequence.
+    const steps = (stepRows || []).filter((s: any) => !s.step_type || s.step_type === 'email');
+    if (steps.length === 0) {
+      return { total_sent: 0, total_replied: 0, steps: [], recommended_length: null, headline: 'No email steps in this sequence yet.' };
+    }
+
+    const activities = await fetchAllRows<{
+      contact_id: string; step_id: string | null; activity_type: string; occurred_at: string;
+    }>((from, to) =>
+      supabaseAdmin
+        .from('campaign_activities')
+        .select('contact_id, step_id, activity_type, occurred_at')
+        .eq('campaign_id', campaignId)
+        .range(from, to)
+    );
+
+    type Bucket = {
+      sent: Set<string>; opened: Set<string>; clicked: Set<string>;
+      replied: Set<string>; bounced: Set<string>; unsubscribed: Set<string>;
+      /** When each contact was sent this step, for the reply-latency median. */
+      sentAt: Map<string, number>;
+      replyGaps: number[];
+    };
+    const buckets = new Map<string, Bucket>();
+    for (const step of steps) {
+      buckets.set(step.id, {
+        sent: new Set(), opened: new Set(), clicked: new Set(),
+        replied: new Set(), bounced: new Set(), unsubscribed: new Set(),
+        sentAt: new Map(), replyGaps: [],
+      });
+    }
+
+    // Sends first, so a reply always has a send to measure back to regardless
+    // of the order rows come out of the table.
+    for (const a of activities) {
+      if (a.activity_type !== 'sent' || !a.step_id) continue;
+      const b = buckets.get(a.step_id);
+      if (!b) continue;
+      b.sent.add(a.contact_id);
+      const at = Date.parse(a.occurred_at || '');
+      if (Number.isFinite(at)) {
+        const prior = b.sentAt.get(a.contact_id);
+        if (prior === undefined || at < prior) b.sentAt.set(a.contact_id, at);
+      }
+    }
+
+    for (const a of activities) {
+      if (!a.step_id) continue;
+      const b = buckets.get(a.step_id);
+      if (!b) continue;
+      switch (a.activity_type) {
+        case 'opened': b.opened.add(a.contact_id); break;
+        case 'clicked': b.clicked.add(a.contact_id); break;
+        case 'bounced': b.bounced.add(a.contact_id); break;
+        case 'unsubscribed': b.unsubscribed.add(a.contact_id); break;
+        case 'replied': {
+          // 'auto_reply' is a separate type by design, so out-of-office is
+          // already excluded here rather than by remembering to exclude it.
+          if (b.replied.has(a.contact_id)) break;
+          b.replied.add(a.contact_id);
+          const sentAt = b.sentAt.get(a.contact_id);
+          const at = Date.parse(a.occurred_at || '');
+          if (sentAt !== undefined && Number.isFinite(at) && at >= sentAt) {
+            b.replyGaps.push((at - sentAt) / 3_600_000);
+          }
+          break;
+        }
+      }
+    }
+
+    const totalSent = steps.reduce((n, s) => n + (buckets.get(s.id)?.sent.size || 0), 0);
+    const totalReplied = steps.reduce((n, s) => n + (buckets.get(s.id)?.replied.size || 0), 0);
+    const overallRate = totalSent > 0 ? totalReplied / totalSent : 0;
+    // A step is judged against what the campaign itself achieves, not an
+    // invented benchmark: a 0.4% reply rate is poor in one market and normal
+    // in another, and the sequence's own numbers are the only fair comparison.
+    const floor = overallRate / 4;
+
+    const performance: SequenceStepPerformance[] = steps.map((step: any) => {
+      const b = buckets.get(step.id)!;
+      const sent = b.sent.size;
+      const replied = b.replied.size;
+      const rate = sent > 0 ? replied / sent : 0;
+      const lower = wilsonLowerBound(replied, sent);
+      const upper = wilsonUpperBound(replied, sent);
+      const share = totalReplied > 0 ? replied / totalReplied : 0;
+
+      let verdict: StepVerdict;
+      let note: string;
+      if (sent < MIN_STEP_SENDS) {
+        verdict = 'too_early';
+        note = sent === 0
+          ? 'Nothing sent from this step yet.'
+          : `Only ${sent} sent — ${MIN_STEP_SENDS} needed before the numbers mean anything.`;
+      } else if (upper < floor) {
+        verdict = 'unproductive';
+        note = replied === 0
+          ? `${sent.toLocaleString()} emails, no replies. Even the optimistic reading puts this step below ${(upper * 100).toFixed(1)}%, against ${(overallRate * 100).toFixed(1)}% for the campaign.`
+          : `${replied} ${replied === 1 ? 'reply' : 'replies'} from ${sent.toLocaleString()} emails — confidently behind the ${(overallRate * 100).toFixed(1)}% this campaign manages elsewhere.`;
+      } else if (lower >= floor) {
+        verdict = 'earning';
+        note = `${replied} ${replied === 1 ? 'reply' : 'replies'}, ${(share * 100).toFixed(0)}% of everything this campaign has earned.`;
+      } else {
+        verdict = 'marginal';
+        note = `${replied} ${replied === 1 ? 'reply' : 'replies'} from ${sent.toLocaleString()} emails. Real, but the sample is still too thin to call it either way.`;
+      }
+
+      return {
+        step_id: step.id,
+        step_number: step.step_order,
+        subject: step.subject || `Step ${step.step_order}`,
+        delay_days: step.delay_days || 0,
+        sent,
+        opened: b.opened.size,
+        clicked: b.clicked.size,
+        replied,
+        bounced: b.bounced.size,
+        unsubscribed: b.unsubscribed.size,
+        share_of_replies: share,
+        reply_rate: rate,
+        confident_reply_rate: lower,
+        replies_per_100: sent > 0 ? (replied / sent) * 100 : 0,
+        median_hours_to_reply: median(b.replyGaps),
+        verdict,
+        note,
+      };
+    });
+
+    return {
+      total_sent: totalSent,
+      total_replied: totalReplied,
+      steps: performance,
+      ...summariseSequence(performance, totalReplied),
+    };
+  },
 };
+
+/** Middle value, or null when there is nothing to take the middle of. */
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const value = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  return Math.round(value * 10) / 10;
+}
+
+/**
+ * Where the sequence stops earning, and one sentence about it.
+ *
+ * Only the *trailing* run of unproductive steps is worth trimming: a weak
+ * step three followed by a strong step four is not a reason to delete step
+ * four, and telling someone to cut the sequence in the middle would be
+ * advice that costs them replies.
+ */
+function summariseSequence(
+  steps: SequenceStepPerformance[],
+  totalReplied: number,
+): { recommended_length: number | null; headline: string } {
+  if (steps.every((s) => s.verdict === 'too_early')) {
+    return {
+      recommended_length: null,
+      headline: 'Not enough sends yet to tell which step is doing the work.',
+    };
+  }
+
+  let cut = steps.length;
+  while (cut > 0 && steps[cut - 1].verdict === 'unproductive') cut--;
+  const trailing = steps.slice(cut);
+
+  if (trailing.length > 0 && cut > 0) {
+    const wasted = trailing.reduce((n, s) => n + s.sent, 0);
+    const earned = trailing.reduce((n, s) => n + s.replied, 0);
+    return {
+      recommended_length: steps[cut - 1].step_number,
+      headline:
+        `${trailing.length === 1 ? `Step ${trailing[0].step_number} has` : `Steps ${trailing[0].step_number}-${trailing[trailing.length - 1].step_number} have`} ` +
+        `sent ${wasted.toLocaleString()} emails for ${earned === 0 ? 'no replies' : `${earned} ${earned === 1 ? 'reply' : 'replies'}`}. ` +
+        `The sequence has done its work by step ${steps[cut - 1].step_number}.`,
+    };
+  }
+
+  const best = steps.reduce((top, s) => (s.share_of_replies > top.share_of_replies ? s : top), steps[0]);
+  if (totalReplied > 0 && best.share_of_replies >= 0.4) {
+    return {
+      recommended_length: steps.length,
+      headline: `Step ${best.step_number} earns ${(best.share_of_replies * 100).toFixed(0)}% of your replies. Every step is pulling its weight.`,
+    };
+  }
+  if (totalReplied === 0) {
+    return {
+      recommended_length: steps.length,
+      headline: 'No replies from any step yet — there is nothing here to trim, only copy to change.',
+    };
+  }
+  return {
+    recommended_length: steps.length,
+    headline: 'Replies are spread across the sequence — no step is carrying it, and none is dead weight.',
+  };
+}

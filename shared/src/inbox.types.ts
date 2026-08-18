@@ -15,6 +15,11 @@ export interface InboxMessage {
   in_reply_to: string | null;
   message_id: string | null;
   is_read: boolean;
+  /**
+   * Set when the message came from a machine rather than a person —
+   * 'out_of_office' or 'auto_reply'. These are never counted as replies.
+   */
+  auto_reply_kind: 'out_of_office' | 'auto_reply' | null;
   // SARA fields
   sara_intent: SaraIntent | null;
   sara_confidence: number | null;

@@ -1,7 +1,13 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '../../lib/utils';
+
+/* Every open modal in mount order; the last one is the one on screen on top.
+   Escape is a document-level listener, so without this every open modal hears
+   the same keypress — confirming a delete from inside an editor would close
+   the confirmation *and* the editor behind it, discarding unsaved edits. */
+const openModals: object[] = [];
 
 interface ModalProps {
   isOpen: boolean;
@@ -14,18 +20,32 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, onClose, title, description, children, size = 'md', footer }: ModalProps) {
+  const identity = useRef({});
+
   useEffect(() => {
     if (!isOpen) return;
+    // Only the outermost modal restores scrolling — a stacked modal closing
+    // must not hand the page back its scrollbar while its parent is still up.
     const original = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = original; };
+    return () => { if (openModals.length <= 1) document.body.style.overflow = original; };
   }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const self = identity.current;
+    openModals.push(self);
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (openModals[openModals.length - 1] !== self) return;
+      onClose();
+    };
     document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      const at = openModals.lastIndexOf(self);
+      if (at !== -1) openModals.splice(at, 1);
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;

@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { writable } from '../utils/writable-fields.js';
 import type {
   EmailTemplate,
   SequenceTemplate,
@@ -15,12 +16,12 @@ import type {
 const PRESET_EMAIL_TEMPLATES: Omit<EmailTemplate, 'id' | 'user_id' | 'created_at' | 'updated_at'>[] = [
   {
     name: 'The Warm Opener',
-    subject: 'Quick question about {{company}}',
-    body_html: `<p>Hi {{first_name}},</p>
+    subject: 'Quick question about {{company|your company}}',
+    body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I came across {{company}} and was genuinely impressed by what you're building. The way you're approaching {{industry}} is refreshing.</p>
+<p>I came across {{company|your company}} and was genuinely impressed by what you're building. The way you're approaching {{industry|your industry}} is refreshing.</p>
 
-<p>I'm reaching out because we help companies like yours {{value_proposition}}. I think there might be a natural fit here.</p>
+<p>I'm reaching out because we help companies like yours {{value_proposition|grow faster}}. I think there might be a natural fit here.</p>
 
 <p>Would you be open to a quick 15-minute chat this week to explore if we can help?</p>
 
@@ -34,12 +35,12 @@ const PRESET_EMAIL_TEMPLATES: Omit<EmailTemplate, 'id' | 'user_id' | 'created_at
   },
   {
     name: 'The Value-First',
-    subject: 'Idea to help {{company}} with {{pain_point}}',
-    body_html: `<p>Hi {{first_name}},</p>
+    subject: 'Idea to help {{company|your company}} with {{pain_point|this}}',
+    body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I noticed {{company}} might be dealing with {{pain_point}} — it's something we see a lot in {{industry}}.</p>
+<p>I noticed {{company|your company}} might be dealing with {{pain_point|this}} — it's something we see a lot in {{industry|your industry}}.</p>
 
-<p>We recently helped a similar company {{result_achieved}}, and I thought the same approach could work for you.</p>
+<p>We recently helped a similar company {{result_achieved|see real results}}, and I thought the same approach could work for you.</p>
 
 <p>I put together a quick breakdown of how it'd apply to your situation. Worth a look?</p>
 
@@ -53,12 +54,12 @@ const PRESET_EMAIL_TEMPLATES: Omit<EmailTemplate, 'id' | 'user_id' | 'created_at
   },
   {
     name: 'The Gentle Follow-Up',
-    subject: 'Re: Quick question about {{company}}',
-    body_html: `<p>Hi {{first_name}},</p>
+    subject: 'Re: Quick question about {{company|your company}}',
+    body_html: `<p>Hi {{first_name|there}},</p>
 
 <p>Just floating this back to the top of your inbox — I know things get buried.</p>
 
-<p>I'd love to show you how we've helped teams like yours {{key_benefit}}. It typically takes about 15 minutes and there's zero commitment.</p>
+<p>I'd love to show you how we've helped teams like yours {{key_benefit|move faster}}. It typically takes about 15 minutes and there's zero commitment.</p>
 
 <p>Would any time this week work for a quick call?</p>
 
@@ -70,16 +71,16 @@ const PRESET_EMAIL_TEMPLATES: Omit<EmailTemplate, 'id' | 'user_id' | 'created_at
   },
   {
     name: 'The Social Proof',
-    subject: 'How {{reference_company}} solved {{pain_point}}',
-    body_html: `<p>Hi {{first_name}},</p>
+    subject: 'How {{reference_company|a company much like yours}} solved {{pain_point|this}}',
+    body_html: `<p>Hi {{first_name|there}},</p>
 
 <p>I wanted to share a quick story that might resonate.</p>
 
-<p>{{reference_company}} was facing the exact same challenge — {{pain_point}}. Within {{timeframe}}, they were able to {{result_achieved}}.</p>
+<p>{{reference_company|a company much like yours}} was facing the exact same challenge — {{pain_point|this}}. Within {{timeframe|a quarter}}, they were able to {{result_achieved|see real results}}.</p>
 
 <p>Here's the interesting part: the fix was simpler than they expected.</p>
 
-<p>I think we could replicate something similar for {{company}}. Open to hearing how?</p>
+<p>I think we could replicate something similar for {{company|your company}}. Open to hearing how?</p>
 
 <p>{{sender_name}}</p>`,
     category: 'cold_outreach',
@@ -90,13 +91,13 @@ const PRESET_EMAIL_TEMPLATES: Omit<EmailTemplate, 'id' | 'user_id' | 'created_at
   {
     name: 'The Break-Up Email',
     subject: 'Closing the loop',
-    body_html: `<p>Hi {{first_name}},</p>
+    body_html: `<p>Hi {{first_name|there}},</p>
 
 <p>I've reached out a couple of times and haven't heard back — totally understand, you're busy.</p>
 
-<p>I'll take the hint and won't follow up again. But if {{pain_point}} ever becomes a priority, I'm just a reply away.</p>
+<p>I'll take the hint and won't follow up again. But if {{pain_point|this}} ever becomes a priority, I'm just a reply away.</p>
 
-<p>Wishing you and the {{company}} team all the best.</p>
+<p>Wishing you and the {{company|your company}} team all the best.</p>
 
 <p>{{sender_name}}</p>`,
     category: 'follow_up',
@@ -106,17 +107,17 @@ const PRESET_EMAIL_TEMPLATES: Omit<EmailTemplate, 'id' | 'user_id' | 'created_at
   },
   {
     name: 'The Meeting Request',
-    subject: '{{first_name}}, quick sync?',
-    body_html: `<p>Hi {{first_name}},</p>
+    subject: '{{first_name|there}}, quick sync?',
+    body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I have an idea that could help {{company}} {{key_benefit}} — but I'd rather show than tell.</p>
+<p>I have an idea that could help {{company|your company}} {{key_benefit|move faster}} — but I'd rather show than tell.</p>
 
 <p>Are you free for a quick 15-minute call this week? I promise to keep it focused and valuable.</p>
 
 <p>Here are a couple of times that work on my end:</p>
 <ul>
-  <li>{{time_slot_1}}</li>
-  <li>{{time_slot_2}}</li>
+  <li>{{time_slot_1|Tuesday afternoon}}</li>
+  <li>{{time_slot_2|Thursday morning}}</li>
 </ul>
 
 <p>If those don't work, feel free to suggest a time that does.</p>
@@ -129,12 +130,12 @@ const PRESET_EMAIL_TEMPLATES: Omit<EmailTemplate, 'id' | 'user_id' | 'created_at
   },
   {
     name: 'The Re-Engagement',
-    subject: 'It\'s been a while, {{first_name}}',
-    body_html: `<p>Hi {{first_name}},</p>
+    subject: 'It\'s been a while, {{first_name|there}}',
+    body_html: `<p>Hi {{first_name|there}},</p>
 
 <p>It's been a while since we last connected, and a lot has changed on our end.</p>
 
-<p>We've recently {{new_feature_or_update}} which I think would be really relevant for {{company}} given your focus on {{focus_area}}.</p>
+<p>We've recently {{new_feature_or_update|something new}} which I think would be really relevant for {{company|your company}} given your focus on {{focus_area|the year ahead}}.</p>
 
 <p>Would love to catch up and see if there's a fit now. Are you open to reconnecting?</p>
 
@@ -146,14 +147,14 @@ const PRESET_EMAIL_TEMPLATES: Omit<EmailTemplate, 'id' | 'user_id' | 'created_at
   },
   {
     name: 'The Warm Introduction',
-    subject: '{{mutual_connection}} suggested I reach out',
-    body_html: `<p>Hi {{first_name}},</p>
+    subject: '{{mutual_connection|Someone we both know}} suggested I reach out',
+    body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>{{mutual_connection}} mentioned you'd be the right person to talk to about {{topic}}.</p>
+<p>{{mutual_connection|Someone we both know}} mentioned you'd be the right person to talk to about {{topic|this}}.</p>
 
-<p>We've been helping companies in {{industry}} with {{value_proposition}}, and they thought there might be some synergy worth exploring.</p>
+<p>We've been helping companies in {{industry|your industry}} with {{value_proposition|grow faster}}, and they thought there might be some synergy worth exploring.</p>
 
-<p>Would you be open to a quick chat? I'd love to learn more about what you're working on at {{company}}.</p>
+<p>Would you be open to a quick chat? I'd love to learn more about what you're working on at {{company|your company}}.</p>
 
 <p>Thanks,<br>{{sender_name}}</p>`,
     category: 'introduction',
@@ -176,12 +177,12 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
     steps: [
       {
         step_order: 1,
-        subject: 'Quick question about {{company}}',
-        body_html: `<p>Hi {{first_name}},</p>
+        subject: 'Quick question about {{company|your company}}',
+        body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I came across {{company}} and was impressed by what you're building in {{industry}}.</p>
+<p>I came across {{company|your company}} and was impressed by what you're building in {{industry|your industry}}.</p>
 
-<p>We help companies like yours {{value_proposition}}, and I think there's a great fit here.</p>
+<p>We help companies like yours {{value_proposition|grow faster}}, and I think there's a great fit here.</p>
 
 <p>Would you be open to a quick 15-minute chat this week?</p>
 
@@ -191,12 +192,12 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 2,
-        subject: 'Re: Quick question about {{company}}',
-        body_html: `<p>Hi {{first_name}},</p>
+        subject: 'Re: Quick question about {{company|your company}}',
+        body_html: `<p>Hi {{first_name|there}},</p>
 
 <p>Just following up on my previous note. I know your inbox is probably packed.</p>
 
-<p>Here's why I think this is worth 15 minutes: we recently helped a company similar to {{company}} achieve {{result_achieved}}.</p>
+<p>Here's why I think this is worth 15 minutes: we recently helped a company similar to {{company|your company}} achieve {{result_achieved|see real results}}.</p>
 
 <p>Happy to share the details if you're curious.</p>
 
@@ -206,14 +207,14 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 3,
-        subject: 'Closing the loop, {{first_name}}',
-        body_html: `<p>Hi {{first_name}},</p>
+        subject: 'Closing the loop, {{first_name|there}}',
+        body_html: `<p>Hi {{first_name|there}},</p>
 
 <p>I'll keep this short — I've reached out a couple of times and don't want to be a pest.</p>
 
-<p>If the timing isn't right, no worries at all. But if {{pain_point}} ever becomes a priority, I'm just a reply away.</p>
+<p>If the timing isn't right, no worries at all. But if {{pain_point|this}} ever becomes a priority, I'm just a reply away.</p>
 
-<p>All the best to you and the team at {{company}}.</p>
+<p>All the best to you and the team at {{company|your company}}.</p>
 
 <p>{{sender_name}}</p>`,
         delay_days: 5,
@@ -231,12 +232,12 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
     steps: [
       {
         step_order: 1,
-        subject: 'Idea for {{company}}',
-        body_html: `<p>Hi {{first_name}},</p>
+        subject: 'Idea for {{company|your company}}',
+        body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I've been following {{company}}'s growth and had an idea I think could help you {{key_benefit}}.</p>
+<p>I've been following {{company|your company}}'s growth and had an idea I think could help you {{key_benefit|move faster}}.</p>
 
-<p>We specialize in {{value_proposition}} and have helped similar companies in {{industry}} see real results.</p>
+<p>We specialize in {{value_proposition|grow faster}} and have helped similar companies in {{industry|your industry}} see real results.</p>
 
 <p>Worth a quick conversation?</p>
 
@@ -246,12 +247,12 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 2,
-        subject: 'Re: Idea for {{company}}',
-        body_html: `<p>Hi {{first_name}},</p>
+        subject: 'Re: Idea for {{company|your company}}',
+        body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>Wanted to share something specific — {{reference_company}} was in a similar position to {{company}} not long ago.</p>
+<p>Wanted to share something specific — {{reference_company|a company much like yours}} was in a similar position to {{company|your company}} not long ago.</p>
 
-<p>They were struggling with {{pain_point}}, and within {{timeframe}} of working together, they {{result_achieved}}.</p>
+<p>They were struggling with {{pain_point|this}}, and within {{timeframe|a quarter}} of working together, they {{result_achieved|see real results}}.</p>
 
 <p>I'd love to show you how we could do the same for your team.</p>
 
@@ -261,12 +262,12 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 3,
-        subject: 'Quick thought, {{first_name}}',
-        body_html: `<p>Hi {{first_name}},</p>
+        subject: 'Quick thought, {{first_name|there}}',
+        body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>One thing I keep hearing from {{industry}} leaders is that {{common_challenge}} is eating into their growth.</p>
+<p>One thing I keep hearing from {{industry|your industry}} leaders is that {{common_challenge|a slow pipeline}} is eating into their growth.</p>
 
-<p>Is that something you're experiencing at {{company}} too, or have you found a way around it?</p>
+<p>Is that something you're experiencing at {{company|your company}} too, or have you found a way around it?</p>
 
 <p>Genuinely curious to hear your perspective.</p>
 
@@ -276,12 +277,12 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 4,
-        subject: '{{first_name}}, one more thing',
-        body_html: `<p>Hi {{first_name}},</p>
+        subject: '{{first_name|there}}, one more thing',
+        body_html: `<p>Hi {{first_name|there}},</p>
 
 <p>I realize I might be catching you at a busy time, so I'll keep this brief.</p>
 
-<p>If there's someone else on your team who handles {{topic}}, I'd be happy to connect with them instead. Just point me in the right direction.</p>
+<p>If there's someone else on your team who handles {{topic|this}}, I'd be happy to connect with them instead. Just point me in the right direction.</p>
 
 <p>Either way, I appreciate your time.</p>
 
@@ -292,11 +293,11 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       {
         step_order: 5,
         subject: 'Last note from me',
-        body_html: `<p>Hi {{first_name}},</p>
+        body_html: `<p>Hi {{first_name|there}},</p>
 
 <p>This will be my last email — I don't want to overstay my welcome in your inbox.</p>
 
-<p>If there's ever a time when {{value_proposition}} becomes a priority for {{company}}, my door is always open.</p>
+<p>If there's ever a time when {{value_proposition|grow faster}} becomes a priority for {{company|your company}}, my door is always open.</p>
 
 <p>Wishing you and the team continued success.</p>
 
@@ -316,10 +317,10 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
     steps: [
       {
         step_order: 1,
-        subject: '{{first_name}}, 15 minutes?',
-        body_html: `<p>Hi {{first_name}},</p>
+        subject: '{{first_name|there}}, 15 minutes?',
+        body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I have something I think could genuinely help {{company}} — but I'd rather show than tell.</p>
+<p>I have something I think could genuinely help {{company|your company}} — but I'd rather show than tell.</p>
 
 <p>Would you be open to a quick 15-minute call? I promise to keep it focused.</p>
 
@@ -331,15 +332,15 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 2,
-        subject: 'Re: {{first_name}}, 15 minutes?',
-        body_html: `<p>Hi {{first_name}},</p>
+        subject: 'Re: {{first_name|there}}, 15 minutes?',
+        body_html: `<p>Hi {{first_name|there}},</p>
 
 <p>Following up — I know scheduling can be tricky.</p>
 
 <p>Here are a couple of specific times that work on my end:</p>
 <ul>
-  <li>{{time_slot_1}}</li>
-  <li>{{time_slot_2}}</li>
+  <li>{{time_slot_1|Tuesday afternoon}}</li>
+  <li>{{time_slot_2|Thursday morning}}</li>
 </ul>
 
 <p>If those don't work, feel free to grab any time that suits you. What matters is finding 15 minutes that work for both of us.</p>
@@ -350,10 +351,10 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 3,
-        subject: 'Last shot — {{company}} + {{sender_company}}',
-        body_html: `<p>Hi {{first_name}},</p>
+        subject: 'Last shot — {{company|your company}} + {{sender_company}}',
+        body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I'll be brief: I genuinely believe there's a compelling opportunity for {{company}} here.</p>
+<p>I'll be brief: I genuinely believe there's a compelling opportunity for {{company|your company}} here.</p>
 
 <p>If now isn't the right time, just say the word and I'll follow up in a few months instead.</p>
 
@@ -375,14 +376,14 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
     steps: [
       {
         step_order: 1,
-        subject: 'Thought you\'d find this useful, {{first_name}}',
-        body_html: `<p>Hi {{first_name}},</p>
+        subject: 'Thought you\'d find this useful, {{first_name|there}}',
+        body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I came across this {{resource_type}} on {{topic}} and immediately thought of you and the work you're doing at {{company}}.</p>
+<p>I came across this {{resource_type|guide}} on {{topic|this}} and immediately thought of you and the work you're doing at {{company|your company}}.</p>
 
-<p>Here's the key takeaway: {{insight}}</p>
+<p>Here's the key takeaway: {{insight|the fundamentals still win}}</p>
 
-<p>Thought it might be helpful as you think about {{focus_area}}. No strings attached — just sharing something valuable.</p>
+<p>Thought it might be helpful as you think about {{focus_area|the year ahead}}. No strings attached — just sharing something valuable.</p>
 
 <p>{{sender_name}}</p>`,
         delay_days: 0,
@@ -390,12 +391,12 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 2,
-        subject: '{{industry}} trend worth watching',
-        body_html: `<p>Hi {{first_name}},</p>
+        subject: '{{industry|your industry}} trend worth watching',
+        body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>Quick heads up — we're seeing a major shift in how {{industry}} companies are approaching {{topic}}.</p>
+<p>Quick heads up — we're seeing a major shift in how {{industry|your industry}} companies are approaching {{topic|this}}.</p>
 
-<p>The companies getting ahead are {{trend_insight}}. Figured this would be on your radar at {{company}}.</p>
+<p>The companies getting ahead are {{trend_insight|the shift is accelerating}}. Figured this would be on your radar at {{company|your company}}.</p>
 
 <p>Happy to chat about what we're seeing if it's useful.</p>
 
@@ -405,12 +406,12 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 3,
-        subject: 'Quick win for {{company}}',
-        body_html: `<p>Hi {{first_name}},</p>
+        subject: 'Quick win for {{company|your company}}',
+        body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>One thing we've noticed working with teams like yours: {{quick_win_insight}}.</p>
+<p>One thing we've noticed working with teams like yours: {{quick_win_insight|small changes compound quickly}}.</p>
 
-<p>It's a small change that tends to have an outsized impact. Thought it might be worth trying at {{company}}.</p>
+<p>It's a small change that tends to have an outsized impact. Thought it might be worth trying at {{company|your company}}.</p>
 
 <p>Let me know if you'd like to dig deeper into this.</p>
 
@@ -420,10 +421,10 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 4,
-        subject: 'Checking in, {{first_name}}',
-        body_html: `<p>Hi {{first_name}},</p>
+        subject: 'Checking in, {{first_name|there}}',
+        body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>It's been a few weeks since I last reached out. Hope things are going well at {{company}}.</p>
+<p>It's been a few weeks since I last reached out. Hope things are going well at {{company|your company}}.</p>
 
 <p>I wanted to check in and see if any of the things I shared were helpful, or if there's anything specific I can help with.</p>
 
@@ -438,6 +439,14 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
 ];
 
 // ─── Service ────────────────────────────────────────────────────────
+
+/**
+ * `is_preset` and `usage_count` are the platform's to set — a template that
+ * could mark itself a built-in preset would appear in every account's starter
+ * library, and a self-incremented usage count would sort itself to the top.
+ */
+const EMAIL_TEMPLATE_FIELDS = ['name', 'subject', 'body_html', 'body_text', 'category', 'tags'] as const;
+const SEQUENCE_TEMPLATE_FIELDS = ['name', 'description', 'category', 'steps', 'tags'] as const;
 
 export const templateService = {
   // Email Templates
@@ -487,7 +496,7 @@ export const templateService = {
   async updateEmailTemplate(userId: string, id: string, input: UpdateEmailTemplateInput) {
     const { data, error } = await supabaseAdmin
       .from('email_templates')
-      .update({ ...input, updated_at: new Date().toISOString() })
+      .update({ ...writable(input, EMAIL_TEMPLATE_FIELDS), updated_at: new Date().toISOString() })
       .eq('id', id)
       .eq('user_id', userId)
       .select()
@@ -582,7 +591,7 @@ export const templateService = {
   async updateSequenceTemplate(userId: string, id: string, input: UpdateSequenceTemplateInput) {
     const { data, error } = await supabaseAdmin
       .from('sequence_templates')
-      .update({ ...input, updated_at: new Date().toISOString() })
+      .update({ ...writable(input, SEQUENCE_TEMPLATE_FIELDS), updated_at: new Date().toISOString() })
       .eq('id', id)
       .eq('user_id', userId)
       .select()

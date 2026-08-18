@@ -1,5 +1,8 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { writable } from '../utils/writable-fields.js';
+
+const TAG_FIELDS = ['name', 'color'] as const;
 
 export const tagsService = {
   async list(userId: string) {
@@ -30,7 +33,7 @@ export const tagsService = {
   async update(userId: string, id: string, input: { name?: string; color?: string }) {
     const { data, error } = await supabaseAdmin
       .from('tags')
-      .update(input)
+      .update(writable(input, TAG_FIELDS))
       .eq('id', id)
       .eq('user_id', userId)
       .select()

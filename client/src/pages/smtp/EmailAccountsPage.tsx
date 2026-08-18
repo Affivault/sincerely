@@ -7,13 +7,14 @@ import { SkeletonList } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { Card } from '../../components/shared/Card';
 import { cn } from '../../lib/utils';
 import {
   Mail, Plus, Trash2, TestTube, CheckCircle2, XCircle, HelpCircle,
   ArrowRight, Settings, Globe, Search, Flame, ShieldCheck, ShieldAlert,
-  ChevronDown, ChevronRight, AlertTriangle, RefreshCw,
+  ChevronDown, ChevronRight, AlertTriangle, RefreshCw, Gauge,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { SmtpAccount, SmtpPreset, SendingDomain } from '@lemlist/shared';
@@ -21,6 +22,8 @@ import { SMTP_PRESETS, warmupAllowance, formatDailyLimit } from '@lemlist/shared
 import { SmtpAccountModal } from './SmtpAccountModal';
 import { WarmupPanel } from './WarmupPanel';
 import { StatusBadge, DomainDetailPanel } from '../domains/DomainsPage';
+import { TrackingDomainPanel } from '../../components/domains/TrackingDomainPanel';
+import { ReadinessPanel } from '../../components/delivery/ReadinessPanel';
 
 /* ─── Quick-connect providers ─────────────────────── */
 interface QuickConnectProvider { preset: SmtpPreset; icon: React.ReactNode; description: string; }
@@ -153,10 +156,11 @@ function SetupProgress({
 }
 
 /* ─── Page ───────────────────────────────────────────── */
-type Tab = 'mailboxes' | 'domains' | 'warmup';
-const VALID_TABS: Tab[] = ['mailboxes', 'domains', 'warmup'];
+type Tab = 'readiness' | 'mailboxes' | 'domains' | 'warmup';
+const VALID_TABS: Tab[] = ['readiness', 'mailboxes', 'domains', 'warmup'];
 
 export function EmailAccountsPage() {
+  const confirm = useConfirm();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   // Lets other pages (e.g. the Toolkit's Warm-up card) link straight to a
@@ -181,12 +185,15 @@ export function EmailAccountsPage() {
   const list = accounts || [];
 
   // Fresh accounts start on the Domains tab — authenticating the domain is
-  // step one of the deliverability flow. Decided once, when data first lands.
-  const pickedInitialTab = useRef(false);
+  // step one of the deliverability flow. Everyone else lands on Readiness,
+  // because "am I safe to send?" is the question this page exists to answer
+  // and it was previously spread across all three of the others. Decided
+  // once, when data first lands, and never against an explicit ?tab=.
+  const pickedInitialTab = useRef(searchParams.get('tab') !== null);
   useEffect(() => {
     if (pickedInitialTab.current || isLoading || loadingDomains) return;
     pickedInitialTab.current = true;
-    if (list.length === 0 && domains.length === 0) setTab('domains');
+    setTab(list.length === 0 && domains.length === 0 ? 'domains' : 'readiness');
   }, [isLoading, loadingDomains, list.length, domains.length]);
 
   const openAdd = () => { setEditAccount(null); setInitialPreset(null); setModalOpen(true); };
@@ -250,6 +257,7 @@ export function EmailAccountsPage() {
   const stepTab: Tab[] = ['domains', 'mailboxes', 'warmup'];
 
   const tabs: { id: Tab; label: string; icon: React.ElementType; count?: number; alert?: boolean }[] = [
+    { id: 'readiness', label: 'Readiness', icon: Gauge },
     { id: 'mailboxes', label: 'Mailboxes', icon: Mail, count: list.length },
     { id: 'domains', label: 'Domains', icon: Globe, count: domains.length, alert: domains.length > 0 && authedDomains < domains.length },
     { id: 'warmup', label: 'Warm-up', icon: Flame, count: warmingCount },
@@ -354,6 +362,9 @@ export function EmailAccountsPage() {
         })}
       </div>
 
+      {/* ── Readiness tab ── */}
+      {tab === 'readiness' && <ReadinessPanel />}
+
       {/* ── Mailboxes tab ── */}
       {tab === 'mailboxes' && (
         list.length === 0 ? (
@@ -452,7 +463,14 @@ export function EmailAccountsPage() {
                           <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                             <button onClick={() => testMutation.mutate(account.id)} disabled={testingId === account.id} className="icon-btn h-7 px-2 text-[11.5px]" title="Test connection"><TestTube className="h-3 w-3" /> {testingId === account.id ? 'Testing…' : 'Test'}</button>
                             <button onClick={() => openEdit(account)} className="icon-btn h-7 w-7" title="Edit"><Settings className="h-3 w-3" /></button>
-                            <button onClick={() => { if (confirm(`Remove ${account.email_address}?`)) deleteMutation.mutate(account.id); }} className="icon-btn h-7 w-7 hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]" title="Remove"><Trash2 className="h-3 w-3" /></button>
+                            <button
+                              onClick={() => confirm(
+                                { title: `Disconnect ${account.email_address}?`, body: 'Campaigns sending from this mailbox will stop until you connect it again.', tone: 'danger', confirmLabel: 'Disconnect' },
+                                () => deleteMutation.mutate(account.id),
+                              )}
+                              className="icon-btn h-7 w-7 hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
+                              title="Remove"
+                            ><Trash2 className="h-3 w-3" /></button>
                           </div>
                         </td>
                       </tr>
@@ -467,6 +485,15 @@ export function EmailAccountsPage() {
       )}
 
       {/* ── Domains tab ── */}
+      {tab === 'domains' && (
+        <div className="mb-4">
+          {/* Sits with the sending domains because it is the same job — which
+              domains vouch for this email — even though this one is about the
+              links inside rather than the address it came from. */}
+          <TrackingDomainPanel />
+        </div>
+      )}
+
       {tab === 'domains' && (
         domains.length === 0 ? (
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center">
@@ -510,7 +537,16 @@ export function EmailAccountsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <button onClick={(e) => { e.stopPropagation(); if (confirm(`Remove ${domain.domain}?`)) deleteDomainMutation.mutate(domain.id); }} className="icon-btn h-7 w-7 hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"><Trash2 className="h-3 w-3" /></button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          confirm(
+                            { title: `Remove ${domain.domain}?`, body: 'Sincerely stops tracking its DNS records. The records themselves stay at your registrar.', tone: 'danger', confirmLabel: 'Remove' },
+                            () => deleteDomainMutation.mutate(domain.id),
+                          );
+                        }}
+                        className="icon-btn h-7 w-7 hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
+                      ><Trash2 className="h-3 w-3" /></button>
                       {expanded ? <ChevronDown className="h-4 w-4 text-[var(--text-tertiary)]" /> : <ChevronRight className="h-4 w-4 text-[var(--text-tertiary)]" />}
                     </div>
                   </button>

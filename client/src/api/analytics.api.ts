@@ -1,7 +1,7 @@
 import { apiClient } from './client';
-import type { CampaignAnalytics, OverviewAnalytics, ContactActivityItem } from '@lemlist/shared';
+import type { CampaignAnalytics, OverviewAnalytics, ContactActivityItem, SequencePerformance } from '@lemlist/shared';
 
-export type { OverviewAnalytics };
+export type { OverviewAnalytics, SequencePerformance };
 
 export interface TrendDataPoint {
   date: string;
@@ -61,8 +61,14 @@ export interface AbTestStep {
   subject_b: string;
   variant_a: AbVariantStats;
   variant_b: AbVariantStats;
+  /** Ahead *and* unlikely to be chance — the one worth acting on. */
   winner: 'a' | 'b' | null;
+  /** Simply ahead. Shown, but never promoted on. */
+  leading: 'a' | 'b' | null;
   significant: boolean;
+  /** Two-sided p-value from a two-proportion z-test on open rate. */
+  p_value: number | null;
+  has_enough_data: boolean;
   min_sample: number;
 }
 
@@ -134,6 +140,12 @@ export const analyticsApi = {
 
   campaignFunnel: async (campaignId: string) => {
     const { data } = await apiClient.get<FunnelStep[]>(`/analytics/campaigns/${campaignId}/funnel`);
+    return data;
+  },
+
+  /** Which step earns the replies, and where the sequence stops paying. */
+  sequenceSteps: async (campaignId: string) => {
+    const { data } = await apiClient.get<SequencePerformance>(`/analytics/campaigns/${campaignId}/steps`);
     return data;
   },
 

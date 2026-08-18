@@ -17,3 +17,29 @@
 - Always squash-merge into `main`
 - PR title should summarise the day's work concisely
 - PR body should include a table of bugs fixed and a description of the improvement
+
+## Delivering migrations — NON-NEGOTIABLE
+
+Whenever a change adds or alters a SQL migration, **paste the complete file
+into the chat**, in a copy-and-paste-ready block, without being asked.
+
+- Every migration, every time. If three migrations are pending, send all three,
+  in the order they must be run.
+- Never point at a path in the repo instead ("it's in `supabase/migrations/`").
+  The user runs these by pasting into the Supabase SQL editor and does not read
+  them out of the repo.
+- Never abbreviate, truncate, or summarise one because it is long. Length is
+  not a reason to omit it.
+- Pure ASCII — no em dashes or box-drawing characters, which do not survive
+  every clipboard.
+- No `BEGIN`/`COMMIT`: the Supabase SQL editor wraps a pasted script in its own
+  transaction, and an explicit `BEGIN` prints "there is already a transaction
+  in progress", which reads as a failure.
+- State the run order explicitly when more than one is pending, and call out any
+  dependency between them.
+
+## Delivering the browser extension
+
+Send updated builds as **zip files** in the chat. Do not send git instructions,
+GitHub Desktop steps, or "pull the latest" — zips, every time.
+

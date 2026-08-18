@@ -113,6 +113,38 @@ async function refreshBadge() {
  */
 const standingCache = new Map();
 const STANDING_TTL_MS = 5 * 60_000;
+/** A failure is remembered too, but only long enough to stop a request storm. */
+const FAILED_STANDING_TTL_MS = 30_000;
+
+/** List memberships for a whole page, memoised — see membershipCounts(). */
+const MEMBERSHIP_TTL_MS = 60_000;
+let membershipCache = null;
+
+/**
+ * Contact searches by surname, memoised.
+ *
+ * Checking a LinkedIn results page costs one search per distinct surname on
+ * it, which is most of the page — and scrolling back over people already
+ * checked repeated every one of them. The answer only changes when a contact
+ * is created or edited, and everything that does either already invalidates
+ * the standing cache.
+ */
+const SEARCH_TTL_MS = 60_000;
+const searchCache = new Map();
+
+async function searchContactsCached(surname) {
+  const key = String(surname || '').trim().toLowerCase();
+  if (!key) return [];
+  const hit = searchCache.get(key);
+  if (hit && Date.now() - hit.at < SEARCH_TTL_MS) return hit.results;
+
+  const results = await api.searchContacts(surname, 25).catch(() => null);
+  // A failed search is not an answer, and caching it would report people as
+  // unknown for a minute because one request went wrong.
+  if (results === null) return [];
+  searchCache.set(key, { results, at: Date.now() });
+  return results;
+}
 
 /**
  * Drop the cache after anything that changes a membership. The cache exists to
@@ -121,6 +153,45 @@ const STANDING_TTL_MS = 5 * 60_000;
  */
 function invalidateStandingCache() {
   standingCache.clear();
+  // Memberships and name searches are the other halves of the same answer, and
+  // every writer that calls this has just changed one of them.
+  membershipCache = null;
+  searchCache.clear();
+}
+
+/**
+ * How many lead lists each contact is on, for a whole page at a time.
+ *
+ * One read of the lists plus one of each list's members. That is a handful of
+ * requests rather than two per person — but it is a handful *per scroll*, and
+ * on an account with twenty lists that is twenty-one requests every time a
+ * LinkedIn results page comes into view, against a budget of a hundred a
+ * minute. Scrolling a search page was spending most of it on an answer that
+ * had not changed.
+ *
+ * So it is memoised for a short while, and dropped by the same invalidation
+ * that clears the standing cache — every write that could change a membership
+ * already calls it.
+ */
+async function membershipCounts() {
+  if (membershipCache && Date.now() - membershipCache.at < MEMBERSHIP_TTL_MS) {
+    return membershipCache.counts;
+  }
+
+  const lists = await api.listLists().catch(() => []);
+  /** @type {Map<string, number>} contact id → how many lists they're on */
+  const counts = new Map();
+  let complete = true;
+  for (const list of lists) {
+    const ids = await api.listContactIds(list.id).catch(() => null);
+    if (ids === null) { complete = false; continue; }
+    for (const id of ids) counts.set(id, (counts.get(id) || 0) + 1);
+  }
+
+  // A partial read is worth using once and not worth remembering: caching it
+  // would keep reporting people as being on fewer lists than they are.
+  if (complete) membershipCache = { counts, at: Date.now() };
+  return counts;
 }
 
 /** Only sites with a declared content script can be badged without a click. */
@@ -154,7 +225,18 @@ async function standingFor(email) {
     standingCache.set(email, { value, at: Date.now() });
     return value;
   } catch {
-    // A failed lookup should leave the badge blank, not show a wrong number.
+    /*
+     * A failed lookup leaves the badge blank rather than showing a wrong
+     * number — but it is also remembered, briefly.
+     *
+     * It used not to be, and the one thing that reliably makes this fail is
+     * the rate limit. So the cache that exists to protect the budget stopped
+     * working at exactly the moment the budget was under pressure: every
+     * profile the user scrolled past spent up to three more requests on a
+     * question that had already failed, holding the window shut. Remembering
+     * the failure for a short while is what breaks that loop.
+     */
+    standingCache.set(email, { value: null, at: Date.now() - STANDING_TTL_MS + FAILED_STANDING_TTL_MS });
     return null;
   }
 }
@@ -342,7 +424,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 
   if (info.menuItemId === MENU_SUPPRESS) {
-    const result = await handleSuppress({ email: person.email, removeFromActive: true });
+    const result = await handleSuppress({ email: person.email, removeFromLists: true });
     if (result.ok) {
       notify('Suppressed', `${person.email} will not be emailed again${result.data.removedFrom ? `, and was taken off ${result.data.removedFrom} list(s)` : ''}.`);
     } else {
@@ -788,6 +870,9 @@ async function handleAddToList(payload) {
         const tag = await api.ensureTag(settings.autoTagName);
         await api.tagContacts([contact.id], [tag.id]);
       } catch (tagErr) {
+        // The remembered tag id is the likeliest thing to have gone stale
+        // (deleted in the web app), so drop it and let the next add re-resolve.
+        api.invalidateTagCache();
         console.warn('[Sincerely] Could not tag contact:', tagErr?.message);
       }
     }
@@ -884,11 +969,9 @@ async function handleCheckKnown(payload) {
     /** @type {object[]} */
     const pool = [];
     for (const surname of surnames) {
-      try {
-        pool.push(...(await api.searchContacts(surname, 25)));
-      } catch {
-        // Partial knowledge is still useful; carry on with what we have.
-      }
+      // Memoised: scrolling back over people already checked used to repeat
+      // every one of these searches, and they are most of what a page costs.
+      pool.push(...(await searchContactsCached(surname)));
     }
 
     /*
@@ -905,13 +988,7 @@ async function handleCheckKnown(payload) {
      * Now it is one read of the lists plus one read of each list's members —
      * a handful of requests regardless of how many people are on screen.
      */
-    const lists = await api.listLists().catch(() => []);
-    /** @type {Map<string, number>} contact id → how many lists they're on */
-    const listCounts = new Map();
-    for (const list of lists) {
-      const ids = await api.listContactIds(list.id).catch(() => new Set());
-      for (const id of ids) listCounts.set(id, (listCounts.get(id) || 0) + 1);
-    }
+    const listCounts = await membershipCounts();
 
     const suppression = await api
       .listSuppressed()
@@ -976,7 +1053,7 @@ async function handleBulkAddProfiles(payload) {
     /** @type {object[]} */
     const pool = [];
     for (const surname of surnames) {
-      pool.push(...(await api.searchContacts(surname, 25).catch(() => [])));
+      pool.push(...(await searchContactsCached(surname)));
     }
 
     /** @type {string[]} */
@@ -1027,11 +1104,22 @@ async function handleBulkAddProfiles(payload) {
       );
     }
 
+    /*
+     * De-duplicated before counting. Two selected rows can resolve to the same
+     * contact — the same person listed twice, or two reveals returning one
+     * address — and the id then went in twice, which double-counted them in
+     * both "added" and "already on the list" and made the totals disagree with
+     * the number of people ticked.
+     */
+    const uniqueIds = [...new Set(contactIds)];
+
     // Who was on it already, so the result can distinguish new from repeat:
     // the server upserts and counts both as a success.
-    const before = await api.listContactIds(listId).catch(() => new Set());
-    const result = await api.addToList(listId, contactIds);
-    const alreadyOnList = contactIds.filter((id) => before.has(id)).length;
+    const before = await api.listContactIds(listId).catch(() => null);
+    const result = await api.addToList(listId, uniqueIds);
+    // null means the read failed, which is not the same as "nobody was on it".
+    // Counting it as the latter reported every repeat as a fresh add.
+    const alreadyOnList = before ? uniqueIds.filter((id) => before.has(id)).length : null;
     await setSettings({ lastListId: listId });
     invalidateStandingCache();
 
@@ -1039,8 +1127,11 @@ async function handleBulkAddProfiles(payload) {
     if (settings.autoTag && settings.autoTagName) {
       try {
         const tag = await api.ensureTag(settings.autoTagName);
-        await api.tagContacts(contactIds, [tag.id]);
+        await api.tagContacts(uniqueIds, [tag.id]);
       } catch (tagErr) {
+        // The remembered tag id is the likeliest thing to have gone stale
+        // (deleted in the web app), so drop it and let the next add re-resolve.
+        api.invalidateTagCache();
         console.warn('[Sincerely] Could not tag added profiles:', tagErr?.message);
       }
     }
@@ -1049,7 +1140,12 @@ async function handleBulkAddProfiles(payload) {
       ok: true,
       data: {
         requested: people.length,
-        added: Math.max(0, (result?.success ?? 0) - alreadyOnList),
+        // With no "before" read there is no honest split between new and
+        // repeat, so report the total and let the UI say so rather than
+        // inventing a breakdown.
+        added: alreadyOnList === null
+          ? (result?.success ?? 0)
+          : Math.max(0, (result?.success ?? 0) - alreadyOnList),
         alreadyOnList,
         failed: result?.failed ?? 0,
         revealed,
@@ -1323,14 +1419,19 @@ async function handleBulkAdd(payload) {
       }
     }
 
-    const contactIds = emails.map((e) => known.get(e)?.id).filter(Boolean);
+    // Deduplicated: a pasted list routinely repeats an address, and two of
+    // them resolving to one contact sent the same id twice — double-counted
+    // in both totals, so the numbers disagreed with what was pasted.
+    const contactIds = [...new Set(emails.map((e) => known.get(e)?.id).filter(Boolean))];
     if (contactIds.length === 0) {
       throw new ApiError('None of these addresses could be turned into contacts.', { code: 'NO_CONTACTS' });
     }
 
-    const before = await api.listContactIds(listId).catch(() => new Set());
+    // null means the read failed, which is not "nobody was on the list" —
+    // treating it as that reported every repeat as a fresh add.
+    const before = await api.listContactIds(listId).catch(() => null);
     const result = await api.addToList(listId, contactIds);
-    const alreadyOnList = contactIds.filter((id) => before.has(id)).length;
+    const alreadyOnList = before ? contactIds.filter((id) => before.has(id)).length : null;
     await setSettings({ lastListId: listId });
     invalidateStandingCache();
 
@@ -1340,6 +1441,9 @@ async function handleBulkAdd(payload) {
         const tag = await api.ensureTag(settings.autoTagName);
         await api.tagContacts(contactIds, [tag.id]);
       } catch (tagErr) {
+        // The remembered tag id is the likeliest thing to have gone stale
+        // (deleted in the web app), so drop it and let the next add re-resolve.
+        api.invalidateTagCache();
         console.warn('[Sincerely] Could not tag bulk contacts:', tagErr?.message);
       }
     }
@@ -1352,7 +1456,9 @@ async function handleBulkAdd(payload) {
       data: {
         requested: emails.length,
         created,
-        added: Math.max(0, (result?.success ?? 0) - alreadyOnList),
+        added: alreadyOnList === null
+          ? (result?.success ?? 0)
+          : Math.max(0, (result?.success ?? 0) - alreadyOnList),
         alreadyOnList,
         failed: result?.failed ?? 0,
         listId,
@@ -1385,6 +1491,11 @@ async function handleRemoveFromList(payload) {
  * back. Suppression is what actually sticks, so this does both — suppress the
  * address account-wide, then take them off every lead list they're on, so no
  * campaign drawing from those lists picks them up again.
+ *
+ * `removeFromLists` is the name the handler reads. Both callers used to send
+ * `removeFromActive`, which nothing looked at — the default happened to be the
+ * same thing, so it worked, and would have silently ignored anyone who set it
+ * to false meaning to leave the person on their lists.
  *
  * @param {{email: string, contactId?: string, removeFromLists?: boolean}} payload
  */
@@ -1654,10 +1765,25 @@ async function mintKeyFromPage(keyName, configuredBase) {
   /** @type {string[]} */
   const bases = [];
 
-  /** Reduce any URL that contains an /api/v<N> root down to that root. */
+  /**
+   * Reduce any URL that contains an /api/v<N> root down to that root.
+   *
+   * Relative values are resolved against this page first: an app whose API is
+   * proxied under its own origin publishes "/api/v1", which is correct for the
+   * app and unusable to anything outside it. Skipping those was throwing away
+   * the one candidate that is stated rather than guessed.
+   */
   const push = (raw) => {
-    if (typeof raw !== 'string') return;
-    const match = raw.match(/^https?:\/\/[^/]+(?:\/[^?#]*?)?\/api\/v\d+/i);
+    if (typeof raw !== 'string' || !raw) return;
+    let absolute = raw;
+    if (!/^https?:\/\//i.test(raw)) {
+      try {
+        absolute = new URL(raw, window.location.origin).href;
+      } catch {
+        return;
+      }
+    }
+    const match = absolute.match(/^https?:\/\/[^/]+(?:\/[^?#]*?)?\/api\/v\d+/i);
     if (match && !bases.includes(match[0])) bases.push(match[0]);
   };
 
@@ -1836,14 +1962,36 @@ async function handleConnectApply(payload) {
 
     /** @type {Record<string, string>} */
     const patch = { apiKey };
+    const appOrigin = /^https?:\/\//i.test(String(payload.appUrl || ''))
+      ? String(payload.appUrl).replace(/\/+$/, '')
+      : null;
+    if (appOrigin) patch.appUrl = appOrigin;
+
     // Only override the API URL when the app actually sent one; normalising an
     // empty string would silently reset a working self-hosted setup to the
     // default host.
-    if (/^https?:\/\//i.test(String(payload.apiBaseUrl || ''))) {
-      patch.apiBaseUrl = normaliseBaseUrl(payload.apiBaseUrl);
-    }
-    if (/^https?:\/\//i.test(String(payload.appUrl || ''))) {
-      patch.appUrl = String(payload.appUrl).replace(/\/+$/, '');
+    //
+    // A relative address ("/api/v1") is an ordinary value for an app whose API
+    // is proxied under its own origin, and it used to be dropped here without a
+    // word — leaving the extension on its built-in default host while the
+    // handshake reported success, so the key was valid and every call after it
+    // went to the wrong server. The app's own origin is the correct base to
+    // resolve it against, and it is right there in the same message.
+    const sentBase = String(payload.apiBaseUrl || '');
+    if (sentBase) {
+      const resolved = /^https?:\/\//i.test(sentBase)
+        ? sentBase
+        : appOrigin
+          ? new URL(sentBase, appOrigin).href
+          : null;
+      if (!resolved) {
+        throw new ApiError(
+          `This app reported its API as "${sentBase}", which is not an address the extension can reach. ` +
+            'Set VITE_API_URL to a full URL on your deployment, or paste the API URL by hand in the extension settings.',
+          { code: 'BAD_API_URL' }
+        );
+      }
+      patch.apiBaseUrl = normaliseBaseUrl(resolved);
     }
 
     const settings = await setSettings(patch);
@@ -1982,28 +2130,68 @@ async function agentPerform(action) {
     return { ok: false, reason: `Could not open the profile: ${err?.message || err}` };
   }
 
+  /** Set once, by whichever of the three paths below gets there first. */
+  let onUpdated = null;
+  let timer = null;
+  const done = (settle) => (value) => {
+    if (timer) clearTimeout(timer);
+    if (onUpdated) chrome.tabs.onUpdated.removeListener(onUpdated);
+    onUpdated = null;
+    settle(value);
+  };
+
   try {
     return await new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        chrome.tabs.onUpdated.removeListener(onUpdated);
-        resolve({ ok: false, reason: 'Timed out waiting for LinkedIn' });
-      }, AGENT_ACT_TIMEOUT_MS);
+      /*
+       * The listener is removed on every exit, not only on the one where the
+       * page loaded. It used to be taken off inside the handler, so a profile
+       * that never finished loading left it registered for the life of the
+       * worker — holding a closure over a tab that had already been closed,
+       * and running on every tab update in the browser. One leak per timed-out
+       * action, unbounded.
+       */
+      const finish = done(resolve);
+      timer = setTimeout(() => finish({ ok: false, reason: 'Timed out waiting for LinkedIn' }), AGENT_ACT_TIMEOUT_MS);
 
-      const onUpdated = async (tabId, info) => {
-        if (tabId !== tab.id || info.status !== 'complete') return;
-        chrome.tabs.onUpdated.removeListener(onUpdated);
+      /*
+       * Exactly once. Two paths can reach it — the load event and the
+       * already-loaded check — and acting twice would send a second connection
+       * request to the same person, which is precisely the behaviour that gets
+       * an account restricted.
+       */
+      let dispatched = false;
+      const dispatch = async () => {
+        if (dispatched) return;
+        dispatched = true;
         try {
           const reply = await chrome.tabs.sendMessage(tab.id, { type: 'AGENT_ACT', action });
-          clearTimeout(timer);
-          resolve(reply || { ok: false, reason: 'No answer from the page' });
+          finish(reply || { ok: false, reason: 'No answer from the page' });
         } catch (err) {
-          clearTimeout(timer);
-          resolve({ ok: false, reason: `Page script unavailable: ${err?.message || err}` });
+          finish({ ok: false, reason: `Page script unavailable: ${err?.message || err}` });
         }
       };
+
+      onUpdated = (tabId, info) => {
+        if (tabId !== tab.id || info.status !== 'complete') return;
+        dispatch();
+      };
       chrome.tabs.onUpdated.addListener(onUpdated);
+
+      /*
+       * And check the tab as it stands, because the listener is attached after
+       * the tab was created and a cached page can reach 'complete' in the gap.
+       * That event is then never seen: the action sat out the full sixty-second
+       * timeout and was reported to the server as a failure, on a profile that
+       * had loaded fine.
+       */
+      chrome.tabs.get(tab.id).then(
+        (current) => { if (current?.status === 'complete' && onUpdated) dispatch(); },
+        () => {},
+      );
     });
   } finally {
+    if (onUpdated) chrome.tabs.onUpdated.removeListener(onUpdated);
+    if (timer) clearTimeout(timer);
     if (tab?.id) chrome.tabs.remove(tab.id).catch(() => {});
   }
 }
@@ -2124,6 +2312,9 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
    * add with a 404 the user cannot act on. Only a browser restart fixed it.
    */
   if (changes.lastListId || changes.cachedLists) rebuildContextMenus();
+  // A different tag name means a different tag; the remembered one no longer
+  // answers the question that was asked.
+  if (changes.autoTagName) api.invalidateTagCache();
   if (changes.appUrl?.newValue) ensureConnectScript(changes.appUrl.newValue);
 });
 

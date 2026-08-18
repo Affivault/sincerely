@@ -7,6 +7,7 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { Card } from '../../components/shared/Card';
 import { Button } from '../../components/ui/Button';
 import { SkeletonList } from '../../components/ui/Skeleton';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { cn } from '../../lib/utils';
 
 const DAYS = [
@@ -25,6 +26,7 @@ const TIMEZONES = [
 ];
 
 export function SchedulesPage() {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const { data: schedules = [], isLoading } = useQuery({
     queryKey: ['sending-schedules'],
@@ -108,7 +110,10 @@ export function SchedulesPage() {
                 key={s.id}
                 schedule={s}
                 onEdit={() => setEditing(s)}
-                onDelete={() => { if (confirm(`Delete "${s.name}"?`)) deleteMut.mutate(s.id); }}
+                onDelete={() => confirm(
+                  { title: `Delete "${s.name}"?`, body: 'Campaigns using this schedule fall back to your default sending hours.', tone: 'danger' },
+                  () => deleteMut.mutate(s.id),
+                )}
                 onMakeDefault={() => updateMut.mutate({ id: s.id, input: { is_default: true } })}
               />
             )

@@ -216,8 +216,14 @@ export function originPatternFor(baseUrl) {
   const declared = [
     'http://localhost:3001',
     'http://127.0.0.1:3001',
+    // The Vite dev server, which proxies the API beneath itself in local
+    // development exactly as a hosted rewrite does in production.
+    'http://localhost:5173',
     'https://skysend-api.onrender.com',
     'https://api.usesincerely.com',
+    // The web app origin, for a deployment that proxies the API beneath it.
+    // It is in host_permissions, so an API there is already reachable, and
+    // asking Chrome for it again would prompt for access it has granted.
     'https://usesincerely.com',
   ];
   if (declared.includes(origin)) return null;

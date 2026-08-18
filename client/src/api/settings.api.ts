@@ -24,6 +24,13 @@ export interface UserSettings {
   ai_tagging_enabled: boolean;
   auto_verify_contacts: boolean;
   crm_auto_deals: boolean;
+  /** When someone replies to one campaign, stop every other one for them. */
+  stop_all_campaigns_on_reply: boolean;
+  /** Auto-pause a campaign whose bounce rate is damaging the sending domain. */
+  bounce_guard_enabled: boolean;
+  bounce_guard_threshold: number;
+  /** Most sends to one recipient company per hour. 0 = no limit. */
+  domain_hourly_limit: number;
   created_at: string;
   updated_at: string;
 }
