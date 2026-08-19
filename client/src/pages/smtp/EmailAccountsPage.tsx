@@ -24,6 +24,7 @@ import { WarmupPanel } from './WarmupPanel';
 import { StatusBadge, DomainDetailPanel } from '../domains/DomainsPage';
 import { TrackingDomainPanel } from '../../components/domains/TrackingDomainPanel';
 import { ReadinessPanel } from '../../components/delivery/ReadinessPanel';
+import { MailHistoryPanel } from '../../components/inbox/MailHistoryPanel';
 
 /* ─── Quick-connect providers ─────────────────────── */
 interface QuickConnectProvider { preset: SmtpPreset; icon: React.ReactNode; description: string; }
@@ -366,6 +367,14 @@ export function EmailAccountsPage() {
       {tab === 'readiness' && <ReadinessPanel />}
 
       {/* ── Mailboxes tab ── */}
+      {tab === 'mailboxes' && list.length > 0 && (
+        <div className="mb-4">
+          {/* Belongs with the mailbox: it is that mailbox's history being
+              kept, and the cost of a wide window is per mailbox. */}
+          <MailHistoryPanel />
+        </div>
+      )}
+
       {tab === 'mailboxes' && (
         list.length === 0 ? (
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6">

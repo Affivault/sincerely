@@ -19,6 +19,7 @@ import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { usePeek } from '../../components/peek/usePeek';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
+import { MailHistoryPanel } from '../../components/inbox/MailHistoryPanel';
 import {
   Search,
   Star,
@@ -71,6 +72,9 @@ import {
   Plus,
   Users as UsersIcon,
   Bot as BotIcon,
+  // Aliased: the bare name collides with the DOM's own History interface,
+  // which resolves first and fails as a JSX component.
+  History as HistoryIcon,
 } from 'lucide-react';
 
 import { DEAL_STAGES, type DealStage } from '@lemlist/shared';
@@ -2143,6 +2147,7 @@ export function InboxPage() {
   }, [qc]);
 
   const [syncErrors, setSyncErrors] = useState<string[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   const syncMut = useMutation({
     mutationFn: inboxApi.syncInbox,
@@ -3056,6 +3061,15 @@ export function InboxPage() {
           <button onClick={handleRefresh} disabled={isRefreshing || isFetching} title="Sync inboxes" className="icon-btn flex-shrink-0 disabled:opacity-40">
             <RefreshCw className={cn('h-3.5 w-3.5', (isRefreshing || isFetching) && 'animate-spin')} />
           </button>
+          {/* Where "why can't I see older mail?" gets answered, next to the
+              button people press when they think mail is missing. */}
+          <button
+            onClick={() => setShowHistory((v) => !v)}
+            title="How far back each mailbox is kept"
+            className={cn('icon-btn flex-shrink-0', showHistory && 'text-[var(--indigo)]')}
+          >
+            <HistoryIcon className="h-3.5 w-3.5" />
+          </button>
           <button
             onClick={() => {
               // Sits next to the folder/tag/search controls, which makes it look
@@ -3086,6 +3100,12 @@ export function InboxPage() {
             <Pencil className="h-3.5 w-3.5" /> Compose
           </button>
         </div>
+
+        {showHistory && (
+          <div className="px-4 py-3 border-b border-[var(--border-subtle)] bg-[var(--bg-app)] flex-shrink-0">
+            <MailHistoryPanel onSynced={invalidate} />
+          </div>
+        )}
 
         {/* Connection error banner — only when sync hit errors */}
         {syncErrors.length > 0 && (

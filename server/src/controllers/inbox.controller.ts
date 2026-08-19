@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { inboxService } from '../services/inbox.service.js';
+import { inboxSyncService } from '../services/inbox-sync.service.js';
 
 export const inboxController = {
   async unreadCount(req: AuthRequest, res: Response, next: NextFunction) {
@@ -187,7 +188,14 @@ export const inboxController = {
     } catch (err: any) {
       // Sync should never fail hard — always return a usable response
       console.error('[InboxSync] Controller error:', err.message);
-      res.json({ synced: 0, newMessages: 0, errors: [err.message || 'Sync failed'] });
+      res.json({ synced: 0, newMessages: 0, backfilled: 0, more: false, errors: [err.message || 'Sync failed'] });
     }
+  },
+
+  /** How far back each mailbox reaches, and whether it is still fetching. */
+  async syncProgress(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await inboxSyncService.progress(req.userId!));
+    } catch (err) { next(err); }
   },
 };
