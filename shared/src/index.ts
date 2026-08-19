@@ -4,6 +4,7 @@ export * from './campaign.types.js';
 export * from './smtp.types.js';
 export * from './analytics.types.js';
 export * from './inbox.types.js';
+export * from './inbox-sync.types.js';
 export * from './asset.types.js';
 export * from './webhook.types.js';
 export * from './integration.types.js';
