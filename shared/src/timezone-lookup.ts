@@ -19,6 +19,12 @@
      · Countries spanning several zones (US, Canada, Australia, Russia,
        Brazil) are not mapped at country level at all; they resolve only
        through a city or region that pins the zone down.
+     · "Manchester", "Birmingham", "Cambridge", "Bristol" and "Portland"
+       each name a UK/Los-Angeles-area city *and* a distinct, common
+       US city elsewhere (Manchester NH, Birmingham AL, Cambridge MA,
+       Bristol CT/TN, Portland ME) — omitted from CITY_ZONES so a
+       segment like "MA" or "OR" that follows gets the chance to settle
+       it instead of the city name jumping to the wrong zone first.
    ═══════════════════════════════════════════════════════════════════════ */
 
 /** Cities distinctive enough that the name alone settles the zone. */
@@ -34,7 +40,7 @@ const CITY_ZONES: Record<string, string> = {
   'edmonton': 'America/Edmonton', 'phoenix': 'America/Phoenix',
   'san francisco': 'America/Los_Angeles', 'los angeles': 'America/Los_Angeles',
   'san diego': 'America/Los_Angeles', 'seattle': 'America/Los_Angeles',
-  'portland': 'America/Los_Angeles', 'san jose': 'America/Los_Angeles',
+  'san jose': 'America/Los_Angeles',
   'palo alto': 'America/Los_Angeles', 'oakland': 'America/Los_Angeles',
   'vancouver': 'America/Vancouver',
   'mexico city': 'America/Mexico_City',
@@ -46,9 +52,9 @@ const CITY_ZONES: Record<string, string> = {
   'lima': 'America/Lima',
 
   // Europe
-  'london': 'Europe/London', 'manchester': 'Europe/London', 'birmingham': 'Europe/London',
-  'edinburgh': 'Europe/London', 'glasgow': 'Europe/London', 'bristol': 'Europe/London',
-  'leeds': 'Europe/London', 'cambridge': 'Europe/London', 'oxford': 'Europe/London',
+  'london': 'Europe/London',
+  'edinburgh': 'Europe/London', 'glasgow': 'Europe/London',
+  'leeds': 'Europe/London', 'oxford': 'Europe/London',
   'dublin': 'Europe/Dublin', 'lisbon': 'Europe/Lisbon', 'porto': 'Europe/Lisbon',
   'paris': 'Europe/Paris', 'lyon': 'Europe/Paris', 'marseille': 'Europe/Paris',
   'madrid': 'Europe/Madrid', 'barcelona': 'Europe/Madrid', 'valencia': 'Europe/Madrid',
