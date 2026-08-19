@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
 import { Avatar } from '../../components/shared/Avatar';
 import { SearchInput } from '../../components/shared/SearchInput';
+import { useDebounce } from '../../hooks/useDebounce';
 import { cn } from '../../lib/utils';
 import {
   ShieldCheck, Crown, Users, Mail, Globe, Megaphone, Infinity as InfinityIcon,
@@ -41,11 +42,12 @@ export function AdminPage() {
   const [confirmRevoke, setConfirmRevoke] = useState<AdminUserRow | null>(null);
 
   const isAdmin = !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
+  const debouncedSearch = useDebounce(search, 250);
 
   const { data: stats } = useQuery({ queryKey: ['admin', 'stats'], queryFn: adminApi.stats, enabled: isAdmin });
   const { data: usersData, isLoading: loadingUsers } = useQuery({
-    queryKey: ['admin', 'users', search],
-    queryFn: () => adminApi.users(search || undefined),
+    queryKey: ['admin', 'users', debouncedSearch],
+    queryFn: () => adminApi.users(debouncedSearch || undefined),
     enabled: isAdmin,
   });
 

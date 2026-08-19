@@ -306,6 +306,16 @@ export const contactsService = {
       contactData.email = String(contactData.email).trim().toLowerCase();
     }
 
+    if (contactData.company_id) {
+      const { data: company } = await supabaseAdmin
+        .from('companies')
+        .select('id')
+        .eq('id', contactData.company_id)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!company) throw new AppError('Company not found', 404);
+    }
+
     const { data, error } = await supabaseAdmin
       .from('contacts')
       .insert({ ...contactData, user_id: userId, source: 'manual' })
