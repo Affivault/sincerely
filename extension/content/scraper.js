@@ -1290,11 +1290,13 @@
 
     // netEmails is a flat, unkeyed list — an address net-tap captured for the
     // last profile must not be offered as this one's the moment the SPA
-    // navigates to a new person.
-    if (netEmailsProfile !== publicId) {
-      netEmailsProfile = publicId;
+    // navigates to a new person. Only clear on an actual profile change, not
+    // on the first scrape ever (net-tap may have already captured this
+    // profile's address before scrapeLinkedIn() first runs).
+    if (netEmailsProfile !== null && netEmailsProfile !== publicId) {
       forgetNetEmails();
     }
+    netEmailsProfile = publicId;
 
     const rawName = firstText([
       'main h1',
