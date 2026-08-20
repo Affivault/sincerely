@@ -789,6 +789,10 @@ export async function findEmail(payload) {
     method: 'POST',
     body: payload,
     timeoutMs: COLD_START_TIMEOUT_MS,
+    // Already given the cold-start budget as the first attempt — retrying
+    // with another full COLD_START_TIMEOUT_MS on top would let one call hang
+    // for twice as long as the budget it was granted.
+    retryOnTimeout: false,
   });
 }
 
@@ -845,8 +849,10 @@ export async function prospectReveal(providerPersonId) {
  */
 export async function testConnection() {
   // Generous from the outset: this is usually the first request of the
-  // session, so it's the one that pays for waking a sleeping host.
-  const lists = await request('/lists', { timeoutMs: COLD_START_TIMEOUT_MS });
+  // session, so it's the one that pays for waking a sleeping host. Already
+  // the cold-start budget, so don't let a timeout retry with another one on
+  // top of it.
+  const lists = await request('/lists', { timeoutMs: COLD_START_TIMEOUT_MS, retryOnTimeout: false });
 
   // Read worked. Probe write scope without changing anything: adding an empty
   // set of contacts to a list that cannot exist fails on validation or
