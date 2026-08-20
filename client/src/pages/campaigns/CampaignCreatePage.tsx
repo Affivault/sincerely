@@ -16,6 +16,7 @@ import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { StatCard } from '../../components/shared/StatCard';
 import { Avatar } from '../../components/shared/Avatar';
+import { SpamWordHint } from '../../components/shared/SpamWordHint';
 import { FlowBuilder } from '../../components/campaigns/FlowBuilder';
 import { PersonalizationDropdown } from '../../components/campaigns/PersonalizationDropdown';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
@@ -1503,6 +1504,8 @@ export function CampaignCreatePage() {
                             );
                           })()}
                         </Field>
+
+                        <SpamWordHint subject={steps[editingStep].subject || ''} bodyHtml={steps[editingStep].body_html || ''} />
 
                         {/* Preview */}
                         {steps[editingStep].body_html && (
