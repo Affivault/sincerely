@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { enrolSkipBreakdown, ENROL_SKIP_LABEL, summariseEnrolment } from '@lemlist/shared';
+import { enrolSkipBreakdown, ENROL_SKIP_LABEL } from '@lemlist/shared';
 import type { EnrolResult, EnrolSkipReason } from '@lemlist/shared';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { cn } from '../../lib/utils';
 import { ChevronDown, UserCheck, UserMinus } from 'lucide-react';
-import toast from 'react-hot-toast';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Who actually went in, and who did not.
@@ -30,29 +29,6 @@ const REASON_TONE: Record<EnrolSkipReason, string> = {
   no_email: 'text-red-500',
   not_yours: 'text-[var(--text-tertiary)]',
 };
-
-/**
- * Report an enrolment.
- *
- * A clean add says so in a toast and gets out of the way. Anything with
- * skips in it opens the dialog, because a number nobody can inspect is a
- * number nobody believes.
- */
-export function reportEnrolment(
-  result: EnrolResult,
-  campaignName: string,
-  open: (result: EnrolResult, campaignName: string) => void,
-): void {
-  if (result.skipped === 0) {
-    toast.success(
-      result.added > 0
-        ? `${result.added.toLocaleString()} contact${result.added === 1 ? '' : 's'} added to “${campaignName}”`
-        : 'Nothing to add',
-    );
-    return;
-  }
-  open(result, campaignName);
-}
 
 export function EnrolResultDialog({
   result,
@@ -171,9 +147,4 @@ export function EnrolResultDialog({
       </div>
     </Modal>
   );
-}
-
-/** The same result in one line, for places without room for a dialog. */
-export function enrolSummary(result: EnrolResult): string {
-  return summariseEnrolment(result);
 }

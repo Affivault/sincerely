@@ -6,3 +6,6 @@ dist/
 .DS_Store
 *.tsbuildinfo
 supabase/.temp/
+
+# Packaged extension builds are sent in chat, not committed.
+*.zip
