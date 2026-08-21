@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
-import { inferTimezone } from '@lemlist/shared';
+import { inferTimezone, emptyEnrolResult, ENROL_SKIP_SAMPLE } from '@lemlist/shared';
+import type { EnrolResult, EnrolSkip, EnrolSkipReason } from '@lemlist/shared';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 
 export const campaignContactsService = {
@@ -25,8 +26,23 @@ export const campaignContactsService = {
     return formatPaginatedResponse(formatted, count || 0, page, limit);
   },
 
-  async add(campaignId: string, contactIds: string[]) {
-    if (!contactIds || contactIds.length === 0) return;
+  /**
+   * Put contacts into a campaign, and say what actually happened.
+   *
+   * Every filter below existed already; what did not exist was any account
+   * of them. The old version returned two numbers, and the first was wrong
+   * — it counted people who were already enrolled as newly added, so
+   * re-importing a list reported the full count and inserted nothing. The
+   * second was a bare total with no reason, so the interface guessed, and
+   * always guessed "already in other active campaigns".
+   *
+   * Two filters are new, and they matter more than the reporting: a contact
+   * with no address, and a contact who unsubscribed or is suppressed, used
+   * to be enrolled and then fail one at a time at send time. Refusing them
+   * at the door is both kinder and quieter.
+   */
+  async add(campaignId: string, contactIds: string[]): Promise<EnrolResult> {
+    if (!contactIds || contactIds.length === 0) return emptyEnrolResult();
 
     // 1. Look up the campaign's bound lead list
     const { data: campaign } = await supabaseAdmin
@@ -36,72 +52,139 @@ export const campaignContactsService = {
       .maybeSingle();
     if (!campaign) throw new AppError('Campaign not found', 404);
 
+    const requested = Array.from(new Set(contactIds));
+    const skips: EnrolSkip[] = [];
+    const identify = new Map<string, { email: string | null; name: string | null }>();
+    const drop = (id: string, reason: EnrolSkipReason, detail: string | null = null) => {
+      const who = identify.get(id);
+      skips.push({
+        contact_id: id,
+        email: who?.email ?? null,
+        name: who?.name ?? null,
+        reason,
+        detail,
+      });
+    };
+
     // 2. Restrict to contacts actually owned by the campaign's user — never trust
     //    caller-supplied contact IDs across tenants.
     const { data: ownedContacts } = await supabaseAdmin
       .from('contacts')
-      .select('id')
+      .select('id, email, first_name, last_name, is_unsubscribed, is_bounced')
       .eq('user_id', campaign.user_id)
-      .in('id', contactIds);
-    let allowedContactIds = (ownedContacts || []).map((c: any) => c.id as string);
+      .in('id', requested);
+
+    for (const c of ownedContacts || []) {
+      const name = [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
+      identify.set(c.id, { email: c.email || null, name: name || null });
+    }
+
+    const ownedById = new Map<string, any>((ownedContacts || []).map((c: any) => [c.id, c]));
+    for (const id of requested) if (!ownedById.has(id)) drop(id, 'not_yours');
+
+    let allowedContactIds = [...ownedById.keys()];
     if (allowedContactIds.length === 0) {
       throw new AppError('None of the selected contacts belong to this account', 400);
     }
 
-    // 3. If the campaign is bound to a list, restrict to contacts in that list
-    if (campaign.list_id) {
+    // 3. Nobody worth enrolling is missing an address, unsubscribed or bounced.
+    //    These used to be enrolled and then fail at send time, one send at a
+    //    time, which is how a campaign ends up with a bounce rate it did not
+    //    have to have.
+    allowedContactIds = allowedContactIds.filter((id) => {
+      const c = ownedById.get(id);
+      if (!c.email || !String(c.email).trim()) { drop(id, 'no_email'); return false; }
+      if (c.is_unsubscribed) { drop(id, 'unsubscribed'); return false; }
+      if (c.is_bounced) { drop(id, 'bounced'); return false; }
+      return true;
+    });
+
+    // 4. And nobody on the suppression list, which is the same promise made
+    //    once and kept everywhere.
+    if (allowedContactIds.length > 0) {
+      const emails = allowedContactIds
+        .map((id) => String(ownedById.get(id).email).trim().toLowerCase())
+        .filter(Boolean);
+      const suppressed = new Set<string>();
+      const PAGE = 200;
+      for (let from = 0; from < emails.length; from += PAGE) {
+        const { data: rows } = await supabaseAdmin
+          .from('suppression_list')
+          .select('email')
+          .eq('user_id', campaign.user_id)
+          .in('email', emails.slice(from, from + PAGE));
+        for (const row of rows || []) if (row.email) suppressed.add(String(row.email).toLowerCase());
+      }
+      if (suppressed.size > 0) {
+        allowedContactIds = allowedContactIds.filter((id) => {
+          const email = String(ownedById.get(id).email).trim().toLowerCase();
+          if (suppressed.has(email)) { drop(id, 'suppressed'); return false; }
+          return true;
+        });
+      }
+    }
+
+    // 5. If the campaign is bound to a list, restrict to contacts in that list
+    if (campaign.list_id && allowedContactIds.length > 0) {
       const { data: members } = await supabaseAdmin
         .from('list_contacts')
         .select('contact_id')
         .eq('list_id', campaign.list_id)
         .in('contact_id', allowedContactIds);
       const memberIds = new Set((members || []).map((m: any) => m.contact_id));
-      allowedContactIds = allowedContactIds.filter((id) => memberIds.has(id));
-      if (allowedContactIds.length === 0) {
-        throw new AppError(
-          'Selected contacts are not in this campaign\'s lead list. Add them to the list first.',
-          400
-        );
+      allowedContactIds = allowedContactIds.filter((id) => {
+        if (memberIds.has(id)) return true;
+        drop(id, 'not_in_list');
+        return false;
+      });
+    }
+
+    // 6. Block contacts that are already in any OTHER active campaign of the same user
+    //    if the other campaign is bound to a *different* list. (Same-list reuse is allowed.)
+    const blockedBy = new Map<string, string | null>();
+    if (allowedContactIds.length > 0) {
+      const { data: otherEnrolments } = await supabaseAdmin
+        .from('campaign_contacts')
+        .select('contact_id, campaign_id, campaigns!inner(name, user_id, list_id, status)')
+        .in('contact_id', allowedContactIds)
+        .neq('campaign_id', campaignId);
+
+      for (const row of otherEnrolments || []) {
+        const otherCampaign: any = (row as any).campaigns;
+        if (!otherCampaign) continue;
+        // Only block if the other campaign is still active and bound to a different list
+        const sameList = otherCampaign.list_id && campaign.list_id && otherCampaign.list_id === campaign.list_id;
+        const otherActive = ['draft', 'scheduled', 'running', 'paused'].includes(otherCampaign.status);
+        if (!sameList && otherActive && !blockedBy.has(row.contact_id)) {
+          blockedBy.set(row.contact_id, otherCampaign.name || null);
+        }
       }
     }
 
-    // 4. Block contacts that are already in any OTHER active campaign of the same user
-    //    if the other campaign is bound to a *different* list. (Same-list reuse is allowed.)
-    const { data: otherEnrolments } = await supabaseAdmin
-      .from('campaign_contacts')
-      .select('contact_id, campaign_id, campaigns!inner(user_id, list_id, status)')
-      .in('contact_id', allowedContactIds)
-      .neq('campaign_id', campaignId);
+    const finalIds = allowedContactIds.filter((id) => {
+      if (!blockedBy.has(id)) return true;
+      drop(id, 'in_other_campaign', blockedBy.get(id) ?? null);
+      return false;
+    });
 
-    const blockedIds = new Set<string>();
-    for (const row of otherEnrolments || []) {
-      const otherCampaign: any = (row as any).campaigns;
-      if (!otherCampaign) continue;
-      // Only block if the other campaign is still active and bound to a different list
-      const sameList = otherCampaign.list_id && campaign.list_id && otherCampaign.list_id === campaign.list_id;
-      const otherActive = ['draft', 'scheduled', 'running', 'paused'].includes(otherCampaign.status);
-      if (!sameList && otherActive) blockedIds.add(row.contact_id);
-    }
-
-    const finalIds = allowedContactIds.filter((id) => !blockedIds.has(id));
-    if (finalIds.length === 0) {
-      throw new AppError(
-        'All selected contacts are already enrolled in other active campaigns with different lead lists.',
-        400
-      );
-    }
-
-    // 5. Never overwrite a contact who's already enrolled in THIS campaign — an
+    // 7. Never overwrite a contact who's already enrolled in THIS campaign — an
     //    upsert on (campaign_id, contact_id) would silently reset their real
     //    progress (status/current_step_order) back to pending/0, e.g. when the
     //    same list is re-imported after some contacts already ran the sequence.
-    const { data: alreadyEnrolled } = await supabaseAdmin
-      .from('campaign_contacts')
-      .select('contact_id')
-      .eq('campaign_id', campaignId)
-      .in('contact_id', finalIds);
-    const alreadyEnrolledIds = new Set((alreadyEnrolled || []).map((r: any) => r.contact_id as string));
-    const newIds = finalIds.filter((id) => !alreadyEnrolledIds.has(id));
+    let newIds: string[] = [];
+    if (finalIds.length > 0) {
+      const { data: alreadyEnrolled } = await supabaseAdmin
+        .from('campaign_contacts')
+        .select('contact_id')
+        .eq('campaign_id', campaignId)
+        .in('contact_id', finalIds);
+      const alreadyEnrolledIds = new Set((alreadyEnrolled || []).map((r: any) => r.contact_id as string));
+      newIds = finalIds.filter((id) => {
+        if (!alreadyEnrolledIds.has(id)) return true;
+        drop(id, 'already_enrolled');
+        return false;
+      });
+    }
 
     if (newIds.length > 0) {
       // Place each contact on a clock at enrolment, so the campaign page can
@@ -159,7 +242,16 @@ export const campaignContactsService = {
       }
     }
 
-    return { added: finalIds.length, skipped: contactIds.length - finalIds.length, total: count || 0 };
+    const reasons: Partial<Record<EnrolSkipReason, number>> = {};
+    for (const skip of skips) reasons[skip.reason] = (reasons[skip.reason] || 0) + 1;
+
+    return {
+      added: newIds.length,
+      skipped: skips.length,
+      total: count || 0,
+      reasons,
+      skips: skips.slice(0, ENROL_SKIP_SAMPLE),
+    };
   },
 
   /**
@@ -168,7 +260,7 @@ export const campaignContactsService = {
    * contacts page / prospector uses — callers shouldn't need to know that
    * campaigns are list-bound.
    */
-  async enroll(campaignId: string, contactIds: string[]) {
+  async enroll(campaignId: string, contactIds: string[]): Promise<EnrolResult> {
     if (!contactIds || contactIds.length === 0) {
       throw new AppError('No contacts selected', 400);
     }
@@ -203,14 +295,16 @@ export const campaignContactsService = {
       if (listError) throw new AppError(listError.message, 500);
     }
 
-    return this.add(campaignId, ownedIds);
+    // The full request goes on to add(), not just the owned slice, so that
+    // anything belonging to another account is reported rather than vanishing.
+    return this.add(campaignId, contactIds);
   },
 
   /**
    * Add every contact from the campaign's bound lead list. Use this when the
    * user clicks "Import from list" in the campaign builder.
    */
-  async addAllFromBoundList(campaignId: string) {
+  async addAllFromBoundList(campaignId: string): Promise<EnrolResult> {
     const { data: campaign } = await supabaseAdmin
       .from('campaigns')
       .select('id, list_id')
@@ -224,7 +318,7 @@ export const campaignContactsService = {
       .select('contact_id')
       .eq('list_id', campaign.list_id);
     const ids = (members || []).map((m: any) => m.contact_id);
-    if (ids.length === 0) return { added: 0, skipped: 0, total: 0 };
+    if (ids.length === 0) return emptyEnrolResult();
 
     return this.add(campaignId, ids);
   },

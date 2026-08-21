@@ -19,6 +19,10 @@ campaignRoutes.get('/:id/personalization', campaignsController.personalizationAu
 // Settle an A/B test — allowed while running, which is the only useful time
 campaignRoutes.post('/:id/steps/:stepId/promote-variant', campaignsController.promoteAbVariant);
 
+// Whether a running campaign is actually running, and what one can reach.
+campaignRoutes.get('/:id/health', campaignsController.health);
+campaignRoutes.get('/:id/reach', campaignsController.reach);
+
 // Lifecycle
 campaignRoutes.post('/:id/launch', campaignsController.launch);
 campaignRoutes.post('/:id/pause', campaignsController.pause);

@@ -11,6 +11,7 @@ import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { useLaunchPreflight } from '../../components/campaigns/LaunchPreflight';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { PageHeader } from '../../components/shared/PageHeader';
@@ -104,7 +105,10 @@ export function CampaignsListPage() {
     queryFn: campaignFoldersApi.list,
   });
 
-  const launchMut  = useMutation({ mutationFn: campaignsApi.launch, onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Launched'); }, onError: (e: any) => toast.error(e.response?.data?.error || 'Failed') });
+  // One click from a list used to be the least-checked way to start a
+  // campaign, which made it the most dangerous one. It goes through the
+  // same preflight as every other launch now.
+  const preflight = useLaunchPreflight();
   const pauseMut   = useMutation({ mutationFn: campaignsApi.pause,  onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Paused'); }, onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to pause') });
   const resumeMut  = useMutation({ mutationFn: campaignsApi.resume, onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Resumed'); }, onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to resume') });
   const deleteMut  = useMutation({ mutationFn: campaignsApi.delete, onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Deleted'); }, onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to delete') });
@@ -444,10 +448,10 @@ export function CampaignsListPage() {
                           expanded={expandedId === campaign.id}
                           onToggleSnapshot={() => setExpandedId((id) => (id === campaign.id ? null : campaign.id))}
                           onOpen={() => navigate(`/campaigns/${campaign.id}`)}
-                          onLaunch={() => launchMut.mutate(campaign.id)}
+                          onLaunch={() => preflight.launch(campaign.id, campaign.name)}
                           onPause={()  => pauseMut.mutate(campaign.id)}
                           onResume={() => resumeMut.mutate(campaign.id)}
-                          launchBusy={launchMut.isPending && launchMut.variables === campaign.id}
+                          launchBusy={preflight.isLaunching(campaign.id)}
                           pauseBusy={pauseMut.isPending && pauseMut.variables === campaign.id}
                           resumeBusy={resumeMut.isPending && resumeMut.variables === campaign.id}
                           onEdit={()   => navigate(`/campaigns/${campaign.id}/edit`)}
@@ -540,6 +544,10 @@ export function CampaignsListPage() {
       {showStartChooser && (
         <StartCampaignModal onClose={() => setShowStartChooser(false)} />
       )}
+
+      {/* Shown only when the server refuses a launch, which it does with the
+          reasons attached. */}
+      {preflight.dialog}
     </div>
   );
 }

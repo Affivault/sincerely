@@ -4,6 +4,7 @@ import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { fireEvent } from './webhook.service.js';
 import { processDueSteps } from './sequence.service.js';
 import { settingsService } from './settings.service.js';
+import { readinessService } from './readiness.service.js';
 import { extractTags, TAG_LABELS, TAG_SOURCE_FIELD, SENDER_TAGS, LINK_TAGS } from '@lemlist/shared';
 import type { PersonalizationAudit, PersonalizationTag, TimezoneCoverage } from '@lemlist/shared';
 
@@ -458,7 +459,22 @@ export const campaignsService = {
     return data;
   },
 
-  async launch(userId: string, id: string) {
+  /**
+   * Start a campaign, but not before checking it can safely start.
+   *
+   * The readiness report has existed for a while and lived on a settings
+   * page, which is the one place nobody looks in the second before pressing
+   * Launch. There are three ways to launch — the builder, the detail page,
+   * and one click from the campaigns list — and only the first of them ever
+   * showed the report. So the check moved here, where all three arrive.
+   *
+   * `blocked` cannot be overridden, because blocked means the send cannot
+   * succeed: no mailbox, no verified mailbox, a tripped bounce guard. There
+   * is nothing to consent to. `risky` can be, because "you have no DMARC
+   * record" is a real cost that is also a legitimate choice — but it has to
+   * be an actual choice, made once, in front of the reasons.
+   */
+  async launch(userId: string, id: string, opts: { acknowledgeWarnings?: boolean } = {}) {
     const campaign = await this.get(userId, id);
     if (!['draft', 'scheduled', 'running', 'paused'].includes(campaign.status)) {
       throw new AppError('Campaign cannot be launched from its current status (' + campaign.status + ')', 400);
@@ -505,6 +521,39 @@ export const campaignsService = {
         .limit(1);
       if (!anySMTP || anySMTP.length === 0) {
         throw new AppError('No active email account found. Add and connect an email account first.', 400);
+      }
+    }
+
+    /*
+     * The readiness gate. Deliberately last of the checks: the cheap
+     * structural ones above ("no steps", "no contacts") should answer first
+     * rather than making someone read a DNS report to be told their
+     * campaign is empty.
+     *
+     * A readiness check that itself fails is not a verdict on the account,
+     * so it never blocks a launch — it would otherwise turn one failing
+     * DNS lookup into "nobody can send today".
+     */
+    const report = await readinessService.report(userId).catch(() => null);
+    if (report && report.verdict !== 'ready') {
+      const blocking = report.checks.filter((c) => c.status === 'fail');
+      const warning = report.checks.filter((c) => c.status === 'warn');
+
+      if (report.verdict === 'blocked') {
+        throw new AppError(
+          report.summary,
+          422,
+          'NOT_READY_TO_SEND',
+          { readiness: report, blocking: blocking.map((c) => c.id) },
+        );
+      }
+      if (!opts.acknowledgeWarnings) {
+        throw new AppError(
+          report.summary,
+          409,
+          'LAUNCH_NEEDS_ACKNOWLEDGEMENT',
+          { readiness: report, warnings: warning.map((c) => c.id) },
+        );
       }
     }
 

@@ -8,6 +8,7 @@ import { useUnreadCount } from '../../hooks/useUnreadCount';
 import { useAuth } from '../../context/AuthContext';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
+import { SetupChecklist } from '../../components/setup/SetupChecklist';
 import { Avatar } from '../../components/shared/Avatar';
 import {
   Plus, Send, MailOpen, MousePointerClick, MessageSquare, Inbox,
@@ -524,6 +525,11 @@ export function DashboardPage() {
           </button>
         </div>
       </header>
+
+      {/* Before anything else, for an account that has not sent yet: the
+          five things that have to be true, in the order they depend on each
+          other. It removes itself for good once they are. */}
+      <SetupChecklist />
 
       {/* ── Row 1: work first — the attention queue + live replies ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

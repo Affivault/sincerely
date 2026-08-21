@@ -8,6 +8,8 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { PersonalizationPanel, TimezoneCoverageNote } from '../../components/campaigns/PersonalizationPanel';
+import { CampaignHealthStrip } from '../../components/campaigns/CampaignHealthStrip';
+import { useLaunchPreflight } from '../../components/campaigns/LaunchPreflight';
 import { SequenceStepsPanel } from '../../components/analytics/SequenceStepsPanel';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { StatCard } from '../../components/shared/StatCard';
@@ -99,13 +101,9 @@ export function CampaignDetailPage() {
     enabled: !!id && activeTab === 'contacts',
   });
 
-  const launchMutation = useMutation({
-    mutationFn: () => campaignsApi.launch(id!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
-      toast.success('Campaign launched');
-    },
-    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to launch'),
+  // Same preflight as the list and the builder: three ways in, one gate.
+  const preflight = useLaunchPreflight({
+    onLaunched: () => queryClient.invalidateQueries({ queryKey: ['campaign', id] }),
   });
 
   const pauseMutation = useMutation({
@@ -238,7 +236,7 @@ export function CampaignDetailPage() {
               <button onClick={() => navigate(`/campaigns/${id}/edit`)} className="btn-secondary">
                 <Pencil className="h-3.5 w-3.5" /> Edit
               </button>
-              <button onClick={() => launchMutation.mutate()} disabled={launchMutation.isPending} className="btn-primary disabled:opacity-50 disabled:pointer-events-none">
+              <button onClick={() => preflight.launch(id!, campaign?.name)} disabled={preflight.isPending} className="btn-primary disabled:opacity-50 disabled:pointer-events-none">
                 <Play className="h-3.5 w-3.5" /> Launch
               </button>
             </>
@@ -278,6 +276,12 @@ export function CampaignDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Whether it is actually sending, and what is stopping it if not.
+          paused_reason below covers one cause; this covers the rest — a
+          mailbox that stopped authenticating, an exhausted daily allowance,
+          a queue where everyone is errored, a schedule that is closed. */}
+      <CampaignHealthStrip campaignId={id!} status={campaign.status} />
 
       {/* Why this campaign is stopped, or stuck.
           The engine has always known — it computes "every mailbox is at its
@@ -579,6 +583,9 @@ export function CampaignDetailPage() {
           )}
         </div>
       )}
+
+      {/* Only ever on screen when the server refused a launch. */}
+      {preflight.dialog}
     </div>
   );
 }

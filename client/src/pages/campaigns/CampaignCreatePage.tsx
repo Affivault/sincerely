@@ -20,6 +20,7 @@ import { FlowBuilder } from '../../components/campaigns/FlowBuilder';
 import { PersonalizationDropdown } from '../../components/campaigns/PersonalizationDropdown';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import type { FlowStep } from '../../components/campaigns/FlowBuilder';
+import { PreflightDialog, type Refusal } from '../../components/campaigns/LaunchPreflight';
 import { cn } from '../../lib/utils';
 import { parseDatetimeLocalInTimezone } from '../../lib/timezone';
 import {
@@ -508,6 +509,10 @@ export function CampaignCreatePage() {
 
   const [launching, setLaunching] = useState(false);
   const [showLaunchConfirm, setShowLaunchConfirm] = useState(false);
+  // Set when the server refuses the launch, carrying its reasons with it.
+  const [launchRefusal, setLaunchRefusal] = useState<
+    (Refusal & { campaignId: string; scheduledIso: string | null }) | null
+  >(null);
   // Set when a launch is paused to show merge-tag gaps; carries the saved
   // campaign so confirming doesn't repeat the save.
   const [pendingAudit, setPendingAudit] = useState<
@@ -624,16 +629,37 @@ export function CampaignCreatePage() {
    * have been seen. Split out from handleSaveAndLaunch so "Launch anyway"
    * doesn't have to re-run the save it already did.
    */
-  const finishLaunch = async (campaignId: string, scheduledIso: string | null) => {
+  const finishLaunch = async (campaignId: string, scheduledIso: string | null, acknowledge = false) => {
     setLaunching(true);
     try {
-      await campaignsApi.launch(campaignId);
+      await campaignsApi.launch(campaignId, acknowledge);
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['setup-state'] });
       toast.success(scheduledIso
         ? `Campaign scheduled for ${new Date(scheduledIso).toLocaleString()}`
         : 'Campaign launched!');
       navigate(`/campaigns/${campaignId}`);
     } catch (err: any) {
+      /*
+       * The server refuses a launch it thinks is unsafe, and attaches the
+       * reasons. 422 is final; 409 is a question. Anything else is an
+       * ordinary failure.
+       *
+       * The builder shows a readiness summary on its last step already, but
+       * a summary is not consent — someone can scroll past it, and did.
+       */
+      const status = err?.response?.status;
+      const readiness = err?.response?.data?.readiness;
+      if (readiness && (status === 422 || status === 409)) {
+        setLaunchRefusal({
+          report: readiness,
+          kind: status === 422 ? 'blocked' : 'risky',
+          campaignId,
+          scheduledIso,
+        });
+        setLaunching(false);
+        return;
+      }
       toast.error(err.response?.data?.error || 'Failed to launch');
     }
     setLaunching(false);
@@ -2469,6 +2495,22 @@ export function CampaignCreatePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* The readiness summary further up this page is information; this is
+          the decision. It only appears because the server refused. */}
+      {launchRefusal && (
+        <PreflightDialog
+          refusal={launchRefusal}
+          campaignName={campaignForm.name}
+          busy={launching}
+          onClose={() => { setLaunchRefusal(null); setShowLaunchConfirm(false); setPendingAudit(null); }}
+          onProceed={() => {
+            const pendingLaunch = launchRefusal;
+            setLaunchRefusal(null);
+            finishLaunch(pendingLaunch.campaignId, pendingLaunch.scheduledIso, true);
+          }}
+        />
       )}
     </div>
   );

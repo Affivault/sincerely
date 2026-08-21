@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth.middleware.js';
 import { campaignsService } from '../services/campaigns.service.js';
 import { campaignStepsService } from '../services/campaign-steps.service.js';
 import { campaignContactsService } from '../services/campaign-contacts.service.js';
+import { campaignHealthService } from '../services/campaign-health.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { decrypt } from '../utils/encryption.js';
 import { sendViaSmtp } from '../services/email-sender.service.js';
@@ -76,8 +77,24 @@ export const campaignsController = {
 
   async launch(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const campaign = await campaignsService.launch(req.userId!, req.params.id);
+      const campaign = await campaignsService.launch(req.userId!, req.params.id, {
+        acknowledgeWarnings: req.body?.acknowledge_warnings === true,
+      });
       res.json(campaign);
+    } catch (err) { next(err); }
+  },
+
+  /** Whether this running campaign is actually running. */
+  async health(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await campaignHealthService.get(req.userId!, req.params.id));
+    } catch (err) { next(err); }
+  },
+
+  /** How far this campaign's sending capacity reaches. Asked before an add. */
+  async reach(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await campaignHealthService.reach(req.userId!, req.params.id));
     } catch (err) { next(err); }
   },
 
@@ -162,8 +179,10 @@ export const campaignsController = {
   async addContacts(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       await campaignsService.assertOwnership(req.userId!, req.params.id);
-      await campaignContactsService.add(req.params.id, req.body.contact_ids);
-      res.status(204).send();
+      // Answers with the result rather than 204: the count and the skip
+      // reasons were being computed and then thrown away at the door.
+      const result = await campaignContactsService.add(req.params.id, req.body.contact_ids);
+      res.json(result);
     } catch (err) { next(err); }
   },
 
