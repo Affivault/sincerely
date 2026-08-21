@@ -491,6 +491,15 @@
   let standingFailed = false;
   /** The check currently running, so a second caller joins it rather than giving up. */
   let inFlight = null;
+  /*
+   * Whether the running check is one the user asked for.
+   *
+   * The Net New button only becomes "Checking…" for a check somebody
+   * started. A background one must leave it alone: replacing the button
+   * with a disabled label, for work nobody requested, takes away the thing
+   * they were reaching for at the moment they reach for it.
+   */
+  let checkingLoud = false;
 
   /**
    * How many of the selected people already have an address, and how many
@@ -515,7 +524,10 @@
 
   function renderBar() {
     const shadow = ensureBarRoot();
-    shadow.querySelector('.bar')?.remove();
+    // Every bar, not the first one. A single querySelector here is what let a
+    // re-entrant render leave a stale bar sitting permanently on top of the
+    // live one, and the guarantee is worth more than the microseconds.
+    for (const stale of shadow.querySelectorAll('.bar')) stale.remove();
 
     if (rows.size === 0) return;
 
@@ -563,10 +575,16 @@
        * Selecting is the first moment the answer matters, and so the first
        * moment it is worth a request. Kicked from here rather than from the
        * checkbox handler because the keyboard and Select all reach the same
-       * state without ever touching it — and resolveStanding is idempotent,
-       * so the repaints this triggers cost nothing.
+       * state without ever touching it.
+       *
+       * Deferred, and that is not a detail. resolveStanding repaints, so
+       * calling it from inside a render re-enters this function halfway
+       * through — after the old bar has been removed and before the new one
+       * is appended — and the nested render appends its own. Two bars, and
+       * every later render removes only the first, so the stale one stays on
+       * top forever. A timeout puts it after this render has finished.
        */
-      resolveStanding(false);
+      if (!checking) setTimeout(() => resolveStanding(false), 0);
     }
 
     const keys = document.createElement('span');
@@ -589,8 +607,10 @@
     bar.appendChild(all);
 
     const netNew = document.createElement('button');
-    netNew.textContent = checking ? 'Checking…' : 'Net new';
-    netNew.disabled = checking || barState.busy;
+    // Only a check the user started takes the button away. Pressing it during
+    // a background one joins that check rather than starting a second.
+    netNew.textContent = checkingLoud ? 'Checking…' : 'Net new';
+    netNew.disabled = checkingLoud || barState.busy;
     netNew.title =
       'Select only people who are not already on one of your lead lists — not merely those missing from your contacts.';
     netNew.addEventListener('click', selectNetNew);
@@ -657,50 +677,66 @@
     /*
      * Join an in-flight check rather than declining because of it.
      *
-     * Returning false here instead is what broke Net New: selecting anything
-     * kicks off a quiet check, so pressing the button a moment later found
-     * `checking` already true, gave up, and left the bar with nothing
-     * selected and nothing said. A press must never be swallowed by work it
-     * was going to wait for anyway.
+     * Declining is what broke Net New: selecting anything kicks off a quiet
+     * check, so pressing the button a moment later found one already
+     * running, gave up, and left the bar with nothing selected and nothing
+     * said. A press must never be swallowed by work it was going to wait
+     * for anyway.
      */
     if (inFlight) {
       const joined = await inFlight;
       if (joined || !loud) return joined;
-      // A quiet failure the user has now explicitly asked to retry.
+      // A quiet failure that has now been explicitly retried falls through.
     }
     if (standingFailed && !loud) return false;
 
     if (loud) barState.message = null;
-    inFlight = (async () => {
-      checking = true;
-      standingFailed = false;
-      renderBar();
+    checking = true;
+    checkingLoud = Boolean(loud);
+    standingFailed = false;
 
-      const people = [...rows.values()].map((entry) => entry.person);
-      const response = await send('CHECK_KNOWN', { people });
-
-      checking = false;
-
-      if (!response.ok) {
-        standingFailed = true;
-        if (loud) barState.message = { text: response.error.message, warn: true };
-        renderBar();
-        return false;
-      }
-
-      const known = new Map(Object.entries(response.data.byProfile || {}));
-      for (const [url, entry] of rows) entry.standing = known.get(url) || null;
-      barState.netNewReady = true;
-      standingFor = rows.size;
-      renderBar();
-      return true;
-    })();
+    /*
+     * Assigned before anything repaints. renderBar starts a check when it
+     * sees an unresolved selection, so painting first — while inFlight was
+     * still null — meant the repaint started a second check, which
+     * repainted, which started a third. That is the recursion, and it does
+     * not stop.
+     */
+    const run = runStandingCheck(loud);
+    inFlight = run;
+    renderBar();
 
     try {
-      return await inFlight;
+      return await run;
     } finally {
       inFlight = null;
+      checking = false;
+      checkingLoud = false;
     }
+  }
+
+  /** The check itself. Only ever called by resolveStanding. */
+  async function runStandingCheck(loud) {
+    const people = [...rows.values()].map((entry) => entry.person);
+    const response = await send('CHECK_KNOWN', { people });
+
+    if (!response.ok) {
+      standingFailed = true;
+      checking = false;
+      checkingLoud = false;
+      if (loud) barState.message = { text: response.error.message, warn: true };
+      renderBar();
+      return false;
+    }
+
+    const known = new Map(Object.entries(response.data.byProfile || {}));
+    for (const [url, entry] of rows) entry.standing = known.get(url) || null;
+    barState.netNewReady = true;
+    standingFor = rows.size;
+    checking = false;
+    checkingLoud = false;
+    renderBar();
+    return true;
   }
 
   /**
@@ -815,6 +851,7 @@
     standingFor = 0;
     standingFailed = false;
     inFlight = null;
+    checkingLoud = false;
     cursor = -1;
     barState.message = null;
   }

@@ -37,8 +37,9 @@ jobs:
       - name: Typecheck server and client
         run: npm run typecheck
 
-      # Bounce classification, the whole send path, per-step analytics, sending
-      # readiness, the API-key chain, and the write-path audit.
+      # Bounce classification, the whole send path, per-step analytics, what an
+      # enrolment actually did, campaign health, sending readiness, the API-key
+      # chain, and the write-path audit.
       - name: Behavioural checks
         run: npm run check --workspace=server
 
