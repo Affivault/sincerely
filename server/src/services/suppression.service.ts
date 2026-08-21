@@ -54,13 +54,40 @@ export const suppressionService = {
       rowsByEmail.set(email, { user_id: userId, email, reason, updated_at: new Date().toISOString() });
     }
     const rows = Array.from(rowsByEmail.values());
-    if (rows.length === 0) return { added: 0, duplicates_collapsed: 0 };
+    if (rows.length === 0) return { added: 0, duplicates_collapsed: 0, added_emails: [], already_present: [] };
+
+    /*
+     * Which of these were already suppressed before this import ran.
+     *
+     * Reported so an undo can remove only what the import actually added.
+     * Undoing an import is not the same as clearing the list, and an undo
+     * that lifted a suppression somebody set last month would be the worst
+     * possible way to find that out.
+     */
+    const wanted = rows.map((r) => r.email);
+    const already = new Set<string>();
+    const PAGE = 200;
+    for (let from = 0; from < wanted.length; from += PAGE) {
+      const { data: existing } = await supabaseAdmin
+        .from('suppression_list')
+        .select('email')
+        .eq('user_id', userId)
+        .in('email', wanted.slice(from, from + PAGE));
+      for (const row of existing || []) if (row.email) already.add(String(row.email));
+    }
 
     const { error } = await supabaseAdmin
       .from('suppression_list')
       .upsert(rows, { onConflict: 'user_id,email', ignoreDuplicates: false });
     if (error) throw new AppError(error.message, 500);
-    return { added: rows.length, duplicates_collapsed: emails.length - rows.length };
+
+    const addedEmails = wanted.filter((email) => !already.has(email));
+    return {
+      added: rows.length,
+      duplicates_collapsed: emails.length - rows.length,
+      added_emails: addedEmails,
+      already_present: [...already],
+    };
   },
 
   async remove(userId: string, email: string) {

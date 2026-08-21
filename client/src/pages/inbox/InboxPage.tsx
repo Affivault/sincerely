@@ -20,6 +20,7 @@ import { usePeek } from '../../components/peek/usePeek';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import { MailHistoryPanel } from '../../components/inbox/MailHistoryPanel';
+import { ReplyActions } from '../../components/inbox/ReplyActions';
 import {
   Search,
   Star,
@@ -2789,6 +2790,30 @@ export function InboxPage() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Turn the conversation into pipeline without leaving it.
+                        A reply saying "send me a time" is the highest-value
+                        thing this product produces, and acting on it used to
+                        mean five steps in another part of the app — so mostly
+                        nobody did, and the pipeline stopped matching reality.
+                        Inbound only: our own outgoing mail is not a signal. */}
+                    {currentMsg.direction !== 'outbound' && threadContactEmail && (
+                      <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 px-3 py-2">
+                        <span className="text-[11.5px] font-semibold text-[var(--text-tertiary)]">
+                          Take this further
+                        </span>
+                        <span className="h-3 w-px bg-[var(--border-subtle)]" />
+                        <ReplyActions
+                          target={{
+                            contactId: currentMsg.contact_id || null,
+                            contactName: threadContactName || currentMsg.contact_name || null,
+                            contactEmail: threadContactEmail,
+                            subject: threadSubject || currentMsg.subject || null,
+                            company: null,
+                          }}
+                        />
+                      </div>
+                    )}
 
                     <div className="my-6 h-px bg-[var(--border-subtle)]" />
 
