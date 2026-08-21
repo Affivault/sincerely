@@ -353,10 +353,23 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
 /**
  * Fetch a range, skipping anything already held, and store the rest.
  *
- * The whole page's Message-IDs are checked in one query before any of it is
- * parsed, because parsing is the expensive part and re-parsing mail we
- * already have is pure waste.
+ * In two passes, and the reason is memory. A run may look at four hundred
+ * messages, and a message with attachments is not small — holding four
+ * hundred complete ones at once is tens of megabytes on a host that has
+ * 512MB for everything, and a six month backfill is precisely when that
+ * happens.
+ *
+ * So the first pass asks only for envelopes, which are a line each. That is
+ * enough to check the whole page's Message-IDs in one query and find out
+ * which of them are actually new. The second pass then downloads only those
+ * bodies, a small page at a time, and lets each page go before asking for
+ * the next.
+ *
+ * The bandwidth follows the memory: mail we already hold is never
+ * downloaded a second time, which on a re-read of a busy day is most of it.
  */
+const SOURCE_PAGE = 25;
+
 async function ingestRange(
   client: any,
   range: any,
@@ -364,25 +377,46 @@ async function ingestRange(
   ctx: IngestContext,
   budget: number,
 ): Promise<{ stored: number; highestUid: number }> {
-  const collected: any[] = [];
-  for await (const msg of client.fetch(range, { envelope: true, source: true, uid: true }, options)) {
-    collected.push(msg);
-    if (collected.length >= budget) break;
+  const heads: Array<{ uid: number; messageId: string }> = [];
+  for await (const msg of client.fetch(range, { envelope: true, uid: true }, options)) {
+    heads.push({ uid: Number(msg.uid) || 0, messageId: msg.envelope?.messageId || '' });
+    if (heads.length >= budget) break;
   }
-  if (collected.length === 0) return { stored: 0, highestUid: 0 };
+  if (heads.length === 0) return { stored: 0, highestUid: 0 };
+
+  let highestUid = 0;
+  for (const head of heads) if (head.uid > highestUid) highestUid = head.uid;
 
   const held = await alreadyStored(
     ctx.account.user_id,
-    collected.map((m) => m.envelope?.messageId).filter(Boolean),
+    heads.map((h) => h.messageId).filter(Boolean),
   );
 
+  // A message with no UID cannot be asked for again by UID, so there is no
+  // second pass to make for it. Servers that answer a uid: true fetch
+  // without one do not exist in practice; this is only so that one could not
+  // wedge the loop.
+  const wanted = heads.filter((h) => h.uid > 0 && !(h.messageId && held.has(h.messageId)));
+  if (wanted.length === 0) return { stored: 0, highestUid };
+
   let stored = 0;
-  let highestUid = 0;
-  for (const msg of collected) {
-    if (msg.uid && msg.uid > highestUid) highestUid = msg.uid;
-    const id = msg.envelope?.messageId;
-    if (id && held.has(id)) continue;
-    if (await ingest(msg, ctx)) stored += 1;
+  for (let from = 0; from < wanted.length; from += SOURCE_PAGE) {
+    const page = wanted.slice(from, from + SOURCE_PAGE);
+    const batch: any[] = [];
+    // Fetched fully before any of it is parsed: the database round trips
+    // that ingest makes would otherwise sit inside the fetch, holding a
+    // connection open on both ends for as long as they take.
+    for await (const msg of client.fetch(
+      page.map((h) => h.uid).join(','),
+      { envelope: true, source: true, uid: true },
+      { uid: true },
+    )) {
+      batch.push(msg);
+    }
+    for (const msg of batch) {
+      if (await ingest(msg, ctx)) stored += 1;
+    }
+    batch.length = 0;
   }
   return { stored, highestUid };
 }
