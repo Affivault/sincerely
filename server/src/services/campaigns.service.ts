@@ -293,8 +293,15 @@ export const campaignsService = {
     // The contact columns this campaign's copy actually reads. Only these are
     // fetched — several tags can share one column (city and country both come
     // from `location`), so the set is usually smaller than the tag list.
+    // full_name renders from *either* first or last name (see the `full_name`
+    // builder above), so it needs both columns even though TAG_SOURCE_FIELD
+    // maps it to just one — a single-field blank count would over-report
+    // contacts that have a last name but no first name.
+    const needsFullName = used.has('full_name');
     const neededFields = [...new Set(
-      [...used.keys()].map((name) => TAG_SOURCE_FIELD[name]).filter(Boolean),
+      [...used.keys()].map((name) => TAG_SOURCE_FIELD[name])
+        .concat(needsFullName ? ['last_name'] : [])
+        .filter(Boolean),
     )];
 
     // One walk through the audience tallying blanks per column, rather than a
@@ -302,6 +309,7 @@ export const campaignsService = {
     // rows and a silent truncation here would under-report the gaps — the one
     // thing this audit exists to get right.
     const blanks: Record<string, number> = Object.fromEntries(neededFields.map((f) => [f, 0]));
+    let fullNameBlanks = 0;
     let totalContacts = 0;
     if (neededFields.length > 0) {
       const PAGE = 1000;
@@ -319,6 +327,11 @@ export const campaignsService = {
           for (const field of neededFields) {
             const v = contact[field];
             if (v === null || v === undefined || String(v).trim() === '') blanks[field]++;
+          }
+          if (needsFullName) {
+            const first = String(contact.first_name ?? '').trim();
+            const last = String(contact.last_name ?? '').trim();
+            if (!first && !last) fullNameBlanks++;
           }
         }
         if (page.length < PAGE) break;
@@ -345,6 +358,11 @@ export const campaignsService = {
           name, label, scope: 'sender', has_fallback: hasFallback,
           missing: senderValue[name] ? 0 : 1, total: 1,
         });
+        continue;
+      }
+
+      if (name === 'full_name') {
+        tags.push({ name, label, scope: 'contact', has_fallback: hasFallback, missing: fullNameBlanks, total: totalContacts });
         continue;
       }
 

@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { resumeAfterTask } from './sequence.service.js';
-import { partsInTimezone } from '../utils/timezone.js';
+import { partsInTimezone, localDateString } from '../utils/timezone.js';
 
 /* ═══════════════════════════════════════════════════════════════════════
    The LinkedIn agent.
@@ -184,9 +184,10 @@ export const linkedinAgentService = {
       return { action: null, reason: 'outside_work_hours', gap };
     }
 
-    // Today's allowance. A stale counters_date means the row hasn't been
-    // touched today, so nothing has been used today either.
-    const fresh = s.counters_date === new Date().toISOString().slice(0, 10);
+    // Today's allowance, in the user's timezone — a stale counters_date means
+    // the row hasn't been touched today (their today), so nothing has been
+    // used today either.
+    const fresh = s.counters_date === localDateString(s.timezone || 'UTC');
     const used = {
       linkedin_connect: fresh ? s.connects_today : 0,
       linkedin_message: fresh ? s.messages_today : 0,
@@ -257,7 +258,12 @@ export const linkedinAgentService = {
     if (!task) throw new AppError('Task not found', 404);
 
     if (task.channel) {
-      await supabaseAdmin.rpc('record_linkedin_action', { uid: userId, action: task.channel });
+      const s = await this.getSettings(userId);
+      await supabaseAdmin.rpc('record_linkedin_action', {
+        uid: userId,
+        action: task.channel,
+        local_date: localDateString(s.timezone || 'UTC'),
+      });
     }
     if (task.campaign_contact_id) {
       // Never let a bookkeeping failure look like the action failed — the
@@ -305,7 +311,7 @@ export const linkedinAgentService = {
       .eq('is_done', false)
       .not('channel', 'is', null);
 
-    const fresh = s.counters_date === new Date().toISOString().slice(0, 10);
+    const fresh = s.counters_date === localDateString(s.timezone || 'UTC');
     return {
       settings: s,
       queued: count || 0,

@@ -92,6 +92,15 @@ export function partsInTimezone(date: Date, tz: string): TzParts {
 }
 
 /**
+ * "Today" as a YYYY-MM-DD string in `tz`, for comparing against a stored
+ * date column without drifting to the server's UTC day boundary.
+ */
+export function localDateString(tz: string): string {
+  const { year, month, day } = partsInTimezone(new Date(), tz);
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/**
  * Return the UTC Date corresponding to midnight (00:00:00.000) on "today" in
  * the given timezone. Correctly handles DST: uses the offset that applies
  * at midnight in `tz`, not the offset at the current moment.
