@@ -29,7 +29,21 @@
     return (
       /^\/search\/results\/(people|all)/.test(pathname) ||
       /^\/company\/[^/]+\/people/.test(pathname) ||
-      /^\/mynetwork\//.test(pathname)
+      /^\/mynetwork\//.test(pathname) ||
+      // Sales Navigator: search results, saved lead lists, and a company's
+      // people tab. This is the list view the paying customer actually works
+      // from, and it had no bulk bar because every path test here predated
+      // Sales Navigator support entirely.
+      isSalesNavList(pathname)
+    );
+  }
+
+  /** Sales Navigator's own list surfaces. */
+  function isSalesNavList(pathname = location.pathname) {
+    return (
+      /^\/sales\/search\/people/.test(pathname) ||
+      /^\/sales\/lists\/people/.test(pathname) ||
+      /^\/sales\/company\/[^/]+\/people/.test(pathname)
     );
   }
 
@@ -46,6 +60,8 @@
    * because the links themselves are the stable part.
    */
   function findRows() {
+    if (isSalesNavList()) return findSalesNavRows();
+
     const selectors = [
       'li.reusable-search__result-container',
       'li.org-people-profile-card__profile-card-spacing',
@@ -70,10 +86,38 @@
   }
 
   /**
+   * Rows in a Sales Navigator list.
+   *
+   * Anchored on `data-anonymize="person-name"` rather than on a profile
+   * link, because a Sales Navigator result row often has no /in/ link at
+   * all — it links to /sales/lead/. The name marker is put there by
+   * LinkedIn's own screenshot-blur feature, which makes it both semantic
+   * and far more durable than the generated class names around it.
+   */
+  function findSalesNavRows() {
+    const containers = new Set();
+    for (const marker of document.querySelectorAll('[data-anonymize="person-name"]')) {
+      const container =
+        marker.closest('li') ||
+        marker.closest('tr') ||
+        marker.closest('div[data-x-search-result]') ||
+        marker.closest('div[data-sn-view-name]');
+      // A container holding two names is an ancestor of several rows, not a
+      // row — taking it would collapse the whole page into one selection.
+      if (container && container.querySelectorAll('[data-anonymize="person-name"]').length === 1) {
+        containers.add(container);
+      }
+    }
+    return [...containers];
+  }
+
+  /**
    * Pull a person out of one row.
    * @param {Element} row
    */
   function readRow(row) {
+    if (isSalesNavList()) return readSalesNavRow(row);
+
     const link = row.querySelector('a[href*="/in/"]');
     if (!link) return null;
 
@@ -123,6 +167,83 @@
       job_title: jobTitle,
       company,
       linkedin_url: profileUrl,
+      source: 'linkedin',
+      source_url: location.href,
+    };
+  }
+
+  /**
+   * Pull a person out of one Sales Navigator row.
+   *
+   * The public profile link is preferred and often absent: Sales Navigator
+   * links to its own /sales/lead/ route. Storing the lead URL when that is
+   * all there is beats storing nothing, because a link that only works for
+   * this account still leads back to a person.
+   */
+  function readSalesNavRow(row) {
+    const nameNode = row.querySelector('[data-anonymize="person-name"]');
+    const rawName = String(nameNode?.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!rawName) return null;
+
+    const read = (field) => {
+      const node = row.querySelector(`[data-anonymize="${field}"]`);
+      return String(node?.textContent || '').replace(/\s+/g, ' ').trim();
+    };
+
+    let jobTitle = read('title') || read('job-title') || null;
+    let company = read('company-name') || null;
+
+    // Rows that give one blob rather than two marked fields still tend to
+    // read "Title at Company".
+    if (!jobTitle || !company) {
+      const headline = read('headline');
+      const atMatch = headline.match(/^(.*?)\s+(?:at|@)\s+(.*)$/i);
+      if (atMatch) {
+        if (!jobTitle) jobTitle = atMatch[1].trim();
+        if (!company) company = atMatch[2].trim();
+      } else if (!jobTitle && headline) {
+        jobTitle = headline;
+      }
+    }
+
+    let url = null;
+    for (const link of row.querySelectorAll('a[href]')) {
+      const href = link.getAttribute('href') || '';
+      if (!/\/in\/|\/sales\/lead\//.test(href)) continue;
+      try {
+        const parsed = new URL(href, location.origin);
+        parsed.search = '';
+        parsed.hash = '';
+        /*
+         * Sales Navigator appends how you arrived at a lead --
+         * /sales/lead/<id>,NAME_SEARCH -- and the same person reached from a
+         * search and from a saved list would otherwise be stored twice, with
+         * two URLs that do not match the one the lead page itself produces.
+         */
+        parsed.pathname = parsed.pathname.replace(
+          /^(\/sales\/(?:lead|people)\/[^/,]+),.*$/,
+          '$1',
+        );
+        const candidate = parsed.toString().replace(/\/$/, '');
+        // A public profile is worth more than a lead link, so keep looking
+        // once a lead link is found but stop the moment a /in/ one turns up.
+        if (/\/in\//.test(parsed.pathname)) { url = candidate; break; }
+        if (!url) url = candidate;
+      } catch { /* a malformed href is not a reason to drop the row */ }
+    }
+    if (!url) return null;
+
+    const { first_name, last_name } = sincerely.splitName
+      ? sincerely.splitName(rawName)
+      : { first_name: rawName.split(' ')[0] || null, last_name: null };
+
+    return {
+      first_name,
+      last_name,
+      full_name: rawName,
+      job_title: jobTitle,
+      company,
+      linkedin_url: url,
       source: 'linkedin',
       source_url: location.href,
     };
@@ -357,6 +478,40 @@
   }
 
   const barState = { lists: [], listId: null, message: null, busy: false, netNewReady: false };
+  /** How many rows the last standing check covered, so it is not re-run per scroll. */
+  let standingFor = 0;
+  /*
+   * Set when a quiet check failed.
+   *
+   * Without it the auto-resolve is a loop: it fails, calls renderBar to say
+   * so, and renderBar sees an unresolved selection and asks again — forever,
+   * as fast as the network will allow. Pressing Net New clears it, because
+   * an explicit retry is a different thing from an automatic one.
+   */
+  let standingFailed = false;
+  /** The check currently running, so a second caller joins it rather than giving up. */
+  let inFlight = null;
+
+  /**
+   * How many of the selected people already have an address, and how many
+   * would have to be found.
+   *
+   * Null until the standing check has run, because a confident-looking
+   * "0 need finding" that simply means "not asked yet" is worse than saying
+   * nothing at all.
+   */
+  function addressSplit() {
+    if (!barState.netNewReady || selected.size === 0) return null;
+    let have = 0;
+    let missing = 0;
+    for (const url of selected) {
+      const standing = rows.get(url)?.standing;
+      if (!standing) { missing += 1; continue; }
+      if (standing.hasEmail) have += 1;
+      else missing += 1;
+    }
+    return { have, missing };
+  }
 
   function renderBar() {
     const shadow = ensureBarRoot();
@@ -378,6 +533,41 @@
     // Shortcuts nobody knows about are shortcuts nobody uses.
     count.title = 'J and K move · Space selects · Enter adds';
     bar.appendChild(count);
+
+    /*
+     * What this add is actually going to do, before it does it.
+     *
+     * A LinkedIn row carries no email address, so anyone not already held
+     * as a contact needs a Prospector reveal, and a reveal costs a credit.
+     * The old bar said nothing about this: you selected eighteen people,
+     * pressed Add, and found out afterwards how many credits had gone and
+     * how many arrived with no address at all.
+     */
+    const split = addressSplit();
+    if (split) {
+      const detail = document.createElement('span');
+      detail.className = split.missing > 0 ? 'note warn' : 'note';
+      detail.textContent = split.missing > 0
+        ? `${split.have} have addresses · ${split.missing} need finding`
+        : `all ${split.have} have addresses`;
+      detail.title = split.missing > 0
+        ? `${split.missing} of the selected people are not in your contacts yet, so adding them spends ${split.missing} Prospector credit${split.missing === 1 ? '' : 's'} looking for an address.`
+        : 'Every selected person is already a contact with an address — this add costs no credits.';
+      bar.appendChild(detail);
+    } else if (selected.size > 0) {
+      const detail = document.createElement('span');
+      detail.className = 'note';
+      detail.textContent = 'checking addresses…';
+      bar.appendChild(detail);
+      /*
+       * Selecting is the first moment the answer matters, and so the first
+       * moment it is worth a request. Kicked from here rather than from the
+       * checkbox handler because the keyboard and Select all reach the same
+       * state without ever touching it — and resolveStanding is idempotent,
+       * so the repaints this triggers cost nothing.
+       */
+      resolveStanding(false);
+    }
 
     const keys = document.createElement('span');
     keys.className = 'keys';
@@ -446,31 +636,80 @@
   /* ---------------------------------------------------------------- */
 
   /**
-   * Tick only the people who aren't already on one of your lead lists.
+   * Ask the server what it already knows about the people on this page.
    *
-   * LinkedIn rows carry no address, so "do we know them?" is answered by name
-   * and company. That's a fuzzy match, so the result is a selection the user
-   * can see and correct — never an automatic spend or send.
+   * Shared by Net New and by the address count on the bar, and run at most
+   * once per set of rows. The service worker memoises the searches behind
+   * it, so a second call inside a minute costs nothing — but a third one
+   * from a third caller would still be a request nobody asked for.
+   *
+   * Failure is silent by design when nobody pressed anything: the bar
+   * simply says less rather than putting a red error in front of someone
+   * who was only scrolling.
+   *
+   * @param {boolean} [loud] Report failures on the bar.
+   * @returns {Promise<boolean>} Whether standing is now known.
+   */
+  async function resolveStanding(loud) {
+    if (rows.size === 0) return false;
+    if (standingFor === rows.size && barState.netNewReady) return true;
+
+    /*
+     * Join an in-flight check rather than declining because of it.
+     *
+     * Returning false here instead is what broke Net New: selecting anything
+     * kicks off a quiet check, so pressing the button a moment later found
+     * `checking` already true, gave up, and left the bar with nothing
+     * selected and nothing said. A press must never be swallowed by work it
+     * was going to wait for anyway.
+     */
+    if (inFlight) {
+      const joined = await inFlight;
+      if (joined || !loud) return joined;
+      // A quiet failure the user has now explicitly asked to retry.
+    }
+    if (standingFailed && !loud) return false;
+
+    if (loud) barState.message = null;
+    inFlight = (async () => {
+      checking = true;
+      standingFailed = false;
+      renderBar();
+
+      const people = [...rows.values()].map((entry) => entry.person);
+      const response = await send('CHECK_KNOWN', { people });
+
+      checking = false;
+
+      if (!response.ok) {
+        standingFailed = true;
+        if (loud) barState.message = { text: response.error.message, warn: true };
+        renderBar();
+        return false;
+      }
+
+      const known = new Map(Object.entries(response.data.byProfile || {}));
+      for (const [url, entry] of rows) entry.standing = known.get(url) || null;
+      barState.netNewReady = true;
+      standingFor = rows.size;
+      renderBar();
+      return true;
+    })();
+
+    try {
+      return await inFlight;
+    } finally {
+      inFlight = null;
+    }
+  }
+
+  /**
+   * Tick only the people who aren't already on one of your lead lists.
    */
   async function selectNetNew() {
-    checking = true;
-    barState.message = null;
-    renderBar();
+    if (!(await resolveStanding(true))) return;
 
-    const people = [...rows.values()].map((entry) => entry.person);
-    const response = await send('CHECK_KNOWN', { people });
-
-    checking = false;
-
-    if (!response.ok) {
-      barState.message = { text: response.error.message, warn: true };
-      renderBar();
-      return;
-    }
-
-    const known = new Map(Object.entries(response.data.byProfile || {}));
     for (const [url, entry] of rows) {
-      entry.standing = known.get(url) || null;
       // Enrolled in something live, or suppressed → not net new.
       const skip = entry.standing?.onLists > 0 || entry.standing?.suppressed;
       setChecked(url, !skip);
@@ -482,7 +721,6 @@
     barState.message = skipped
       ? { text: `${skipped} skipped — already on a list, or suppressed` }
       : { text: 'Nobody here is already being emailed' };
-    barState.netNewReady = true;
     renderBar();
   }
 
@@ -508,12 +746,32 @@
       return;
     }
 
-    const { added, revealed, noEmail, creditsRemaining } = response.data;
+    const {
+      added, revealed, noEmail, creditsRemaining,
+      campaignName, sending, daysToReach,
+    } = response.data;
+
     const parts = [`Added ${added}`];
     if (revealed > 0) parts.push(`${revealed} revealed`);
     if (noEmail > 0) parts.push(`${noEmail} had no address`);
     if (Number.isFinite(creditsRemaining)) parts.push(`${creditsRemaining} credits left`);
-    barState.message = { text: parts.join(' · ') };
+
+    /*
+     * And what happens to them, which is the question that was actually
+     * being asked. "Added 18" told you where they were filed; it did not
+     * tell you whether anything would ever be sent to them, and a list no
+     * campaign draws from is the most expensive misunderstanding this
+     * extension can create.
+     */
+    if (sending && campaignName) {
+      parts.push(daysToReach && daysToReach > 1
+        ? `"${campaignName}" reaches them in ~${daysToReach} days`
+        : `"${campaignName}" picks them up next run`);
+    } else if (campaignName) {
+      parts.push(`"${campaignName}" is not running — nothing sends yet`);
+    }
+
+    barState.message = { text: parts.join(' · '), warn: !sending && noEmail > 0 };
 
     for (const url of [...selected]) setChecked(url, false);
     renderBar();
@@ -554,6 +812,9 @@
 
     rows.clear();
     selected.clear();
+    standingFor = 0;
+    standingFailed = false;
+    inFlight = null;
     cursor = -1;
     barState.message = null;
   }

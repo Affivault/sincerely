@@ -38,6 +38,7 @@ const BROWSER = [
   'ratelimit.mjs',
   'agent.mjs',
   'scraper-variants.mjs',
+  'salesnav.mjs',
   'regressions.mjs',
   /*
    * Screenshots of every surface, last because it asserts nothing — it only

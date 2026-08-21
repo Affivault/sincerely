@@ -81,6 +81,7 @@ const el = {
   listTriggerSwatch: document.getElementById('list-trigger-swatch'),
   listPop: document.getElementById('list-pop'),
   destNote: document.getElementById('dest-note'),
+  reachNote: document.getElementById('reach-note'),
   newListName: document.getElementById('new-list-name'),
   newListCreate: document.getElementById('new-list-create'),
   add: document.getElementById('add'),
@@ -743,6 +744,57 @@ async function createList() {
 }
 
 /** Reflect the chosen destination on the collapsed trigger. */
+/**
+ * How far the campaign behind the selected list reaches, once asked for.
+ *
+ * Cached by campaign so flicking through the picker does not become a
+ * request per keystroke, and held on the module rather than in state
+ * because it survives a re-render and describes the account, not the page.
+ *
+ * @type {Map<string, object|null>}
+ */
+const reachByCampaign = new Map();
+
+/** Turn a reach into the one line worth reading. */
+function reachSentence(reach) {
+  if (!reach) return null;
+
+  // No cap on a mailbox means no number, and inventing one would be a guess
+  // wearing a fact's clothes.
+  if (reach.daily_capacity === null) {
+    return reach.pending > 0
+      ? `<b>${reach.pending.toLocaleString()}</b> waiting · no daily cap set`
+      : null;
+  }
+  if (reach.daily_capacity === 0) {
+    return 'This campaign\u2019s mailboxes are capped at zero a day \u2014 nothing will send.';
+  }
+  if (reach.pending === 0) {
+    return `Sends <b>${reach.daily_capacity.toLocaleString()}</b> a day \u00b7 nobody waiting`;
+  }
+
+  const days = reach.days_to_clear;
+  if (!days || days <= 1) {
+    return `<b>${reach.pending.toLocaleString()}</b> waiting \u00b7 <b>${reach.daily_capacity.toLocaleString()}</b> a day \u2014 clears today`;
+  }
+  return `<b>${reach.pending.toLocaleString()}</b> waiting \u00b7 <b>${reach.daily_capacity.toLocaleString()}</b> a day \u2014 about <b>${days}</b> days to reach them all`;
+}
+
+/**
+ * Fetch the reach for a list's campaign, then repaint.
+ *
+ * Quiet on failure. Not knowing how far a campaign reaches is a reason to
+ * say nothing about it, never a reason to put an error in front of somebody
+ * who was adding one person to a list.
+ */
+async function loadReach(campaignId) {
+  if (!campaignId || reachByCampaign.has(campaignId)) return;
+  reachByCampaign.set(campaignId, null); // in flight — do not ask twice
+  const response = await send('CAMPAIGN_REACH', { campaignId });
+  reachByCampaign.set(campaignId, response.ok ? response.data : null);
+  syncDestination();
+}
+
 function syncDestination() {
   const list = state.lists.find((l) => l.id === state.selectedListId);
   el.listTriggerName.textContent = list
@@ -760,6 +812,19 @@ function syncDestination() {
       ? 'Campaign paused — nothing will send yet'
       : 'No campaign sends from this list yet';
   el.destNote.classList.toggle('hidden', !idle);
+
+  /*
+   * And, when something does send from it, how far that sending gets.
+   *
+   * Only for a live campaign: a paused one is already covered by the amber
+   * note above, and telling somebody a stopped campaign will take eleven
+   * days would be answering a question they have not reached yet.
+   */
+  const reach = list?.campaign_id ? reachByCampaign.get(list.campaign_id) : null;
+  const sentence = idle ? null : reachSentence(reach);
+  el.reachNote.innerHTML = sentence || '';
+  el.reachNote.classList.toggle('hidden', !sentence);
+  if (!idle && list?.campaign_id) loadReach(list.campaign_id);
   el.listTriggerSwatch.style.background = list?.color || 'var(--text-tertiary)';
   el.listTriggerSwatch.classList.toggle('hidden', !list);
   /* Never disabled. With no lists at all the dropdown is the only route to
@@ -1101,6 +1166,30 @@ async function addToList() {
     // Worth saying: re-adding somebody is how a thin record gets repaired,
     // and silence would make it look like nothing happened.
     else if (filledIn.length) parts.push(`Filled in their ${listWords(filledIn)}.`);
+
+    /*
+     * And what happens to them next.
+     *
+     * "Added to a list" is a filing action; the person pressing it wants a
+     * sending action. Naming the campaign that draws from the list, and
+     * roughly when it gets to them, is the difference between an add that
+     * feels done and one that leaves you wondering whether anything will
+     * actually happen.
+     */
+    const list = state.lists.find((l) => l.id === listId);
+    if (list?.campaign_name && list.live_campaigns > 0) {
+      const reach = list.campaign_id ? reachByCampaign.get(list.campaign_id) : null;
+      const days = reach?.days_to_clear;
+      parts.push(
+        days && days > 1
+          ? `"${list.campaign_name}" sends to them within about ${days} days.`
+          : `"${list.campaign_name}" picks them up on its next run.`,
+      );
+    } else if (list && list.sends === false) {
+      parts.push(list.held_campaigns > 0
+        ? 'No campaign is running from this list yet, so nothing sends until one is.'
+        : 'Nothing sends from this list yet — attach a campaign to it to start.');
+    }
     setStatus(parts.join(' '), {
       variant: 'success',
       actions: [
@@ -2316,6 +2405,16 @@ function profileKeyOf(url) {
     if (/(^|\.)linkedin\.com$/i.test(u.hostname)) {
       const match = u.pathname.match(/^\/in\/([^/]+)/);
       if (match) return `linkedin:${decodeURIComponent(match[1]).toLowerCase()}`;
+
+      /*
+       * Sales Navigator appends how you arrived at a lead —
+       * /sales/lead/ACwAAA...,NAME_SEARCH — so the same person reached from
+       * a search and from a saved list would otherwise be two people, and
+       * the panel would throw away everything it knew on the way between
+       * them.
+       */
+      const lead = u.pathname.match(/^\/sales\/(?:lead|people)\/([^/,]+)/);
+      if (lead) return `linkedin-sales:${decodeURIComponent(lead[1]).toLowerCase()}`;
     }
     return `${u.origin}${u.pathname}`;
   } catch {

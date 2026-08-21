@@ -1390,6 +1390,180 @@
     };
   }
 
+  /* ---------------------------------------------------------------- */
+  /* Sales Navigator                                                  */
+  /* ---------------------------------------------------------------- */
+
+  /*
+   * Sales Navigator is where anyone paying for a tool like this actually
+   * prospects, and until now the extension did nothing there at all. Not a
+   * gap in a selector — a gap in the concept: every entry point was gated
+   * on /in/, so on /sales/ there was no launcher, no scrape and no bulk
+   * bar. The manifest was already matching the pages; nothing was looking
+   * at them.
+   *
+   * It is a separate application from the main site, with its own markup,
+   * so it needs its own adapter rather than a looser path test.
+   *
+   * The hook is `data-anonymize`. LinkedIn puts it on every field carrying
+   * personal information so it can blur them for screenshots and demos,
+   * which makes it both semantically labelled and far more stable than the
+   * generated class names around it — it survives reskins precisely because
+   * it is not styling.
+   */
+
+  /** The lead id in a Sales Navigator URL, or null if this is not a lead page. */
+  function salesNavLeadId() {
+    // /sales/lead/ACwAAA...,NAME_SEARCH  and  /sales/people/ACwAAA...
+    const match = location.pathname.match(/\/sales\/(?:lead|people)\/([^/,?#]+)/);
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
+  /** True on any Sales Navigator page. */
+  function onSalesNavigator() {
+    return /(^|\.)linkedin\.com$/i.test(location.hostname) && /^\/sales\//.test(location.pathname);
+  }
+
+  /**
+   * Read one `data-anonymize` field, scoped to the lead's own panel where
+   * possible.
+   *
+   * Scoping matters on a lead page: the right-hand rail lists other people
+   * at the same company, each with their own person-name node, and an
+   * unscoped query would happily return a colleague's name for the profile
+   * you are looking at.
+   *
+   * @param {string} field
+   * @param {Element|Document} [scope]
+   * @returns {string}
+   */
+  function salesNavField(field, scope) {
+    const root = scope || document;
+    for (const node of root.querySelectorAll(`[data-anonymize="${field}"]`)) {
+      if (!node.isConnected) continue;
+      const text = String(node.textContent || '').replace(/\s+/g, ' ').trim();
+      if (text) return text;
+    }
+    return '';
+  }
+
+  /**
+   * The part of the page that is about this lead rather than about the
+   * account, the company, or the other people in the rail.
+   */
+  function salesNavLeadScope() {
+    return (
+      document.querySelector('#profile-card-section') ||
+      document.querySelector('[data-sn-view-name="lead-profile-top-card"]') ||
+      document.querySelector('section.profile-topcard') ||
+      document.querySelector('main') ||
+      document
+    );
+  }
+
+  /**
+   * A Sales Navigator lead.
+   *
+   * The public profile URL is the field worth working for: it is what makes
+   * a lead scraped here the same person as one scraped from the main site,
+   * rather than a duplicate contact nobody can reconcile. Sales Navigator
+   * does not put the public slug in its own URL, so it has to come from a
+   * link on the page — and when there is none, the Sales Navigator URL is
+   * stored rather than nothing, because a link that only works for this
+   * account still beats a contact with no way back to a person.
+   */
+  async function scrapeSalesNavigator({ deep = false } = {}) {
+    const leadId = salesNavLeadId();
+    if (!leadId) return null;
+
+    const scope = salesNavLeadScope();
+
+    const rawName =
+      salesNavField('person-name', scope) ||
+      salesNavField('person-name') ||
+      firstText(['main h1', '.profile-topcard-person-entity__name', 'h1']);
+
+    const rawHeadline =
+      salesNavField('headline', scope) ||
+      salesNavField('headline') ||
+      firstText(['.profile-topcard__headline', 'main h2']);
+
+    let rawCompany = salesNavField('company-name', scope) || salesNavField('company-name');
+    let rawJobTitle = salesNavField('job-title', scope) || salesNavField('job-title');
+
+    /*
+     * Headlines here read "Title at Company" as often as they do anywhere,
+     * so the split runs before the headline is used as a title -- not after.
+     * The other way round, a lead with no marked job-title field took the
+     * whole headline as its title, which made the split unreachable and
+     * stored people as "Head of Growth @ Brightline".
+     */
+    if (!rawCompany || !rawJobTitle) {
+      const atMatch = String(rawHeadline || '').match(/^(.*?)\s+(?:at|@)\s+(.*)$/i);
+      if (atMatch) {
+        if (!rawJobTitle) rawJobTitle = atMatch[1].trim();
+        if (!rawCompany) rawCompany = atMatch[2].trim();
+      }
+    }
+    // A headline that is not "Title at Company" is still a title.
+    if (!rawJobTitle) rawJobTitle = rawHeadline;
+
+    // Sales Navigator shows a contact-info section on leads whose details
+    // the account has, and marks the fields for the same blur feature.
+    const markedEmail = salesNavField('email', scope) || salesNavField('email');
+    const domEmails = collectEmails();
+    const emails = [...new Set(
+      [markedEmail, ...domEmails].filter((e) => e && isPlausibleEmail(String(e).toLowerCase())),
+    )].map((e) => String(e).toLowerCase());
+
+    // The public profile, when the page links to it — this is what stops a
+    // Sales Navigator lead becoming a second copy of a contact you have.
+    let publicUrl = null;
+    for (const link of (scope.querySelectorAll ? scope : document).querySelectorAll('a[href*="/in/"]')) {
+      try {
+        const url = new URL(link.getAttribute('href'), location.origin);
+        if (!/^\/in\//.test(url.pathname)) continue;
+        url.search = '';
+        url.hash = '';
+        publicUrl = url.toString().replace(/\/$/, '');
+        break;
+      } catch { /* a malformed href is not a reason to stop reading */ }
+    }
+
+    const website = [...document.querySelectorAll('a[href^="http"]')]
+      .map((a) => a.getAttribute('href'))
+      .find((href) => {
+        try {
+          const host = new URL(href, location.origin).hostname.replace(/^www\./, '');
+          return host && !/linkedin\.com$/i.test(host) && !NOISE_DOMAIN.test(host);
+        } catch { return false; }
+      });
+
+    let companyDomain = null;
+    if (website) {
+      try { companyDomain = new URL(website, location.origin).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
+    }
+
+    return {
+      ...splitName(rawName),
+      full_name: rawName || null,
+      email: emailFromSelection() || emails[0] || null,
+      email_candidates: emails,
+      company: rawCompany || null,
+      company_domain: companyDomain,
+      job_title: rawJobTitle || null,
+      linkedin_url: publicUrl || `${location.origin}/sales/lead/${encodeURIComponent(leadId)}`,
+      source: 'linkedin',
+      source_url: location.href,
+      /*
+       * Never pending. Sales Navigator has no Contact info overlay to open —
+       * what is on the page is all there is — so claiming more is coming
+       * would leave the panel waiting on a read that will never happen.
+       */
+      contact_info_pending: false,
+    };
+  }
+
   /**
    * Gmail — the sender of the open message.
    *
@@ -1467,8 +1641,14 @@
     const host = location.hostname;
     let result = null;
 
-    if (host.endsWith('linkedin.com')) result = await scrapeLinkedIn({ deep });
-    else if (host === 'mail.google.com') result = scrapeGmail();
+    if (host.endsWith('linkedin.com')) {
+      // Sales Navigator is a different application on the same domain, with
+      // its own markup — checked first, because scrapeLinkedIn's /in/ test
+      // would simply return null here and fall through to the generic sweep.
+      result = onSalesNavigator()
+        ? await scrapeSalesNavigator({ deep })
+        : await scrapeLinkedIn({ deep });
+    } else if (host === 'mail.google.com') result = scrapeGmail();
 
     if (!result || !result.email) {
       const generic = scrapeGeneric();

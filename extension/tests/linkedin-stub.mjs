@@ -193,6 +193,80 @@ const VARIANTS = {
 const variantPage = (slug) => `<!doctype html><html><head><title>Profile | LinkedIn</title></head>
 <body><main>${VARIANTS[slug]}</main></body></html>`;
 
+/* ------------------------------------------------------------------ */
+/* Sales Navigator                                                    */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Sales Navigator is a separate application on the same domain, and until
+ * now the extension did nothing there at all — every entry point was gated
+ * on /in/. These fixtures stand for the two things that matter about it:
+ * the markup is anchored on data-anonymize rather than on class names, and
+ * a lead page carries other people's names in its right-hand rail, so an
+ * unscoped read returns a colleague instead of the lead.
+ */
+
+/** A lead page, with a rail of other people at the same company. */
+const SALES_LEAD = `<!doctype html><html><head><title>Sales Navigator</title></head>
+<body>
+  <main>
+    <section id="profile-card-section">
+      <h1 data-anonymize="person-name">Ana Beltr\u00e1n</h1>
+      <span data-anonymize="headline">VP Revenue Operations at Northwind Capital</span>
+      <span data-anonymize="job-title">VP Revenue Operations</span>
+      <a data-anonymize="company-name" href="/sales/company/9931">Northwind Capital</a>
+      <a href="https://www.linkedin.com/in/ana-beltran-77/?trk=nav">View LinkedIn profile</a>
+      <a href="https://northwind.example/about">northwind.example</a>
+    </section>
+
+    <!-- The trap: the rail is full of person-name nodes for other people. -->
+    <aside id="lead-rail">
+      <div><span data-anonymize="person-name">Marcus Webb</span></div>
+      <div><span data-anonymize="person-name">Ruth Adeyemi</span></div>
+    </aside>
+  </main>
+</body></html>`;
+
+/** A lead with no link out to the public profile, which is common. */
+const SALES_LEAD_NO_PUBLIC = `<!doctype html><html><head><title>Sales Navigator</title></head>
+<body>
+  <main>
+    <section id="profile-card-section">
+      <h1 data-anonymize="person-name">Tomas Nowak</h1>
+      <span data-anonymize="headline">Head of Growth @ Brightline</span>
+    </section>
+  </main>
+</body></html>`;
+
+/** A search results page: rows link to /sales/lead/, never to /in/. */
+const SALES_SEARCH = `<!doctype html><html><head><title>Sales Navigator</title></head>
+<body>
+  <main>
+    <ol>
+      <li>
+        <a href="/sales/lead/ACwAAA001,NAME_SEARCH">
+          <span data-anonymize="person-name">Dana Okafor</span>
+        </a>
+        <span data-anonymize="title">Partner</span>
+        <span data-anonymize="company-name">Northwind Capital</span>
+      </li>
+      <li>
+        <a href="/sales/lead/ACwAAA002,NAME_SEARCH">
+          <span data-anonymize="person-name">Priya Raman</span>
+        </a>
+        <span data-anonymize="headline">Head of Partnerships at Brightline</span>
+      </li>
+      <li>
+        <a href="/sales/lead/ACwAAA003,NAME_SEARCH">
+          <span data-anonymize="person-name">Ines Okonkwo</span>
+        </a>
+        <span data-anonymize="title">Chief Revenue Officer</span>
+        <span data-anonymize="company-name">Meridian Labs</span>
+      </li>
+    </ol>
+  </main>
+</body></html>`;
+
 const ROUTER_ONLY_PROFILE = `<!doctype html><html><head><title>Dana Okafor | LinkedIn</title></head>
 <body>
   <main>
@@ -352,6 +426,11 @@ createServer({ key, cert }, (req, res) => {
     'Content-Type': 'text/html; charset=utf-8',
     'Set-Cookie': 'JSESSIONID="ajax:1234567890"; Path=/',
   });
+
+  // Sales Navigator lives on the same host under /sales/.
+  if (url.pathname.startsWith('/sales/search/people')) return res.end(SALES_SEARCH);
+  if (url.pathname.includes('/sales/lead/nopublic')) return res.end(SALES_LEAD_NO_PUBLIC);
+  if (url.pathname.startsWith('/sales/lead/')) return res.end(SALES_LEAD);
 
   for (const slug of Object.keys(VARIANTS)) {
     if (url.pathname.includes(slug)) return res.end(variantPage(slug));

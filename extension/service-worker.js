@@ -147,6 +147,18 @@ async function searchContactsCached(surname) {
 }
 
 /**
+ * How far the campaign behind a list can reach.
+ *
+ * Memoised for a minute: the panel asks whenever the destination changes,
+ * and the answer moves at the pace of a daily sending allowance, not at the
+ * pace of somebody flicking through a picker.
+ *
+ * @type {Map<string, {at: number, value: object}>}
+ */
+const reachCache = new Map();
+const REACH_TTL_MS = 60_000;
+
+/**
  * Drop the cache after anything that changes a membership. The cache exists to
  * spare the rate limit on repeated reads, not to survive our own writes — a
  * badge still reading "1" after the user just removed someone is a bug.
@@ -157,6 +169,10 @@ function invalidateStandingCache() {
   // every writer that calls this has just changed one of them.
   membershipCache = null;
   searchCache.clear();
+  // An add changes how many people the campaign has left to reach, which is
+  // the whole point of the number — showing the pre-add figure straight
+  // after an add would make it look like nothing happened.
+  reachCache.clear();
 }
 
 /**
@@ -702,6 +718,7 @@ async function handleListLists() {
         live_campaigns: bound?.live ?? 0,
         held_campaigns: bound?.paused ?? 0,
         campaign_name: bound?.name ?? null,
+        campaign_id: bound?.id ?? null,
         /* Null, not false, when we could not find out — the UI must be able to
            tell "nothing sends from this" from "we don't know". */
         sends: byList === null ? null : (bound?.live ?? 0) > 0,
@@ -957,10 +974,29 @@ async function findContactForPerson(person, pool) {
   );
 }
 
+/** @param {{campaignId: string}} payload */
+async function handleCampaignReach(payload) {
+  try {
+    const campaignId = payload.campaignId;
+    if (!campaignId) throw new ApiError('No campaign to look up.', { code: 'NO_CAMPAIGN' });
+
+    const cached = reachCache.get(campaignId);
+    if (cached && Date.now() - cached.at < REACH_TTL_MS) {
+      return { ok: true, data: cached.value };
+    }
+
+    const reach = await api.campaignReach(campaignId);
+    reachCache.set(campaignId, { at: Date.now(), value: reach });
+    return { ok: true, data: reach };
+  } catch (err) {
+    return toErrorPayload(err);
+  }
+}
+
 async function handleCheckKnown(payload) {
   try {
     const people = (payload.people || []).slice(0, 60);
-    /** @type {Record<string, {contactId: string|null, onLists: number, suppressed: boolean}>} */
+    /** @type {Record<string, {contactId: string|null, onLists: number, suppressed: boolean, hasEmail: boolean}>} */
     const byProfile = {};
 
     // One search per distinct surname rather than per person: a page of
@@ -998,7 +1034,9 @@ async function handleCheckKnown(payload) {
       const contact = await findContactForPerson(person, pool);
 
       if (!contact) {
-        byProfile[person.linkedin_url] = { contactId: null, onLists: 0, suppressed: false };
+        byProfile[person.linkedin_url] = {
+          contactId: null, onLists: 0, suppressed: false, hasEmail: false,
+        };
         continue;
       }
 
@@ -1019,6 +1057,15 @@ async function handleCheckKnown(payload) {
         contactId: contact.id,
         onLists: listCounts.get(contact.id) || 0,
         suppressed: Boolean(suppressed),
+        /*
+         * Whether an address is already held for this person.
+         *
+         * A LinkedIn row carries no email, so everyone without one here
+         * needs a Prospector reveal, and a reveal costs a credit. Reporting
+         * this before the add is the difference between choosing to spend
+         * four credits and finding out afterwards that you did.
+         */
+        hasEmail: Boolean(email && email.includes('@')),
       };
     }
 
@@ -1151,10 +1198,54 @@ async function handleBulkAddProfiles(payload) {
         revealed,
         noEmail,
         creditsRemaining,
+        /*
+         * What happens to these people next.
+         *
+         * "Added 18" says where they were filed, not whether anything will
+         * be sent to them — and the second is the question actually being
+         * asked. Best-effort: the add has already succeeded by this point,
+         * so a failure here costs a sentence, not the result.
+         */
+        ...(await addOutcome(listId, uniqueIds.length)),
       },
     };
   } catch (err) {
     return toErrorPayload(err);
+  }
+}
+
+/**
+ * Which campaign draws from a list, and roughly when it would reach this
+ * many more people.
+ *
+ * @param {string} listId
+ * @param {number} joining
+ */
+async function addOutcome(listId, joining) {
+  try {
+    const byList = await api.campaignsByList();
+    const bound = byList.get(listId);
+    if (!bound || bound.live === 0 || !bound.id) {
+      return {
+        campaignName: bound?.name ?? null,
+        sending: false,
+        daysToReach: null,
+      };
+    }
+
+    const reach = await api.campaignReach(bound.id).catch(() => null);
+    const daily = reach?.daily_capacity;
+    return {
+      campaignName: bound.name,
+      sending: true,
+      // Counted including the people just added, since they are what the
+      // person wants an answer about.
+      daysToReach: daily && daily > 0
+        ? Math.ceil(((reach.pending || 0) + joining) / daily)
+        : null,
+    };
+  } catch {
+    return { campaignName: null, sending: false, daysToReach: null };
   }
 }
 
@@ -2057,6 +2148,7 @@ const HANDLERS = {
   REMOVE_FROM_LIST: handleRemoveFromList,
   BULK_ADD: handleBulkAdd,
   SCAN_SITE: handleScanSite,
+  CAMPAIGN_REACH: handleCampaignReach,
   CHECK_KNOWN: handleCheckKnown,
   BULK_ADD_PROFILES: handleBulkAddProfiles,
   FIND_EMAIL: handleFindEmail,
