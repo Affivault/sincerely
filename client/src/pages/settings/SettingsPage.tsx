@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
@@ -136,6 +136,12 @@ export function SettingsPage() {
 
   // Track if form has unsaved changes
   const [hasChanges, setHasChanges] = useState(false);
+  // Mirrors hasChanges for the hydration effect below, which must read the
+  // latest value without re-running every time hasChanges itself changes.
+  const hasChangesRef = useRef(false);
+  useEffect(() => {
+    hasChangesRef.current = hasChanges;
+  }, [hasChanges]);
 
   // ── Fetch settings from backend ──
   const { data: settings, isLoading } = useQuery({
@@ -143,8 +149,12 @@ export function SettingsPage() {
     queryFn: settingsApi.get,
   });
 
-  // Populate form when settings load
+  // Populate form when settings load. Guarded against hasChanges: a
+  // background refetch (e.g. React Query's refetchOnWindowFocus firing after
+  // the user alt-tabs away and back) must not silently overwrite in-progress
+  // edits — the user would lose their edits with no warning.
   useEffect(() => {
+    if (hasChangesRef.current) return;
     if (settings) {
       setFirstName(settings.first_name || '');
       setLastName(settings.last_name || '');

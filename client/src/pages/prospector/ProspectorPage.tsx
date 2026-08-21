@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -189,9 +189,17 @@ export function ProspectorPage() {
   };
   const hasFilters = titles.length + locations.length + industries.length + companies.length + seniorities.length + companySizes.length > 0 || !!keywords.trim();
 
+  // Guards against a slower, now-stale search response overwriting the
+  // results of a newer one (e.g. pressing Enter twice in quick succession).
+  const searchRequestIdRef = useRef(0);
+
   const searchMutation = useMutation({
-    mutationFn: ({ p }: { p: number }) => prospectingApi.search(filters, p),
-    onSuccess: (data, vars) => { setResults(data); setPage(vars.p); },
+    mutationFn: ({ p }: { p: number; requestId: number }) => prospectingApi.search(filters, p),
+    onSuccess: (data, vars) => {
+      if (vars.requestId !== searchRequestIdRef.current) return;
+      setResults(data);
+      setPage(vars.p);
+    },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Search failed'),
   });
 
@@ -222,7 +230,8 @@ export function ProspectorPage() {
 
   const runSearch = (p = 1) => {
     if (!hasFilters) { toast('Add at least one filter to search.', { icon: '🔎' }); return; }
-    searchMutation.mutate({ p });
+    const requestId = ++searchRequestIdRef.current;
+    searchMutation.mutate({ p, requestId });
   };
 
   const credits = status?.credits;
@@ -287,9 +296,23 @@ export function ProspectorPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 items-start">
         {/* Filters */}
         <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 space-y-3.5 lg:sticky lg:top-4">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
-            <Search className="h-3 w-3" /> Filters
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
+              <Search className="h-3 w-3" /> Filters
+            </p>
+            {hasFilters && (
+              <button
+                onClick={() => {
+                  setTitles([]); setLocations([]); setIndustries([]);
+                  setCompanies([]); setSeniorities([]); setCompanySizes([]);
+                  setKeywords('');
+                }}
+                className="text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] transition-colors"
+              >
+                Clear all
+              </button>
+            )}
+          </div>
           <ChipInput label="Job title" icon={Briefcase} values={titles} onChange={setTitles} placeholder="Head of Growth, CMO…" />
           <ChipInput label="Location" icon={MapPin} values={locations} onChange={setLocations} placeholder="London, United States…" />
           <ChipInput label="Industry" icon={Sparkles} values={industries} onChange={setIndustries} placeholder="SaaS, e-commerce…" />

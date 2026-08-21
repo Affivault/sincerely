@@ -203,6 +203,7 @@ function ScheduleEditor({ initial, onCancel, onSave, loading }: {
   const handleSave = () => {
     if (!name.trim()) { toast.error('Name is required'); return; }
     if (days.length === 0) { toast.error('Pick at least one day'); return; }
+    if (end <= start) { toast.error('End time must be after start time'); return; }
     onSave({
       name: name.trim(),
       timezone,

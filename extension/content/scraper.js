@@ -1398,10 +1398,14 @@
    */
   function scrapeGmail() {
     // Prefer the sender inside an expanded message over anything in the list view.
+    // The last fallback stays scoped to `.gs` (the sender header block) too —
+    // an unscoped `span[email]` also matches To/CC/BCC recipient chips in an
+    // open reply/forward compose box, which would attribute a recipient's
+    // address to "the sender" whenever those chips render before the header.
     const senderNode =
       document.querySelector('.gs .gD[email]') ||
       document.querySelector('h3.iw span[email]') ||
-      document.querySelector('span[email]:not([email=""])');
+      document.querySelector('.gs span[email]:not([email=""])');
 
     if (!senderNode) return null;
 
