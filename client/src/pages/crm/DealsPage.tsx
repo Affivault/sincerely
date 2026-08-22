@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, type ReactNode } from 'react';
+import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { crmApi } from '../../api/crm.api';
@@ -254,17 +254,19 @@ export function DealDrawer({
   const navigate = useNavigate();
   const { openPeek } = usePeek();
   const [show, setShow] = useState(false);
+  const identity = useRef({});
 
   const contactId = leadId(deal);
   const companyId = dealCompanyId(deal);
 
   useEffect(() => {
     setShow(true);
-    // Join the shared modal stack so a Modal opened on top of this drawer
-    // (Edit deal, Add task, Book, the delete confirm) is what Escape closes —
-    // without this, Escape closed the drawer underneath as well, dropping
-    // the user out of the deal entirely.
-    const self = {};
+    // Join the shared modal stack so Escape only closes this drawer when it's
+    // topmost — otherwise dismissing a Modal opened on top of it (Edit deal,
+    // Add task, Book, the delete confirm, ActivityModal/MeetingModal) also
+    // closed the drawer itself underneath it, dropping the user out of the
+    // deal entirely.
+    const self = identity.current;
     openModals.push(self);
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
