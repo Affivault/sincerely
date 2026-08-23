@@ -281,8 +281,15 @@ export function TasksPage() {
   // One toast for the whole batch, not one per task — clearing a dozen
   // overdue items shouldn't paper the screen in identical toasts.
   const snoozeAll = useMutation({
-    mutationFn: (list: CrmTask[]) =>
-      Promise.all(list.map((t) => crmApi.updateTask(t.id, { due_date: pushToTomorrow(t.due_date!).toISOString() }))),
+    mutationFn: async (list: CrmTask[]) => {
+      // allSettled, not all: one failed request must not make Promise.all
+      // reject the whole batch and roll back tasks that actually succeeded.
+      const results = await Promise.allSettled(
+        list.map((t) => crmApi.updateTask(t.id, { due_date: pushToTomorrow(t.due_date!).toISOString() }))
+      );
+      const failed = list.filter((_, i) => results[i].status === 'rejected');
+      return { failed };
+    },
     onMutate: async (list) => {
       await qc.cancelQueries({ queryKey: ['crm', 'tasks'] });
       const prev = qc.getQueryData<CrmTask[]>(['crm', 'tasks']);
@@ -292,11 +299,29 @@ export function TasksPage() {
         (old || []).map((x) => (ids.has(x.id) ? { ...x, due_date: dueById.get(x.id)! } : x)));
       return { prev };
     },
+    onSuccess: ({ failed }, list, ctx) => {
+      if (failed.length === 0) {
+        toast.success(`Pushed ${list.length} to tomorrow`);
+        return;
+      }
+      // Partial failure: only undo the ones that didn't actually save —
+      // the rest genuinely moved and shouldn't snap back.
+      if (ctx?.prev) {
+        const prevById = new Map(ctx.prev.map((t) => [t.id, t]));
+        const failedIds = new Set(failed.map((t) => t.id));
+        qc.setQueryData<CrmTask[]>(['crm', 'tasks'], (old) =>
+          (old || []).map((x) => (failedIds.has(x.id) ? prevById.get(x.id) || x : x)));
+      }
+      if (failed.length === list.length) {
+        toast.error('Could not reschedule those');
+      } else {
+        toast.error(`Pushed ${list.length - failed.length} to tomorrow, ${failed.length} failed`);
+      }
+    },
     onError: (_e, _list, ctx) => {
       if (ctx?.prev) qc.setQueryData(['crm', 'tasks'], ctx.prev);
       toast.error('Could not reschedule those');
     },
-    onSuccess: (_r, list) => toast.success(`Pushed ${list.length} to tomorrow`),
     onSettled: () => qc.invalidateQueries({ queryKey: ['crm'] }),
   });
 

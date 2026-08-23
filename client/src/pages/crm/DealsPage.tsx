@@ -600,9 +600,18 @@ function PipelineBoard({ deals, tasks, events, onEdit, dragDisabled }: { deals: 
       const others = (old || []).filter(d => d.stage !== stage && d.id !== id);
       return [...others, ...rebuilt];
     });
-    Promise.all(changed.map(d => crmApi.updateDeal(d.id, { stage, position: d.position })))
-      .then(() => qc.invalidateQueries({ queryKey: ['crm'] }))
-      .catch(() => { toast.error('Failed to reorder'); qc.invalidateQueries({ queryKey: ['crm'] }); });
+    // allSettled, not all: one failing update shouldn't make every other card
+    // in the batch report a generic failure when it actually saved fine.
+    Promise.allSettled(changed.map(d => crmApi.updateDeal(d.id, { stage, position: d.position })))
+      .then((results) => {
+        const failedCount = results.filter(r => r.status === 'rejected').length;
+        if (failedCount > 0) {
+          toast.error(failedCount === changed.length
+            ? 'Failed to reorder'
+            : `${failedCount} of ${changed.length} card${changed.length === 1 ? '' : 's'} failed to save`);
+        }
+        qc.invalidateQueries({ queryKey: ['crm'] });
+      });
   };
 
   const linkCounts = (dealId: string) => ({

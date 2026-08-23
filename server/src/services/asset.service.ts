@@ -34,7 +34,10 @@ export function buildAssetUrl(
  */
 export function interpolateText(text: string, params: Record<string, string>): string {
   return text.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-    return params[key] || match;
+    // Blank anything unresolved (missing key, or a real but empty value like a
+    // blank first_name) rather than shipping the raw {{tag}} into the image —
+    // the same rule shared/src/merge-tags.ts enforces for text bodies.
+    return key in params ? params[key] : '';
   });
 }
 
