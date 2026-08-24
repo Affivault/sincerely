@@ -215,9 +215,9 @@ export function SaraQueuePage() {
       {/* KPI strip */}
       <div className="grid grid-cols-4 gap-3">
         <StatCard label="Pending Review" value={stats?.pending_review ?? 0} icon={Inbox} accent="amber" />
-        <StatCard label="Approved Today" value={stats?.approved_today ?? 0} icon={CheckCircle2} accent="emerald" />
-        <StatCard label="Sent Today" value={stats?.sent_today ?? 0} icon={Send} accent="indigo" />
-        <StatCard label="Dismissed Today" value={stats?.dismissed_today ?? 0} icon={XCircle} accent="slate" />
+        <StatCard label="Approved Today" value={stats?.approved_today ?? 0} icon={CheckCircle2} accent="emerald" hint="Resets at midnight, your time" />
+        <StatCard label="Sent Today" value={stats?.sent_today ?? 0} icon={Send} accent="indigo" hint="Resets at midnight, your time" />
+        <StatCard label="Dismissed Today" value={stats?.dismissed_today ?? 0} icon={XCircle} accent="slate" hint="Resets at midnight, your time" />
       </div>
 
       {/* Intent Distribution */}

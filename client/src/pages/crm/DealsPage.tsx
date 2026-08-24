@@ -5,7 +5,7 @@ import { crmApi } from '../../api/crm.api';
 import { ActivityModal, MeetingModal, ContactPicker, toDateInput } from '../../components/crm/CrmPrimitives';
 import { contactsApi } from '../../api/contacts.api';
 import { inboxApi } from '../../api/inbox.api';
-import { Modal } from '../../components/ui/Modal';
+import { Modal, openModals } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -260,9 +260,23 @@ export function DealDrawer({
 
   useEffect(() => {
     setShow(true);
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    // Join the shared modal stack so a Modal opened on top of this drawer
+    // (Edit deal, Add task, Book, the delete confirm) is what Escape closes —
+    // without this, Escape closed the drawer underneath as well, dropping
+    // the user out of the deal entirely.
+    const self = {};
+    openModals.push(self);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (openModals[openModals.length - 1] !== self) return;
+      close();
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      const at = openModals.lastIndexOf(self);
+      if (at !== -1) openModals.splice(at, 1);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

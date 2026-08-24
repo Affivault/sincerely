@@ -118,7 +118,11 @@ export function buildTagValues(ctx: MergeContext): Record<string, string> {
       const v = str(value);
       const safe = key.trim().replace(/\s+/g, '_').toLowerCase();
       if (!safe) continue;
-      values[`custom.${safe}`] = v;
+      // First field wins when two distinct CSV columns normalise to the same
+      // name (e.g. "Region" and "REGION") — applied consistently to both the
+      // bare and `custom.`-prefixed forms so {{region}} and {{custom.region}}
+      // never disagree about which value they mean.
+      if (!(`custom.${safe}` in values)) values[`custom.${safe}`] = v;
       // Never let a custom field shadow a built-in — a column called
       // "company" in someone's CSV must not override the real one.
       if (!(safe in values)) values[safe] = v;

@@ -32,7 +32,7 @@ const CITY_ZONES: Record<string, string> = {
   // North America
   'new york': 'America/New_York', 'brooklyn': 'America/New_York', 'manhattan': 'America/New_York',
   'boston': 'America/New_York', 'philadelphia': 'America/New_York', 'atlanta': 'America/New_York',
-  'miami': 'America/New_York', 'washington dc': 'America/New_York', 'washington d.c.': 'America/New_York',
+  'miami': 'America/New_York', 'washington dc': 'America/New_York',
   'toronto': 'America/Toronto', 'ottawa': 'America/Toronto', 'montreal': 'America/Toronto',
   'chicago': 'America/Chicago', 'dallas': 'America/Chicago', 'houston': 'America/Chicago',
   'austin': 'America/Chicago', 'minneapolis': 'America/Chicago', 'winnipeg': 'America/Winnipeg',
@@ -237,6 +237,10 @@ export function inferTimezone(location?: string | null): string | null {
   for (const [name, zone] of Object.entries(CITY_ZONES)) {
     // Word-bounded so "orlando" can't match on "orl" and "india" can't match
     // inside "indiana".
+    if (new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(whole)) return zone;
+  }
+  for (const [name, zone] of Object.entries(REGION_ZONES)) {
+    if (name.length < 4) continue; // skip 2-letter abbreviations — too easy to hit by accident
     if (new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(whole)) return zone;
   }
   for (const [name, zone] of Object.entries(COUNTRY_ZONES)) {

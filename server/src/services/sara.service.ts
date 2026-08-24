@@ -7,6 +7,7 @@ import { suppressionService } from './suppression.service.js';
 import { billingService } from './billing.service.js';
 import { crmService } from './crm.service.js';
 import { settingsService } from './settings.service.js';
+import { startOfDayInTimezone } from '../utils/timezone.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { checkAndAutoCompleteCampaign } from './sequence.service.js';
 import { inboxService } from './inbox.service.js';
@@ -536,8 +537,11 @@ export async function getQueue(
  * Get SARA queue statistics.
  */
 export async function getQueueStats(userId: string): Promise<SaraQueueStats> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // "Today" in the user's own timezone, not the server's — otherwise the
+  // approved/dismissed/sent counters reset at the wrong wall-clock hour for
+  // anyone not in the server's timezone (commonly UTC).
+  const settings = await settingsService.get(userId).catch(() => null);
+  const today = startOfDayInTimezone(settings?.timezone || 'UTC');
 
   const { count: pendingReview } = await supabaseAdmin
     .from('inbox_messages')
