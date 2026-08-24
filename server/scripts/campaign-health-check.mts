@@ -258,22 +258,41 @@ console.log('\na campaign that has finished its audience is not a fault');
 
 console.log('\nbeing outside the sending window is a fact, not a problem');
 {
+  /*
+   * The sending day is derived from today rather than hard-coded.
+   *
+   * A fixed 'monday' meant this scenario tested nothing at all on Mondays —
+   * the window was open, the branch never ran, and the suite still reported
+   * a pass. A check that quietly stops checking one day in seven is worse
+   * than one that fails, because nothing ever tells you.
+   */
+  const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const notToday = DAYS[(new Date().getUTCDay() + 3) % 7];
+
   const r = await health((w) => {
-    // A window that cannot contain any moment today.
-    w.campaigns[0].send_days = ['monday'];
+    w.campaigns[0].send_days = [notToday];
     w.campaigns[0].send_window_start = '09:00';
     w.campaigns[0].send_window_end = '17:00';
   });
-  const monday = new Date().getUTCDay() === 1;
-  if (monday) {
-    is('skipped — today is Monday, so the window is open', true);
-  } else {
-    is('level is attention', r.level === 'attention', `${r.level}: ${ids(r)}`);
-    is('and it is the schedule', has(r, 'outside_schedule'), ids(r));
-    is('with no fix link, because there is nothing to fix',
-       r.issues.find((i: any) => i.id === 'outside_schedule')?.fix === null,
-       JSON.stringify(r.issues.find((i: any) => i.id === 'outside_schedule')));
-  }
+  is('level is attention', r.level === 'attention', `${r.level}: ${ids(r)} (sends ${notToday})`);
+  is('and it is the schedule', has(r, 'outside_schedule'), ids(r));
+  is('with no fix link, because there is nothing to fix',
+     r.issues.find((i: any) => i.id === 'outside_schedule')?.fix === null,
+     JSON.stringify(r.issues.find((i: any) => i.id === 'outside_schedule')));
+}
+
+console.log('\nand being inside it is not raised at all');
+{
+  // The other half, which nothing covered: a campaign sending right now
+  // must not be told it is outside its own window.
+  const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const today = DAYS[new Date().getUTCDay()];
+  const r = await health((w) => {
+    w.campaigns[0].send_days = [today];
+    w.campaigns[0].send_window_start = '00:00';
+    w.campaigns[0].send_window_end = '23:59';
+  });
+  is('an open window is silent', !has(r, 'outside_schedule'), ids(r));
 }
 
 console.log('\nno sending window at all is worth flagging');
