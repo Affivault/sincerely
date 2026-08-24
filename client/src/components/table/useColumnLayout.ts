@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Column layout — widths, order, and the gestures that change them.
@@ -73,6 +73,23 @@ export function useColumnLayout({
   const [dragCol, setDragCol] = useState<string | null>(null);
   const [dropCol, setDropCol] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
 
+  // Holds the active drag gesture's listeners so they can be torn down if the
+  // table unmounts mid-resize (route change, browser back/forward) — without
+  // this they stayed attached to window forever, since only pointerup ever
+  // removed them.
+  const activeResize = useRef<{ onMove: (ev: PointerEvent) => void; onUp: () => void } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (!activeResize.current) return;
+      window.removeEventListener('pointermove', activeResize.current.onMove);
+      window.removeEventListener('pointerup', activeResize.current.onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      activeResize.current = null;
+    };
+  }, []);
+
   const widthOf = (id: string) => widths[id] ?? widthOverrides[id] ?? defaultWidth;
 
   const startResize = (id: string, e: React.PointerEvent) => {
@@ -95,10 +112,12 @@ export function useColumnLayout({
       window.removeEventListener('pointerup', onUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      activeResize.current = null;
       setResizingCol(null);
       write(widthKey, latest);
     };
 
+    activeResize.current = { onMove, onUp };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     document.body.style.cursor = 'col-resize';

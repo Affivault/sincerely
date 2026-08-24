@@ -7,6 +7,8 @@ import { decrypt } from '../../utils/encryption.js';
 import { resolveHostIp } from '../../utils/dns-doh.js';
 import { fireEvent } from '../../services/webhook.service.js';
 import { processReply } from '../../services/sara.service.js';
+import { detectAutoReply } from '../../utils/auto-reply.js';
+import { markReplied, stopOtherCampaignsForContact } from '../../services/sequence.service.js';
 
 interface InboxSyncJobData {
   userId: string;
@@ -21,18 +23,28 @@ interface InboxSyncJobData {
  * Parse raw email source using mailparser for proper MIME handling
  * (base64, quoted-printable, nested multipart, etc.)
  */
-async function parseEmailSource(source: Buffer | string): Promise<{ text: string; html: string | null }> {
+async function parseEmailSource(source: Buffer | string): Promise<{ text: string; html: string | null; headers: unknown }> {
   try {
     const parsed: ParsedMail = await simpleParser(source);
     const text = parsed.text || '';
     const html = parsed.html || null;
-    return { text, html };
+    return { text, html, headers: parsed.headers };
   } catch {
     // Fallback: treat entire source as plain text
     const str = typeof source === 'string' ? source : source.toString();
     const bodyStart = str.indexOf('\r\n\r\n');
-    return { text: bodyStart !== -1 ? str.slice(bodyStart + 4).trim() : '', html: null };
+    return { text: bodyStart !== -1 ? str.slice(bodyStart + 4).trim() : '', html: null, headers: null };
   }
+}
+
+async function isAiTaggingEnabled(userId: string): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from('user_settings')
+    .select('ai_tagging_enabled')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (!data) return true;
+  return data.ai_tagging_enabled !== false;
 }
 
 export function startInboxWorker() {
@@ -45,6 +57,8 @@ export function startInboxWorker() {
     async (job: Job<InboxSyncJobData>) => {
       const { userId, smtpAccountId } = job.data;
       console.log(`Processing inbox sync job ${job.id} for account ${smtpAccountId}`);
+
+      const aiTaggingOn = await isAiTaggingEnabled(userId);
 
       // 1. Get SMTP account details and decrypt password
       const { data: account } = await supabaseAdmin
@@ -124,7 +138,7 @@ export function startInboxWorker() {
           const messageId = envelope.messageId || '';
           const inReplyTo = envelope.inReplyTo || '';
           const rawSource = msg.source || '';
-          const { text: bodyText, html: bodyHtml } = await parseEmailSource(rawSource);
+          const { text: bodyText, html: bodyHtml, headers: parsedHeaders } = await parseEmailSource(rawSource);
 
           // 4. Skip if already stored (deduplicate by message_id)
           if (messageId) {
@@ -181,7 +195,13 @@ export function startInboxWorker() {
             }
           }
 
-          // 6. Store in inbox_messages
+          // 6. Is a machine talking? Decided before anything is recorded,
+          // because the answer changes what kind of activity this is,
+          // whether the sequence stops, and whether a webhook fires — an
+          // out-of-office bounce-back must never count as a reply.
+          const autoReply = detectAutoReply(parsedHeaders, subject, bodyText);
+
+          // 7. Store in inbox_messages
           const inboxRow: any = {
             user_id: userId,
             smtp_account_id: smtpAccountId,
@@ -195,6 +215,7 @@ export function startInboxWorker() {
             direction: 'inbound',
             is_read: false,
             received_at: envelope.date || new Date().toISOString(),
+            auto_reply_kind: autoReply.kind,
           };
           if (matchedActivity) {
             inboxRow.campaign_id = matchedActivity.campaign_id;
@@ -202,11 +223,23 @@ export function startInboxWorker() {
             inboxRow.campaign_contact_id = matchedActivity.campaign_contact_id;
           }
 
-          const { data: saved, error: saveErr } = await supabaseAdmin
+          let { data: saved, error: saveErr } = await supabaseAdmin
             .from('inbox_messages')
             .insert(inboxRow)
             .select('id')
             .single();
+
+          // A database that hasn't had the auto_reply_kind migration applied
+          // yet has no such column — drop it and store the mail anyway
+          // rather than losing the message entirely.
+          if (saveErr && /auto_reply_kind/.test(saveErr.message)) {
+            const { auto_reply_kind: _dropped, ...withoutKind } = inboxRow;
+            ({ data: saved, error: saveErr } = await supabaseAdmin
+              .from('inbox_messages')
+              .insert(withoutKind)
+              .select('id')
+              .single());
+          }
 
           if (saveErr || !saved) {
             // Don't record a "replied" activity or run SARA against a message
@@ -217,7 +250,7 @@ export function startInboxWorker() {
             continue;
           }
 
-          // 7. If matched, record reply activity and run SARA
+          // 8. If matched, record reply activity, stop the sequence, and run SARA
           if (matchedActivity) {
             await supabaseAdmin
               .from('campaign_activities')
@@ -226,20 +259,49 @@ export function startInboxWorker() {
                 campaign_contact_id: matchedActivity.campaign_contact_id,
                 contact_id: matchedActivity.contact_id,
                 step_id: matchedActivity.step_id || null,
-                activity_type: 'replied',
+                activity_type: autoReply.kind ? 'auto_reply' : 'replied',
                 message_id: messageId,
-                metadata: { from: fromEmail, subject, inbox_message_id: saved?.id },
+                metadata: {
+                  from: fromEmail,
+                  subject,
+                  inbox_message_id: saved?.id,
+                  ...(autoReply.kind
+                    ? { auto_reply_kind: autoReply.kind, auto_reply_reason: autoReply.reason }
+                    : {}),
+                },
               });
 
-            fireEvent(userId, 'email.replied', {
-              campaign_id: matchedActivity.campaign_id,
-              contact_id: matchedActivity.contact_id,
-              from: fromEmail,
-              subject,
-            }).catch(() => {});
+            if (!autoReply.kind) {
+              // Stop them here, not when their next step happens to come due —
+              // otherwise a contact who replies mid-sequence stays 'active' for
+              // days, still shown as being worked and blocking the campaign
+              // from auto-completing.
+              const { data: enrolment } = await supabaseAdmin
+                .from('campaign_contacts')
+                .select('id, campaigns!inner(stop_on_reply)')
+                .eq('id', matchedActivity.campaign_contact_id)
+                .maybeSingle();
 
-            // Run SARA classification
-            if (saved?.id) {
+              if (enrolment && (enrolment as any).campaigns?.stop_on_reply !== false) {
+                await markReplied(matchedActivity.campaign_contact_id);
+                await stopOtherCampaignsForContact(
+                  userId,
+                  matchedActivity.contact_id,
+                  matchedActivity.campaign_contact_id,
+                );
+              }
+
+              fireEvent(userId, 'email.replied', {
+                campaign_id: matchedActivity.campaign_id,
+                contact_id: matchedActivity.contact_id,
+                from: fromEmail,
+                subject,
+              }).catch(() => {});
+            }
+
+            // Run SARA classification — never for an autoresponder, and only
+            // when the user has AI tagging switched on.
+            if (aiTaggingOn && !autoReply.kind && saved?.id) {
               try { await processReply(saved.id); }
               catch (e) { console.error('SARA error:', e); }
             }
