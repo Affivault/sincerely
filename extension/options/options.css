@@ -1,66 +1,517 @@
 /**
- * Options page layout. Tokens and primitives come from ../lib/theme.css.
- * Mirrors the app's settings pages: a page header with a gradient icon tile,
- * then hairline-bordered panels with a titled head and a padded body.
+ * Options page.
+ *
+ * Tokens and primitives come from ../lib/theme.css; everything here is layout
+ * and the few components this page needs that the shared sheet has no reason
+ * to carry.
+ *
+ * Built to read as part of the app rather than as a browser preferences dialog.
+ * The app's settings live in a shell with a persistent grouped nav on the left
+ * and content on the right, so this does the same — same 216px column, same
+ * group labels, same raised-card active state. The old page was one 620px
+ * column of identical panels, which gave a connection you have to configure
+ * exactly the same weight as reference material you read once.
  */
 
 body {
-  padding: 34px 20px 64px;
+  background: var(--bg-app);
 }
 
-.wrap {
-  max-width: 620px;
+.shell {
+  display: flex;
+  align-items: flex-start;
+  gap: 40px;
+  max-width: 1080px;
   margin: 0 auto;
+  padding: 40px 32px 96px;
 }
 
-/* ── Page header ── */
+/* ════════════════════════════════════════════════════════════════════
+   Nav
+   ════════════════════════════════════════════════════════════════════ */
 
-.page-head {
+.nav {
+  position: sticky;
+  top: 40px;
+  width: 216px;
+  flex-shrink: 0;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 0 10px;
+  margin-bottom: 22px;
+}
+
+.nav-mark {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+
+.nav-brand-text {
+  min-width: 0;
+}
+
+.nav-brand h1 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: var(--text-primary);
+  line-height: 1.25;
+}
+
+/* Quiet, but always readable: the only honest signal of which build is loaded. */
+.nav-version {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+}
+
+.nav-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.nav-group-label {
+  margin: 0 0 4px;
+  padding: 0 10px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.nav-item {
   display: flex;
   align-items: center;
-  gap: 13px;
-  margin-bottom: 20px;
+  gap: 10px;
+  height: 30px;
+  padding: 0 10px;
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 
-.page-icon {
-  width: 38px;
-  height: 38px;
+.nav-item svg {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  transition: color var(--dur-fast) var(--ease-out);
 }
 
-.page-head h1 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+.nav-item:hover {
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
-.page-sub {
-  margin: 2px 0 0;
-  font-size: 13px;
-  color: var(--text-secondary);
+/* Raised card, the same language the app sidebar uses for its current page. */
+.nav-item.active {
+  background: var(--bg-surface);
+  border-color: var(--border-subtle);
+  box-shadow: 0 1px 2px rgba(27, 27, 31, 0.05);
+  color: var(--text-primary);
 }
 
-/* ── Panels ── */
+.nav-item.active svg {
+  color: var(--indigo);
+}
 
-.block {
+/* ════════════════════════════════════════════════════════════════════
+   Content
+   ════════════════════════════════════════════════════════════════════ */
+
+.content {
+  flex: 1;
+  min-width: 0;
+  max-width: 640px;
+}
+
+.section {
+  /* Cleared by the sticky nav so an anchor jump doesn't tuck the heading
+     under the top of the window. */
+  scroll-margin-top: 32px;
+}
+
+.section + .section {
+  margin-top: 44px;
+}
+
+.section-head {
   margin-bottom: 14px;
 }
 
-.block-head {
-  padding: 13px 16px;
-  border-bottom: 1px solid var(--border-subtle);
+.section-head h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text-primary);
 }
 
-.block-body {
+.section-head p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.card {
+  overflow: hidden;
+}
+
+.card-body {
   padding: 16px;
 }
 
-.field {
-  margin-bottom: 16px;
+.card-foot {
+  padding: 14px 16px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-muted);
 }
-.field:last-child {
-  margin-bottom: 0;
+
+.card-note {
+  margin: 14px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-tertiary);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Connection status
+   ════════════════════════════════════════════════════════════════════ */
+
+/*
+ * The one question this page exists to answer, answered before anything is
+ * asked of the reader. Tinted by state rather than shouting: a healthy
+ * connection should feel settled, not congratulated.
+ */
+.status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--text-muted);
+}
+
+.status-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.status-title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.status-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.status-action {
+  flex-shrink: 0;
+}
+
+.status[data-state='connected'] {
+  background: var(--success-bg);
+  border-color: var(--success-border);
+}
+.status[data-state='connected'] .status-dot {
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 18%, transparent);
+}
+
+.status[data-state='none'] {
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+}
+.status[data-state='none'] .status-dot {
+  background: var(--warning);
+}
+
+.status[data-state='error'] {
+  background: var(--error-bg);
+  border-color: var(--error-border);
+}
+.status[data-state='error'] .status-dot {
+  background: var(--error);
+}
+
+.status[data-state='checking'] .status-dot {
+  animation: pulse 1.4s var(--ease-out) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status[data-state='checking'] .status-dot { animation: none; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Numbered steps
+   ════════════════════════════════════════════════════════════════════ */
+
+/*
+ * Instructions for connecting are the most important thing on the page until
+ * you are connected, and noise the moment you are. Once the status card says
+ * so, the steps fold away and the card keeps only the field that is still
+ * worth having — where the app lives.
+ */
+#connection[data-connected='yes'] .steps-card .card-body {
+  display: none;
+}
+
+#connection[data-connected='yes'] .steps-card .card-foot {
+  border-top: 0;
+  background: var(--bg-surface);
+}
+
+/*
+ * The connect flow as three steps rather than a paragraph. It is a sequence
+ * of actions, and a paragraph makes the reader do the work of finding where
+ * one ends and the next begins.
+ */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.step p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.step strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.step-n {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 21px;
+  height: 21px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--indigo-subtle);
+  color: var(--indigo);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Rows
+   ════════════════════════════════════════════════════════════════════ */
+
+/*
+ * One setting per row: what it does on the left, the control on the right.
+ * The old layout put a checkbox above a paragraph, which read as prose and
+ * made it impossible to scan the page for a switch.
+ */
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 13px 16px;
+  border-top: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+/* The first row in a card sits flush against the card's own edge; every
+   later one is separated by a hairline. A row after a body keeps its border,
+   which is what divides the agent's status from its switch. */
+.card > .row:first-child {
+  border-top: 0;
+}
+
+.row:not(.row-static):hover {
+  background: var(--bg-muted);
+}
+
+.row-static {
+  cursor: default;
+}
+
+.row-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.row-title {
+  display: block;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.row-sub {
+  display: block;
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+
+.row-select {
+  width: 150px;
+  flex-shrink: 0;
+}
+
+.row-input {
+  width: 190px;
+  flex-shrink: 0;
+}
+
+/* Indented, so it reads as belonging to the switch above it. */
+.row-child {
+  padding-left: 32px;
+  background: var(--bg-muted);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Switch
+   ════════════════════════════════════════════════════════════════════ */
+
+/*
+ * A real checkbox, visually hidden, with the track drawn beside it. The
+ * element stays a checkbox so the page's script keeps reading `.checked` and
+ * listening for `change` exactly as before, and keyboards and screen readers
+ * get the control they expect rather than a div pretending.
+ */
+/*
+ * Laid over the track at full size rather than clipped to a pixel. Clipping
+ * it away leaves nothing to click or to target: the switch would still work
+ * by label, but the checkbox itself would have no box, which breaks both
+ * automation and anything that drives the control directly. Transparent and
+ * on top, it stays the real hit target and the track is only paint.
+ */
+.sw {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.sw-track {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 38px;
+  height: 22px;
+  flex-shrink: 0;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--border-default);
+  box-shadow: inset 0 1px 2px rgba(15, 15, 25, 0.18);
+  transition: background var(--dur-base) var(--ease-out);
+}
+
+.sw-track::after {
+  content: '';
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(27, 27, 31, 0.28), 0 0 0 0.5px rgba(27, 27, 31, 0.06);
+  transform: translateX(0);
+  transition: transform var(--dur-base) var(--ease-spring);
+}
+
+.sw:checked + .sw-track {
+  background: var(--indigo);
+}
+
+.sw:checked + .sw-track::after {
+  transform: translateX(16px);
+}
+
+.sw:focus-visible + .sw-track {
+  outline: 2px solid var(--indigo);
+  outline-offset: 2px;
+}
+
+.sw:disabled + .sw-track {
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw-track,
+  .sw-track::after {
+    transition: none;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Fields
+   ════════════════════════════════════════════════════════════════════ */
+
+.inline-field,
+.stacked-field {
+  display: block;
+}
+
+.stacked-field {
+  margin-top: 14px;
+}
+
+.inline-field .field-label,
+.stacked-field .field-label {
+  display: block;
+  margin-bottom: 5px;
 }
 
 .help {
@@ -68,6 +519,11 @@ body {
   font-size: 12px;
   line-height: 1.5;
   color: var(--text-tertiary);
+}
+
+.help strong {
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 code {
@@ -98,17 +554,62 @@ code {
 .actions {
   display: flex;
   gap: 8px;
-  margin-top: 16px;
-}
-
-.theme-select {
-  max-width: 220px;
-}
-
-/* ── Connection result ── */
-
-.result {
   margin-top: 14px;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Manual key entry
+   ════════════════════════════════════════════════════════════════════ */
+
+/* The fallback, and it looks like one. Most people should never open it. */
+.manual {
+  margin-top: 12px;
+}
+
+.manual > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 2px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  list-style: none;
+}
+
+.manual > summary::-webkit-details-marker {
+  display: none;
+}
+
+.manual > summary:hover {
+  color: var(--text-primary);
+}
+
+.manual .chev {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.manual[open] .chev {
+  transform: rotate(90deg);
+}
+
+.manual-body {
+  padding: 4px 2px 2px;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Result / agent status
+   ════════════════════════════════════════════════════════════════════ */
+
+/*
+ * Class names fixed by options.js, which assigns className wholesale — the
+ * element keeps `result` plus one tone, and nothing else survives.
+ */
+.result {
+  margin-top: 12px;
   padding: 11px 13px;
   font-size: 12.5px;
   line-height: 1.5;
@@ -118,6 +619,11 @@ code {
   border-radius: var(--radius-md);
   color: var(--text-secondary);
 }
+
+.card-body > .result:only-child {
+  margin-top: 0;
+}
+
 .result.success {
   background: var(--success-bg);
   border-color: var(--success-border);
@@ -134,79 +640,26 @@ code {
   color: var(--warning);
 }
 
-/* ── Checkbox row ── */
+/* ════════════════════════════════════════════════════════════════════
+   Reference
+   ════════════════════════════════════════════════════════════════════ */
 
-.check {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  cursor: pointer;
-}
-
-.check input {
-  margin: 2px 0 0;
-  width: 15px;
-  height: 15px;
-  accent-color: var(--indigo);
-  cursor: pointer;
-}
-
-.check-title {
-  display: block;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.check-sub {
-  display: block;
-  margin-top: 2px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-
-.check-spaced {
-  margin-top: 14px;
-}
-
-/* Indented under the checkbox it belongs to, so the relationship is obvious. */
-.tag-name-field {
-  margin: 8px 0 0 25px;
-}
-
-.tag-name-input {
-  max-width: 240px;
-}
-
-/* ── Explainer rows ── */
-
-.notes {
-  margin: 0;
-}
-
-.note-row {
+.glossary {
   display: grid;
-  grid-template-columns: 82px 1fr;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border-subtle);
-}
-.note-row:first-child {
-  padding-top: 0;
-}
-.note-row:last-child {
-  border-bottom: 0;
-  padding-bottom: 0;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
 }
 
-.note-row dt {
-  margin: 0;
+.term {
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
 }
 
-.note-row dd {
-  margin: 0;
-  font-size: 12.5px;
+.term p {
+  margin: 9px 0 0;
+  font-size: 12px;
   line-height: 1.5;
   color: var(--text-secondary);
 }
@@ -218,70 +671,76 @@ code {
   color: var(--text-tertiary);
 }
 
-/* ── Connect explainer ──
-   The recommended path, stated plainly. Pasting a key is the fallback and
-   collapses, because most people should never need it. */
+/* ════════════════════════════════════════════════════════════════════
+   Narrow windows
+   ════════════════════════════════════════════════════════════════════ */
 
-.explainer {
-  padding: 12px 13px;
-  margin-bottom: 14px;
-  background: var(--indigo-subtle);
-  border: 1px solid color-mix(in srgb, var(--indigo) 22%, transparent);
-  border-radius: var(--radius-md);
-}
-.explainer p {
-  margin: 0 0 10px;
-  font-size: 12.5px;
-  line-height: 1.55;
-  color: var(--text-secondary);
-}
-.explainer strong {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-.explainer .explainer-alt {
-  color: var(--text-tertiary);
-}
+/*
+ * An options page opens at whatever width the browser feels like, and is
+ * often dragged narrow beside something else. The nav goes horizontal rather
+ * than disappearing — four sections is a scroll away either way, but losing
+ * the map loses the sense that this page has a shape.
+ */
+@media (max-width: 860px) {
+  .shell {
+    display: block;
+    padding: 24px 20px 72px;
+  }
 
-.manual {
-  margin-top: 16px;
-  border-top: 1px solid var(--border-subtle);
-  padding-top: 12px;
-}
-.manual > summary {
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  cursor: pointer;
-  list-style: none;
-}
-.manual > summary::-webkit-details-marker {
-  display: none;
-}
-.manual > summary::before {
-  content: '›';
-  display: inline-block;
-  margin-right: 6px;
-  transition: transform 150ms var(--ease-out);
-}
-.manual[open] > summary::before {
-  transform: rotate(90deg);
-}
-.manual > summary:hover {
-  color: var(--text-primary);
-}
-.manual-note {
-  margin-top: 10px;
-  margin-bottom: 14px;
+  .nav {
+    position: static;
+    width: auto;
+    margin-bottom: 24px;
+  }
+
+  .nav-groups {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /*
+   * The groups stop being containers and let their items sit directly in the
+   * row. Without this each group stays a column, so a two-item group stacks
+   * and the nav reads out of order — Connection, Preferences, Reference, with
+   * LinkedIn agent stranded on a second line underneath.
+   */
+  .nav-group {
+    display: contents;
+  }
+
+  .nav-group-label {
+    display: none;
+  }
+
+  .nav-item {
+    margin-bottom: 0;
+  }
+
+  .content {
+    max-width: none;
+  }
+
+  .glossary {
+    grid-template-columns: 1fr;
+  }
 }
 
-/* Build number in the page subtitle — quiet, but always readable. */
-.page-version {
-  margin-left: 6px;
-  padding: 1px 6px;
-  border-radius: 5px;
-  background: var(--surface-2, rgba(128, 128, 128, 0.12));
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  opacity: 0.75;
+@media (max-width: 520px) {
+  .status {
+    flex-wrap: wrap;
+  }
+
+  .status-action {
+    width: 100%;
+  }
+
+  .row {
+    align-items: flex-start;
+  }
+
+  .row-select,
+  .row-input {
+    width: 130px;
+  }
 }
