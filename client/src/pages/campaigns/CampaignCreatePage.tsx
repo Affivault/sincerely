@@ -1856,7 +1856,13 @@ export function CampaignCreatePage() {
             const sendsPerHour = avgDelaySec > 0 ? Math.floor(3600 / avgDelaySec) : 3600;
             const [startH = 0, startM = 0] = (campaignForm.send_window_start || '00:00').split(':').map(Number);
             const [endH = 23, endM = 59] = (campaignForm.send_window_end || '23:59').split(':').map(Number);
-            const windowMinutes = Math.max(0, (endH * 60 + endM) - (startH * 60 + startM));
+            const startMinuteOfDay = startH * 60 + startM;
+            const endMinuteOfDay = endH * 60 + endM;
+            // Overnight windows (e.g. 22:00-06:00) wrap past midnight, mirroring
+            // the wrap-around handling in sequence.service.ts's isWithinSendWindow.
+            const windowMinutes = endMinuteOfDay >= startMinuteOfDay
+              ? endMinuteOfDay - startMinuteOfDay
+              : (24 * 60 - startMinuteOfDay) + endMinuteOfDay;
             const windowHours = windowMinutes / 60;
             const activeDaysPerWeek = (campaignForm.send_days || []).length || 5;
             const dailyCapacity = Math.min(
