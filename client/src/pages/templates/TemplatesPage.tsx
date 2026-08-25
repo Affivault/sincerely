@@ -10,6 +10,7 @@ import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { Card } from '../../components/shared/Card';
+import { SpamWordHint } from '../../components/shared/SpamWordHint';
 import {
   Mail,
   Plus,
@@ -337,6 +338,7 @@ function EmailEditorModal({
             <p className="mt-1.5 text-[11px] text-[var(--text-tertiary)]">
               Use the toolbar to format — no HTML needed. Insert merge tags above to personalise.
             </p>
+            <SpamWordHint subject={subject} bodyHtml={bodyHtml} />
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
@@ -533,6 +535,7 @@ function SequenceEditorModal({
                 placeholder="Hi {{first_name}}, …"
                 minHeight="200px"
               />
+              <SpamWordHint subject={current.subject || ''} bodyHtml={current.body_html || ''} />
             </div>
 
             {/* Inline preview */}
