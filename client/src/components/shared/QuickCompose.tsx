@@ -42,6 +42,12 @@ export function QuickCompose({
   );
   const [senderId, setSenderId] = useState('');
   const body = useRichTextEditorRef();
+  // Bumped on every start()/cancel() to force <RichTextEditor> to remount —
+  // body.reset() only clears the tracked html/text state, not the mounted
+  // TipTap editor's own DOM content, so without this the just-sent or
+  // discarded message stays visible and gets silently revived by the next
+  // keystroke (alwaysOpen keeps the same QuickCompose mounted across sends).
+  const [composeKey, setComposeKey] = useState(0);
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['smtp-accounts'],
@@ -62,6 +68,7 @@ export function QuickCompose({
   const start = () => {
     setSubject(defaultSubject ? (/^re:/i.test(defaultSubject) ? defaultSubject : `Re: ${defaultSubject}`) : '');
     body.reset();
+    setComposeKey((k) => k + 1);
     setOpen(true);
   };
 
@@ -71,6 +78,7 @@ export function QuickCompose({
     if (!alwaysOpen) setOpen(false);
     body.reset();
     setSubject('');
+    setComposeKey((k) => k + 1);
   };
 
   const send = useMutation({
@@ -160,6 +168,7 @@ export function QuickCompose({
 
       <div className="px-3 pb-2">
         <RichTextEditor
+          key={composeKey}
           placeholder={`Write to ${toName || to}…`}
           onChange={body.handleChange}
           templates={templates as any}

@@ -13,6 +13,8 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useDebounce } from '../hooks/useDebounce';
 import { searchApi } from '../api/search.api';
+import { openModals } from './ui/Modal';
+import { getRecentItems, addRecentItem, type RecentItem } from '../lib/recentItems';
 import { usePeek } from './peek/usePeek';
 import { crmApi } from '../api/crm.api';
 import toast from 'react-hot-toast';
@@ -76,6 +78,7 @@ const QUICK_ADD_VERB: Record<QuickAddKind, string> = {
 
 /** Record groups come first — you searched for a thing, not a page. */
 const GROUP_ORDER = [
+  'Recent',
   'Create',
   ...Object.values(SEARCH_TYPE_LABEL),
   'Navigate',
@@ -97,6 +100,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const identity = useRef({});
 
   const staticItems = useMemo<CommandItem[]>(() => [
     // Navigate
@@ -210,14 +214,28 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     }];
   }, [quickAdd, createQuick]);
 
+  // Re-read on every open, not just once — a peek opened elsewhere since the
+  // palette last opened should still show up.
+  const [recents, setRecents] = useState<RecentItem[]>([]);
+  useEffect(() => { if (open) setRecents(getRecentItems()); }, [open]);
+
+  const recentItems = useMemo<CommandItem[]>(() => recents.map((r) => ({
+    id: `recent-${r.type}-${r.id}`,
+    label: r.label,
+    sublabel: r.sublabel,
+    icon: HIT_ICON[r.type] || Search,
+    group: 'Recent',
+    peek: { type: r.type, id: r.id },
+  })), [recents]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return staticItems;
+    if (!q) return [...recentItems, ...staticItems];
     const staticMatches = staticItems.filter((it) =>
       `${it.label} ${it.group} ${it.keywords ?? ''}`.toLowerCase().includes(q)
     );
     return [...quickItem, ...hitItems, ...staticMatches];
-  }, [staticItems, hitItems, quickItem, query]);
+  }, [staticItems, hitItems, quickItem, recentItems, query]);
 
   // Group, keeping the flat order the keyboard walks through.
   const groups = useMemo(() => {
@@ -249,14 +267,36 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   const runItem = (item: CommandItem) => {
     if (item.run) { item.run(); return; }
-    if (item.peek) { openPeek(item.peek.type, item.peek.id); onClose(); return; }
+    if (item.peek) {
+      addRecentItem({ type: item.peek.type, id: item.peek.id, label: item.label, sublabel: item.sublabel });
+      openPeek(item.peek.type, item.peek.id);
+      onClose();
+      return;
+    }
     if (item.href) { navigate(item.href); onClose(); }
   };
 
+  // Join the shared modal stack so Escape only closes us when we're the
+  // topmost overlay — otherwise dismissing a Modal opened from a command
+  // (e.g. a confirm dialog) also closed the palette underneath it.
   useEffect(() => {
     if (!open) return;
+    const self = identity.current;
+    openModals.push(self);
+    return () => {
+      const at = openModals.lastIndexOf(self);
+      if (at !== -1) openModals.splice(at, 1);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const self = identity.current;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+      if (e.key === 'Escape') {
+        if (openModals[openModals.length - 1] !== self) return;
+        e.preventDefault(); onClose();
+      }
       else if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(a + 1, flatItems.length - 1)); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
       else if (e.key === 'Enter') { e.preventDefault(); const it = flatItems[active]; if (it) runItem(it); }

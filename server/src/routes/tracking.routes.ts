@@ -97,31 +97,25 @@ router.get('/open/:trackingId', async (req: Request, res: Response) => {
       return res.end(TRANSPARENT_PIXEL);
     }
 
-    // Check if we already recorded an open for this step (deduplicate)
-    const { count } = await supabaseAdmin
-      .from('campaign_activities')
-      .select('*', { count: 'exact', head: true })
-      .eq('campaign_contact_id', campaignContactId)
-      .eq('step_id', stepId)
-      .eq('activity_type', 'opened');
+    // Atomically record the open, deduplicated against a partial unique index
+    // (see migration 049) — a plain "count, then insert if zero" here lets two
+    // near-simultaneous requests for the same tracking id (e.g. Apple Mail
+    // Privacy Protection prefetching alongside the real client) both pass the
+    // check before either insert lands, double-recording the open and firing
+    // the webhook twice.
+    const { data: isNewOpen } = await supabaseAdmin.rpc('record_tracking_event', {
+      p_campaign_id: cc.campaign_id,
+      p_campaign_contact_id: campaignContactId,
+      p_contact_id: cc.contact_id,
+      p_step_id: stepId,
+      p_activity_type: 'opened',
+      p_metadata: {
+        ip: req.ip,
+        user_agent: req.headers['user-agent'],
+      },
+    });
 
-    if (!count || count === 0) {
-      // Record the open activity
-      await supabaseAdmin
-        .from('campaign_activities')
-        .insert({
-          campaign_id: cc.campaign_id,
-          campaign_contact_id: campaignContactId,
-          contact_id: cc.contact_id,
-          step_id: stepId,
-          activity_type: 'opened',
-          occurred_at: new Date().toISOString(),
-          metadata: {
-            ip: req.ip,
-            user_agent: req.headers['user-agent'],
-          },
-        });
-
+    if (isNewOpen) {
       // Update SSE health for the account that actually sent this email.
       // Look up the send activity first so SSE credits the right account when
       // a different sender was chosen by the Smart-Sharding Engine.
@@ -200,31 +194,24 @@ router.get('/click/:trackingId', async (req: Request, res: Response) => {
       .single();
 
     if (cc) {
-      // Deduplicate: only record one click per contact per step (same logic as open tracking)
-      const { count: alreadyClicked } = await supabaseAdmin
-        .from('campaign_activities')
-        .select('*', { count: 'exact', head: true })
-        .eq('campaign_contact_id', campaignContactId)
-        .eq('step_id', stepId)
-        .eq('activity_type', 'clicked');
+      // Atomically record the click, deduplicated against a partial unique
+      // index (see migration 049) — see the open handler above for why a
+      // count-then-insert check is unsafe here (e.g. Outlook Safe Links
+      // prefetching a link right before the user's own click).
+      const { data: isNewClick } = await supabaseAdmin.rpc('record_tracking_event', {
+        p_campaign_id: cc.campaign_id,
+        p_campaign_contact_id: campaignContactId,
+        p_contact_id: cc.contact_id,
+        p_step_id: stepId,
+        p_activity_type: 'clicked',
+        p_metadata: {
+          url: originalUrl,
+          ip: req.ip,
+          user_agent: req.headers['user-agent'],
+        },
+      });
 
-      if (!alreadyClicked || alreadyClicked === 0) {
-        await supabaseAdmin
-          .from('campaign_activities')
-          .insert({
-            campaign_id: cc.campaign_id,
-            campaign_contact_id: campaignContactId,
-            contact_id: cc.contact_id,
-            step_id: stepId,
-            activity_type: 'clicked',
-            occurred_at: new Date().toISOString(),
-            metadata: {
-              url: originalUrl,
-              ip: req.ip,
-              user_agent: req.headers['user-agent'],
-            },
-          });
-
+      if (isNewClick) {
         // Fire webhook event
         if ((cc as any).campaigns?.user_id) {
           fireEvent((cc as any).campaigns.user_id, 'email.clicked', {

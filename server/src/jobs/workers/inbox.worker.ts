@@ -114,6 +114,21 @@ export function startInboxWorker() {
           connectTimeoutId = setTimeout(() => reject(new Error('IMAP connection timed out')), 15000);
         });
         await Promise.race([connectPromise, timeoutPromise]).finally(() => clearTimeout(connectTimeoutId));
+
+        // The handshake has its own timeout above, but a session that connects
+        // fine and then stalls mid-sync (firewall silently drops packets post-
+        // connect, a slow/broken mail server) would otherwise hang the mailbox
+        // open + fetch loop below forever — permanently occupying one of only
+        // 3 worker concurrency slots, the exact resource leak the connect
+        // timeout exists to prevent, just one step later. Race the whole
+        // session body against an overall deadline so a stalled session fails
+        // the job (and gets retried) instead of hanging indefinitely.
+        let sessionTimeoutId: ReturnType<typeof setTimeout>;
+        const sessionTimeout = new Promise<never>((_, reject) => {
+          sessionTimeoutId = setTimeout(() => reject(new Error('IMAP session timed out')), 120000);
+        });
+
+        const syncMailbox = async () => {
         await client.mailboxOpen('INBOX');
 
         // 3. Fetch messages since last sync (or last 7 days)
@@ -317,11 +332,21 @@ export function startInboxWorker() {
           .eq('id', smtpAccountId);
 
         console.log(`Inbox sync done: ${totalChecked} checked, ${repliesProcessed} replies matched`);
+        };
+
+        await Promise.race([syncMailbox(), sessionTimeout]).finally(() => clearTimeout(sessionTimeoutId));
       } catch (err: any) {
         console.error(`IMAP error for ${smtpAccountId}:`, err.message);
         throw err;
       } finally {
-        await client.logout().catch(() => {});
+        // logout() waits for the server's response, which a stalled connection
+        // may never send — race it against a short deadline and force-close
+        // the socket either way so a hung session can't hold this cleanup open.
+        await Promise.race([
+          client.logout().catch(() => {}),
+          new Promise((resolve) => setTimeout(resolve, 5000)),
+        ]);
+        client.close();
       }
     },
     {

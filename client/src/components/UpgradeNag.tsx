@@ -7,6 +7,7 @@ import { billingApi } from '../api/billing.api';
 import { PLANS, type PlanId } from '@lemlist/shared';
 import { onUpgradePrompt } from '../lib/upgradeNag';
 import { Button } from './ui/Button';
+import { openModals } from './ui/Modal';
 import { cn } from '../lib/utils';
 
 type Interval = 'monthly' | 'annual';
@@ -54,6 +55,7 @@ export function UpgradeNag() {
   const [reason, setReason] = useState<string | undefined>();
   const [interval, setInterval_] = useState<Interval>('monthly');
   const [busy, setBusy] = useState<PlanId | null>(null);
+  const identity = useRef({});
 
   const { data: usage } = useQuery({
     queryKey: ['billing', 'usage'],
@@ -79,24 +81,38 @@ export function UpgradeNag() {
 
   // Auto-open shortly after load, then keep re-popping on an interval — until they pay.
   // Clears any leftover `reason` from a prior limit-hit so these unrelated re-pops
-  // show the generic pitch instead of a stale "you hit X limit" banner.
+  // show the generic pitch instead of a stale "you hit X limit" banner. Skipped
+  // while another modal is already open so the 2-minute clock can't pop this over
+  // an in-progress edit elsewhere on the page.
   useEffect(() => {
     if (!isFree || onBilling) return;
-    const first = window.setTimeout(() => { if (!busyRef.current) { setReason(undefined); setOpen(true); } }, 2000);
-    const timer = window.setInterval(() => { if (!busyRef.current) { setReason(undefined); setOpen(true); } }, NAG_INTERVAL);
+    const maybeOpen = () => { if (!busyRef.current && openModals.length === 0) { setReason(undefined); setOpen(true); } };
+    const first = window.setTimeout(maybeOpen, 2000);
+    const timer = window.setInterval(maybeOpen, NAG_INTERVAL);
     return () => { window.clearTimeout(first); window.clearInterval(timer); };
   }, [isFree, onBilling]);
 
-  // Standard modal behaviour: Escape closes, page behind doesn't scroll.
+  // Standard modal behaviour: Escape closes, page behind doesn't scroll. Joins
+  // the shared modal stack so Escape only closes us when we're topmost — e.g.
+  // dismissing a checkout confirmation opened from inside this nag must not
+  // also close the nag underneath it.
   useEffect(() => {
     if (!open) return;
+    const self = identity.current;
+    openModals.push(self);
     const original = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (openModals[openModals.length - 1] !== self) return;
+      setOpen(false);
+    };
     document.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = original;
       document.removeEventListener('keydown', onKey);
+      const at = openModals.lastIndexOf(self);
+      if (at !== -1) openModals.splice(at, 1);
     };
   }, [open]);
 
