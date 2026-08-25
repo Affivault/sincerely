@@ -211,6 +211,63 @@ try {
   await router.close();
 
   /* ================================================================ */
+  /* 1b-ii. And it cannot walk the user back off the page             */
+  /* ================================================================ */
+  /*
+   * The check above starts the tab on the profile, so there is nothing behind
+   * it: an over-pop has nowhere to land and the bug hides. Real tabs have
+   * history — somebody searched, clicked through, and the entry behind the
+   * profile is wherever they came from. Reported as "after I search a contact
+   * on LinkedIn it redirects me to Google's homepage", which is exactly what
+   * one pop too many looks like from the outside.
+   *
+   * So: navigate through a previous page first, then let the deep read run.
+   * If the restore steps back at all, the tab lands on the previous page
+   * instead of the profile.
+   */
+  const deep = await context.newPage();
+  await deep.goto('https://www.linkedin.com/feed/');
+  await deep.waitForLoadState('domcontentloaded');
+  await deep.goto('https://www.linkedin.com/in/slow-dismiss/');
+  await deep.waitForLoadState('domcontentloaded');
+  await deep.waitForTimeout(400);
+
+  const deepTabId = await worker.evaluate(async () => {
+    const tabs = await chrome.tabs.query({ url: 'https://www.linkedin.com/*' });
+    return tabs.find((t) => (t.url || '').includes('slow-dismiss'))?.id ?? null;
+  });
+
+  // SINCERELY_SCRAPE_DEEP is the one that drives the overlay; the plain
+  // SINCERELY_SCRAPE reads the DOM and never touches history, so asking for
+  // the wrong one exercises nothing at all.
+  let got = null;
+  for (let i = 0; i < 20 && !got?.email; i += 1) {
+    got = await worker.evaluate(
+      async (id) => {
+        try { return await chrome.tabs.sendMessage(id, { type: 'SINCERELY_SCRAPE_DEEP' }); }
+        catch { return null; }
+      },
+      deepTabId,
+    );
+    if (!got?.email) await deep.waitForTimeout(400);
+  }
+  check(
+    'the deep read on the slow-dismiss profile actually found the address',
+    got?.email === 'iris.vance@northwind.example.org',
+    got?.email || 'none',
+  );
+  // Long enough for the fixture's late pop to have landed.
+  await deep.waitForTimeout(2600);
+
+  const landed = await deep.evaluate(() => ({ path: location.pathname, host: location.hostname }));
+  check(
+    'a deep read on a tab with history leaves the user on the profile, not on the page before it',
+    landed.path === '/in/slow-dismiss/',
+    `${landed.host}${landed.path}`,
+  );
+  await deep.close();
+
+  /* ================================================================ */
   /* 1c. The address exists only in LinkedIn's own network traffic    */
   /* ================================================================ */
 

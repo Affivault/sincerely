@@ -306,6 +306,56 @@ const ROUTER_ONLY_PROFILE = `<!doctype html><html><head><title>Dana Okafor | Lin
 </body></html>`;
 
 /**
+ * A profile whose own dismiss handler pops the history entry late.
+ *
+ * This is the condition the other router fixture cannot produce. There, the
+ * page's dismiss calls history.back() immediately, so the restore sees the URL
+ * settle inside its grace period and never steps back itself — the double-pop
+ * has no opportunity to happen and a broken restore still passes.
+ *
+ * Real LinkedIn does not pop on a fixed schedule. When its dismiss runs after
+ * the grace expires, a restore that steps back fires first, and the page's pop
+ * lands on top of it: two pops, and the tab ends up one entry further back
+ * than the user has ever been. On a tab opened from a search engine that entry
+ * is the search engine, which is what "it redirects me to Google" is.
+ */
+const SLOW_SLUG = 'slow-dismiss';
+
+const SLOW_DISMISS_PROFILE = `<!doctype html><html><head><title>Iris Vance | LinkedIn</title></head>
+<body>
+  <main>
+    <h1>Iris Vance</h1>
+    <div class="text-body-medium break-words">Partner at Northwind Capital</div>
+  </main>
+  <script>
+    function openFromRoute() {
+      if (!location.pathname.includes('/overlay/contact-info')) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      document.body.style.overflow = 'hidden';
+      setTimeout(function () {
+        var dialog = document.createElement('div');
+        dialog.setAttribute('role', 'dialog');
+        dialog.className = 'artdeco-modal';
+        dialog.innerHTML =
+          '<h2>Contact info</h2>' +
+          '<button class="artdeco-modal__dismiss" aria-label="Dismiss">x</button>' +
+          '<a href="mailto:iris.vance@northwind.example.org">iris.vance@northwind.example.org</a>';
+        dialog.querySelector('.artdeco-modal__dismiss').addEventListener('click', function () {
+          dialog.remove();
+          document.body.style.overflow = '';
+          // The whole point of this fixture: the pop comes well after the
+          // restore has given up waiting for it.
+          setTimeout(function () { history.back(); }, 1600);
+        });
+        document.body.appendChild(dialog);
+      }, 200);
+    }
+    window.addEventListener('popstate', openFromRoute);
+    openFromRoute();
+  </script>
+</body></html>`;
+
+/**
  * The profile that reproduces the real complaint.
  *
  * Every other fixture here renders its Contact info link in the initial HTML,
@@ -439,6 +489,7 @@ createServer({ key, cert }, (req, res) => {
   if (url.pathname.includes(LATE_SLUG)) return res.end(LATE_ANCHOR_PROFILE);
   if (url.pathname.includes(TAP_SLUG)) return res.end(TAP_ONLY_PROFILE);
   if (url.pathname.includes(ROUTER_SLUG)) return res.end(ROUTER_ONLY_PROFILE);
+  if (url.pathname.includes(SLOW_SLUG)) return res.end(SLOW_DISMISS_PROFILE);
   if (url.pathname.includes(QUIET_SLUG)) {
     return res.end(profile(QUIET_SLUG, 'Quiet Profile', 'Analyst at Northwind Capital'));
   }

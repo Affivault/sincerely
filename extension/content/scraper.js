@@ -607,6 +607,8 @@
 
   /** True while we are driving LinkedIn's UI, so other watchers stay out of it. */
   let overlayBusy = false;
+  /** Stamped onto the history entry we push, so the restore can prove it is ours. */
+  const OVERLAY_MARK = '__sincerelyOverlay';
 
   /**
    * Open the profile's Contact info dialog, read it, and put the page back.
@@ -849,30 +851,59 @@
     if (location.href === wasAt) return;
 
     /*
-     * Give whoever else might pop it a moment first. LinkedIn's own dismiss
-     * handler calls history.back(), and so does ours — going back twice takes
-     * the user off the profile entirely, one entry further than they ever were.
-     * A short grace is enough to see that happen; a long one is dead time.
+     * If the user is no longer on the site they started on, everything below
+     * is somebody else's history and none of it is ours to touch. They may
+     * have clicked a link, hit Back themselves, or followed a redirect while
+     * this read was in flight. Stepping back from here would move them again,
+     * away from wherever they had just arrived.
+     */
+    let origin;
+    try {
+      origin = new URL(wasAt).origin;
+    } catch {
+      return;
+    }
+    if (location.origin !== origin) return;
+
+    /*
+     * Give LinkedIn's own dismiss handler a moment to pop the entry first.
+     * When it does, there is nothing left to restore and the cheapest correct
+     * action is none at all. A short grace is enough to see that happen; a
+     * long one is dead time on somebody's profile.
      */
     if (await waitFor(() => location.href === wasAt, openedBy === 'router' ? 400 : 1000)) return;
 
     /*
-     * Only ever step back while still parked on the overlay URL. That check —
-     * not "did we push it" — is what makes a double-back impossible: once the
-     * address bar is anywhere else, going back is somebody else's history.
+     * Restored by rewriting the current entry, never by stepping back.
+     *
+     * This used to call history.back(), guarded on the address bar still
+     * reading overlay/contact-info. That guard is a statement about the URL,
+     * not about the history stack, and the two are not the same thing.
+     * LinkedIn's own dismiss handler also steps back, on its own schedule; if
+     * it had not got there yet, both fired, and two pops do not return anybody
+     * to where they were — they walk the user one entry further back than they
+     * have ever been. On a tab opened from a search engine, that entry is the
+     * search engine. Stamping the entry we push narrows the race but does not
+     * close it, because the other pop can still land between the check and the
+     * call.
+     *
+     * So the extension no longer steps back at all. replaceState cannot
+     * navigate — it edits the entry the browser is already on and does nothing
+     * else — which makes moving somebody off their page structurally
+     * impossible rather than merely unlikely.
+     *
+     * The cost is one redundant back-stack entry, and only when LinkedIn has
+     * not cleaned up after itself: pressing Back may return to the profile
+     * that is already on screen before leaving it. That is a far better
+     * failure than the one it replaces.
      */
-    if (/overlay\/contact-info/.test(location.href)) {
-      history.back();
-      if (await waitFor(() => location.href === wasAt, 1000)) return;
-    }
-
-    /*
-     * Last resort, and deliberately not another history.back(). Rewriting the
-     * address bar in place restores what they were looking at without touching
-     * their history.
-     */
-    if (location.href !== wasAt && /^https?:/.test(location.href)) {
-      history.replaceState(history.state, '', wasAt);
+    if (location.href !== wasAt) {
+      try {
+        history.replaceState(history.state, '', wasAt);
+      } catch {
+        // Cross-origin or a locked-down history: nothing else to try, and a
+        // failed restore must never fail the read that triggered it.
+      }
     }
   }
 
@@ -1030,7 +1061,12 @@
 
     try {
       const overlayUrl = `/in/${encodeURIComponent(publicId)}/overlay/contact-info/`;
-      history.pushState({}, '', overlayUrl);
+      /*
+       * Stamped, so the restore can prove the entry on top is the one we
+       * pushed. Without that proof stepping back is a guess, and a wrong
+       * guess navigates somebody off the page they were reading.
+       */
+      history.pushState({ [OVERLAY_MARK]: true }, '', overlayUrl);
       // Ember and every other history router listens for this. Dispatched on
       // the shared window, so the page's own listeners receive it.
       window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
