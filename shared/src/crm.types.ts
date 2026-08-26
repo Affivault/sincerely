@@ -32,6 +32,23 @@ export interface Deal {
   expected_close_date: string | null;
   notes: string | null;
   position: number;
+  /**
+   * This deal's own odds, 0-100. Null means "use the stage's default", which
+   * is what almost every deal should be — a number nobody chose is false
+   * precision, and false precision in a forecast is worse than a round one.
+   */
+  probability: number | null;
+  /** Why it was won or lost. Null while it is still open. */
+  outcome_reason: string | null;
+  /** When it reached won or lost. Null while open. */
+  closed_at: string | null;
+  /**
+   * When the stage last changed — not when the row last changed.
+   *
+   * `updated_at` moves when somebody fixes a typo, so it cannot answer "has
+   * this deal moved?". That question is the whole of rot detection.
+   */
+  stage_changed_at: string | null;
   created_at: string;
   updated_at: string;
   /** Embedded lead (server-joined via contact_id) — null when not linked */
@@ -51,6 +68,8 @@ export interface CreateDealInput {
   stage?: DealStage;
   expected_close_date?: string | null;
   notes?: string | null;
+  probability?: number | null;
+  outcome_reason?: string | null;
 }
 export interface UpdateDealInput extends Partial<CreateDealInput> {
   position?: number;
