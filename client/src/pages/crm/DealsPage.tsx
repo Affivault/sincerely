@@ -56,6 +56,21 @@ function dealAge(iso?: string | null): string {
   const months = Math.round(days / 30);
   return months === 1 ? '1 month' : `${months} months`;
 }
+/**
+ * "Updated ..." in a form that reads as English.
+ *
+ * dealAge answers "how old" — "Today", "1 day", "3 months" — so pasting it
+ * into `Updated ${...} ago` produced "Updated Today ago" for anything
+ * touched in the last day, which is most of what a drawer is ever open on.
+ */
+function updatedLabel(iso?: string | null): string {
+  if (!iso) return 'Recently updated';
+  const age = dealAge(iso);
+  if (age === 'Today') return 'Updated today';
+  if (age === '—') return 'Recently updated';
+  return `Updated ${age} ago`;
+}
+
 function relDay(iso?: string | null): { label: string; tone: 'over' | 'today' | 'soon' | 'none'; diff: number | null } {
   if (!iso) return { label: 'No date', tone: 'none', diff: null };
   const d = new Date(iso);
@@ -554,7 +569,7 @@ export function DealDrawer({
 
         {/* Footer */}
         <div className="flex-shrink-0 px-5 py-3 border-t border-[var(--border-subtle)] flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]"><Clock className="h-3 w-3" /> {deal.updated_at ? `Updated ${dealAge(deal.updated_at)} ago` : 'Recently updated'}</span>
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]"><Clock className="h-3 w-3" /> {updatedLabel(deal.updated_at)}</span>
           <Button variant="secondary" onClick={() => onEdit(deal)}><Pencil className="h-3.5 w-3.5" /> Edit deal</Button>
         </div>
       </div>
