@@ -9,6 +9,11 @@ crmRoutes.post('/deals', crmController.createDeal);
 crmRoutes.put('/deals/:id', crmController.updateDeal);
 crmRoutes.delete('/deals/:id', crmController.deleteDeal);
 crmRoutes.get('/deals/:id/history', crmController.dealStageHistory);
+crmRoutes.get('/deals/:id/detail', crmController.dealDetail);
+crmRoutes.get('/deals/:id/participants', crmController.listParticipants);
+crmRoutes.post('/deals/:id/participants', crmController.addParticipant);
+crmRoutes.put('/deals/:id/participants/:participantId', crmController.updateParticipant);
+crmRoutes.delete('/deals/:id/participants/:participantId', crmController.removeParticipant);
 
 // Tasks
 crmRoutes.get('/tasks', crmController.listTasks);

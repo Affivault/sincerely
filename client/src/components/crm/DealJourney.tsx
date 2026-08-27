@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { DEAL_STAGES, stageTimeline } from '@lemlist/shared';
-import type { Deal, DealStage, StageLeg } from '@lemlist/shared';
+import type { Deal, DealStage, DealStageEvent, StageLeg } from '@lemlist/shared';
 import { crmApi } from '../../api/crm.api';
 import { Spinner } from '../ui/Spinner';
 import { cn } from '../../lib/utils';
@@ -80,14 +80,24 @@ function Leg({ leg, first }: { leg: StageLeg; first: boolean }) {
   );
 }
 
-export function DealJourney({ deal }: { deal: Deal }) {
+export function DealJourney({ deal, events }: { deal: Deal; events?: DealStageEvent[] }) {
+  /*
+   * The deal page already has the history from its one detail request, so
+   * it hands it straight over. The drawer, opened from the board, does not
+   * — and fetching there is cheaper than making every board render carry a
+   * history it will usually never show.
+   */
+  const preloaded = events !== undefined;
   const { data, isLoading, isError } = useQuery({
     queryKey: ['crm', 'deal-history', deal.id],
     queryFn: () => crmApi.dealHistory(deal.id),
+    enabled: !preloaded,
     // The history only changes when the deal moves, and moving the deal
     // invalidates the whole 'crm' key anyway.
     staleTime: 60_000,
   });
+
+  if (preloaded) return <Journey events={events} />;
 
   if (isLoading) {
     return <div className="flex justify-center py-3"><Spinner size="sm" /></div>;
@@ -96,7 +106,11 @@ export function DealJourney({ deal }: { deal: Deal }) {
     return <p className="py-1 text-[12px] text-[var(--text-muted)]">Could not load this deal&rsquo;s history.</p>;
   }
 
-  const legs = stageTimeline(data || []);
+  return <Journey events={data || []} />;
+}
+
+function Journey({ events }: { events: DealStageEvent[] }) {
+  const legs = stageTimeline(events);
   if (legs.length === 0) {
     return (
       <p className="py-1 text-[12px] text-[var(--text-muted)]">

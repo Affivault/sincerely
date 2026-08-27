@@ -379,3 +379,87 @@ export function stageTimeline(
     };
   });
 }
+
+/**
+ * Total days spent in each stage, summed across every visit.
+ *
+ * A deal that is pushed back from Proposal to Qualified and works its way
+ * forward again has been in Qualified twice, and the honest answer to "how
+ * long did qualification take" is both visits added together. Reporting
+ * only the latest would make a deal that has been round the loop three
+ * times look like the fastest one on the board.
+ */
+export function daysByStage(
+  events: { from_stage: string | null; to_stage: string; reason: string | null; changed_at: string }[],
+  now = Date.now(),
+): Partial<Record<DealStage, number>> {
+  const out: Partial<Record<DealStage, number>> = {};
+  for (const leg of stageTimeline(events, now)) {
+    out[leg.stage] = (out[leg.stage] ?? 0) + leg.days;
+  }
+  return out;
+}
+
+/* ─── What happens next ───────────────────────────────────────────────── */
+
+/**
+ * Whether this deal has a next step booked.
+ *
+ * The one habit that separates pipelines that close from pipelines that
+ * rot: every live deal should have something scheduled against it. A deal
+ * with no next step is not "fine for now", it is a deal nobody has decided
+ * what to do with, and it will be found again in six weeks when somebody
+ * asks why the quarter is short.
+ *
+ * Only open deals are judged. Chasing a won deal for a next step is noise.
+ */
+export interface NextStep {
+  /** The soonest future task or meeting, whichever comes first. */
+  at: string | null;
+  kind: 'activity' | 'meeting' | null;
+  title: string | null;
+  /** True when an open deal has nothing booked at all. */
+  missing: boolean;
+  /** True when the only thing outstanding is already past its date. */
+  overdue: boolean;
+}
+
+export function nextStep(
+  deal: Pick<Deal, 'stage'>,
+  tasks: { title: string; due_date: string | null; is_done: boolean }[],
+  events: { title: string; starts_at: string }[],
+  now = Date.now(),
+): NextStep {
+  if (!isOpen(deal.stage)) {
+    return { at: null, kind: null, title: null, missing: false, overdue: false };
+  }
+
+  const candidates: { at: number; iso: string; kind: 'activity' | 'meeting'; title: string }[] = [];
+  for (const t of tasks) {
+    if (t.is_done || !t.due_date) continue;
+    const at = new Date(t.due_date).getTime();
+    if (Number.isFinite(at)) candidates.push({ at, iso: t.due_date, kind: 'activity', title: t.title });
+  }
+  for (const e of events) {
+    const at = new Date(e.starts_at).getTime();
+    if (Number.isFinite(at)) candidates.push({ at, iso: e.starts_at, kind: 'meeting', title: e.title });
+  }
+
+  if (candidates.length === 0) {
+    return { at: null, kind: null, title: null, missing: true, overdue: false };
+  }
+
+  candidates.sort((a, b) => a.at - b.at);
+  // The soonest thing still ahead is the next step. If everything is behind
+  // us, the most recent overdue item is what needs dealing with — which is
+  // not the same as having nothing booked, and must not read as if it were.
+  const ahead = candidates.find((c) => c.at >= now);
+  const chosen = ahead ?? candidates[candidates.length - 1];
+  return {
+    at: chosen.iso,
+    kind: chosen.kind,
+    title: chosen.title,
+    missing: false,
+    overdue: !ahead,
+  };
+}
