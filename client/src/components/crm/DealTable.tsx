@@ -3,6 +3,7 @@ import { DEAL_STAGES, probabilityOf, rotOf, weightedValue } from '@lemlist/share
 import type { Deal, DealStage } from '@lemlist/shared';
 import { Avatar } from '../shared/Avatar';
 import { Checkbox } from '../ui/Checkbox';
+import { useFillViewport } from '../../hooks/useFillViewport';
 import { cn } from '../../lib/utils';
 import { ArrowDown, ArrowUp, Building2, Clock } from 'lucide-react';
 
@@ -161,10 +162,19 @@ export function DealTable({
 }) {
   const rows = useMemo(() => sortDeals(deals, sortKey, sortDir), [deals, sortKey, sortDir]);
   const allOn = rows.length > 0 && rows.every((d) => selected.has(d.id));
+  /*
+   * The header row is `sticky top-0`, which only means anything if the thing
+   * it scrolls inside is the thing with the scrollbar. Left to the page, the
+   * column titles scrolled away at row twelve and every row after that was a
+   * line of unlabelled numbers.
+   */
+  const { ref: frameRef, height } = useFillViewport<HTMLDivElement>({ min: 320 });
 
   return (
     <div className="panel overflow-hidden">
-      <div className="overflow-x-auto">
+      {/* A cap rather than a fixed height: six deals should render as six
+          rows, not as six rows and half a screen of empty panel. */}
+      <div ref={frameRef} style={height ? { maxHeight: height } : undefined} className="overflow-auto">
         <table className="w-full min-w-[900px] border-collapse">
           <thead>
             <tr>

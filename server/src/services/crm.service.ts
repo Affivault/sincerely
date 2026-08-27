@@ -210,6 +210,24 @@ export const crmService = {
     if (error) throw new AppError(error.message, 500);
   },
 
+  /**
+   * Every stage this deal has been through, oldest first.
+   *
+   * Scoped by user_id as well as deal_id: the rows carry their own owner, so
+   * a guessed deal id from another account returns nothing rather than
+   * somebody else's pipeline history.
+   */
+  async dealStageHistory(userId: string, dealId: string) {
+    const { data, error } = await supabaseAdmin
+      .from('deal_stage_events')
+      .select('id, deal_id, from_stage, to_stage, reason, changed_at')
+      .eq('deal_id', dealId)
+      .eq('user_id', userId)
+      .order('changed_at', { ascending: true });
+    if (error) throw new AppError(error.message, 500);
+    return data || [];
+  },
+
   /* ── Tasks ── */
   async listTasks(userId: string, filters?: { contactId?: string; dealId?: string }) {
     let q = supabaseAdmin

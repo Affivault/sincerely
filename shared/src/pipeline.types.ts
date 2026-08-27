@@ -315,3 +315,67 @@ export const WON_REASONS = [
   'Relationship',
   'Beat a competitor',
 ] as const;
+
+/* ─── The path a deal took ────────────────────────────────────────────── */
+
+/**
+ * One leg of a deal's journey: a stage it was in, and for how long.
+ *
+ * `days` on the last leg is measured to now, because the deal is still
+ * sitting there. On every earlier leg it is measured to the next move.
+ */
+export interface StageLeg {
+  stage: DealStage;
+  enteredAt: string;
+  /** Null while the deal is still in this stage. */
+  leftAt: string | null;
+  days: number;
+  /** The reason recorded on the move into this stage - won and lost only. */
+  reason: string | null;
+  /** True for the leg the deal is on right now. */
+  current: boolean;
+}
+
+const DAY = 86_400_000;
+
+/**
+ * Turn the recorded moves into the legs of a journey.
+ *
+ * Events arrive as transitions ("qualified -> proposal at 14:02") and what
+ * anybody wants to read is durations ("Proposal, 12 days"). The two are not
+ * the same shape, and doing the conversion in the component means doing it
+ * differently in each component that needs it.
+ *
+ * Tolerant of the order they arrive in and of a backfilled history that
+ * starts mid-journey, both of which are normal: every deal that existed
+ * before the history table did has exactly one opening event.
+ */
+export function stageTimeline(
+  events: { from_stage: string | null; to_stage: string; reason: string | null; changed_at: string }[],
+  now = Date.now(),
+): StageLeg[] {
+  const ordered = [...events]
+    .filter((e) => !!e.changed_at)
+    .sort((a, b) => a.changed_at.localeCompare(b.changed_at));
+  if (ordered.length === 0) return [];
+
+  const end = now;
+  return ordered.map((e, i) => {
+    const next = ordered[i + 1];
+    const from = new Date(e.changed_at).getTime();
+    const to = next ? new Date(next.changed_at).getTime() : end;
+    return {
+      stage: e.to_stage as DealStage,
+      enteredAt: e.changed_at,
+      leftAt: next ? next.changed_at : null,
+      // Clamped at zero: clock skew between the app server and the database
+      // can otherwise produce a leg that lasted minus one day.
+      days: Math.max(0, Math.floor((to - from) / DAY)),
+      // The reason describes the outcome the deal arrived at, so it belongs
+      // to the leg it opened - not to the stage it left behind, which would
+      // caption "Proposal" with "lost on price".
+      reason: e.reason,
+      current: !next,
+    };
+  });
+}
