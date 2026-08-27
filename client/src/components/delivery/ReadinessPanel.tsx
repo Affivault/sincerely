@@ -81,7 +81,7 @@ export function StatusDot({ status, className }: { status: ReadinessStatus; clas
   );
 }
 
-function CheckRow({ check }: { check: ReadinessCheck }) {
+export function CheckRow({ check }: { check: ReadinessCheck }) {
   return (
     <li className="flex items-start gap-2.5 px-3.5 py-2.5 border-b border-[var(--border-subtle)] last:border-0">
       <StatusDot status={check.status} className="mt-[3px]" />

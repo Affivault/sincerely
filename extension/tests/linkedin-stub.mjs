@@ -193,6 +193,80 @@ const VARIANTS = {
 const variantPage = (slug) => `<!doctype html><html><head><title>Profile | LinkedIn</title></head>
 <body><main>${VARIANTS[slug]}</main></body></html>`;
 
+/* ------------------------------------------------------------------ */
+/* Sales Navigator                                                    */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Sales Navigator is a separate application on the same domain, and until
+ * now the extension did nothing there at all — every entry point was gated
+ * on /in/. These fixtures stand for the two things that matter about it:
+ * the markup is anchored on data-anonymize rather than on class names, and
+ * a lead page carries other people's names in its right-hand rail, so an
+ * unscoped read returns a colleague instead of the lead.
+ */
+
+/** A lead page, with a rail of other people at the same company. */
+const SALES_LEAD = `<!doctype html><html><head><title>Sales Navigator</title></head>
+<body>
+  <main>
+    <section id="profile-card-section">
+      <h1 data-anonymize="person-name">Ana Beltr\u00e1n</h1>
+      <span data-anonymize="headline">VP Revenue Operations at Northwind Capital</span>
+      <span data-anonymize="job-title">VP Revenue Operations</span>
+      <a data-anonymize="company-name" href="/sales/company/9931">Northwind Capital</a>
+      <a href="https://www.linkedin.com/in/ana-beltran-77/?trk=nav">View LinkedIn profile</a>
+      <a href="https://northwind.example/about">northwind.example</a>
+    </section>
+
+    <!-- The trap: the rail is full of person-name nodes for other people. -->
+    <aside id="lead-rail">
+      <div><span data-anonymize="person-name">Marcus Webb</span></div>
+      <div><span data-anonymize="person-name">Ruth Adeyemi</span></div>
+    </aside>
+  </main>
+</body></html>`;
+
+/** A lead with no link out to the public profile, which is common. */
+const SALES_LEAD_NO_PUBLIC = `<!doctype html><html><head><title>Sales Navigator</title></head>
+<body>
+  <main>
+    <section id="profile-card-section">
+      <h1 data-anonymize="person-name">Tomas Nowak</h1>
+      <span data-anonymize="headline">Head of Growth @ Brightline</span>
+    </section>
+  </main>
+</body></html>`;
+
+/** A search results page: rows link to /sales/lead/, never to /in/. */
+const SALES_SEARCH = `<!doctype html><html><head><title>Sales Navigator</title></head>
+<body>
+  <main>
+    <ol>
+      <li>
+        <a href="/sales/lead/ACwAAA001,NAME_SEARCH">
+          <span data-anonymize="person-name">Dana Okafor</span>
+        </a>
+        <span data-anonymize="title">Partner</span>
+        <span data-anonymize="company-name">Northwind Capital</span>
+      </li>
+      <li>
+        <a href="/sales/lead/ACwAAA002,NAME_SEARCH">
+          <span data-anonymize="person-name">Priya Raman</span>
+        </a>
+        <span data-anonymize="headline">Head of Partnerships at Brightline</span>
+      </li>
+      <li>
+        <a href="/sales/lead/ACwAAA003,NAME_SEARCH">
+          <span data-anonymize="person-name">Ines Okonkwo</span>
+        </a>
+        <span data-anonymize="title">Chief Revenue Officer</span>
+        <span data-anonymize="company-name">Meridian Labs</span>
+      </li>
+    </ol>
+  </main>
+</body></html>`;
+
 const ROUTER_ONLY_PROFILE = `<!doctype html><html><head><title>Dana Okafor | LinkedIn</title></head>
 <body>
   <main>
@@ -222,6 +296,56 @@ const ROUTER_ONLY_PROFILE = `<!doctype html><html><head><title>Dana Okafor | Lin
           dialog.remove();
           document.body.style.overflow = '';
           history.back();
+        });
+        document.body.appendChild(dialog);
+      }, 200);
+    }
+    window.addEventListener('popstate', openFromRoute);
+    openFromRoute();
+  </script>
+</body></html>`;
+
+/**
+ * A profile whose own dismiss handler pops the history entry late.
+ *
+ * This is the condition the other router fixture cannot produce. There, the
+ * page's dismiss calls history.back() immediately, so the restore sees the URL
+ * settle inside its grace period and never steps back itself — the double-pop
+ * has no opportunity to happen and a broken restore still passes.
+ *
+ * Real LinkedIn does not pop on a fixed schedule. When its dismiss runs after
+ * the grace expires, a restore that steps back fires first, and the page's pop
+ * lands on top of it: two pops, and the tab ends up one entry further back
+ * than the user has ever been. On a tab opened from a search engine that entry
+ * is the search engine, which is what "it redirects me to Google" is.
+ */
+const SLOW_SLUG = 'slow-dismiss';
+
+const SLOW_DISMISS_PROFILE = `<!doctype html><html><head><title>Iris Vance | LinkedIn</title></head>
+<body>
+  <main>
+    <h1>Iris Vance</h1>
+    <div class="text-body-medium break-words">Partner at Northwind Capital</div>
+  </main>
+  <script>
+    function openFromRoute() {
+      if (!location.pathname.includes('/overlay/contact-info')) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      document.body.style.overflow = 'hidden';
+      setTimeout(function () {
+        var dialog = document.createElement('div');
+        dialog.setAttribute('role', 'dialog');
+        dialog.className = 'artdeco-modal';
+        dialog.innerHTML =
+          '<h2>Contact info</h2>' +
+          '<button class="artdeco-modal__dismiss" aria-label="Dismiss">x</button>' +
+          '<a href="mailto:iris.vance@northwind.example.org">iris.vance@northwind.example.org</a>';
+        dialog.querySelector('.artdeco-modal__dismiss').addEventListener('click', function () {
+          dialog.remove();
+          document.body.style.overflow = '';
+          // The whole point of this fixture: the pop comes well after the
+          // restore has given up waiting for it.
+          setTimeout(function () { history.back(); }, 1600);
         });
         document.body.appendChild(dialog);
       }, 200);
@@ -353,6 +477,11 @@ createServer({ key, cert }, (req, res) => {
     'Set-Cookie': 'JSESSIONID="ajax:1234567890"; Path=/',
   });
 
+  // Sales Navigator lives on the same host under /sales/.
+  if (url.pathname.startsWith('/sales/search/people')) return res.end(SALES_SEARCH);
+  if (url.pathname.includes('/sales/lead/nopublic')) return res.end(SALES_LEAD_NO_PUBLIC);
+  if (url.pathname.startsWith('/sales/lead/')) return res.end(SALES_LEAD);
+
   for (const slug of Object.keys(VARIANTS)) {
     if (url.pathname.includes(slug)) return res.end(variantPage(slug));
   }
@@ -360,6 +489,7 @@ createServer({ key, cert }, (req, res) => {
   if (url.pathname.includes(LATE_SLUG)) return res.end(LATE_ANCHOR_PROFILE);
   if (url.pathname.includes(TAP_SLUG)) return res.end(TAP_ONLY_PROFILE);
   if (url.pathname.includes(ROUTER_SLUG)) return res.end(ROUTER_ONLY_PROFILE);
+  if (url.pathname.includes(SLOW_SLUG)) return res.end(SLOW_DISMISS_PROFILE);
   if (url.pathname.includes(QUIET_SLUG)) {
     return res.end(profile(QUIET_SLUG, 'Quiet Profile', 'Analyst at Northwind Capital'));
   }

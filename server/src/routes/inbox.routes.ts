@@ -12,6 +12,7 @@ inboxRoutes.put('/mark-all-read', inboxController.markAllRead);
 inboxRoutes.post('/compose', inboxController.compose);
 inboxRoutes.post('/schedule-send', inboxController.scheduleSend);
 inboxRoutes.post('/sync', inboxController.syncInbox);
+inboxRoutes.get('/sync/progress', inboxController.syncProgress);
 
 // Parameterized routes
 inboxRoutes.get('/:id', inboxController.get);

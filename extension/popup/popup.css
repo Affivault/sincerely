@@ -1334,6 +1334,23 @@ body {
   color: #fbbf24;
 }
 
+/* The reach line. Deliberately quiet: it is a fact about the destination,
+   not a problem with it, and colouring it like a warning would make every
+   healthy campaign look like it had one. */
+.reach-note {
+  margin: 0 0 7px;
+  padding: 5px 9px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+}
+.reach-note b {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
 .campaign-option .no-send {
   flex: 0 0 auto;
   padding: 1px 6px;

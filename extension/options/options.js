@@ -213,6 +213,9 @@ async function save() {
   } finally {
     el.save.disabled = false;
     el.save.textContent = 'Save & test connection';
+    // The card at the top of the page states the connection; a test that just
+    // ran is the best information anyone has about it.
+    refreshConnStatus();
   }
 }
 
@@ -437,7 +440,126 @@ chrome.storage.onChanged.addListener((changes, area) => {
 const versionEl = document.getElementById('ext-version');
 if (versionEl) versionEl.textContent = chrome.runtime.getManifest().version;
 
+/* ------------------------------------------------------------------ */
+/* Connection status                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Say whether this browser is actually connected, without being asked.
+ *
+ * The page used to answer that only after you pressed "Save & test", which
+ * meant the one question it exists to settle went unanswered until you
+ * thought to ask it. Opening a settings page is a deliberate act, so it is a
+ * reasonable moment to spend one request finding out.
+ *
+ * @param {'checking'|'connected'|'none'|'error'} state
+ * @param {string} title
+ * @param {string} sub
+ */
+function setConnStatus(state, title, sub) {
+  const box = document.getElementById('conn-status');
+  if (!box) return;
+  box.dataset.state = state;
+  document.getElementById('conn-title').textContent = title;
+  document.getElementById('conn-sub').textContent = sub;
+  // Folds the how-to-connect steps away once there is nothing to connect.
+  const section = document.getElementById('connection');
+  if (section) section.dataset.connected = state === 'connected' ? 'yes' : 'no';
+}
+
+async function refreshConnStatus() {
+  const settings = await getSettings();
+  const host = (() => {
+    try { return new URL(settings.apiBaseUrl).host; } catch { return settings.apiBaseUrl || '—'; }
+  })();
+
+  if (!settings.apiKey) {
+    setConnStatus('none', 'Not connected yet', 'Follow the three steps below — it takes about twenty seconds.');
+    return;
+  }
+
+  setConnStatus('checking', 'Checking connection…', host);
+
+  let response;
+  try {
+    response = await chrome.runtime.sendMessage({ type: 'TEST_CONNECTION' });
+  } catch {
+    response = null;
+  }
+
+  // null is the permission case: a key is stored but Chrome has not been
+  // allowed to talk to that host yet. Saying "disconnected" would send
+  // somebody looking for a key problem they do not have.
+  if (response === null) {
+    setConnStatus('error', 'One permission short', `Chrome needs permission to reach ${host}. Press "Save & test connection".`);
+    return;
+  }
+
+  if (!response?.ok) {
+    setConnStatus('error', 'Not connected', response?.error?.message || 'The connection test failed.');
+    return;
+  }
+
+  const { listCount, canWrite } = response.data;
+  if (!canWrite) {
+    setConnStatus('error', 'Read-only key', `Connected to ${host}, but this key cannot add or remove people.`);
+    return;
+  }
+
+  setConnStatus(
+    'connected',
+    'Connected',
+    `${host} · ${listCount} lead list${listCount === 1 ? '' : 's'}`,
+  );
+}
+
+// Re-checked whenever the stored key changes, including when the in-app
+// Connect button hands one over while this page is open.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && (changes.apiKey || changes.apiBaseUrl)) refreshConnStatus();
+});
+
+/* ------------------------------------------------------------------ */
+/* Section nav                                                        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Marks the section you are looking at. Anchor links alone leave the nav
+ * showing nothing at all once you scroll, which turns a map into a list of
+ * links.
+ */
+(() => {
+  const items = [...document.querySelectorAll('.nav-item')];
+  const sections = items
+    .map((item) => document.getElementById(item.dataset.section))
+    .filter(Boolean);
+  if (sections.length === 0) return;
+
+  const mark = (id) => {
+    for (const item of items) item.classList.toggle('active', item.dataset.section === id);
+  };
+  mark(sections[0].id);
+
+  const seen = new Map();
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) seen.set(entry.target.id, entry);
+      // The highest section that is on screen wins, so scrolling down moves
+      // the marker down rather than to whichever section happened to fire.
+      const visible = sections
+        .map((section) => seen.get(section.id))
+        .filter((entry) => entry?.isIntersecting);
+      if (visible.length > 0) mark(visible[0].target.id);
+    },
+    // Biased to the top of the window: a section is "current" once its
+    // heading reaches the upper third, which is where people read.
+    { rootMargin: '-8% 0px -70% 0px', threshold: 0 },
+  );
+  for (const section of sections) observer.observe(section);
+})();
+
 initTheme()
   .then(load)
   .then(renderAgent)
+  .then(refreshConnStatus)
   .catch((err) => showResult(err?.message || 'Failed to load settings.', 'error'));

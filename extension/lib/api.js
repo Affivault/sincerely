@@ -361,15 +361,19 @@ export async function campaignsByList() {
       const status = String(campaign.status || '').toLowerCase();
       if (!LIVE.has(status) && !HELD.has(status)) continue;
 
-      const entry = byList.get(listId) || { live: 0, paused: 0, name: null };
+      const entry = byList.get(listId) || { live: 0, paused: 0, name: null, id: null };
       if (LIVE.has(status)) {
         entry.live += 1;
         // Name the live one where there is a choice: that is the campaign that
         // will actually pick these people up.
-        if (!entry.name || entry.live === 1) entry.name = campaign.name || null;
+        if (!entry.name || entry.live === 1) {
+          entry.name = campaign.name || null;
+          // Its id too, so the panel can ask how far its sending reaches.
+          entry.id = campaign.id || null;
+        }
       } else {
         entry.paused += 1;
-        if (!entry.name) entry.name = campaign.name || null;
+        if (!entry.name) { entry.name = campaign.name || null; entry.id = campaign.id || null; }
       }
       byList.set(listId, entry);
     }
@@ -379,6 +383,21 @@ export async function campaignsByList() {
   }
 
   return byList;
+}
+
+/**
+ * How far a campaign's sending actually reaches.
+ *
+ * The question somebody is implicitly asking when they put two hundred
+ * people into a campaign whose mailboxes send forty a day — and which the
+ * extension had no way to answer, so the two hundred went in and the
+ * backlog was discovered a fortnight later, if at all.
+ *
+ * @param {string} campaignId
+ * @returns {Promise<{pending: number, capacity_today: number|null, daily_capacity: number|null, days_to_clear: number|null, sending: boolean, campaign_name: string}>}
+ */
+export async function campaignReach(campaignId) {
+  return request(`/campaigns/${encodeURIComponent(campaignId)}/reach`);
 }
 
 /**

@@ -7,239 +7,298 @@
     <link rel="stylesheet" href="options.css" />
   </head>
   <body>
-    <main class="wrap">
-      <header class="page-head">
-        <span class="brand-tile page-icon">
-          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="2" y="4" width="20" height="16" rx="2" />
-            <path d="m22 7-10 6L2 7" />
-          </svg>
-        </span>
-        <div>
-          <h1>Extension settings</h1>
-          <p class="page-sub">
-            Connect the Chrome extension to your Sincerely account.
+    <!--
+      Laid out like the app's own settings workspace: a persistent grouped nav
+      on the left, content on the right. The old page was one long column of
+      panels where a connection you had to configure looked exactly like
+      reference material you read once, and every setting carried a paragraph.
+      Nothing told you the state of the thing the page exists to configure.
+    -->
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-brand">
+          <span class="brand-tile nav-mark">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="2" y="4" width="20" height="16" rx="2" />
+              <path d="m22 7-10 6L2 7" />
+            </svg>
+          </span>
+          <div class="nav-brand-text">
+            <h1>Extension settings</h1>
             <!-- Printed so "am I running the current build?" is answerable
                  without diffing files. An unpacked extension never updates on
                  its own, so this is the only honest signal. -->
-            <span class="page-version">v<span id="ext-version">–</span></span>
-          </p>
-        </div>
-      </header>
-
-      <section class="panel block">
-        <div class="block-head">
-          <div>
-            <p class="section-title">Connect to your account</p>
-            <p class="section-sub">One click from inside Sincerely — nothing to copy.</p>
+            <span class="nav-version">v<span id="ext-version">–</span></span>
           </div>
         </div>
-        <div class="block-body">
-          <div class="explainer">
-            <p>
-              <strong>The easy way.</strong> Open Sincerely in a tab and sign in, then click the
-              Sincerely icon in your Chrome toolbar and press
-              <strong>Connect using this tab</strong>. It works out your API address and makes its
-              own key from your session — nothing to create, copy or type, whatever domain your
-              app is on.
-            </p>
-            <p class="explainer-alt">
-              There's also a <strong>Connect extension</strong> button inside the app. The
-              button below opens that page directly, on the right tab.
-            </p>
-            <button id="open-app" class="btn-primary" type="button">Open Sincerely</button>
+
+        <nav class="nav-groups" aria-label="Settings sections">
+          <div class="nav-group">
+            <p class="nav-group-label">Setup</p>
+            <a class="nav-item" href="#connection" data-section="connection">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+              <span>Connection</span>
+            </a>
           </div>
 
-          <!-- Sits with the button that uses it: "Open Sincerely" goes here, and
-               a self-hosted app needs this set before it will work. -->
-          <div class="field">
-            <label class="field-label" for="app-url">Web app URL</label>
-            <input id="app-url" class="input-field mono" type="text" spellcheck="false" placeholder="https://usesincerely.com" />
-            <p class="help">
-              Where your Sincerely app is. Used by the button above, and by the
-              "open in Sincerely" links on contacts and lists.
-            </p>
+          <div class="nav-group">
+            <p class="nav-group-label">Behaviour</p>
+            <a class="nav-item" href="#preferences" data-section="preferences">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              <span>Preferences</span>
+            </a>
+            <a class="nav-item" href="#agent" data-section="agent">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="11" width="18" height="10" rx="2" />
+                <circle cx="12" cy="5" r="2" />
+                <path d="M12 7v4M8 16h.01M16 16h.01" />
+              </svg>
+              <span>LinkedIn agent</span>
+            </a>
+          </div>
+
+          <div class="nav-group">
+            <p class="nav-group-label">Help</p>
+            <a class="nav-item" href="#reference" data-section="reference">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01" />
+              </svg>
+              <span>Reference</span>
+            </a>
+          </div>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <!-- ═══ Connection ═══════════════════════════════════════════ -->
+        <section class="section" id="connection">
+          <header class="section-head">
+            <h2>Connection</h2>
+            <p>Link this browser to your Sincerely account.</p>
+          </header>
+
+          <!--
+            The state of the connection, first and largest. The old page said
+            nothing at all until you pressed a button, so the one question it
+            exists to answer went unanswered until you asked it by hand.
+          -->
+          <div class="status" id="conn-status" data-state="checking">
+            <span class="status-dot" aria-hidden="true"></span>
+            <div class="status-text">
+              <p class="status-title" id="conn-title">Checking connection…</p>
+              <p class="status-sub" id="conn-sub">Reading your saved settings.</p>
+            </div>
+            <button id="open-app" class="btn-secondary status-action" type="button">Open Sincerely</button>
+          </div>
+
+          <div class="panel card steps-card">
+            <div class="card-body">
+              <div class="steps">
+                <div class="step">
+                  <span class="step-n">1</span>
+                  <p>Open Sincerely in a tab and sign in.</p>
+                </div>
+                <div class="step">
+                  <span class="step-n">2</span>
+                  <p>Click the Sincerely icon in your Chrome toolbar.</p>
+                </div>
+                <div class="step">
+                  <span class="step-n">3</span>
+                  <p>Press <strong>Connect using this tab</strong>.</p>
+                </div>
+              </div>
+              <p class="card-note">
+                It works out your API address and makes its own key from your session. Nothing to
+                create, copy or type.
+              </p>
+            </div>
+
+            <div class="card-foot">
+              <label class="inline-field">
+                <span class="field-label">Web app URL</span>
+                <input id="app-url" class="input-field mono" type="text" spellcheck="false" placeholder="https://usesincerely.com" />
+              </label>
+              <p class="help">Where your Sincerely app lives — used by the button above and by every “open in Sincerely” link.</p>
+            </div>
           </div>
 
           <details class="manual">
-            <summary>Or paste a key by hand</summary>
-            <p class="help manual-note">
-              An API key is just a password this extension uses to prove it's you. You create it in
-              your own Sincerely account — it isn't something you get from anywhere else. On the
-              <strong>Webhooks</strong> page, <strong>API keys</strong> tab, press
-              <strong>Create Key</strong>, then use the <strong>copy button</strong> beside the key
-              (selecting the text copies the dots that hide it, which won't work).
-            </p>
-            <div class="field">
-              <label class="field-label" for="api-url">API URL</label>
-              <input id="api-url" class="input-field mono" type="text" spellcheck="false" placeholder="https://skysend-api.onrender.com" />
+            <summary>
+              <svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+              Paste a key by hand instead
+            </summary>
+            <div class="manual-body">
+              <p class="help">
+                An API key is a password this extension uses to prove it's you, made in your own
+                account. In Sincerely: <strong>Webhooks</strong> → <strong>API keys</strong> →
+                <strong>Create Key</strong>, then use the copy button beside it — selecting the text
+                copies the dots that hide it.
+              </p>
+
+              <label class="stacked-field">
+                <span class="field-label">API URL</span>
+                <input id="api-url" class="input-field mono" type="text" spellcheck="false" placeholder="https://skysend-api.onrender.com" />
+              </label>
               <p class="help">
                 Paste the host — <code>/api/v1</code> is added for you. Use
                 <button class="link-btn" id="use-production" type="button">production</button> or
                 <button class="link-btn" id="use-local" type="button">localhost:3001</button>.
               </p>
-            </div>
 
-            <div class="field">
-              <label class="field-label" for="api-key">API key</label>
-              <input id="api-key" class="input-field mono" type="password" spellcheck="false" autocomplete="off" placeholder="sk_live_…" />
+              <label class="stacked-field">
+                <span class="field-label">API key</span>
+                <input id="api-key" class="input-field mono" type="password" spellcheck="false" autocomplete="off" placeholder="sk_live_…" />
+              </label>
               <p class="help">72 characters, starting <code>sk_live_</code>. Stored on this machine only.</p>
             </div>
           </details>
 
           <div class="actions">
+            <!-- Text-only: options.js replaces this button's textContent while
+                 testing, so anything nested inside it would be discarded. -->
             <button id="save" class="btn-primary" type="button">Save &amp; test connection</button>
             <button id="forget" class="btn-secondary" type="button">Forget key</button>
           </div>
 
           <div id="result" class="result hidden" role="status" aria-live="polite"></div>
-        </div>
-      </section>
+        </section>
 
-      <section class="panel block">
-        <div class="block-head">
-          <p class="section-title">Preferences</p>
-        </div>
-        <div class="block-body">
-          <div class="field">
-            <label class="field-label" for="theme">Appearance</label>
-            <select id="theme" class="input-field theme-select">
-              <option value="system">Match system</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </select>
-          </div>
+        <!-- ═══ Preferences ══════════════════════════════════════════ -->
+        <section class="section" id="preferences">
+          <header class="section-head">
+            <h2>Preferences</h2>
+            <p>How the extension behaves while you work.</p>
+          </header>
 
-          <label class="check">
-            <input id="verify-before-add" type="checkbox" />
-            <span class="check-body">
-              <span class="check-title">Verify addresses before adding</span>
-              <span class="check-sub"
-                >Runs a deliverability check first and refuses obviously bad addresses.
-                Slower, but protects your sending reputation.</span
-              >
-            </span>
-          </label>
-
-          <label class="check check-spaced">
-            <input id="show-badge" type="checkbox" />
-            <span class="check-body">
-              <span class="check-title">Mark the toolbar icon on LinkedIn and Gmail</span>
-              <span class="check-sub"
-                >Shows how many lead lists the person on the page is already on, or a
-                cross if they're suppressed — without opening the extension.</span
-              >
-            </span>
-          </label>
-
-          <!-- The button dismisses itself from the page, so without this there
-               is no way back: the sidebar would only be reachable from the
-               toolbar icon, with nothing saying why the button vanished. -->
-          <label class="check check-spaced">
-            <input id="show-launcher" type="checkbox" />
-            <span class="check-body">
-              <span class="check-title">Show the Sincerely button on LinkedIn and Gmail</span>
-              <span class="check-sub"
-                >A small button on the page that opens the sidebar, so you don't have to
-                reach for the toolbar. The sidebar itself always opens from the toolbar
-                icon.</span
-              >
-            </span>
-          </label>
-
-          <label class="check check-spaced">
-            <input id="auto-open-contact-info" type="checkbox" />
-            <span class="check-body">
-              <span class="check-title">Read LinkedIn's Contact info without clicking</span>
-              <span class="check-sub"
-                >A profile's email only exists inside the Contact info dialog, so the extension
-                opens that dialog, reads it and closes it again — hidden, so nothing flashes.
-                It only ever clicks that one link. Turn this off and you'll need to open
-                Contact info yourself.</span
-              >
-            </span>
-          </label>
-
-          <label class="check check-spaced">
-            <input id="auto-tag" type="checkbox" />
-            <span class="check-body">
-              <span class="check-title">Tag contacts added from the extension</span>
-              <span class="check-sub"
-                >Applies a tag on every add, so you can filter on it in Contacts and see
-                whether the channel is worth it.</span
-              >
-            </span>
-          </label>
-          <div class="field tag-name-field">
-            <label class="field-label" for="auto-tag-name">Tag name</label>
-            <input id="auto-tag-name" class="input-field mono tag-name-input" type="text" spellcheck="false" placeholder="chrome-extension" />
-          </div>
-        </div>
-      </section>
-
-      <section class="panel block">
-        <div class="block-head">
-          <div>
-            <p class="section-title">LinkedIn agent</p>
-            <p class="section-sub">Runs the LinkedIn steps of your campaigns in this browser.</p>
-          </div>
-        </div>
-        <div class="block-body">
-          <div id="agent-status" class="result" role="status" aria-live="polite">Checking…</div>
-
-          <label class="check check-spaced">
-            <input id="agent-paused" type="checkbox" />
-            <span class="check-body">
-              <span class="check-title">Pause on this machine</span>
-              <span class="check-sub"
-                >Stops the agent here without changing your account settings — for when you
-                want the browser to yourself. Limits, working hours and the on/off switch
-                live in Sincerely under Tools → LinkedIn.</span
-              >
-            </span>
-          </label>
-        </div>
-      </section>
-
-      <section class="panel block">
-        <div class="block-head">
-          <div>
-            <p class="section-title">How it works</p>
-            <p class="section-sub">Three actions that are easy to confuse.</p>
-          </div>
-        </div>
-        <div class="block-body">
-          <dl class="notes">
-            <div class="note-row">
-              <dt><span class="badge badge-brand">Add</span></dt>
-              <dd>
-                Puts someone on a lead list. The contact is created first if your account
-                has never seen them. Campaigns draw from lists, so this is what gets them
-                emailed.
-              </dd>
+          <div class="panel card">
+            <div class="row row-static">
+              <div class="row-text">
+                <p class="row-title">Appearance</p>
+                <p class="row-sub">Follows your system unless you pick otherwise.</p>
+              </div>
+              <select id="theme" class="input-field row-select">
+                <option value="system">Match system</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
             </div>
-            <div class="note-row">
-              <dt><span class="badge">Remove</span></dt>
-              <dd>
-                Takes them off that one list. They stay in your contacts, and stay on any
-                other list they're on.
-              </dd>
+
+            <label class="row">
+              <span class="row-text">
+                <span class="row-title">Verify addresses before adding</span>
+                <span class="row-sub">Slower, but keeps obviously bad addresses out of your lists.</span>
+              </span>
+              <input id="verify-before-add" type="checkbox" class="sw" />
+              <span class="sw-track" aria-hidden="true"></span>
+            </label>
+
+            <label class="row">
+              <span class="row-text">
+                <span class="row-title">Mark the toolbar icon</span>
+                <span class="row-sub">Shows how many lists this person is on, or a cross if they're suppressed.</span>
+              </span>
+              <input id="show-badge" type="checkbox" class="sw" />
+              <span class="sw-track" aria-hidden="true"></span>
+            </label>
+
+            <!-- The in-page button dismisses itself, so without this row there
+                 is no way back: the sidebar would only be reachable from the
+                 toolbar icon, with nothing saying why the button vanished. -->
+            <label class="row">
+              <span class="row-text">
+                <span class="row-title">Show the button on LinkedIn and Gmail</span>
+                <span class="row-sub">A small in-page button that opens the sidebar. The toolbar icon always works.</span>
+              </span>
+              <input id="show-launcher" type="checkbox" class="sw" />
+              <span class="sw-track" aria-hidden="true"></span>
+            </label>
+
+            <label class="row">
+              <span class="row-text">
+                <span class="row-title">Read Contact info without clicking</span>
+                <span class="row-sub">A profile's email lives inside that dialog, so it's opened, read and closed again — hidden, so nothing flashes.</span>
+              </span>
+              <input id="auto-open-contact-info" type="checkbox" class="sw" />
+              <span class="sw-track" aria-hidden="true"></span>
+            </label>
+
+            <label class="row">
+              <span class="row-text">
+                <span class="row-title">Tag contacts added from here</span>
+                <span class="row-sub">Applies a tag on every add, so you can filter on it in Contacts.</span>
+              </span>
+              <input id="auto-tag" type="checkbox" class="sw" />
+              <span class="sw-track" aria-hidden="true"></span>
+            </label>
+
+            <div class="row row-static row-child">
+              <div class="row-text">
+                <p class="row-title">Tag name</p>
+              </div>
+              <input id="auto-tag-name" class="input-field mono row-input" type="text" spellcheck="false" placeholder="chrome-extension" />
             </div>
-            <div class="note-row">
-              <dt><span class="badge badge-error">Suppress</span></dt>
-              <dd>
-                Blocks the address account-wide and takes them off every lead list. This is
-                the one that sticks.
-              </dd>
+          </div>
+        </section>
+
+        <!-- ═══ LinkedIn agent ═══════════════════════════════════════ -->
+        <section class="section" id="agent">
+          <header class="section-head">
+            <h2>LinkedIn agent</h2>
+            <p>Runs the LinkedIn steps of your campaigns in this browser.</p>
+          </header>
+
+          <div class="panel card">
+            <div class="card-body">
+              <div id="agent-status" class="result" role="status" aria-live="polite">Checking…</div>
             </div>
-          </dl>
+
+            <label class="row">
+              <span class="row-text">
+                <span class="row-title">Pause on this machine</span>
+                <span class="row-sub">Stops the agent here only. Limits and working hours live in Sincerely under Tools → LinkedIn.</span>
+              </span>
+              <input id="agent-paused" type="checkbox" class="sw" />
+              <span class="sw-track" aria-hidden="true"></span>
+            </label>
+          </div>
+        </section>
+
+        <!-- ═══ Reference ════════════════════════════════════════════ -->
+        <section class="section" id="reference">
+          <header class="section-head">
+            <h2>Reference</h2>
+            <p>Three actions that are easy to confuse.</p>
+          </header>
+
+          <div class="glossary">
+            <div class="term">
+              <span class="badge badge-brand">Add</span>
+              <p>Puts someone on a lead list, creating the contact first if your account has never seen them. Campaigns draw from lists, so this is what gets them emailed.</p>
+            </div>
+            <div class="term">
+              <span class="badge">Remove</span>
+              <p>Takes them off that one list. They stay in your contacts, and stay on any other list.</p>
+            </div>
+            <div class="term">
+              <span class="badge badge-error">Suppress</span>
+              <p>Blocks the address account-wide and takes them off every list. This is the one that sticks.</p>
+            </div>
+          </div>
+
           <p class="footnote">
-            Adding is idempotent: someone already on the list is left alone rather than
-            duplicated, so re-running a scan is safe.
+            Adding is idempotent — someone already on the list is left alone rather than duplicated,
+            so re-running a scan is always safe.
           </p>
-        </div>
-      </section>
-    </main>
+        </section>
+      </main>
+    </div>
 
     <script type="module" src="options.js"></script>
   </body>

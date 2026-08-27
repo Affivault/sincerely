@@ -5,11 +5,22 @@ import crypto from 'crypto';
 export class AppError extends Error {
   statusCode: number;
   code?: string;
+  /**
+   * Structured detail that belongs to the failure itself.
+   *
+   * A refused launch is the case that wanted this: "you cannot send yet" is
+   * useless without the list of reasons, and making the client fetch that
+   * list separately means it can disagree with the one the server actually
+   * decided on. Merged into the response body, so nothing here may use the
+   * keys `error` or `code`.
+   */
+  details?: Record<string, unknown>;
 
-  constructor(message: string, statusCode: number, code?: string) {
+  constructor(message: string, statusCode: number, code?: string, details?: Record<string, unknown>) {
     super(message);
     this.statusCode = statusCode;
     this.code = code;
+    this.details = details;
     this.name = 'AppError';
   }
 }
@@ -23,7 +34,11 @@ export function errorMiddleware(
   console.error('Error:', err);
 
   if (err instanceof AppError) {
-    res.status(err.statusCode).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
+    res.status(err.statusCode).json({
+      error: err.message,
+      ...(err.code ? { code: err.code } : {}),
+      ...(err.details || {}),
+    });
     return;
   }
 

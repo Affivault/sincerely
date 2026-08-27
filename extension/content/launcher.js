@@ -25,7 +25,15 @@
   /** Where a launcher is worth showing. Everywhere else, the toolbar icon. */
   function relevant() {
     const { hostname, pathname } = location;
-    if (hostname.endsWith('linkedin.com') && /\/in\//.test(pathname)) return true;
+    if (hostname.endsWith('linkedin.com')) {
+      // A member profile on the main site.
+      if (/^\/in\//.test(pathname)) return true;
+      // A lead in Sales Navigator, which is where anyone paying for a tool
+      // like this actually prospects — and where, until now, the extension
+      // put nothing on the page at all.
+      if (/^\/sales\/(?:lead|people)\//.test(pathname)) return true;
+      return false;
+    }
     return hostname === 'mail.google.com';
   }
 

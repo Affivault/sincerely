@@ -9,6 +9,8 @@ import { Spinner } from '../ui/Spinner';
 import { SearchInput } from './SearchInput';
 import { cn } from '../../lib/utils';
 import { Megaphone, Plus, Check, Users, PlayCircle, PauseCircle, PencilLine, CalendarClock } from 'lucide-react';
+import { EnrolResultDialog } from '../campaigns/EnrolResultDialog';
+import type { EnrolResult } from '@lemlist/shared';
 
 const STATUS_META: Record<string, { label: string; icon: typeof PlayCircle; cls: string }> = {
   running: { label: 'Running', icon: PlayCircle, cls: 'text-emerald-600 dark:text-emerald-400' },
@@ -33,6 +35,7 @@ export function AddToCampaignModal({
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [outcome, setOutcome] = useState<{ result: EnrolResult; name: string } | null>(null);
 
   const { data: campaignsPage, isLoading } = useQuery({
     queryKey: ['campaigns', 'for-enroll'],
@@ -47,25 +50,43 @@ export function AddToCampaignModal({
     ? activeCampaigns.filter((c: any) => c.name.toLowerCase().includes(search.trim().toLowerCase()))
     : activeCampaigns;
 
+  /*
+   * The old version of this guessed. It said "skipped (already in other
+   * active campaigns)" for every skip regardless of cause, because the
+   * server only ever sent a bare number — which meant it was confidently
+   * wrong whenever the real reason was a suppression, a missing address or
+   * a lead list the contacts were not on.
+   */
   const enroll = useMutation({
     mutationFn: (campaignId: string) => campaignsApi.enrollContacts(campaignId, contactIds),
     onSuccess: (result, campaignId) => {
       qc.invalidateQueries({ queryKey: ['campaigns'] });
       qc.invalidateQueries({ queryKey: ['lists'] });
       const name = activeCampaigns.find((c: any) => c.id === campaignId)?.name || 'campaign';
-      if (result.added > 0) {
-        toast.success(
-          `Added ${result.added} lead${result.added === 1 ? '' : 's'} to “${name}”` +
-          (result.skipped > 0 ? ` · ${result.skipped} skipped (already in other active campaigns)` : ''),
-        );
-      } else {
-        toast(`Nothing added — the selected leads are already enrolled elsewhere.`, { icon: 'ℹ️' });
-      }
       onDone?.();
+      if (result.skipped > 0) {
+        // Held open on the result rather than closed behind a toast: a
+        // number nobody can inspect is a number nobody believes.
+        setOutcome({ result, name });
+        return;
+      }
+      toast.success(
+        `${result.added.toLocaleString()} lead${result.added === 1 ? '' : 's'} added to “${name}”`,
+      );
       onClose();
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to add to campaign'),
   });
+
+  if (outcome) {
+    return (
+      <EnrolResultDialog
+        result={outcome.result}
+        campaignName={outcome.name}
+        onClose={() => { setOutcome(null); onClose(); }}
+      />
+    );
+  }
 
   return (
     <Modal

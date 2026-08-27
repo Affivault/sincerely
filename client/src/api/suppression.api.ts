@@ -22,8 +22,20 @@ export const suppressionApi = {
     return data;
   },
 
+  /**
+   * Suppress a batch.
+   *
+   * `added_emails` names the ones that were not already suppressed, which
+   * is what an undo has to remove — anything in `already_present` was
+   * somebody's earlier decision and stays.
+   */
   addBulk: async (emails: string[], reason = 'manual') => {
-    const { data } = await apiClient.post<{ added: number; duplicates_collapsed: number }>('/suppression/bulk', { emails, reason });
+    const { data } = await apiClient.post<{
+      added: number;
+      duplicates_collapsed: number;
+      added_emails: string[];
+      already_present: string[];
+    }>('/suppression/bulk', { emails, reason });
     return data;
   },
 

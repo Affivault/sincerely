@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { InboxMessage, InboxMessageWithContext, InboxCounts, PaginatedResponse } from '@lemlist/shared';
+import type { InboxMessage, InboxMessageWithContext, InboxCounts, PaginatedResponse, InboxSyncResult, InboxSyncProgress } from '@lemlist/shared';
 
 export const inboxApi = {
   unreadCount: async (): Promise<number> => {
@@ -121,7 +121,13 @@ export const inboxApi = {
   },
 
   syncInbox: async () => {
-    const { data } = await apiClient.post<{ synced: number; newMessages: number; errors?: string[] }>('/inbox/sync');
+    const { data } = await apiClient.post<InboxSyncResult>('/inbox/sync');
+    return data;
+  },
+
+  /** How far back each mailbox reaches, and whether history is still loading. */
+  syncProgress: async () => {
+    const { data } = await apiClient.get<InboxSyncProgress[]>('/inbox/sync/progress');
     return data;
   },
 };

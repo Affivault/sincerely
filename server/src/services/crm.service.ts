@@ -16,7 +16,7 @@ function pick(body: any, keys: readonly string[]): Record<string, any> {
   return out;
 }
 
-const DEAL_KEYS = ['title', 'company', 'company_id', 'contact_name', 'contact_email', 'contact_id', 'value', 'currency', 'stage', 'expected_close_date', 'notes', 'position'] as const;
+const DEAL_KEYS = ['title', 'company', 'company_id', 'contact_name', 'contact_email', 'contact_id', 'value', 'currency', 'stage', 'expected_close_date', 'notes', 'position', 'probability', 'outcome_reason'] as const;
 const TASK_KEYS = ['title', 'due_date', 'priority', 'type', 'all_day', 'deal_id', 'contact_id', 'contact_name', 'notes', 'is_done', 'channel', 'payload', 'target_url'] as const;
 const EVENT_KEYS = ['title', 'type', 'starts_at', 'ends_at', 'all_day', 'contact_id', 'contact_name', 'contact_email', 'location', 'notes', 'outcome', 'deal_id'] as const;
 const NOTE_KEYS = ['body', 'contact_id', 'deal_id', 'pinned'] as const;
@@ -45,6 +45,55 @@ function sanitizeDealInput(input: Record<string, any>) {
   if (typeof input.contact_email === 'string') {
     input.contact_email = input.contact_email.trim().toLowerCase() || null;
   }
+
+  /*
+   * Odds are a percentage or nothing. A stored 140 would quietly inflate
+   * every forecast it appeared in, and an empty string from a cleared form
+   * field means "no opinion", not zero — zero is a real answer that means
+   * the deal is dead.
+   */
+  if (input.probability === '' || input.probability === null) {
+    input.probability = null;
+  } else if (input.probability !== undefined) {
+    const p = Number(input.probability);
+    if (!Number.isFinite(p) || p < 0 || p > 100) {
+      throw new AppError('Probability must be between 0 and 100', 400);
+    }
+    input.probability = Math.round(p);
+  }
+
+  if (typeof input.outcome_reason === 'string') {
+    input.outcome_reason = input.outcome_reason.trim().slice(0, 200) || null;
+  }
+}
+
+/**
+ * Keep the timestamps that describe a deal's movement truthful.
+ *
+ * Neither can be left to the caller. `stage_changed_at` is the whole basis of
+ * rot detection, so a client that forgot to send it would make a stalled deal
+ * look fresh; `closed_at` decides what counts as won this month. Both are
+ * derived from the transition itself, which is the only place that knows one
+ * happened.
+ *
+ * Reopening a closed deal clears `closed_at` rather than leaving the old one
+ * behind, or the deal would keep counting toward a month it is no longer in.
+ *
+ * @param input The already-picked update body, mutated in place.
+ * @param previousStage The stage before this write, when there was one.
+ */
+function trackStageChange(input: Record<string, any>, previousStage?: string | null) {
+  if (input.stage === undefined) return;
+  if (previousStage !== undefined && previousStage === input.stage) return;
+
+  const now = new Date().toISOString();
+  input.stage_changed_at = now;
+
+  const closing = input.stage === 'won' || input.stage === 'lost';
+  input.closed_at = closing ? now : null;
+  // A deal that reopens has no outcome any more, and leaving the old reason
+  // on it would have it counted in "why we lose" while it is still live.
+  if (!closing) input.outcome_reason = null;
 }
 
 /** Reject a contact_id/deal_id that doesn't belong to this user before it's persisted. */
@@ -102,6 +151,11 @@ export const crmService = {
     if (!body.title || !String(body.title).trim()) throw new AppError('Deal title is required', 400);
     const input = pick(body, DEAL_KEYS as any);
     sanitizeDealInput(input);
+    // A new deal is entering its first stage right now, whether or not the
+    // caller named one — without this its clock never starts and it can never
+    // be reported as stalled.
+    input.stage = input.stage || 'lead';
+    trackStageChange(input, null);
     if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
     if (input.company_id) await assertOwned(userId, 'companies', input.company_id, 'Company');
     await autoLinkContact(userId, input);
@@ -117,6 +171,23 @@ export const crmService = {
   async updateDeal(userId: string, id: string, body: any) {
     const input = pick(body, DEAL_KEYS as any);
     sanitizeDealInput(input);
+
+    /*
+     * Read the stage before writing, so a "change" that changes nothing is
+     * not treated as movement. Dropping a card back where it came from, or
+     * re-saving a form without touching the stage, would otherwise reset the
+     * clock and make a stalled deal look freshly worked.
+     */
+    if (input.stage !== undefined) {
+      const { data: before } = await supabaseAdmin
+        .from('deals')
+        .select('stage')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .maybeSingle();
+      trackStageChange(input, before?.stage ?? undefined);
+    }
+
     if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
     if (input.company_id) await assertOwned(userId, 'companies', input.company_id, 'Company');
     if (input.contact_email !== undefined && input.contact_id === undefined) {

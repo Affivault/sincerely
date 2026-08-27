@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useUndoable } from '../../hooks/useUndoable';
 import { suppressionApi } from '../../api/suppression.api';
 import { useDebounce } from '../../hooks/useDebounce';
 import { SkeletonList } from '../../components/ui/Skeleton';
@@ -108,23 +109,38 @@ export function SuppressionPage() {
     onError: () => toast.error('Failed to add email'),
   });
 
-  const bulkMut = useMutation({
-    mutationFn: () => {
-      const emails = bulkText.split(/[\n,;]+/).map((e) => e.trim()).filter((e) => e.includes('@'));
-      return suppressionApi.addBulk(emails, addReason as any);
-    },
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['suppression'] });
-      toast.success(
-        res.duplicates_collapsed > 0
-          ? `${res.added} emails added (${res.duplicates_collapsed} duplicate${res.duplicates_collapsed === 1 ? '' : 's'} skipped)`
-          : `${res.added} emails added to suppression list`
-      );
-      setShowBulkModal(false);
-      setBulkText('');
-    },
-    onError: () => toast.error('Failed to add emails'),
-  });
+  /*
+   * Suppressing in bulk is the action here most worth being able to take
+   * back: a pasted column from the wrong spreadsheet silently removes those
+   * people from every future campaign, and nothing about the list makes it
+   * obvious afterwards which ones arrived by mistake.
+   *
+   * The undo only removes what this import actually added — duplicates that
+   * were already suppressed before it ran stay suppressed, because undoing
+   * an import is not the same as clearing the list.
+   */
+  const runUndoable = useUndoable();
+
+  const suppressBulk = () => {
+    const emails = bulkText.split(/[\n,;]+/).map((e) => e.trim()).filter((e) => e.includes('@'));
+    if (emails.length === 0) return;
+    const reason = addReason;
+    setShowBulkModal(false);
+    setBulkText('');
+    return runUndoable({
+      run: () => suppressionApi.addBulk(emails, reason as any),
+      undo: async (res) => {
+        // Only what this import added. Anything in already_present was
+        // somebody's earlier decision and is not ours to lift.
+        for (const email of res.added_emails) await suppressionApi.remove(email);
+      },
+      describe: (res) =>
+        res.added_emails.length === res.added
+          ? `${res.added.toLocaleString()} email${res.added === 1 ? '' : 's'} suppressed`
+          : `${res.added_emails.length.toLocaleString()} suppressed, ${(res.added - res.added_emails.length).toLocaleString()} already were`,
+      invalidate: [['suppression']],
+    });
+  };
 
   const removeMut = useMutation({
     mutationFn: suppressionApi.remove,
@@ -317,13 +333,13 @@ export function SuppressionPage() {
           footer={
             <>
               <Button variant="secondary" size="md" onClick={() => setShowBulkModal(false)}>Cancel</Button>
-              <Button type="submit" form="suppress-bulk-form" size="md" disabled={!bulkText.trim() || bulkMut.isPending}>
-                {bulkMut.isPending ? 'Importing…' : 'Import'}
+              <Button type="submit" form="suppress-bulk-form" size="md" disabled={!bulkText.trim()}>
+                Import
               </Button>
             </>
           }
         >
-          <form id="suppress-bulk-form" onSubmit={(e) => { e.preventDefault(); bulkMut.mutate(); }} className="space-y-4">
+          <form id="suppress-bulk-form" onSubmit={(e) => { e.preventDefault(); suppressBulk(); }} className="space-y-4">
             <div className="space-y-1">
               <label className="block text-[12px] font-medium text-[var(--text-secondary)]">Email addresses</label>
               <textarea

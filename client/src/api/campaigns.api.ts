@@ -9,6 +9,9 @@ import type {
   UpdateStepInput,
   PaginatedResponse,
   PersonalizationAudit,
+  CampaignHealth,
+  CampaignReach,
+  EnrolResult,
 } from '@lemlist/shared';
 
 export const campaignsApi = {
@@ -48,8 +51,25 @@ export const campaignsApi = {
     return data;
   },
 
-  launch: async (id: string) => {
-    const { data } = await apiClient.post<Campaign>(`/campaigns/${id}/launch`);
+  health: async (id: string) => {
+    const { data } = await apiClient.get<CampaignHealth>(`/campaigns/${id}/health`);
+    return data;
+  },
+
+  reach: async (id: string) => {
+    const { data } = await apiClient.get<CampaignReach>(`/campaigns/${id}/reach`);
+    return data;
+  },
+
+  /**
+   * Start it. `acknowledgeWarnings` is the answer to a 409 — the server
+   * refuses a risky launch once, with the reasons, and accepts it on the
+   * second ask. A 422 is never overridable: blocked means it cannot work.
+   */
+  launch: async (id: string, acknowledgeWarnings = false) => {
+    const { data } = await apiClient.post(`/campaigns/${id}/launch`, {
+      acknowledge_warnings: acknowledgeWarnings,
+    });
     return data;
   },
 
@@ -99,16 +119,20 @@ export const campaignsApi = {
   },
 
   /** Add contacts to the campaign's bound list AND enroll them in one call. */
-  enrollContacts: async (campaignId: string, contactIds: string[]) => {
-    const { data } = await apiClient.post<{ added: number; skipped: number; total: number }>(
+  enrollContacts: async (campaignId: string, contactIds: string[]): Promise<EnrolResult> => {
+    const { data } = await apiClient.post<EnrolResult>(
       `/campaigns/${campaignId}/enroll`,
       { contact_ids: contactIds },
     );
     return data;
   },
 
-  addContacts: async (campaignId: string, contactIds: string[]) => {
-    await apiClient.post(`/campaigns/${campaignId}/contacts`, { contact_ids: contactIds });
+  addContacts: async (campaignId: string, contactIds: string[]): Promise<EnrolResult> => {
+    const { data } = await apiClient.post<EnrolResult>(
+      `/campaigns/${campaignId}/contacts`,
+      { contact_ids: contactIds },
+    );
+    return data;
   },
 
   removeContacts: async (campaignId: string, contactIds: string[]) => {

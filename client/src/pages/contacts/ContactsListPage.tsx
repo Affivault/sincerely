@@ -15,6 +15,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { Modal } from '../../components/ui/Modal';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { useUndoable } from '../../hooks/useUndoable';
 import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
@@ -721,25 +722,29 @@ export function ContactsListPage() {
 
   const { data: tags = [] } = useQuery({ queryKey: ['tags'], queryFn: tagsApi.list });
 
-  const bulkTagMutation = useMutation({
-    mutationFn: (tagIds: string[]) => contactsApi.bulkTag(Array.from(selectedContacts), tagIds),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      toast.success('Tags added');
-      setShowTagModal(false); setTagSel(new Set()); setSelectedContacts(new Set());
-    },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to add tags'),
-  });
+  /*
+   * Tagging in bulk is reversible in the truest sense — untag is the exact
+   * inverse — so it gets a real undo rather than a confirmation nobody
+   * reads. The undo runs bulkUntag against the same ids, not an optimistic
+   * rollback of the screen.
+   */
+  const runUndoable = useUndoable();
+  const CONTACT_KEYS = [['contacts'], ['contact-stats'], ['tags']];
 
-  const bulkUntagMutation = useMutation({
-    mutationFn: (tagIds: string[]) => contactsApi.bulkUntag(Array.from(selectedContacts), tagIds),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      toast.success('Tags removed');
-      setShowTagModal(false); setTagSel(new Set()); setSelectedContacts(new Set());
-    },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to remove tags'),
-  });
+  const applyTags = (tagIds: string[], removing: boolean) => {
+    const ids = Array.from(selectedContacts);
+    setShowTagModal(false); setTagSel(new Set()); setSelectedContacts(new Set());
+    return runUndoable({
+      run: () => (removing ? contactsApi.bulkUntag(ids, tagIds) : contactsApi.bulkTag(ids, tagIds)),
+      undo: () => (removing ? contactsApi.bulkTag(ids, tagIds) : contactsApi.bulkUntag(ids, tagIds)),
+      describe: () =>
+        `${tagIds.length} tag${tagIds.length === 1 ? '' : 's'} ${removing ? 'removed from' : 'added to'} ` +
+        `${ids.length.toLocaleString()} contact${ids.length === 1 ? '' : 's'}`,
+      invalidate: CONTACT_KEYS,
+    });
+  };
+
+
 
   // Tags actually present on the current selection — used for the remove view
   const selectionTags = useMemo(() => {
@@ -761,24 +766,34 @@ export function ContactsListPage() {
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to create tag'),
   });
 
-  const bulkMoveMutation = useMutation({
-    mutationFn: async (toListId: string) => {
-      const ids = Array.from(selectedContacts);
-      // Add to the destination list before removing from the source: if
-      // addContacts fails, the contacts simply stay put in the source list
-      // instead of being orphaned in neither list.
-      await listsApi.addContacts(toListId, ids);
-      if (activeListId) await listsApi.removeContacts(activeListId, ids);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      queryClient.invalidateQueries({ queryKey: ['lists'] });
-      queryClient.invalidateQueries({ queryKey: ['verification-breakdown'] });
-      toast.success('Contacts moved');
-      setShowMoveModal(false); setMoveTargetId(null); setSelectedContacts(new Set());
-    },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to move contacts'),
-  });
+  /*
+   * Moving between lists is two calls, so undoing it is the same two in
+   * the opposite order — and in the opposite order for the same reason the
+   * move itself has one: put them back before taking them out, so a failure
+   * halfway leaves them somewhere rather than nowhere.
+   */
+  const moveContacts = (toListId: string) => {
+    const ids = Array.from(selectedContacts);
+    const fromListId = activeListId;
+    setShowMoveModal(false); setMoveTargetId(null); setSelectedContacts(new Set());
+    return runUndoable({
+      run: async () => {
+        // Add to the destination list before removing from the source: if
+        // addContacts fails, the contacts simply stay put in the source list
+        // instead of being orphaned in neither list.
+        await listsApi.addContacts(toListId, ids);
+        if (fromListId) await listsApi.removeContacts(fromListId, ids);
+      },
+      undo: async () => {
+        if (fromListId) await listsApi.addContacts(fromListId, ids);
+        await listsApi.removeContacts(toListId, ids);
+      },
+      describe: () => `${ids.length.toLocaleString()} contact${ids.length === 1 ? '' : 's'} moved`,
+      invalidate: [['contacts'], ['lists'], ['verification-breakdown']],
+    });
+  };
+
+
 
   // Email verification — reuses the existing DCS pipeline (syntax + MX + SMTP)
   const [verifyingIds, setVerifyingIds] = useState<Set<string>>(new Set());
@@ -815,16 +830,18 @@ export function ContactsListPage() {
     },
   });
 
-  const addToListMutation = useMutation({
-    mutationFn: ({ listId, contactIds }: { listId: string; contactIds: string[] }) =>
-      listsApi.addContacts(listId, contactIds),
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['lists'] });
-      toast.success(`Added ${result.success} contacts to list`);
-      setShowAddToListModal(false);
-      setSelectedContacts(new Set());
-    },
-  });
+  const addToList = (listId: string, listName: string) => {
+    const ids = Array.from(selectedContacts);
+    setShowAddToListModal(false);
+    setSelectedContacts(new Set());
+    return runUndoable({
+      run: () => listsApi.addContacts(listId, ids),
+      undo: () => listsApi.removeContacts(listId, ids),
+      describe: (result: any) =>
+        `${(result?.success ?? ids.length).toLocaleString()} contact${(result?.success ?? ids.length) === 1 ? '' : 's'} added to “${listName}”`,
+      invalidate: [['lists'], ['contacts']],
+    });
+  };
 
   const importMutation = useMutation({
     mutationFn: ({ file, mapping }: { file: File; mapping: Record<string, string> }) =>
@@ -2258,8 +2275,7 @@ export function ContactsListPage() {
             {lists?.map((list) => (
               <button
                 key={list.id}
-                onClick={() => addToListMutation.mutate({ listId: list.id, contactIds: Array.from(selectedContacts) })}
-                disabled={addToListMutation.isPending}
+                onClick={() => addToList(list.id, list.name)}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-50 group"
               >
                 <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)] group-hover:bg-[var(--indigo-subtle)] group-hover:text-[var(--indigo)] transition-colors">
@@ -2301,12 +2317,10 @@ export function ContactsListPage() {
                 <Button
                   size="md"
                   variant={removing ? 'danger' : 'primary'}
-                  disabled={tagSel.size === 0 || bulkTagMutation.isPending || bulkUntagMutation.isPending}
-                  onClick={() => (removing ? bulkUntagMutation : bulkTagMutation).mutate(Array.from(tagSel))}
+                  disabled={tagSel.size === 0}
+                  onClick={() => applyTags(Array.from(tagSel), removing)}
                 >
-                  {(removing ? bulkUntagMutation.isPending : bulkTagMutation.isPending)
-                    ? (removing ? 'Removing…' : 'Applying…')
-                    : `${removing ? 'Remove' : 'Apply'} ${tagSel.size || ''} tag${tagSel.size !== 1 ? 's' : ''}`.replace('  ', ' ').trim()}
+                  {`${removing ? 'Remove' : 'Apply'} ${tagSel.size || ''} tag${tagSel.size !== 1 ? 's' : ''}`.replace('  ', ' ').trim()}
                 </Button>
               </>
             }
@@ -2364,8 +2378,8 @@ export function ContactsListPage() {
           footer={
             <>
               <Button variant="secondary" size="md" onClick={() => setShowMoveModal(false)}>Cancel</Button>
-              <Button size="md" disabled={!moveTargetId || bulkMoveMutation.isPending} onClick={() => moveTargetId && bulkMoveMutation.mutate(moveTargetId)}>
-                {bulkMoveMutation.isPending ? 'Moving…' : 'Move'}
+              <Button size="md" disabled={!moveTargetId} onClick={() => moveTargetId && moveContacts(moveTargetId)}>
+                Move
               </Button>
             </>
           }

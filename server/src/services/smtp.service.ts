@@ -63,6 +63,10 @@ const SMTP_ACCOUNT_FIELDS = [
   'smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user',
   'imap_host', 'imap_port', 'imap_secure', 'imap_user',
   'daily_send_limit', 'is_active',
+  // How far back this mailbox's history reaches. Validated as 1/3/6 by a
+  // CHECK constraint, so a bad value is rejected by the database rather than
+  // silently stored.
+  'inbox_sync_months',
 ] as const;
 
 export const smtpService = {
