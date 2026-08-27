@@ -38,6 +38,19 @@ into the chat**, in a copy-and-paste-ready block, without being asked.
 - State the run order explicitly when more than one is pending, and call out any
   dependency between them.
 
+## Migration numbering — check before you create one
+
+Other work lands on `main` while a branch is open, and it brings migrations
+with it. Two files claiming the same number is how one of them gets skipped,
+because these are run by hand from the filenames.
+
+Before adding a migration: `git fetch origin main` first, then number from the
+highest that exists on `main`, not from the highest in your working tree.
+
+Numbers are for humans, not Postgres. When you need to know whether a
+migration has actually been applied, check for the object it creates rather
+than trusting a filename or anyone's memory.
+
 ## Delivering the browser extension
 
 Send updated builds as **zip files** in the chat. Do not send git instructions,
