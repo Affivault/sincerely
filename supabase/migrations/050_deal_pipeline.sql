@@ -1,4 +1,4 @@
--- 049_deal_pipeline.sql
+-- 050_deal_pipeline.sql
 --
 -- What a pipeline needs to be a forecast rather than a list.
 --
