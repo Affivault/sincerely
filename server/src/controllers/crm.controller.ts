@@ -23,6 +23,12 @@ export const crmController = {
   async dealStageHistory(req: AuthRequest, res: Response, next: NextFunction) {
     try { res.json(await crmService.dealStageHistory(req.userId!, req.params.id)); } catch (err) { next(err); }
   },
+  async insights(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const days = req.query.days !== undefined ? Number(req.query.days) : undefined;
+      res.json(await crmService.insights(req.userId!, days));
+    } catch (err) { next(err); }
+  },
   async dealDetail(req: AuthRequest, res: Response, next: NextFunction) {
     try { res.json(await crmService.dealDetail(req.userId!, req.params.id)); } catch (err) { next(err); }
   },

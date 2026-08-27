@@ -1,3 +1,5 @@
+import type { RecurringPeriod } from './pipeline.types.js';
+
 export type DealStage = 'lead' | 'qualified' | 'proposal' | 'won' | 'lost';
 export type TaskPriority = 'low' | 'normal' | 'high';
 export type EventType = 'call' | 'meeting';
@@ -52,6 +54,17 @@ export interface Deal {
   label: DealLabel | null;
   /** Where the deal came from - a campaign, a referral, inbound, LinkedIn. */
   source: string | null;
+
+  /*
+   * The commercial shape, for B2B deals where a single figure says almost
+   * nothing. See pipeline.types.ts for the arithmetic; `value` stays
+   * authoritative for every total and is recomputed from these when they
+   * are set.
+   */
+  recurring_amount: number | null;
+  recurring_period: RecurringPeriod | null;
+  one_off_amount: number | null;
+  term_months: number | null;
   /**
    * When the stage last changed — not when the row last changed.
    *
@@ -144,6 +157,10 @@ export interface CreateDealInput {
   outcome_reason?: string | null;
   label?: DealLabel | null;
   source?: string | null;
+  recurring_amount?: number | string | null;
+  recurring_period?: RecurringPeriod | null;
+  one_off_amount?: number | string | null;
+  term_months?: number | string | null;
 }
 export interface UpdateDealInput extends Partial<CreateDealInput> {
   position?: number;
@@ -308,6 +325,19 @@ export interface DealDetail {
   history: DealStageEvent[];
   /** Inbox messages to or from anybody on the deal, newest first. */
   emails: DealEmail[];
+}
+
+/** Everything the won/loss analysis reads, in one request. */
+export interface CrmInsights {
+  deals: (Pick<Deal,
+    'id' | 'title' | 'stage' | 'value' | 'currency' | 'probability' | 'source' | 'label'
+    | 'outcome_reason' | 'closed_at' | 'created_at' | 'stage_changed_at'
+    | 'recurring_amount' | 'recurring_period' | 'one_off_amount' | 'term_months'
+  >)[];
+  /** Every recorded stage transition, keyed by deal id, oldest first. */
+  history: Record<string, DealStageEvent[]>;
+  /** The window the closed deals were drawn from. */
+  windowDays: number;
 }
 
 /** An inbox message as the deal page needs it - enough to list and expand. */
