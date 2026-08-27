@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { funnel, summarisePipeline, DEAL_STAGES } from '@lemlist/shared';
 import type { Deal, DealStage } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
-import { AlertTriangle, CalendarClock, Clock, Target, TrendingUp, Trophy } from 'lucide-react';
+import {
+  AlertTriangle, CalendarClock, ChevronDown, ChevronUp, Clock, Target, TrendingUp, Trophy,
+} from 'lucide-react';
 
 /* ═══════════════════════════════════════════════════════════════════════
    The top of the deals page, answering "am I going to hit my number?"
@@ -117,6 +120,25 @@ function Flag({
   );
 }
 
+/** One figure, reduced to a label and a number, for the collapsed strip. */
+function Chip({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      <span className="text-[11px] text-[var(--text-tertiary)]">{label}</span>
+      <span
+        className={cn(
+          'text-[13px] font-semibold tabular-nums',
+          accent ? 'text-[var(--indigo)]' : 'text-[var(--text-primary)]',
+        )}
+      >
+        {value}
+      </span>
+    </span>
+  );
+}
+
+const COLLAPSE_KEY = 'deals.summary.collapsed';
+
 export function PipelineHeader({
   deals,
   currency = 'USD',
@@ -131,6 +153,64 @@ export function PipelineHeader({
   const s = summarisePipeline(deals);
   const rows = funnel(deals);
   const stageLabel = (id: DealStage) => DEAL_STAGES.find((x) => x.id === id)?.label || id;
+
+  /*
+   * The summary is worth about three hundred pixels, and the board below it
+   * only gets what is left. That is a fair trade first thing in the morning
+   * and a bad one for the rest of the day, so it folds — and remembers.
+   */
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
+  });
+  const toggle = () => {
+    setCollapsed((c) => {
+      try { localStorage.setItem(COLLAPSE_KEY, c ? '0' : '1'); } catch { /* private window */ }
+      return !c;
+    });
+  };
+
+  const ToggleButton = (
+    <button
+      type="button"
+      onClick={toggle}
+      title={collapsed ? 'Show the full forecast' : 'Collapse the forecast and give the board the room'}
+      className="icon-btn h-6 w-6 flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+      aria-expanded={!collapsed}
+    >
+      {collapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+    </button>
+  );
+
+  if (collapsed) {
+    return (
+      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-2">
+        <Chip label="Open" value={money(s.open, currency)} />
+        <Chip label="Weighted" value={money(s.weighted, currency)} accent />
+        <Chip label="Commit" value={money(s.commit, currency)} />
+        <Chip label="Won 30d" value={money(s.wonRecent, currency)} />
+        {s.rottingCount > 0 && (
+          <button
+            type="button"
+            onClick={onShowRotting}
+            className="text-[11.5px] font-medium text-rose-600 transition-opacity hover:opacity-80 dark:text-rose-400"
+          >
+            {s.rottingCount} stalled
+          </button>
+        )}
+        {s.overdueCount > 0 && (
+          <button
+            type="button"
+            onClick={onShowOverdue}
+            className="text-[11.5px] font-medium text-amber-700 transition-opacity hover:opacity-80 dark:text-amber-400"
+          >
+            {s.overdueCount} past close date
+          </button>
+        )}
+        <span className="flex-1" />
+        {ToggleButton}
+      </div>
+    );
+  }
 
   return (
     <div className="mb-5 space-y-3">
@@ -170,10 +250,11 @@ export function PipelineHeader({
         />
       </div>
 
-      {/* What is wrong with the forecast above, if anything. Shown only when
-          there is something to say — a row of zeroes is furniture. */}
-      {(s.rottingCount > 0 || s.overdueCount > 0 || s.closingSoonCount > 0) && (
-        <div className="flex flex-wrap items-center gap-2">
+      {/* What is wrong with the forecast above, if anything. Each flag is
+          nothing at all when its count is zero — a row of zeroes is
+          furniture — so on a healthy pipeline this is just the two controls
+          on the right. */}
+      <div className="flex flex-wrap items-center gap-2">
           <Flag
             count={s.rottingCount}
             value={s.rotting}
@@ -205,8 +286,8 @@ export function PipelineHeader({
           >
             Open activities →
           </Link>
+          {ToggleButton}
         </div>
-      )}
 
       {/* The shape of the open pipeline. Won and lost are deliberately absent:
           they only grow, so including them would flatten every live stage into

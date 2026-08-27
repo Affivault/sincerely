@@ -17,10 +17,12 @@ import { usePeek } from '../../components/peek/usePeek';
 import { PipelineHeader } from '../../components/crm/PipelineHeader';
 import { DealTable, type SortKey, type SortDir } from '../../components/crm/DealTable';
 import { OutcomeDialog } from '../../components/crm/OutcomeDialog';
+import { DealJourney } from '../../components/crm/DealJourney';
 import {
   DealFilters, applyDealFilters, EMPTY_FILTERS,
   type DealFilterState, type DealView,
 } from '../../components/crm/DealFilters';
+import { useFillViewport, autoScrollX, autoScrollY } from '../../hooks/useFillViewport';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import {
@@ -28,12 +30,13 @@ import {
   Phone, Users as UsersIcon, Building2,
   CalendarClock, CheckCircle2, Circle, GripVertical,
   X, Pencil, Clock, ArrowUpRight, ArrowDownLeft, Mail, StickyNote,
-  Link2, Trophy, MailOpen, Briefcase, Download,
+  Link2, Trophy, MailOpen, Briefcase, Download, GitCommitHorizontal,
 } from 'lucide-react';
 import {
   DEAL_STAGES,
   isOpen,
   rotOf,
+  weightedValue,
   STAGE_PROBABILITY,
   type Deal, type DealStage, type CreateDealInput,
   type CrmTask, type TaskPriority,
@@ -573,6 +576,11 @@ export function DealDrawer({
             )}
           </Section>
 
+          {/* How it got here */}
+          <Section title="Journey" icon={GitCommitHorizontal}>
+            <DealJourney deal={deal} />
+          </Section>
+
           {/* Notes */}
           <Section title="Notes" icon={StickyNote}>
             {deal.notes?.trim() ? (
@@ -624,7 +632,7 @@ function Section({ title, count, actionLabel, onAction, icon: Icon, children }: 
 }
 
 /* ─── Pipeline (deals kanban) ─────────────────────── */
-function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, dragDisabled }: { deals: Deal[]; tasks: CrmTask[]; events: CrmEvent[]; onEdit: (d: Deal) => void; onStageChange: (d: Deal, stage: DealStage) => void; dragDisabled?: boolean }) {
+function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToStage, dragDisabled }: { deals: Deal[]; tasks: CrmTask[]; events: CrmEvent[]; onEdit: (d: Deal) => void; onStageChange: (d: Deal, stage: DealStage) => void; onAddToStage: (stage: DealStage) => void; dragDisabled?: boolean }) {
   const { openPeek } = usePeek();
   const navigate = useNavigate();
   // Peek the account when the deal is linked to one; otherwise show the
@@ -637,6 +645,8 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, dragDisabl
   const qc = useQueryClient();
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<{ stage: DealStage; index: number } | null>(null);
+  // The board owns the rest of the screen; each column scrolls inside it.
+  const { ref: boardRef, height } = useFillViewport<HTMLDivElement>({ min: 320 });
 
   // Reorder within a column (or move across stages) at a given index — persists
   // fresh sequential positions for the affected column, optimistically.
@@ -704,10 +714,17 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, dragDisabl
   );
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2">
+    <div
+      ref={boardRef}
+      style={height ? { height } : undefined}
+      onDragOver={(e) => autoScrollX(boardRef.current, e.clientX)}
+      className="flex gap-3 overflow-x-auto pb-2"
+    >
       {columns.map(stage => {
         const items = deals.filter(d => d.stage === stage.id);
         const total = items.reduce((s, d) => s + (d.value || 0), 0);
+        const weighted = items.reduce((s, d) => s + weightedValue(d), 0);
+        const closedStage = stage.id === 'won' || stage.id === 'lost';
         const dropHere = over?.stage === stage.id;
         return (
           <div
@@ -715,18 +732,45 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, dragDisabl
             onDragOver={(e) => { e.preventDefault(); setOver({ stage: stage.id, index: items.length }); }}
             onDrop={(e) => { e.preventDefault(); if (dragId && over) commit(over.stage, over.index); setDragId(null); setOver(null); }}
             className={cn(
-              'flex-shrink-0 w-[264px] rounded-xl border bg-[var(--bg-muted)]/40 flex flex-col max-h-full transition-colors',
+              'flex-shrink-0 w-[276px] rounded-xl border bg-[var(--bg-muted)]/40 flex flex-col h-full min-h-0 transition-colors',
               dropHere ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)]/40' : 'border-[var(--border-subtle)]'
             )}
           >
-            <div className="flex items-center gap-2 px-3 h-11 flex-shrink-0">
-              <span className={cn('h-2 w-2 rounded-full', STAGE_DOT[stage.id])} />
-              <span className="text-[12.5px] font-semibold text-[var(--text-primary)]">{stage.label}</span>
-              <span className="text-[11px] font-medium text-[var(--text-tertiary)] tabular">{items.length}</span>
-              <span className="flex-1" />
-              <span className="text-[11px] font-semibold text-[var(--text-secondary)] tabular">{fmtMoney(total)}</span>
+            {/* Outside the scroll area, so the stage, its count and its total
+                stay put however far down the column you are. */}
+            <div className="flex-shrink-0 px-3 pt-2.5 pb-2">
+              <div className="flex items-center gap-2">
+                <span className={cn('h-2 w-2 rounded-full', STAGE_DOT[stage.id])} />
+                <span className="text-[12.5px] font-semibold text-[var(--text-primary)]">{stage.label}</span>
+                <span className="text-[11px] font-medium text-[var(--text-tertiary)] tabular">{items.length}</span>
+                <span className="flex-1" />
+                {!closedStage && (
+                  <button
+                    type="button"
+                    onClick={() => onAddToStage(stage.id)}
+                    title={`Add a deal straight into ${stage.label}`}
+                    className="icon-btn h-5 w-5 -mr-1 text-[var(--text-muted)] hover:text-[var(--indigo)]"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              <div className="mt-1 flex items-baseline gap-1.5">
+                <span className="text-[12px] font-semibold text-[var(--text-primary)] tabular">{fmtMoney(total)}</span>
+                {/* The number the forecast actually uses, next to the one
+                    everybody quotes — a column total nobody discounts is how
+                    a pipeline ends up promising twice what it delivers. */}
+                {!closedStage && weighted !== total && (
+                  <span className="text-[10.5px] text-[var(--text-muted)] tabular" title="Weighted by each deal's odds">
+                    {fmtMoney(weighted)} wtd
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="flex-1 overflow-y-auto px-2 pb-2 min-h-[80px]">
+            <div
+              onDragOver={(e) => autoScrollY(e.currentTarget, e.clientY)}
+              className="flex-1 min-h-0 overflow-y-auto px-2 pb-2"
+            >
               {items.map((d, idx) => {
                 const lc = linkCounts(d.id);
                 const rot = rotOf(d);
@@ -821,7 +865,17 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, dragDisabl
                 <div className="h-0.5 my-1 rounded-full bg-[var(--indigo)]" />
               )}
               {items.length === 0 && !dropHere && (
-                <p className="text-[11px] text-[var(--text-muted)] text-center py-4">Drop deals here</p>
+                closedStage ? (
+                  <p className="py-4 text-center text-[11px] text-[var(--text-muted)]">Nothing here yet</p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onAddToStage(stage.id)}
+                    className="w-full rounded-lg border border-dashed border-[var(--border-default)] py-4 text-[11px] text-[var(--text-muted)] transition-colors hover:border-[var(--indigo)] hover:text-[var(--indigo)]"
+                  >
+                    Drop a deal here, or add one
+                  </button>
+                )
               )}
             </div>
           </div>
@@ -977,19 +1031,22 @@ export function DealsPage() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-5 flex items-start justify-between gap-4">
+      {/* Stacks below `lg`: side by side, the title column was being squeezed
+          to about a hundred pixels and the strapline wrapped one word per
+          line down the side of the icon. */}
+      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--indigo-subtle)]">
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--indigo-subtle)]">
             <Handshake className="h-5 w-5 text-[var(--indigo)]" />
           </span>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-[19px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">Deals</h1>
             <p className="text-[12.5px] text-[var(--text-tertiary)]">
               Your pipeline, synced with your leads. Activities and meetings have their own pages.
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-shrink-0 items-center gap-2">
           <SearchInput value={query} onChange={setQuery} placeholder="Search deals, companies, leads…" className="hidden w-56 sm:block" />
           {deals.length > 0 && (
             <Button variant="secondary" onClick={() => exportDealsCsv(visibleDeals)} title="Export the deals shown below as a CSV file">
@@ -1105,6 +1162,7 @@ export function DealsPage() {
           events={events}
           onEdit={(d) => setDrawerId(d.id)}
           onStageChange={moveStage}
+          onAddToStage={(stage) => setDealModal({ stage })}
           dragDisabled={query.trim().length > 0}
         />
       )}

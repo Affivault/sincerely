@@ -26,6 +26,7 @@ import {
   isOpen,
   probabilityOf,
   rotOf,
+  stageTimeline,
   summarisePipeline,
   weightedValue,
 } from '@lemlist/shared';
@@ -216,6 +217,62 @@ console.log('\nvalues that are not numbers do not poison the totals');
      s.open === 0 && Number.isFinite(s.open) && Number.isFinite(s.weighted),
      `${s.open}/${s.weighted}`);
   is('but the deals are still counted', s.openCount === 3, String(s.openCount));
+}
+
+
+/* ─── The path a deal took ────────────────────────────────────────────── */
+
+console.log('\nstage history turns transitions into durations');
+{
+  const ev = (from: string | null, to: string, n: number, reason: string | null = null) =>
+    ({ from_stage: from, to_stage: to, reason, changed_at: daysAgo(n) });
+
+  const legs = stageTimeline(
+    [ev(null, 'lead', 90), ev('lead', 'qualified', 60), ev('qualified', 'proposal', 12)],
+    NOW,
+  );
+  is('one leg per stage entered', legs.length === 3, String(legs.length));
+  is('each closed leg lasts until the next move',
+     legs[0].days === 30 && legs[1].days === 48,
+     JSON.stringify(legs.map((l) => l.days)));
+  is('the last leg is measured to now and marked current',
+     legs[2].days === 12 && legs[2].current && legs[2].leftAt === null,
+     JSON.stringify(legs[2]));
+  is('only the last leg is current',
+     legs.filter((l) => l.current).length === 1);
+
+  /*
+   * Events are read back from the database, and "ordered by changed_at" is
+   * a promise about one query, not about every caller that ever passes an
+   * array in. Sorting here means a shuffled list cannot silently produce
+   * negative durations.
+   */
+  const shuffled = stageTimeline(
+    [ev('qualified', 'proposal', 12), ev(null, 'lead', 90), ev('lead', 'qualified', 60)],
+    NOW,
+  );
+  is('order of the input does not matter',
+     JSON.stringify(shuffled.map((l) => [l.stage, l.days]))
+       === JSON.stringify(legs.map((l) => [l.stage, l.days])),
+     JSON.stringify(shuffled.map((l) => [l.stage, l.days])));
+
+  is('no leg can last a negative number of days',
+     stageTimeline([ev(null, 'lead', -3)], NOW).every((l) => l.days >= 0));
+
+  const closed = stageTimeline(
+    [ev(null, 'lead', 40), ev('lead', 'lost', 5, 'Price')],
+    NOW,
+  );
+  is('a won/lost reason captions the stage it closed into, not the one it left',
+     closed[1].reason === 'Price' && closed[0].reason === null,
+     JSON.stringify(closed.map((l) => [l.stage, l.reason])));
+
+  is('a backfilled deal with one recorded event still reports its age',
+     stageTimeline([ev(null, 'proposal', 40)], NOW)[0].days === 40);
+  is('no history at all is an empty journey, not a crash',
+     stageTimeline([], NOW).length === 0);
+  is('an event with no timestamp is dropped rather than dated to 1970',
+     stageTimeline([ev(null, 'lead', 5), { from_stage: 'lead', to_stage: 'won', reason: null, changed_at: '' }], NOW).length === 1);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

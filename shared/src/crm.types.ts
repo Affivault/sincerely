@@ -55,6 +55,24 @@ export interface Deal {
   contact?: DealContact | null;
 }
 
+/**
+ * One recorded move of a deal from one stage to another.
+ *
+ * Written by a database trigger, never by the app, so every path that can
+ * change a stage is covered - including bulk updates and anything run
+ * straight against the database.
+ */
+export interface DealStageEvent {
+  id: string;
+  deal_id: string;
+  /** Null on the opening row: the deal did not come from anywhere. */
+  from_stage: DealStage | null;
+  to_stage: DealStage;
+  /** The won/lost reason as it stood at the moment of the move. */
+  reason: string | null;
+  changed_at: string;
+}
+
 export interface CreateDealInput {
   title: string;
   company?: string | null;

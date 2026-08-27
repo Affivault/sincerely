@@ -20,6 +20,9 @@ export const crmController = {
   async deleteDeal(req: AuthRequest, res: Response, next: NextFunction) {
     try { await crmService.deleteDeal(req.userId!, req.params.id); res.status(204).send(); } catch (err) { next(err); }
   },
+  async dealStageHistory(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await crmService.dealStageHistory(req.userId!, req.params.id)); } catch (err) { next(err); }
+  },
 
   // Tasks
   async listTasks(req: AuthRequest, res: Response, next: NextFunction) {

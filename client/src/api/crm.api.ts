@@ -1,6 +1,6 @@
 import { apiClient } from './client';
 import type {
-  Deal, CreateDealInput, UpdateDealInput,
+  Deal, CreateDealInput, UpdateDealInput, DealStageEvent,
   CrmTask, CreateTaskInput, UpdateTaskInput,
   CrmEvent, CreateEventInput, UpdateEventInput,
   CrmNote, CreateNoteInput, UpdateNoteInput,
@@ -14,6 +14,9 @@ export const crmApi = {
   createDeal: async (input: CreateDealInput) => (await apiClient.post<Deal>('/crm/deals', input)).data,
   updateDeal: async (id: string, input: UpdateDealInput) => (await apiClient.put<Deal>(`/crm/deals/${id}`, input)).data,
   deleteDeal: async (id: string) => { await apiClient.delete(`/crm/deals/${id}`); },
+  /** Every stage this deal has passed through, oldest first. */
+  dealHistory: async (id: string) =>
+    (await apiClient.get<DealStageEvent[]>(`/crm/deals/${id}/history`)).data,
 
   // Tasks
   listTasks: async (params?: { contact_id?: string; deal_id?: string }) =>
