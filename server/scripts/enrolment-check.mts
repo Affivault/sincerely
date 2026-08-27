@@ -41,6 +41,8 @@ interface World {
   list_contacts: any[];
   campaign_contacts: any[];
   suppression_list: any[];
+  deals: any[];
+  deal_participants: any[];
   /** Rows the service inserted, so the harness can tell a real write from a count. */
   inserted: any[];
 }
@@ -81,7 +83,11 @@ function stub(table: string): any {
   const rowsFor = (): any[] => {
     let rows: any[] = (world as any)[table] ?? [];
     for (const [col, value] of eqs) rows = rows.filter((r) => r[col] === value);
-    for (const [col, values] of ins) rows = rows.filter((r) => values.includes(r[col]));
+    // Embedded filters (`deal.stage`) are resolved after the join, below.
+    for (const [col, values] of ins) {
+      if (col.includes('.')) continue;
+      rows = rows.filter((r) => values.includes(r[col]));
+    }
     for (const [col, value] of neqs) rows = rows.filter((r) => r[col] !== value);
     return rows;
   };
@@ -98,6 +104,21 @@ function stub(table: string): any {
      * campaign is undefined, the service skips every row, and the harness
      * would report the block working when it had never run.
      */
+    /*
+     * The open-deal guard reads participants with `deal:deals!inner(stage)`
+     * and filters on `deal.stage`. Without resolving the embed here the
+     * filter would look for a column literally called "deal.stage", match
+     * nothing, and the harness would cheerfully report the guard working
+     * while it silently let everybody through.
+     */
+    if (table === 'deal_participants' && /deals!inner/.test(cols)) {
+      rows = rows
+        .map((r) => ({ ...r, deal: world.deals.find((d) => d.id === r.deal_id) || null }))
+        .filter((r) => r.deal !== null);
+      for (const [col, values] of ins) {
+        if (col === 'deal.stage') rows = rows.filter((r) => values.includes(r.deal.stage));
+      }
+    }
     if (table === 'campaign_contacts' && /campaigns!inner/.test(cols)) {
       rows = rows
         .map((r) => ({ ...r, campaigns: world.campaigns.find((c) => c.id === r.campaign_id) || null }))
@@ -184,6 +205,8 @@ function freshWorld(people: any[], opts: { boundToList?: boolean } = {}): World 
     list_contacts: bound ? people.map((p) => ({ list_id: LIST, contact_id: p.id })) : [],
     campaign_contacts: [],
     suppression_list: [],
+    deals: [],
+    deal_participants: [],
     inserted: [],
   };
 }
@@ -363,6 +386,60 @@ console.log('\nthe named sample is capped, so a huge import stays a small answer
   is('every skip is counted', result.skipped === 250 && result.reasons.unsubscribed === 250,
      JSON.stringify(result.reasons));
   is('but only a sample is named', result.skips.length === 100, String(result.skips.length));
+}
+
+
+/* ─── Nobody you are currently negotiating with ───────────────────────── */
+
+console.log('\na live deal keeps somebody out of a cold campaign');
+{
+  const alice = contact({ id: 'c-alice', email: 'alice@northbeam.example' });
+  const bob = contact({ id: 'c-bob', email: 'bob@northbeam.example' });
+  const carol = contact({ id: 'c-carol', email: 'carol@loomly.example' });
+  world = freshWorld([alice, bob, carol], { boundToList: false });
+
+  /*
+   * Alice leads an open deal. Bob is a participant on it — the security
+   * reviewer, say. Cold-pitching either while a contract is being read is
+   * the same mistake, so both must be held back.
+   */
+  world.deals = [
+    { id: 'd-open', user_id: USER, contact_id: alice.id, stage: 'proposal' },
+    { id: 'd-won', user_id: USER, contact_id: carol.id, stage: 'won' },
+  ];
+  world.deal_participants = [
+    { id: 'p-1', user_id: USER, deal_id: 'd-open', contact_id: bob.id },
+  ];
+
+  const result = await campaignContactsService.add(CAMPAIGN, [alice.id, bob.id, carol.id]);
+
+  is('the person leading the open deal is skipped',
+     result.skips.some((s) => s.contact_id === alice.id && s.reason === 'on_open_deal'),
+     JSON.stringify(result.skips));
+  is('so is a participant on it, not just the primary contact',
+     result.skips.some((s) => s.contact_id === bob.id && s.reason === 'on_open_deal'));
+
+  /*
+   * A won deal is not a negotiation. Refusing to email a past customer
+   * would quietly kill every upsell campaign, which is the opposite of
+   * what this guard is for.
+   */
+  is('somebody whose deal is already won is still enrollable',
+     !result.skips.some((s) => s.contact_id === carol.id),
+     JSON.stringify(result.skips.map((s) => [s.contact_id, s.reason])));
+  is('and is the only one who actually goes in',
+     result.added === 1, `added ${result.added}`);
+  is('the reason is reported so a deliberate cross-sell is still possible',
+     result.reasons.on_open_deal === 2, JSON.stringify(result.reasons));
+}
+
+console.log('\nno deals means no interference');
+{
+  const dave = contact({ id: 'c-dave', email: 'dave@fernpath.example' });
+  world = freshWorld([dave], { boundToList: false });
+  const result = await campaignContactsService.add(CAMPAIGN, [dave.id]);
+  is('an account with no deals enrolls exactly as it always did',
+     result.added === 1 && !result.reasons.on_open_deal, JSON.stringify(result));
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

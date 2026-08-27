@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contactsApi, listsApi } from '../../api/contacts.api';
 import { analyticsApi } from '../../api/analytics.api';
 import { crmApi } from '../../api/crm.api';
+import { leadsApi } from '../../api/leads.api';
 import { inboxApi } from '../../api/inbox.api';
 import { suppressionApi } from '../../api/suppression.api';
 import { DealModal } from '../crm/DealsPage';
@@ -39,6 +40,7 @@ import {
   ArrowDownLeft,
   Ban,
   ExternalLink,
+  Sparkles,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -96,6 +98,24 @@ export function ContactDetailPage() {
     queryKey: ['contact-lists', id],
     queryFn: () => listsApi.getListsForContact(id!),
     enabled: !!id,
+  });
+
+  /* Leads for this person, so the profile can say "already a lead" rather
+     than letting somebody create a second one and hit the unique index. */
+  const { data: contactLeads } = useQuery({
+    queryKey: ['leads', 'contact', id],
+    queryFn: () => leadsApi.list({ contact_id: id!, status: 'all' }),
+    enabled: !!id,
+  });
+  const openLead = (contactLeads || []).find((l) => l.status === 'open') || null;
+
+  const makeLead = useMutation({
+    mutationFn: () => leadsApi.create({ contact_id: id!, source: 'Manual' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success('Held as a lead');
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not create that lead'),
   });
 
   const deleteMutation = useMutation({
@@ -458,13 +478,41 @@ export function ContactDetailPage() {
           <div className="card p-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-[11px] font-bold text-[var(--text-tertiary)]">Deals</h2>
-              <button
-                onClick={() => setDealModal({ contact_name: fullName || contact.email, contact_email: contact.email, contact_id: contact.id, company: contact.company || null })}
-                className="inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] rounded-md transition-colors"
-              >
-                <Plus className="h-3 w-3" /> New deal
-              </button>
+              <div className="flex items-center gap-1">
+                {/* The step before a deal. A promising reply is not a
+                    forecast entry yet, and putting it straight into the
+                    pipeline is what makes conversion rates meaningless. */}
+                <button
+                  onClick={() => makeLead.mutate()}
+                  disabled={makeLead.isPending}
+                  title="Hold this person as a lead, out of the pipeline, until they are qualified"
+                  className="inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] rounded-md transition-colors disabled:opacity-50"
+                >
+                  <Sparkles className="h-3 w-3" /> New lead
+                </button>
+                <button
+                  onClick={() => setDealModal({ contact_name: fullName || contact.email, contact_email: contact.email, contact_id: contact.id, company: contact.company || null })}
+                  className="inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] rounded-md transition-colors"
+                >
+                  <Plus className="h-3 w-3" /> New deal
+                </button>
+              </div>
             </div>
+
+            {/* An open lead for this person, so the two entry points above
+                cannot quietly compete with each other. */}
+            {openLead && (
+              <Link
+                to="/leads"
+                className="mb-2 flex items-center gap-2 rounded-[6px] border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-2.5 py-1.5 transition-colors hover:bg-[var(--indigo-subtle)]/70"
+              >
+                <Sparkles className="h-3 w-3 flex-shrink-0 text-[var(--indigo)]" />
+                <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium text-[var(--text-primary)]">
+                  Open lead: {openLead.title}
+                </span>
+                <span className="flex-shrink-0 text-[10.5px] text-[var(--text-tertiary)]">Qualify →</span>
+              </Link>
+            )}
             {!contactDeals || contactDeals.length === 0 ? (
               <p className="text-[12px] text-[var(--text-tertiary)]">Not on any deals yet</p>
             ) : (

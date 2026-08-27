@@ -28,6 +28,10 @@ const REASON_TONE: Record<EnrolSkipReason, string> = {
   bounced: 'text-red-500',
   no_email: 'text-red-500',
   not_yours: 'text-[var(--text-tertiary)]',
+  /* Indigo, not amber: this is not a warning about bad data, it is the
+     product stopping you from cold-pitching somebody you are currently
+     negotiating with. */
+  on_open_deal: 'text-[var(--indigo)]',
 };
 
 export function EnrolResultDialog({

@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers, Blocks,
-  ChevronRight, Wrench, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck,
+  ChevronRight, Wrench, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck, Sparkles,
   CalendarDays, ListTodo, Building2, Linkedin,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -65,6 +65,9 @@ const primaryNav: NavItem[] = [
       { name: 'Prospector', href: '/prospector', icon: Radar },
     ],
   },
+  /* Leads sits immediately above Deals because that is the order the work
+     happens in: something arrives, you decide, it becomes a deal. */
+  { name: 'Leads', href: '/leads', icon: Sparkles },
   /* Deals stays its own destination — a pipeline is somewhere you go, not a
      page you find inside something else. */
   { name: 'Deals', href: '/deals', icon: Handshake, match: ['/deals', '/crm'] },

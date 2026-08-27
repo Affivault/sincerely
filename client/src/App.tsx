@@ -23,6 +23,7 @@ const SmtpGuidePage        = lazy(() => import('./pages/smtp/SmtpGuidePage').the
 const AnalyticsDashboardPage = lazy(() => import('./pages/analytics/AnalyticsDashboardPage').then(m => ({ default: m.AnalyticsDashboardPage })));
 const InboxPage            = lazy(() => import('./pages/inbox/InboxPage').then(m => ({ default: m.InboxPage })));
 const DealsPage            = lazy(() => import('./pages/crm/DealsPage').then(m => ({ default: m.DealsPage })));
+const LeadsPage            = lazy(() => import('./pages/leads/LeadsPage').then(m => ({ default: m.LeadsPage })));
 const DealDetailPage       = lazy(() => import('./pages/crm/DealDetailPage').then(m => ({ default: m.DealDetailPage })));
 const DealInsightsPage     = lazy(() => import('./pages/crm/DealInsightsPage').then(m => ({ default: m.DealInsightsPage })));
 const CompaniesPage        = lazy(() => import('./pages/companies/CompaniesPage').then(m => ({ default: m.CompaniesPage })));
@@ -128,6 +129,7 @@ export default function App() {
           <Route path="/domains"            element={<Navigate to="/email-accounts" replace />} />
           <Route path="/analytics"          element={<AnalyticsDashboardPage />} />
           <Route path="/inbox"              element={<InboxPage />} />
+          <Route path="/leads"              element={<LeadsPage />} />
           <Route path="/deals"              element={<DealsPage />} />
           <Route path="/deals/insights"     element={<DealInsightsPage />} />
           <Route path="/deals/:id"          element={<DealDetailPage />} />
