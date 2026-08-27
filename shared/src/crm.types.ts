@@ -43,6 +43,16 @@ export interface Deal {
   /** When it reached won or lost. Null while open. */
   closed_at: string | null;
   /**
+   * The three-way read every pipeline has, made countable.
+   *
+   * Constrained rather than free text on purpose: the whole value of a
+   * label is being able to ask "how much of the forecast is cold", and
+   * seven spellings of "warm" cannot answer that.
+   */
+  label: DealLabel | null;
+  /** Where the deal came from - a campaign, a referral, inbound, LinkedIn. */
+  source: string | null;
+  /**
    * When the stage last changed — not when the row last changed.
    *
    * `updated_at` moves when somebody fixes a typo, so it cannot answer "has
@@ -54,6 +64,50 @@ export interface Deal {
   /** Embedded lead (server-joined via contact_id) — null when not linked */
   contact?: DealContact | null;
 }
+
+export type DealLabel = 'hot' | 'warm' | 'cold';
+
+export const DEAL_LABELS: { id: DealLabel; label: string }[] = [
+  { id: 'hot', label: 'Hot' },
+  { id: 'warm', label: 'Warm' },
+  { id: 'cold', label: 'Cold' },
+];
+
+/**
+ * Somebody on a deal who is not the primary contact.
+ *
+ * Real deals are not sold to one person: a champion wants it, a decision
+ * maker signs it, somebody in security or procurement can stop it, and an
+ * end user has to live with it. A pipeline that names only one of them
+ * cannot answer the two questions that decide whether a deal closes - is
+ * there a decision maker on this at all, and who is blocking it.
+ */
+export interface DealParticipant {
+  id: string;
+  deal_id: string;
+  contact_id: string;
+  /** Free text, with a known set offered in the UI so answers stay countable. */
+  role: string | null;
+  note: string | null;
+  created_at: string;
+  contact?: DealContact | null;
+}
+
+/**
+ * The roles offered in the picker.
+ *
+ * Chosen to map onto who can actually stop a deal rather than onto job
+ * titles, which vary by company and tell you nothing about the deal.
+ */
+export const PARTICIPANT_ROLES = [
+  'Decision maker',
+  'Champion',
+  'Influencer',
+  'Blocker',
+  'Technical evaluator',
+  'Procurement',
+  'End user',
+] as const;
 
 /**
  * One recorded move of a deal from one stage to another.
@@ -88,6 +142,8 @@ export interface CreateDealInput {
   notes?: string | null;
   probability?: number | null;
   outcome_reason?: string | null;
+  label?: DealLabel | null;
+  source?: string | null;
 }
 export interface UpdateDealInput extends Partial<CreateDealInput> {
   position?: number;
@@ -228,10 +284,43 @@ export interface UpdateNoteInput extends Partial<CreateNoteInput> {}
 
 /** Everything CRM knows about one contact, for its profile page. */
 export interface ContactCrmSummary {
-  deals: Deal[];
+  /**
+   * Deals this person leads and deals they are merely on.
+   *
+   * `participant_role` is set on the second kind. Leaving them out
+   * understated a person's exposure: a technical evaluator who can sink
+   * four deals looked, on their own page, like somebody with nothing
+   * riding on anything.
+   */
+  deals: (Deal & { participant_role?: string | null })[];
   tasks: CrmTask[];
   events: CrmEvent[];
   notes: CrmNote[];
+}
+
+/** Everything the deal page renders, fetched in one request. */
+export interface DealDetail {
+  deal: Deal;
+  participants: DealParticipant[];
+  tasks: CrmTask[];
+  events: CrmEvent[];
+  notes: CrmNote[];
+  history: DealStageEvent[];
+  /** Inbox messages to or from anybody on the deal, newest first. */
+  emails: DealEmail[];
+}
+
+/** An inbox message as the deal page needs it - enough to list and expand. */
+export interface DealEmail {
+  id: string;
+  subject: string | null;
+  from_email: string | null;
+  to_email: string | null;
+  direction: 'inbound' | 'outbound' | string;
+  received_at: string;
+  body_text: string | null;
+  is_read: boolean | null;
+  contact_id: string | null;
 }
 
 /* ── Companies ──────────────────────────────────────────────────────────

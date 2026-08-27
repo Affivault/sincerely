@@ -62,11 +62,21 @@ export function ContactDetailPage() {
     enabled: !!id,
   });
 
-  const { data: contactDeals } = useQuery({
-    queryKey: ['crm', 'deals', 'contact', id],
-    queryFn: () => crmApi.listDeals({ contact_id: id!, contact_email: contact?.email }),
-    enabled: !!id && !!contact,
+  /*
+   * Deals this person leads AND deals they are merely on.
+   *
+   * listDeals only ever returned the first kind, which understated a
+   * person's exposure badly: the technical evaluator who can sink four
+   * deals looked, on their own page, like somebody with nothing riding on
+   * anything. The summary merges both, and shares its cache key with the
+   * history panel below so this costs no extra request.
+   */
+  const { data: crmSummary } = useQuery({
+    queryKey: ['contact-crm', id],
+    queryFn: () => crmApi.contactSummary(id!),
+    enabled: !!id,
   });
+  const contactDeals = crmSummary?.deals;
 
   // Every email exchanged with this lead (both directions), for the history view.
   const { data: emailsPage } = useQuery({
@@ -456,23 +466,30 @@ export function ContactDetailPage() {
               </button>
             </div>
             {!contactDeals || contactDeals.length === 0 ? (
-              <p className="text-[12px] text-[var(--text-tertiary)]">No deals yet for this lead</p>
+              <p className="text-[12px] text-[var(--text-tertiary)]">Not on any deals yet</p>
             ) : (
               <div className="space-y-1">
                 {contactDeals.map((d) => {
                   const stage = DEAL_STAGES.find((s) => s.id === d.stage);
                   const dot = d.stage === 'won' ? 'bg-emerald-500' : d.stage === 'lost' ? 'bg-rose-500' : d.stage === 'proposal' ? 'bg-amber-500' : d.stage === 'qualified' ? 'bg-[var(--indigo)]' : 'bg-slate-400';
                   return (
-                    <button
+                    <Link
                       key={d.id}
-                      onClick={() => setDealModal(d)}
-                      className="w-full flex items-center gap-2 h-9 px-2.5 rounded-[6px] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] transition-colors text-left"
+                      to={`/deals/${d.id}`}
+                      className="w-full flex items-center gap-2 min-h-9 py-1 px-2.5 rounded-[6px] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] transition-colors text-left"
                     >
                       <span className={cn('h-2 w-2 rounded-full flex-shrink-0', dot)} />
-                      <span className="flex-1 min-w-0 truncate text-[12px] font-medium text-[var(--text-primary)]">{d.title}</span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block truncate text-[12px] font-medium text-[var(--text-primary)]">{d.title}</span>
+                        {/* Says why they are on it. "Blocker on the Northbeam
+                            renewal" is a different fact from "owns it". */}
+                        {d.participant_role && (
+                          <span className="block truncate text-[10.5px] text-[var(--text-tertiary)]">{d.participant_role}</span>
+                        )}
+                      </span>
                       <span className="text-[11px] text-[var(--text-tertiary)] flex-shrink-0">{stage?.label}</span>
                       <span className="text-[12px] font-semibold text-[var(--text-primary)] tabular flex-shrink-0">${Math.round(d.value || 0).toLocaleString()}</span>
-                    </button>
+                    </Link>
                   );
                 })}
               </div>

@@ -1,11 +1,9 @@
-import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { crmApi } from '../../api/crm.api';
 import { ActivityModal, MeetingModal, ContactPicker, toDateInput } from '../../components/crm/CrmPrimitives';
-import { contactsApi } from '../../api/contacts.api';
-import { inboxApi } from '../../api/inbox.api';
-import { Modal, openModals } from '../../components/ui/Modal';
+import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -17,7 +15,6 @@ import { usePeek } from '../../components/peek/usePeek';
 import { PipelineHeader } from '../../components/crm/PipelineHeader';
 import { DealTable, type SortKey, type SortDir } from '../../components/crm/DealTable';
 import { OutcomeDialog } from '../../components/crm/OutcomeDialog';
-import { DealJourney } from '../../components/crm/DealJourney';
 import {
   DealFilters, applyDealFilters, EMPTY_FILTERS,
   type DealFilterState, type DealView,
@@ -28,9 +25,7 @@ import toast from 'react-hot-toast';
 import {
   Handshake, ListTodo, Calendar as CalendarIcon, Plus, Trash2,
   Phone, Users as UsersIcon, Building2,
-  CalendarClock, CheckCircle2, Circle, GripVertical,
-  X, Pencil, Clock, ArrowUpRight, ArrowDownLeft, Mail, StickyNote,
-  Link2, Trophy, MailOpen, Briefcase, Download, GitCommitHorizontal,
+  CalendarClock, GripVertical, Clock, Download,
 } from 'lucide-react';
 import {
   DEAL_STAGES,
@@ -264,370 +259,6 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
         </div>
       </form>
     </Modal>
-  );
-}
-
-/* ─── Deal detail drawer ──────────────────────────── */
-const STAGE_ACTIVE: Record<DealStage, string> = {
-  lead: 'bg-slate-500 text-white border-slate-500',
-  qualified: 'bg-[var(--indigo)] text-white border-[var(--indigo)]',
-  proposal: 'bg-amber-500 text-white border-amber-500',
-  won: 'bg-emerald-500 text-white border-emerald-500',
-  lost: 'bg-rose-500 text-white border-rose-500',
-};
-
-/**
- * A company or person shown on a deal, as a way through to their history
- * rather than a label. Falls back to plain text when there's nothing to
- * open — a dead link is worse than no link.
- */
-function CrossLink({ icon: Icon, label, onClick }: {
-  icon: React.ElementType; label: string; onClick?: () => void;
-}) {
-  const body = (
-    <>
-      <Icon className="h-3.5 w-3.5 flex-shrink-0" />
-      <span className="truncate">{label}</span>
-    </>
-  );
-  if (!onClick) return <span className="inline-flex items-center gap-1 min-w-0">{body}</span>;
-  return (
-    <button
-      type="button"
-      onClick={(e) => { e.stopPropagation(); onClick(); }}
-      title={`Open ${label}`}
-      className="inline-flex items-center gap-1 min-w-0 rounded transition-colors hover:text-[var(--indigo)] hover:underline focus:outline-none focus-visible:text-[var(--indigo)]"
-    >
-      {body}
-    </button>
-  );
-}
-
-export function DealDrawer({
-  deal, tasks, events, onClose, onEdit, onAddTask, onBookEvent,
-}: {
-  deal: Deal;
-  tasks: CrmTask[];
-  events: CrmEvent[];
-  onClose: () => void;
-  onEdit: (d: Deal) => void;
-  onAddTask: (d: Deal) => void;
-  onBookEvent: (d: Deal) => void;
-}) {
-  const qc = useQueryClient();
-  const navigate = useNavigate();
-  const { openPeek } = usePeek();
-  const [show, setShow] = useState(false);
-  const identity = useRef({});
-
-  const contactId = leadId(deal);
-  const companyId = dealCompanyId(deal);
-
-  useEffect(() => {
-    setShow(true);
-    // Join the shared modal stack so Escape only closes this drawer when it's
-    // topmost — otherwise dismissing a Modal opened on top of it (Edit deal,
-    // Add task, Book, the delete confirm, ActivityModal/MeetingModal) also
-    // closed the drawer itself underneath it, dropping the user out of the
-    // deal entirely.
-    const self = identity.current;
-    openModals.push(self);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (openModals[openModals.length - 1] !== self) return;
-      close();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      const at = openModals.lastIndexOf(self);
-      if (at !== -1) openModals.splice(at, 1);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const close = () => { setShow(false); setTimeout(onClose, 180); };
-
-  const email = leadEmail(deal);
-  const name = leadName(deal);
-
-  // Every email exchanged with this deal's lead — real platform sync with the inbox.
-  const { data: emailsPage, isLoading: loadingEmails } = useQuery({
-    queryKey: ['crm', 'deal-emails', email],
-    queryFn: () => inboxApi.list({ contact_email: email!, limit: 5 }),
-    enabled: !!email,
-  });
-  const emails = (emailsPage?.data || []) as any[];
-
-  const dealTasks = tasks
-    .filter(t => t.deal_id === deal.id)
-    .sort((a, b) => Number(a.is_done) - Number(b.is_done) || (a.due_date || '').localeCompare(b.due_date || ''));
-  const dealEvents = events
-    .filter(e => e.deal_id === deal.id)
-    .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
-
-  const changeStage = (stage: DealStage) => {
-    if (stage === deal.stage) return;
-    qc.setQueryData<Deal[]>(['crm', 'deals'], (old) => (old || []).map(d => d.id === deal.id ? { ...d, stage } : d));
-    crmApi.updateDeal(deal.id, { stage })
-      .then(() => qc.invalidateQueries({ queryKey: ['crm', 'deals'] }))
-      .catch(() => { toast.error('Failed to move deal'); qc.invalidateQueries({ queryKey: ['crm', 'deals'] }); });
-  };
-
-  const toggleTask = (t: CrmTask) => {
-    qc.setQueryData<CrmTask[]>(['crm', 'tasks'], (old) => (old || []).map(x => x.id === t.id ? { ...x, is_done: !x.is_done } : x));
-    crmApi.updateTask(t.id, { is_done: !t.is_done })
-      .then(() => qc.invalidateQueries({ queryKey: ['crm', 'tasks'] }))
-      .catch(() => { toast.error('Failed to update task'); qc.invalidateQueries({ queryKey: ['crm', 'tasks'] }); });
-  };
-
-  const close_ = relDay(deal.expected_close_date);
-  const closeTone = close_.tone === 'over' ? 'text-rose-500' : close_.tone === 'today' ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-primary)]';
-
-  return (
-    <div className="fixed inset-0 z-40">
-      <div
-        onClick={close}
-        className={cn('absolute inset-0 bg-black/30 backdrop-blur-[1px] transition-opacity duration-200', show ? 'opacity-100' : 'opacity-0')}
-      />
-      <div
-        className={cn(
-          'absolute right-0 top-0 h-full w-full max-w-[456px] bg-[var(--bg-surface)] border-l border-[var(--border-subtle)] shadow-[var(--shadow-xl)] flex flex-col transition-transform duration-200 ease-out',
-          show ? 'translate-x-0' : 'translate-x-full'
-        )}
-      >
-        {/* Header */}
-        <div className="flex-shrink-0 px-5 pt-4 pb-4 border-b border-[var(--border-subtle)]">
-          <div className="flex items-center justify-between mb-3">
-            <span className={cn('inline-flex items-center gap-1.5 h-6 px-2 rounded-md text-[11px] font-semibold', STAGE_ACTIVE[deal.stage])}>
-              {DEAL_STAGES.find(s => s.id === deal.stage)?.label}
-            </span>
-            <div className="flex items-center gap-1">
-              <button onClick={() => onEdit(deal)} className="icon-btn h-7 w-7" title="Edit deal"><Pencil className="h-3.5 w-3.5" /></button>
-              <button onClick={close} className="icon-btn h-7 w-7" title="Close"><X className="h-4 w-4" /></button>
-            </div>
-          </div>
-          <h2 className="text-[17px] font-semibold text-[var(--text-primary)] leading-snug tracking-[-0.01em]">{deal.title}</h2>
-          {/* Both are doors: the company opens everyone who works there and
-              every deal against the account; the person opens their own
-              history. Neither costs you this drawer — peeks stack over it. */}
-          {(deal.company || name) && (
-            <div className="mt-1.5 flex items-center gap-2.5 text-[12.5px] text-[var(--text-tertiary)]">
-              {deal.company && (
-                <CrossLink
-                  icon={Building2}
-                  label={deal.company}
-                  onClick={
-                    companyId
-                      ? () => openPeek('company', companyId)
-                      // Not linked to a company record yet — take them to the
-                      // accounts list filtered to this name rather than nowhere.
-                      : () => navigate(`/companies?q=${encodeURIComponent(deal.company!)}`)
-                  }
-                />
-              )}
-              {name && (
-                <CrossLink
-                  icon={UsersIcon}
-                  label={name}
-                  onClick={contactId ? () => openPeek('contact', contactId) : undefined}
-                />
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-          {/* Stage changer */}
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2">Stage</p>
-            <div className="flex flex-wrap gap-1.5">
-              {DEAL_STAGES.map(s => {
-                const active = s.id === deal.stage;
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => changeStage(s.id)}
-                    className={cn(
-                      'h-7 px-2.5 rounded-lg text-[12px] font-medium border transition-all',
-                      active ? STAGE_ACTIVE[s.id] : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)]'
-                    )}
-                  >
-                    {s.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-2.5">
-            <Stat label="Value" value={fmtMoney(deal.value, deal.currency)} />
-            <Stat label="Close date" value={close_.label} tone={closeTone} />
-            <Stat label="Deal age" value={dealAge(deal.created_at)} />
-          </div>
-
-          {/* Lead card — the contact/lead attached to this deal */}
-          {(email || name || deal.contact_id) && (
-            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-muted)]/40 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2 flex items-center gap-1.5">
-                <Link2 className="h-3 w-3" /> Attached lead
-              </p>
-              <div className="flex items-center gap-2.5">
-                <Avatar name={name} email={email} size="lg" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{name || 'Contact'}</p>
-                  {(deal.contact?.job_title || deal.contact?.company || deal.company) && (
-                    <p className="text-[11px] text-[var(--text-tertiary)] truncate inline-flex items-center gap-1">
-                      <Briefcase className="h-3 w-3 shrink-0" />
-                      {[deal.contact?.job_title, deal.contact?.company || deal.company].filter(Boolean).join(' @ ')}
-                    </p>
-                  )}
-                  {email && <p className="text-[11px] text-[var(--text-tertiary)] truncate flex items-center gap-1"><Mail className="h-3 w-3 shrink-0" />{email}</p>}
-                </div>
-                {(deal.contact_id || deal.contact?.id) && (
-                  <button onClick={() => { close(); navigate(`/contacts/${deal.contact_id || deal.contact?.id}`); }} className="inline-flex items-center gap-1 text-[12px] font-medium text-[var(--indigo)] hover:underline flex-shrink-0">
-                    Open <ArrowUpRight className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Conversation — synced from the inbox */}
-          {email && (
-            <Section title="Conversation" count={emailsPage?.total || emails.length} icon={MailOpen}
-              actionLabel={deal.contact_id ? 'View all' : undefined}
-              onAction={deal.contact_id ? () => { close(); navigate(`/contacts/${deal.contact_id}`); } : undefined}
-            >
-              {loadingEmails ? (
-                <div className="flex justify-center py-3"><Spinner size="sm" /></div>
-              ) : emails.length === 0 ? (
-                <p className="text-[12px] text-[var(--text-muted)] py-1">No emails exchanged with {name || email} yet.</p>
-              ) : (
-                <div className="space-y-1.5">
-                  {emails.map((m) => {
-                    const outbound = m.direction === 'outbound';
-                    return (
-                      <div key={m.id} className="flex items-center gap-2.5 rounded-lg border border-[var(--border-subtle)] px-2.5 py-2">
-                        <span className={cn('flex h-6 w-6 items-center justify-center rounded-md flex-shrink-0', outbound ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400')}>
-                          {outbound ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownLeft className="h-3.5 w-3.5" />}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[12px] font-medium text-[var(--text-primary)] truncate">{m.subject || '(no subject)'}</p>
-                          <p className="text-[10.5px] text-[var(--text-tertiary)]">
-                            {outbound ? 'You' : (name || m.from_email)} · {new Date(m.received_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </Section>
-          )}
-
-          {/* Tasks */}
-          <Section title="Tasks" count={dealTasks.length} actionLabel="Add task" onAction={() => onAddTask(deal)} icon={ListTodo}>
-            {dealTasks.length === 0 ? (
-              <p className="text-[12px] text-[var(--text-muted)] py-1">No tasks linked to this deal yet.</p>
-            ) : (
-              <div className="space-y-0.5">
-                {dealTasks.map(t => {
-                  const due = relDay(t.due_date);
-                  const tone = due.tone === 'over' ? 'text-rose-500' : due.tone === 'today' ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-tertiary)]';
-                  return (
-                    <div key={t.id} className="flex items-center gap-2.5 py-1.5">
-                      <button onClick={() => toggleTask(t)} className="flex-shrink-0" title={t.is_done ? 'Mark not done' : 'Mark done'}>
-                        {t.is_done ? <CheckCircle2 className="h-[17px] w-[17px] text-emerald-500" /> : <Circle className="h-[17px] w-[17px] text-[var(--text-muted)] hover:text-[var(--indigo)] transition-colors" />}
-                      </button>
-                      <span className={cn('flex-1 min-w-0 text-[12.5px] truncate', t.is_done ? 'line-through text-[var(--text-muted)]' : 'text-[var(--text-primary)]')}>{t.title}</span>
-                      {!t.is_done && t.due_date && <span className={cn('text-[11px] font-medium tabular flex-shrink-0', tone)}>{due.label}</span>}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Section>
-
-          {/* Events */}
-          <Section title="Meetings & calls" count={dealEvents.length} actionLabel="Book" onAction={() => onBookEvent(deal)} icon={CalendarIcon}>
-            {dealEvents.length === 0 ? (
-              <p className="text-[12px] text-[var(--text-muted)] py-1">No calls or meetings booked yet.</p>
-            ) : (
-              <div className="space-y-1.5">
-                {dealEvents.map(ev => {
-                  const meta = EVENT_META[ev.type];
-                  const Icon = meta.icon;
-                  const past = new Date(ev.starts_at) < new Date();
-                  const when = new Date(ev.starts_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' · ' + new Date(ev.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-                  return (
-                    <div key={ev.id} className={cn('flex items-center gap-2.5 rounded-lg border border-[var(--border-subtle)] px-2.5 py-2', past && 'opacity-60')}>
-                      <span className={cn('flex h-6 w-6 items-center justify-center rounded-md flex-shrink-0', meta.chip)}><Icon className="h-3.5 w-3.5" /></span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{ev.title}</p>
-                        <p className="text-[11px] text-[var(--text-tertiary)]">{when}{ev.location ? ` · ${ev.location}` : ''}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Section>
-
-          {/* How it got here */}
-          <Section title="Journey" icon={GitCommitHorizontal}>
-            <DealJourney deal={deal} />
-          </Section>
-
-          {/* Notes */}
-          <Section title="Notes" icon={StickyNote}>
-            {deal.notes?.trim() ? (
-              <p className="text-[12.5px] text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed">{deal.notes}</p>
-            ) : (
-              <button onClick={() => onEdit(deal)} className="text-[12px] text-[var(--text-muted)] hover:text-[var(--indigo)] transition-colors">Add notes…</button>
-            )}
-          </Section>
-        </div>
-
-        {/* Footer */}
-        <div className="flex-shrink-0 px-5 py-3 border-t border-[var(--border-subtle)] flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]"><Clock className="h-3 w-3" /> {updatedLabel(deal.updated_at)}</span>
-          <Button variant="secondary" onClick={() => onEdit(deal)}><Pencil className="h-3.5 w-3.5" /> Edit deal</Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Stat({ label, value, tone }: { label: string; value: string; tone?: string }) {
-  return (
-    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-muted)]/40 px-2.5 py-2">
-      <p className="text-[10.5px] font-medium text-[var(--text-muted)]">{label}</p>
-      <p className={cn('mt-0.5 text-[13.5px] font-semibold tabular leading-tight', tone || 'text-[var(--text-primary)]')}>{value}</p>
-    </div>
-  );
-}
-
-function Section({ title, count, actionLabel, onAction, icon: Icon, children }: {
-  title: string; count?: number; actionLabel?: string; onAction?: () => void; icon: typeof ListTodo; children: ReactNode;
-}) {
-  return (
-    <div>
-      <div className="flex items-center gap-2 mb-2">
-        <Icon className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">{title}</p>
-        {count != null && count > 0 && <span className="text-[11px] font-medium text-[var(--text-tertiary)] tabular">{count}</span>}
-        <span className="flex-1" />
-        {actionLabel && onAction && (
-          <button onClick={onAction} className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[var(--indigo)] hover:underline">
-            <Plus className="h-3 w-3" />{actionLabel}
-          </button>
-        )}
-      </div>
-      {children}
-    </div>
   );
 }
 
@@ -890,7 +521,6 @@ export function DealsPage() {
   const [dealModal, setDealModal] = useState<Partial<Deal> | null | undefined>(undefined);
   const [taskModal, setTaskModal] = useState<Partial<CrmTask> | null | undefined>(undefined);
   const [eventModal, setEventModal] = useState<Partial<CrmEvent> | null | undefined>(undefined);
-  const [drawerId, setDrawerId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
   /* The view survives a reload: somebody who works in the table does not
@@ -1150,7 +780,7 @@ export function DealsPage() {
           })}
           onToggleAll={() => setSelected((prev) =>
             prev.size === visibleDeals.length ? new Set() : new Set(visibleDeals.map((d) => d.id)))}
-          onOpen={(d) => setDrawerId(d.id)}
+          onOpen={(d) => navigate(`/deals/${d.id}`)}
           onOpenCompany={openCompany}
           onOpenLead={openLead}
           onStageChange={(d, stage) => moveStage(d, stage)}
@@ -1160,22 +790,10 @@ export function DealsPage() {
           deals={visibleDeals}
           tasks={tasks}
           events={events}
-          onEdit={(d) => setDrawerId(d.id)}
+          onEdit={(d) => navigate(`/deals/${d.id}`)}
           onStageChange={moveStage}
           onAddToStage={(stage) => setDealModal({ stage })}
           dragDisabled={query.trim().length > 0}
-        />
-      )}
-
-      {drawerId && deals.some((d) => d.id === drawerId) && (
-        <DealDrawer
-          deal={deals.find((d) => d.id === drawerId)!}
-          tasks={tasks}
-          events={events}
-          onClose={() => setDrawerId(null)}
-          onEdit={(d) => setDealModal(d)}
-          onAddTask={(d) => setTaskModal({ deal_id: d.id, contact_id: d.contact_id, contact_name: leadName(d) })}
-          onBookEvent={(d) => setEventModal({ deal_id: d.id, contact_id: d.contact_id, contact_name: leadName(d), contact_email: leadEmail(d), title: `Call — ${d.company || leadName(d) || d.title}` })}
         />
       )}
 

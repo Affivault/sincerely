@@ -26,6 +26,8 @@ import {
   isOpen,
   probabilityOf,
   rotOf,
+  daysByStage,
+  nextStep,
   stageTimeline,
   summarisePipeline,
   weightedValue,
@@ -273,6 +275,76 @@ console.log('\nstage history turns transitions into durations');
      stageTimeline([], NOW).length === 0);
   is('an event with no timestamp is dropped rather than dated to 1970',
      stageTimeline([ev(null, 'lead', 5), { from_stage: 'lead', to_stage: 'won', reason: null, changed_at: '' }], NOW).length === 1);
+}
+
+
+console.log('\ntime in a stage adds up across every visit');
+{
+  const ev = (from: string | null, to: string, n: number) =>
+    ({ from_stage: from, to_stage: to, reason: null, changed_at: daysAgo(n) });
+
+  /*
+   * A deal pushed back from proposal to qualified and worked forward again
+   * has been in qualified twice. Reporting only the latest visit would make
+   * the deal that has been round the loop three times look like the
+   * fastest one on the board.
+   */
+  const looped = daysByStage(
+    [ev(null, 'lead', 60), ev('lead', 'qualified', 50), ev('qualified', 'proposal', 40),
+     ev('proposal', 'qualified', 30), ev('qualified', 'proposal', 10)],
+    NOW,
+  );
+  is('a revisited stage sums both visits', looped.qualified === 30, String(looped.qualified));
+  is('so does the stage it kept bouncing back to', looped.proposal === 20, String(looped.proposal));
+  is('and the stage it never returned to keeps its single figure',
+     looped.lead === 10, String(looped.lead));
+  is('stages never reached are absent rather than zero, which reads differently',
+     !('won' in looped) && !('lost' in looped), JSON.stringify(looped));
+}
+
+console.log('\nevery live deal should have a next step, and this says when it does not');
+{
+  const open = { stage: 'proposal' as DealStage };
+  const task = (title: string, n: number, done = false) =>
+    ({ title, due_date: daysAgo(n), is_done: done });
+  const meet = (title: string, n: number) => ({ title, starts_at: daysAgo(n) });
+
+  const nothing = nextStep(open, [], [], NOW);
+  is('an open deal with nothing booked is flagged',
+     nothing.missing && nothing.at === null, JSON.stringify(nothing));
+
+  /*
+   * A won deal does not need chasing. Nagging for a next step on something
+   * already closed is the fastest way to teach people to ignore the flag.
+   */
+  const won = nextStep({ stage: 'won' }, [], [], NOW);
+  is('a closed deal is never flagged for having nothing booked',
+     !won.missing, JSON.stringify(won));
+
+  const soonest = nextStep(open, [task('Chase legal', -9), task('Send pricing', -2)], [], NOW);
+  is('the soonest thing still ahead is the next step',
+     soonest.title === 'Send pricing' && !soonest.overdue, JSON.stringify(soonest));
+
+  is('a meeting can be the next step, not just an activity',
+     nextStep(open, [task('Chase legal', -9)], [meet('Commercial review', -3)], NOW).kind === 'meeting');
+
+  /*
+   * Everything in the past is not the same as nothing booked, and must not
+   * read as if it were — one means "decide what to do next", the other
+   * means "you are late".
+   */
+  const late = nextStep(open, [task('Send pricing', 4)], [], NOW);
+  is('an overdue item is overdue, not missing',
+     late.overdue && !late.missing && late.title === 'Send pricing', JSON.stringify(late));
+
+  is('a completed activity does not count as something booked',
+     nextStep(open, [task('Already done', -5, true)], [], NOW).missing);
+
+  is('an activity with no due date is not a next step either',
+     nextStep(open, [{ title: 'Someday', due_date: null, is_done: false }], [], NOW).missing);
+
+  is('an unparseable date cannot become the next step',
+     nextStep(open, [{ title: 'Broken', due_date: 'not a date', is_done: false }], [], NOW).missing);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

@@ -16,7 +16,14 @@ function pick(body: any, keys: readonly string[]): Record<string, any> {
   return out;
 }
 
-const DEAL_KEYS = ['title', 'company', 'company_id', 'contact_name', 'contact_email', 'contact_id', 'value', 'currency', 'stage', 'expected_close_date', 'notes', 'position', 'probability', 'outcome_reason'] as const;
+const DEAL_KEYS = ['title', 'company', 'company_id', 'contact_name', 'contact_email', 'contact_id', 'value', 'currency', 'stage', 'expected_close_date', 'notes', 'position', 'probability', 'outcome_reason', 'label', 'source'] as const;
+
+const DEAL_LABELS = ['hot', 'warm', 'cold'];
+
+/** The people on a deal, with enough of each contact to render them. */
+const PARTICIPANT_SELECT =
+  'id, deal_id, contact_id, role, note, created_at, ' +
+  'contact:contacts(id, email, first_name, last_name, company, company_id, job_title, phone, linkedin_url)';
 const TASK_KEYS = ['title', 'due_date', 'priority', 'type', 'all_day', 'deal_id', 'contact_id', 'contact_name', 'notes', 'is_done', 'channel', 'payload', 'target_url'] as const;
 const EVENT_KEYS = ['title', 'type', 'starts_at', 'ends_at', 'all_day', 'contact_id', 'contact_name', 'contact_email', 'location', 'notes', 'outcome', 'deal_id'] as const;
 const NOTE_KEYS = ['body', 'contact_id', 'deal_id', 'pinned'] as const;
@@ -64,6 +71,19 @@ function sanitizeDealInput(input: Record<string, any>) {
 
   if (typeof input.outcome_reason === 'string') {
     input.outcome_reason = input.outcome_reason.trim().slice(0, 200) || null;
+  }
+
+  // The label is only worth having because it can be counted, so an unknown
+  // value is rejected here rather than left for the database to reject with
+  // a constraint error nobody can read.
+  if (input.label === '' || input.label === null) {
+    input.label = null;
+  } else if (input.label !== undefined && !DEAL_LABELS.includes(input.label)) {
+    throw new AppError(`Label must be one of ${DEAL_LABELS.join(', ')}`, 400);
+  }
+
+  if (typeof input.source === 'string') {
+    input.source = input.source.trim().slice(0, 80) || null;
   }
 }
 
@@ -208,6 +228,99 @@ export const crmService = {
   async deleteDeal(userId: string, id: string) {
     const { error } = await supabaseAdmin.from('deals').delete().eq('id', id).eq('user_id', userId);
     if (error) throw new AppError(error.message, 500);
+  },
+
+  /* ── Deal participants ── */
+
+  /** Everyone on this deal besides the primary contact, in the order added. */
+  async listParticipants(userId: string, dealId: string) {
+    const { data, error } = await supabaseAdmin
+      .from('deal_participants')
+      .select(PARTICIPANT_SELECT)
+      .eq('deal_id', dealId)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true });
+    if (error) throw new AppError(error.message, 500);
+    return data || [];
+  },
+
+  async addParticipant(userId: string, dealId: string, body: any) {
+    const contactId = body?.contact_id;
+    if (!contactId) throw new AppError('A contact is required', 400);
+    await assertOwned(userId, 'deals', dealId, 'Deal');
+    await assertOwned(userId, 'contacts', contactId, 'Contact');
+
+    /*
+     * The primary contact is already on the deal. Adding them again would
+     * show the same person twice on the page and double-count them in every
+     * "who is on this" answer, so it is refused with an explanation rather
+     * than silently deduplicated somewhere in the UI.
+     */
+    const { data: deal } = await supabaseAdmin
+      .from('deals').select('contact_id').eq('id', dealId).eq('user_id', userId).maybeSingle();
+    if (deal?.contact_id === contactId) {
+      throw new AppError('That contact is already the primary contact on this deal', 409);
+    }
+
+    const role = typeof body.role === 'string' ? body.role.trim().slice(0, 40) || null : null;
+    const note = typeof body.note === 'string' ? body.note.trim().slice(0, 200) || null : null;
+
+    const { data, error } = await supabaseAdmin
+      .from('deal_participants')
+      .insert({ user_id: userId, deal_id: dealId, contact_id: contactId, role, note })
+      .select(PARTICIPANT_SELECT)
+      .single();
+    // 23505 is a unique violation: they are already on the deal. That is a
+    // duplicate click, not a failure worth a 500.
+    if (error?.code === '23505') throw new AppError('That contact is already on this deal', 409);
+    if (error) throw new AppError(error.message, 500);
+    return data;
+  },
+
+  async updateParticipant(userId: string, dealId: string, participantId: string, body: any) {
+    const patch: Record<string, any> = {};
+    if (body.role !== undefined) {
+      patch.role = typeof body.role === 'string' ? body.role.trim().slice(0, 40) || null : null;
+    }
+    if (body.note !== undefined) {
+      patch.note = typeof body.note === 'string' ? body.note.trim().slice(0, 200) || null : null;
+    }
+    if (Object.keys(patch).length === 0) throw new AppError('Nothing to update', 400);
+
+    const { data, error } = await supabaseAdmin
+      .from('deal_participants')
+      .update(patch)
+      .eq('id', participantId)
+      .eq('deal_id', dealId)
+      .eq('user_id', userId)
+      .select(PARTICIPANT_SELECT)
+      .maybeSingle();
+    if (error) throw new AppError(error.message, 500);
+    if (!data) throw new AppError('Participant not found', 404);
+    return data;
+  },
+
+  async removeParticipant(userId: string, dealId: string, participantId: string) {
+    const { error } = await supabaseAdmin
+      .from('deal_participants')
+      .delete()
+      .eq('id', participantId)
+      .eq('deal_id', dealId)
+      .eq('user_id', userId);
+    if (error) throw new AppError(error.message, 500);
+  },
+
+  /** Every deal this contact is a participant on - not the ones they lead. */
+  async dealsForParticipant(userId: string, contactId: string) {
+    const { data, error } = await supabaseAdmin
+      .from('deal_participants')
+      .select(`role, deal:deals(${DEAL_SELECT})`)
+      .eq('contact_id', contactId)
+      .eq('user_id', userId);
+    if (error) throw new AppError(error.message, 500);
+    return (data || [])
+      .filter((row: any) => row.deal)
+      .map((row: any) => ({ ...row.deal, participant_role: row.role }));
   },
 
   /**
@@ -408,14 +521,117 @@ export const crmService = {
    * profile page needs all four lists at once and four sequential requests
    * made it feel slow.
    */
+  /**
+   * Everything the deal page renders, in one request.
+   *
+   * Seven round trips from the browser to paint one page is how a detail
+   * view ends up feeling slow and popping into place a section at a time.
+   * They are independent, so they go together.
+   */
+  async dealDetail(userId: string, dealId: string) {
+    const { data: deal, error } = await supabaseAdmin
+      .from('deals')
+      .select(DEAL_SELECT)
+      .eq('id', dealId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error) throw new AppError(error.message, 500);
+    if (!deal) throw new AppError('Deal not found', 404);
+
+    const [participants, tasks, events, notes, history] = await Promise.all([
+      this.listParticipants(userId, dealId),
+      this.listTasks(userId, { dealId }),
+      this.listEvents(userId, undefined, undefined, { dealId }),
+      this.listNotes(userId, { dealId }),
+      this.dealStageHistory(userId, dealId),
+    ]);
+
+    /*
+     * The conversation on a deal is with everybody on it, not just whoever
+     * happens to be the primary contact. A thread with the champion and a
+     * separate one with procurement are the same negotiation, and showing
+     * only one of them is how a deal page ends up looking quiet while the
+     * inbox is busy.
+     */
+    const addresses = [
+      (deal as any).contact?.email,
+      (deal as any).contact_email,
+      ...participants.map((p: any) => p.contact?.email),
+    ]
+      .filter((e): e is string => typeof e === 'string' && !!e.trim())
+      .map((e) => e.trim().toLowerCase());
+    const unique = [...new Set(addresses)];
+
+    const emails = unique.length ? await this.emailsForAddresses(userId, unique) : [];
+
+    return { deal, participants, tasks, events, notes, history, emails };
+  },
+
+  /**
+   * Inbox messages to or from any of these addresses, newest first.
+   *
+   * Addresses go into a PostgREST `in.(...)` list, where a comma, bracket or
+   * quote is structure rather than data: one in an address would close the
+   * list early and widen the query to messages that are nobody's business on
+   * this deal.
+   *
+   * So anything that cannot be encoded is dropped, not stripped. Stripping
+   * looks safer and is worse - it rewrites the address into a different one
+   * that may well be a real mailbox, and then quietly shows you somebody
+   * else's correspondence under this deal's name. An address we cannot ask
+   * about honestly is one we do not ask about.
+   */
+  async emailsForAddresses(userId: string, addresses: string[], limit = 100) {
+    // Deliberately conservative: an address that fails this is worth missing.
+    const encodable = /^[^\s,()"'\\%_]+@[^\s,()"'\\%_]+$/;
+    const safe = addresses
+      .map((a) => a.trim().toLowerCase())
+      .filter((a) => encodable.test(a))
+      // A deal with more people than this on it has bigger problems, but the
+      // cap keeps one runaway record from building an enormous filter.
+      .slice(0, 25);
+    if (safe.length === 0) return [];
+
+    const list = `(${safe.join(',')})`;
+    const { data, error } = await supabaseAdmin
+      .from('inbox_messages')
+      .select('id, subject, from_email, to_email, direction, received_at, body_text, is_read, contact_id')
+      .eq('user_id', userId)
+      .or(`from_email.in.${list},to_email.in.${list}`)
+      .order('received_at', { ascending: false })
+      .limit(limit);
+    if (error) throw new AppError(error.message, 500);
+    return data || [];
+  },
+
   async contactSummary(userId: string, contactId: string) {
     await assertOwned(userId, 'contacts', contactId, 'Contact');
-    const [deals, tasks, events, notes] = await Promise.all([
+    const [own, joined, tasks, events, notes] = await Promise.all([
       this.listDeals(userId, { contactId }),
+      this.dealsForParticipant(userId, contactId),
       this.listTasks(userId, { contactId }),
       this.listEvents(userId, undefined, undefined, { contactId }),
       this.listNotes(userId, { contactId }),
     ]);
-    return { deals, tasks, events, notes };
+
+    /*
+     * A person's deals are the ones they lead and the ones they are merely
+     * on. Leaving the second kind out understates their exposure: the
+     * technical evaluator who can sink four deals looked, on their own page,
+     * like somebody with nothing riding on anything.
+     *
+     * Merged by id because a contact can be primary on one deal and a
+     * participant on another, and could in principle be both on the same one
+     * if the data predates the guard against it.
+     */
+    const byId = new Map<string, any>();
+    for (const deal of own) byId.set(deal.id, deal);
+    for (const deal of joined) {
+      const existing = byId.get(deal.id);
+      if (existing) existing.participant_role = existing.participant_role ?? deal.participant_role;
+      else byId.set(deal.id, deal);
+    }
+
+    return { deals: [...byId.values()], tasks, events, notes };
   },
 };

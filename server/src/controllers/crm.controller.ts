@@ -23,6 +23,28 @@ export const crmController = {
   async dealStageHistory(req: AuthRequest, res: Response, next: NextFunction) {
     try { res.json(await crmService.dealStageHistory(req.userId!, req.params.id)); } catch (err) { next(err); }
   },
+  async dealDetail(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await crmService.dealDetail(req.userId!, req.params.id)); } catch (err) { next(err); }
+  },
+
+  // Deal participants
+  async listParticipants(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await crmService.listParticipants(req.userId!, req.params.id)); } catch (err) { next(err); }
+  },
+  async addParticipant(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.status(201).json(await crmService.addParticipant(req.userId!, req.params.id, req.body)); } catch (err) { next(err); }
+  },
+  async updateParticipant(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await crmService.updateParticipant(req.userId!, req.params.id, req.params.participantId, req.body));
+    } catch (err) { next(err); }
+  },
+  async removeParticipant(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      await crmService.removeParticipant(req.userId!, req.params.id, req.params.participantId);
+      res.status(204).send();
+    } catch (err) { next(err); }
+  },
 
   // Tasks
   async listTasks(req: AuthRequest, res: Response, next: NextFunction) {

@@ -1,6 +1,6 @@
 import { apiClient } from './client';
 import type {
-  Deal, CreateDealInput, UpdateDealInput, DealStageEvent,
+  Deal, CreateDealInput, UpdateDealInput, DealStageEvent, DealDetail, DealParticipant,
   CrmTask, CreateTaskInput, UpdateTaskInput,
   CrmEvent, CreateEventInput, UpdateEventInput,
   CrmNote, CreateNoteInput, UpdateNoteInput,
@@ -17,6 +17,19 @@ export const crmApi = {
   /** Every stage this deal has passed through, oldest first. */
   dealHistory: async (id: string) =>
     (await apiClient.get<DealStageEvent[]>(`/crm/deals/${id}/history`)).data,
+
+  /** Everything the deal page renders, in one request. */
+  dealDetail: async (id: string) =>
+    (await apiClient.get<DealDetail>(`/crm/deals/${id}/detail`)).data,
+
+  // Deal participants — everybody on the deal besides the primary contact.
+  addParticipant: async (dealId: string, input: { contact_id: string; role?: string | null; note?: string | null }) =>
+    (await apiClient.post<DealParticipant>(`/crm/deals/${dealId}/participants`, input)).data,
+  updateParticipant: async (dealId: string, participantId: string, input: { role?: string | null; note?: string | null }) =>
+    (await apiClient.put<DealParticipant>(`/crm/deals/${dealId}/participants/${participantId}`, input)).data,
+  removeParticipant: async (dealId: string, participantId: string) => {
+    await apiClient.delete(`/crm/deals/${dealId}/participants/${participantId}`);
+  },
 
   // Tasks
   listTasks: async (params?: { contact_id?: string; deal_id?: string }) =>
