@@ -570,15 +570,25 @@ export const crmService = {
   /**
    * Inbox messages to or from any of these addresses, newest first.
    *
-   * Addresses are stripped of the characters PostgREST treats as structure
-   * in an `or(...)` filter. Without that, an address containing a comma or a
-   * bracket would not merely fail to match - it would close the filter early
-   * and widen the query to messages that are nobody's business here.
+   * Addresses go into a PostgREST `in.(...)` list, where a comma, bracket or
+   * quote is structure rather than data: one in an address would close the
+   * list early and widen the query to messages that are nobody's business on
+   * this deal.
+   *
+   * So anything that cannot be encoded is dropped, not stripped. Stripping
+   * looks safer and is worse - it rewrites the address into a different one
+   * that may well be a real mailbox, and then quietly shows you somebody
+   * else's correspondence under this deal's name. An address we cannot ask
+   * about honestly is one we do not ask about.
    */
   async emailsForAddresses(userId: string, addresses: string[], limit = 100) {
+    // Deliberately conservative: an address that fails this is worth missing.
+    const encodable = /^[^\s,()"'\\%_]+@[^\s,()"'\\%_]+$/;
     const safe = addresses
-      .map((a) => a.replace(/[%_,()"\s]/g, ''))
-      .filter(Boolean)
+      .map((a) => a.trim().toLowerCase())
+      .filter((a) => encodable.test(a))
+      // A deal with more people than this on it has bigger problems, but the
+      // cap keeps one runaway record from building an enormous filter.
       .slice(0, 25);
     if (safe.length === 0) return [];
 
