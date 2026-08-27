@@ -8,6 +8,7 @@ crmRoutes.get('/deals', crmController.listDeals);
 crmRoutes.post('/deals', crmController.createDeal);
 crmRoutes.put('/deals/:id', crmController.updateDeal);
 crmRoutes.delete('/deals/:id', crmController.deleteDeal);
+crmRoutes.get('/insights', crmController.insights);
 crmRoutes.get('/deals/:id/history', crmController.dealStageHistory);
 crmRoutes.get('/deals/:id/detail', crmController.dealDetail);
 crmRoutes.get('/deals/:id/participants', crmController.listParticipants);

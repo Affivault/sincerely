@@ -25,13 +25,17 @@ import toast from 'react-hot-toast';
 import {
   Handshake, ListTodo, Calendar as CalendarIcon, Plus, Trash2,
   Phone, Users as UsersIcon, Building2,
-  CalendarClock, GripVertical, Clock, Download,
+  CalendarClock, GripVertical, Clock, Download, BarChart3,
 } from 'lucide-react';
 import {
   DEAL_STAGES,
   isOpen,
   rotOf,
   weightedValue,
+  hasEconomics,
+  revenueSplit,
+  totalContractValue,
+  DEFAULT_TERM_MONTHS,
   STAGE_PROBABILITY,
   type Deal, type DealStage, type CreateDealInput,
   type CrmTask, type TaskPriority,
@@ -123,6 +127,13 @@ function exportDealsCsv(deals: Deal[]) {
   URL.revokeObjectURL(url);
 }
 
+/** '' means nobody has said. Distinct from 0, which is a real answer. */
+function blankToNull(v: unknown): number | null {
+  if (v === '' || v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 const STAGE_DOT: Record<DealStage, string> = {
   lead: 'bg-slate-400', qualified: 'bg-[var(--indigo)]', proposal: 'bg-amber-500', won: 'bg-emerald-500', lost: 'bg-rose-500',
 };
@@ -155,6 +166,12 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
     // Empty means "use the stage default", which is what almost every deal
     // should be. Stored as a string so the field can be cleared back to that.
     probability: deal?.probability == null ? '' : String(deal.probability),
+    /* The commercial shape. All strings so every field can be cleared back
+       to "not stated", which is a different claim from zero. */
+    recurring_amount: deal?.recurring_amount == null ? '' : String(deal.recurring_amount),
+    recurring_period: deal?.recurring_period || 'month',
+    one_off_amount: deal?.one_off_amount == null ? '' : String(deal.one_off_amount),
+    term_months: deal?.term_months == null ? '' : String(deal.term_months),
   } as any);
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
@@ -170,6 +187,12 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
         // '' is a cleared field and means "no opinion, use the stage". 0 is a
         // real answer that means the deal is dead, so the two must not collapse.
         probability: (form as any).probability === '' ? null : Number((form as any).probability),
+        // Same rule throughout: '' means nobody has said, and must not
+        // collapse to 0, which for a fee or a term is a real answer.
+        recurring_amount: blankToNull((form as any).recurring_amount),
+        recurring_period: (form as any).recurring_period || 'month',
+        one_off_amount: blankToNull((form as any).one_off_amount),
+        term_months: blankToNull((form as any).term_months),
       };
       return editing ? crmApi.updateDeal(deal!.id!, payload) : crmApi.createDeal(payload);
     },
@@ -181,6 +204,18 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm'] }); toast.success('Deal deleted'); onClose(); },
     onError: () => toast.error('Failed to delete'),
   });
+
+  /* The shape as the shared arithmetic wants it, so the figure shown while
+     typing is the same one the server will compute and store. */
+  const shape = {
+    recurring_amount: blankToNull((form as any).recurring_amount),
+    recurring_period: (form as any).recurring_period,
+    one_off_amount: blankToNull((form as any).one_off_amount),
+    term_months: blankToNull((form as any).term_months),
+  };
+  const shaped = hasEconomics(shape);
+  const split = revenueSplit(shape);
+  const effectiveValue = shaped ? totalContractValue(shape) : Number(form.value) || 0;
 
   const linkContact = (c: ContactWithTags) => {
     const full = [c.first_name, c.last_name].filter(Boolean).join(' ');
@@ -207,11 +242,97 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
           onUnlink={() => setForm(f => ({ ...f, contact_id: null, contact_email: null, contact_name: '' }))}
         />
         <Input label="Company" value={form.company || ''} onChange={e => set('company', e.target.value)} placeholder="Northbeam" />
-        <div className="grid grid-cols-3 gap-4">
-          <Input label="Value (USD)" type="number" min="0" value={String(form.value ?? 0)} onChange={e => set('value', e.target.value)} />
+        <div className="grid grid-cols-2 gap-4">
           <Select label="Stage" options={DEAL_STAGES.map(s => ({ value: s.id, label: s.label }))} value={form.stage} onChange={e => set('stage', e.target.value)} />
           <Input label="Close date" type="date" value={form.expected_close_date || ''} onChange={e => set('expected_close_date', e.target.value)} />
         </div>
+
+        {/* The commercial shape.
+
+            A single "value" cannot tell a three-year retainer apart from a
+            one-off project of the same headline size, and in B2B those are
+            not remotely the same deal. Describe the parts and the total
+            follows; leave them all blank and the plain figure below is
+            used exactly as it always was. */}
+        <div className="rounded-xl border border-[var(--border-subtle)] p-3">
+          <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Commercial shape
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            <Input
+              label="Recurring"
+              type="number"
+              min="0"
+              placeholder="0"
+              value={(form as any).recurring_amount}
+              onChange={e => set('recurring_amount', e.target.value)}
+            />
+            <Select
+              label="Per"
+              options={[
+                { value: 'month', label: 'Month' },
+                { value: 'quarter', label: 'Quarter' },
+                { value: 'year', label: 'Year' },
+              ]}
+              value={(form as any).recurring_period}
+              onChange={e => set('recurring_period', e.target.value)}
+            />
+            <Input
+              label="Term (months)"
+              type="number"
+              min="1"
+              step="1"
+              placeholder={String(DEFAULT_TERM_MONTHS)}
+              value={(form as any).term_months}
+              onChange={e => set('term_months', e.target.value)}
+            />
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-3">
+            <Input
+              label="One-off fee"
+              type="number"
+              min="0"
+              placeholder="0"
+              value={(form as any).one_off_amount}
+              onChange={e => set('one_off_amount', e.target.value)}
+            />
+            <div className="col-span-2 flex items-end pb-1">
+              {shaped ? (
+                <p className="text-[12px] leading-relaxed text-[var(--text-secondary)]">
+                  Worth{' '}
+                  <span className="font-semibold tabular-nums text-[var(--text-primary)]">
+                    {fmtMoney(totalContractValue(shape))}
+                  </span>{' '}
+                  over {split.months} months
+                  {split.termAssumed && <span className="text-[var(--text-muted)]"> (assumed)</span>}
+                  {split.arr > 0 && (
+                    <>
+                      {' · '}
+                      <span className="font-semibold tabular-nums text-[var(--indigo)]">
+                        {fmtMoney(split.arr)}
+                      </span>{' '}
+                      new ARR
+                    </>
+                  )}
+                </p>
+              ) : (
+                <p className="text-[12px] text-[var(--text-tertiary)]">
+                  Leave blank for a deal that is just one number.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {!shaped && (
+          <Input
+            label="Deal value (USD)"
+            type="number"
+            min="0"
+            value={String(form.value ?? 0)}
+            onChange={e => set('value', e.target.value)}
+          />
+        )}
         <div className="grid grid-cols-3 gap-4">
           <div>
             <Input
@@ -232,7 +353,7 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
               Weighted at{' '}
               <span className="font-semibold tabular-nums text-[var(--text-primary)]">
                 {fmtMoney(
-                  ((Number(form.value) || 0) *
+                  (effectiveValue *
                     ((form as any).probability === '' || (form as any).probability == null
                       ? STAGE_PROBABILITY[form.stage]
                       : Number((form as any).probability) || 0)) / 100,
@@ -678,6 +799,11 @@ export function DealsPage() {
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
           <SearchInput value={query} onChange={setQuery} placeholder="Search deals, companies, leads…" className="hidden w-56 sm:block" />
+          {deals.length > 0 && (
+            <Button variant="secondary" onClick={() => navigate('/deals/insights')} title="Where deals die, why, and which sources are worth working">
+              <BarChart3 className="h-4 w-4" /> Win / loss
+            </Button>
+          )}
           {deals.length > 0 && (
             <Button variant="secondary" onClick={() => exportDealsCsv(visibleDeals)} title="Export the deals shown below as a CSV file">
               <Download className="h-4 w-4" /> Export CSV

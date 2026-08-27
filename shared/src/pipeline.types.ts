@@ -463,3 +463,331 @@ export function nextStep(
     overdue: !ahead,
   };
 }
+
+/* ─── What a B2B deal is worth ────────────────────────────────────────── */
+
+/**
+ * The commercial shape of a deal.
+ *
+ * A single "value" is close to meaningless in B2B. 60k of retainer on a
+ * three year term and 60k of one-off project work are not the same deal:
+ * one is 20k a year of revenue you can plan on, the other is a number that
+ * happens once and then is gone. Adding them together in a forecast, as a
+ * single value field forces you to, is how a pipeline ends up describing a
+ * business nobody recognises.
+ *
+ * So the parts are recorded and the totals are derived. Nobody has to agree
+ * on what "value" meant when they typed it.
+ */
+export type RecurringPeriod = 'month' | 'quarter' | 'year';
+
+export interface DealEconomics {
+  recurring_amount?: number | null;
+  recurring_period?: RecurringPeriod | string | null;
+  one_off_amount?: number | null;
+  term_months?: number | null;
+}
+
+/** How many months one billing period covers. */
+const PERIOD_MONTHS: Record<RecurringPeriod, number> = {
+  month: 1,
+  quarter: 3,
+  year: 12,
+};
+
+/** A number if it really is one, otherwise null. Empty strings are not zero. */
+function num(v: unknown): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * The default term when nobody has said.
+ *
+ * Twelve months, because an annual commitment is the ordinary shape of a
+ * B2B agreement and because the alternative — treating an unstated term as
+ * infinite, or as one month — produces a total contract value that is
+ * either absurd or an obvious undercount. Stated separately from the deal
+ * so the UI can say "assuming 12 months" rather than pretending to know.
+ */
+export const DEFAULT_TERM_MONTHS = 12;
+
+/** True once anybody has described the shape of this deal at all. */
+export function hasEconomics(deal: DealEconomics): boolean {
+  return num(deal.recurring_amount) !== null
+    || num(deal.one_off_amount) !== null
+    || num(deal.term_months) !== null;
+}
+
+/**
+ * The recurring part, normalised to a month.
+ *
+ * People quote what they quote — monthly retainers, quarterly licences,
+ * annual contracts — and every one of those has to become the same unit
+ * before two deals can be compared or added.
+ */
+export function monthlyRecurring(deal: DealEconomics): number {
+  const amount = num(deal.recurring_amount);
+  if (amount === null || amount <= 0) return 0;
+  const period = (deal.recurring_period || 'month') as RecurringPeriod;
+  const months = PERIOD_MONTHS[period] ?? 1;
+  return amount / months;
+}
+
+/** Annual recurring revenue: the number a B2B business is actually run on. */
+export function annualRecurring(deal: DealEconomics): number {
+  return monthlyRecurring(deal) * 12;
+}
+
+/** The term actually agreed, or the stated assumption when there isn't one. */
+export function termMonths(deal: DealEconomics): number {
+  const t = num(deal.term_months);
+  return t !== null && t > 0 ? t : DEFAULT_TERM_MONTHS;
+}
+
+/**
+ * Everything this deal is worth across its whole term.
+ *
+ * Recurring over the term, plus whatever one-off sits on top. This is the
+ * figure that belongs in a pipeline total, because it is the only one that
+ * puts a retainer and a project side by side without flattering either.
+ */
+export function totalContractValue(deal: DealEconomics): number {
+  const oneOff = num(deal.one_off_amount) ?? 0;
+  return monthlyRecurring(deal) * termMonths(deal) + Math.max(0, oneOff);
+}
+
+/**
+ * The number every existing total should use.
+ *
+ * Deals described the new way get their computed total; deals that only
+ * ever had a single figure keep it. Without this the board, the forecast
+ * and every column sum would disagree with the deal page.
+ */
+export function dealValue(deal: DealEconomics & { value?: number | null }): number {
+  if (hasEconomics(deal)) return totalContractValue(deal);
+  return num(deal.value) ?? 0;
+}
+
+export interface RevenueSplit {
+  /** Recurring revenue across the term. */
+  recurring: number;
+  /** One-off fees. */
+  oneOff: number;
+  /** Annualised recurring — new ARR, if this deal closes. */
+  arr: number;
+  mrr: number;
+  months: number;
+  /** True when the term is an assumption rather than something agreed. */
+  termAssumed: boolean;
+}
+
+/** The whole shape of one deal, for a page that wants to show its parts. */
+export function revenueSplit(deal: DealEconomics): RevenueSplit {
+  const mrr = monthlyRecurring(deal);
+  const months = termMonths(deal);
+  return {
+    recurring: mrr * months,
+    oneOff: Math.max(0, num(deal.one_off_amount) ?? 0),
+    arr: mrr * 12,
+    mrr,
+    months,
+    termAssumed: num(deal.term_months) === null,
+  };
+}
+
+/**
+ * New ARR sitting in the open pipeline, raw and weighted.
+ *
+ * Deliberately separate from the pipeline total. Total contract value tells
+ * you the size of what you are working on; new ARR tells you what the
+ * business looks like afterwards, and a quarter can be strong on one and
+ * weak on the other. Deals with no recurring part contribute nothing here,
+ * which is correct and is the point.
+ */
+export function pipelineArr(deals: (Deal & DealEconomics)[]): { open: number; weighted: number } {
+  let open = 0;
+  let weighted = 0;
+  for (const deal of deals) {
+    if (!isOpen(deal.stage)) continue;
+    const arr = annualRecurring(deal);
+    if (arr <= 0) continue;
+    open += arr;
+    weighted += (arr * probabilityOf(deal)) / 100;
+  }
+  return { open, weighted };
+}
+
+/* ─── Why deals end the way they do ───────────────────────────────────── */
+
+/**
+ * Where deals die.
+ *
+ * The stage a deal was in when it was marked lost is the single most
+ * actionable fact a pipeline holds, and until the history table existed it
+ * was unrecoverable: once the deal moved to lost, whatever it had been
+ * doing before was overwritten. "We lose sixty percent of everything that
+ * reaches proposal" is a problem you can go and fix. "We lost a lot of
+ * deals" is not.
+ */
+export interface StageOutcome {
+  stage: DealStage;
+  won: number;
+  lost: number;
+  /** Won over won-plus-lost, as a percentage. Null when nothing has closed here. */
+  winRate: number | null;
+  /** Value lost from this stage, at the value the deal carried. */
+  lostValue: number;
+  wonValue: number;
+}
+
+/** The stage a deal was in immediately before it closed, if it is closed. */
+export function stageBeforeClose(
+  events: { from_stage: string | null; to_stage: string; changed_at: string }[],
+): DealStage | null {
+  const closing = [...events]
+    .filter((e) => (e.to_stage === 'won' || e.to_stage === 'lost') && !!e.changed_at)
+    .sort((a, b) => a.changed_at.localeCompare(b.changed_at))
+    .pop();
+  if (!closing) return null;
+  // A deal created directly as won or lost has no prior stage. Attributing
+  // it to "lead" would invent a journey it never took.
+  return (closing.from_stage as DealStage) || null;
+}
+
+/**
+ * Win and loss counts per stage, for deals whose history says where they
+ * were when they closed.
+ *
+ * Deals with no recorded prior stage are skipped rather than bucketed
+ * somewhere convenient — a backfilled deal that closed before this was
+ * recorded genuinely does not have an answer, and a made-up one would
+ * quietly move the percentages that the whole exercise is about.
+ */
+export function outcomesByStage(
+  deals: (Pick<Deal, 'id' | 'stage' | 'value'> & DealEconomics)[],
+  historyByDeal: Record<string, { from_stage: string | null; to_stage: string; changed_at: string }[]>,
+): StageOutcome[] {
+  const rows: Record<string, StageOutcome> = {};
+  for (const stage of OPEN_STAGES) {
+    rows[stage] = { stage, won: 0, lost: 0, winRate: null, lostValue: 0, wonValue: 0 };
+  }
+
+  for (const deal of deals) {
+    if (deal.stage !== 'won' && deal.stage !== 'lost') continue;
+    const from = stageBeforeClose(historyByDeal[deal.id] || []);
+    if (!from || !rows[from]) continue;
+    const value = dealValue(deal);
+    if (deal.stage === 'won') { rows[from].won += 1; rows[from].wonValue += value; }
+    else { rows[from].lost += 1; rows[from].lostValue += value; }
+  }
+
+  for (const row of Object.values(rows)) {
+    const closed = row.won + row.lost;
+    row.winRate = closed > 0 ? Math.round((row.won / closed) * 100) : null;
+  }
+  return OPEN_STAGES.map((s) => rows[s]);
+}
+
+export interface ReasonCount {
+  reason: string;
+  count: number;
+  value: number;
+}
+
+/** Outcome reasons, most common first. Unexplained closes are excluded. */
+export function reasonBreakdown(
+  deals: (Pick<Deal, 'stage' | 'value' | 'outcome_reason'> & DealEconomics)[],
+  outcome: 'won' | 'lost',
+): ReasonCount[] {
+  const counts: Record<string, ReasonCount> = {};
+  for (const deal of deals) {
+    if (deal.stage !== outcome) continue;
+    const reason = deal.outcome_reason?.trim();
+    if (!reason) continue;
+    if (!counts[reason]) counts[reason] = { reason, count: 0, value: 0 };
+    counts[reason].count += 1;
+    counts[reason].value += dealValue(deal);
+  }
+  return Object.values(counts).sort((a, b) => b.count - a.count || b.value - a.value);
+}
+
+export interface SourcePerformance {
+  source: string;
+  won: number;
+  lost: number;
+  open: number;
+  winRate: number | null;
+  wonValue: number;
+  /** New ARR won from this source. */
+  wonArr: number;
+}
+
+/**
+ * How each source actually performs once deals close.
+ *
+ * Volume by source is easy and misleading: the channel that produces the
+ * most deals is regularly the one that produces the least revenue. This
+ * pairs the count with what came of it.
+ */
+export function performanceBySource(
+  deals: (Pick<Deal, 'stage' | 'value' | 'source'> & DealEconomics)[],
+): SourcePerformance[] {
+  const rows: Record<string, SourcePerformance> = {};
+  for (const deal of deals) {
+    const source = deal.source?.trim() || 'Unattributed';
+    if (!rows[source]) {
+      rows[source] = { source, won: 0, lost: 0, open: 0, winRate: null, wonValue: 0, wonArr: 0 };
+    }
+    const row = rows[source];
+    if (deal.stage === 'won') {
+      row.won += 1;
+      row.wonValue += dealValue(deal);
+      row.wonArr += annualRecurring(deal);
+    } else if (deal.stage === 'lost') {
+      row.lost += 1;
+    } else {
+      row.open += 1;
+    }
+  }
+  for (const row of Object.values(rows)) {
+    const closed = row.won + row.lost;
+    row.winRate = closed > 0 ? Math.round((row.won / closed) * 100) : null;
+  }
+  return Object.values(rows).sort((a, b) => b.wonValue - a.wonValue || b.won - a.won);
+}
+
+/**
+ * Median days spent in each stage, across deals that have left it.
+ *
+ * Median rather than mean on purpose. One deal that sat in qualification
+ * for two years drags a mean far enough to make the number useless for
+ * planning, and that deal is always in the data.
+ */
+export function medianDaysPerStage(
+  historyByDeal: Record<string, { from_stage: string | null; to_stage: string; reason: string | null; changed_at: string }[]>,
+  now = Date.now(),
+): Partial<Record<DealStage, number>> {
+  const samples: Partial<Record<DealStage, number[]>> = {};
+  for (const events of Object.values(historyByDeal)) {
+    for (const leg of stageTimeline(events, now)) {
+      // Only completed legs: a deal still sitting in proposal has not yet
+      // told you how long proposal takes, and counting it as though it had
+      // biases every figure downwards.
+      if (leg.current) continue;
+      (samples[leg.stage] ||= []).push(leg.days);
+    }
+  }
+
+  const out: Partial<Record<DealStage, number>> = {};
+  for (const [stage, days] of Object.entries(samples) as [DealStage, number[]][]) {
+    if (!days.length) continue;
+    const sorted = [...days].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    out[stage] = sorted.length % 2 === 0
+      ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
+      : sorted[mid];
+  }
+  return out;
+}

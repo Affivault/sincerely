@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { funnel, summarisePipeline, DEAL_STAGES } from '@lemlist/shared';
+import { funnel, pipelineArr, summarisePipeline, DEAL_STAGES } from '@lemlist/shared';
 import type { Deal, DealStage } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import {
@@ -152,6 +152,11 @@ export function PipelineHeader({
 }) {
   const s = summarisePipeline(deals);
   const rows = funnel(deals);
+  /* New ARR is a different question from pipeline size, and a quarter can
+     be strong on one and weak on the other. Shown only once some deal
+     actually has a recurring part, so a purely project-based business is
+     not given a column of zeroes to ignore. */
+  const arr = pipelineArr(deals);
   const stageLabel = (id: DealStage) => DEAL_STAGES.find((x) => x.id === id)?.label || id;
 
   /*
@@ -187,6 +192,7 @@ export function PipelineHeader({
         <Chip label="Open" value={money(s.open, currency)} />
         <Chip label="Weighted" value={money(s.weighted, currency)} accent />
         <Chip label="Commit" value={money(s.commit, currency)} />
+        {arr.open > 0 && <Chip label="New ARR" value={money(arr.open, currency)} />}
         <Chip label="Won 30d" value={money(s.wonRecent, currency)} />
         {s.rottingCount > 0 && (
           <button
@@ -214,7 +220,7 @@ export function PipelineHeader({
 
   return (
     <div className="mb-5 space-y-3">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className={cn('grid grid-cols-2 gap-3', arr.open > 0 ? 'lg:grid-cols-5' : 'lg:grid-cols-4')}>
         <Figure
           label="Open pipeline"
           value={money(s.open, currency)}
@@ -237,6 +243,15 @@ export function PipelineHeader({
           sub={`${s.commitCount} proposal${s.commitCount === 1 ? '' : 's'} out`}
           icon={Trophy}
         />
+        {arr.open > 0 ? (
+          <Figure
+            label="New ARR · open"
+            value={money(arr.open, currency)}
+            title={`${full(arr.open, currency)} of annual recurring revenue in open deals — ${full(arr.weighted, currency)} weighted`}
+            sub={`${money(arr.weighted, currency)} weighted`}
+            icon={TrendingUp}
+          />
+        ) : null}
         <Figure
           label="Won · 30 days"
           value={money(s.wonRecent, currency)}

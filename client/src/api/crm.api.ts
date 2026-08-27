@@ -1,6 +1,6 @@
 import { apiClient } from './client';
 import type {
-  Deal, CreateDealInput, UpdateDealInput, DealStageEvent, DealDetail, DealParticipant,
+  Deal, CreateDealInput, UpdateDealInput, DealStageEvent, DealDetail, DealParticipant, CrmInsights,
   CrmTask, CreateTaskInput, UpdateTaskInput,
   CrmEvent, CreateEventInput, UpdateEventInput,
   CrmNote, CreateNoteInput, UpdateNoteInput,
@@ -17,6 +17,10 @@ export const crmApi = {
   /** Every stage this deal has passed through, oldest first. */
   dealHistory: async (id: string) =>
     (await apiClient.get<DealStageEvent[]>(`/crm/deals/${id}/history`)).data,
+
+  /** Deals plus their full stage history, for the won/loss analysis. */
+  insights: async (days?: number) =>
+    (await apiClient.get<CrmInsights>('/crm/insights', { params: days ? { days } : undefined })).data,
 
   /** Everything the deal page renders, in one request. */
   dealDetail: async (id: string) =>

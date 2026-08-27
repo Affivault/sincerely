@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { resumeAfterTask } from './sequence.service.js';
+import { hasEconomics, totalContractValue } from '@lemlist/shared';
 
 const DEAL_STAGES = ['lead', 'qualified', 'proposal', 'won', 'lost'];
 const TASK_PRIORITIES = ['low', 'normal', 'high'];
@@ -16,7 +17,8 @@ function pick(body: any, keys: readonly string[]): Record<string, any> {
   return out;
 }
 
-const DEAL_KEYS = ['title', 'company', 'company_id', 'contact_name', 'contact_email', 'contact_id', 'value', 'currency', 'stage', 'expected_close_date', 'notes', 'position', 'probability', 'outcome_reason', 'label', 'source'] as const;
+const DEAL_KEYS = ['title', 'company', 'company_id', 'contact_name', 'contact_email', 'contact_id', 'value', 'currency', 'stage', 'expected_close_date', 'notes', 'position', 'probability', 'outcome_reason', 'label', 'source',
+  'recurring_amount', 'recurring_period', 'one_off_amount', 'term_months'] as const;
 
 const DEAL_LABELS = ['hot', 'warm', 'cold'];
 
@@ -85,6 +87,69 @@ function sanitizeDealInput(input: Record<string, any>) {
   if (typeof input.source === 'string') {
     input.source = input.source.trim().slice(0, 80) || null;
   }
+
+  sanitizeEconomics(input);
+}
+
+const RECURRING_PERIODS = ['month', 'quarter', 'year'];
+const ECONOMICS_KEYS = ['recurring_amount', 'recurring_period', 'one_off_amount', 'term_months'] as const;
+
+/**
+ * Coerce and validate the commercial shape of a B2B deal.
+ *
+ * Rejected here rather than at the database, so a bad payload comes back as
+ * a sentence somebody can act on instead of a constraint name. An empty
+ * string is a cleared field and means "no answer" — not zero, which for a
+ * term or a fee is a real and different claim.
+ */
+function sanitizeEconomics(input: Record<string, any>) {
+  const money = (key: string) => {
+    const raw = input[key];
+    if (raw === '' || raw === null) { input[key] = null; return; }
+    if (raw === undefined) return;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) throw new AppError(`${key.replace(/_/g, ' ')} must be a non-negative number`, 400);
+    input[key] = n;
+  };
+  money('recurring_amount');
+  money('one_off_amount');
+
+  if (input.term_months === '' || input.term_months === null) {
+    input.term_months = null;
+  } else if (input.term_months !== undefined) {
+    const t = Number(input.term_months);
+    if (!Number.isInteger(t) || t <= 0) throw new AppError('Term must be a whole number of months', 400);
+    input.term_months = t;
+  }
+
+  if (input.recurring_period === '' || input.recurring_period === null) {
+    input.recurring_period = null;
+  } else if (input.recurring_period !== undefined && !RECURRING_PERIODS.includes(input.recurring_period)) {
+    throw new AppError(`Billing period must be one of ${RECURRING_PERIODS.join(', ')}`, 400);
+  }
+}
+
+/**
+ * Recompute `value` from the shape, when there is one.
+ *
+ * The arithmetic is imported rather than repeated. Two copies of a money
+ * calculation is two copies that will one day disagree, and the failure
+ * would be silent: the deal page would say a three-year retainer is worth
+ * 180k while the board column above it said 60k, with both reading the
+ * database correctly. The client shows this figure live as somebody types,
+ * so it has to be the same function on both sides.
+ *
+ * Runs against the row as it will be after the write, not just the fields
+ * in this request: a patch that only clears the term still changes the
+ * total, and would otherwise leave `value` describing a term that is gone.
+ */
+function applyDerivedValue(merged: Record<string, any>, input: Record<string, any>) {
+  const touched = ECONOMICS_KEYS.some((k) => k in input);
+  if (!touched) return;
+  // Clearing the shape entirely hands `value` back to whoever is editing
+  // it, rather than freezing the last computed total in place forever.
+  if (!hasEconomics(merged)) return;
+  input.value = totalContractValue(merged);
 }
 
 /**
@@ -176,6 +241,8 @@ export const crmService = {
     // be reported as stalled.
     input.stage = input.stage || 'lead';
     trackStageChange(input, null);
+    // Nothing exists yet, so the row-as-it-will-be is just the input.
+    applyDerivedValue(input, input);
     if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
     if (input.company_id) await assertOwned(userId, 'companies', input.company_id, 'Company');
     await autoLinkContact(userId, input);
@@ -198,14 +265,20 @@ export const crmService = {
      * re-saving a form without touching the stage, would otherwise reset the
      * clock and make a stalled deal look freshly worked.
      */
-    if (input.stage !== undefined) {
+    const economicsTouched = ECONOMICS_KEYS.some((k) => k in input);
+
+    if (input.stage !== undefined || economicsTouched) {
       const { data: before } = await supabaseAdmin
         .from('deals')
-        .select('stage')
+        .select('stage, recurring_amount, recurring_period, one_off_amount, term_months')
         .eq('id', id)
         .eq('user_id', userId)
         .maybeSingle();
-      trackStageChange(input, before?.stage ?? undefined);
+      if (input.stage !== undefined) trackStageChange(input, before?.stage ?? undefined);
+      // Merge over what is already stored: a patch that only clears the term
+      // still changes the total, and would otherwise leave `value` describing
+      // a term that no longer exists.
+      if (economicsTouched) applyDerivedValue({ ...(before || {}), ...input }, input);
     }
 
     if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
@@ -602,6 +675,58 @@ export const crmService = {
       .limit(limit);
     if (error) throw new AppError(error.message, 500);
     return data || [];
+  },
+
+  /**
+   * Everything the won/loss analysis reads, in one request.
+   *
+   * The stage history is the expensive half and the reason this exists as
+   * its own endpoint: answering "where do deals die" needs every closing
+   * transition for every closed deal, which is not something the board
+   * should be paying for on each load.
+   *
+   * `days` bounds the window by when deals closed. Open deals are always
+   * included regardless, because "what is still live" has no closed date to
+   * filter on and is half of every ratio on the page.
+   */
+  async insights(userId: string, days = 180) {
+    const window = Number.isFinite(days) && days > 0 ? Math.min(Math.round(days), 3650) : 180;
+    const since = new Date(Date.now() - window * 86_400_000).toISOString();
+
+    const { data: deals, error } = await supabaseAdmin
+      .from('deals')
+      .select('id, title, stage, value, currency, probability, source, label, outcome_reason, closed_at, created_at, stage_changed_at, recurring_amount, recurring_period, one_off_amount, term_months')
+      .eq('user_id', userId)
+      .or(`closed_at.is.null,closed_at.gte.${since}`);
+    if (error) throw new AppError(error.message, 500);
+
+    const rows = deals || [];
+    if (rows.length === 0) return { deals: [], history: {}, windowDays: window };
+
+    /*
+     * Fetched by deal id rather than by user and date, because a deal that
+     * closed inside the window may have started well outside it, and its
+     * early transitions are exactly what the stage-duration figures need.
+     */
+    const ids = rows.map((d: any) => d.id);
+    const history: Record<string, any[]> = {};
+    // Chunked: a few thousand uuids in one `in` list makes a URL long enough
+    // to be refused before it reaches the database.
+    const CHUNK = 200;
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const { data: events, error: histError } = await supabaseAdmin
+        .from('deal_stage_events')
+        .select('deal_id, from_stage, to_stage, reason, changed_at')
+        .eq('user_id', userId)
+        .in('deal_id', ids.slice(i, i + CHUNK))
+        .order('changed_at', { ascending: true });
+      if (histError) throw new AppError(histError.message, 500);
+      for (const event of events || []) {
+        (history[event.deal_id] ||= []).push(event);
+      }
+    }
+
+    return { deals: rows, history, windowDays: window };
   },
 
   async contactSummary(userId: string, contactId: string) {

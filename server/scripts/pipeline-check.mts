@@ -26,8 +26,20 @@ import {
   isOpen,
   probabilityOf,
   rotOf,
+  annualRecurring,
+  dealValue,
   daysByStage,
+  hasEconomics,
+  medianDaysPerStage,
+  monthlyRecurring,
   nextStep,
+  outcomesByStage,
+  performanceBySource,
+  pipelineArr,
+  reasonBreakdown,
+  revenueSplit,
+  totalContractValue,
+  stageBeforeClose,
   stageTimeline,
   summarisePipeline,
   weightedValue,
@@ -345,6 +357,180 @@ console.log('\nevery live deal should have a next step, and this says when it do
 
   is('an unparseable date cannot become the next step',
      nextStep(open, [{ title: 'Broken', due_date: 'not a date', is_done: false }], [], NOW).missing);
+}
+
+
+/* ─── What a B2B deal is worth ────────────────────────────────────────── */
+
+console.log('\nquoted periods all become the same unit before anything is added up');
+{
+  is('a monthly retainer is its own monthly figure',
+     monthlyRecurring({ recurring_amount: 4000, recurring_period: 'month' }) === 4000);
+  is('a quarterly licence divides by three',
+     monthlyRecurring({ recurring_amount: 12000, recurring_period: 'quarter' }) === 4000);
+  is('an annual contract divides by twelve',
+     monthlyRecurring({ recurring_amount: 48000, recurring_period: 'year' }) === 4000);
+  is('all three are therefore the same ARR',
+     annualRecurring({ recurring_amount: 4000, recurring_period: 'month' }) === 48000
+       && annualRecurring({ recurring_amount: 12000, recurring_period: 'quarter' }) === 48000
+       && annualRecurring({ recurring_amount: 48000, recurring_period: 'year' }) === 48000);
+  is('a missing period is read as monthly rather than dropped',
+     monthlyRecurring({ recurring_amount: 4000 }) === 4000);
+  is('an unknown period falls back to monthly instead of producing NaN',
+     monthlyRecurring({ recurring_amount: 4000, recurring_period: 'fortnight' }) === 4000);
+  is('no recurring part is zero, not NaN',
+     monthlyRecurring({}) === 0 && Number.isFinite(monthlyRecurring({})));
+}
+
+console.log('\ntotal contract value puts a retainer and a project side by side');
+{
+  const retainer = { recurring_amount: 4000, recurring_period: 'month' as const, term_months: 36, one_off_amount: 12000 };
+  is('recurring over the term, plus the one-off',
+     totalContractValue(retainer) === 4000 * 36 + 12000, String(totalContractValue(retainer)));
+
+  const project = { one_off_amount: 60000 };
+  is('a pure project is just its fee',
+     totalContractValue(project) === 60000, String(totalContractValue(project)));
+
+  /*
+   * The two deals people wrongly treat as equal. Same headline 60k, and
+   * the retainer is worth more than twice as much over its term — which is
+   * the entire reason for recording the shape rather than the total.
+   */
+  const sameHeadline = { recurring_amount: 5000, recurring_period: 'month' as const, term_months: 36 };
+  is('60k of retainer on three years beats 60k of one-off work',
+     totalContractValue(sameHeadline) === 180000 && totalContractValue({ one_off_amount: 60000 }) === 60000);
+
+  is('an unstated term is assumed to be twelve months, not infinity or one',
+     totalContractValue({ recurring_amount: 1000, recurring_period: 'month' }) === 12000);
+  is('and the assumption is flagged so the UI need not pretend it knows',
+     revenueSplit({ recurring_amount: 1000 }).termAssumed
+       && !revenueSplit({ recurring_amount: 1000, term_months: 24 }).termAssumed);
+}
+
+console.log('\nevery existing total keeps working through one value function');
+{
+  is('a deal with no shape keeps the single number it always had',
+     dealValue({ value: 25000 }) === 25000);
+  is('a deal with a shape reports its computed total instead',
+     dealValue({ value: 1, recurring_amount: 2000, recurring_period: 'month', term_months: 12 }) === 24000);
+  is('an empty string is not a shape, and is not zero either',
+     !hasEconomics({ recurring_amount: '' as any }) && dealValue({ value: 900, recurring_amount: '' as any }) === 900);
+  is('a term on its own counts as a shape',
+     hasEconomics({ term_months: 24 }));
+  is('an unparseable value is zero rather than NaN',
+     dealValue({ value: 'abc' as any }) === 0);
+
+  /*
+   * New ARR is a different question from pipeline size, and a quarter can
+   * be strong on one and weak on the other. A pure project deal must
+   * contribute nothing here.
+   */
+  const arr = pipelineArr([
+    deal({ stage: 'qualified', recurring_amount: 1000, recurring_period: 'month' } as any),
+    deal({ stage: 'proposal', one_off_amount: 500000 } as any),
+    deal({ stage: 'won', recurring_amount: 9000, recurring_period: 'month' } as any),
+  ] as any);
+  is('open ARR counts only the recurring part of open deals',
+     arr.open === 12000, String(arr.open));
+  is('and weights it by the same odds the forecast uses',
+     arr.weighted === 12000 * 0.3, String(arr.weighted));
+}
+
+/* ─── Why deals end the way they do ───────────────────────────────────── */
+
+console.log('\nthe stage a deal died in is recoverable, and is the point of the history');
+{
+  const ev = (from: string | null, to: string, n: number) =>
+    ({ from_stage: from, to_stage: to, reason: null, changed_at: daysAgo(n) });
+
+  const history = {
+    a: [ev(null, 'lead', 60), ev('lead', 'qualified', 40), ev('qualified', 'proposal', 20), ev('proposal', 'lost', 5)],
+    b: [ev(null, 'lead', 50), ev('lead', 'qualified', 30), ev('qualified', 'proposal', 15), ev('proposal', 'won', 3)],
+    c: [ev(null, 'lead', 40), ev('lead', 'qualified', 25), ev('qualified', 'lost', 10)],
+    d: [ev(null, 'lead', 30), ev('lead', 'lost', 12)],
+    // Closed before any of this was recorded: no prior stage to attribute to.
+    e: [ev(null, 'won', 8)],
+  };
+  const deals = [
+    { id: 'a', stage: 'lost' as const, value: 50000 },
+    { id: 'b', stage: 'won' as const, value: 90000 },
+    { id: 'c', stage: 'lost' as const, value: 20000 },
+    { id: 'd', stage: 'lost' as const, value: 10000 },
+    { id: 'e', stage: 'won' as const, value: 1000 },
+  ];
+
+  is('the closing move names the stage the deal came from',
+     stageBeforeClose(history.a) === 'proposal' && stageBeforeClose(history.c) === 'qualified');
+  is('a deal born closed has no prior stage rather than a guessed one',
+     stageBeforeClose(history.e) === null);
+
+  const rows = outcomesByStage(deals, history);
+  const at = (s: string) => rows.find((r) => r.stage === s)!;
+  is('proposal shows one won and one lost',
+     at('proposal').won === 1 && at('proposal').lost === 1, JSON.stringify(at('proposal')));
+  is('so its win rate is 50%', at('proposal').winRate === 50);
+  is('qualified lost one and won none', at('qualified').lost === 1 && at('qualified').winRate === 0);
+  is('value lost is attributed to the stage it was lost from',
+     at('proposal').lostValue === 50000 && at('qualified').lostValue === 20000);
+  is('a stage nothing has closed from reports no win rate rather than 0%',
+     outcomesByStage([], {}).every((r) => r.winRate === null));
+  is('the deal with no recorded prior stage is skipped, not bucketed',
+     rows.reduce((n, r) => n + r.won + r.lost, 0) === 4);
+}
+
+console.log('\nreasons and sources are ranked by what they actually cost');
+{
+  const closed = [
+    { stage: 'lost' as const, value: 50000, outcome_reason: 'Price', source: 'Cold email' },
+    { stage: 'lost' as const, value: 20000, outcome_reason: 'Price', source: 'Cold email' },
+    { stage: 'lost' as const, value: 90000, outcome_reason: 'No budget', source: 'LinkedIn' },
+    { stage: 'lost' as const, value: 5000, outcome_reason: null, source: 'LinkedIn' },
+    { stage: 'won' as const, value: 40000, outcome_reason: 'Product fit', source: 'LinkedIn' },
+    { stage: 'qualified' as const, value: 10000, outcome_reason: null, source: 'Cold email' },
+  ];
+
+  const lost = reasonBreakdown(closed, 'lost');
+  is('the commonest reason leads', lost[0].reason === 'Price' && lost[0].count === 2);
+  is('and carries the value that went with it', lost[0].value === 70000, String(lost[0].value));
+  is('closes with no reason given are left out rather than counted as blank',
+     lost.reduce((n, r) => n + r.count, 0) === 3, JSON.stringify(lost));
+  is('won reasons are a separate question', reasonBreakdown(closed, 'won')[0].reason === 'Product fit');
+
+  const sources = performanceBySource(closed);
+  const li = sources.find((s) => s.source === 'LinkedIn')!;
+  const ce = sources.find((s) => s.source === 'Cold email')!;
+  is('a source is judged on what closed, not how much it produced',
+     li.won === 1 && li.lost === 2 && li.winRate === 33, JSON.stringify(li));
+  is('cold email produced more deals and won none of them',
+     ce.won === 0 && ce.lost === 2 && ce.open === 1 && ce.winRate === 0, JSON.stringify(ce));
+  is('deals with no source are gathered rather than dropped',
+     performanceBySource([{ stage: 'won', value: 10, outcome_reason: null, source: null } as any])[0].source === 'Unattributed');
+}
+
+console.log('\nstage duration uses the median, because one stuck deal ruins a mean');
+{
+  const ev = (from: string | null, to: string, n: number) =>
+    ({ from_stage: from, to_stage: to, reason: null, changed_at: daysAgo(n) });
+
+  /*
+   * Four deals through qualified: 10, 12, 14 days, and one that sat there
+   * for two years. The mean is about 190 days and describes nothing; the
+   * median is 13 and is something you can plan against.
+   */
+  const history = {
+    a: [ev(null, 'qualified', 70), ev('qualified', 'proposal', 60)],
+    b: [ev(null, 'qualified', 50), ev('qualified', 'proposal', 38)],
+    c: [ev(null, 'qualified', 30), ev('qualified', 'proposal', 16)],
+    d: [ev(null, 'qualified', 760), ev('qualified', 'proposal', 30)],
+  };
+  const med = medianDaysPerStage(history, NOW);
+  is('the outlier does not move the median', med.qualified === 13, String(med.qualified));
+
+  is('a stage a deal is still sitting in is not counted as finished',
+     medianDaysPerStage({ a: [ev(null, 'proposal', 40)] }, NOW).proposal === undefined);
+  is('no history at all is an empty answer, not a crash',
+     Object.keys(medianDaysPerStage({}, NOW)).length === 0);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

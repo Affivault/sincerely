@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  DEAL_LABELS, DEAL_STAGES, daysInStage, isOpen, nextStep, probabilityOf, rotOf, weightedValue,
+  DEAL_LABELS, DEAL_STAGES, daysInStage, hasEconomics, isOpen, nextStep,
+  probabilityOf, revenueSplit, rotOf, weightedValue,
 } from '@lemlist/shared';
 import type {
   CrmEvent, CrmTask, Deal, DealLabel, DealStage,
@@ -166,6 +167,8 @@ export function DealDetailPage() {
   const rot = rotOf(deal);
   const step = nextStep(deal, tasks, events);
   const close = whenLabel(deal.expected_close_date);
+  const shaped = hasEconomics(deal);
+  const split = revenueSplit(deal);
   const companyId = deal.company_id || deal.contact?.company_id || null;
   const primaryName = deal.contact
     ? [deal.contact.first_name, deal.contact.last_name].filter(Boolean).join(' ') || deal.contact.email
@@ -377,6 +380,29 @@ export function DealDetailPage() {
             <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Summary</p>
             <div className="divide-y divide-[var(--border-subtle)]">
               <Field label="Value" value={money(deal.value, deal.currency)} />
+              {/* The parts, when somebody has described them. A total on its
+                  own cannot tell a three-year retainer apart from a one-off
+                  project of the same size, and those are different deals. */}
+              {shaped && (
+                <>
+                  {split.mrr > 0 && (
+                    <Field
+                      label="Recurring"
+                      value={`${money(split.mrr, deal.currency)}/mo`}
+                      title={`${money(split.recurring, deal.currency)} across the ${split.months}-month term`}
+                    />
+                  )}
+                  {split.arr > 0 && (
+                    <Field label="New ARR" value={money(split.arr, deal.currency)} tone="text-[var(--indigo)]" />
+                  )}
+                  {split.oneOff > 0 && <Field label="One-off" value={money(split.oneOff, deal.currency)} />}
+                  <Field
+                    label="Term"
+                    value={`${split.months} months${split.termAssumed ? ' (assumed)' : ''}`}
+                    tone={split.termAssumed ? 'text-[var(--text-tertiary)]' : undefined}
+                  />
+                </>
+              )}
               <Field
                 label="Weighted"
                 value={money(weightedValue(deal), deal.currency)}
