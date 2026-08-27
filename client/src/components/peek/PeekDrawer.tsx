@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -14,9 +14,10 @@ import { COMPANY_SIZE_OPTIONS } from '../../lib/constants';
 import { ContactHistory } from '../crm/ContactHistory';
 import { cn } from '../../lib/utils';
 import { usePeek } from './usePeek';
+import { openModals } from '../ui/Modal';
 import {
   X, ExternalLink, Mail, Building2, Briefcase, Phone, Linkedin, Globe,
-  Handshake, ArrowRight, Users, MapPin, Factory,
+  Handshake, ArrowRight, Users, MapPin, Factory, Copy, Check,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { DEAL_STAGES, type DealStage } from '@lemlist/shared';
@@ -30,7 +31,40 @@ import { DEAL_STAGES, type DealStage } from '@lemlist/shared';
    Mounted once at the app shell so every page gets it for free.
    ═══════════════════════════════════════════════════════════════════════ */
 
-function Row({ icon: Icon, value, href }: { icon: typeof Mail; value?: string | null; href?: string }) {
+/**
+ * A quick-copy button that reports its own success — no toast needed for
+ * something this low-stakes, and it doesn't yank focus out of the drawer.
+ */
+function CopyRowButton({ value, label }: { value: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  return (
+    <button
+      type="button"
+      onClick={async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+          await navigator.clipboard.writeText(value);
+          setCopied(true);
+          clearTimeout(timer.current);
+          timer.current = setTimeout(() => setCopied(false), 1500);
+        } catch {
+          // Clipboard access can be denied by the browser; nothing useful to
+          // recover to, so just leave the icon showing "not copied".
+        }
+      }}
+      title={`Copy ${label}`}
+      className="flex-shrink-0 p-1 rounded text-[var(--text-muted)] opacity-0 group-hover/row:opacity-100 hover:text-[var(--indigo)] transition-opacity"
+    >
+      {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+    </button>
+  );
+}
+
+function Row({ icon: Icon, value, href, copyLabel }: { icon: typeof Mail; value?: string | null; href?: string; copyLabel?: string }) {
   if (!value) return null;
   const body = (
     <span className="flex items-center gap-2 min-w-0">
@@ -38,9 +72,16 @@ function Row({ icon: Icon, value, href }: { icon: typeof Mail; value?: string | 
       <span className="text-[12.5px] text-[var(--text-secondary)] truncate">{value}</span>
     </span>
   );
-  return href
-    ? <a href={href} target="_blank" rel="noreferrer" className="block hover:text-[var(--indigo)]">{body}</a>
-    : <div>{body}</div>;
+  return (
+    <div className="flex items-center gap-2 min-w-0 group/row">
+      <span className="flex-1 min-w-0">
+        {href
+          ? <a href={href} target="_blank" rel="noreferrer" className="block hover:text-[var(--indigo)]">{body}</a>
+          : body}
+      </span>
+      {copyLabel ? <CopyRowButton value={value} label={copyLabel} /> : null}
+    </div>
+  );
 }
 
 /**
@@ -48,7 +89,7 @@ function Row({ icon: Icon, value, href }: { icon: typeof Mail; value?: string | 
  * can't fill in a phone number that the UI hides because it's blank.
  */
 function EditRow({
-  icon: Icon, label, value, onSave, type = 'text', href,
+  icon: Icon, label, value, onSave, type = 'text', href, copyable,
 }: {
   icon: typeof Mail;
   label: string;
@@ -56,6 +97,7 @@ function EditRow({
   onSave: (next: string) => Promise<unknown>;
   type?: 'text' | 'email' | 'url' | 'tel';
   href?: string;
+  copyable?: boolean;
 }) {
   return (
     <div className="flex items-center gap-2 min-w-0 group/row">
@@ -63,6 +105,7 @@ function EditRow({
       <span className="flex-1 min-w-0">
         <InlineEdit value={value} onSave={onSave} placeholder={label} type={type} ariaLabel={label} />
       </span>
+      {copyable && value ? <CopyRowButton value={value} label={label} /> : null}
       {href && value ? (
         <a
           href={href}
@@ -159,7 +202,7 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
 
       {/* Details */}
       <div className="px-4 py-3 space-y-1.5 border-b border-[var(--border-subtle)]">
-        <Row icon={Mail} value={contact.email} href={`mailto:${contact.email}`} />
+        <Row icon={Mail} value={contact.email} href={`mailto:${contact.email}`} copyLabel="email" />
         {contact.company_id ? (
           <button
             onClick={() => openPeek('company', contact.company_id!)}
@@ -173,7 +216,7 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
           <EditRow icon={Building2} label="Company" value={contact.company} onSave={field('company')} />
         )}
         <EditRow icon={Briefcase} label="Job title" value={contact.job_title} onSave={field('job_title')} />
-        <EditRow icon={Phone} label="Phone" value={contact.phone} onSave={field('phone')} type="tel" />
+        <EditRow icon={Phone} label="Phone" value={contact.phone} onSave={field('phone')} type="tel" copyable />
         <EditRow
           icon={Linkedin}
           label="LinkedIn"
@@ -526,16 +569,29 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
 
 export function PeekDrawer() {
   const { target, closePeek } = usePeek();
+  const identity = useRef({});
 
   useEffect(() => {
     if (!target) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closePeek(); };
+    // Join the same overlay stack Modal uses, so Escape closes only the
+    // topmost layer: a Modal or confirm dialog opened from inside this
+    // drawer (e.g. ContactHistory's activity/meeting/delete dialogs) takes
+    // the keypress first, instead of the drawer discarding unsaved work.
+    const self = identity.current;
+    openModals.push(self);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (openModals[openModals.length - 1] !== self) return;
+      closePeek();
+    };
     document.addEventListener('keydown', onKey);
     const original = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = original;
+      const at = openModals.lastIndexOf(self);
+      if (at !== -1) openModals.splice(at, 1);
+      if (openModals.length === 0) document.body.style.overflow = original;
     };
   }, [target, closePeek]);
 

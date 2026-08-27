@@ -1,11 +1,11 @@
-import { useState, useMemo, useEffect, type ReactNode } from 'react';
+import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { crmApi } from '../../api/crm.api';
 import { ActivityModal, MeetingModal, ContactPicker, toDateInput } from '../../components/crm/CrmPrimitives';
 import { contactsApi } from '../../api/contacts.api';
 import { inboxApi } from '../../api/inbox.api';
-import { Modal } from '../../components/ui/Modal';
+import { Modal, openModals } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -315,15 +315,31 @@ export function DealDrawer({
   const navigate = useNavigate();
   const { openPeek } = usePeek();
   const [show, setShow] = useState(false);
+  const identity = useRef({});
 
   const contactId = leadId(deal);
   const companyId = dealCompanyId(deal);
 
   useEffect(() => {
     setShow(true);
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    // Join the shared modal stack so Escape only closes this drawer when it's
+    // topmost — otherwise dismissing a Modal opened on top of it (Edit deal,
+    // Add task, Book, the delete confirm, ActivityModal/MeetingModal) also
+    // closed the drawer itself underneath it, dropping the user out of the
+    // deal entirely.
+    const self = identity.current;
+    openModals.push(self);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (openModals[openModals.length - 1] !== self) return;
+      close();
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      const at = openModals.lastIndexOf(self);
+      if (at !== -1) openModals.splice(at, 1);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -656,9 +672,18 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, dragDisabl
       const others = (old || []).filter(d => d.stage !== stage && d.id !== id);
       return [...others, ...rebuilt];
     });
-    Promise.all(changed.map(d => crmApi.updateDeal(d.id, { stage, position: d.position })))
-      .then(() => qc.invalidateQueries({ queryKey: ['crm'] }))
-      .catch(() => { toast.error('Failed to reorder'); qc.invalidateQueries({ queryKey: ['crm'] }); });
+    // allSettled, not all: one failing update shouldn't make every other card
+    // in the batch report a generic failure when it actually saved fine.
+    Promise.allSettled(changed.map(d => crmApi.updateDeal(d.id, { stage, position: d.position })))
+      .then((results) => {
+        const failedCount = results.filter(r => r.status === 'rejected').length;
+        if (failedCount > 0) {
+          toast.error(failedCount === changed.length
+            ? 'Failed to reorder'
+            : `${failedCount} of ${changed.length} card${changed.length === 1 ? '' : 's'} failed to save`);
+        }
+        qc.invalidateQueries({ queryKey: ['crm'] });
+      });
   };
 
   const linkCounts = (dealId: string) => ({

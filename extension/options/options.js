@@ -133,6 +133,20 @@ async function save() {
     const apiBaseUrl = normaliseBaseUrl(el.apiUrl.value);
     el.apiUrl.value = apiBaseUrl;
 
+    // Requested first, before any other await — chrome.permissions.request()
+    // must run while the click's user-gesture is still active (see
+    // ensureHostPermission's own comment); an awaited getSettings() call
+    // ahead of it can spend the gesture and make Chrome silently deny the
+    // prompt instead of showing it.
+    const granted = await ensureHostPermission(apiBaseUrl);
+    if (!granted) {
+      showResult(
+        `Chrome needs permission to talk to ${new URL(apiBaseUrl).origin}. Save again and accept the prompt.`,
+        'error'
+      );
+      return;
+    }
+
     const typedKey = el.apiKey.value.trim();
     const existing = await getSettings();
     const apiKey = typedKey || existing.apiKey;
@@ -151,15 +165,6 @@ async function save() {
         showResult(problem, 'error');
         return;
       }
-    }
-
-    const granted = await ensureHostPermission(apiBaseUrl);
-    if (!granted) {
-      showResult(
-        `Chrome needs permission to talk to ${new URL(apiBaseUrl).origin}. Save again and accept the prompt.`,
-        'error'
-      );
-      return;
     }
 
     // Trailing slashes would double up in every deep link.

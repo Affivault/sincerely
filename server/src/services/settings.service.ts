@@ -249,6 +249,14 @@ export const settingsService = {
       'crm_events',
       'prospect_credit_ledger',
       'prospect_reveals',
+      // Neither has a foreign key to auth.users (added after this delete list
+      // was last updated), so without an explicit delete here they survive
+      // account deletion indefinitely, orphaned against a user_id that no
+      // longer exists — user_integrations' config holds live third-party
+      // secrets (webhook URLs, API tokens, OAuth tokens), and its deletion
+      // cascades integration_activity via FK.
+      'companies',
+      'user_integrations',
     ];
 
     const failedTables: string[] = [];

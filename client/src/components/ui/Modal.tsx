@@ -3,11 +3,13 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
-/* Every open modal in mount order; the last one is the one on screen on top.
-   Escape is a document-level listener, so without this every open modal hears
-   the same keypress — confirming a delete from inside an editor would close
-   the confirmation *and* the editor behind it, discarding unsaved edits. */
-const openModals: object[] = [];
+/* Every open modal/overlay in mount order; the last one is the one on screen
+   on top. Escape is a document-level listener, so without this every open
+   overlay hears the same keypress — confirming a delete from inside an editor
+   would close the confirmation *and* the editor behind it, discarding
+   unsaved edits. PeekDrawer pushes onto this same stack so a Modal opened
+   from within a Peek — and not the Peek itself — is what Escape closes. */
+export const openModals: object[] = [];
 
 interface ModalProps {
   isOpen: boolean;
@@ -59,7 +61,7 @@ export function Modal({ isOpen, onClose, title, description, children, size = 'm
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[58] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/40 backdrop-blur-[3px] animate-fade-in"

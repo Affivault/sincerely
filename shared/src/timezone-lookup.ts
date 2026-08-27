@@ -19,6 +19,12 @@
      · Countries spanning several zones (US, Canada, Australia, Russia,
        Brazil) are not mapped at country level at all; they resolve only
        through a city or region that pins the zone down.
+     · "Manchester", "Birmingham", "Cambridge", "Bristol" and "Portland"
+       each name a UK/Los-Angeles-area city *and* a distinct, common
+       US city elsewhere (Manchester NH, Birmingham AL, Cambridge MA,
+       Bristol CT/TN, Portland ME) — omitted from CITY_ZONES so a
+       segment like "MA" or "OR" that follows gets the chance to settle
+       it instead of the city name jumping to the wrong zone first.
    ═══════════════════════════════════════════════════════════════════════ */
 
 /** Cities distinctive enough that the name alone settles the zone. */
@@ -26,7 +32,7 @@ const CITY_ZONES: Record<string, string> = {
   // North America
   'new york': 'America/New_York', 'brooklyn': 'America/New_York', 'manhattan': 'America/New_York',
   'boston': 'America/New_York', 'philadelphia': 'America/New_York', 'atlanta': 'America/New_York',
-  'miami': 'America/New_York', 'washington dc': 'America/New_York', 'washington d.c.': 'America/New_York',
+  'miami': 'America/New_York', 'washington dc': 'America/New_York',
   'toronto': 'America/Toronto', 'ottawa': 'America/Toronto', 'montreal': 'America/Toronto',
   'chicago': 'America/Chicago', 'dallas': 'America/Chicago', 'houston': 'America/Chicago',
   'austin': 'America/Chicago', 'minneapolis': 'America/Chicago', 'winnipeg': 'America/Winnipeg',
@@ -34,7 +40,7 @@ const CITY_ZONES: Record<string, string> = {
   'edmonton': 'America/Edmonton', 'phoenix': 'America/Phoenix',
   'san francisco': 'America/Los_Angeles', 'los angeles': 'America/Los_Angeles',
   'san diego': 'America/Los_Angeles', 'seattle': 'America/Los_Angeles',
-  'portland': 'America/Los_Angeles', 'san jose': 'America/Los_Angeles',
+  'san jose': 'America/Los_Angeles',
   'palo alto': 'America/Los_Angeles', 'oakland': 'America/Los_Angeles',
   'vancouver': 'America/Vancouver',
   'mexico city': 'America/Mexico_City',
@@ -46,9 +52,9 @@ const CITY_ZONES: Record<string, string> = {
   'lima': 'America/Lima',
 
   // Europe
-  'london': 'Europe/London', 'manchester': 'Europe/London', 'birmingham': 'Europe/London',
-  'edinburgh': 'Europe/London', 'glasgow': 'Europe/London', 'bristol': 'Europe/London',
-  'leeds': 'Europe/London', 'cambridge': 'Europe/London', 'oxford': 'Europe/London',
+  'london': 'Europe/London',
+  'edinburgh': 'Europe/London', 'glasgow': 'Europe/London',
+  'leeds': 'Europe/London', 'oxford': 'Europe/London',
   'dublin': 'Europe/Dublin', 'lisbon': 'Europe/Lisbon', 'porto': 'Europe/Lisbon',
   'paris': 'Europe/Paris', 'lyon': 'Europe/Paris', 'marseille': 'Europe/Paris',
   'madrid': 'Europe/Madrid', 'barcelona': 'Europe/Madrid', 'valencia': 'Europe/Madrid',
@@ -96,13 +102,13 @@ const REGION_ZONES: Record<string, string> = {
   'maine': 'America/New_York', 'me': 'America/New_York',
   'new hampshire': 'America/New_York', 'nh': 'America/New_York',
   'vermont': 'America/New_York', 'vt': 'America/New_York',
-  'massachusetts': 'America/New_York', 'ma': 'America/New_York',
+  'massachusetts': 'America/New_York',
   'rhode island': 'America/New_York', 'ri': 'America/New_York',
   'connecticut': 'America/New_York', 'ct': 'America/New_York',
   'new york': 'America/New_York', 'ny': 'America/New_York',
   'new jersey': 'America/New_York', 'nj': 'America/New_York',
   'pennsylvania': 'America/New_York', 'pa': 'America/New_York',
-  'delaware': 'America/New_York', 'de': 'America/New_York',
+  'delaware': 'America/New_York',
   'maryland': 'America/New_York', 'md': 'America/New_York',
   'virginia': 'America/New_York', 'va': 'America/New_York',
   'west virginia': 'America/New_York', 'wv': 'America/New_York',
@@ -110,11 +116,11 @@ const REGION_ZONES: Record<string, string> = {
   'south carolina': 'America/New_York', 'sc': 'America/New_York',
   'ohio': 'America/New_York', 'oh': 'America/New_York',
   'michigan': 'America/New_York', 'mi': 'America/New_York',
-  'indiana': 'America/New_York', 'in': 'America/New_York',
+  'indiana': 'America/New_York',
   'kentucky': 'America/New_York', 'ky': 'America/New_York',
   'alabama': 'America/Chicago', 'al': 'America/Chicago',
   'arkansas': 'America/Chicago', 'ar': 'America/Chicago',
-  'illinois': 'America/Chicago', 'il': 'America/Chicago',
+  'illinois': 'America/Chicago',
   'iowa': 'America/Chicago', 'ia': 'America/Chicago',
   'louisiana': 'America/Chicago', 'la': 'America/Chicago',
   'minnesota': 'America/Chicago', 'mn': 'America/Chicago',
@@ -124,13 +130,13 @@ const REGION_ZONES: Record<string, string> = {
   'wisconsin': 'America/Chicago', 'wi': 'America/Chicago',
   'texas': 'America/Chicago', 'tx': 'America/Chicago',
   'tennessee': 'America/Chicago', 'tn': 'America/Chicago',
-  'colorado': 'America/Denver', 'co': 'America/Denver',
+  'colorado': 'America/Denver',
   'montana': 'America/Denver', 'mt': 'America/Denver',
   'new mexico': 'America/Denver', 'nm': 'America/Denver',
   'utah': 'America/Denver', 'ut': 'America/Denver',
   'wyoming': 'America/Denver', 'wy': 'America/Denver',
   'arizona': 'America/Phoenix', 'az': 'America/Phoenix',
-  'california': 'America/Los_Angeles', 'ca': 'America/Los_Angeles',
+  'california': 'America/Los_Angeles',
   'nevada': 'America/Los_Angeles', 'nv': 'America/Los_Angeles',
   'oregon': 'America/Los_Angeles', 'or': 'America/Los_Angeles',
   'washington state': 'America/Los_Angeles', 'wa': 'America/Los_Angeles',
@@ -138,6 +144,12 @@ const REGION_ZONES: Record<string, string> = {
   'hawaii': 'Pacific/Honolulu', 'hi': 'Pacific/Honolulu',
   // Idaho, Kansas, Nebraska, North/South Dakota, Florida and Georgia all
   // straddle a zone boundary or collide with another name — left out.
+  // California, Delaware, Indiana, Illinois, Colorado and Massachusetts also
+  // had their 2-letter postal codes (CA, DE, IN, IL, CO, MA) dropped here —
+  // each collides with a real ISO country code for a country already listed
+  // in COUNTRY_ZONES below (Canada, Germany, India, Israel, Colombia,
+  // Morocco), so keeping the alias would confidently resolve a segment like
+  // "DE" for a German contact to Delaware instead — full state names only.
 
   // ─── Canada ───
   'ontario': 'America/Toronto', 'quebec': 'America/Toronto', 'québec': 'America/Toronto',
@@ -231,6 +243,10 @@ export function inferTimezone(location?: string | null): string | null {
   for (const [name, zone] of Object.entries(CITY_ZONES)) {
     // Word-bounded so "orlando" can't match on "orl" and "india" can't match
     // inside "indiana".
+    if (new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(whole)) return zone;
+  }
+  for (const [name, zone] of Object.entries(REGION_ZONES)) {
+    if (name.length < 4) continue; // skip 2-letter abbreviations — too easy to hit by accident
     if (new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(whole)) return zone;
   }
   for (const [name, zone] of Object.entries(COUNTRY_ZONES)) {

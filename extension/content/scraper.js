@@ -946,6 +946,9 @@
     netEmails = [];
   }
 
+  /** Which profile netEmails belongs to, so a navigation can be detected. */
+  let netEmailsProfile = null;
+
   /**
    * Route 0: LinkedIn's own embedded API payloads.
    *
@@ -1321,6 +1324,16 @@
     const publicId = linkedInPublicId();
     if (!publicId) return null;
 
+    // netEmails is a flat, unkeyed list — an address net-tap captured for the
+    // last profile must not be offered as this one's the moment the SPA
+    // navigates to a new person. Only clear on an actual profile change, not
+    // on the first scrape ever (net-tap may have already captured this
+    // profile's address before scrapeLinkedIn() first runs).
+    if (netEmailsProfile !== null && netEmailsProfile !== publicId) {
+      forgetNetEmails();
+    }
+    netEmailsProfile = publicId;
+
     const rawName = firstText([
       'main h1',
       '.pv-text-details__left-panel h1',
@@ -1608,10 +1621,14 @@
    */
   function scrapeGmail() {
     // Prefer the sender inside an expanded message over anything in the list view.
+    // The last fallback stays scoped to `.gs` (the sender header block) too —
+    // an unscoped `span[email]` also matches To/CC/BCC recipient chips in an
+    // open reply/forward compose box, which would attribute a recipient's
+    // address to "the sender" whenever those chips render before the header.
     const senderNode =
       document.querySelector('.gs .gD[email]') ||
       document.querySelector('h3.iw span[email]') ||
-      document.querySelector('span[email]:not([email=""])');
+      document.querySelector('.gs span[email]:not([email=""])');
 
     if (!senderNode) return null;
 

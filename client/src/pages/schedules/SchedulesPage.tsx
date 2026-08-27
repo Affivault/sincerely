@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { CalendarClock, Plus, Star, Trash2, Pencil, X, Check } from 'lucide-react';
+import { CalendarClock, Moon, Plus, Star, Trash2, Pencil, X, Check } from 'lucide-react';
 import { sendingSchedulesApi, type SendingSchedule, type SendingScheduleInput } from '../../api/sending-schedules.api';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { Card } from '../../components/shared/Card';
@@ -146,7 +146,14 @@ function ScheduleCard({ schedule, onEdit, onDelete, onMakeDefault }: {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <div className="text-[10.5px] text-[var(--text-tertiary)] font-semibold mb-1">Time window</div>
-              <div className="text-[13px] font-semibold text-[var(--text-primary)] tabular">{schedule.send_window_start} – {schedule.send_window_end}</div>
+              <div className="text-[13px] font-semibold text-[var(--text-primary)] tabular flex items-center gap-1.5">
+                {schedule.send_window_start} – {schedule.send_window_end}
+                {schedule.send_window_end < schedule.send_window_start && (
+                  <span title="Overnight — wraps past midnight">
+                    <Moon className="h-3 w-3 text-[var(--indigo)]" />
+                  </span>
+                )}
+              </div>
             </div>
             <div>
               <div className="text-[10.5px] text-[var(--text-tertiary)] font-semibold mb-1">Timezone</div>
@@ -203,6 +210,7 @@ function ScheduleEditor({ initial, onCancel, onSave, loading }: {
   const handleSave = () => {
     if (!name.trim()) { toast.error('Name is required'); return; }
     if (days.length === 0) { toast.error('Pick at least one day'); return; }
+    if (end === start) { toast.error('End time must be different from start time'); return; }
     onSave({
       name: name.trim(),
       timezone,
@@ -253,6 +261,13 @@ function ScheduleEditor({ initial, onCancel, onSave, loading }: {
             <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className="input-field" />
           </div>
         </div>
+
+        {end !== '' && start !== '' && end < start && (
+          <div className="flex items-center gap-1.5 text-[12px] text-[var(--indigo)] bg-[var(--indigo-subtle)] rounded-lg px-2.5 py-1.5">
+            <Moon className="h-3 w-3 flex-shrink-0" />
+            Overnight window — wraps past midnight into the next day
+          </div>
+        )}
 
         <div>
           <label className="block text-xs font-medium text-[var(--text-secondary)] mb-2">Days of week</label>
