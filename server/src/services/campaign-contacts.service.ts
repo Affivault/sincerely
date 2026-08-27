@@ -3,6 +3,7 @@ import { AppError } from '../middleware/error.middleware.js';
 import { inferTimezone, emptyEnrolResult, ENROL_SKIP_SAMPLE } from '@lemlist/shared';
 import type { EnrolResult, EnrolSkip, EnrolSkipReason } from '@lemlist/shared';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
+import { leadsService } from './leads.service.js';
 
 export const campaignContactsService = {
   async list(campaignId: string, params: { page?: number; limit?: number }) {
@@ -98,6 +99,26 @@ export const campaignContactsService = {
       if (c.is_bounced) { drop(id, 'bounced'); return false; }
       return true;
     });
+
+    /*
+     * 3b. And nobody you are currently negotiating with.
+     *
+     * Sending a cold pitch to somebody whose colleague is reading your
+     * contract is the single most embarrassing thing this app could do, and
+     * it is invisible to any CRM that does not also own the sending. This
+     * one owns both. Skipped rather than blocked outright, and reported by
+     * name in the result, so a deliberate cross-sell is still possible from
+     * a list — it just cannot happen by accident.
+     */
+    if (allowedContactIds.length > 0) {
+      const onDeals = await leadsService.contactsOnOpenDeals(campaign.user_id, allowedContactIds);
+      if (onDeals.size > 0) {
+        allowedContactIds = allowedContactIds.filter((id) => {
+          if (onDeals.has(id)) { drop(id, 'on_open_deal'); return false; }
+          return true;
+        });
+      }
+    }
 
     // 4. And nobody on the suppression list, which is the same promise made
     //    once and kept everywhere.

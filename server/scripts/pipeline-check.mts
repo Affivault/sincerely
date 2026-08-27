@@ -39,8 +39,10 @@ import {
   reasonBreakdown,
   revenueSplit,
   totalContractValue,
+  leadIsStale,
   stageBeforeClose,
   stageTimeline,
+  summariseLeads,
   summarisePipeline,
   weightedValue,
 } from '@lemlist/shared';
@@ -531,6 +533,63 @@ console.log('\nstage duration uses the median, because one stuck deal ruins a me
      medianDaysPerStage({ a: [ev(null, 'proposal', 40)] }, NOW).proposal === undefined);
   is('no history at all is an empty answer, not a crash',
      Object.keys(medianDaysPerStage({}, NOW)).length === 0);
+}
+
+
+/* ─── Leads: the holding area before the pipeline ─────────────────────── */
+
+console.log('\nthe lead funnel is measured over decisions, not over arrivals');
+{
+  const lead = (status: 'open' | 'converted' | 'archived', value: number | null = null) =>
+    ({ status, value });
+
+  const f = summariseLeads([
+    lead('open', 5000), lead('open', 12000), lead('open', null),
+    lead('converted'), lead('converted'), lead('converted'),
+    lead('archived'),
+  ]);
+  is('open, converted and archived are counted separately',
+     f.open === 3 && f.converted === 3 && f.archived === 1, JSON.stringify(f));
+
+  /*
+   * Three converted out of four decided is 75%. Counting the three open
+   * ones in the denominator would give 43% — and would mean the rate fell
+   * every time somebody added a lead and rose every time they archived a
+   * batch, which is precisely backwards.
+   */
+  is('the rate is converted over decided, so adding a lead cannot lower it',
+     f.conversionRate === 75, String(f.conversionRate));
+  is('estimated value counts open leads only',
+     f.openValue === 17000, String(f.openValue));
+  is('a lead with no estimate contributes nothing rather than NaN',
+     Number.isFinite(f.openValue));
+
+  is('nothing decided yet means no rate at all, not 0%',
+     summariseLeads([lead('open'), lead('open')]).conversionRate === null);
+  is('an empty inbox does not divide by zero',
+     summariseLeads([]).conversionRate === null && summariseLeads([]).open === 0);
+}
+
+console.log('\na lead nobody has answered is the point of the inbox');
+{
+  const at = (n: number) => ({ status: 'open' as const, created_at: daysAgo(n) });
+  is('an untouched lead older than the threshold is stale',
+     leadIsStale(at(9), NOW));
+  is('a fresh one is not', !leadIsStale(at(2), NOW));
+  is('exactly on the threshold is not yet stale',
+     !leadIsStale(at(7), NOW));
+
+  /*
+   * Only open leads can go stale. A converted lead has been dealt with and
+   * a dropped one has been decided against; nagging about either would
+   * teach people to ignore the flag that matters.
+   */
+  is('a converted lead is never stale, however old',
+     !leadIsStale({ status: 'converted', created_at: daysAgo(400) }, NOW));
+  is('nor is a dropped one',
+     !leadIsStale({ status: 'archived', created_at: daysAgo(400) }, NOW));
+  is('an unparseable date is not treated as infinitely old',
+     !leadIsStale({ status: 'open', created_at: 'not a date' }, NOW));
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

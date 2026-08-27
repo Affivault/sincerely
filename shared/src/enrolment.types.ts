@@ -30,7 +30,15 @@ export type EnrolSkipReason =
   /** No email address to send to. */
   | 'no_email'
   /** Not this account's contact. */
-  | 'not_yours';
+  | 'not_yours'
+  /**
+   * Mid-negotiation on a live deal.
+   *
+   * Cold-pitching somebody whose colleague is reading your contract is the
+   * kind of mistake a CRM bolted onto an email tool cannot even see. This
+   * one owns both, so it can.
+   */
+  | 'on_open_deal';
 
 export interface EnrolSkip {
   contact_id: string;
@@ -70,6 +78,7 @@ export const ENROL_SKIP_LABEL: Record<EnrolSkipReason, string> = {
   bounced: 'previously bounced',
   no_email: 'no email address',
   not_yours: 'not in this account',
+  on_open_deal: 'already on an open deal',
 };
 
 /** Longest first, so the biggest reason leads the sentence. */

@@ -109,7 +109,7 @@ interface Case {
 }
 
 const [
-  smtp, lists, tags, template, webhook, asset, campaigns, campaignSteps, contacts, crm, companies, settings, segments, integrations,
+  smtp, lists, tags, template, webhook, asset, campaigns, campaignSteps, contacts, crm, leads, companies, settings, segments, integrations,
 ] = await Promise.all([
   import('../src/services/smtp.service.js'),
   import('../src/services/lists.service.js'),
@@ -121,6 +121,7 @@ const [
   import('../src/services/campaign-steps.service.js'),
   import('../src/services/contacts.service.js'),
   import('../src/services/crm.service.js'),
+  import('../src/services/leads.service.js'),
   import('../src/services/companies.service.js'),
   import('../src/services/settings.service.js'),
   import('../src/services/segments.service.js'),
@@ -156,6 +157,8 @@ const cases: Case[] = [
   { name: 'crm.createNote', body: { body: 'N', contact_id: ID }, run: (b) => (crm as any).crmService.createNote(USER, b) },
   { name: 'crm.addParticipant', body: { contact_id: ID, role: 'Champion' }, run: (b) => (crm as any).crmService.addParticipant(USER, ID, b) },
   { name: 'crm.updateParticipant', body: { role: 'Blocker' }, run: (b) => (crm as any).crmService.updateParticipant(USER, ID, ID, b) },
+  { name: 'leads.create', body: { contact_id: ID, title: 'L' }, run: (b) => (leads as any).leadsService.create(USER, b) },
+  { name: 'leads.update', body: { title: 'L' }, run: (b) => (leads as any).leadsService.update(USER, ID, b) },
   { name: 'companies.update', body: { name: 'Co' }, run: (b) => (companies as any).companiesService.update(USER, ID, b) },
   { name: 'settings.update', body: { first_name: 'F' }, run: (b) => (settings as any).settingsService.update(USER, b) },
   { name: 'segments.create', body: { name: 'S', filter_config: { conditions: [], logic: 'and' } }, run: (b) => (segments as any).segmentsService.create(USER, b) },
