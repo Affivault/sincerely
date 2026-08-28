@@ -238,39 +238,4 @@ export const leadsService = {
     return { lead: updated, deal };
   },
 
-  /**
-   * Contacts who are on an open deal, out of the ones asked about.
-   *
-   * Used to keep somebody you are mid-negotiation with out of a cold
-   * campaign. Covers participants as well as the primary contact, because
-   * emailing the security reviewer a cold pitch while their colleague is
-   * signing a contract is the same mistake.
-   */
-  async contactsOnOpenDeals(userId: string, contactIds: string[]): Promise<Set<string>> {
-    const on = new Set<string>();
-    if (contactIds.length === 0) return on;
-
-    const CHUNK = 200;
-    for (let i = 0; i < contactIds.length; i += CHUNK) {
-      const slice = contactIds.slice(i, i + CHUNK);
-
-      const { data: primary, error: e1 } = await supabaseAdmin
-        .from('deals').select('contact_id')
-        .eq('user_id', userId)
-        .in('contact_id', slice)
-        .in('stage', ['lead', 'qualified', 'proposal']);
-      if (e1) throw new AppError(e1.message, 500);
-      for (const row of primary || []) if (row.contact_id) on.add(row.contact_id);
-
-      const { data: joined, error: e2 } = await supabaseAdmin
-        .from('deal_participants')
-        .select('contact_id, deal:deals!inner(stage)')
-        .eq('user_id', userId)
-        .in('contact_id', slice)
-        .in('deal.stage', ['lead', 'qualified', 'proposal']);
-      if (e2) throw new AppError(e2.message, 500);
-      for (const row of joined || []) if (row.contact_id) on.add(row.contact_id);
-    }
-    return on;
-  },
 };

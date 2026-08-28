@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import { AppError } from '../middleware/error.middleware.js';
 import { shouldPromote } from '@lemlist/shared';
 import type { Lifecycle, PromotionTrigger } from '@lemlist/shared';
 
@@ -90,4 +91,49 @@ export async function contactIdsOnDeal(userId: string, dealId: string): Promise<
     console.error('[Lifecycle] could not read deal contacts:', e?.message || e);
   }
   return [...new Set(ids)];
+}
+
+/**
+ * Contacts who are on an open deal, out of the ones asked about.
+ *
+ * Unlike everything above, this one throws. The others are bookkeeping and
+ * must never fail the thing that triggered them; this is a guard, and a
+ * guard that fails quietly returns an empty set — which reads as "nobody is
+ * on a deal" and sends the cold pitch anyway. Failing the enrolment is the
+ * better outcome by a wide margin.
+ *
+ * Lives here rather than with leads so the enrolment path does not have to
+ * import the whole CRM chain to ask one question.
+ *
+ * Used to keep somebody you are mid-negotiation with out of a cold
+ * campaign. Covers participants as well as the primary contact, because
+ * emailing the security reviewer a cold pitch while their colleague is
+ * signing a contract is the same mistake.
+ */
+export async function contactsOnOpenDeals(userId: string, contactIds: string[]): Promise<Set<string>> {
+  const on = new Set<string>();
+  if (contactIds.length === 0) return on;
+
+  const CHUNK = 200;
+  for (let i = 0; i < contactIds.length; i += CHUNK) {
+    const slice = contactIds.slice(i, i + CHUNK);
+
+    const { data: primary, error: e1 } = await supabaseAdmin
+      .from('deals').select('contact_id')
+      .eq('user_id', userId)
+      .in('contact_id', slice)
+      .in('stage', ['lead', 'qualified', 'proposal']);
+    if (e1) throw new AppError(e1.message, 500);
+    for (const row of primary || []) if (row.contact_id) on.add(row.contact_id);
+
+    const { data: joined, error: e2 } = await supabaseAdmin
+      .from('deal_participants')
+      .select('contact_id, deal:deals!inner(stage)')
+      .eq('user_id', userId)
+      .in('contact_id', slice)
+      .in('deal.stage', ['lead', 'qualified', 'proposal']);
+    if (e2) throw new AppError(e2.message, 500);
+    for (const row of joined || []) if (row.contact_id) on.add(row.contact_id);
+  }
+  return on;
 }
