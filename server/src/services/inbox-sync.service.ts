@@ -229,9 +229,11 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
    * no contact at all. The lookup below already existed; its result was
    * simply thrown away unless a campaign_contacts row turned up too.
    *
-   * The consequence was quiet and wide: the email history on a contact
-   * page, the conversation on a deal page and every engagement signal all
-   * read this column.
+   * Latent rather than dramatic. An account whose contacts all arrived via
+   * campaigns never notices, because everybody who writes to you is
+   * enrolled by definition. It bites once contacts arrive any other way —
+   * added by hand, converted from a lead, pulled in by the extension —
+   * which is the direction this app is going.
    */
   let contactId: string | null = null;
   const counterparty = (outbound ? toEmail : fromEmail)?.trim().toLowerCase();
