@@ -11,6 +11,10 @@ export const contactsController = {
     } catch (err) { next(err); }
   },
 
+  async lifecycleCounts(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await contactsService.lifecycleCounts(req.userId!)); } catch (err) { next(err); }
+  },
+
   async get(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const contact = await contactsService.get(req.userId!, req.params.id);

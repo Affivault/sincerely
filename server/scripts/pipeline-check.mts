@@ -39,7 +39,10 @@ import {
   reasonBreakdown,
   revenueSplit,
   totalContractValue,
+  countLifecycles,
+  isEngaged,
   leadIsStale,
+  shouldPromote,
   stageBeforeClose,
   stageTimeline,
   summariseLeads,
@@ -590,6 +593,57 @@ console.log('\na lead nobody has answered is the point of the inbox');
      !leadIsStale({ status: 'archived', created_at: daysAgo(400) }, NOW));
   is('an unparseable date is not treated as infinitely old',
      !leadIsStale({ status: 'open', created_at: 'not a date' }, NOW));
+}
+
+
+/* ─── Prospects, contacts and customers ───────────────────────────────── */
+
+console.log('\npromotion only ever moves forward');
+{
+  is('a stranger who replies becomes a contact', shouldPromote('prospect', 'contact'));
+  is('a contact who buys becomes a customer', shouldPromote('contact', 'customer'));
+  is('a stranger who buys skips straight to customer', shouldPromote('prospect', 'customer'));
+
+  /*
+   * The case that matters. A customer replying to a nurture campaign fires
+   * the same promotion path as anybody else, and if it were allowed to
+   * apply it would quietly demote them back to a contact — which would put
+   * them back in scope for cold outreach.
+   */
+  is('a customer replying to a campaign is not demoted to a contact',
+     !shouldPromote('customer', 'contact'));
+  is('nor is a contact demoted to a prospect by any event',
+     !shouldPromote('contact', 'prospect'));
+  is('re-applying the same level is not a promotion, so nothing is rewritten',
+     !shouldPromote('contact', 'contact') && !shouldPromote('customer', 'customer'));
+  is('a missing lifecycle is treated as prospect rather than crashing',
+     shouldPromote(null, 'contact') && shouldPromote(undefined, 'contact'));
+}
+
+console.log('\nthe CRM list means contacts and customers, not strangers');
+{
+  is('a contact is engaged', isEngaged('contact'));
+  is('so is a customer', isEngaged('customer'));
+  is('a prospect is not', !isEngaged('prospect'));
+  is('and neither is a missing value', !isEngaged(null) && !isEngaged(undefined));
+}
+
+console.log('\nthe engagement rate is the top-of-funnel number that was unanswerable');
+{
+  const c = countLifecycles([
+    ...Array.from({ length: 90 }, () => ({ lifecycle: 'prospect' as const })),
+    ...Array.from({ length: 8 }, () => ({ lifecycle: 'contact' as const })),
+    { lifecycle: 'customer' as const }, { lifecycle: 'customer' as const },
+  ]);
+  is('each population is counted separately',
+     c.prospect === 90 && c.contact === 8 && c.customer === 2, JSON.stringify(c));
+  is('customers count as engaged, so the rate is 10%',
+     c.engagementRate === 10, String(c.engagementRate));
+  is('the total is everybody', c.total === 100);
+  is('a contact with no lifecycle recorded counts as a prospect',
+     countLifecycles([{}, { lifecycle: null }]).prospect === 2);
+  is('an empty book has no rate rather than a zero one',
+     countLifecycles([]).engagementRate === null);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

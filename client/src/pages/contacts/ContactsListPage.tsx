@@ -585,8 +585,30 @@ export function ContactsListPage() {
     },
   });
 
+  /*
+   * Which population is on screen.
+   *
+   * Defaults to engaged, because that is what a contact list is for. The
+   * prospects are still one click away, and still the entire audience for
+   * campaigns — they are just not what you want to look at when you are
+   * asking "who do we know at Northbeam".
+   */
+  const [lifecycle, setLifecycle] = useState<'engaged' | 'prospect' | 'all'>(() => {
+    try { return (localStorage.getItem('contacts.lifecycle') as any) || 'engaged'; } catch { return 'engaged'; }
+  });
+  const setLifecyclePersisted = (v: 'engaged' | 'prospect' | 'all') => {
+    setLifecycle(v);
+    setPage(1);
+    try { localStorage.setItem('contacts.lifecycle', v); } catch { /* private window */ }
+  };
+
+  const { data: lifecycleCounts } = useQuery({
+    queryKey: ['contacts', 'lifecycle-counts'],
+    queryFn: contactsApi.lifecycleCounts,
+  });
+
   const { data: contactsData, isLoading } = useQuery({
-    queryKey: ['contacts', page, pageSize, debouncedSearch, activeListId, sortBy, sortDir, statusFilter, companyFilter],
+    queryKey: ['contacts', page, pageSize, debouncedSearch, activeListId, sortBy, sortDir, statusFilter, companyFilter, lifecycle],
     queryFn: () => contactsApi.list({
       page,
       limit: pageSize,
@@ -596,6 +618,12 @@ export function ContactsListPage() {
       sort_by: sortBy,
       sort_order: sortDir,
       verification_status: statusFilter || undefined,
+      /*
+       * Inside a list, show everybody. A lead list exists to hold people
+       * you have not spoken to, so filtering prospects out of it would
+       * leave most lists looking empty and the filter looking broken.
+       */
+      lifecycle: activeListId ? 'all' : lifecycle,
     }),
     // While auto-verify is on and some visible contacts are still pending,
     // poll so their status flips live as the background worker processes them.
@@ -1482,6 +1510,59 @@ export function ContactsListPage() {
 
       {/* Main content */}
       <div className="flex-1 min-w-0 space-y-4">
+        {/*
+          Prospects and contacts, kept apart.
+
+          Sourcing produces thousands of people nobody has spoken to, and
+          while they shared one list with real relationships the list was
+          mostly noise: search returned junk and a contact count answered
+          nothing. Campaigns still reach everybody — that is their job —
+          but this page opens on the people you actually know.
+
+          Hidden inside a list, where "everyone in this list" is the only
+          sensible answer and a filter would make most lists look empty.
+        */}
+        {!activeListId && lifecycleCounts && lifecycleCounts.total > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-0.5">
+              {([
+                { id: 'engaged' as const, label: 'Contacts', count: lifecycleCounts.contact + lifecycleCounts.customer,
+                  hint: 'People who replied, met you, or were added deliberately' },
+                { id: 'prospect' as const, label: 'Prospects', count: lifecycleCounts.prospect,
+                  hint: 'Sourced but never engaged. These are who campaigns are for' },
+                { id: 'all' as const, label: 'Everyone', count: lifecycleCounts.total,
+                  hint: 'Both, in one list' },
+              ]).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  title={opt.hint}
+                  onClick={() => setLifecyclePersisted(opt.id)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors',
+                    lifecycle === opt.id
+                      ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
+                      : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
+                  )}
+                >
+                  {opt.label}
+                  <span className="text-[11px] tabular-nums text-[var(--text-muted)]">
+                    {opt.count.toLocaleString()}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {lifecycleCounts.customer > 0 && (
+              <span
+                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/[0.08] px-2.5 text-[11.5px] font-medium text-emerald-600 dark:text-emerald-400"
+                title="Won a deal. Kept out of cold campaigns by default."
+              >
+                {lifecycleCounts.customer.toLocaleString()} customer{lifecycleCounts.customer === 1 ? '' : 's'}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Verification summary pills — counts per deliverability state, click to filter */}
         {breakdown && (
           <div className="flex items-center gap-2 flex-wrap">

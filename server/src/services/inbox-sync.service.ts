@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import { promoteToContact } from './lifecycle.service.js';
 import { decrypt } from '../utils/encryption.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
 import { detectAutoReply } from '../utils/auto-reply.js';
@@ -218,6 +219,34 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
    */
   const autoReply = outbound ? { kind: null as string | null, reason: '' } : detectAutoReply(parsedHeaders, subject, bodyText);
 
+  /*
+   * Who this message is with, independent of any campaign.
+   *
+   * This used to be a side effect of campaign matching: contact_id was set
+   * only when the sender also had a live campaign enrolment, so an email
+   * from somebody who is unambiguously one of your contacts — but was
+   * never enrolled, or whose enrolment had been cleared — was stored with
+   * no contact at all. The lookup below already existed; its result was
+   * simply thrown away unless a campaign_contacts row turned up too.
+   *
+   * Latent rather than dramatic. An account whose contacts all arrived via
+   * campaigns never notices, because everybody who writes to you is
+   * enrolled by definition. It bites once contacts arrive any other way —
+   * added by hand, converted from a lead, pulled in by the extension —
+   * which is the direction this app is going.
+   */
+  let contactId: string | null = null;
+  const counterparty = (outbound ? toEmail : fromEmail)?.trim().toLowerCase();
+  if (counterparty) {
+    const { data: known } = await supabaseAdmin
+      .from('contacts')
+      .select('id')
+      .eq('email', counterparty)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (known) contactId = known.id;
+  }
+
   let matchedActivity: any = null;
   if (!outbound) {
     if (inReplyTo) {
@@ -230,24 +259,16 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
         .maybeSingle();
       matchedActivity = data;
     }
-    if (!matchedActivity && fromEmail) {
-      const { data: contact } = await supabaseAdmin
-        .from('contacts')
-        .select('id')
-        .eq('email', fromEmail.toLowerCase())
-        .eq('user_id', userId)
+    if (!matchedActivity && contactId) {
+      const { data: cc } = await supabaseAdmin
+        .from('campaign_contacts')
+        .select('id, campaign_id, contact_id')
+        .eq('contact_id', contactId)
+        .in('status', ['active', 'completed'])
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
-      if (contact) {
-        const { data: cc } = await supabaseAdmin
-          .from('campaign_contacts')
-          .select('id, campaign_id, contact_id')
-          .eq('contact_id', contact.id)
-          .in('status', ['active', 'completed'])
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (cc) matchedActivity = { campaign_id: cc.campaign_id, campaign_contact_id: cc.id, contact_id: cc.contact_id };
-      }
+      if (cc) matchedActivity = { campaign_id: cc.campaign_id, campaign_contact_id: cc.id, contact_id: cc.contact_id };
     }
   }
 
@@ -269,6 +290,8 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
     imap_folder: folder,
     auto_reply_kind: autoReply.kind,
   };
+  // Whoever this is with, whether or not a campaign was involved.
+  if (contactId) row.contact_id = contactId;
   if (matchedActivity) {
     row.campaign_id = matchedActivity.campaign_id;
     row.contact_id = matchedActivity.contact_id;
@@ -303,6 +326,17 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
     return false;
   }
 
+  /*
+   * Somebody wrote to you. That is engagement regardless of whether it
+   * answers a tracked campaign step, so the promotion hangs off the
+   * message rather than off the campaign match — which is what made it
+   * fire six times out of twelve hundred. Auto-replies are still excluded:
+   * an out-of-office is not a person deciding to talk to you.
+   */
+  if (!outbound && contactId && !autoReply.kind) {
+    promoteToContact(userId, [contactId], 'reply').catch(() => {});
+  }
+
   if (!outbound && matchedActivity) {
     const { error: actErr } = await supabaseAdmin.from('campaign_activities').insert({
       campaign_id: matchedActivity.campaign_id,
@@ -331,6 +365,14 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
         await markReplied(matchedActivity.campaign_contact_id);
         await stopOtherCampaignsForContact(userId, matchedActivity.contact_id, matchedActivity.campaign_contact_id);
       }
+
+      /*
+       * A real reply is the moment a scraped stranger becomes somebody you
+       * know, so the CRM should say so immediately rather than after a
+       * nightly job. Inside the `!autoReply.kind` branch on purpose: an
+       * out-of-office is not engagement, and promoting on one would fill
+       * the contact list with exactly the noise this is meant to keep out.
+       */
 
       fireEvent(userId, 'email.replied', {
         campaign_id: matchedActivity.campaign_id,

@@ -34,6 +34,14 @@ export interface BulkImportResult {
 }
 
 export const contactsApi = {
+  /** How many prospects, contacts and customers there are. */
+  lifecycleCounts: async () => {
+    const { data } = await apiClient.get<{ prospect: number; contact: number; customer: number; total: number }>(
+      '/contacts/lifecycle-counts',
+    );
+    return data;
+  },
+
   list: async (params?: ContactsListParams) => {
     const { data } = await apiClient.get<PaginatedResponse<ContactWithTags>>('/contacts', { params });
     return data;

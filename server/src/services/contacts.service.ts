@@ -43,6 +43,15 @@ interface ListParams {
   dcs_min?: number;
   dcs_max?: number;
   verification_status?: string;
+  /**
+   * Which population to show.
+   *
+   * 'engaged' is contacts plus customers — the CRM's idea of a contact
+   * list, and the default for the contacts page. 'all' includes prospects,
+   * which is what campaign audiences and lead lists operate over. A single
+   * lifecycle can also be named directly.
+   */
+  lifecycle?: string;
   sort_by?: string;
   sort_order?: string;
 }
@@ -126,6 +135,19 @@ export const contactsService = {
       if (safeSearch) {
         query = query.or(`email.ilike.%${safeSearch}%,first_name.ilike.%${safeSearch}%,last_name.ilike.%${safeSearch}%,company.ilike.%${safeSearch}%`);
       }
+    }
+
+    /*
+     * Prospects are excluded unless asked for. Sourcing produces thousands
+     * of people nobody has spoken to, and mixing them into the CRM list is
+     * what made search useless and a contact count meaningless. Campaign
+     * audiences pass no filter at all, because reaching strangers is their
+     * job — which is also why the default here is to include everybody.
+     */
+    if (params.lifecycle === 'engaged') {
+      query = query.in('lifecycle', ['contact', 'customer']);
+    } else if (params.lifecycle && params.lifecycle !== 'all') {
+      query = query.eq('lifecycle', params.lifecycle);
     }
 
     // Exact-company filter (chosen from the distinct-companies picker)
@@ -215,6 +237,29 @@ export const contactsService = {
       .map(([company, count]) => ({ company, count }))
       .sort((a, b) => b.count - a.count || a.company.localeCompare(b.company))
       .slice(0, 500);
+  },
+
+  /**
+   * How many of each population there are.
+   *
+   * Three head-only counts rather than one grouped scan: PostgREST cannot
+   * GROUP BY, and pulling every row back to count them in Node would mean
+   * transferring the whole contact table to render three numbers.
+   */
+  async lifecycleCounts(userId: string) {
+    const one = async (lifecycle: string) => {
+      const { count, error } = await supabaseAdmin
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('lifecycle', lifecycle);
+      if (error) throw new AppError(error.message, 500);
+      return count || 0;
+    };
+    const [prospect, contact, customer] = await Promise.all([
+      one('prospect'), one('contact'), one('customer'),
+    ]);
+    return { prospect, contact, customer, total: prospect + contact + customer };
   },
 
   async get(userId: string, id: string) {

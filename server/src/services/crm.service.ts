@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { resumeAfterTask } from './sequence.service.js';
 import { hasEconomics, totalContractValue } from '@lemlist/shared';
+import { contactIdsOnDeal, promoteToContact, promoteToCustomer } from './lifecycle.service.js';
 
 const DEAL_STAGES = ['lead', 'qualified', 'proposal', 'won', 'lost'];
 const TASK_PRIORITIES = ['low', 'normal', 'high'];
@@ -252,6 +253,10 @@ export const crmService = {
       .select(DEAL_SELECT)
       .single();
     if (error) throw new AppError(error.message, 500);
+    // Somebody on a deal is not a stranger, whatever the pipeline says.
+    if ((data as any)?.contact_id) {
+      promoteToContact(userId, [(data as any).contact_id], 'deal').catch(() => {});
+    }
     return data;
   },
 
@@ -295,6 +300,20 @@ export const crmService = {
       .maybeSingle();
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Deal not found', 404);
+
+    /*
+     * Winning makes customers of everybody on the deal, not just whoever
+     * was typed into the contact field — the champion, the decision maker
+     * and the person in procurement all bought it. Customers are kept out
+     * of cold outreach by default, which is the whole point of noticing.
+     */
+    if (input.stage === 'won') {
+      contactIdsOnDeal(userId, id)
+        .then((ids) => promoteToCustomer(userId, ids))
+        .catch(() => {});
+    } else if ((data as any)?.contact_id) {
+      promoteToContact(userId, [(data as any).contact_id], 'deal').catch(() => {});
+    }
     return data;
   },
 
@@ -347,6 +366,7 @@ export const crmService = {
     // duplicate click, not a failure worth a 500.
     if (error?.code === '23505') throw new AppError('That contact is already on this deal', 409);
     if (error) throw new AppError(error.message, 500);
+    promoteToContact(userId, [contactId], 'deal').catch(() => {});
     return data;
   },
 
@@ -511,6 +531,8 @@ export const crmService = {
       .select(EVENT_SELECT)
       .single();
     if (error) throw new AppError(error.message, 500);
+    // Booking time with somebody is engagement by any reasonable reading.
+    if (input.contact_id) promoteToContact(userId, [input.contact_id], 'meeting').catch(() => {});
     return data;
   },
 
