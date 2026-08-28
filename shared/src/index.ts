@@ -19,6 +19,7 @@ export * from './sequence-performance.types.js';
 export * from './billing.types.js';
 export * from './crm.types.js';
 export * from './lead.types.js';
+export * from './lifecycle.types.js';
 export * from './pipeline.types.js';
 export * from './prospecting.types.js';
 export * from './email-finder.types.js';

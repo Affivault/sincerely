@@ -9,6 +9,8 @@ const upload = multer({ dest: '/tmp/uploads/', limits: { fileSize: 10 * 1024 * 1
 export const contactRoutes = Router();
 
 contactRoutes.get('/', contactsController.list);
+/* Before any '/:id' route, or "lifecycle-counts" is read as a contact id. */
+contactRoutes.get('/lifecycle-counts', contactsController.lifecycleCounts);
 contactRoutes.get('/stats', contactsController.getStats);
 contactRoutes.get('/verification-breakdown', contactsController.verificationBreakdown);
 contactRoutes.get('/companies', contactsController.companies);

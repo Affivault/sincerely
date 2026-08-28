@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import { promoteToContact } from './lifecycle.service.js';
 import { decrypt } from '../utils/encryption.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
 import { detectAutoReply } from '../utils/auto-reply.js';
@@ -331,6 +332,15 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
         await markReplied(matchedActivity.campaign_contact_id);
         await stopOtherCampaignsForContact(userId, matchedActivity.contact_id, matchedActivity.campaign_contact_id);
       }
+
+      /*
+       * A real reply is the moment a scraped stranger becomes somebody you
+       * know, so the CRM should say so immediately rather than after a
+       * nightly job. Inside the `!autoReply.kind` branch on purpose: an
+       * out-of-office is not engagement, and promoting on one would fill
+       * the contact list with exactly the noise this is meant to keep out.
+       */
+      promoteToContact(userId, [matchedActivity.contact_id], 'reply').catch(() => {});
 
       fireEvent(userId, 'email.replied', {
         campaign_id: matchedActivity.campaign_id,

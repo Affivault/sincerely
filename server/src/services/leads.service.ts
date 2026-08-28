@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { crmService } from './crm.service.js';
+import { promoteToContact } from './lifecycle.service.js';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Leads: the holding area between a reply and a forecast.
@@ -115,6 +116,8 @@ export const leadsService = {
       );
     }
     if (error) throw new AppError(error.message, 500);
+    // Somebody you have chosen to hold as a lead is not a stranger.
+    promoteToContact(userId, [contactId], 'lead').catch(() => {});
     return data;
   },
 

@@ -1,3 +1,4 @@
+import type { Lifecycle } from './lifecycle.types.js';
 import type { CampaignStatus, ContactCampaignStatus } from './enums.js';
 
 export interface Contact {
@@ -14,6 +15,12 @@ export interface Contact {
   location: string | null;
   custom_fields: Record<string, string>;
   source: string;
+  /** Stranger, relationship, or customer. See lifecycle.types.ts. */
+  lifecycle?: Lifecycle | null;
+  /** When they stopped being a stranger. Null for prospects. */
+  engaged_at?: string | null;
+  /** What promoted them, so it is auditable rather than mysterious. */
+  promoted_by?: string | null;
   is_unsubscribed: boolean;
   is_bounced: boolean;
   dcs_score: number | null;
@@ -228,6 +235,15 @@ export interface ContactsListParams {
   dcs_min?: number;
   dcs_max?: number;
   verification_status?: 'valid' | 'risky' | 'invalid' | 'not_found' | 'unverified';
+  /**
+   * Which population to list.
+   *
+   * 'engaged' is contacts plus customers, and is what the CRM contact list
+   * means. Omit it, or pass 'all', to include prospects — which is what
+   * campaign audiences and lead lists want, since reaching strangers is
+   * the entire job.
+   */
+  lifecycle?: 'engaged' | 'all' | 'prospect' | 'contact' | 'customer';
   sort_by?: 'created_at' | 'email' | 'first_name' | 'company' | 'dcs_score';
   sort_order?: 'asc' | 'desc';
 }
