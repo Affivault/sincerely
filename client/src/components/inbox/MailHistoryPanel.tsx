@@ -3,7 +3,7 @@ import { inboxApi } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
 import { SYNC_WINDOW_MONTHS, syncWindowLabel } from '@lemlist/shared';
 import type { InboxSyncProgress, SyncWindowMonths } from '@lemlist/shared';
-import { cn } from '../../lib/utils';
+import { cn, formatRelativeTime } from '../../lib/utils';
 import { AlertTriangle, Check, History, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -70,6 +70,11 @@ function MailboxRow({
           {account.stored.toLocaleString()} message{account.stored === 1 ? '' : 's'}
         </span>
         <span>back to <span className="font-semibold text-[var(--text-secondary)]">{sinceLabel(account.oldest_synced_at)}</span></span>
+        {account.last_synced_at && !account.last_error && (
+          <span title={new Date(account.last_synced_at).toLocaleString()}>
+            synced {formatRelativeTime(account.last_synced_at)}
+          </span>
+        )}
         {account.history_complete ? (
           <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
             <Check className="h-3 w-3" strokeWidth={3} /> history loaded
@@ -99,9 +104,12 @@ export function MailHistoryPanel({ onSynced }: { onSynced?: () => void }) {
     queryFn: inboxApi.syncProgress,
     // While a backfill is running the numbers change under the user, and a
     // panel that has to be reloaded to show that is a panel nobody trusts.
+    // Once history is complete, a slower poll still keeps "synced Xm ago"
+    // honest — the background scheduler syncs every 5 minutes on its own,
+    // and a number that only updates on page reload would look stalled.
     refetchInterval: (query) => {
       const rows = query.state.data as InboxSyncProgress[] | undefined;
-      return rows?.some((a) => !a.history_complete) ? 5000 : false;
+      return rows?.some((a) => !a.history_complete) ? 5000 : 60000;
     },
     meta: { silentError: true },
   });

@@ -129,17 +129,25 @@ export default async function handler(req: VercelReq, res: VercelRes) {
     // own function timeout.
     let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
     try {
+      const sendPromise = transporter.sendMail({
+        from,
+        to,
+        subject,
+        html: html || undefined,
+        text: text || undefined,
+        messageId: message_id || undefined,
+        headers: headers || undefined,
+        replyTo: reply_to || undefined,
+      });
+      // If the hard deadline wins the race below, this promise is abandoned
+      // but keeps running — a later rejection (e.g. connection reset) would
+      // otherwise surface as an unhandled rejection on a reused/frozen Lambda
+      // container. Attach a no-op catch now so that can never happen, without
+      // affecting the value `Promise.race` reads from it.
+      sendPromise.catch(() => {});
+
       const info = await Promise.race([
-        transporter.sendMail({
-          from,
-          to,
-          subject,
-          html: html || undefined,
-          text: text || undefined,
-          messageId: message_id || undefined,
-          headers: headers || undefined,
-          replyTo: reply_to || undefined,
-        }),
+        sendPromise,
         new Promise<never>((_, reject) => {
           deadlineTimer = setTimeout(() => reject(Object.assign(new Error('SMTP send exceeded relay deadline'), { code: 'ERELAYDEADLINE' })), HARD_DEADLINE_MS);
         }),

@@ -484,8 +484,8 @@ export function ContactDetailPage() {
                     pipeline is what makes conversion rates meaningless. */}
                 <button
                   onClick={() => makeLead.mutate()}
-                  disabled={makeLead.isPending}
-                  title="Hold this person as a lead, out of the pipeline, until they are qualified"
+                  disabled={makeLead.isPending || !!openLead}
+                  title={openLead ? 'Already has an open lead' : 'Hold this person as a lead, out of the pipeline, until they are qualified'}
                   className="inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] rounded-md transition-colors disabled:opacity-50"
                 >
                   <Sparkles className="h-3 w-3" /> New lead

@@ -28,12 +28,19 @@ function sendable(a: SmtpAccount): boolean {
   return a.is_active && a.is_verified;
 }
 
-/** Sends left in this mailbox today. Null when it is uncapped. */
+/**
+ * Sends left in this mailbox today. Null when it is uncapped.
+ *
+ * Always measured against `sends_today` — the same counter selectBestSender()
+ * gates real campaign sends on (see sse.service.ts). `warmup_sent_today` is a
+ * separate counter for peer-to-peer warm-up mail, not campaign sends, so
+ * reading it here for a warming-up mailbox could report capacity that
+ * `sends_today` has already exhausted.
+ */
 function remainingToday(a: SmtpAccount): number | null {
   const allowance = warmupAllowance(a);
   if (allowance === 0) return null; // 0 means unlimited, everywhere in this codebase
-  const used = a.warmup_mode ? (a.warmup_sent_today || 0) : (a.sends_today || 0);
-  return Math.max(0, allowance - used);
+  return Math.max(0, allowance - (a.sends_today || 0));
 }
 
 /** The steady daily allowance. Null when uncapped. */

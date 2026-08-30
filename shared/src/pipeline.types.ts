@@ -155,10 +155,17 @@ export interface PipelineSummary {
   avgDaysToClose: number | null;
 }
 
-/** Start of the day `days` before now, so date comparisons are stable. */
+/**
+ * Start of the day `days` before now, so date comparisons are stable.
+ *
+ * Anchored to UTC midnight, not local midnight: `expected_close_date` is a
+ * date-only string (e.g. "2026-08-30") that `new Date(...)` parses as UTC
+ * midnight, so comparing it against a local-midnight floor put "today"'s
+ * deals on the wrong side of `close < today` for anyone west of UTC.
+ */
 function windowFloor(days: number, now: number): number {
   const d = new Date(now);
-  d.setHours(0, 0, 0, 0);
+  d.setUTCHours(0, 0, 0, 0);
   return d.getTime() - days * 86_400_000;
 }
 

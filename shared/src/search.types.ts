@@ -210,9 +210,16 @@ export function parseQuickAdd(input: string, now: Date = new Date()): QuickAdd |
   // instead of at least surviving as plain subject text.
   const subjectSource = date?.precise && time ? rest : withoutTime;
   const subjectTokens = subjectSource.filter((t) => !consumed.has(t.toLowerCase()));
-  // Trailing connectives left dangling by removing the date read badly.
-  while (subjectTokens.length && ['on', 'at', 'this', 'with'].includes(subjectTokens[subjectTokens.length - 1].toLowerCase())) {
+  // Connectives left dangling by removing the date read badly, at either end:
+  // a trailing one ("call sarah on" -> "on" dropped) and a leading one
+  // ("meet with sarah next tuesday" -> "with" left stranded once "next
+  // tuesday" is consumed, since it sat between the verb and the name).
+  const CONNECTIVES = ['on', 'at', 'this', 'with'];
+  while (subjectTokens.length && CONNECTIVES.includes(subjectTokens[subjectTokens.length - 1].toLowerCase())) {
     subjectTokens.pop();
+  }
+  while (subjectTokens.length && CONNECTIVES.includes(subjectTokens[0].toLowerCase())) {
+    subjectTokens.shift();
   }
   const subject = subjectTokens.join(' ').trim();
   if (!subject) return null;

@@ -1,9 +1,8 @@
 import { app } from './app.js';
 import { env } from './config/env.js';
 import { startSequenceWorker } from './jobs/workers/sequence.worker.js';
-import { startInboxWorker } from './jobs/workers/inbox.worker.js';
 import { startVerificationWorker } from './jobs/workers/verification.worker.js';
-import { scheduleInboxSync } from './jobs/schedulers/inbox.scheduler.js';
+import { startInboxScheduler } from './jobs/schedulers/inbox.scheduler.js';
 import { startSseMaintenanceScheduler } from './jobs/schedulers/sse-maintenance.scheduler.js';
 import { startWarmupScheduler } from './jobs/schedulers/warmup.scheduler.js';
 import { startAbPromoteScheduler } from './jobs/schedulers/ab-promote.scheduler.js';
@@ -27,17 +26,9 @@ const server = app.listen(port, () => {
     console.warn('Sequence worker failed to start:', err.message);
   }
 
-  try {
-    const inboxWorker = startInboxWorker();
-    if (inboxWorker) disposers.push(() => inboxWorker.close());
-    console.log('Inbox sync worker started');
-  } catch (err: any) {
-    console.warn('Inbox worker failed to start:', err.message);
-  }
-
   // Schedule periodic inbox sync (every 5 minutes)
   try {
-    const inboxScheduler = scheduleInboxSync();
+    const inboxScheduler = startInboxScheduler();
     if (inboxScheduler) disposers.push(() => inboxScheduler.stop());
     console.log('Inbox sync scheduler started');
   } catch (err: any) {
