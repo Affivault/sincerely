@@ -4,7 +4,7 @@
  * and the results go onto a lead list carrying their names.
  */
 import { chromium } from 'playwright';
-import { CHROMIUM } from './chromium.mjs';
+import { CHROMIUM, openExtensionPage } from './chromium.mjs';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -40,8 +40,7 @@ try {
   if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 15000 });
   const extensionId = new URL(worker.url()).host;
 
-  const options = await context.newPage();
-  await options.goto(`chrome-extension://${extensionId}/options/options.html`);
+  const options = await openExtensionPage(context, `chrome-extension://${extensionId}/options/options.html`);
   // Manual key entry is the fallback path now, collapsed behind a <details>.
   await options.locator('details.manual > summary').click();
   await options.click('#use-local');

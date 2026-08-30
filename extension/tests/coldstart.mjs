@@ -10,7 +10,7 @@
  *     recover via the automatic retry.
  */
 import { chromium } from 'playwright';
-import { CHROMIUM } from './chromium.mjs';
+import { CHROMIUM, openExtensionPage } from './chromium.mjs';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -44,8 +44,7 @@ try {
 
   /* ---- A. connection test waits out a slow wake-up ---- */
 
-  const options = await context.newPage();
-  await options.goto(`chrome-extension://${id}/options/options.html`);
+  const options = await openExtensionPage(context, `chrome-extension://${id}/options/options.html`);
   await options.waitForLoadState('domcontentloaded');
 
   await options.evaluate((ms) => fetch(`http://localhost:3001/__arm-cold-start?delayMs=${ms}`), DELAY_MS);

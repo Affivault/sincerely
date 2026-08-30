@@ -7,7 +7,7 @@
  * guard, the source guard, and that the options page notices the arrival.
  */
 import { chromium } from 'playwright';
-import { CHROMIUM } from './chromium.mjs';
+import { CHROMIUM, openExtensionPage } from './chromium.mjs';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -139,10 +139,10 @@ try {
 
   // Open the options page first: it should react to the key arriving in another
   // tab, which is the whole point of doing this from the app.
-  const options = await context.newPage();
   const optionsErrors = [];
-  options.on('pageerror', (err) => optionsErrors.push(err.message));
-  await options.goto(`chrome-extension://${extensionId}/options/options.html`);
+  const options = await openExtensionPage(context, `chrome-extension://${extensionId}/options/options.html`, {
+    init: (p) => p.on('pageerror', (err) => optionsErrors.push(err.message)),
+  });
   await options.waitForLoadState('domcontentloaded');
 
   await app.bringToFront();
@@ -198,8 +198,7 @@ try {
 
   /* ---------------- the popup is past setup now ---------------- */
 
-  const popup = await context.newPage();
-  await popup.goto(`chrome-extension://${extensionId}/popup/popup.html`);
+  const popup = await openExtensionPage(context, `chrome-extension://${extensionId}/popup/popup.html`);
   await popup.waitForLoadState('domcontentloaded');
   await popup.waitForTimeout(1200);
   check(

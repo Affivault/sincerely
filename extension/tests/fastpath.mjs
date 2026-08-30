@@ -14,7 +14,7 @@
  * starts both.
  */
 import { chromium } from 'playwright';
-import { CHROMIUM } from './chromium.mjs';
+import { CHROMIUM, openExtensionPage } from './chromium.mjs';
 import { spawn } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -88,8 +88,7 @@ try {
   /* Fix 1 — connect lands on the API keys tab                        */
   /* ================================================================ */
 
-  const options = await context.newPage();
-  await options.goto(`chrome-extension://${extensionId}/options/options.html`);
+  const options = await openExtensionPage(context, `chrome-extension://${extensionId}/options/options.html`);
   await options.waitForLoadState('domcontentloaded');
 
   // Configure through the real UI, the same way a person would.

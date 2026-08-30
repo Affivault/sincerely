@@ -14,7 +14,7 @@
  * tabs and hoping.
  */
 import { chromium } from 'playwright';
-import { CHROMIUM } from './chromium.mjs';
+import { CHROMIUM, openExtensionPage } from './chromium.mjs';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -94,8 +94,7 @@ try {
   if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 15000 });
   const extensionId = new URL(worker.url()).host;
 
-  const options = await context.newPage();
-  await options.goto(`chrome-extension://${extensionId}/options/options.html`);
+  const options = await openExtensionPage(context, `chrome-extension://${extensionId}/options/options.html`);
   await options.locator('details.manual > summary').click();
   await options.click('#use-local');
   await options.fill('#api-key', KEY);
@@ -223,8 +222,7 @@ try {
 
   /* ---------------- the sidebar surface ---------------- */
 
-  const sidebar = await context.newPage();
-  await sidebar.goto(`chrome-extension://${extensionId}/popup/popup.html?surface=sidepanel`);
+  const sidebar = await openExtensionPage(context, `chrome-extension://${extensionId}/popup/popup.html?surface=sidepanel`);
   await sidebar.waitForFunction(() => !document.getElementById('main')?.classList.contains('hidden'), null, {
     timeout: 20000,
   });

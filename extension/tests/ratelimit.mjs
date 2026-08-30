@@ -18,7 +18,7 @@
  * Needs `mock-api.mjs` on :3001. `run.mjs` starts it.
  */
 import { chromium } from 'playwright';
-import { CHROMIUM } from './chromium.mjs';
+import { CHROMIUM, openExtensionPage } from './chromium.mjs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -60,8 +60,7 @@ try {
   // Driven from an extension page rather than the worker: a Playwright
   // ServiceWorker context does not reliably expose chrome.*, and every other
   // suite here connects the same way the user would.
-  const options = await context.newPage();
-  await options.goto(`chrome-extension://${extensionId}/options/options.html`);
+  const options = await openExtensionPage(context, `chrome-extension://${extensionId}/options/options.html`);
   await options.locator('details.manual > summary').click();
   await options.click('#use-local');
   await options.fill('#api-key', KEY);

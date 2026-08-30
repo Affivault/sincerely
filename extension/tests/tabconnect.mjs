@@ -12,7 +12,7 @@
  * the app is redeployed with the hint.
  */
 import { chromium } from 'playwright';
-import { CHROMIUM } from './chromium.mjs';
+import { CHROMIUM, openExtensionPage } from './chromium.mjs';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:http';
 import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -161,8 +161,7 @@ try {
   context.on('weberror', (e) => workerErrors.push(e.error().message));
 
   // A long-lived extension page to send messages from, standing in for the popup.
-  const driver = await context.newPage();
-  await driver.goto(`chrome-extension://${extensionId}/popup/popup.html`);
+  const driver = await openExtensionPage(context, `chrome-extension://${extensionId}/popup/popup.html`);
   await driver.waitForLoadState('domcontentloaded');
 
   const manifest = await worker.evaluate(() => chrome.runtime.getManifest());
@@ -245,10 +244,10 @@ try {
 
   /* -------- the popup is past setup, with no key ever typed -------- */
 
-  const popup = await context.newPage();
   const popupErrors = [];
-  popup.on('pageerror', (err) => popupErrors.push(err.message));
-  await popup.goto(`chrome-extension://${extensionId}/popup/popup.html`);
+  const popup = await openExtensionPage(context, `chrome-extension://${extensionId}/popup/popup.html`, {
+    init: (p) => p.on('pageerror', (err) => popupErrors.push(err.message)),
+  });
   await popup.waitForTimeout(1500);
   check(
     'the popup goes straight to the main UI',
@@ -260,8 +259,7 @@ try {
   /* -------- the setup screen leads with the tab route -------- */
 
   await worker.evaluate(() => chrome.storage.local.remove('apiKey'));
-  const fresh = await context.newPage();
-  await fresh.goto(`chrome-extension://${extensionId}/popup/popup.html`);
+  const fresh = await openExtensionPage(context, `chrome-extension://${extensionId}/popup/popup.html`);
   await fresh.waitForTimeout(900);
   check(
     'an unconnected popup shows the setup screen',

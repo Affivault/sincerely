@@ -17,7 +17,7 @@
  * Needs `mock-api.mjs` on :3001. `run.mjs` starts it.
  */
 import { chromium } from 'playwright';
-import { CHROMIUM } from './chromium.mjs';
+import { CHROMIUM, openExtensionPage } from './chromium.mjs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -61,8 +61,7 @@ try {
   if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 15000 });
   const extensionId = new URL(worker.url()).host;
 
-  const driver = await context.newPage();
-  await driver.goto(`chrome-extension://${extensionId}/options/options.html`);
+  const driver = await openExtensionPage(context, `chrome-extension://${extensionId}/options/options.html`);
   await driver.waitForLoadState('domcontentloaded');
   await driver.evaluate(
     ([key, api]) =>

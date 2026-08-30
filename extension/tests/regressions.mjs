@@ -6,7 +6,7 @@
  * Needs `mock-api.mjs` on :3001 and the LinkedIn stub. `run.mjs` starts both.
  */
 import { chromium } from 'playwright';
-import { CHROMIUM } from './chromium.mjs';
+import { CHROMIUM, openExtensionPage } from './chromium.mjs';
 import { spawn } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -61,8 +61,7 @@ try {
   if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 15000 });
   const extensionId = new URL(worker.url()).host;
 
-  const options = await context.newPage();
-  await options.goto(`chrome-extension://${extensionId}/options/options.html`);
+  const options = await openExtensionPage(context, `chrome-extension://${extensionId}/options/options.html`);
   await options.locator('details.manual > summary').click();
   await options.click('#use-local');
   await options.fill('#api-key', TEST_API_KEY);
@@ -477,8 +476,7 @@ try {
   /* ================================================================ */
 
   await fetch('http://localhost:3001/__reset');
-  const popup = await context.newPage();
-  await popup.goto(`chrome-extension://${extensionId}/popup/popup.html`);
+  const popup = await openExtensionPage(context, `chrome-extension://${extensionId}/popup/popup.html`);
   await popup.waitForFunction(() => !document.getElementById('main')?.classList.contains('hidden'), null, {
     timeout: 15000,
   });
