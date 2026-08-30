@@ -3,7 +3,7 @@ import { AppError } from '../middleware/error.middleware.js';
 import { inferTimezone, emptyEnrolResult, ENROL_SKIP_SAMPLE } from '@lemlist/shared';
 import type { EnrolResult, EnrolSkip, EnrolSkipReason } from '@lemlist/shared';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
-import { leadsService } from './leads.service.js';
+import { contactsOnOpenDeals } from './lifecycle.service.js';
 
 export const campaignContactsService = {
   async list(campaignId: string, params: { page?: number; limit?: number }) {
@@ -111,7 +111,7 @@ export const campaignContactsService = {
      * a list — it just cannot happen by accident.
      */
     if (allowedContactIds.length > 0) {
-      const onDeals = await leadsService.contactsOnOpenDeals(campaign.user_id, allowedContactIds);
+      const onDeals = await contactsOnOpenDeals(campaign.user_id, allowedContactIds);
       if (onDeals.size > 0) {
         allowedContactIds = allowedContactIds.filter((id) => {
           if (onDeals.has(id)) { drop(id, 'on_open_deal'); return false; }

@@ -4,7 +4,7 @@
  * popup's identity / picker / add / move / remove / suppress paths.
  */
 import { chromium } from 'playwright';
-import { CHROMIUM } from './chromium.mjs';
+import { CHROMIUM, openExtensionPage } from './chromium.mjs';
 import { fileURLToPath } from 'node:url';
 
 // Start from the fixture every run — the mock is stateful.
@@ -80,10 +80,10 @@ try {
 
   /* ---------------- options page ---------------- */
 
-  const options = await context.newPage();
   const optionsErrors = [];
-  options.on('pageerror', (err) => optionsErrors.push(err.message));
-  await options.goto(`chrome-extension://${extensionId}/options/options.html`);
+  const options = await openExtensionPage(context, `chrome-extension://${extensionId}/options/options.html`, {
+    init: (p) => p.on('pageerror', (err) => optionsErrors.push(err.message)),
+  });
   await options.waitForLoadState('domcontentloaded');
 
   check('options page has no JS errors', optionsErrors.length === 0, optionsErrors.join(' | '));
@@ -221,10 +221,10 @@ try {
 
   /* ---------------- popup: identity + picker ---------------- */
 
-  const popup = await context.newPage();
   const popupErrors = [];
-  popup.on('pageerror', (err) => popupErrors.push(err.message));
-  await popup.goto(`chrome-extension://${extensionId}/popup/popup.html`);
+  const popup = await openExtensionPage(context, `chrome-extension://${extensionId}/popup/popup.html`, {
+    init: (p) => p.on('pageerror', (err) => popupErrors.push(err.message)),
+  });
   await popup.waitForFunction(() => !document.getElementById('main')?.classList.contains('hidden'), null, {
     timeout: 15000,
   });
@@ -701,10 +701,10 @@ try {
   const teamPage = await context.newPage();
   await teamPage.goto('http://localhost:3001/team-fixture');
 
-  const bulkPopup = await context.newPage();
   const bulkErrors = [];
-  bulkPopup.on('pageerror', (err) => bulkErrors.push(err.message));
-  await bulkPopup.goto(`chrome-extension://${extensionId}/popup/popup.html`);
+  const bulkPopup = await openExtensionPage(context, `chrome-extension://${extensionId}/popup/popup.html`, {
+    init: (p) => p.on('pageerror', (err) => bulkErrors.push(err.message)),
+  });
   await bulkPopup.waitForFunction(() => !document.getElementById('main')?.classList.contains('hidden'), null, {
     timeout: 15000,
   });

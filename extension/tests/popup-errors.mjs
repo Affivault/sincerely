@@ -16,7 +16,7 @@
  * Needs `mock-api.mjs` on :3001. `run.mjs` starts it.
  */
 import { chromium } from 'playwright';
-import { CHROMIUM } from './chromium.mjs';
+import { CHROMIUM, openExtensionPage } from './chromium.mjs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -85,10 +85,10 @@ try {
   /* With no key at all                                               */
   /* ================================================================ */
 
-  const cold = await context.newPage();
   const coldErrors = [];
-  cold.on('pageerror', (err) => coldErrors.push(err.message));
-  await cold.goto(`chrome-extension://${extensionId}/popup/popup.html`);
+  const cold = await openExtensionPage(context, `chrome-extension://${extensionId}/popup/popup.html`, {
+    init: (p) => p.on('pageerror', (err) => coldErrors.push(err.message)),
+  });
   await cold.waitForFunction(() => !document.getElementById('setup')?.classList.contains('hidden'), null, {
     timeout: 15000,
   });
@@ -107,10 +107,10 @@ try {
     [KEY, API],
   );
 
-  const popup = await context.newPage();
   const popupErrors = [];
-  popup.on('pageerror', (err) => popupErrors.push(err.message));
-  await popup.goto(`chrome-extension://${extensionId}/popup/popup.html`);
+  const popup = await openExtensionPage(context, `chrome-extension://${extensionId}/popup/popup.html`, {
+    init: (p) => p.on('pageerror', (err) => popupErrors.push(err.message)),
+  });
   await popup.waitForFunction(() => !document.getElementById('main')?.classList.contains('hidden'), null, {
     timeout: 15000,
   });

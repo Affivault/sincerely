@@ -3,7 +3,7 @@
  * judged rather than imagined.
  */
 import { chromium } from 'playwright';
-import { CHROMIUM } from './chromium.mjs';
+import { CHROMIUM, openExtensionPage } from './chromium.mjs';
 import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -51,9 +51,9 @@ const shot = async (page, name) => {
 };
 
 /* ---- options: before connecting ---- */
-const options = await context.newPage();
-await options.setViewportSize({ width: 780, height: 900 });
-await options.goto(`chrome-extension://${id}/options/options.html`);
+const options = await openExtensionPage(context, `chrome-extension://${id}/options/options.html`, {
+  init: (p) => p.setViewportSize({ width: 780, height: 900 }),
+});
 await options.waitForLoadState('domcontentloaded');
 await options.waitForTimeout(400);
 await shot(options, '01-options-fresh');

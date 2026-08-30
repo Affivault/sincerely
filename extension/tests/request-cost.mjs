@@ -12,7 +12,7 @@
  * Needs `mock-api.mjs` on :3001. `run.mjs` starts it.
  */
 import { chromium } from 'playwright';
-import { CHROMIUM } from './chromium.mjs';
+import { CHROMIUM, openExtensionPage } from './chromium.mjs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -56,8 +56,7 @@ try {
 
   // Settings are written from an extension page: a Playwright ServiceWorker
   // context does not reliably expose chrome.*.
-  const driver = await context.newPage();
-  await driver.goto(`chrome-extension://${extensionId}/options/options.html`);
+  const driver = await openExtensionPage(context, `chrome-extension://${extensionId}/options/options.html`);
   await driver.waitForLoadState('domcontentloaded');
   await driver.evaluate(
     ([key, api]) =>
