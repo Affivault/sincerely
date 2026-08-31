@@ -21,7 +21,7 @@ const STATUS_META: Record<string, { label: string; icon: typeof PlayCircle; cls:
 
 /**
  * The funnel-closer: pick a campaign, and the selected leads are added to its
- * bound lead list AND enrolled in one call. Usable from the contacts list,
+ * bound list AND enrolled in one call. Usable from the contacts list,
  * the contact page, and the prospector.
  */
 export function AddToCampaignModal({
@@ -55,7 +55,7 @@ export function AddToCampaignModal({
    * active campaigns)" for every skip regardless of cause, because the
    * server only ever sent a bare number — which meant it was confidently
    * wrong whenever the real reason was a suppression, a missing address or
-   * a lead list the contacts were not on.
+   * a list the contacts were not on.
    */
   const enroll = useMutation({
     mutationFn: (campaignId: string) => campaignsApi.enrollContacts(campaignId, contactIds),
@@ -93,7 +93,7 @@ export function AddToCampaignModal({
       isOpen
       onClose={onClose}
       title={`Add ${contactIds.length} lead${contactIds.length === 1 ? '' : 's'} to a campaign`}
-      description="Leads join the campaign's lead list and are enrolled immediately."
+      description="They join the campaign's list and are enrolled immediately."
       size="md"
       footer={
         <>

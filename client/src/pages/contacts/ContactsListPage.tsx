@@ -5,7 +5,8 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import Papa from 'papaparse';
 import { useDebounce } from '../../hooks/useDebounce';
 import { contactsApi, listsApi, tagsApi } from '../../api/contacts.api';
-import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME } from '@lemlist/shared';
+import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL } from '@lemlist/shared';
+import type { Lifecycle } from '@lemlist/shared';
 import { usePeek } from '../../components/peek/usePeek';
 import { listFoldersApi, type ListFolder } from '../../api/list-folders.api';
 import { verificationApi } from '../../api/verification.api';
@@ -71,6 +72,7 @@ import {
   List,
   Clock,
   Activity,
+  Sparkles,
 } from 'lucide-react';
 
 type ContactSortKey = 'first_name' | 'email' | 'company' | 'dcs_score' | 'created_at';
@@ -259,6 +261,45 @@ function VerificationBadge({ c }: { c: any }) {
   );
 }
 
+/* ─── Where somebody stands with you ────────────────────────────────
+   The filter above the table could already narrow to prospects or contacts,
+   but nothing on a row ever said which one a person was — so in "Everyone"
+   a customer you closed last month and a stranger scraped this morning
+   looked exactly alike. The whole point of separating the two is lost if you
+   have to change filters to find out which you are looking at.
+
+   Prospect is deliberately the quiet one. It is the overwhelming majority of
+   any outreach database, and a badge shouting on every second row is just
+   noise; the ones worth catching your eye are the people who answered. */
+const LIFECYCLE_STYLE: Record<Lifecycle, string> = {
+  prospect: 'text-[var(--text-tertiary)] bg-[var(--bg-elevated)]',
+  contact: 'text-indigo-700 dark:text-indigo-300 bg-indigo-500/12',
+  customer: 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/12',
+};
+
+const LIFECYCLE_TIP: Record<Lifecycle, string> = {
+  prospect: 'Sourced but never engaged. Campaigns are for these people.',
+  contact: 'Replied, met, or added deliberately.',
+  customer: 'Won a deal. Kept out of cold campaigns by default.',
+};
+
+function LifecycleCell({ c }: { c: any }) {
+  // Anything written before the lifecycle column existed reads as a prospect,
+  // which is what the backfill decided too — not a guess, the same rule.
+  const stage = ((c.lifecycle || 'prospect') as Lifecycle);
+  return (
+    <span
+      title={LIFECYCLE_TIP[stage]}
+      className={cn(
+        'inline-flex items-center px-1.5 h-[20px] rounded-md text-[10.5px] font-semibold',
+        LIFECYCLE_STYLE[stage],
+      )}
+    >
+      {LIFECYCLE_LABEL[stage]}
+    </span>
+  );
+}
+
 /* LinkedIn presence — blue glyph when we have a profile URL, muted when not. */
 function LinkedInGlyph({ url }: { url?: string | null }) {
   const has = !!url;
@@ -426,7 +467,7 @@ function CompanyFilter({ value, options, onChange }: {
 /* Configurable table columns, mapped to our contact fields (the same set
    surfaced during CSV import). The Contact identity column is always shown;
    these are the optional middle columns the user can toggle + reorder-by-default. */
-type ColumnId = 'email' | 'status' | 'company' | 'location' | 'job_title' | 'phone' | 'website' | 'linkedin_url' | 'tags' | 'lists' | 'added' | 'health';
+type ColumnId = 'email' | 'status' | 'lifecycle' | 'company' | 'location' | 'job_title' | 'phone' | 'website' | 'linkedin_url' | 'tags' | 'lists' | 'added' | 'health';
 interface ColumnDef {
   id: ColumnId;
   label: string;
@@ -472,6 +513,7 @@ const ALL_COLUMNS: ColumnDef[] = [
     <span className="flex items-center gap-2 min-w-0"><EmailStatusDot c={c} /><CopyableEmail email={c.email} /></span>
   ) },
   { id: 'status',      label: 'Status',    icon: ShieldCheck, sortKey: 'dcs_score',  render: (c) => <VerificationBadge c={c} /> },
+  { id: 'lifecycle',   label: 'Stage',     icon: Sparkles,                           render: (c) => <LifecycleCell c={c} /> },
   { id: 'company',     label: 'Company',   icon: Building2,   sortKey: 'company',    tdClass: 'max-w-[200px]', render: (c) => <CompanyCell company={c.company} /> },
   { id: 'location',    label: 'Location',  icon: MapPin,                             tdClass: 'max-w-[200px]', render: (c) => <TextCell v={c.location} /> },
   { id: 'job_title',   label: 'Job title', icon: Briefcase,                          tdClass: 'max-w-[180px]', render: (c) => <TextCell v={c.job_title} /> },
@@ -483,7 +525,11 @@ const ALL_COLUMNS: ColumnDef[] = [
   { id: 'added',       label: 'Added',     icon: Clock,       sortKey: 'created_at', render: (c) => <span className="text-[11.5px] text-[var(--text-tertiary)]" title={formatDate(c.created_at)}>{formatRelativeTime(c.created_at)}</span> },
   { id: 'health',      label: 'Health',    icon: Activity,    sortKey: 'dcs_score',  render: (c) => <HealthCell c={c} /> },
 ];
-const DEFAULT_COLUMNS: ColumnId[] = ['email', 'status', 'company', 'location', 'tags', 'lists', 'added'];
+const DEFAULT_COLUMNS: ColumnId[] = ['email', 'status', 'lifecycle', 'company', 'location', 'tags', 'lists', 'added'];
+
+/* Set the first time Stage is inserted into an older saved layout, so it is
+   offered once rather than reappearing every time somebody hides it. */
+const LIFECYCLE_COLUMN_SHOWN = 'contacts.columns.lifecycleIntroduced';
 
 
 export function ContactsListPage() {
@@ -619,7 +665,7 @@ export function ContactsListPage() {
       sort_order: sortDir,
       verification_status: statusFilter || undefined,
       /*
-       * Inside a list, show everybody. A lead list exists to hold people
+       * Inside a list, show everybody. A list exists to hold people
        * you have not spoken to, so filtering prospects out of it would
        * leave most lists looking empty and the filter looking broken.
        */
@@ -1094,7 +1140,34 @@ export function ContactsListPage() {
   // Configurable table columns (persisted), mapped to our contact fields.
   // Standard column ids come from ALL_COLUMNS; custom fields use a `cf:<key>` id.
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
-    try { const s = localStorage.getItem('contacts.columns'); if (s) return JSON.parse(s); } catch { /* ignore */ }
+    try {
+      const s = localStorage.getItem('contacts.columns');
+      if (s) {
+        const saved: string[] = JSON.parse(s);
+        /*
+         * A saved layout predates any column added after it, so Stage would be
+         * invisible to exactly the people who use this page most — and nobody
+         * goes hunting in the column menu for a column they have never heard
+         * of. So it is inserted once, next to Status where it belongs, with
+         * every other choice they made left alone.
+         *
+         * Once, not on every load: the marker is what makes hiding it again
+         * stick. Keying off "is it in the saved list" instead would put the
+         * column straight back the next time the page mounted, which is worse
+         * than never having shown it.
+         */
+        if (!localStorage.getItem(LIFECYCLE_COLUMN_SHOWN)) {
+          localStorage.setItem(LIFECYCLE_COLUMN_SHOWN, '1');
+          if (!saved.includes('lifecycle')) {
+            const at = saved.indexOf('status');
+            const next = [...saved];
+            next.splice(at >= 0 ? at + 1 : next.length, 0, 'lifecycle');
+            return next;
+          }
+        }
+        return saved;
+      }
+    } catch { /* ignore */ }
     return DEFAULT_COLUMNS;
   });
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
@@ -1194,7 +1267,7 @@ export function ContactsListPage() {
           isUnlistedView
             ? (totalContacts === 0
                 ? 'Every contact belongs to at least one list — nothing to tidy up.'
-                : `${totalContacts.toLocaleString()} contact${totalContacts !== 1 ? 's' : ''} that aren't in any lead list. Select them to file them into one.`)
+                : `${totalContacts.toLocaleString()} contact${totalContacts !== 1 ? 's' : ''} that aren't in any list. Select them to file them into one.`)
             : totalContacts === 0
               ? 'No contacts yet — start building your audience'
               : `${totalContacts.toLocaleString()} contact${totalContacts !== 1 ? 's' : ''} in your database`
@@ -1219,7 +1292,7 @@ export function ContactsListPage() {
 
       {/* Lead-lists rail + contacts table */}
       <div className="flex gap-4 items-start" onClick={() => setListContextMenu(null)}>
-        {/* Lead lists rail — collapsible so the table can use the full width */}
+        {/* Lists rail — collapsible so the table can use the full width */}
         {railCollapsed ? (
           <aside className="flex-shrink-0">
             <button
@@ -1271,7 +1344,7 @@ export function ContactsListPage() {
           {/* Lists section */}
           <div className="pt-1.5">
             <span className="block px-2 mb-1 text-[10px] font-semibold text-[var(--text-tertiary)]">
-              Lead Lists
+              Lists
             </span>
 
             <div className="space-y-0.5">
@@ -1412,7 +1485,7 @@ export function ContactsListPage() {
             {/* Not in Lists — automatic view, never editable */}
             <button
               onClick={() => setSearchParams({ list: UNLISTED_LIST_ID })}
-              title="Contacts that don't belong to any lead list"
+              title="Contacts that don't belong to any list"
               className={cn(
                 'w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-[12px] font-medium transition-all',
                 isUnlistedView
@@ -2517,7 +2590,7 @@ function ListFolderModal({ initial, onClose }: { initial: ListFolder | null; onC
       isOpen
       onClose={onClose}
       title={initial ? 'Edit folder' : 'New folder'}
-      description={initial ? 'Rename or recolour this folder.' : 'Group related lead lists together.'}
+      description={initial ? 'Rename or recolour this folder.' : 'Group related lists together.'}
       size="sm"
       footer={
         <div className="flex items-center justify-between w-full">
