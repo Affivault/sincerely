@@ -919,7 +919,21 @@ export function DealsPage() {
           onEdit={(d) => navigate(`/deals/${d.id}`)}
           onStageChange={moveStage}
           onAddToStage={(stage) => setDealModal({ stage })}
-          dragDisabled={query.trim().length > 0}
+          // "open"/"all"/"won"/"lost" either show a stage column whole or hide it
+          // entirely, so `items` still matches the full stage list. "stalled",
+          // "overdue" and "closing" (and the stage/value filters) can leave a
+          // column showing only some of its deals — dragging there measures the
+          // drop index against that partial list, but commit() persists
+          // positions against every deal in the stage, silently reordering
+          // cards the user never saw. Disable dragging rather than risk that.
+          dragDisabled={
+            query.trim().length > 0 ||
+            filters.stages.length > 0 ||
+            filters.minValue > 0 ||
+            filters.focus === 'stalled' ||
+            filters.focus === 'overdue' ||
+            filters.focus === 'closing'
+          }
         />
       )}
 
