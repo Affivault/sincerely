@@ -5,7 +5,11 @@ import { listsService } from '../services/lists.service.js';
 export const listsController = {
   async list(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const lists = await listsService.list(req.userId!);
+      // Anything that is not one of the two kinds is ignored rather than
+      // rejected, so a stale bookmark shows both rather than an error.
+      const raw = req.query.kind;
+      const kind = raw === 'lead' || raw === 'contact' ? raw : undefined;
+      const lists = await listsService.list(req.userId!, kind);
       res.json(lists);
     } catch (err) { next(err); }
   },

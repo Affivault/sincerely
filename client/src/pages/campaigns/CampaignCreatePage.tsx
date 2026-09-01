@@ -277,7 +277,9 @@ export function CampaignCreatePage() {
 
   const { data: allLists } = useQuery({
     queryKey: ['lists'],
-    queryFn: listsApi.list,
+    // Lead lists only: a campaign audience is cold outreach by definition,
+    // and the database refuses a contact list here anyway (migration 058).
+    queryFn: () => listsApi.list('lead'),
   });
 
   const { data: savedSchedules = [] } = useQuery({

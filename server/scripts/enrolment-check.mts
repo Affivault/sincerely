@@ -39,6 +39,7 @@ interface World {
   campaigns: any[];
   contacts: any[];
   list_contacts: any[];
+  contact_lists: any[];
   campaign_contacts: any[];
   suppression_list: any[];
   deals: any[];
@@ -82,8 +83,17 @@ function stub(table: string): any {
 
   const rowsFor = (): any[] => {
     let rows: any[] = (world as any)[table] ?? [];
-    for (const [col, value] of eqs) rows = rows.filter((r) => r[col] === value);
-    // Embedded filters (`deal.stage`) are resolved after the join, below.
+    /*
+     * Embedded filters (`deal.stage`, `contact_lists.user_id`) name a column
+     * on the joined row, which does not exist yet at this point. Applying one
+     * here matches nothing and empties the result — which for a guard reads
+     * as "nobody is protected" and would have the harness reporting a pass
+     * while the real filter never ran. They are resolved after the join.
+     */
+    for (const [col, value] of eqs) {
+      if (col.includes('.')) continue;
+      rows = rows.filter((r) => r[col] === value);
+    }
     for (const [col, values] of ins) {
       if (col.includes('.')) continue;
       rows = rows.filter((r) => values.includes(r[col]));
@@ -117,6 +127,23 @@ function stub(table: string): any {
         .filter((r) => r.deal !== null);
       for (const [col, values] of ins) {
         if (col === 'deal.stage') rows = rows.filter((r) => values.includes(r.deal.stage));
+      }
+    }
+    /*
+     * The CRM-only guard reads memberships as
+     * `contact_lists!inner(kind, user_id, is_trashed)` and filters on the
+     * joined columns. Same trap as the two above: without the join the guard
+     * sees nothing, lets everybody through, and the harness calls it a pass.
+     */
+    if (table === 'list_contacts' && /contact_lists!inner/.test(cols)) {
+      rows = rows
+        .map((r) => ({ ...r, contact_lists: world.contact_lists.find((l) => l.id === r.list_id) || null }))
+        .filter((r) => r.contact_lists !== null);
+      for (const [col, value] of eqs) {
+        if (col === 'contact_lists.user_id') rows = rows.filter((r) => r.contact_lists.user_id === value);
+        if (col === 'contact_lists.is_trashed') {
+          rows = rows.filter((r) => Boolean(r.contact_lists.is_trashed) === value);
+        }
       }
     }
     if (table === 'campaign_contacts' && /campaigns!inner/.test(cols)) {
@@ -203,6 +230,9 @@ function freshWorld(people: any[], opts: { boundToList?: boolean } = {}): World 
     }],
     contacts: people,
     list_contacts: bound ? people.map((p) => ({ list_id: LIST, contact_id: p.id })) : [],
+    // The list everybody starts on is a lead list, which is what it has
+    // always been in effect — an outreach audience a campaign sends to.
+    contact_lists: [{ id: LIST, user_id: USER, name: 'Q3 leads', kind: 'lead', is_trashed: false }],
     campaign_contacts: [],
     suppression_list: [],
     deals: [],
@@ -440,6 +470,80 @@ console.log('\nno deals means no interference');
   const result = await campaignContactsService.add(CAMPAIGN, [dave.id]);
   is('an account with no deals enrolls exactly as it always did',
      result.added === 1 && !result.reasons.on_open_deal, JSON.stringify(result));
+}
+
+console.log('\nCRM contacts are not cold-email material');
+{
+  const CRM = 'list-crm';
+  const customer = contact({ id: 'c-cust', email: 'ceo@acme.example' });
+  const both = contact({ id: 'c-both', email: 'vp@acme.example' });
+  const prospect = contact({ id: 'c-pros', email: 'new@fernpath.example' });
+  const unfiled = contact({ id: 'c-unfiled', email: 'nobody@nowhere.example' });
+
+  world = freshWorld([customer, both, prospect, unfiled], { boundToList: false });
+  world.contact_lists = [
+    { id: LIST, user_id: USER, name: 'Q3 leads', kind: 'lead', is_trashed: false },
+    { id: CRM, user_id: USER, name: 'Customers', kind: 'contact', is_trashed: false },
+  ];
+  world.list_contacts = [
+    { list_id: CRM, contact_id: customer.id },
+    // On both: somebody deliberately put this one into an outreach audience.
+    { list_id: CRM, contact_id: both.id },
+    { list_id: LIST, contact_id: both.id },
+    { list_id: LIST, contact_id: prospect.id },
+    // `unfiled` is on nothing at all.
+  ];
+
+  const result = await campaignContactsService.add(
+    CAMPAIGN, [customer.id, both.id, prospect.id, unfiled.id],
+  );
+
+  is('somebody filed only in a contact list is not enrolled',
+     result.skips.some((s) => s.contact_id === customer.id && s.reason === 'crm_contact_only'),
+     JSON.stringify(result.skips.map((s) => [s.contact_id, s.reason])));
+  is('being on a lead list too is a deliberate act, and clears it',
+     !result.skips.some((s) => s.contact_id === both.id),
+     JSON.stringify(result.skips.map((s) => [s.contact_id, s.reason])));
+  is('an ordinary lead-list prospect is untouched',
+     !result.skips.some((s) => s.contact_id === prospect.id));
+  is('and somebody on no list at all still enrolls — unfiled is not protected',
+     !result.skips.some((s) => s.contact_id === unfiled.id),
+     JSON.stringify(result.skips.map((s) => [s.contact_id, s.reason])));
+  is('so three go in, not four',
+     result.added === 3, `added ${result.added}`);
+  is('and the reason says why the fourth did not',
+     result.reasons.crm_contact_only === 1, JSON.stringify(result.reasons));
+}
+
+console.log('\na trashed contact list stops protecting anybody');
+{
+  const CRM = 'list-crm';
+  const ghost = contact({ id: 'c-ghost', email: 'ghost@acme.example' });
+  world = freshWorld([ghost], { boundToList: false });
+  // Deleting the CRM list is how you say "this person is fair game again".
+  world.contact_lists = [
+    { id: CRM, user_id: USER, name: 'Old customers', kind: 'contact', is_trashed: true },
+  ];
+  world.list_contacts = [{ list_id: CRM, contact_id: ghost.id }];
+
+  const result = await campaignContactsService.add(CAMPAIGN, [ghost.id]);
+  is('membership of a trashed list does not hold somebody back',
+     result.added === 1 && !result.reasons.crm_contact_only, JSON.stringify(result));
+}
+
+console.log('\nanother account’s contact list cannot shield your contact');
+{
+  const CRM = 'list-theirs';
+  const mine = contact({ id: 'c-mine', email: 'mine@acme.example' });
+  world = freshWorld([mine], { boundToList: false });
+  world.contact_lists = [
+    { id: CRM, user_id: OTHER_USER, name: 'Their CRM', kind: 'contact', is_trashed: false },
+  ];
+  world.list_contacts = [{ list_id: CRM, contact_id: mine.id }];
+
+  const result = await campaignContactsService.add(CAMPAIGN, [mine.id]);
+  is('the guard is scoped to the sending account',
+     result.added === 1 && !result.reasons.crm_contact_only, JSON.stringify(result));
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

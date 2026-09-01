@@ -9,6 +9,7 @@ import type {
   ContactsListParams,
   Tag,
   ContactList,
+  ListKind,
   CreateContactListInput,
   UpdateContactListInput,
   SavedSegment,
@@ -141,8 +142,15 @@ export const contactsApi = {
 
 // Lists API
 export const listsApi = {
-  list: async () => {
-    const { data } = await apiClient.get<ContactList[]>('/lists');
+  /**
+   * @param kind Omitted returns both kinds, which is what a contact's own
+   *   memberships want. Pass one to fill a rail section, and pass 'lead'
+   *   anywhere a campaign audience is being chosen.
+   */
+  list: async (kind?: ListKind) => {
+    const { data } = await apiClient.get<ContactList[]>('/lists', {
+      params: kind ? { kind } : undefined,
+    });
     return data;
   },
 

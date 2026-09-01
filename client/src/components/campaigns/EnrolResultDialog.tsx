@@ -28,9 +28,10 @@ const REASON_TONE: Record<EnrolSkipReason, string> = {
   bounced: 'text-red-500',
   no_email: 'text-red-500',
   not_yours: 'text-[var(--text-tertiary)]',
-  /* Indigo, not amber: this is not a warning about bad data, it is the
-     product stopping you from cold-pitching somebody you are currently
-     negotiating with. */
+  /* Indigo, not amber: neither of these is a warning about bad data. They
+     are the product declining to cold-pitch somebody you are negotiating
+     with, or somebody who only exists in your CRM. */
+  crm_contact_only: 'text-[var(--indigo)]',
   on_open_deal: 'text-[var(--indigo)]',
 };
 

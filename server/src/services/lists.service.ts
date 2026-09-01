@@ -1,22 +1,35 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { writable } from '../utils/writable-fields.js';
-import type { CreateContactListInput, UpdateContactListInput, BulkActionResult } from '@lemlist/shared';
+import type { CreateContactListInput, UpdateContactListInput, BulkActionResult, ListKind } from '@lemlist/shared';
 
 /**
  * `is_default` is absent deliberately: exactly one list is the default, and
  * that is moved by the dedicated path, not by whatever a request body says.
+ *
+ * `kind` IS writable, so a list created in the wrong place can be converted
+ * rather than rebuilt. Converting one that a campaign still sends to is
+ * refused by the database, not here - see migration 058.
  */
-const LIST_FIELDS = ['name', 'description', 'color', 'icon', 'folder_id'] as const;
+const LIST_FIELDS = ['name', 'description', 'color', 'icon', 'folder_id', 'kind'] as const;
 
 export const listsService = {
-  async list(userId: string) {
+  /**
+   * @param kind Restrict to lead or contact lists. Omitted returns both,
+   *   which is what the campaign-agnostic callers (a contact's memberships,
+   *   the trash) want.
+   */
+  async list(userId: string, kind?: ListKind) {
     // Get lists with contact counts
-    const { data: lists, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('contact_lists')
       .select('*')
       .eq('user_id', userId)
-      .eq('is_trashed', false)
+      .eq('is_trashed', false);
+
+    if (kind) query = query.eq('kind', kind);
+
+    const { data: lists, error } = await query
       .order('is_default', { ascending: false })
       .order('name', { ascending: true });
 
@@ -269,5 +282,60 @@ export const listsService = {
     }
 
     return data;
+  },
+
+  /**
+   * Of the contacts asked about, the ones filed only in the CRM.
+   *
+   * "Only" is the whole rule. Being in a contact list does not by itself put
+   * somebody out of reach - plenty of people sit in both, and putting a
+   * customer into a lead list is a deliberate act that says "pitch this one
+   * anyway". What must never happen is a cold sequence reaching somebody
+   * whose only presence in this account is a CRM record.
+   *
+   * Contacts on no list at all are not returned. They are unfiled, not
+   * protected, and refusing them here would break importing straight into a
+   * campaign - which is how most people start.
+   *
+   * Throws rather than returning empty. Like the open-deal guard, a filter
+   * that fails quietly reads as "nobody is protected" and sends anyway.
+   */
+  async contactsOnlyInCrmLists(userId: string, contactIds: string[]): Promise<Set<string>> {
+    const out = new Set<string>();
+    if (contactIds.length === 0) return out;
+
+    const onLead = new Set<string>();
+    const onContact = new Set<string>();
+
+    // Chunked on the way in (a long `in` list is a long URL) and paged on the
+    // way out (PostgREST caps a select at ~1000 rows, and a popular list
+    // blows past that on its own).
+    const CHUNK = 200;
+    const PAGE = 1000;
+    for (let i = 0; i < contactIds.length; i += CHUNK) {
+      const slice = contactIds.slice(i, i + CHUNK);
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabaseAdmin
+          .from('list_contacts')
+          .select('contact_id, contact_lists!inner(kind, user_id, is_trashed)')
+          .in('contact_id', slice)
+          .eq('contact_lists.user_id', userId)
+          .eq('contact_lists.is_trashed', false)
+          .range(from, from + PAGE - 1);
+
+        if (error) throw new AppError(`Could not read list membership: ${error.message}`, 500);
+
+        const rows = data || [];
+        for (const row of rows as any[]) {
+          const kind = row.contact_lists?.kind;
+          if (kind === 'contact') onContact.add(row.contact_id);
+          else if (kind === 'lead') onLead.add(row.contact_id);
+        }
+        if (rows.length < PAGE) break;
+      }
+    }
+
+    for (const id of onContact) if (!onLead.has(id)) out.add(id);
+    return out;
   },
 };

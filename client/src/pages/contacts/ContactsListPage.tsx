@@ -6,7 +6,8 @@ import Papa from 'papaparse';
 import { useDebounce } from '../../hooks/useDebounce';
 import { contactsApi, listsApi, tagsApi } from '../../api/contacts.api';
 import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL } from '@lemlist/shared';
-import type { Lifecycle } from '@lemlist/shared';
+import type { Lifecycle, ListKind } from '@lemlist/shared';
+import { LIST_KINDS } from '@lemlist/shared';
 import { usePeek } from '../../components/peek/usePeek';
 import { listFoldersApi, type ListFolder } from '../../api/list-folders.api';
 import { verificationApi } from '../../api/verification.api';
@@ -680,15 +681,37 @@ export function ContactsListPage() {
     },
   });
 
+  /*
+   * Which rail you are in: outreach audiences, or the CRM.
+   *
+   * They are genuinely different jobs, so the rail shows one at a time
+   * rather than one long mixed column where the only thing telling a
+   * customer list from a cold audience is the name somebody typed. The
+   * choice is remembered, because people live in one of the two.
+   */
+  const [listKind, setListKind] = useState<ListKind>(() => {
+    try { return (localStorage.getItem('contacts.listKind') as ListKind) || 'lead'; }
+    catch { return 'lead'; }
+  });
+  const setListKindPersisted = (k: ListKind) => {
+    setListKind(k);
+    // Drop the selected list: it belongs to the rail being left, and holding
+    // on to it would show a lead list's contents under the CRM heading.
+    setSearchParams({});
+    setPage(1);
+    try { localStorage.setItem('contacts.listKind', k); } catch { /* private window */ }
+  };
+
   const { data: lists } = useQuery({
-    queryKey: ['lists'],
-    queryFn: listsApi.list,
+    queryKey: ['lists', listKind],
+    queryFn: () => listsApi.list(listKind),
   });
 
-  // Folders
+  // Folders, scoped to the same rail — a CRM folder has no business
+  // appearing above a column of cold audiences.
   const { data: folders = [] } = useQuery({
-    queryKey: ['list-folders'],
-    queryFn: listFoldersApi.list,
+    queryKey: ['list-folders', listKind],
+    queryFn: () => listFoldersApi.list(listKind),
   });
 
   const [folderModalOpen, setFolderModalOpen] = useState(false);
@@ -896,7 +919,12 @@ export function ContactsListPage() {
 
   const createListMutation = useMutation({
     mutationFn: (input: { name: string; description?: string }) =>
-      editingList ? listsApi.update(editingList.id, input) : listsApi.create(input),
+      editingList
+        ? listsApi.update(editingList.id, input)
+        // A new list belongs to the rail it was created from. Without this
+        // every list would default to 'lead' and a CRM list made here would
+        // quietly become a cold-email audience.
+        : listsApi.create({ ...input, kind: listKind }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lists'] });
       toast.success(editingList ? 'List updated' : 'List created');
@@ -1307,12 +1335,14 @@ export function ContactsListPage() {
         <aside className="w-56 flex-shrink-0">
           <div className="sticky top-[60px] panel-inset p-1.5 space-y-0.5">
             <div className="flex items-center justify-between gap-1 px-1.5 pb-1.5 mb-0.5 border-b border-[var(--border-subtle)]">
-              <span className="text-[10px] font-semibold text-[var(--text-tertiary)]">Lists</span>
+              <span className="text-[10px] font-semibold text-[var(--text-tertiary)]">
+                {listKind === 'lead' ? 'Lead lists' : 'Contact lists'}
+              </span>
               <div className="flex items-center gap-0.5">
-                <button onClick={() => { setEditingFolder(null); setFolderModalOpen(true); }} className="icon-btn h-6 w-6" title="New folder">
+                <button onClick={() => { setEditingFolder(null); setFolderModalOpen(true); }} className="icon-btn h-6 w-6" title={`New ${listKind === 'lead' ? 'lead-list' : 'contact-list'} folder`}>
                   <FolderPlus className="h-3.5 w-3.5" />
                 </button>
-                <button onClick={() => setShowListModal(true)} className="icon-btn h-6 w-6" title="New list">
+                <button onClick={() => setShowListModal(true)} className="icon-btn h-6 w-6" title={listKind === 'lead' ? 'New lead list' : 'New contact list'}>
                   <Plus className="h-3.5 w-3.5" />
                 </button>
                 <button onClick={toggleRail} title="Hide lists" className="icon-btn h-6 w-6">
@@ -1320,6 +1350,37 @@ export function ContactsListPage() {
                 </button>
               </div>
             </div>
+
+            {/*
+              Which kind of list this rail is showing.
+
+              Two jobs that look identical in a sidebar and are not: one feeds
+              cold campaigns, the other is the CRM. Naming both "Lists" and
+              mixing them is how a customer ends up in an outreach audience,
+              so the choice is explicit and always on screen.
+            */}
+            <div className="flex items-center gap-0.5 p-0.5 mb-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
+              {LIST_KINDS.map((k) => (
+                <button
+                  key={k.id}
+                  onClick={() => setListKindPersisted(k.id)}
+                  title={k.hint}
+                  className={cn(
+                    'flex-1 h-6 rounded-[6px] text-[11px] font-semibold transition-all',
+                    listKind === k.id
+                      ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(16,16,20,0.06)]'
+                      : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
+                  )}
+                >
+                  {k.id === 'lead' ? 'Leads' : 'Contacts'}
+                </button>
+              ))}
+            </div>
+            {listKind === 'contact' && (
+              <p className="px-1.5 pb-1 text-[10.5px] leading-snug text-[var(--text-tertiary)]">
+                Cold campaigns can never send to these.
+              </p>
+            )}
           {/* All Contacts */}
           <button
             onClick={() => setSearchParams({})}
@@ -1577,6 +1638,7 @@ export function ContactsListPage() {
       {folderModalOpen && (
         <ListFolderModal
           initial={editingFolder}
+          kind={listKind}
           onClose={() => { setFolderModalOpen(false); setEditingFolder(null); }}
         />
       )}
@@ -1792,23 +1854,42 @@ export function ContactsListPage() {
         {/* Bulk actions bar */}
         {someSelected && (
           <div className="flex items-center gap-4 mb-5 px-4 py-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] animate-fade-in">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 flex-shrink-0">
               <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-[var(--indigo)] text-white text-[11px] font-bold">
                 {selectedContacts.size}
               </span>
-              <span className="text-sm font-medium text-[var(--text-primary)]">
+              <span className="text-sm font-medium text-[var(--text-primary)] whitespace-nowrap">
                 contact{selectedContacts.size !== 1 ? 's' : ''} selected
               </span>
             </div>
             <div className="flex items-center gap-2 ml-auto">
-              <button
-                onClick={() => setShowCampaignModal(true)}
-                className="inline-flex items-center gap-1.5 text-sm h-8 px-3 rounded-lg font-semibold text-white transition-opacity hover:opacity-90"
-                style={{ background: 'var(--indigo-grad)' }}
-              >
-                <Megaphone className="h-3.5 w-3.5" />
-                Add to campaign
-              </button>
+              {/*
+                Not offered from the CRM rail at all.
+
+                The server refuses these anyway - a contact filed only in
+                contact lists is dropped at enrolment with a reason - but
+                letting someone select forty customers, press the button and
+                read a wall of skips is a worse way to learn the rule than
+                simply not putting the button there.
+              */}
+              {listKind === 'lead' ? (
+                <button
+                  onClick={() => setShowCampaignModal(true)}
+                  className="inline-flex items-center gap-1.5 text-sm h-8 px-3 rounded-lg font-semibold text-white transition-opacity hover:opacity-90"
+                  style={{ background: 'var(--indigo-grad)' }}
+                >
+                  <Megaphone className="h-3.5 w-3.5" />
+                  Add to campaign
+                </button>
+              ) : (
+                <span
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] h-8 px-3 rounded-lg font-medium text-[var(--text-tertiary)] bg-[var(--bg-elevated)] border border-[var(--border-subtle)]"
+                  title="Cold outreach only goes to lead lists. Move these people to a lead list first if you mean to pitch them."
+                >
+                  <Megaphone className="h-3.5 w-3.5 flex-shrink-0" />
+                  Not for cold campaigns
+                </span>
+              )}
               <button
                 onClick={() => batchVerifyMutation.mutate(Array.from(selectedContacts))}
                 disabled={batchVerifyMutation.isPending}
@@ -2028,9 +2109,22 @@ export function ContactsListPage() {
                             <Avatar name={fullName || contact.email} email={contact.email} size="sm" />
                             <div className="min-w-0">
                               <span className="flex items-center gap-1.5 min-w-0">
-                                <span className="block text-[12.5px] font-semibold text-[var(--text-primary)] truncate group-hover:text-[var(--indigo)] transition-colors">
+                                {/*
+                                  The name is a real link, not a row-click.
+                                  Clicking a row still opens the quick peek,
+                                  which is right for skimming, but the whole
+                                  record needed a way in that you can see,
+                                  middle-click, and open in a new tab like any
+                                  other link on the web. stopPropagation so it
+                                  does not also fire the peek underneath.
+                                */}
+                                <Link
+                                  to={`/contacts/${contact.id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="block text-[12.5px] font-semibold text-[var(--text-primary)] truncate hover:text-[var(--indigo)] hover:underline decoration-[var(--indigo)]/40 underline-offset-2 transition-colors"
+                                >
                                   {fullName || 'Unnamed contact'}
-                                </span>
+                                </Link>
                                 <LinkedInGlyph url={contact.linkedin_url} />
                               </span>
                               <p className="text-[11px] text-[var(--text-tertiary)] truncate leading-tight">
@@ -2565,7 +2659,12 @@ export function ContactsListPage() {
 
 /* ─── List folder modal ──────────────────────────────────────────── */
 
-function ListFolderModal({ initial, onClose }: { initial: ListFolder | null; onClose: () => void }) {
+function ListFolderModal({ initial, kind, onClose }: {
+  initial: ListFolder | null;
+  /** The rail this folder is being created in — see the list modal. */
+  kind: ListKind;
+  onClose: () => void;
+}) {
   const confirm = useConfirm();
   const qc = useQueryClient();
   const [name, setName] = useState(initial?.name || '');
@@ -2574,7 +2673,7 @@ function ListFolderModal({ initial, onClose }: { initial: ListFolder | null; onC
   const saveMut = useMutation({
     mutationFn: async () => {
       if (initial) return listFoldersApi.update(initial.id, { name: name.trim(), color });
-      return listFoldersApi.create({ name: name.trim(), color });
+      return listFoldersApi.create({ name: name.trim(), color, kind });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['list-folders'] }); toast.success(initial ? 'Folder updated' : 'Folder created'); onClose(); },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save'),
