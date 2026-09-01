@@ -25,6 +25,12 @@ export const analyticsController = {
       res.json(data);
     } catch (err) { next(err); }
   },
+  async revenue(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await analyticsService.revenue(req.userId!));
+    } catch (err) { next(err); }
+  },
+
 
   async campaign(req: AuthRequest, res: Response, next: NextFunction) {
     try {

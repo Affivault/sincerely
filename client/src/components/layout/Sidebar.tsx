@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers, Blocks,
   ChevronRight, Wrench, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck, Sparkles,
-  CalendarDays, ListTodo, Building2, Linkedin, Contact2,
+  CalendarDays, ListTodo, Building2, Linkedin, Contact2, Banknote,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
@@ -53,7 +53,9 @@ const primaryNav: NavItem[] = [
       { name: 'Templates',      href: '/templates',      icon: FileText },
       { name: 'Schedules',      href: '/schedules',      icon: CalendarClock },
       { name: 'Email accounts', href: '/email-accounts', icon: AtSign },
-      { name: 'Analytics',      href: '/analytics',      icon: BarChart3 },
+      { name: 'Analytics',      href: '/analytics',      icon: BarChart3, exact: true },
+      // The join between outreach and revenue, and the reason for owning both.
+      { name: 'Revenue',        href: '/analytics/revenue', icon: Banknote },
     ],
   },
   /* Everything to do with people you are pitching.
