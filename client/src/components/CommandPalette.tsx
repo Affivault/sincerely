@@ -113,7 +113,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     { id: 'nav-analytics', label: 'Analytics', icon: BarChart3, group: 'Navigate', href: '/analytics', keywords: 'stats reports metrics' },
     { id: 'nav-templates', label: 'Templates', icon: FileText, group: 'Navigate', href: '/templates', keywords: 'emails snippets' },
     { id: 'nav-schedules', label: 'Schedules', icon: CalendarClock, group: 'Navigate', href: '/schedules', keywords: 'sending times' },
-    { id: 'nav-contacts', label: 'Lead Lists', icon: Users, group: 'Navigate', href: '/contacts', keywords: 'leads people audience' },
+    { id: 'nav-contacts', label: 'Contacts', icon: Users, group: 'Navigate', href: '/contacts', keywords: 'contacts leads prospects people audience lists' },
     { id: 'nav-companies', label: 'Companies', icon: Building2, group: 'Navigate', href: '/companies', keywords: 'accounts organisations organizations firms' },
     { id: 'nav-prospector', label: 'Prospector', icon: Radar, group: 'Navigate', href: '/prospector', keywords: 'find leads search database discover' },
     { id: 'nav-smtp', label: 'Email accounts', icon: Send, group: 'Navigate', href: '/email-accounts', keywords: 'mailbox sender smtp' },

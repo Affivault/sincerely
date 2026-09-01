@@ -154,7 +154,7 @@ export function CampaignsListPage() {
 
   const activeFolder = folders.find((f) => f.id === activeFolderId);
 
-  // Drag a campaign onto a folder row to move it (mirrors the Lead Lists DnD)
+  // Drag a campaign onto a folder row to move it (mirrors the Contacts DnD)
   const folderDropProps = (key: string, folderId: string | null) => ({
     dropActive: dropFolderKey === key && !!draggingCampaignId,
     onDragOver: (e: React.DragEvent) => { if (draggingCampaignId) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropFolderKey(key); } },

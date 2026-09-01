@@ -295,7 +295,7 @@ export function ProspectorPage() {
           </span>
           <div>
             <h1 className="text-[19px] font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Prospector</h1>
-            <p className="text-[12.5px] text-[var(--text-tertiary)]">Search 100M+ B2B profiles, reveal verified emails, and drop them straight into your lead lists.</p>
+            <p className="text-[12.5px] text-[var(--text-tertiary)]">Search 100M+ B2B profiles, reveal verified emails, and drop them straight into your contact lists.</p>
           </div>
         </div>
         {credits && (
@@ -472,7 +472,7 @@ export function ProspectorPage() {
               <Radar className="h-8 w-8 text-[var(--text-muted)] mx-auto mb-3" />
               <p className="text-[14px] font-semibold text-[var(--text-primary)]">Find your next customers</p>
               <p className="text-[12.5px] text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
-                Filter by job title, location, industry and company size. Each verified email you reveal costs 1 credit and lands in your lead lists — ready for campaigns.
+                Filter by job title, location, industry and company size. Each verified email you reveal costs 1 credit and lands in your contact lists — ready for campaigns.
               </p>
             </div>
           ) : results.results.length === 0 ? (

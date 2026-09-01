@@ -36,7 +36,7 @@ const isGroup = (item: NavItem): item is NavGroup => (item as NavGroup).kind ===
    The old sidebar listed every page at one flat level, which made the rail a
    table of contents rather than a map: fourteen equal rows, no sense of what
    belonged with what. The fix is grouping — Templates and Schedules sit under
-   Campaigns, Companies and Prospector beside Lead lists — but grouping earns
+   Campaigns, Companies and Prospector beside Contacts — but grouping earns
    its keep by giving structure, not by taking pages off the screen. So the
    groups start open: everything you had is still visible, just gathered under
    the thing it belongs to. Collapsing is a choice you make, not a default you
@@ -56,13 +56,20 @@ const primaryNav: NavItem[] = [
       { name: 'Analytics',      href: '/analytics',      icon: BarChart3 },
     ],
   },
+  /* People, not opportunities.
+
+     This group used to be called "Leads" and pointed at /contacts, which was
+     survivable right up until an actual Leads inbox shipped at /leads — and
+     then the rail had two rows with the same name going to different places.
+     They are different things and the nav has to say so: everyone you know of
+     lives here, and the handful you have decided to pursue live in Leads. */
   {
-    kind: 'group', id: 'leads',
-    name: 'Leads', href: '/contacts', icon: Users,
+    kind: 'group', id: 'contacts',
+    name: 'Contacts', href: '/contacts', icon: Users,
     children: [
-      { name: 'Lead lists', href: '/contacts',   icon: Users },
-      { name: 'Companies',  href: '/companies',  icon: Building2 },
-      { name: 'Prospector', href: '/prospector', icon: Radar },
+      { name: 'All contacts', href: '/contacts',   icon: Users },
+      { name: 'Companies',    href: '/companies',  icon: Building2 },
+      { name: 'Prospector',   href: '/prospector', icon: Radar },
     ],
   },
   /* Leads sits immediately above Deals because that is the order the work
@@ -114,12 +121,14 @@ const ALL_GROUPS: NavGroup[] = [...primaryNav, ...utilityNav].filter(isGroup);
    shut because it isn't why anyone opens the app. */
 const DEFAULT_EXPANDED = primaryNav.filter(isGroup).map((g) => g.id);
 
-/* Versioned: anyone who used the app before this shipped has ["campaigns"]
-   saved from the old single-group default, which under the new nav would
-   leave Leads and Calendar shut — the one thing this change exists to avoid.
-   A new key lets the new default reach people who already have a preference
-   for a nav that no longer exists. */
-const EXPANDED_KEY = 'sidebar.expandedGroups.v2';
+/* Versioned, and it has to be bumped whenever a group id changes.
+
+   v2 holds ids from a nav where this group was called "leads". Renaming it to
+   "contacts" means a saved v2 preference no longer mentions it at all, and a
+   group nobody has an opinion about renders shut — so the rename would have
+   quietly collapsed Contacts for every existing user. That is the same trap
+   v1 fell into, one nav generation earlier. */
+const EXPANDED_KEY = 'sidebar.expandedGroups.v3';
 
 function routeMatches(pathname: string, route: string): boolean {
   return pathname === route || pathname.startsWith(route + '/');

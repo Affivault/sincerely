@@ -183,7 +183,7 @@ export function DeveloperPage() {
           toast.error('Connected, but that key is read-only, so adding people will fail.');
         } else if (typeof event.data.listCount === 'number') {
           setExtensionConnected(true);
-          toast.success(`Extension connected — ${event.data.listCount} lead list(s) visible.`);
+          toast.success(`Extension connected — ${event.data.listCount} list(s) visible.`);
         } else {
           setExtensionConnected(true);
           toast.success('Extension connected');

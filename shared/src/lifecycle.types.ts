@@ -22,6 +22,19 @@ export const LIFECYCLES: { id: Lifecycle; label: string; hint: string }[] = [
 ];
 
 /**
+ * Singular, for labelling one person rather than a filter holding many.
+ *
+ * "Prospects 386" is a bucket; "Prospect" on somebody's row is a fact about
+ * them. Same words, and keeping both spellings here stops a row badge and the
+ * filter above it drifting apart into two vocabularies.
+ */
+export const LIFECYCLE_LABEL: Record<Lifecycle, string> = {
+  prospect: 'Prospect',
+  contact: 'Contact',
+  customer: 'Customer',
+};
+
+/**
  * What caused a promotion.
  *
  * Recorded so the answer to "why is this person in my CRM" is never a
