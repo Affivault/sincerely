@@ -178,7 +178,12 @@ export function ProspectorPage() {
   const [listId, setListId] = useState('');
   const [results, setResults] = useState<ProspectSearchResponse | null>(null);
   const [revealingId, setRevealingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkRevealing, setBulkRevealing] = useState(false);
   const [campaignContactIds, setCampaignContactIds] = useState<string[] | null>(null);
+  // Set while a bulk reveal is looping through mutateAsync calls, so the
+  // per-reveal toasts stay quiet and one summary toast speaks for all of them.
+  const suppressRevealToastsRef = useRef(false);
 
   const { data: status, isError: statusError } = useQuery({ queryKey: ['prospecting', 'status'], queryFn: prospectingApi.status, meta: { silentError: true } });
   const { data: lists } = useQuery({ queryKey: ['lists'], queryFn: listsApi.list });
@@ -199,6 +204,7 @@ export function ProspectorPage() {
       if (vars.requestId !== searchRequestIdRef.current) return;
       setResults(data);
       setPage(vars.p);
+      setSelectedIds(new Set());
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Search failed'),
   });
@@ -219,13 +225,54 @@ export function ProspectorPage() {
           ...prev,
           results: prev.results.map((r) => r.id === person.id ? { ...r, already_revealed: true, contact_id: res.contact_id } : r),
         } : prev);
-        toast.success(res.already_revealed ? `Already unlocked: ${res.email}` : `Saved ${res.email} to your leads${listId ? ' list' : ''}`);
-      } else {
+        if (!suppressRevealToastsRef.current) {
+          toast.success(res.already_revealed ? `Already unlocked: ${res.email}` : `Saved ${res.email} to your leads${listId ? ' list' : ''}`);
+        }
+      } else if (!suppressRevealToastsRef.current) {
         toast(`No verified email found for ${person.full_name} — you weren't charged.`, { icon: 'ℹ️' });
       }
     },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Reveal failed'),
+    onError: (e: any) => { if (!suppressRevealToastsRef.current) toast.error(e.response?.data?.error || 'Reveal failed'); },
     onSettled: () => setRevealingId(null),
+  });
+
+  // Reveals every selected, not-yet-unlocked row in sequence — parallel reveals
+  // would race the credit balance. Stops issuing new calls once credits are
+  // spent (a "not found" reveal isn't charged, so the count only drops on a hit).
+  const bulkReveal = async () => {
+    const targets = (results?.results || []).filter((p) => selectedIds.has(p.id) && !p.already_revealed);
+    if (targets.length === 0) return;
+    setBulkRevealing(true);
+    suppressRevealToastsRef.current = true;
+    let remaining = credits ? credits.remaining : -1; // -1 = unlimited
+    let revealed = 0, noEmail = 0, failed = 0, skipped = 0;
+    try {
+      for (const person of targets) {
+        if (remaining === 0) { skipped++; continue; }
+        try {
+          const res = await revealMutation.mutateAsync(person);
+          if (res.found) { revealed++; if (remaining > 0) remaining--; } else { noEmail++; }
+        } catch {
+          failed++;
+        }
+      }
+    } finally {
+      suppressRevealToastsRef.current = false;
+      setBulkRevealing(false);
+      setSelectedIds(new Set());
+    }
+    const parts: string[] = [];
+    if (revealed) parts.push(`${revealed} revealed`);
+    if (noEmail) parts.push(`${noEmail} had no email`);
+    if (failed) parts.push(`${failed} failed`);
+    if (skipped) parts.push(`${skipped} skipped — out of credits`);
+    toast(parts.join(', ') || 'Nothing to reveal', { icon: revealed ? '✅' : 'ℹ️' });
+  };
+
+  const toggleSelect = (id: string) => setSelectedIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
   });
 
   const runSearch = (p = 1) => {
@@ -401,6 +448,25 @@ export function ProspectorPage() {
             )}
           </div>
 
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-2.5 mb-3 rounded-lg border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-3 py-2">
+              <span className="text-[12px] font-medium text-[var(--text-primary)]">{selectedIds.size} selected</span>
+              <span className="flex-1" />
+              <Button size="sm" variant="secondary" onClick={() => setSelectedIds(new Set())} disabled={bulkRevealing}>
+                Clear
+              </Button>
+              <Button
+                size="sm"
+                onClick={bulkReveal}
+                disabled={bulkRevealing || revealingId !== null || (credits ? credits.remaining === 0 : false)}
+              >
+                {bulkRevealing
+                  ? <><Spinner size="sm" /> Revealing…</>
+                  : <><Unlock className="h-3 w-3" /> Reveal {selectedIds.size} selected</>}
+              </Button>
+            </div>
+          )}
+
           {!results ? (
             <div className="rounded-xl border border-dashed border-[var(--border-default)] bg-[var(--bg-surface)] py-20 text-center px-6">
               <Radar className="h-8 w-8 text-[var(--text-muted)] mx-auto mb-3" />
@@ -414,13 +480,34 @@ export function ProspectorPage() {
               <p className="text-[13px] font-medium text-[var(--text-primary)]">No prospects match those filters</p>
               <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Try broadening the title or removing a filter.</p>
             </div>
-          ) : (
+          ) : (() => {
+            const unrevealedOnPage = results.results.filter((p) => !p.already_revealed).map((p) => p.id);
+            const allSelected = unrevealedOnPage.length > 0 && unrevealedOnPage.every((id) => selectedIds.has(id));
+            return (
             <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left">
                   <thead>
                     <tr className="border-b border-[var(--border-subtle)] text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                      <th className="py-2.5 pl-4 pr-3">Person</th>
+                      <th className="py-2.5 pl-4 pr-2 w-8">
+                        {unrevealedOnPage.length > 0 && (
+                          <input
+                            type="checkbox"
+                            checked={allSelected}
+                            onChange={() => setSelectedIds((prev) => {
+                              if (allSelected) {
+                                const next = new Set(prev);
+                                unrevealedOnPage.forEach((id) => next.delete(id));
+                                return next;
+                              }
+                              return new Set([...prev, ...unrevealedOnPage]);
+                            })}
+                            aria-label="Select all unrevealed prospects on this page"
+                            className="h-3.5 w-3.5 rounded border-[var(--border-default)]"
+                          />
+                        )}
+                      </th>
+                      <th className="py-2.5 pr-3">Person</th>
                       <th className="py-2.5 px-3">Company</th>
                       <th className="py-2.5 px-3">Location</th>
                       <th className="py-2.5 px-3">Email</th>
@@ -430,7 +517,18 @@ export function ProspectorPage() {
                   <tbody>
                     {results.results.map((p) => (
                       <tr key={p.id} className="border-b border-[var(--border-subtle)] last:border-0 hover:bg-[var(--bg-hover)] transition-colors">
-                        <td className="py-2.5 pl-4 pr-3">
+                        <td className="py-2.5 pl-4 pr-2 w-8">
+                          {!p.already_revealed && (
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(p.id)}
+                              onChange={() => toggleSelect(p.id)}
+                              aria-label={`Select ${p.full_name}`}
+                              className="h-3.5 w-3.5 rounded border-[var(--border-default)]"
+                            />
+                          )}
+                        </td>
+                        <td className="py-2.5 pr-3">
                           <div className="flex items-center gap-2.5 min-w-0">
                             <Avatar name={p.full_name} size="lg" />
                             <div className="min-w-0">
@@ -485,7 +583,7 @@ export function ProspectorPage() {
                                 size="sm"
                                 variant="secondary"
                                 onClick={() => revealMutation.mutate(p)}
-                                disabled={revealingId !== null || (credits ? credits.remaining === 0 : false)}
+                                disabled={revealingId !== null || bulkRevealing || (credits ? credits.remaining === 0 : false)}
                               >
                                 {revealingId === p.id
                                   ? <><Spinner size="sm" /> Revealing…</>
@@ -509,7 +607,8 @@ export function ProspectorPage() {
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* Out of credits nudge */}
           {credits && credits.allowance >= 0 && credits.remaining === 0 && (

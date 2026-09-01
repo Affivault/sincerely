@@ -216,14 +216,16 @@ console.log('\ntoday’s allowance running out is worth saying, but it is not br
   is('capacity reads zero, honestly', r.capacity_today === 0, String(r.capacity_today));
 }
 
-console.log('\na limit of zero, though, means nothing will ever send');
+console.log('\na limit of zero means unlimited, not "nothing ever sends"');
 {
   // The trap: 0 means "unlimited" for a warm-up target elsewhere in this
   // codebase, and reading it that way here would report an uncapped mailbox
-  // as healthy when it sends nothing at all.
+  // as healthy when it sends nothing at all. (There is no way to represent a
+  // genuine zero-send limit under this convention, so no issue should ever
+  // claim there is one.)
   const r = await health((w) => { w.smtp_accounts[0].daily_send_limit = 0; });
   is('an uncapped mailbox is not reported as broken',
-     !has(r, 'no_capacity'), ids(r));
+     r.level === 'ok', `${r.level}: ${ids(r)}`);
   is('and its capacity is null rather than a made-up number',
      r.capacity_today === null, String(r.capacity_today));
   is('so there is no days-to-clear guess either',

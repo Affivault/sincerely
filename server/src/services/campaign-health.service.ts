@@ -179,16 +179,6 @@ export const campaignHealthService = {
         fix: { label: 'Review limits', href: '/email-accounts?tab=mailboxes' },
       });
     }
-    if (usable.length > 0 && dailyCapacity === 0) {
-      issues.push({
-        id: 'no_capacity',
-        level: 'stalled',
-        headline: 'Every mailbox on this campaign has a daily limit of zero.',
-        detail: 'A limit of zero means nothing is ever sent. Raise it on the mailbox, or turn warm-up off if it set it.',
-        fix: { label: 'Review limits', href: '/email-accounts?tab=mailboxes' },
-      });
-    }
-
     /* ---- reputation ---- */
     if (verdict?.trip) {
       issues.push({
