@@ -149,6 +149,26 @@ export const LIST_KINDS: { id: ListKind; label: string; one: string; hint: strin
   },
 ];
 
+/**
+ * Whether a cold campaign may reach somebody, given where they are filed.
+ *
+ * The rule in one place, because it is answered twice and the two answers
+ * must never differ: the server applies it when enrolling, and the profile
+ * page states it to your face. If the page says "can be added to campaigns"
+ * and enrolment then silently drops them, the page has lied about the one
+ * thing it exists to tell you.
+ *
+ * Being in the CRM is what protects somebody, and being in an outreach
+ * audience is what overrides it - putting a customer on a lead list is a
+ * deliberate act that says pitch this one anyway. Somebody on no list at all
+ * is unfiled, not protected, and stays reachable; blocking them would break
+ * importing straight into a campaign, which is how most people start.
+ */
+export function isColdEmailable(where: { onLeadList: boolean; onContactList: boolean }): boolean {
+  if (!where.onContactList) return true;
+  return where.onLeadList;
+}
+
 export interface ContactList {
   id: string;
   user_id: string;

@@ -11,7 +11,10 @@ import { DealModal } from '../crm/DealsPage';
 import { MeetingModal } from '../../components/crm/CrmPrimitives';
 import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
 import { ContactHistory, ContactOrigin } from '../../components/crm/ContactHistory';
-import { DEAL_STAGES, type Deal, type CrmEvent } from '@lemlist/shared';
+import {
+  DEAL_STAGES, isColdEmailable, LIFECYCLE_LABEL,
+  type Deal, type CrmEvent, type Lifecycle,
+} from '@lemlist/shared';
 import { Spinner } from '../../components/ui/Spinner';
 import { InlineEdit } from '../../components/ui/InlineEdit';
 import { Modal } from '../../components/ui/Modal';
@@ -40,7 +43,7 @@ import {
   ArrowDownLeft,
   Ban,
   ExternalLink,
-  Sparkles,
+  Sparkles, Megaphone,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -203,6 +206,21 @@ export function ContactDetailPage() {
   const memberLists = (contactLists || []).filter((l: any) => l.is_member);
   const nonMemberLists = (contactLists || []).filter((l: any) => !l.is_member);
 
+  /*
+   * Whether a campaign can reach this person, answered on their own page.
+   *
+   * Their lists already say it, but only if you know the rule and read every
+   * row - and the one question worth answering here is "can I pitch them".
+   * The predicate is shared with the enrolment filter, so this cannot say yes
+   * to somebody the server will silently drop.
+   */
+  const onLeadList = memberLists.some((l: any) => l.kind !== 'contact');
+  const onContactList = memberLists.some((l: any) => l.kind === 'contact');
+  const coldEmailable = isColdEmailable({ onLeadList, onContactList });
+  const leadLists = memberLists.filter((l: any) => l.kind !== 'contact');
+  const crmLists = memberLists.filter((l: any) => l.kind === 'contact');
+  const stage = ((contact?.lifecycle || 'prospect') as Lifecycle);
+
   // Relationship stats derived from the email history, deals, and activity feed.
   const sortedEmails = [...emails].sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime());
   const receivedCount = emails.filter((m) => m.direction !== 'outbound').length;
@@ -284,9 +302,19 @@ export function ContactDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/*
+            Offered only when it would actually work. The panel below states
+            whether cold outreach can reach this person; a live button beside
+            a line saying it cannot would make the page argue with itself, and
+            the enrolment would be dropped server-side anyway.
+          */}
           <button
             onClick={() => setShowCampaignModal(true)}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[12.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+            disabled={!coldEmailable}
+            title={coldEmailable
+              ? undefined
+              : 'Cold campaigns only send to lead lists. Add this person to a lead list first.'}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[12.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-[var(--bg-surface)] disabled:hover:text-[var(--text-secondary)]"
           >
             <Send className="h-3.5 w-3.5" /> Add to campaign
           </button>
@@ -345,6 +373,50 @@ export function ContactDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Contact Info */}
         <div className="space-y-3">
+          {/*
+            Where this person stands, and whether you may pitch them.
+
+            Two facts the profile never answered. The stage was only ever
+            visible as a column on the list you came from, and whether a
+            campaign could reach somebody was not stated anywhere at all -
+            you found out by enrolling them and reading the skips.
+          */}
+          <div className="card p-4">
+            <div className="flex items-center justify-between gap-2 mb-2.5">
+              <h2 className="text-[11px] font-bold text-[var(--text-tertiary)]">Stage</h2>
+              <span
+                title={
+                  stage === 'customer' ? 'Won a deal.'
+                    : stage === 'contact' ? 'Replied, met, or added deliberately.'
+                    : 'Sourced but never engaged.'
+                }
+                className={cn(
+                  'inline-flex items-center px-1.5 h-[20px] rounded-md text-[10.5px] font-semibold',
+                  stage === 'customer' ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/12'
+                    : stage === 'contact' ? 'text-indigo-700 dark:text-indigo-300 bg-indigo-500/12'
+                    : 'text-[var(--text-tertiary)] bg-[var(--bg-elevated)]',
+                )}
+              >
+                {LIFECYCLE_LABEL[stage]}
+              </span>
+            </div>
+            <div className={cn(
+              'flex items-start gap-2 rounded-[6px] px-2.5 py-2 text-[11.5px] leading-snug',
+              coldEmailable
+                ? 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
+                : 'bg-[var(--indigo-subtle)] text-[var(--text-primary)] border border-[var(--indigo)]/20',
+            )}>
+              <Megaphone className={cn('h-3.5 w-3.5 flex-shrink-0 mt-px', coldEmailable ? 'text-[var(--text-tertiary)]' : 'text-[var(--indigo)]')} />
+              <span>
+                {coldEmailable
+                  ? 'Can be added to a campaign.'
+                  : onContactList
+                    ? 'Not reachable by cold campaigns — filed in the CRM and on no lead list.'
+                    : 'Not reachable by cold campaigns.'}
+              </span>
+            </div>
+          </div>
+
           <div className="card p-4">
             <h2 className="text-[11px] font-bold text-[var(--text-tertiary)] mb-3">Contact Info</h2>
             <div className="space-y-2.5">
@@ -439,7 +511,22 @@ export function ContactDetailPage() {
               <p className="text-[12px] text-[var(--text-tertiary)]">Not on any lists yet</p>
             ) : (
               <div className="space-y-1">
-                {memberLists.map((list: any) => (
+                {/*
+                  Grouped, because after the split the two mean opposite
+                  things: one is an outreach audience, the other is the CRM.
+                  A flat column of names cannot tell you which is which, and
+                  that is exactly the fact you came to this panel for.
+                */}
+                {([
+                  ['Lead lists', leadLists, 'Campaigns can send to these.'],
+                  ['Contact lists', crmLists, 'Cold campaigns can never send to these.'],
+                ] as [string, any[], string][]).filter(([, ls]) => ls.length > 0).map(([label, ls, hint]) => (
+                  <div key={label} className="pt-1 first:pt-0">
+                    <p className="px-0.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-tertiary)]" title={hint}>
+                      {label}
+                    </p>
+                    <div className="space-y-1">
+                {ls.map((list: any) => (
                   <div
                     key={list.id}
                     className="flex items-center gap-2 h-8 px-2.5 rounded-[6px] bg-[var(--bg-elevated)] group"
@@ -467,6 +554,9 @@ export function ContactDetailPage() {
                           <X className="h-3 w-3" />
                         </button>
                       )}
+                    </div>
+                  </div>
+                ))}
                     </div>
                   </div>
                 ))}

@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { writable } from '../utils/writable-fields.js';
+import { isColdEmailable } from '@lemlist/shared';
 import type { CreateContactListInput, UpdateContactListInput, BulkActionResult, ListKind } from '@lemlist/shared';
 
 /**
@@ -335,7 +336,15 @@ export const listsService = {
       }
     }
 
-    for (const id of onContact) if (!onLead.has(id)) out.add(id);
+    // The rule itself lives in shared, so the profile page's "can be added to
+    // campaigns" line and this filter can never drift apart.
+    for (const id of contactIds) {
+      const reachable = isColdEmailable({
+        onLeadList: onLead.has(id),
+        onContactList: onContact.has(id),
+      });
+      if (!reachable) out.add(id);
+    }
     return out;
   },
 };
