@@ -779,6 +779,8 @@ export const campaignsService = {
         include_unsubscribe: original.include_unsubscribe,
         stop_on_reply: original.stop_on_reply,
         dcs_threshold: original.dcs_threshold,
+        ab_auto_promote: original.ab_auto_promote,
+        send_in_recipient_timezone: original.send_in_recipient_timezone,
       })
       .select()
       .single();

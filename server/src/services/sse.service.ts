@@ -213,8 +213,19 @@ export async function recordBounce(accountId: string): Promise<void> {
     // RPC not available — fall back to manual update below
   }
 
-  // Health score requires a clamped decrement (GREATEST(0, score-5)) which
-  // can't be expressed atomically via the generic RPC, so we do read-modify-write here.
+  // Atomic clamped decrement (GREATEST(0, score-5)) via adjust_health_score:
+  // a single UPDATE per account, so concurrent bounces on the same mailbox
+  // can't race a read-then-write and lose an adjustment.
+  const { error: healthErr } = await supabaseAdmin.rpc('adjust_health_score', {
+    p_account_id: accountId,
+    p_delta: -5,
+  });
+  if (healthErr) {
+    console.error(`[SSE] recordBounce health-score RPC failed for ${accountId}, falling back:`, healthErr.message);
+  }
+
+  // last_bounce_at always needs a plain write; health_score/total_bounced are
+  // only included here when the atomic RPCs above couldn't apply them.
   const { data, error } = await supabaseAdmin
     .from('smtp_accounts')
     .select('health_score, total_bounced')
@@ -227,12 +238,11 @@ export async function recordBounce(accountId: string): Promise<void> {
   }
 
   if (data) {
-    const newHealth = Math.max(0, data.health_score - 5);
     await supabaseAdmin
       .from('smtp_accounts')
       .update({
-        health_score: newHealth,
         last_bounce_at: new Date().toISOString(),
+        ...(healthErr ? { health_score: Math.max(0, data.health_score - 5) } : {}),
         // Only include total_bounced in fallback — RPC already incremented it atomically
         ...(!rpcSucceeded ? { total_bounced: data.total_bounced + 1 } : {}),
       })
@@ -258,8 +268,20 @@ export async function recordOpen(accountId: string): Promise<void> {
     // RPC not available — fall back to manual update below
   }
 
-  // Health score requires a clamped increment (MIN(100, score+1)) which can't
-  // be expressed atomically via the generic RPC, so we do read-modify-write here.
+  // Atomic clamped increment (LEAST(100, score+1)) via adjust_health_score: a
+  // single UPDATE per account, so concurrent opens on the same mailbox can't
+  // race a read-then-write and lose an adjustment.
+  const { error: healthErr } = await supabaseAdmin.rpc('adjust_health_score', {
+    p_account_id: accountId,
+    p_delta: 1,
+  });
+  if (healthErr) {
+    console.error(`[SSE] recordOpen health-score RPC failed for ${accountId}, falling back:`, healthErr.message);
+  }
+
+  if (rpcSucceeded && !healthErr) return; // both atomic RPCs applied — nothing left to do
+
+  // Fallback path for whichever piece the atomic RPCs above couldn't handle.
   const { data, error } = await supabaseAdmin
     .from('smtp_accounts')
     .select('health_score, total_opened')
@@ -272,11 +294,10 @@ export async function recordOpen(accountId: string): Promise<void> {
   }
 
   if (data) {
-    const newHealth = Math.min(100, data.health_score + 1);
     await supabaseAdmin
       .from('smtp_accounts')
       .update({
-        health_score: newHealth,
+        ...(healthErr ? { health_score: Math.min(100, data.health_score + 1) } : {}),
         // Only include total_opened in fallback — RPC already incremented it atomically
         ...(!rpcSucceeded ? { total_opened: data.total_opened + 1 } : {}),
       })
