@@ -8,6 +8,8 @@ import { contactsApi, listsApi, tagsApi } from '../../api/contacts.api';
 import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL } from '@lemlist/shared';
 import type { Lifecycle, ListKind } from '@lemlist/shared';
 import { usePeek } from '../../components/peek/usePeek';
+import { useFillViewport } from '../../hooks/useFillViewport';
+import { useGridKeys } from '../../hooks/useGridKeys';
 import { listFoldersApi, type ListFolder } from '../../api/list-folders.api';
 import { verificationApi } from '../../api/verification.api';
 import { settingsApi } from '../../api/settings.api';
@@ -77,6 +79,15 @@ import {
 
 type ContactSortKey = 'first_name' | 'email' | 'company' | 'dcs_score' | 'created_at';
 type StatusFilter = '' | 'valid' | 'risky' | 'invalid' | 'not_found' | 'unverified';
+
+/** How a status filter reads once it is a chip rather than a pill you pressed. */
+const STATUS_LABEL: Record<Exclude<StatusFilter, ''>, string> = {
+  valid: 'Valid only',
+  risky: 'Risky only',
+  invalid: 'Invalid only',
+  not_found: 'Not found only',
+  unverified: 'Unverified only',
+};
 
 function SortableHeader({
   label,
@@ -545,6 +556,15 @@ const LIFECYCLE_COLUMN_SHOWN = 'contacts.columns.lifecycleIntroduced';
  * confused for one screen with a toggle somebody left in the wrong position.
  */
 export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind } = {}) {
+  /*
+   * How much room is left under the filters for the grid itself.
+   *
+   * Measured from the element's own position rather than assumed, because
+   * everything above it changes height: the bulk bar appears with a
+   * selection, the status pills wrap on a narrow window, the lifecycle tabs
+   * come and go with the list you are in.
+   */
+  const { ref: gridRef, height: gridHeight } = useFillViewport<HTMLDivElement>({ min: 280 });
   const confirm = useConfirm();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -651,13 +671,30 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
    * campaigns — they are just not what you want to look at when you are
    * asking "who do we know at Northbeam".
    */
+  /*
+   * What each page opens showing.
+   *
+   * Leads opens on everybody in your lead lists; Contacts opens on the people
+   * you actually have a relationship with, which is what a CRM is for. The
+   * default was 'engaged' for both, so the Leads page opened filtered to
+   * contacts - a page about who to pitch, showing the two people you must not.
+   *
+   * Keyed per page as well, because one saved value meant narrowing Contacts
+   * to prospects also narrowed Leads, and neither page could be left set up
+   * the way its own work wants.
+   */
+  const lifecycleKey = `contacts.lifecycle.${listKind}`;
   const [lifecycle, setLifecycle] = useState<'engaged' | 'prospect' | 'all'>(() => {
-    try { return (localStorage.getItem('contacts.lifecycle') as any) || 'engaged'; } catch { return 'engaged'; }
+    try {
+      return (localStorage.getItem(lifecycleKey) as any) || (listKind === 'lead' ? 'all' : 'engaged');
+    } catch {
+      return listKind === 'lead' ? 'all' : 'engaged';
+    }
   });
   const setLifecyclePersisted = (v: 'engaged' | 'prospect' | 'all') => {
     setLifecycle(v);
     setPage(1);
-    try { localStorage.setItem('contacts.lifecycle', v); } catch { /* private window */ }
+    try { localStorage.setItem(lifecycleKey, v); } catch { /* private window */ }
   };
 
   const { data: lifecycleCounts } = useQuery({
@@ -1055,11 +1092,68 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   const contacts = contactsData?.data || [];
   const totalPages = contactsData?.total_pages || 1;
   const totalContacts = contactsData?.total || 0;
+  /*
+   * Keyboard use of the grid. j/k to move, x to select, Enter to open the
+   * record, / to search, Escape to let go. `contacts` is the page currently
+   * rendered, so the indices the hook hands back line up with the rows.
+   */
+  const searchRef = useRef<HTMLInputElement>(null);
+  const { focusIndex, setFocusIndex } = useGridKeys({
+    count: contacts.length,
+    searchRef,
+    enabled: !isLoading,
+    onOpen: (i) => { const c = contacts[i]; if (c) navigate(`/contacts/${c.id}`); },
+    onToggleSelect: (i) => { const c = contacts[i]; if (c) toggleSelectContact(c.id); },
+    onSelectAll: () => toggleSelectAll(),
+    onEscape: () => setSelectedContacts(new Set()),
+  });
+
+  /*
+   * What is narrowing this list, and one way out of all of it.
+   *
+   * Search, verification status, company, lifecycle and the selected list can
+   * all be on at once, each in a different corner of the toolbar. The count
+   * at the bottom then disagrees with what somebody expects to see and there
+   * is no single thing to press to get back to everything - so people reload
+   * the page, which is the tell that a filter UI has failed.
+   *
+   * The list itself is deliberately excluded: it is the page you navigated
+   * to, shown in the rail and the title, not a filter you might have
+   * forgotten leaving on.
+   */
+  const activeFilters = [
+    debouncedSearch.trim() && { id: 'search', label: `“${debouncedSearch.trim()}”`, clear: () => setSearch('') },
+    statusFilter && { id: 'status', label: STATUS_LABEL[statusFilter] ?? statusFilter, clear: () => setStatusFilter('') },
+    companyFilter && { id: 'company', label: companyFilter, clear: () => setCompanyFilter(null) },
+    lifecycle !== (listKind === 'lead' ? 'all' : 'engaged') && {
+      id: 'lifecycle',
+      label: lifecycle === 'engaged' ? 'Contacts only' : lifecycle === 'prospect' ? 'Prospects only' : 'Everyone',
+      clear: () => setLifecyclePersisted(listKind === 'lead' ? 'all' : 'engaged'),
+    },
+  ].filter(Boolean) as { id: string; label: string; clear: () => void }[];
+
+  const clearAllFilters = () => {
+    setSearch('');
+    setStatusFilter('');
+    setCompanyFilter(null);
+    setLifecyclePersisted(listKind === 'lead' ? 'all' : 'engaged');
+    setPage(1);
+  };
+
   const allSelected = contacts.length > 0 && contacts.every((c: any) => selectedContacts.has(c.id));
   const someSelected = selectedContacts.size > 0;
   const pendingOnPage = (contacts as any[]).filter((c) => !c.dcs_verified_at && !c.is_bounced).length;
 
   const isUnlistedView = activeListId === UNLISTED_LIST_ID;
+  /*
+   * One word for what this page holds, used by every control on it.
+   *
+   * The header said "All Leads", the rail said "All Contacts" and the button
+   * said "Add contact" - three names for one thing on one screen, which is
+   * how a person stops trusting that the app knows what it is doing.
+   */
+  const noun = listKind === 'lead' ? 'lead' : 'contact';
+
   const currentListName = isUnlistedView
     ? UNLISTED_LIST_NAME
     : activeListId && lists
@@ -1308,7 +1402,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             </button>
             <button onClick={() => setShowCreateModal(true)} className="btn-primary">
               <Plus className="h-3.5 w-3.5" />
-              Add contact
+              Add {noun}
             </button>
           </div>
         }
@@ -1363,7 +1457,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             )}
           >
             <Users className="h-3.5 w-3.5 flex-shrink-0" />
-            <span className="flex-1 text-left">All Contacts</span>
+            <span className="flex-1 text-left">{listKind === 'lead' ? 'All Leads' : 'All Contacts'}</span>
             <span className={cn(
               "text-[10px] font-semibold tabular px-1.5 rounded",
               !activeListId ? "text-[var(--indigo)]" : "text-[var(--text-tertiary)]"
@@ -1658,7 +1752,9 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 </button>
               ))}
             </div>
-            {lifecycleCounts.customer > 0 && (
+            {/* CRM information, so it stays on the CRM page. On Leads it was
+                telling you about the people you specifically cannot pitch. */}
+            {listKind === 'contact' && lifecycleCounts.customer > 0 && (
               <span
                 className="inline-flex h-7 items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/[0.08] px-2.5 text-[11.5px] font-medium text-emerald-600 dark:text-emerald-400"
                 title="Won a deal. Kept out of cold campaigns by default."
@@ -1690,10 +1786,11 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
             <input
+              ref={searchRef}
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, email, or company…"
+              placeholder="Search by name, email, or company…  /"
               className="w-full h-8 pl-8 pr-4 text-[12px] rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
             />
             {search && (
@@ -1705,10 +1802,31 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               </button>
             )}
           </div>
-          {search && (
-            <span className="text-[11px] font-medium text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-2.5 py-1 rounded-md">
-              {totalContacts} result{totalContacts !== 1 ? 's' : ''}
-            </span>
+          {activeFilters.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-medium text-[var(--text-tertiary)] tabular-nums">
+                {totalContacts.toLocaleString()} of {(lifecycleCounts?.total ?? totalContacts).toLocaleString()}
+              </span>
+              {activeFilters.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={f.clear}
+                  title={`Remove this filter`}
+                  className="group inline-flex max-w-[180px] items-center gap-1 rounded-md border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-2 h-6 text-[11px] font-medium text-[var(--indigo)] transition-colors hover:border-[var(--indigo)]/50"
+                >
+                  <span className="truncate">{f.label}</span>
+                  <X className="h-2.5 w-2.5 flex-shrink-0 opacity-50 group-hover:opacity-100" />
+                </button>
+              ))}
+              {activeFilters.length > 1 && (
+                <button
+                  onClick={clearAllFilters}
+                  className="text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] underline decoration-dotted underline-offset-2"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
           )}
 
           {/* View leads by company */}
@@ -1929,11 +2047,16 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         ) : contacts.length === 0 ? (
           /* Empty state */
           <div className="panel">
+            {/* An empty state should say what this page is for and offer the
+                thing you would actually do next on it, not the same generic
+                sentence on every screen. */}
             <EmptyState
               icon={Users}
-              title="No contacts yet"
-              description="Get started by adding your first contact manually or importing a CSV file with your existing data."
-              actionLabel="Add contact"
+              title={activeListId ? `Nothing in this list yet` : `No ${noun}s yet`}
+              description={listKind === 'lead'
+                ? 'Import a list, find people with the Prospector, or add someone by hand. Leads are who your campaigns send to.'
+                : 'Contacts arrive here on their own when someone replies, books a meeting, or wins a deal. You can also add one by hand.'}
+              actionLabel={`Add ${noun}`}
               onAction={() => setShowCreateModal(true)}
               secondaryActionLabel="Import CSV"
               onSecondaryAction={() => navigate('/contacts/import')}
@@ -1941,7 +2064,17 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           </div>
         ) : (
           <div className="panel overflow-hidden">
-            <div className="overflow-x-auto">
+            {/*
+              The body scrolls, not the page.
+
+              With a few hundred rows the whole document scrolled, which took
+              the column headers, the filters and the search box off screen -
+              so working down a long list meant losing both what you were
+              filtering by and which column you were reading. maxHeight rather
+              than height, so a short list still ends where it ends instead of
+              sitting in a tall empty box.
+            */}
+            <div ref={gridRef} className="overflow-auto" style={gridHeight ? { maxHeight: gridHeight } : undefined}>
               <table
                 className="border-separate border-spacing-0 text-left table-fixed w-full"
                 style={{ minWidth: GUTTER_W + widthOf(CONTACT_COL_ID) + activeColumns.reduce((n, c) => n + widthOf(c.id), 0) + ACTIONS_W }}
@@ -1958,7 +2091,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 </colgroup>
                 <thead>
                   <tr>
-                    <th className="sticky left-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] pl-3 pr-2 py-[7px]">
+                    <th className="sticky top-0 left-0 z-[5] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] pl-3 pr-2 py-[7px]">
                       <Checkbox
                         checked={allSelected}
                         indeterminate={someSelected && !allSelected}
@@ -1966,7 +2099,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                         aria-label="Select all contacts"
                       />
                     </th>
-                    <th className="relative sticky left-[44px] z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-3 py-[7px] shadow-[inset_-1px_0_0_var(--border-subtle)]">
+                    <th className="relative sticky top-0 left-[44px] z-[5] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-3 py-[7px] shadow-[inset_-1px_0_0_var(--border-subtle)]">
                       <span className="flex items-center gap-1.5 min-w-0">
                         <Users className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />
                         <SortableHeader label="Contact" colKey="first_name" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
@@ -2004,7 +2137,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                         onDragEnd={() => { setDragCol(null); setDropCol(null); }}
                         title="Drag to reorder · drag the edge to resize"
                         className={cn(
-                          'relative select-none bg-[var(--bg-muted)] border-b border-r border-[var(--border-subtle)] px-3 py-[7px] whitespace-nowrap',
+                          'relative sticky top-0 z-[4] select-none bg-[var(--bg-muted)] border-b border-r border-[var(--border-subtle)] px-3 py-[7px] whitespace-nowrap',
                           resizingCol === col.id ? 'cursor-col-resize' : 'cursor-grab active:cursor-grabbing',
                           dragCol === col.id && 'opacity-40',
                         )}
@@ -2030,8 +2163,8 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                         />
                       </th>
                     ))}
-                    <th className="bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]" />
-                    <th className="sticky right-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]" />
+                    <th className="sticky top-0 z-[4] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]" />
+                    <th className="sticky top-0 right-0 z-[5] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]" />
                   </tr>
                 </thead>
                 <tbody>
@@ -2039,6 +2172,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                     const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
                     const isSelected = selectedContacts.has(contact.id);
                     const rowNumber = (page - 1) * pageSize + rowIdx + 1;
+                    const isFocused = focusIndex === rowIdx;
                     // Frozen cells need an opaque bg so scrolled content can't show through.
                     const frozenBg = isSelected
                       ? 'bg-[var(--bg-active)]'
@@ -2046,14 +2180,22 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                     return (
                       <tr
                         key={contact.id}
+                        data-row-index={rowIdx}
                         onClick={(e) => {
                           // ⌘/ctrl-click still opens the full profile in a tab.
                           if (e.metaKey || e.ctrlKey) { window.open(`/contacts/${contact.id}`, '_blank'); return; }
+                          // Clicking also moves the keyboard cursor here, so
+                          // mouse and keyboard do not end up in two places.
+                          setFocusIndex(rowIdx);
                           openPeek('contact', contact.id);
                         }}
                         className={cn(
                           'group cursor-pointer transition-colors duration-150',
-                          isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]'
+                          isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]',
+                          // The keyboard cursor. An inset ring rather than an
+                          // outline, so it reads inside a table with frozen
+                          // columns instead of being clipped by them.
+                          isFocused && 'bg-[var(--bg-hover)] [&>td]:shadow-[inset_0_1px_0_var(--indigo),inset_0_-1px_0_var(--indigo)]',
                         )}
                       >
                         <td className={cn('sticky left-0 z-[1] pl-3 pr-2 py-1.5 relative border-b border-[var(--border-subtle)]', frozenBg)}>
@@ -2213,7 +2355,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           <Modal
             isOpen={showCreateModal}
             onClose={closeCreateModal}
-            title={editId ? 'Edit contact' : 'Add contact'}
+            title={editId ? `Edit ${noun}` : `Add ${noun}`}
             description={editId ? 'Update this contact’s details.' : 'Create a new contact in your database.'}
             size="lg"
             footer={
@@ -2225,7 +2367,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                   size="md"
                   disabled={createMutation.isPending || !form.email.trim()}
                 >
-                  {createMutation.isPending ? 'Saving…' : editId ? 'Save changes' : 'Add contact'}
+                  {createMutation.isPending ? 'Saving…' : editId ? 'Save changes' : `Add ${noun}`}
                 </Button>
               </>
             }
