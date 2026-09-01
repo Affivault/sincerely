@@ -12,6 +12,7 @@ import { crmApi } from '../../api/crm.api';
 import { ActivityModal, MeetingModal, toDateInput } from '../../components/crm/CrmPrimitives';
 import { DealModal } from './DealsPage';
 import { DealStageBar } from '../../components/crm/DealStageBar';
+import { DealSource } from '../../components/crm/DealSource';
 import { DealPeople } from '../../components/crm/DealPeople';
 import { DealTimeline, type DealRecipient } from '../../components/crm/DealTimeline';
 import { DealJourney } from '../../components/crm/DealJourney';
@@ -429,6 +430,11 @@ export function DealDetailPage() {
               </p>
             )}
           </div>
+
+          {/* Where this came from, on the record rather than only in a
+              report - a deal you cannot trace is what makes a campaign total
+              unarguable-with. */}
+          <DealSource deal={deal} />
 
           <DealPeople deal={deal} participants={participants} onEmail={(email, name) => setWriteTo({ email, name })} />
 

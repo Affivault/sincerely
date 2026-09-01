@@ -9,7 +9,14 @@ const TASK_PRIORITIES = ['low', 'normal', 'high'];
 const EVENT_TYPES = ['call', 'meeting'];
 
 /** Embed the linked contact so the client can show live lead data on deals. */
-const DEAL_SELECT = '*, contact:contacts(id, email, first_name, last_name, company, company_id, job_title, phone, linkedin_url)';
+/*
+ * The campaign is embedded, not just its id.
+ *
+ * Without the name the deal page can only say "a campaign", which is not an
+ * answer to "where did this come from" - and making every deal row fetch its
+ * own campaign to find out would be one request per card on the board.
+ */
+const DEAL_SELECT = '*, contact:contacts(id, email, first_name, last_name, company, company_id, job_title, phone, linkedin_url), source_campaign:campaigns!deals_source_campaign_id_fkey(id, name, status)';
 
 /** Keep only known columns from a request body so callers can't write arbitrary fields. */
 function pick(body: any, keys: readonly string[]): Record<string, any> {
@@ -338,6 +345,49 @@ export const crmService = {
   async updateDeal(userId: string, id: string, body: any) {
     const input = pick(body, DEAL_KEYS as any);
     sanitizeDealInput(input);
+
+    /*
+     * Correcting the credit by hand.
+     *
+     * The automatic rules are evidence-based and will sometimes be wrong -
+     * a deal that really came from the conference, or from the sequence
+     * before the one they last replied to. Somebody has to be able to say so,
+     * and when they do it is recorded as 'manual' rather than dressed up as
+     * a reply that never happened. An attribution report is only worth
+     * reading if it never overstates its own evidence.
+     *
+     * Setting the campaign to null clears the whole credit, because a
+     * strength pointing at nothing is not an attribution and the database
+     * refuses it anyway.
+     */
+    if ('source_campaign_id' in input) {
+      if (!input.source_campaign_id) {
+        input.source_campaign_id = null;
+        input.source_step_id = null;
+        input.attribution = null;
+        input.attributed_at = null;
+      } else {
+        await assertOwned(userId, 'campaigns', input.source_campaign_id, 'Campaign');
+        if (input.source_step_id) {
+          // Steps carry no user_id - they are owned through their campaign -
+          // so the check is that the step belongs to the campaign being
+          // credited. assertOwned would look for a column that is not there
+          // and reject every legitimate step.
+          const { data: step } = await supabaseAdmin
+            .from('campaign_steps')
+            .select('id')
+            .eq('id', input.source_step_id)
+            .eq('campaign_id', input.source_campaign_id)
+            .maybeSingle();
+          if (!step) throw new AppError('That step is not part of that campaign', 400);
+        }
+        // A person choosing this IS the evidence, and it is the only strength
+        // they may assign - claiming 'thread' or 'reply' by hand would put a
+        // stronger label on it than what actually happened.
+        input.attribution = 'manual';
+        input.attributed_at = new Date().toISOString();
+      }
+    }
 
     /*
      * Read the stage before writing, so a "change" that changes nothing is

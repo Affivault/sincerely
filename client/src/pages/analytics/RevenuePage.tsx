@@ -172,7 +172,7 @@ export function RevenuePage() {
                         <tr key={r.id} className="border-b border-[var(--border-subtle)] last:border-0 hover:bg-[var(--bg-hover)] transition-colors">
                           <td className="py-2.5 pl-4 pr-3 max-w-[280px]">
                             <Link
-                              to={`/campaigns/${r.id}`}
+                              to={`/analytics/revenue/${r.id}`}
                               className="block truncate text-[12.5px] font-semibold text-[var(--text-primary)] hover:text-[var(--indigo)] hover:underline decoration-[var(--indigo)]/40 underline-offset-2"
                             >
                               {r.name}

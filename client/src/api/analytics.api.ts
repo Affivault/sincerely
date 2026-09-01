@@ -123,6 +123,44 @@ export interface CampaignHeatmapResult {
   max_value: number;
 }
 
+/** One step's share of what a campaign earned. */
+export interface StepRevenueRow {
+  id: string;
+  step_order: number;
+  step_type: string;
+  subject: string | null;
+  sent: number;
+  replied: number;
+  deals: number;
+  won: number;
+  won_value: number;
+  value_per_reply: number | null;
+}
+
+export interface AttributedDealRow {
+  id: string;
+  title: string;
+  stage: string;
+  contact_id: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  attribution: 'thread' | 'reply' | 'enrolment' | 'manual' | null;
+  source_step_id: string | null;
+  value: number;
+  closed_at: string | null;
+  created_at: string;
+}
+
+export interface CampaignRevenueDetail {
+  campaign: { id: string; name: string; status: string; created_at: string };
+  funnel: { label: string; count: number; ofPrevious: number | null }[];
+  totals: Omit<CampaignRevenueRow, 'id' | 'name' | 'status' | 'created_at'>;
+  steps: StepRevenueRow[];
+  /** Deals credited to the campaign but not to any one step. */
+  unrecorded_step: { deals: number; won: number; won_value: number } | null;
+  deals: AttributedDealRow[];
+}
+
 export const analyticsApi = {
   /**
    * What each campaign earned, not just what it sent.
@@ -130,6 +168,11 @@ export const analyticsApi = {
    * The one report a two-tool stack cannot produce, because the replies and
    * the revenue live in different companies' databases.
    */
+  campaignRevenue: async (campaignId: string) => {
+    const { data } = await apiClient.get<CampaignRevenueDetail>(`/analytics/revenue/${campaignId}`);
+    return data;
+  },
+
   revenue: async () => {
     const { data } = await apiClient.get<CampaignRevenueRow[]>('/analytics/revenue');
     return data;
