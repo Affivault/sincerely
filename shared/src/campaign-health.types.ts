@@ -19,7 +19,6 @@ export type CampaignIssueId =
   | 'sender_failing'
   | 'bounce_guard'
   | 'capacity_exhausted'
-  | 'no_capacity'
   | 'domain_unauthenticated'
   | 'all_errored'
   | 'nothing_left'

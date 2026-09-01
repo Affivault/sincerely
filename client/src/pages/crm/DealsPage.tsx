@@ -935,6 +935,13 @@ export function DealsPage() {
           onEdit={(d) => navigate(`/deals/${d.id}`)}
           onStageChange={moveStage}
           onAddToStage={(stage) => setDealModal({ stage })}
+          // Filters that hide same-stage cards used to make dragging unsafe,
+          // because the drop index was measured against the visible column and
+          // then applied to the full list. commit() translates that index now,
+          // so a filtered board reorders correctly rather than being frozen —
+          // filtering to "Stalled" and reprioritising is the point of the view,
+          // not something to switch off. Search is still excluded: it is the
+          // one filter people leave half-typed.
           dragDisabled={query.trim().length > 0}
         />
       )}
