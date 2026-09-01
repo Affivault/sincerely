@@ -1,6 +1,28 @@
 import { apiClient } from './client';
 import type { CampaignAnalytics, OverviewAnalytics, ContactActivityItem, SequencePerformance } from '@lemlist/shared';
 
+/** One row of the revenue report. Mirrors analyticsService.revenue(). */
+export interface CampaignRevenueRow {
+  id: string;
+  name: string;
+  status: string;
+  created_at: string;
+  sent: number;
+  replied: number;
+  deals: number;
+  won: number;
+  lost: number;
+  open: number;
+  won_value: number;
+  /** Won value counting only thread/reply evidence. */
+  strong_won_value: number;
+  weighted_open: number;
+  win_rate: number | null;
+  average_won: number | null;
+  /** Null rather than zero when nothing has replied yet. */
+  value_per_reply: number | null;
+}
+
 export type { OverviewAnalytics, SequencePerformance };
 
 export interface TrendDataPoint {
@@ -102,6 +124,17 @@ export interface CampaignHeatmapResult {
 }
 
 export const analyticsApi = {
+  /**
+   * What each campaign earned, not just what it sent.
+   *
+   * The one report a two-tool stack cannot produce, because the replies and
+   * the revenue live in different companies' databases.
+   */
+  revenue: async () => {
+    const { data } = await apiClient.get<CampaignRevenueRow[]>('/analytics/revenue');
+    return data;
+  },
+
   overview: async (days?: number) => {
     const { data } = await apiClient.get<OverviewAnalytics>('/analytics/overview', {
       params: days ? { days } : undefined,

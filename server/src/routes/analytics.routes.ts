@@ -4,6 +4,8 @@ import { analyticsController } from '../controllers/analytics.controller.js';
 export const analyticsRoutes = Router();
 
 analyticsRoutes.get('/overview', analyticsController.overview);
+// What each campaign earned, not just what it sent.
+analyticsRoutes.get('/revenue', analyticsController.revenue);
 analyticsRoutes.get('/deliverability', analyticsController.deliverability);
 analyticsRoutes.get('/trend', analyticsController.trend);
 analyticsRoutes.get('/export/overview', analyticsController.exportOverviewReport);

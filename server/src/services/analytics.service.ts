@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { twoProportionPValue, wilsonLowerBound, wilsonUpperBound } from '../utils/stats.js';
 import { AppError } from '../middleware/error.middleware.js';
-import { MIN_STEP_SENDS } from '@lemlist/shared';
+import { MIN_STEP_SENDS, revenueByCampaign, valuePerReply } from '@lemlist/shared';
 import type { SequencePerformance, SequenceStepPerformance, StepVerdict } from '@lemlist/shared';
 
 function calcRate(value: number, total: number): number {
@@ -509,6 +509,83 @@ export const analyticsService = {
         click_rate: calcRate(s.clicked, s.sent),
         reply_rate: calcRate(s.replied, s.sent),
         bounce_rate: calcRate(s.bounced, s.sent),
+      };
+    });
+  },
+
+  /**
+   * What each campaign earned, not just what it sent.
+   *
+   * The join this product exists to be able to make: replies from
+   * campaign_activities, revenue from the deals those replies produced. Both
+   * halves are in one database here, which is the whole reason the number can
+   * be computed at all - in a two-tool stack the replies and the revenue sit
+   * in different companies' systems and nobody ever reconciles them.
+   *
+   * The arithmetic itself is in shared, so this and any other reader cannot
+   * drift into disagreeing about what a won deal was worth.
+   */
+  async revenue(userId: string) {
+    const { data: campaigns } = await supabaseAdmin
+      .from('campaigns')
+      .select('id, name, status, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (!campaigns || campaigns.length === 0) return [];
+
+    const campaignIds = campaigns.map((c: any) => c.id);
+
+    const activities = await fetchAllRows<{ campaign_id: string; activity_type: string }>((from, to) =>
+      supabaseAdmin
+        .from('campaign_activities')
+        .select('campaign_id, activity_type')
+        .in('campaign_id', campaignIds)
+        .range(from, to)
+    );
+
+    // Only attributed deals matter here, and the filter is on the indexed
+    // column rather than pulling every deal and discarding most of them.
+    const deals = await fetchAllRows<any>((from, to) =>
+      supabaseAdmin
+        .from('deals')
+        .select('id, stage, value, probability, recurring_amount, recurring_period, one_off_amount, term_months, source_campaign_id, source_step_id, attribution')
+        .eq('user_id', userId)
+        .not('source_campaign_id', 'is', null)
+        .range(from, to)
+    );
+
+    const revenue = new Map(revenueByCampaign(deals).map((r) => [r.campaignId, r]));
+
+    const counts = new Map<string, { sent: number; replied: number }>();
+    for (const id of campaignIds) counts.set(id, { sent: 0, replied: 0 });
+    for (const a of activities) {
+      const c = counts.get(a.campaign_id);
+      if (!c) continue;
+      if (a.activity_type === 'sent') c.sent++;
+      else if (a.activity_type === 'replied') c.replied++;
+    }
+
+    return campaigns.map((c: any) => {
+      const n = counts.get(c.id) || { sent: 0, replied: 0 };
+      const r = revenue.get(c.id);
+      return {
+        id: c.id,
+        name: c.name,
+        status: c.status,
+        created_at: c.created_at,
+        sent: n.sent,
+        replied: n.replied,
+        deals: r?.deals ?? 0,
+        won: r?.won ?? 0,
+        lost: r?.lost ?? 0,
+        open: r?.open ?? 0,
+        won_value: r?.wonValue ?? 0,
+        strong_won_value: r?.strongWonValue ?? 0,
+        weighted_open: r?.weightedOpen ?? 0,
+        win_rate: r?.winRate ?? null,
+        average_won: r?.averageWon ?? null,
+        value_per_reply: valuePerReply(r?.wonValue ?? 0, n.replied),
       };
     });
   },
