@@ -1,59 +1,61 @@
 import { supabaseAdmin } from '../../config/supabase.js';
-import { inboxSyncQueue } from '../queues.js';
+import { inboxSyncService } from '../../services/inbox-sync.service.js';
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Periodically enqueue inbox sync jobs for all active SMTP accounts.
- * Runs every 5 minutes.
+ * Periodically run the real inbox sync (inbox-sync.service.ts) for every
+ * user with a connected, verified mailbox.
+ *
+ * This used to hand accounts off to a BullMQ worker running an older, since-
+ * replaced sync: it re-fetched the entire current day on every tick (IMAP's
+ * SINCE compares dates, not instants), queried the database once per message
+ * to dedupe, never read Sent, and had no per-run cap. inbox-sync.service.ts
+ * fixed all of that, but was only ever reachable through the manual
+ * "Sync now" button — so every mailbox synced automatically was, until now,
+ * silently going through the broken path regardless. Calling the same
+ * service here closes that gap; the old worker and its queue are gone.
+ *
+ * Cross-tenant, so it is a scheduler and never an authenticated route.
  */
-export function scheduleInboxSync() {
-  if (!inboxSyncQueue) {
-    console.log('Inbox sync scheduler skipped — no Redis connection');
-    return null;
-  }
-  const queue = inboxSyncQueue;
-  let isRunning = false;
-  async function syncAll() {
-    if (isRunning) return; // Skip if a previous enqueue pass is still in flight
-    isRunning = true;
+export function startInboxScheduler() {
+  let running = false;
+
+  async function tick() {
+    if (running) return; // never overlap — a slow mailbox must not pile up runs
+    running = true;
     try {
-      // Get all verified, active SMTP accounts
-      const { data: accounts } = await supabaseAdmin
+      const { data: accounts, error } = await supabaseAdmin
         .from('smtp_accounts')
-        .select('id, user_id, smtp_host, smtp_user, imap_user, email_address')
+        .select('user_id')
         .eq('is_active', true)
         .eq('is_verified', true);
 
-      if (!accounts || accounts.length === 0) return;
-
-      for (const account of accounts) {
-        await queue.add(
-          `inbox-sync-${account.id}`,
-          {
-            userId: account.user_id,
-            smtpAccountId: account.id,
-            imapHost: '', // Worker will derive from SMTP host
-            imapPort: 993,
-            imapSecure: true,
-            imapUser: account.imap_user || account.smtp_user || account.email_address,
-          },
-          {
-            // Deduplicate: don't enqueue if already pending for this account
-            jobId: `inbox-${account.id}-${Math.floor(Date.now() / SYNC_INTERVAL_MS)}`,
-          }
-        );
+      if (error) {
+        console.error('[InboxScheduler] Could not list accounts:', error.message);
+        return;
       }
-    } catch (err) {
-      console.error('Inbox sync scheduler error:', err);
+
+      const userIds = Array.from(new Set((accounts || []).map((a) => a.user_id)));
+      for (const userId of userIds) {
+        try {
+          await inboxSyncService.syncInbox(userId);
+        } catch (err: any) {
+          // One user's mailbox failure must not stop the sweep for everyone else.
+          console.error(`[InboxScheduler] Sync failed for user ${userId}:`, err.message);
+        }
+      }
+    } catch (err: any) {
+      console.error('[InboxScheduler] Sweep failed:', err.message);
     } finally {
-      isRunning = false;
+      running = false;
     }
   }
 
-  // Run immediately then on interval
-  syncAll();
-  const intervalId = setInterval(syncAll, SYNC_INTERVAL_MS);
+  // Run immediately then on interval — replies should catch up promptly
+  // after a deploy, not wait a full cycle.
+  tick();
+  const intervalId = setInterval(tick, SYNC_INTERVAL_MS);
 
   return {
     stop: () => {

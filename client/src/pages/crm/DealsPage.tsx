@@ -419,14 +419,22 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToSta
       onStageChange(moving, stage);
       return;
     }
-    // `index` was measured against the on-screen column list, which still includes the
-    // dragged card when it's already in this stage. targetList has that card removed, so
-    // if the card started before the drop point, every slot after it shifts back by one.
-    const sameStageItems = all.filter(d => d.stage === stage);
-    const originalIndex = sameStageItems.findIndex(d => d.id === id);
-    const adjustedIndex = originalIndex !== -1 && originalIndex < index ? index - 1 : index;
+    // `index` was measured against the on-screen column, which is the
+    // *filtered* `deals` prop (active DealFilters can hide same-stage cards)
+    // — not `all`, the full unfiltered cache targetList is built from. Applying
+    // a filtered-list index straight to the full list silently misplaces the
+    // card whenever anything in this stage is hidden. Translate it instead:
+    // walk forward from `index` in the visible column to find the next
+    // visible card that isn't the one being dragged, then insert before that
+    // same card's position in the full list.
+    const visibleStageItems = deals.filter(d => d.stage === stage);
     const targetList = all.filter(d => d.stage === stage && d.id !== id);
-    const insertAt = Math.max(0, Math.min(adjustedIndex, targetList.length));
+    let anchorId: string | undefined;
+    for (let i = index; i < visibleStageItems.length; i++) {
+      if (visibleStageItems[i].id !== id) { anchorId = visibleStageItems[i].id; break; }
+    }
+    const anchorPos = anchorId ? targetList.findIndex(d => d.id === anchorId) : -1;
+    const insertAt = anchorPos !== -1 ? anchorPos : targetList.length;
     const newOrder = [...targetList.slice(0, insertAt), moving, ...targetList.slice(insertAt)];
     const rebuilt = newOrder.map((d, i) => ({ ...d, stage, position: i }));
     const changed = rebuilt.filter((d, i) => d.id === id || newOrder[i].position !== i || newOrder[i].stage !== stage);
@@ -726,14 +734,18 @@ export function DealsPage() {
   const bulkStage = async (stage: DealStage) => {
     const ids = [...selected];
     if (ids.length === 0) return;
-    try {
-      await Promise.all(ids.map((id) => crmApi.updateDeal(id, { stage } as any)));
-      setSelected(new Set());
-      refresh();
+    // allSettled, not all: one failing update shouldn't report the whole
+    // batch as failed and strand the selection on deals that already moved.
+    const results = await Promise.allSettled(ids.map((id) => crmApi.updateDeal(id, { stage } as any)));
+    const failedCount = results.filter((r) => r.status === 'rejected').length;
+    setSelected(new Set());
+    refresh();
+    if (failedCount === 0) {
       toast.success(`${ids.length} deal${ids.length === 1 ? '' : 's'} moved`);
-    } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Could not move those deals');
-      refresh();
+    } else if (failedCount === ids.length) {
+      toast.error('Could not move those deals');
+    } else {
+      toast.error(`${failedCount} of ${ids.length} deal${ids.length === 1 ? '' : 's'} failed to move`);
     }
   };
 
@@ -747,14 +759,18 @@ export function DealsPage() {
         tone: 'danger',
       },
       async () => {
-        try {
-          await Promise.all(ids.map((id) => crmApi.deleteDeal(id)));
-          setSelected(new Set());
-          refresh();
+        // allSettled, not all: one failing delete shouldn't report the whole
+        // batch as failed and strand the selection on deals already gone.
+        const results = await Promise.allSettled(ids.map((id) => crmApi.deleteDeal(id)));
+        const failedCount = results.filter((r) => r.status === 'rejected').length;
+        setSelected(new Set());
+        refresh();
+        if (failedCount === 0) {
           toast.success('Deleted');
-        } catch (e: any) {
-          toast.error(e?.response?.data?.error || 'Could not delete those deals');
-          refresh();
+        } else if (failedCount === ids.length) {
+          toast.error('Could not delete those deals');
+        } else {
+          toast.error(`${failedCount} of ${ids.length} deal${ids.length === 1 ? '' : 's'} failed to delete`);
         }
       },
     );
