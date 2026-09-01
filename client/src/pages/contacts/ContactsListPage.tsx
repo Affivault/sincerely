@@ -8,6 +8,7 @@ import { contactsApi, listsApi, tagsApi } from '../../api/contacts.api';
 import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL } from '@lemlist/shared';
 import type { Lifecycle, ListKind } from '@lemlist/shared';
 import { usePeek } from '../../components/peek/usePeek';
+import { useFillViewport } from '../../hooks/useFillViewport';
 import { listFoldersApi, type ListFolder } from '../../api/list-folders.api';
 import { verificationApi } from '../../api/verification.api';
 import { settingsApi } from '../../api/settings.api';
@@ -545,6 +546,15 @@ const LIFECYCLE_COLUMN_SHOWN = 'contacts.columns.lifecycleIntroduced';
  * confused for one screen with a toggle somebody left in the wrong position.
  */
 export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind } = {}) {
+  /*
+   * How much room is left under the filters for the grid itself.
+   *
+   * Measured from the element's own position rather than assumed, because
+   * everything above it changes height: the bulk bar appears with a
+   * selection, the status pills wrap on a narrow window, the lifecycle tabs
+   * come and go with the list you are in.
+   */
+  const { ref: gridRef, height: gridHeight } = useFillViewport<HTMLDivElement>({ min: 280 });
   const confirm = useConfirm();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -651,13 +661,30 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
    * campaigns — they are just not what you want to look at when you are
    * asking "who do we know at Northbeam".
    */
+  /*
+   * What each page opens showing.
+   *
+   * Leads opens on everybody in your lead lists; Contacts opens on the people
+   * you actually have a relationship with, which is what a CRM is for. The
+   * default was 'engaged' for both, so the Leads page opened filtered to
+   * contacts - a page about who to pitch, showing the two people you must not.
+   *
+   * Keyed per page as well, because one saved value meant narrowing Contacts
+   * to prospects also narrowed Leads, and neither page could be left set up
+   * the way its own work wants.
+   */
+  const lifecycleKey = `contacts.lifecycle.${listKind}`;
   const [lifecycle, setLifecycle] = useState<'engaged' | 'prospect' | 'all'>(() => {
-    try { return (localStorage.getItem('contacts.lifecycle') as any) || 'engaged'; } catch { return 'engaged'; }
+    try {
+      return (localStorage.getItem(lifecycleKey) as any) || (listKind === 'lead' ? 'all' : 'engaged');
+    } catch {
+      return listKind === 'lead' ? 'all' : 'engaged';
+    }
   });
   const setLifecyclePersisted = (v: 'engaged' | 'prospect' | 'all') => {
     setLifecycle(v);
     setPage(1);
-    try { localStorage.setItem('contacts.lifecycle', v); } catch { /* private window */ }
+    try { localStorage.setItem(lifecycleKey, v); } catch { /* private window */ }
   };
 
   const { data: lifecycleCounts } = useQuery({
@@ -1060,6 +1087,15 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   const pendingOnPage = (contacts as any[]).filter((c) => !c.dcs_verified_at && !c.is_bounced).length;
 
   const isUnlistedView = activeListId === UNLISTED_LIST_ID;
+  /*
+   * One word for what this page holds, used by every control on it.
+   *
+   * The header said "All Leads", the rail said "All Contacts" and the button
+   * said "Add contact" - three names for one thing on one screen, which is
+   * how a person stops trusting that the app knows what it is doing.
+   */
+  const noun = listKind === 'lead' ? 'lead' : 'contact';
+
   const currentListName = isUnlistedView
     ? UNLISTED_LIST_NAME
     : activeListId && lists
@@ -1308,7 +1344,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             </button>
             <button onClick={() => setShowCreateModal(true)} className="btn-primary">
               <Plus className="h-3.5 w-3.5" />
-              Add contact
+              Add {noun}
             </button>
           </div>
         }
@@ -1363,7 +1399,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             )}
           >
             <Users className="h-3.5 w-3.5 flex-shrink-0" />
-            <span className="flex-1 text-left">All Contacts</span>
+            <span className="flex-1 text-left">{listKind === 'lead' ? 'All Leads' : 'All Contacts'}</span>
             <span className={cn(
               "text-[10px] font-semibold tabular px-1.5 rounded",
               !activeListId ? "text-[var(--indigo)]" : "text-[var(--text-tertiary)]"
@@ -1658,7 +1694,9 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 </button>
               ))}
             </div>
-            {lifecycleCounts.customer > 0 && (
+            {/* CRM information, so it stays on the CRM page. On Leads it was
+                telling you about the people you specifically cannot pitch. */}
+            {listKind === 'contact' && lifecycleCounts.customer > 0 && (
               <span
                 className="inline-flex h-7 items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/[0.08] px-2.5 text-[11.5px] font-medium text-emerald-600 dark:text-emerald-400"
                 title="Won a deal. Kept out of cold campaigns by default."
@@ -1929,11 +1967,16 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         ) : contacts.length === 0 ? (
           /* Empty state */
           <div className="panel">
+            {/* An empty state should say what this page is for and offer the
+                thing you would actually do next on it, not the same generic
+                sentence on every screen. */}
             <EmptyState
               icon={Users}
-              title="No contacts yet"
-              description="Get started by adding your first contact manually or importing a CSV file with your existing data."
-              actionLabel="Add contact"
+              title={activeListId ? `Nothing in this list yet` : `No ${noun}s yet`}
+              description={listKind === 'lead'
+                ? 'Import a list, find people with the Prospector, or add someone by hand. Leads are who your campaigns send to.'
+                : 'Contacts arrive here on their own when someone replies, books a meeting, or wins a deal. You can also add one by hand.'}
+              actionLabel={`Add ${noun}`}
               onAction={() => setShowCreateModal(true)}
               secondaryActionLabel="Import CSV"
               onSecondaryAction={() => navigate('/contacts/import')}
@@ -1941,7 +1984,17 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           </div>
         ) : (
           <div className="panel overflow-hidden">
-            <div className="overflow-x-auto">
+            {/*
+              The body scrolls, not the page.
+
+              With a few hundred rows the whole document scrolled, which took
+              the column headers, the filters and the search box off screen -
+              so working down a long list meant losing both what you were
+              filtering by and which column you were reading. maxHeight rather
+              than height, so a short list still ends where it ends instead of
+              sitting in a tall empty box.
+            */}
+            <div ref={gridRef} className="overflow-auto" style={gridHeight ? { maxHeight: gridHeight } : undefined}>
               <table
                 className="border-separate border-spacing-0 text-left table-fixed w-full"
                 style={{ minWidth: GUTTER_W + widthOf(CONTACT_COL_ID) + activeColumns.reduce((n, c) => n + widthOf(c.id), 0) + ACTIONS_W }}
@@ -1958,7 +2011,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 </colgroup>
                 <thead>
                   <tr>
-                    <th className="sticky left-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] pl-3 pr-2 py-[7px]">
+                    <th className="sticky top-0 left-0 z-[5] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] pl-3 pr-2 py-[7px]">
                       <Checkbox
                         checked={allSelected}
                         indeterminate={someSelected && !allSelected}
@@ -1966,7 +2019,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                         aria-label="Select all contacts"
                       />
                     </th>
-                    <th className="relative sticky left-[44px] z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-3 py-[7px] shadow-[inset_-1px_0_0_var(--border-subtle)]">
+                    <th className="relative sticky top-0 left-[44px] z-[5] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-3 py-[7px] shadow-[inset_-1px_0_0_var(--border-subtle)]">
                       <span className="flex items-center gap-1.5 min-w-0">
                         <Users className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />
                         <SortableHeader label="Contact" colKey="first_name" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
@@ -2004,7 +2057,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                         onDragEnd={() => { setDragCol(null); setDropCol(null); }}
                         title="Drag to reorder · drag the edge to resize"
                         className={cn(
-                          'relative select-none bg-[var(--bg-muted)] border-b border-r border-[var(--border-subtle)] px-3 py-[7px] whitespace-nowrap',
+                          'relative sticky top-0 z-[4] select-none bg-[var(--bg-muted)] border-b border-r border-[var(--border-subtle)] px-3 py-[7px] whitespace-nowrap',
                           resizingCol === col.id ? 'cursor-col-resize' : 'cursor-grab active:cursor-grabbing',
                           dragCol === col.id && 'opacity-40',
                         )}
@@ -2030,8 +2083,8 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                         />
                       </th>
                     ))}
-                    <th className="bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]" />
-                    <th className="sticky right-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]" />
+                    <th className="sticky top-0 z-[4] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]" />
+                    <th className="sticky top-0 right-0 z-[5] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]" />
                   </tr>
                 </thead>
                 <tbody>
@@ -2213,7 +2266,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           <Modal
             isOpen={showCreateModal}
             onClose={closeCreateModal}
-            title={editId ? 'Edit contact' : 'Add contact'}
+            title={editId ? `Edit ${noun}` : `Add ${noun}`}
             description={editId ? 'Update this contact’s details.' : 'Create a new contact in your database.'}
             size="lg"
             footer={
@@ -2225,7 +2278,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                   size="md"
                   disabled={createMutation.isPending || !form.email.trim()}
                 >
-                  {createMutation.isPending ? 'Saving…' : editId ? 'Save changes' : 'Add contact'}
+                  {createMutation.isPending ? 'Saving…' : editId ? 'Save changes' : `Add ${noun}`}
                 </Button>
               </>
             }
