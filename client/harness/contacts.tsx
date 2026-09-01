@@ -1,4 +1,4 @@
-/* The contacts list on its own. See vite.harness.config.ts. */
+/* The people table, mounted at both of its routes. See vite.harness.config.ts. */
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
@@ -9,6 +9,8 @@ import { ContactsListPage } from '../src/pages/contacts/ContactsListPage';
 import '../src/index.css';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } } });
+// ?kind=contact mounts the CRM page; anything else mounts the leads page.
+const kind = new URLSearchParams(location.search).get('kind') === 'contact' ? 'contact' : 'lead';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -21,7 +23,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             </header>
             <div className="pl-[240px] pt-[56px]">
               <main className="mx-auto max-w-[1760px] px-8 py-7">
-                <div className="route-fade"><ContactsListPage /></div>
+                <div className="route-fade"><ContactsListPage kind={kind} /></div>
               </main>
             </div>
           </div>

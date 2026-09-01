@@ -503,7 +503,7 @@ export function ContactDetailPage() {
                 cannot quietly compete with each other. */}
             {openLead && (
               <Link
-                to="/leads"
+                to="/leads/inbox"
                 className="mb-2 flex items-center gap-2 rounded-[6px] border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-2.5 py-1.5 transition-colors hover:bg-[var(--indigo-subtle)]/70"
               >
                 <Sparkles className="h-3 w-3 flex-shrink-0 text-[var(--indigo)]" />

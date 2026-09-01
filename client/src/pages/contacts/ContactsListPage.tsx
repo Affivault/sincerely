@@ -7,7 +7,6 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { contactsApi, listsApi, tagsApi } from '../../api/contacts.api';
 import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL } from '@lemlist/shared';
 import type { Lifecycle, ListKind } from '@lemlist/shared';
-import { LIST_KINDS } from '@lemlist/shared';
 import { usePeek } from '../../components/peek/usePeek';
 import { listFoldersApi, type ListFolder } from '../../api/list-folders.api';
 import { verificationApi } from '../../api/verification.api';
@@ -533,7 +532,19 @@ const DEFAULT_COLUMNS: ColumnId[] = ['email', 'status', 'lifecycle', 'company', 
 const LIFECYCLE_COLUMN_SHOWN = 'contacts.columns.lifecycleIntroduced';
 
 
-export function ContactsListPage() {
+/**
+ * The people table, mounted twice.
+ *
+ * `/leads` and `/contacts` are the same screen over two different sets of
+ * lists, which is deliberate: the work is identical - search, filter, tag,
+ * file into a list - and the only real difference is what may be done with
+ * the result. Leads can be pitched. Contacts cannot, and the rail says so.
+ *
+ * The kind arrives from the route rather than a control on the page, so the
+ * two are separately linkable, separately bookmarkable, and cannot be
+ * confused for one screen with a toggle somebody left in the wrong position.
+ */
+export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind } = {}) {
   const confirm = useConfirm();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -680,27 +691,6 @@ export function ContactsListPage() {
       return rows.some((r) => !r.dcs_verified_at && !r.is_bounced) ? 12000 : false;
     },
   });
-
-  /*
-   * Which rail you are in: outreach audiences, or the CRM.
-   *
-   * They are genuinely different jobs, so the rail shows one at a time
-   * rather than one long mixed column where the only thing telling a
-   * customer list from a cold audience is the name somebody typed. The
-   * choice is remembered, because people live in one of the two.
-   */
-  const [listKind, setListKind] = useState<ListKind>(() => {
-    try { return (localStorage.getItem('contacts.listKind') as ListKind) || 'lead'; }
-    catch { return 'lead'; }
-  });
-  const setListKindPersisted = (k: ListKind) => {
-    setListKind(k);
-    // Drop the selected list: it belongs to the rail being left, and holding
-    // on to it would show a lead list's contents under the CRM heading.
-    setSearchParams({});
-    setPage(1);
-    try { localStorage.setItem('contacts.listKind', k); } catch { /* private window */ }
-  };
 
   const { data: lists } = useQuery({
     queryKey: ['lists', listKind],
@@ -1074,7 +1064,9 @@ export function ContactsListPage() {
     ? UNLISTED_LIST_NAME
     : activeListId && lists
       ? lists.find((l) => l.id === activeListId)?.name || 'List'
-      : 'All Contacts';
+      // The root of each page is named for the page, not for the table. On
+      // /leads this is everyone you might pitch; on /contacts it is the CRM.
+      : listKind === 'lead' ? 'All Leads' : 'All Contacts';
 
   /* ── Resizable columns ──────────────────────────────────────────────
      The table is fixed-layout with an explicit <colgroup>, so a dragged width
@@ -1297,8 +1289,12 @@ export function ContactsListPage() {
                 ? 'Every contact belongs to at least one list — nothing to tidy up.'
                 : `${totalContacts.toLocaleString()} contact${totalContacts !== 1 ? 's' : ''} that aren't in any list. Select them to file them into one.`)
             : totalContacts === 0
-              ? 'No contacts yet — start building your audience'
-              : `${totalContacts.toLocaleString()} contact${totalContacts !== 1 ? 's' : ''} in your database`
+              ? (listKind === 'lead'
+                  ? 'No leads yet — start building your audience'
+                  : 'No contacts yet — people arrive here when they reply, meet you, or win a deal')
+              : listKind === 'lead'
+                ? `${totalContacts.toLocaleString()} ${totalContacts !== 1 ? 'people' : 'person'} you can put into a campaign`
+                : `${totalContacts.toLocaleString()} contact${totalContacts !== 1 ? 's' : ''} in your CRM`
         }
         actions={
           <div className="flex items-center gap-2">
@@ -1351,31 +1347,6 @@ export function ContactsListPage() {
               </div>
             </div>
 
-            {/*
-              Which kind of list this rail is showing.
-
-              Two jobs that look identical in a sidebar and are not: one feeds
-              cold campaigns, the other is the CRM. Naming both "Lists" and
-              mixing them is how a customer ends up in an outreach audience,
-              so the choice is explicit and always on screen.
-            */}
-            <div className="flex items-center gap-0.5 p-0.5 mb-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
-              {LIST_KINDS.map((k) => (
-                <button
-                  key={k.id}
-                  onClick={() => setListKindPersisted(k.id)}
-                  title={k.hint}
-                  className={cn(
-                    'flex-1 h-6 rounded-[6px] text-[11px] font-semibold transition-all',
-                    listKind === k.id
-                      ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(16,16,20,0.06)]'
-                      : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
-                  )}
-                >
-                  {k.id === 'lead' ? 'Leads' : 'Contacts'}
-                </button>
-              ))}
-            </div>
             {listKind === 'contact' && (
               <p className="px-1.5 pb-1 text-[10.5px] leading-snug text-[var(--text-tertiary)]">
                 Cold campaigns can never send to these.

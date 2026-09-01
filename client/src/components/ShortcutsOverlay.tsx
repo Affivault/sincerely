@@ -14,7 +14,7 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
       { keys: ['G', 'C'], label: 'Campaigns' },
       { keys: ['G', 'I'], label: 'Unibox' },
       { keys: ['G', 'A'], label: 'Analytics' },
-      { keys: ['G', 'L'], label: 'Contacts' },
+      { keys: ['G', 'L'], label: 'Lead lists' },
       { keys: ['G', 'T'], label: 'Templates' },
       { keys: ['G', 'S'], label: 'Settings' },
     ],

@@ -116,7 +116,14 @@ export default function App() {
           {/* Today briefly lived here and the dashboard was pushed to /overview.
               Kept as a redirect so bookmarks and old links still land. */}
           <Route path="/dashboard/overview" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/contacts"           element={<ContactsListPage />} />
+          {/*
+            One component, two pages. /leads is the outreach side - lead
+            lists, the people campaigns send to. /contacts is the CRM, and
+            nothing cold reaches it. Separate routes rather than a toggle so
+            each is linkable and neither can be mistaken for the other.
+          */}
+          <Route path="/leads"              element={<ContactsListPage kind="lead" />} />
+          <Route path="/contacts"           element={<ContactsListPage kind="contact" />} />
           <Route path="/contacts/import"    element={<BulkImportPage />} />
           <Route path="/contacts/:id"       element={<ContactDetailPage />} />
           <Route path="/campaigns"          element={<CampaignsListPage />} />
@@ -129,7 +136,7 @@ export default function App() {
           <Route path="/domains"            element={<Navigate to="/email-accounts" replace />} />
           <Route path="/analytics"          element={<AnalyticsDashboardPage />} />
           <Route path="/inbox"              element={<InboxPage />} />
-          <Route path="/leads"              element={<LeadsPage />} />
+          <Route path="/leads/inbox"        element={<LeadsPage />} />
           <Route path="/deals"              element={<DealsPage />} />
           <Route path="/deals/insights"     element={<DealInsightsPage />} />
           <Route path="/deals/:id"          element={<DealDetailPage />} />
