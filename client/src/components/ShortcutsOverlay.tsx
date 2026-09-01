@@ -28,6 +28,19 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
     ],
   },
   {
+    // Leads and Contacts share one grid, so these work on both.
+    title: 'Lists and tables',
+    items: [
+      { keys: ['J'], label: 'Next row' },
+      { keys: ['K'], label: 'Previous row' },
+      { keys: ['X'], label: 'Select the focused row' },
+      { keys: ['⇧', 'A'], label: 'Select all on this page' },
+      { keys: ['↵'], label: 'Open the full record' },
+      { keys: ['/'], label: 'Jump to search' },
+      { keys: ['Esc'], label: 'Clear focus and selection' },
+    ],
+  },
+  {
     title: 'Inbox',
     items: [
       { keys: ['J'], label: 'Next conversation' },

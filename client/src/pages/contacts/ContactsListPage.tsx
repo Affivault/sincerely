@@ -9,6 +9,7 @@ import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL } from '@lemlist/
 import type { Lifecycle, ListKind } from '@lemlist/shared';
 import { usePeek } from '../../components/peek/usePeek';
 import { useFillViewport } from '../../hooks/useFillViewport';
+import { useGridKeys } from '../../hooks/useGridKeys';
 import { listFoldersApi, type ListFolder } from '../../api/list-folders.api';
 import { verificationApi } from '../../api/verification.api';
 import { settingsApi } from '../../api/settings.api';
@@ -78,6 +79,15 @@ import {
 
 type ContactSortKey = 'first_name' | 'email' | 'company' | 'dcs_score' | 'created_at';
 type StatusFilter = '' | 'valid' | 'risky' | 'invalid' | 'not_found' | 'unverified';
+
+/** How a status filter reads once it is a chip rather than a pill you pressed. */
+const STATUS_LABEL: Record<Exclude<StatusFilter, ''>, string> = {
+  valid: 'Valid only',
+  risky: 'Risky only',
+  invalid: 'Invalid only',
+  not_found: 'Not found only',
+  unverified: 'Unverified only',
+};
 
 function SortableHeader({
   label,
@@ -1082,6 +1092,54 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   const contacts = contactsData?.data || [];
   const totalPages = contactsData?.total_pages || 1;
   const totalContacts = contactsData?.total || 0;
+  /*
+   * Keyboard use of the grid. j/k to move, x to select, Enter to open the
+   * record, / to search, Escape to let go. `contacts` is the page currently
+   * rendered, so the indices the hook hands back line up with the rows.
+   */
+  const searchRef = useRef<HTMLInputElement>(null);
+  const { focusIndex, setFocusIndex } = useGridKeys({
+    count: contacts.length,
+    searchRef,
+    enabled: !isLoading,
+    onOpen: (i) => { const c = contacts[i]; if (c) navigate(`/contacts/${c.id}`); },
+    onToggleSelect: (i) => { const c = contacts[i]; if (c) toggleSelectContact(c.id); },
+    onSelectAll: () => toggleSelectAll(),
+    onEscape: () => setSelectedContacts(new Set()),
+  });
+
+  /*
+   * What is narrowing this list, and one way out of all of it.
+   *
+   * Search, verification status, company, lifecycle and the selected list can
+   * all be on at once, each in a different corner of the toolbar. The count
+   * at the bottom then disagrees with what somebody expects to see and there
+   * is no single thing to press to get back to everything - so people reload
+   * the page, which is the tell that a filter UI has failed.
+   *
+   * The list itself is deliberately excluded: it is the page you navigated
+   * to, shown in the rail and the title, not a filter you might have
+   * forgotten leaving on.
+   */
+  const activeFilters = [
+    debouncedSearch.trim() && { id: 'search', label: `“${debouncedSearch.trim()}”`, clear: () => setSearch('') },
+    statusFilter && { id: 'status', label: STATUS_LABEL[statusFilter] ?? statusFilter, clear: () => setStatusFilter('') },
+    companyFilter && { id: 'company', label: companyFilter, clear: () => setCompanyFilter(null) },
+    lifecycle !== (listKind === 'lead' ? 'all' : 'engaged') && {
+      id: 'lifecycle',
+      label: lifecycle === 'engaged' ? 'Contacts only' : lifecycle === 'prospect' ? 'Prospects only' : 'Everyone',
+      clear: () => setLifecyclePersisted(listKind === 'lead' ? 'all' : 'engaged'),
+    },
+  ].filter(Boolean) as { id: string; label: string; clear: () => void }[];
+
+  const clearAllFilters = () => {
+    setSearch('');
+    setStatusFilter('');
+    setCompanyFilter(null);
+    setLifecyclePersisted(listKind === 'lead' ? 'all' : 'engaged');
+    setPage(1);
+  };
+
   const allSelected = contacts.length > 0 && contacts.every((c: any) => selectedContacts.has(c.id));
   const someSelected = selectedContacts.size > 0;
   const pendingOnPage = (contacts as any[]).filter((c) => !c.dcs_verified_at && !c.is_bounced).length;
@@ -1728,10 +1786,11 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
             <input
+              ref={searchRef}
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, email, or company…"
+              placeholder="Search by name, email, or company…  /"
               className="w-full h-8 pl-8 pr-4 text-[12px] rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
             />
             {search && (
@@ -1743,10 +1802,31 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               </button>
             )}
           </div>
-          {search && (
-            <span className="text-[11px] font-medium text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-2.5 py-1 rounded-md">
-              {totalContacts} result{totalContacts !== 1 ? 's' : ''}
-            </span>
+          {activeFilters.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-medium text-[var(--text-tertiary)] tabular-nums">
+                {totalContacts.toLocaleString()} of {(lifecycleCounts?.total ?? totalContacts).toLocaleString()}
+              </span>
+              {activeFilters.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={f.clear}
+                  title={`Remove this filter`}
+                  className="group inline-flex max-w-[180px] items-center gap-1 rounded-md border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-2 h-6 text-[11px] font-medium text-[var(--indigo)] transition-colors hover:border-[var(--indigo)]/50"
+                >
+                  <span className="truncate">{f.label}</span>
+                  <X className="h-2.5 w-2.5 flex-shrink-0 opacity-50 group-hover:opacity-100" />
+                </button>
+              ))}
+              {activeFilters.length > 1 && (
+                <button
+                  onClick={clearAllFilters}
+                  className="text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] underline decoration-dotted underline-offset-2"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
           )}
 
           {/* View leads by company */}
@@ -2092,6 +2172,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                     const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
                     const isSelected = selectedContacts.has(contact.id);
                     const rowNumber = (page - 1) * pageSize + rowIdx + 1;
+                    const isFocused = focusIndex === rowIdx;
                     // Frozen cells need an opaque bg so scrolled content can't show through.
                     const frozenBg = isSelected
                       ? 'bg-[var(--bg-active)]'
@@ -2099,14 +2180,22 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                     return (
                       <tr
                         key={contact.id}
+                        data-row-index={rowIdx}
                         onClick={(e) => {
                           // ⌘/ctrl-click still opens the full profile in a tab.
                           if (e.metaKey || e.ctrlKey) { window.open(`/contacts/${contact.id}`, '_blank'); return; }
+                          // Clicking also moves the keyboard cursor here, so
+                          // mouse and keyboard do not end up in two places.
+                          setFocusIndex(rowIdx);
                           openPeek('contact', contact.id);
                         }}
                         className={cn(
                           'group cursor-pointer transition-colors duration-150',
-                          isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]'
+                          isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]',
+                          // The keyboard cursor. An inset ring rather than an
+                          // outline, so it reads inside a table with frozen
+                          // columns instead of being clipped by them.
+                          isFocused && 'bg-[var(--bg-hover)] [&>td]:shadow-[inset_0_1px_0_var(--indigo),inset_0_-1px_0_var(--indigo)]',
                         )}
                       >
                         <td className={cn('sticky left-0 z-[1] pl-3 pr-2 py-1.5 relative border-b border-[var(--border-subtle)]', frozenBg)}>
