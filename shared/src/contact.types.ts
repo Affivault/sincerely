@@ -121,6 +121,54 @@ export interface PaginatedResponse<T> {
 // CONTACT LISTS
 // ============================================
 
+/**
+ * What a list is for, which decides whether cold email may ever reach it.
+ *
+ * A lead list is an outreach audience: people you are pitching, and the only
+ * thing a campaign is allowed to point at. A contact list is CRM
+ * organisation - customers, live accounts, anyone you have a relationship
+ * with - and no sequence may bind one. The database enforces that with a
+ * trigger (migration 058) rather than trusting the six code paths that can
+ * reach campaigns.list_id, because the failure here is not a broken page, it
+ * is a cold pitch landing on a customer.
+ */
+export type ListKind = 'lead' | 'contact';
+
+export const LIST_KINDS: { id: ListKind; label: string; one: string; hint: string }[] = [
+  {
+    id: 'lead',
+    label: 'Lead lists',
+    one: 'Lead list',
+    hint: 'Outreach audiences. Campaigns send to these.',
+  },
+  {
+    id: 'contact',
+    label: 'Contact lists',
+    one: 'Contact list',
+    hint: 'CRM organisation. Cold campaigns can never send to these.',
+  },
+];
+
+/**
+ * Whether a cold campaign may reach somebody, given where they are filed.
+ *
+ * The rule in one place, because it is answered twice and the two answers
+ * must never differ: the server applies it when enrolling, and the profile
+ * page states it to your face. If the page says "can be added to campaigns"
+ * and enrolment then silently drops them, the page has lied about the one
+ * thing it exists to tell you.
+ *
+ * Being in the CRM is what protects somebody, and being in an outreach
+ * audience is what overrides it - putting a customer on a lead list is a
+ * deliberate act that says pitch this one anyway. Somebody on no list at all
+ * is unfiled, not protected, and stays reachable; blocking them would break
+ * importing straight into a campaign, which is how most people start.
+ */
+export function isColdEmailable(where: { onLeadList: boolean; onContactList: boolean }): boolean {
+  if (!where.onContactList) return true;
+  return where.onLeadList;
+}
+
 export interface ContactList {
   id: string;
   user_id: string;
@@ -128,10 +176,23 @@ export interface ContactList {
   description: string | null;
   color: string;
   icon: string;
+  kind: ListKind;
+  folder_id?: string | null;
   is_default: boolean;
   contact_count?: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface ListFolder {
+  id: string;
+  user_id: string;
+  name: string;
+  color: string | null;
+  kind: ListKind;
+  position: number;
+  created_at: string;
+  updated_at?: string;
 }
 
 export interface CreateContactListInput {
@@ -139,6 +200,8 @@ export interface CreateContactListInput {
   description?: string;
   color?: string;
   icon?: string;
+  kind?: ListKind;
+  folder_id?: string | null;
 }
 
 export interface UpdateContactListInput extends Partial<CreateContactListInput> {}

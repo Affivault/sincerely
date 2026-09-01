@@ -1,12 +1,18 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import type { ListKind } from '@lemlist/shared';
 
 export const listFoldersService = {
-  async list(userId: string) {
-    const { data, error } = await supabaseAdmin
+  /** @param kind Restrict to folders holding one kind of list. */
+  async list(userId: string, kind?: ListKind) {
+    let query = supabaseAdmin
       .from('list_folders')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', userId);
+
+    if (kind) query = query.eq('kind', kind);
+
+    const { data, error } = await query
       .order('position', { ascending: true })
       .order('name', { ascending: true });
     if (error) throw new AppError(error.message, 500);
@@ -29,7 +35,7 @@ export const listFoldersService = {
     return folders.map((f: any) => ({ ...f, list_count: counts[f.id] || 0 }));
   },
 
-  async create(userId: string, input: { name: string; color?: string; icon?: string }) {
+  async create(userId: string, input: { name: string; color?: string; icon?: string; kind?: ListKind }) {
     const { data, error } = await supabaseAdmin
       .from('list_folders')
       .insert({ user_id: userId, ...input })

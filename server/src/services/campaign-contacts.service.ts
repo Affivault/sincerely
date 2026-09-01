@@ -4,6 +4,7 @@ import { inferTimezone, emptyEnrolResult, ENROL_SKIP_SAMPLE } from '@lemlist/sha
 import type { EnrolResult, EnrolSkip, EnrolSkipReason } from '@lemlist/shared';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { contactsOnOpenDeals } from './lifecycle.service.js';
+import { listsService } from './lists.service.js';
 
 export const campaignContactsService = {
   async list(campaignId: string, params: { page?: number; limit?: number }) {
@@ -115,6 +116,30 @@ export const campaignContactsService = {
       if (onDeals.size > 0) {
         allowedContactIds = allowedContactIds.filter((id) => {
           if (onDeals.has(id)) { drop(id, 'on_open_deal'); return false; }
+          return true;
+        });
+      }
+    }
+
+    /*
+     * 3c. And nobody who lives only in the CRM.
+     *
+     * Contact lists are relationships; lead lists are who you are pitching.
+     * Somebody filed only in the former has never been put into an outreach
+     * audience by anybody, and a cold sequence reaching them is the exact
+     * accident the lead/contact split exists to stop.
+     *
+     * Being on a lead list as well clears this, because that is a deliberate
+     * act - "pitch this one anyway" - and the app should not overrule it.
+     * Contacts on no list at all pass too: unfiled is not the same as
+     * protected, and blocking them would break importing straight into a
+     * campaign.
+     */
+    if (allowedContactIds.length > 0) {
+      const crmOnly = await listsService.contactsOnlyInCrmLists(campaign.user_id, allowedContactIds);
+      if (crmOnly.size > 0) {
+        allowedContactIds = allowedContactIds.filter((id) => {
+          if (crmOnly.has(id)) { drop(id, 'crm_contact_only'); return false; }
           return true;
         });
       }

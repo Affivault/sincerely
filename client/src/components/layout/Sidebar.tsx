@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers, Blocks,
   ChevronRight, Wrench, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck, Sparkles,
-  CalendarDays, ListTodo, Building2, Linkedin,
+  CalendarDays, ListTodo, Building2, Linkedin, Contact2,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
@@ -36,7 +36,7 @@ const isGroup = (item: NavItem): item is NavGroup => (item as NavGroup).kind ===
    The old sidebar listed every page at one flat level, which made the rail a
    table of contents rather than a map: fourteen equal rows, no sense of what
    belonged with what. The fix is grouping — Templates and Schedules sit under
-   Campaigns, Companies and Prospector beside Contacts — but grouping earns
+   Campaigns, Companies and Prospector beside Leads — but grouping earns
    its keep by giving structure, not by taking pages off the screen. So the
    groups start open: everything you had is still visible, just gathered under
    the thing it belongs to. Collapsing is a choice you make, not a default you
@@ -56,25 +56,28 @@ const primaryNav: NavItem[] = [
       { name: 'Analytics',      href: '/analytics',      icon: BarChart3 },
     ],
   },
-  /* People, not opportunities.
+  /* Everything to do with people you are pitching.
 
-     This group used to be called "Leads" and pointed at /contacts, which was
-     survivable right up until an actual Leads inbox shipped at /leads — and
-     then the rail had two rows with the same name going to different places.
-     They are different things and the nav has to say so: everyone you know of
-     lives here, and the handful you have decided to pursue live in Leads. */
+     Lead lists, the companies behind them, and the tool that finds more. The
+     inbox sits here too: a lead that arrives is still a lead, and putting it
+     anywhere else would mean going to two places to do one job. */
   {
-    kind: 'group', id: 'contacts',
-    name: 'Contacts', href: '/contacts', icon: Users,
+    kind: 'group', id: 'leads',
+    name: 'Leads', href: '/leads', icon: Users,
     children: [
-      { name: 'All contacts', href: '/contacts',   icon: Users },
-      { name: 'Companies',    href: '/companies',  icon: Building2 },
-      { name: 'Prospector',   href: '/prospector', icon: Radar },
+      { name: 'Lead lists',  href: '/leads',        icon: Users, exact: true },
+      { name: 'Leads inbox', href: '/leads/inbox',  icon: Sparkles },
+      { name: 'Companies',   href: '/companies',    icon: Building2 },
+      { name: 'Prospector',  href: '/prospector',   icon: Radar },
     ],
   },
-  /* Leads sits immediately above Deals because that is the order the work
-     happens in: something arrives, you decide, it becomes a deal. */
-  { name: 'Leads', href: '/leads', icon: Sparkles },
+  /* The CRM, and its own destination rather than a child of Leads.
+
+     Same screen, different half of the business: these are the people you
+     have relationships with, and no campaign can reach them. Making it a row
+     under Leads would say the opposite - that contacts are a kind of lead -
+     which is the confusion this whole split exists to end. */
+  { name: 'Contacts', href: '/contacts', icon: Contact2, match: ['/contacts'] },
   /* Deals stays its own destination — a pipeline is somewhere you go, not a
      page you find inside something else. */
   { name: 'Deals', href: '/deals', icon: Handshake, match: ['/deals', '/crm'] },
@@ -123,12 +126,13 @@ const DEFAULT_EXPANDED = primaryNav.filter(isGroup).map((g) => g.id);
 
 /* Versioned, and it has to be bumped whenever a group id changes.
 
-   v2 holds ids from a nav where this group was called "leads". Renaming it to
-   "contacts" means a saved v2 preference no longer mentions it at all, and a
-   group nobody has an opinion about renders shut — so the rename would have
-   quietly collapsed Contacts for every existing user. That is the same trap
-   v1 fell into, one nav generation earlier. */
-const EXPANDED_KEY = 'sidebar.expandedGroups.v3';
+   A saved list names the groups someone chose to keep open. Rename an id and
+   that list no longer mentions it, so a group nobody has an opinion about
+   renders shut — which is how a rename silently collapses a section for every
+   existing user. v1 fell into it, v2 and v3 each moved this group's id again
+   (leads → contacts → leads, as the split was worked out), and each move
+   needs its own key or the fix does not reach anybody who has used the app. */
+const EXPANDED_KEY = 'sidebar.expandedGroups.v4';
 
 function routeMatches(pathname: string, route: string): boolean {
   return pathname === route || pathname.startsWith(route + '/');

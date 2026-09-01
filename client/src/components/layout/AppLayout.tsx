@@ -27,6 +27,8 @@ const PAGE_TITLES: [prefix: string, name: string][] = [
   ['/analytics', 'Analytics'],
   ['/templates', 'Templates'],
   ['/schedules', 'Schedules'],
+  ['/leads/inbox', 'Leads inbox'],
+  ['/leads', 'Lead lists'],
   ['/contacts', 'Contacts'],
   ['/email-accounts', 'Email accounts'],
   ['/suppression', 'Suppression'],
@@ -45,7 +47,7 @@ const GO_MAP: Record<string, string> = {
   c: '/campaigns',
   i: '/inbox',
   a: '/analytics',
-  l: '/contacts',
+  l: '/leads',
   t: '/templates',
   s: '/settings',
 };

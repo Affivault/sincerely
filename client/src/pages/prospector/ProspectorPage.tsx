@@ -186,7 +186,8 @@ export function ProspectorPage() {
   const suppressRevealToastsRef = useRef(false);
 
   const { data: status, isError: statusError } = useQuery({ queryKey: ['prospecting', 'status'], queryFn: prospectingApi.status, meta: { silentError: true } });
-  const { data: lists } = useQuery({ queryKey: ['lists'], queryFn: listsApi.list });
+  // Revealed prospects are outreach material, so only lead lists are offered.
+  const { data: lists } = useQuery({ queryKey: ['lists', 'lead'], queryFn: () => listsApi.list('lead') });
 
   const filters: ProspectSearchFilters = {
     titles, locations, industries, companies, seniorities, companySizes,

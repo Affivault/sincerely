@@ -24,7 +24,9 @@ const moveSchema = z.object({
 export const listFoldersController = {
   async list(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const data = await listFoldersService.list(req.userId!);
+      const raw = req.query.kind;
+      const kind = raw === 'lead' || raw === 'contact' ? raw : undefined;
+      const data = await listFoldersService.list(req.userId!, kind);
       res.json(data);
     } catch (err) { next(err); }
   },

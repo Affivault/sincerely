@@ -1,21 +1,26 @@
 import { apiClient } from './client';
+import type { ListKind } from '@lemlist/shared';
 
 export interface ListFolder {
   id: string;
   name: string;
   color: string;
   icon: string;
+  /** Which rail this folder belongs to. See migration 058. */
+  kind: ListKind;
   position: number;
   list_count: number;
   created_at: string;
 }
 
 export const listFoldersApi = {
-  list: async () => {
-    const { data } = await apiClient.get<ListFolder[]>('/list-folders');
+  list: async (kind?: ListKind) => {
+    const { data } = await apiClient.get<ListFolder[]>('/list-folders', {
+      params: kind ? { kind } : undefined,
+    });
     return data;
   },
-  create: async (input: { name: string; color?: string; icon?: string }) => {
+  create: async (input: { name: string; color?: string; icon?: string; kind?: ListKind }) => {
     const { data } = await apiClient.post<ListFolder>('/list-folders', input);
     return data;
   },

@@ -32,6 +32,16 @@ export type EnrolSkipReason =
   /** Not this account's contact. */
   | 'not_yours'
   /**
+   * Filed in the CRM and in no outreach audience.
+   *
+   * Contact lists are relationships - customers, live accounts, people who
+   * replied. Lead lists are who you are pitching. Somebody who sits only in
+   * the former is not cold-email material, and reaching them with a sequence
+   * is the mistake this whole separation exists to prevent. Being on a lead
+   * list as well is a deliberate act and clears this.
+   */
+  | 'crm_contact_only'
+  /**
    * Mid-negotiation on a live deal.
    *
    * Cold-pitching somebody whose colleague is reading your contract is the
@@ -79,6 +89,7 @@ export const ENROL_SKIP_LABEL: Record<EnrolSkipReason, string> = {
   no_email: 'no email address',
   not_yours: 'not in this account',
   on_open_deal: 'already on an open deal',
+  crm_contact_only: 'a CRM contact, not on any lead list',
 };
 
 /** Longest first, so the biggest reason leads the sentence. */
