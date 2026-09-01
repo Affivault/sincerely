@@ -18,7 +18,7 @@ function pick(body: any, keys: readonly string[]): Record<string, any> {
   return out;
 }
 
-const DEAL_KEYS = ['title', 'company', 'company_id', 'contact_name', 'contact_email', 'contact_id', 'value', 'currency', 'stage', 'expected_close_date', 'notes', 'position', 'probability', 'outcome_reason', 'label', 'source',
+const DEAL_KEYS = ['title', 'company', 'company_id', 'contact_name', 'contact_email', 'contact_id', 'value', 'currency', 'stage', 'expected_close_date', 'notes', 'position', 'probability', 'outcome_reason', 'label', 'source', 'source_campaign_id', 'source_step_id', 'attribution', 'attributed_at',
   'recurring_amount', 'recurring_period', 'one_off_amount', 'term_months'] as const;
 
 const DEAL_LABELS = ['hot', 'warm', 'cold'];
@@ -210,6 +210,73 @@ async function autoLinkContact(userId: string, input: Record<string, any>) {
   }
 }
 
+/**
+ * Which outreach produced this deal, decided from what actually happened.
+ *
+ * Server-side rather than per-caller, because a deal can be created from the
+ * unibox, the contact profile, the board or the API, and attribution done in
+ * one of those four is attribution missing from three. The caller may name a
+ * campaign - the unibox knows the thread's - and that is the strongest
+ * evidence there is; otherwise the contact's most recent reply is used.
+ *
+ * Deliberately never returns 'enrolment'. Having been emailed and not
+ * answered is not evidence that a sequence produced a deal, and quietly
+ * crediting it would inflate every figure built on top - which is how an
+ * attribution report stops being believed. Weak links stay a manual act.
+ *
+ * Never throws. A deal that saves without attribution is a small gap in a
+ * report; a deal that fails to save because a reporting lookup broke is lost
+ * work in front of somebody who was mid-sentence.
+ */
+async function resolveAttribution(
+  userId: string,
+  contactId: string | null | undefined,
+  namedCampaignId?: string | null,
+): Promise<{ source_campaign_id: string; source_step_id: string | null; attribution: string; attributed_at: string } | null> {
+  if (!contactId) return null;
+  try {
+    if (namedCampaignId) {
+      // The step is best-effort: the campaign is the claim, the step is
+      // detail, and a missing step must not downgrade a thread to a guess.
+      const { data: act } = await supabaseAdmin
+        .from('campaign_activities')
+        .select('step_id')
+        .eq('contact_id', contactId)
+        .eq('campaign_id', namedCampaignId)
+        .in('activity_type', ['replied', 'sent'])
+        .order('occurred_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return {
+        source_campaign_id: namedCampaignId,
+        source_step_id: (act as any)?.step_id ?? null,
+        attribution: 'thread',
+        attributed_at: new Date().toISOString(),
+      };
+    }
+
+    const { data: reply } = await supabaseAdmin
+      .from('campaign_activities')
+      .select('campaign_id, step_id, campaigns!inner(user_id)')
+      .eq('contact_id', contactId)
+      .eq('activity_type', 'replied')
+      .eq('campaigns.user_id', userId)
+      .order('occurred_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!reply) return null;
+    return {
+      source_campaign_id: (reply as any).campaign_id,
+      source_step_id: (reply as any).step_id ?? null,
+      attribution: 'reply',
+      attributed_at: new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export const crmService = {
   /* ── Deals ── */
   async listDeals(userId: string, filters?: { contactId?: string; contactEmail?: string }) {
@@ -247,6 +314,14 @@ export const crmService = {
     if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
     if (input.company_id) await assertOwned(userId, 'companies', input.company_id, 'Company');
     await autoLinkContact(userId, input);
+
+    // Credit the outreach that produced this, if any did. `source_campaign_id`
+    // on the body is the unibox saying "this came out of that thread".
+    if (!input.source_campaign_id) {
+      const credit = await resolveAttribution(userId, input.contact_id, body.source_campaign_id);
+      if (credit) Object.assign(input, credit);
+    }
+
     const { data, error } = await supabaseAdmin
       .from('deals')
       .insert({ ...input, user_id: userId })

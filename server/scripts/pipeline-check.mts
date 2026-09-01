@@ -48,6 +48,10 @@ import {
   summariseLeads,
   summarisePipeline,
   weightedValue,
+  revenueByCampaign,
+  outreachFunnel,
+  valuePerReply,
+  isStrongAttribution,
 } from '@lemlist/shared';
 import type { Deal, DealStage } from '@lemlist/shared';
 
@@ -644,6 +648,79 @@ console.log('\nthe engagement rate is the top-of-funnel number that was unanswer
      countLifecycles([{}, { lifecycle: null }]).prospect === 2);
   is('an empty book has no rate rather than a zero one',
      countLifecycles([]).engagementRate === null);
+}
+
+console.log('\nrevenue is rolled up by the campaign that produced it');
+{
+  const deal = (over: any) => ({
+    id: Math.random().toString(36).slice(2), title: 't', stage: 'won',
+    value: 0, currency: 'USD', probability: null,
+    recurring_amount: null, recurring_period: null, one_off_amount: null, term_months: null,
+    ...over,
+  }) as any;
+
+  const rows = revenueByCampaign([
+    deal({ source_campaign_id: 'A', attribution: 'reply',     stage: 'won',      value: 50_000 }),
+    deal({ source_campaign_id: 'A', attribution: 'thread',    stage: 'won',      value: 30_000 }),
+    deal({ source_campaign_id: 'A', attribution: 'enrolment', stage: 'won',      value: 20_000 }),
+    deal({ source_campaign_id: 'A', attribution: 'reply',     stage: 'lost',     value: 10_000 }),
+    deal({ source_campaign_id: 'B', attribution: 'reply',     stage: 'proposal', value: 40_000 }),
+    // Neither of these is a claim about any campaign, so neither may appear.
+    deal({ source_campaign_id: null, attribution: null,       stage: 'won',      value: 999_000 }),
+    deal({ source_campaign_id: 'C',  attribution: null,       stage: 'won',      value: 999_000 }),
+  ]);
+
+  const a = rows.find((r) => r.campaignId === 'A')!;
+  const b = rows.find((r) => r.campaignId === 'B')!;
+
+  is('an unattributed deal is left out rather than bucketed as unknown',
+     rows.length === 2 && !rows.some((r) => r.campaignId === 'C'),
+     rows.map((r) => r.campaignId).join(','));
+  is('won value is the money that actually closed',
+     a.wonValue === 100_000, String(a.wonValue));
+  is('weak evidence still counts as a deal',
+     a.deals === 4 && a.won === 3, `${a.deals}/${a.won}`);
+  is('but is excluded from the forecastable figure',
+     a.strongWonValue === 80_000 && a.strongDeals === 3,
+     `${a.strongWonValue} / ${a.strongDeals}`);
+  is('win rate is of what closed, not of everything',
+     a.winRate === 0.75, String(a.winRate));
+  is('average won deal is the mean of the wins',
+     a.averageWon !== null && Math.round(a.averageWon) === 33_333, String(a.averageWon));
+  is('an open deal is pipeline, not revenue',
+     b.wonValue === 0 && b.open === 1 && b.weightedOpen > 0,
+     `${b.wonValue}/${b.open}/${b.weightedOpen}`);
+  is('a campaign with nothing closed has no win rate rather than a zero one',
+     b.winRate === null, String(b.winRate));
+  is('the biggest earner leads', rows[0].campaignId === 'A');
+
+  // A retainer and a one-off of the same headline number are not the same deal.
+  const shaped = revenueByCampaign([
+    deal({ source_campaign_id: 'D', attribution: 'reply', stage: 'won',
+           recurring_amount: 5_000, recurring_period: 'month', term_months: 12, one_off_amount: 10_000 }),
+  ])[0];
+  is('a shaped deal is worth its contract value, not its headline',
+     shaped.wonValue === 70_000, String(shaped.wonValue));
+}
+
+console.log('\nthe funnel converts against the step before it');
+{
+  const f = outreachFunnel({ sent: 2000, replied: 14, deals: 6, won: 3 });
+  is('the first step has nothing to convert from', f[0].ofPrevious === null);
+  is('replies are measured against sends',
+     f[1].ofPrevious !== null && Math.abs(f[1].ofPrevious - 0.007) < 1e-9, String(f[1].ofPrevious));
+  is('wins are measured against deals, not against sends',
+     f[3].ofPrevious === 0.5, String(f[3].ofPrevious));
+  is('a zero step does not divide by zero',
+     outreachFunnel({ sent: 0, replied: 0, deals: 0, won: 0 }).every((s) => s.ofPrevious === null));
+
+  is('value per reply answers whether to run it again',
+     valuePerReply(100_000, 14) !== null && Math.round(valuePerReply(100_000, 14)!) === 7143,
+     String(valuePerReply(100_000, 14)));
+  is('with no replies it is unknown, not zero',
+     valuePerReply(0, 0) === null);
+  is('weak evidence is named as weak',
+     !isStrongAttribution('enrolment') && isStrongAttribution('reply') && isStrongAttribution('thread'));
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

@@ -141,6 +141,13 @@ export interface DealStageEvent {
 }
 
 export interface CreateDealInput {
+  /**
+   * The campaign this deal came out of, when the caller knows it.
+   *
+   * Only the unibox does — it has the thread. Everything else leaves it
+   * unset and the server works the credit out from the contact's history.
+   */
+  source_campaign_id?: string | null;
   title: string;
   company?: string | null;
   /** Link to a company record; the free-text `company` stays for display. */
