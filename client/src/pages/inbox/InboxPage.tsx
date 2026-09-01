@@ -1409,6 +1409,11 @@ function ThreadDealPanel({ msg }: { msg: Message }) {
         contact_id: msg.contact_id || null,
         contact_email: email || null,
         contact_name: leadName || null,
+        // This deal came out of this thread, and the thread belongs to a
+        // campaign — the strongest attribution there is. Without it the
+        // server falls back to "their most recent reply", which is usually
+        // the same campaign but is a weaker claim about a different event.
+        source_campaign_id: msg.campaign_id || null,
       });
     },
     onSuccess: (deal) => {
