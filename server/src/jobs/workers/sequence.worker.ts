@@ -1,5 +1,6 @@
 import { processDueSteps, processWebhookTimeouts } from '../../services/sequence.service.js';
 import { processScheduledEmails } from '../../services/inbox.service.js';
+import { processLifecycleTriggers } from '../../services/post-sale.service.js';
 
 /**
  * Sequence Worker
@@ -35,6 +36,23 @@ async function tick() {
     const scheduled = await processScheduledEmails();
     if (scheduled > 0) {
       console.log(`[Sequence] Sent ${scheduled} scheduled email(s)`);
+    }
+
+    /*
+     * Sequences that start themselves off the CRM: a renewal coming up, a
+     * deal won, a deal lost. Reported with its reasons rather than a bare
+     * count — an automation that enrolled nobody and cannot say why is the
+     * commonest way one stays broken for a month without anybody noticing.
+     */
+    const lifecycle = await processLifecycleTriggers();
+    if (lifecycle.enrolled > 0 || lifecycle.skipped > 0) {
+      const why = Object.entries(lifecycle.reasons)
+        .map(([reason, n]) => `${reason}: ${n}`)
+        .join(', ');
+      console.log(
+        `[Lifecycle] ${lifecycle.enrolled} enrolled, ${lifecycle.skipped} skipped` +
+        ` across ${lifecycle.campaigns} campaign(s)${why ? ` (${why})` : ''}`,
+      );
     }
   } catch (err: any) {
     console.error('[Sequence] Worker error:', err.message);

@@ -23,6 +23,8 @@ export * from './lifecycle.types.js';
 export * from './attribution.types.js';
 export * from './triage.types.js';
 export * from './pipeline.types.js';
+export * from './renewal.types.js';
+export * from './post-sale.types.js';
 export * from './prospecting.types.js';
 export * from './email-finder.types.js';
 export * from './admin.types.js';

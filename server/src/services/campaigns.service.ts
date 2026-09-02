@@ -3,9 +3,10 @@ import { AppError } from '../middleware/error.middleware.js';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { fireEvent } from './webhook.service.js';
 import { processDueSteps } from './sequence.service.js';
+import { fillsItselfFromCrm } from './post-sale.service.js';
 import { settingsService } from './settings.service.js';
 import { readinessService } from './readiness.service.js';
-import { extractTags, TAG_LABELS, TAG_SOURCE_FIELD, SENDER_TAGS, LINK_TAGS } from '@lemlist/shared';
+import { extractTags, TAG_LABELS, TAG_SOURCE_FIELD, SENDER_TAGS, LINK_TAGS, describeTriggerProblem } from '@lemlist/shared';
 import type { PersonalizationAudit, PersonalizationTag, TimezoneCoverage } from '@lemlist/shared';
 
 /**
@@ -24,6 +25,10 @@ const UPDATABLE_CAMPAIGN_FIELDS = new Set([
   'dcs_threshold', 'daily_limit',
   'delay_between_emails', 'delay_between_emails_min', 'delay_between_emails_max',
   'stop_on_reply', 'ab_auto_promote', 'send_in_recipient_timezone', 'track_opens', 'track_clicks', 'include_unsubscribe',
+  // Who this sequence is for, and what starts it. See migration 061: a
+  // post-sale campaign is the only kind allowed to fire off CRM state, and
+  // the database refuses the combination that would pitch your customers.
+  'audience', 'trigger_event', 'trigger_offset_days',
 ]);
 
 /** `status` is lifecycle, driven by launch/pause/resume — never by a form post. */
@@ -37,6 +42,24 @@ function pickCampaignFields(input: any, allowed: Set<string>): Record<string, an
     if (allowed.has(key)) out[key] = value;
   }
   return out;
+}
+
+/**
+ * Refuse a lifecycle setup the database would refuse anyway, in English.
+ *
+ * The constraint in migration 061 is the authority and it is not going
+ * anywhere - but "campaigns_trigger_needs_post_sale" is not a sentence, and
+ * the mistake it catches (a cold sequence firing off your own deals) is the
+ * one worth explaining rather than merely blocking.
+ */
+function assertLifecycleSane(input: any, existing?: any): void {
+  const merged = {
+    audience: input.audience ?? existing?.audience ?? 'cold',
+    trigger_event: input.trigger_event ?? existing?.trigger_event ?? null,
+    trigger_offset_days: input.trigger_offset_days ?? existing?.trigger_offset_days ?? 0,
+  };
+  const problem = describeTriggerProblem(merged as any);
+  if (problem) throw new AppError(problem, 400);
 }
 
 interface ListParams {
@@ -191,6 +214,7 @@ export const campaignsService = {
     if (input.smtp_account_id) {
       await this.assertSmtpAccountOwnership(userId, input.smtp_account_id);
     }
+    assertLifecycleSane(input);
 
     const { data, error } = await supabaseAdmin
       .from('campaigns')
@@ -212,6 +236,7 @@ export const campaignsService = {
     if (input.smtp_account_id) {
       await this.assertSmtpAccountOwnership(userId, input.smtp_account_id);
     }
+    assertLifecycleSane(input, existing);
 
     const { data, error } = await supabaseAdmin
       .from('campaigns')
@@ -514,7 +539,14 @@ export const campaignsService = {
       .select('*', { count: 'exact', head: true })
       .eq('campaign_id', id);
 
-    if (!count || count === 0) {
+    /*
+     * A triggered campaign starts empty on purpose - that is the whole idea:
+     * it fills itself when a deal is won, or when a renewal comes round.
+     * Requiring a contact up front would make every post-sale sequence
+     * impossible to launch, which is how this feature would have shipped
+     * unusable while every test still passed.
+     */
+    if ((!count || count === 0) && !fillsItselfFromCrm(campaign)) {
       throw new AppError('Campaign must have at least one contact', 400);
     }
 

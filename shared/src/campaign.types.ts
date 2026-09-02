@@ -1,4 +1,5 @@
 import { CampaignStatus, StepType, ContactCampaignStatus, ConditionField, ConditionOperator } from './enums.js';
+import type { CampaignAudience, CampaignTrigger } from './post-sale.types.js';
 
 export interface Campaign {
   id: string;
@@ -120,6 +121,16 @@ export interface CreateCampaignInput {
   track_opens?: boolean;
   track_clicks?: boolean;
   include_unsubscribe?: boolean;
+  /**
+   * Who this sequence is for, and what starts it.
+   *
+   * Absent means cold, which is what every campaign was before these
+   * existed. See post-sale.types.ts — a post-sale campaign is the only kind
+   * allowed to reach customers, and the only kind that can start itself.
+   */
+  audience?: CampaignAudience;
+  trigger_event?: CampaignTrigger | null;
+  trigger_offset_days?: number;
 }
 
 export interface CreateStepInput {

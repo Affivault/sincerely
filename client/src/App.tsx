@@ -13,6 +13,7 @@ import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 // Lazy-loaded — each becomes its own JS chunk
 const DashboardPage        = lazy(() => import('./pages/dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const CampaignRevenuePage  = lazy(() => import('./pages/analytics/CampaignRevenuePage').then(m => ({ default: m.CampaignRevenuePage })));
+const RenewalsPage         = lazy(() => import('./pages/renewals/RenewalsPage').then(m => ({ default: m.RenewalsPage })));
 const RevenuePage          = lazy(() => import('./pages/analytics/RevenuePage').then(m => ({ default: m.RevenuePage })));
 const ContactsListPage     = lazy(() => import('./pages/contacts/ContactsListPage').then(m => ({ default: m.ContactsListPage })));
 const ContactDetailPage    = lazy(() => import('./pages/contacts/ContactDetailPage').then(m => ({ default: m.ContactDetailPage })));
@@ -142,6 +143,7 @@ export default function App() {
           <Route path="/inbox"              element={<InboxPage />} />
           <Route path="/leads/inbox"        element={<LeadsPage />} />
           <Route path="/deals"              element={<DealsPage />} />
+          <Route path="/renewals"           element={<RenewalsPage />} />
           <Route path="/deals/insights"     element={<DealInsightsPage />} />
           <Route path="/deals/:id"          element={<DealDetailPage />} />
           <Route path="/companies"          element={<CompaniesPage />} />
