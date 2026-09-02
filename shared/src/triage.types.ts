@@ -105,6 +105,51 @@ export interface TriageResult {
 }
 
 /**
+ * The same decision, made about a stack of replies at once.
+ *
+ * This is what a queue is for. Forty replies come in overnight, thirty of
+ * them are variations of "no thanks", and a tool that makes you open each
+ * one to say so is a tool people abandon by the second week. The decision
+ * and its qualifier are shared across the whole selection - which is honest,
+ * because "these are all the same kind of no" is exactly the judgement being
+ * made when somebody selects thirty rows.
+ */
+export interface BulkTriageInput extends TriageInput {
+  message_ids: string[];
+}
+
+/** What happened to one message in a bulk run. */
+export interface BulkTriageOutcome {
+  message_id: string;
+  ok: boolean;
+  /** Present when ok - the same result a single triage would have returned. */
+  result?: TriageResult;
+  /** Present when it failed, in the words the person should read. */
+  error?: string;
+}
+
+export interface BulkTriageResult {
+  decision: TriageDecision;
+  /** How many were actually recorded. */
+  succeeded: number;
+  /** How many refused, and why, one line each. */
+  failed: number;
+  outcomes: BulkTriageOutcome[];
+  /** Every message that came back ok, so undo can offer to take back the run. */
+  undoable: string[];
+  message: string;
+}
+
+/**
+ * The most replies one bulk call will act on.
+ *
+ * Each one is several writes - a lead, a lifecycle promotion, a suppression -
+ * so an unbounded list is a request that times out halfway and leaves nobody
+ * able to say what did and did not happen. The client pages through.
+ */
+export const BULK_TRIAGE_LIMIT = 100;
+
+/**
  * A lead's title, from what is actually known about the thread.
  *
  * "New lead" is what a form defaults to and it makes a Leads inbox

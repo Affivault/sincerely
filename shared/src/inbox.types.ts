@@ -28,6 +28,18 @@ export interface InboxMessage {
   sara_status: SaraStatus;
   sara_reviewed_at: string | null;
   sara_reviewed_by: string | null;
+  /**
+   * What this reply was decided to be, if anybody has decided yet.
+   *
+   * Null is the queue: "needs triage" is exactly the inbound, non-automatic
+   * mail with nothing here. Kept on the message rather than derived from
+   * whether a lead exists, because "not interested" creates nothing and
+   * would otherwise be indistinguishable from never having been looked at.
+   */
+  triage_decision: 'interested' | 'later' | 'not_interested' | null;
+  triaged_at: string | null;
+  /** The lead or follow-up the decision created, so undo removes exactly it. */
+  triage_ref: string | null;
   received_at: string;
   created_at: string;
 }
@@ -66,6 +78,14 @@ export interface SaraQueueStats {
 export interface InboxCounts {
   /** Unread conversations in the Inbox folder. */
   unread: number;
+  /**
+   * Inbound replies nobody has decided about yet.
+   *
+   * The number the inbox is actually for. Excludes auto-replies, because an
+   * out-of-office is not a decision anybody owes, and a badge that counts
+   * them is a badge people learn to ignore.
+   */
+  needs_triage: number;
   /** Count of inbox messages per SARA intent. Missing keys mean zero. */
   intents: Partial<Record<SaraIntent, number>>;
 }

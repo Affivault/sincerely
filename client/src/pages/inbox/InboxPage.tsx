@@ -17,6 +17,7 @@ import { RichTextEditor, useRichTextEditorRef } from '../../components/ui/RichTe
 import { InlineEdit } from '../../components/ui/InlineEdit';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { ReplyTriage } from '../../components/inbox/ReplyTriage';
+import { TriageQuestion } from '../../components/inbox/TriageQuestion';
 import { usePeek } from '../../components/peek/usePeek';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
@@ -79,10 +80,13 @@ import {
   History as HistoryIcon,
 } from 'lucide-react';
 
-import { DEAL_STAGES, type DealStage } from '@lemlist/shared';
+import {
+  DEAL_STAGES, TRIAGE_DECISIONS, BULK_TRIAGE_LIMIT,
+  type DealStage, type TriageDecision,
+} from '@lemlist/shared';
 
 /* ─── Types ────────────────────────────────────────── */
-type Folder = 'inbox' | 'starred' | 'sent' | 'archived' | 'scheduled';
+type Folder = 'inbox' | 'starred' | 'sent' | 'archived' | 'scheduled' | 'needs_triage';
 
 interface ConversationThread {
   contactEmail: string;
@@ -130,6 +134,10 @@ interface Message {
   sara_draft_reply: string | null;
   sara_action: string | null;
   sara_status: string;
+  /** What this reply was decided to be. Null is the queue. */
+  triage_decision?: TriageDecision | null;
+  /** The lead or follow-up that decision made, so undo can remove exactly it. */
+  triage_ref?: string | null;
 }
 
 /* ─── Helpers ──────────────────────────────────────── */
@@ -313,6 +321,20 @@ function humanizeMs(ms: number): string {
   if (hrs < 24) return `${hrs}h`;
   return `${Math.round(hrs / 24)}d`;
 }
+
+/**
+ * How a settled decision reads in a list row.
+ *
+ * Green for a lead because that is the outcome the whole product exists to
+ * produce; slate for a snooze because nothing has happened yet; rose for a
+ * suppression because it is the one that reaches outside this screen and
+ * should be visible at a glance when you scan back over what you cleared.
+ */
+const TRIAGE_PILL: Record<TriageDecision, { label: string; cls: string }> = {
+  interested: { label: 'Lead', cls: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
+  later: { label: 'Later', cls: 'bg-slate-500/10 text-slate-600 dark:text-slate-400' },
+  not_interested: { label: 'Passed', cls: 'bg-rose-500/10 text-rose-600 dark:text-rose-400' },
+};
 
 const INTENT_COLORS: Record<string, { bg: string; text: string; label: string }> = {
   interested: { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', label: 'Interested' },
@@ -1685,7 +1707,15 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
           first, and only a pursued lead becomes a deal. Inbound only —
           there is nothing to decide about something you sent. */}
       {msg.direction !== 'outbound' && (
-        <ReplyTriage messageId={msg.id} contactId={msg.contact_id} />
+        <ReplyTriage
+          messageId={msg.id}
+          contactId={msg.contact_id}
+          // What the server already says this reply is. Without it a reload
+          // put an answered thread back at the start, offering to decide it
+          // a second time.
+          decision={msg.triage_decision}
+          leadId={msg.triage_ref}
+        />
       )}
 
       <ThreadDealPanel msg={msg} />
@@ -1926,6 +1956,31 @@ function groupConversations(messages: Message[]): ConversationThread[] {
   }).sort((a, b) => new Date(b.latestMessage.received_at).getTime() - new Date(a.latestMessage.received_at).getTime());
 }
 
+/**
+ * The queue, one row per reply — not per conversation.
+ *
+ * Everywhere else, grouping by contact is right: you want the thread, and the
+ * older messages in it are context. A triage queue is the exception. If a
+ * prospect sends three replies overnight they are three decisions, and
+ * collapsing them into one row means the badge says 3, the list shows 1, and
+ * clearing what you can see leaves two behind with no way to find them. A
+ * count that does not match what is in front of you is a count people stop
+ * believing, and then stop looking at.
+ */
+function asIndividualRows(messages: Message[]): ConversationThread[] {
+  return messages
+    .filter((m) => m.sara_status !== 'scheduled')
+    .map((m) => ({
+      contactEmail: threadEmailOf(m) || m.id,
+      contactName: m.contact_name,
+      latestMessage: m,
+      messageCount: 1,
+      hasUnread: !m.is_read,
+      isStarred: !!m.is_starred,
+    }))
+    .sort((a, b) => new Date(b.latestMessage.received_at).getTime() - new Date(a.latestMessage.received_at).getTime());
+}
+
 /* ─── Sidebar navigation config ───────────────────── */
 type NavItem = { id: string; label: string; icon?: React.ElementType; folder?: Folder; tag?: string; quick?: string; dot?: string; countKey?: string };
 
@@ -2131,6 +2186,7 @@ export function InboxPage() {
     const intents = (countsData?.intents || {}) as Record<string, number>;
     const c: Record<string, number> = { ...intents };
     c.unread = countsData?.unread || 0;
+    c.needs_triage = countsData?.needs_triage || 0;
     c.hot = (intents.interested || 0) + (intents.meeting || 0);
     c.needs_reply = (intents.interested || 0) + (intents.objection || 0) + (intents.meeting || 0);
     return c;
@@ -2445,7 +2501,10 @@ export function InboxPage() {
   const currentMsg: Message | null = (selectedMsg as Message) || messages.find(m => m.id === selectedId) || null;
 
   /* ── Group messages into conversation threads for the sidebar ── */
-  const conversations: ConversationThread[] = useMemo(() => groupConversations(messages), [messages]);
+  const conversations: ConversationThread[] = useMemo(
+    () => (folder === 'needs_triage' ? asIndividualRows(messages) : groupConversations(messages)),
+    [messages, folder],
+  );
 
   // Quick filter presets: combine hard intents into actionable buckets
   const QUICK_FILTERS: { id: string; label: string; match?: string[] }[] = [
@@ -2470,6 +2529,137 @@ export function InboxPage() {
     () => unreadOnly ? filteredConversations.filter(c => c.hasUnread) : filteredConversations,
     [filteredConversations, unreadOnly],
   );
+
+  /* ══════════════════════════════════════════════════════════════════
+     Clearing the queue.
+
+     A morning's replies is thirty rows, and most of them are the same
+     answer. Opening each one to say so is the thing that makes people stop
+     triaging by the second week, and an inbox nobody triages is an inbox
+     with no queue in it, which is where this started.
+     ══════════════════════════════════════════════════════════════════ */
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  /** Where the last pick was, so shift-click can mean a range. */
+  const lastPickedRef = useRef<string | null>(null);
+  /*
+   * Whether shift was down, read at the moment of the change.
+   *
+   * A checkbox's onChange event carries no modifier keys in every browser
+   * that matters, so this is tracked separately rather than guessed.
+   */
+  const shiftHeldRef = useRef(false);
+  const inTriageQueue = folder === 'needs_triage';
+
+  // Leaving the queue drops the selection. Carrying it across views would
+  // mean a bulk action firing at rows that are no longer on screen.
+  useEffect(() => {
+    setPicked(new Set());
+    lastPickedRef.current = null;
+  }, [folder, tagFilter, search]);
+
+  const togglePick = useCallback((id: string, on: boolean, rows: ConversationThread[]) => {
+    const shift = shiftHeldRef.current;
+    setPicked((prev) => {
+      const next = new Set(prev);
+      // Shift extends from the last pick, the way every list of things people
+      // have to get through has worked since Explorer.
+      const anchor = lastPickedRef.current;
+      if (shift && anchor && anchor !== id) {
+        const ids = rows.map((r) => r.latestMessage.id);
+        const a = ids.indexOf(anchor);
+        const b = ids.indexOf(id);
+        if (a !== -1 && b !== -1) {
+          for (const rowId of ids.slice(Math.min(a, b), Math.max(a, b) + 1)) {
+            if (on) next.add(rowId); else next.delete(rowId);
+          }
+          return next;
+        }
+      }
+      if (on) next.add(id); else next.delete(id);
+      return next;
+    });
+    lastPickedRef.current = id;
+  }, []);
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => { if (e.key === 'Shift') shiftHeldRef.current = true; };
+    const up = (e: KeyboardEvent) => { if (e.key === 'Shift') shiftHeldRef.current = false; };
+    const blur = () => { shiftHeldRef.current = false; };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', blur);
+    };
+  }, []);
+
+  /** Which bulk decision is mid-question — a snooze needs a when, a no needs a why. */
+  const [bulkAsking, setBulkAsking] = useState<'later' | 'not_interested' | null>(null);
+  /**
+   * The last run, kept so it can be taken back.
+   *
+   * A misfire on one reply is an annoyance; a misfire on thirty is thirty
+   * people suppressed by a keystroke meant for something else. This stays on
+   * screen rather than living in a toast that disappears after four seconds,
+   * because the moment somebody realises what they just did is usually the
+   * moment after the toast has gone.
+   */
+  const [lastRun, setLastRun] = useState<{ decision: TriageDecision; ids: string[]; message: string } | null>(null);
+
+  const bulkTriageMut = useMutation({
+    mutationFn: ({ ids, input }: { ids: string[]; input: { decision: TriageDecision; snooze_days?: number; reason?: string } }) =>
+      inboxApi.triageMany(ids, input),
+    onSuccess: (result) => {
+      setPicked(new Set());
+      setBulkAsking(null);
+      lastPickedRef.current = null;
+      setLastRun(result.undoable.length
+        ? { decision: result.decision, ids: result.undoable, message: result.message }
+        : null);
+      // Everything a decision touches, so Leads, tasks and the suppression
+      // list are right without a reload.
+      qc.invalidateQueries({ queryKey: ['inbox'] });
+      qc.invalidateQueries({ queryKey: ['leads'] });
+      qc.invalidateQueries({ queryKey: ['crm'] });
+      qc.invalidateQueries({ queryKey: ['suppression'] });
+      qc.invalidateQueries({ queryKey: ['contacts'] });
+      if (result.failed > 0) {
+        // Named, not counted. "3 could not be" with no reason is a message
+        // that makes somebody go looking through thirty rows by hand.
+        const why = result.outcomes.find((o) => !o.ok)?.error;
+        toast.error(`${result.message}${why ? ` — ${why}` : ''}`, { duration: 7000 });
+      } else {
+        toast.success(result.message);
+      }
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not record those decisions'),
+  });
+
+  const bulkUndoMut = useMutation({
+    mutationFn: (ids: string[]) => inboxApi.untriageMany(ids),
+    onSuccess: (result) => {
+      setLastRun(null);
+      qc.invalidateQueries({ queryKey: ['inbox'] });
+      qc.invalidateQueries({ queryKey: ['leads'] });
+      qc.invalidateQueries({ queryKey: ['crm'] });
+      qc.invalidateQueries({ queryKey: ['suppression'] });
+      if (result.failed > 0) toast.error(result.message);
+      else toast.success(result.message);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not undo that'),
+  });
+
+  /** Start a bulk decision: two of the three ask a question first. */
+  const chooseBulk = useCallback((decision: TriageDecision, ids: string[]) => {
+    if (ids.length === 0) return;
+    if (decision === 'interested') {
+      bulkTriageMut.mutate({ ids, input: { decision } });
+      return;
+    }
+    setBulkAsking(decision);
+  }, [bulkTriageMut]);
 
   // Defined here (after conversations) so it can read conversations to pick the next entry
   const handleArchiveToggle = useCallback((msg: Message) => {
@@ -2630,7 +2820,7 @@ export function InboxPage() {
   }, [threadContactEmail]);
 
   /* ── View model: one tab strip drives folder + smart-view state ── */
-  type ViewId = 'inbox' | 'unread' | 'needs' | 'hot' | 'starred' | 'sent' | 'scheduled' | 'archived';
+  type ViewId = 'inbox' | 'unread' | 'needs' | 'hot' | 'starred' | 'sent' | 'scheduled' | 'archived' | 'needs_triage';
   const activeView: ViewId =
     folder === 'inbox'
       ? (unreadOnly ? 'unread' : quickFilter === 'needs_reply' ? 'needs' : quickFilter === 'hot' ? 'hot' : 'inbox')
@@ -3031,9 +3221,16 @@ export function InboxPage() {
         ) : (
           <>
         {/* ── Command bar: view tabs + intent filter + search + actions ── */}
-        <div className="flex items-center gap-1 px-4 h-[50px] border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-shrink-0 overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-1 px-4 h-[50px] border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-shrink-0">
+          {/* Only the tabs scroll. When the whole bar was one overflow
+              container, adding a tab pushed Compose off the right edge of a
+              1440px window — a primary action, gone, with nothing to say so. */}
+          <div className="flex items-center gap-1 h-full flex-1 min-w-0 overflow-x-auto scrollbar-none">
           {([
             { id: 'inbox' as const, label: 'Inbox', count: viewCounts.unread },
+            // First after the inbox itself, because it is the question the
+            // inbox is for: what have I not decided about yet?
+            { id: 'needs_triage' as const, label: 'Needs triage', count: viewCounts.needs_triage },
             { id: 'needs' as const, label: 'Needs reply', count: viewCounts.needs_reply },
             { id: 'hot' as const, label: 'Hot leads', count: viewCounts.hot },
             { id: 'unread' as const, label: 'Unread', count: undefined },
@@ -3063,8 +3260,7 @@ export function InboxPage() {
               </button>
             );
           })}
-
-          <div className="flex-1 min-w-[16px]" />
+          </div>
 
           <select
             value={tagFilter}
@@ -3160,6 +3356,86 @@ export function InboxPage() {
           </div>
         )}
 
+        {/* ══ Bulk triage bar — deciding about a stack of replies at once ══
+            Appears only when something is picked, in place, directly above
+            the rows it acts on. A toolbar that is always there but usually
+            disabled teaches people to stop reading it. */}
+        {inTriageQueue && picked.size > 0 && (
+          <div className="flex items-center gap-2 flex-wrap px-4 py-2 border-b border-[var(--border-subtle)] bg-[var(--indigo-subtle)] flex-shrink-0">
+            {bulkAsking ? (
+              <TriageQuestion
+                kind={bulkAsking}
+                count={picked.size}
+                compact
+                pending={bulkTriageMut.isPending}
+                onAnswer={(answer) => bulkTriageMut.mutate({
+                  ids: [...picked],
+                  input: { decision: bulkAsking, ...answer },
+                })}
+                onCancel={() => setBulkAsking(null)}
+              />
+            ) : (
+              <>
+                <span className="text-[12px] font-semibold text-[var(--text-primary)] tabular">
+                  {picked.size} selected
+                </span>
+                <button
+                  onClick={() => { setPicked(new Set()); lastPickedRef.current = null; }}
+                  className="text-[11.5px] font-medium text-[var(--text-tertiary)] underline decoration-dotted underline-offset-2 hover:text-[var(--text-primary)]"
+                >
+                  Clear
+                </button>
+                <span className="mx-1 h-4 w-px bg-[var(--border-default)]" />
+                {TRIAGE_DECISIONS.map((d) => (
+                  <button
+                    key={d.id}
+                    onClick={() => chooseBulk(d.id, [...picked])}
+                    disabled={bulkTriageMut.isPending}
+                    title={d.effect}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12px] font-semibold transition-colors disabled:opacity-40',
+                      d.id === 'interested'
+                        ? 'bg-[var(--indigo)] text-white hover:bg-[var(--indigo-hover)]'
+                        : 'border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                    )}
+                  >
+                    {bulkTriageMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    {d.label}
+                  </button>
+                ))}
+                {/* Said before it happens, not after. "Interested" on a
+                    selection with unlinked threads in it will partly fail,
+                    and knowing that in advance is the difference between a
+                    tool you trust and one you check up on. */}
+                <span className="text-[11px] text-[var(--text-tertiary)] hidden lg:inline">
+                  Applies the same decision to all {picked.size}.
+                </span>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* The way back from a bulk decision. Stays put rather than living in
+            a toast, because people realise a moment too late. */}
+        {lastRun && (
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] flex-shrink-0">
+            <Check className="h-3.5 w-3.5 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-[var(--text-primary)]">
+              {lastRun.message}
+            </span>
+            <button
+              onClick={() => bulkUndoMut.mutate(lastRun.ids)}
+              disabled={bulkUndoMut.isPending}
+              className="flex-shrink-0 text-[11.5px] font-semibold text-[var(--indigo)] hover:underline disabled:opacity-50"
+            >
+              {bulkUndoMut.isPending ? 'Undoing…' : `Undo ${lastRun.ids.length}`}
+            </button>
+            <button onClick={() => setLastRun(null)} className="p-0.5 rounded hover:bg-[var(--bg-hover)] flex-shrink-0" title="Dismiss">
+              <X className="h-3 w-3 text-[var(--text-tertiary)]" />
+            </button>
+          </div>
+        )}
+
         {/* ── Full-width conversation table ── */}
         {folder === 'scheduled' ? (
           <div className="flex-1 min-h-0 flex bg-[var(--bg-surface)]">
@@ -3169,6 +3445,28 @@ export function InboxPage() {
           <div className="flex-1 overflow-y-auto overflow-x-hidden bg-[var(--bg-surface)]">
             {/* Sticky column header — the grid identity */}
             <div className="sticky top-0 z-[2] flex items-center gap-3 px-4 h-[30px] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-tertiary)]">
+              {inTriageQueue && (
+                <input
+                  type="checkbox"
+                  aria-label="Select every reply in the queue"
+                  title={`Select all ${visibleConversations.length} on this page`}
+                  checked={visibleConversations.length > 0 && picked.size === visibleConversations.length}
+                  // Some but not all: the state that says "a selection exists
+                  // and clicking will not simply extend it".
+                  ref={(el) => {
+                    if (el) el.indeterminate = picked.size > 0 && picked.size < visibleConversations.length;
+                  }}
+                  onChange={(e) => {
+                    // Capped at what one bulk call will take, rather than
+                    // selecting 400 and failing at the far end of the request.
+                    setPicked(e.currentTarget.checked
+                      ? new Set(visibleConversations.slice(0, BULK_TRIAGE_LIMIT).map((c) => c.latestMessage.id))
+                      : new Set());
+                    lastPickedRef.current = null;
+                  }}
+                  className="h-3.5 w-3.5 flex-shrink-0 accent-[var(--indigo)] cursor-pointer"
+                />
+              )}
               <span className="w-[220px] flex-shrink-0">Sender</span>
               <span className="flex-1 min-w-0">Conversation</span>
               <span className="w-[110px] flex-shrink-0 hidden md:block">Intent</span>
@@ -3193,9 +3491,19 @@ export function InboxPage() {
               </div>
             ) : visibleConversations.length === 0 ? (
               <EmptyState
-                icon={MailOpen}
-                title={unreadOnly ? 'No unread conversations' : quickFilter !== 'all' ? `No ${QUICK_FILTERS.find(f => f.id === quickFilter)?.label.toLowerCase()} messages` : 'No conversations'}
-                description={search ? 'Try a different search term.' : unreadOnly ? "You're all caught up." : tagFilter !== 'all' ? `No messages tagged as "${TAG_OPTIONS.find(t => t.value === tagFilter)?.label}".` : quickFilter !== 'all' ? 'Try a different view.' : `Your ${folder} is empty — replies will land here.`}
+                icon={inTriageQueue ? CheckCheck : MailOpen}
+                title={inTriageQueue ? 'Every reply is decided' : unreadOnly ? 'No unread conversations' : quickFilter !== 'all' ? `No ${QUICK_FILTERS.find(f => f.id === quickFilter)?.label.toLowerCase()} messages` : 'No conversations'}
+                description={
+                  inTriageQueue
+                    // An empty queue is the good outcome, and it should read
+                    // like one — not like a view that failed to load.
+                    ? 'Nothing is waiting on a decision. New replies land here as they arrive.'
+                    : search ? 'Try a different search term.'
+                    : unreadOnly ? "You're all caught up."
+                    : tagFilter !== 'all' ? `No messages tagged as "${TAG_OPTIONS.find(t => t.value === tagFilter)?.label}".`
+                    : quickFilter !== 'all' ? 'Try a different view.'
+                    : `Your ${folder} is empty — replies will land here.`
+                }
               />
             ) : (
               visibleConversations.map(conv => {
@@ -3206,15 +3514,33 @@ export function InboxPage() {
                 const displayName = isOutbound ? `To: ${msg.to_email?.split('@')[0]}` : (conv.contactName || senderName(msg));
                 const avatarSeed = isOutbound ? (msg.to_email || '') : (conv.contactName || msg.from_email || '');
                 const snippet = msgSnippet(msg);
+                const isPicked = picked.has(msg.id);
                 return (
-                  <button
-                    key={conv.contactEmail}
+                  <div
+                    key={msg.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => selectMessage(msg)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectMessage(msg); } }}
                     className={cn(
-                      'group w-full min-w-0 overflow-hidden text-left flex items-center gap-3 px-4 h-[40px] border-b border-[var(--border-subtle)] transition-colors',
-                      isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]'
+                      'group w-full min-w-0 overflow-hidden text-left flex items-center gap-3 px-4 h-[40px] border-b border-[var(--border-subtle)] transition-colors cursor-pointer',
+                      isPicked ? 'bg-[var(--indigo-subtle)]/60' : isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]'
                     )}
                   >
+                    {/* Pick, for deciding about a stack of these at once.
+                        Only in the queue: everywhere else there is nothing a
+                        selection of threads would do. */}
+                    {inTriageQueue && (
+                      <input
+                        type="checkbox"
+                        checked={isPicked}
+                        aria-label={`Select reply from ${displayName}`}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => togglePick(msg.id, e.currentTarget.checked, visibleConversations)}
+                        className="h-3.5 w-3.5 flex-shrink-0 accent-[var(--indigo)] cursor-pointer"
+                      />
+                    )}
+
                     {/* Sender */}
                     <span className="flex items-center gap-2.5 w-[220px] flex-shrink-0 min-w-0">
                       <span className="relative flex-shrink-0">
@@ -3263,14 +3589,25 @@ export function InboxPage() {
                       )}
                     </span>
 
-                    {/* Intent */}
+                    {/* Intent — or, once somebody has decided, what they
+                        decided. A human answer outranks a model's guess about
+                        the same reply, and showing both in one column would
+                        just be two labels contradicting each other. */}
                     <span className="w-[110px] flex-shrink-0 hidden md:block">
-                      {intent && (
+                      {msg.triage_decision ? (
+                        <span className={cn(
+                          'inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md',
+                          TRIAGE_PILL[msg.triage_decision].cls,
+                        )}>
+                          <Check className="h-2.5 w-2.5" />
+                          {TRIAGE_PILL[msg.triage_decision].label}
+                        </span>
+                      ) : intent ? (
                         <span className={cn('inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md', intent.bg, intent.text)}>
                           <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
                           {intent.label}
                         </span>
-                      )}
+                      ) : null}
                     </span>
 
                     {/* Campaign */}
@@ -3287,7 +3624,7 @@ export function InboxPage() {
                     <span className="w-[54px] flex-shrink-0 text-right text-[11px] text-[var(--text-tertiary)] tabular">
                       {timeAgo(msg.received_at)}
                     </span>
-                  </button>
+                  </div>
                 );
               })
             )}
