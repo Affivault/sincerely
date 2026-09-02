@@ -80,19 +80,9 @@ const primaryNav: NavItem[] = [
      under Leads would say the opposite - that contacts are a kind of lead -
      which is the confusion this whole split exists to end. */
   { name: 'Contacts', href: '/contacts', icon: Contact2, match: ['/contacts'] },
-  /* Deals, and what happens to them afterwards.
-
-     Renewals sits here rather than under Analytics because it is not a
-     report - it is a queue with two buttons on every row. A renewal that
-     you can only read about is the spreadsheet everyone already has. */
-  {
-    kind: 'group', id: 'deals',
-    name: 'Deals', href: '/deals', icon: Handshake,
-    children: [
-      { name: 'Pipeline', href: '/deals',    icon: Handshake, exact: true },
-      { name: 'Renewals', href: '/renewals', icon: CalendarClock },
-    ],
-  },
+  /* Deals stays its own destination — a pipeline is somewhere you go, not a
+     page you find inside something else. */
+  { name: 'Deals', href: '/deals', icon: Handshake, match: ['/deals', '/crm'] },
   {
     kind: 'group', id: 'calendar',
     name: 'Calendar', href: '/calendar', icon: CalendarDays,
