@@ -396,7 +396,17 @@ export function DashboardPage() {
     return [7, 30, 90].includes(saved) ? saved : 30;
   });
   const [metric, setMetric] = useState<MetricKey>('sent');
-  const [smtpBannerDismissed, setSmtpBannerDismissed] = useState(false);
+  // Persisted so dismissing today's low-health-inbox warning actually sticks
+  // across a reload instead of reappearing the moment the page remounts —
+  // it clears itself once the flagged set of accounts changes, or tomorrow.
+  const [smtpDismissed, setSmtpDismissed] = useState<{ date: string; ids: string } | null>(() => {
+    try {
+      const raw = localStorage.getItem('dashboard.smtpDismissed');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
 
   const setPeriodPersist = (p: number) => { setPeriod(p); try { localStorage.setItem('dashboard.period', String(p)); } catch { /* ignore */ } };
 
@@ -494,7 +504,11 @@ export function DashboardPage() {
   const hotLeads = (intents.interested || 0) + (intents.meeting || 0);
   const unreadReplies = inboxCounts?.unread ?? unreadCount;
   const scheduledCount = Array.isArray(scheduledEmails) ? scheduledEmails.length : 0;
-  const allClear = needsReply === 0 && unreadReplies === 0 && scheduledCount === 0 && hotLeads === 0;
+  const unhealthySmtpIds = unhealthySmtpAccounts.map((a) => a.id).sort().join(',');
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const smtpDismissedToday = smtpDismissed?.date === todayStr && smtpDismissed?.ids === unhealthySmtpIds;
+  const smtpRowVisible = !smtpDismissedToday && unhealthySmtpAccounts.length > 0;
+  const allClear = needsReply === 0 && unreadReplies === 0 && scheduledCount === 0 && hotLeads === 0 && !smtpRowVisible;
 
   return (
     <div className="stagger pb-8 space-y-5">
@@ -537,9 +551,9 @@ export function DashboardPage() {
           <Head
             title="Needs attention"
             desc="Everything waiting on you, in one queue"
-            action={allClear && !unhealthySmtpAccounts.length ? undefined : <MoreLink to="/inbox" label="Open unibox" />}
+            action={allClear ? undefined : <MoreLink to="/inbox" label="Open unibox" />}
           />
-          {allClear && unhealthySmtpAccounts.length === 0 ? (
+          {allClear ? (
             <div className="flex items-center gap-2.5 px-4 py-8 justify-center">
               <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" strokeWidth={2} />
               <span className="text-[13px] text-[var(--text-secondary)]">All clear — nothing waiting on you right now.</span>
@@ -558,7 +572,7 @@ export function DashboardPage() {
               {scheduledCount > 0 && (
                 <AttentionRow icon={Clock} count={scheduledCount} label="Scheduled sends" sub="Queued from compose & replies" to="/inbox" />
               )}
-              {!smtpBannerDismissed && unhealthySmtpAccounts.length > 0 && (
+              {smtpRowVisible && (
                 <AttentionRow
                   icon={AlertTriangle}
                   count={unhealthySmtpAccounts.length}
@@ -566,7 +580,11 @@ export function DashboardPage() {
                   sub={unhealthySmtpAccounts.map((a) => a.label || a.email_address).join(', ')}
                   to="/email-accounts"
                   tone="warn"
-                  onDismiss={() => setSmtpBannerDismissed(true)}
+                  onDismiss={() => {
+                    const snapshot = { date: todayStr, ids: unhealthySmtpIds };
+                    setSmtpDismissed(snapshot);
+                    try { localStorage.setItem('dashboard.smtpDismissed', JSON.stringify(snapshot)); } catch { /* ignore */ }
+                  }}
                 />
               )}
             </div>

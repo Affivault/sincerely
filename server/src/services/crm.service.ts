@@ -25,7 +25,13 @@ function pick(body: any, keys: readonly string[]): Record<string, any> {
   return out;
 }
 
-const DEAL_KEYS = ['title', 'company', 'company_id', 'contact_name', 'contact_email', 'contact_id', 'value', 'currency', 'stage', 'expected_close_date', 'notes', 'position', 'probability', 'outcome_reason', 'label', 'source', 'source_campaign_id', 'source_step_id', 'attribution', 'attributed_at',
+// `source_campaign_id`/`source_step_id`/`attribution`/`attributed_at` are
+// deliberately absent: they are set only by resolveAttribution() below, never
+// taken straight off a request body. Letting a client set them directly would
+// both bypass the evidence-based resolution this feature relies on and, since
+// `source_campaign_id` on its own skips resolution entirely, produce rows that
+// violate the deals_attribution_complete CHECK constraint.
+const DEAL_KEYS = ['title', 'company', 'company_id', 'contact_name', 'contact_email', 'contact_id', 'value', 'currency', 'stage', 'expected_close_date', 'notes', 'position', 'probability', 'outcome_reason', 'label', 'source',
   'recurring_amount', 'recurring_period', 'one_off_amount', 'term_months'] as const;
 
 const DEAL_LABELS = ['hot', 'warm', 'cold'];
@@ -323,11 +329,12 @@ export const crmService = {
     await autoLinkContact(userId, input);
 
     // Credit the outreach that produced this, if any did. `source_campaign_id`
-    // on the body is the unibox saying "this came out of that thread".
-    if (!input.source_campaign_id) {
-      const credit = await resolveAttribution(userId, input.contact_id, body.source_campaign_id);
-      if (credit) Object.assign(input, credit);
-    }
+    // on the body is the unibox saying "this came out of that thread" — a
+    // hint for resolveAttribution, not a value trusted straight off the
+    // request (it and the other attribution fields aren't in DEAL_KEYS, so
+    // `input` never has one already set here).
+    const credit = await resolveAttribution(userId, input.contact_id, body.source_campaign_id);
+    if (credit) Object.assign(input, credit);
 
     const { data, error } = await supabaseAdmin
       .from('deals')
