@@ -48,6 +48,25 @@ export interface PostSaleEnrolResult {
 const LIVE_STATUSES = ['running', 'scheduled'];
 
 /**
+ * Does this campaign fill its own audience from the CRM?
+ *
+ * Exported because `launch` has to know. Every campaign before this one had
+ * to have at least one contact before it could start, which is right for a
+ * list you built by hand and fatal for a sequence whose entire purpose is to
+ * be empty until a deal is won. Without the exemption no post-sale campaign
+ * can ever be launched, and the feature ships unusable with every test
+ * still green.
+ */
+export function fillsItselfFromCrm(campaign: {
+  audience?: string | null;
+  trigger_event?: string | null;
+}): boolean {
+  return campaign.audience === 'post_sale'
+    && !!campaign.trigger_event
+    && campaign.trigger_event !== 'manual';
+}
+
+/**
  * Everybody this deal is about.
  *
  * The named contact plus every participant, because a renewal conversation

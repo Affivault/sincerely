@@ -234,8 +234,29 @@ function is(label: string, cond: boolean, detail = '') {
   else { fail++; console.log(`  FAIL ${label}${detail ? `\n         ${detail}` : ''}`); }
 }
 
-const { enrolFromDeal, processLifecycleTriggers, contactsOnDeal, cycleKeyFor } =
+const { enrolFromDeal, processLifecycleTriggers, contactsOnDeal, cycleKeyFor, fillsItselfFromCrm } =
   await import('../src/services/post-sale.service.js');
+
+console.log('a sequence that fills itself can be launched empty');
+{
+  /*
+   * Every campaign before this one had to have a contact before it could
+   * start - right for a list built by hand, fatal for a sequence whose whole
+   * purpose is to sit empty until a deal is won. Without the exemption in
+   * `launch`, no post-sale campaign can ever be started, and the feature
+   * ships unusable with every other test still green.
+   */
+  is('a renewal campaign fills itself',
+     fillsItselfFromCrm({ audience: 'post_sale', trigger_event: 'renewal_due' }));
+  is('so does an onboarding one',
+     fillsItselfFromCrm({ audience: 'post_sale', trigger_event: 'deal_won' }));
+  is('a customer campaign a person starts by hand does not',
+     !fillsItselfFromCrm({ audience: 'post_sale', trigger_event: 'manual' }));
+  is('nor one with no trigger at all',
+     !fillsItselfFromCrm({ audience: 'post_sale', trigger_event: null }));
+  is('and a cold campaign never does, whatever it claims',
+     !fillsItselfFromCrm({ audience: 'cold', trigger_event: 'renewal_due' }));
+}
 
 const RENEWAL_CAMPAIGN = () => world.campaigns[0];
 const DEAL = () => world.deals[0];
