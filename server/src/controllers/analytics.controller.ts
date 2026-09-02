@@ -31,6 +31,12 @@ export const analyticsController = {
     } catch (err) { next(err); }
   },
 
+  async campaignRevenue(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await analyticsService.campaignRevenue(req.userId!, req.params.id));
+    } catch (err) { next(err); }
+  },
+
 
   async campaign(req: AuthRequest, res: Response, next: NextFunction) {
     try {

@@ -6,6 +6,8 @@ export const analyticsRoutes = Router();
 analyticsRoutes.get('/overview', analyticsController.overview);
 // What each campaign earned, not just what it sent.
 analyticsRoutes.get('/revenue', analyticsController.revenue);
+// One campaign, sent to banked, and which step earned it.
+analyticsRoutes.get('/revenue/:id', analyticsController.campaignRevenue);
 analyticsRoutes.get('/deliverability', analyticsController.deliverability);
 analyticsRoutes.get('/trend', analyticsController.trend);
 analyticsRoutes.get('/export/overview', analyticsController.exportOverviewReport);

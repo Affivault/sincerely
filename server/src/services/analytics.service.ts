@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { twoProportionPValue, wilsonLowerBound, wilsonUpperBound } from '../utils/stats.js';
 import { AppError } from '../middleware/error.middleware.js';
-import { MIN_STEP_SENDS, revenueByCampaign, valuePerReply } from '@lemlist/shared';
+import { MIN_STEP_SENDS, revenueByCampaign, valuePerReply, outreachFunnel, dealValue } from '@lemlist/shared';
 import type { SequencePerformance, SequenceStepPerformance, StepVerdict } from '@lemlist/shared';
 
 function calcRate(value: number, total: number): number {
@@ -588,6 +588,137 @@ export const analyticsService = {
         value_per_reply: valuePerReply(r?.wonValue ?? 0, n.replied),
       };
     });
+  },
+
+  /**
+   * One campaign, all the way from sent to banked.
+   *
+   * The list view answers "which sequence made money"; this answers "which
+   * part of it did". A sequence is usually carried by one step - the second
+   * follow-up, the breakup email - and knowing which one is the difference
+   * between rewriting the sequence and rewriting the step that works.
+   *
+   * Revenue is credited to the step recorded on the deal, which is the step
+   * whose message the reply came back to. Deals attributed with no step keep
+   * their money in the campaign total and sit under "step not recorded"
+   * rather than being silently dropped or arbitrarily assigned to step one.
+   */
+  async campaignRevenue(userId: string, campaignId: string) {
+    const { data: campaign } = await supabaseAdmin
+      .from('campaigns')
+      .select('id, name, status, created_at')
+      .eq('id', campaignId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!campaign) throw new AppError('Campaign not found', 404);
+
+    const { data: steps } = await supabaseAdmin
+      .from('campaign_steps')
+      .select('id, step_order, step_type, subject')
+      .eq('campaign_id', campaignId)
+      .order('step_order', { ascending: true });
+
+    const activities = await fetchAllRows<{ activity_type: string; step_id: string | null }>((from, to) =>
+      supabaseAdmin
+        .from('campaign_activities')
+        .select('activity_type, step_id')
+        .eq('campaign_id', campaignId)
+        .range(from, to)
+    );
+
+    const deals = await fetchAllRows<any>((from, to) =>
+      supabaseAdmin
+        .from('deals')
+        .select('id, title, stage, value, probability, recurring_amount, recurring_period, one_off_amount, term_months, contact_id, contact_name, contact_email, source_campaign_id, source_step_id, attribution, closed_at, created_at')
+        .eq('user_id', userId)
+        .eq('source_campaign_id', campaignId)
+        .range(from, to)
+    );
+
+    const totals = { sent: 0, replied: 0 };
+    const perStep = new Map<string, { sent: number; replied: number }>();
+    for (const a of activities) {
+      if (a.activity_type === 'sent') totals.sent++;
+      else if (a.activity_type === 'replied') totals.replied++;
+      if (!a.step_id) continue;
+      const row = perStep.get(a.step_id) ?? { sent: 0, replied: 0 };
+      if (a.activity_type === 'sent') row.sent++;
+      else if (a.activity_type === 'replied') row.replied++;
+      perStep.set(a.step_id, row);
+    }
+
+    const rollup = revenueByCampaign(deals)[0];
+    const won = deals.filter((d: any) => d.stage === 'won').length;
+
+    // Group the deals by the step credited on each, so the money lands where
+    // the reply did rather than on the campaign as an undifferentiated lump.
+    const UNRECORDED = '__no_step__';
+    const dealsByStep = new Map<string, any[]>();
+    for (const d of deals) {
+      const key = d.source_step_id || UNRECORDED;
+      dealsByStep.set(key, [...(dealsByStep.get(key) ?? []), d]);
+    }
+
+    const stepRows = (steps || []).map((st: any) => {
+      const counts = perStep.get(st.id) ?? { sent: 0, replied: 0 };
+      const stepDeals = dealsByStep.get(st.id) ?? [];
+      const r = revenueByCampaign(stepDeals.map((d) => ({ ...d, source_campaign_id: 'x' })))[0];
+      return {
+        id: st.id,
+        step_order: st.step_order,
+        step_type: st.step_type,
+        subject: st.subject,
+        sent: counts.sent,
+        replied: counts.replied,
+        deals: stepDeals.length,
+        won: r?.won ?? 0,
+        won_value: r?.wonValue ?? 0,
+        value_per_reply: valuePerReply(r?.wonValue ?? 0, counts.replied),
+      };
+    });
+
+    const orphans = dealsByStep.get(UNRECORDED) ?? [];
+    const orphanRollup = orphans.length
+      ? revenueByCampaign(orphans.map((d) => ({ ...d, source_campaign_id: 'x' })))[0]
+      : null;
+
+    return {
+      campaign,
+      funnel: outreachFunnel({
+        sent: totals.sent,
+        replied: totals.replied,
+        deals: deals.length,
+        won,
+      }),
+      totals: {
+        sent: totals.sent,
+        replied: totals.replied,
+        deals: rollup?.deals ?? 0,
+        won: rollup?.won ?? 0,
+        lost: rollup?.lost ?? 0,
+        open: rollup?.open ?? 0,
+        won_value: rollup?.wonValue ?? 0,
+        strong_won_value: rollup?.strongWonValue ?? 0,
+        weighted_open: rollup?.weightedOpen ?? 0,
+        win_rate: rollup?.winRate ?? null,
+        average_won: rollup?.averageWon ?? null,
+        value_per_reply: valuePerReply(rollup?.wonValue ?? 0, totals.replied),
+      },
+      steps: stepRows,
+      unrecorded_step: orphanRollup
+        ? { deals: orphans.length, won: orphanRollup.won, won_value: orphanRollup.wonValue }
+        : null,
+      // The deals themselves, so a number on this page can always be opened
+      // and checked rather than being taken on trust.
+      deals: deals
+        .map((d: any) => ({
+          id: d.id, title: d.title, stage: d.stage,
+          contact_id: d.contact_id, contact_name: d.contact_name, contact_email: d.contact_email,
+          attribution: d.attribution, source_step_id: d.source_step_id,
+          value: dealValue(d), closed_at: d.closed_at, created_at: d.created_at,
+        }))
+        .sort((a: any, b: any) => b.value - a.value),
+    };
   },
 
   async campaignFunnel(userId: string, campaignId: string) {
