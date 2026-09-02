@@ -859,7 +859,10 @@ export function CampaignCreatePage() {
       webhookWaitSteps.some((s) => !s.webhook_event) && 'Some webhook-wait steps missing an event',
     ].filter(Boolean) as string[],
     2: [
-      selectedContactIds.length === 0 && 'No recipients selected',
+      /* Not an issue for a sequence that fills itself from the CRM. Leaving
+         it in made the pre-flight panel report a problem while the panel
+         beside it explained that this is exactly how it is meant to work. */
+      !fillsItself && selectedContactIds.length === 0 && 'No recipients selected',
     ].filter(Boolean) as string[],
     3: [],
   };
