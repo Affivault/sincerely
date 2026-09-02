@@ -20,9 +20,11 @@
     "check:health": "tsx scripts/campaign-health-check.mts",
     "check:pipeline": "tsx scripts/pipeline-check.mts",
     "check:overlay": "tsx scripts/overlay-containment-check.mts",
-    "check": "npm run check:html && npm run check:imap && npm run check:failures && npm run check:send && npm run check:steps && npm run check:enrol && npm run check:triage && npm run check:schema && npm run check:health && npm run check:pipeline && npm run check:overlay && npm run check:readiness && npm run check:apikeys && npm run audit:writes",
+    "check": "npm run check:html && npm run check:imap && npm run check:failures && npm run check:send && npm run check:steps && npm run check:enrol && npm run check:triage && npm run check:schema && npm run check:health && npm run check:pipeline && npm run check:overlay && npm run check:readiness && npm run check:apikeys && npm run check:renewal && npm run check:renewal-sql && npm run audit:writes",
     "check:html": "tsx scripts/outgoing-html-check.mts",
-    "check:imap": "tsx scripts/imap-window-check.mts"
+    "check:imap": "tsx scripts/imap-window-check.mts",
+    "check:renewal-sql": "bash scripts/renewal-sql-check.sh",
+    "check:renewal": "tsx scripts/renewal-check.mts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
