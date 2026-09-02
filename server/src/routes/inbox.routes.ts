@@ -13,12 +13,17 @@ inboxRoutes.post('/compose', inboxController.compose);
 inboxRoutes.post('/schedule-send', inboxController.scheduleSend);
 inboxRoutes.post('/sync', inboxController.syncInbox);
 inboxRoutes.get('/sync/progress', inboxController.syncProgress);
+// Deciding about a stack of replies at once — registered with the static
+// routes so it can never be read as an id called "triage".
+inboxRoutes.post('/triage/bulk', inboxController.triageMany);
+inboxRoutes.post('/triage/bulk-undo', inboxController.untriageMany);
 
 // Parameterized routes
 inboxRoutes.get('/:id', inboxController.get);
 inboxRoutes.get('/:id/thread', inboxController.getThread);
 // What a reply is: interested, later, or not interested.
 inboxRoutes.post('/:id/triage', inboxController.triage);
+inboxRoutes.delete('/:id/triage', inboxController.untriage);
 inboxRoutes.put('/:id/read', inboxController.markRead);
 inboxRoutes.put('/:id/unread', inboxController.markUnread);
 inboxRoutes.put('/:id/star', inboxController.toggleStar);

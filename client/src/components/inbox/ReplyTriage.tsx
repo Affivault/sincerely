@@ -2,11 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Sparkles, Clock, Ban, Check, Loader2, ArrowRight } from 'lucide-react';
-import {
-  TRIAGE_DECISIONS, SNOOZE_CHOICES, NOT_INTERESTED_REASONS,
-  type TriageDecision, type TriageResult,
-} from '@lemlist/shared';
+import { TRIAGE_DECISIONS, type TriageDecision, type TriageResult } from '@lemlist/shared';
 import { inboxApi } from '../../api/inbox.api';
+import { TriageQuestion } from './TriageQuestion';
 import { acceptsShortcut } from '../../lib/keyboard';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
@@ -24,17 +22,48 @@ import toast from 'react-hot-toast';
    cannot be undone from this screen.
    ═══════════════════════════════════════════════════════════════════════ */
 
+/**
+ * How a decision reads when it is being recalled rather than just made.
+ *
+ * Split in two because this bar lives in a 240px rail, and one long sentence
+ * came out as "Marked not interested - they ar…". A settled state that
+ * cannot say what it settled is no better than no settled state: the whole
+ * point is not having to go and check.
+ */
+const SETTLED_LABEL: Record<TriageDecision, { title: string; detail: string }> = {
+  interested: { title: 'Marked interested', detail: 'A lead exists for this thread.' },
+  later: { title: 'Marked for later', detail: 'A follow-up is scheduled.' },
+  not_interested: { title: 'Marked not interested', detail: 'They are suppressed, so no campaign reaches them.' },
+};
+
 const ICON: Record<TriageDecision, React.ElementType> = {
   interested: Sparkles,
   later: Clock,
   not_interested: Ban,
 };
 
-export function ReplyTriage({ messageId, contactId }: { messageId: string; contactId?: string | null }) {
+export function ReplyTriage({ messageId, contactId, decision, leadId }: {
+  messageId: string;
+  contactId?: string | null;
+  /** What the message already says it is, from the server. */
+  decision?: TriageDecision | null;
+  /** What that decision created, when it was a lead. */
+  leadId?: string | null;
+}) {
   const qc = useQueryClient();
   /** Which decision is mid-question. Null means the bar is at rest. */
   const [asking, setAsking] = useState<'later' | 'not_interested' | null>(null);
   const [done, setDone] = useState<TriageResult | null>(null);
+
+  /*
+   * A thread that was already decided shows its decision, from the message
+   * rather than from this component's memory. Without it a reload put an
+   * answered reply back at the start, offering to decide it a second time -
+   * which is the difference between a demo and a feature.
+   */
+  const settled: TriageResult | null = done ?? (decision
+    ? { decision, lead_id: leadId ?? undefined, message: SETTLED_LABEL[decision].title }
+    : null);
 
   // A new message is a new decision: without this the bar would still be
   // showing the last thread's outcome while you read the next one.
@@ -45,6 +74,7 @@ export function ReplyTriage({ messageId, contactId }: { messageId: string; conta
     onSuccess: (result) => {
       setDone(result);
       setAsking(null);
+      qc.invalidateQueries({ queryKey: ['inbox'] });
       // Everything a decision touches, so the Leads inbox and the task list
       // reflect it without a reload.
       qc.invalidateQueries({ queryKey: ['leads'] });
@@ -54,6 +84,19 @@ export function ReplyTriage({ messageId, contactId }: { messageId: string; conta
       toast.success(result.message);
     },
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not record that'),
+  });
+
+  const undo = useMutation({
+    mutationFn: () => inboxApi.untriage(messageId),
+    onSuccess: (r) => {
+      setDone(null);
+      qc.invalidateQueries({ queryKey: ['inbox'] });
+      qc.invalidateQueries({ queryKey: ['leads'] });
+      qc.invalidateQueries({ queryKey: ['crm'] });
+      qc.invalidateQueries({ queryKey: ['suppression'] });
+      toast.success(r.message);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not undo that'),
   });
 
   const choose = (decision: TriageDecision) => {
@@ -69,7 +112,7 @@ export function ReplyTriage({ messageId, contactId }: { messageId: string; conta
    * made, so a stray keypress cannot re-triage a thread.
    */
   useEffect(() => {
-    if (done) return;
+    if (settled) return;
     const onKey = (e: KeyboardEvent) => {
       if (!acceptsShortcut(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
       const match = TRIAGE_DECISIONS.find((d) => d.key === e.key.toLowerCase());
@@ -79,73 +122,57 @@ export function ReplyTriage({ messageId, contactId }: { messageId: string; conta
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [done, messageId]);
+    // `settled`, not `done`: a thread the server already says is decided must
+    // not have live keys either, and depending on `done` alone left them bound
+    // on every reply that arrived already triaged.
+  }, [settled, messageId]);
 
-  if (done) {
+  if (settled) {
+    const copy = SETTLED_LABEL[settled.decision];
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] px-3 py-2.5">
-        <Check className="h-3.5 w-3.5 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
-        <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[var(--text-primary)]">
-          {done.message}
-        </span>
-        {done.lead_id && (
-          <Link
-            to="/leads/inbox"
-            className="inline-flex flex-shrink-0 items-center gap-1 text-[11.5px] font-semibold text-[var(--indigo)] hover:underline"
+      <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] px-3 py-2.5">
+        <div className="flex items-start gap-2">
+          <Check className="mt-[3px] h-3.5 w-3.5 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[12.5px] font-semibold leading-tight text-[var(--text-primary)]">
+              {settled.message}
+            </p>
+            {/* Wraps rather than truncates: what a decision did is the whole
+                reason for showing that one was made. */}
+            <p className="mt-0.5 text-[11px] leading-snug text-[var(--text-tertiary)]">
+              {copy.detail}
+            </p>
+          </div>
+        </div>
+        <div className="mt-2 flex items-center gap-3 pl-[22px]">
+          <button
+            onClick={() => undo.mutate()}
+            disabled={undo.isPending}
+            className="text-[11.5px] font-medium text-[var(--text-tertiary)] underline decoration-dotted underline-offset-2 hover:text-[var(--text-primary)] disabled:opacity-50"
           >
-            Open in Leads <ArrowRight className="h-3 w-3" />
-          </Link>
-        )}
-      </div>
-    );
-  }
-
-  if (asking === 'later') {
-    return (
-      <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2.5">
-        <p className="mb-2 text-[11.5px] font-medium text-[var(--text-secondary)]">Come back to this when?</p>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {SNOOZE_CHOICES.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => triage.mutate({ decision: 'later', snooze_days: c.days })}
-              disabled={triage.isPending}
-              className="h-7 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-[11.5px] font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--indigo)] disabled:opacity-50"
-            >
-              {c.label}
-            </button>
-          ))}
-          <button onClick={() => setAsking(null)} className="h-7 px-2 text-[11.5px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
-            Cancel
+            {undo.isPending ? 'Undoing…' : 'Undo'}
           </button>
+          {settled.lead_id && (
+            <Link
+              to="/leads/inbox"
+              className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-[var(--indigo)] hover:underline"
+            >
+              Open in Leads <ArrowRight className="h-3 w-3" />
+            </Link>
+          )}
         </div>
       </div>
     );
   }
 
-  if (asking === 'not_interested') {
+  if (asking) {
     return (
-      <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2.5">
-        <p className="mb-0.5 text-[11.5px] font-medium text-[var(--text-secondary)]">Why not?</p>
-        <p className="mb-2 text-[10.5px] text-[var(--text-tertiary)]">
-          They will be suppressed, so no campaign reaches them again.
-        </p>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {NOT_INTERESTED_REASONS.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => triage.mutate({ decision: 'not_interested', reason: r.id })}
-              disabled={triage.isPending}
-              className="h-7 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-[11.5px] font-medium text-[var(--text-primary)] transition-colors hover:border-rose-500/50 disabled:opacity-50"
-            >
-              {r.label}
-            </button>
-          ))}
-          <button onClick={() => setAsking(null)} className="h-7 px-2 text-[11.5px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
-            Cancel
-          </button>
-        </div>
-      </div>
+      <TriageQuestion
+        kind={asking}
+        pending={triage.isPending}
+        onAnswer={(answer) => triage.mutate({ decision: asking, ...answer })}
+        onCancel={() => setAsking(null)}
+      />
     );
   }
 

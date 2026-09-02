@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { TriageInput, TriageResult } from '@lemlist/shared';
+import type { BulkTriageResult, TriageInput, TriageResult } from '@lemlist/shared';
 import type { InboxMessage, InboxMessageWithContext, InboxCounts, PaginatedResponse, InboxSyncResult, InboxSyncProgress } from '@lemlist/shared';
 
 export const inboxApi = {
@@ -7,8 +7,36 @@ export const inboxApi = {
    * Decide what a reply is. One call, because "interested" is not one write:
    * it makes a lead, promotes a lifecycle and carries the campaign across.
    */
+  /** Take a decision back, removing whatever it created. */
+  untriage: async (messageId: string) => {
+    const { data } = await apiClient.delete<{ message: string }>(`/inbox/${messageId}/triage`);
+    return data;
+  },
+
   triage: async (messageId: string, input: TriageInput) => {
     const { data } = await apiClient.post<TriageResult>(`/inbox/${messageId}/triage`, input);
+    return data;
+  },
+
+  /**
+   * One decision about a stack of replies — what a queue is actually for.
+   * Partial success is normal and reported per message, so a selection with
+   * one unlinked thread in it still clears the other thirty-nine.
+   */
+  triageMany: async (messageIds: string[], input: TriageInput) => {
+    const { data } = await apiClient.post<BulkTriageResult>('/inbox/triage/bulk', {
+      ...input,
+      message_ids: messageIds,
+    });
+    return data;
+  },
+
+  /** Take a whole bulk run back. */
+  untriageMany: async (messageIds: string[]) => {
+    const { data } = await apiClient.post<{ undone: number; failed: number; message: string }>(
+      '/inbox/triage/bulk-undo',
+      { message_ids: messageIds },
+    );
     return data;
   },
 

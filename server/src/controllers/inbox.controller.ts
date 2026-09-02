@@ -83,10 +83,32 @@ export const inboxController = {
       res.status(204).send();
     } catch (err) { next(err); }
   },
+  /** Take a triage decision back, removing whatever it created. */
+  async untriage(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await triageService.undo(req.userId!, req.params.id));
+    } catch (err) { next(err); }
+  },
+
   /** Decide what a reply is, and do the work that follows. */
   async triage(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       res.json(await triageService.triage(req.userId!, req.params.id, req.body || {}));
+    } catch (err) { next(err); }
+  },
+
+  /** The same decision about a selection of replies. */
+  async triageMany(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { message_ids, ...input } = req.body || {};
+      res.json(await triageService.triageMany(req.userId!, message_ids, input as any));
+    } catch (err) { next(err); }
+  },
+
+  /** Take a whole bulk run back. */
+  async untriageMany(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await triageService.undoMany(req.userId!, (req.body || {}).message_ids));
     } catch (err) { next(err); }
   },
 

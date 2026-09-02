@@ -215,7 +215,7 @@ export const inboxService = {
    * over the whole mailbox with exact head-counts (no rows transferred) so the
    * smart-view / tag badges stay accurate no matter how large the inbox grows.
    */
-  async counts(userId: string): Promise<{ unread: number; intents: Record<string, number> }> {
+  async counts(userId: string): Promise<{ unread: number; needs_triage: number; intents: Record<string, number> }> {
     // Same folder predicate the list uses for "inbox": not archived (null or false).
     const INTENTS = ['interested', 'meeting', 'objection', 'not_now', 'unsubscribe', 'out_of_office', 'bounce'];
 
@@ -224,6 +224,23 @@ export const inboxService = {
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('is_read', false)
+      .or('is_archived.is.null,is_archived.eq.false');
+
+    /*
+     * Replies nobody has decided about yet.
+     *
+     * The count the inbox is actually for. Auto-replies are excluded because
+     * an out-of-office is not something anybody needs to make a decision
+     * about, and counting them makes the badge wrong in the one direction
+     * that teaches people to ignore it.
+     */
+    const needsTriageQ = supabaseAdmin
+      .from('inbox_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('direction', 'inbound')
+      .is('triage_decision', null)
+      .is('auto_reply_kind', null)
       .or('is_archived.is.null,is_archived.eq.false');
 
     const intentQs = INTENTS.map(intent =>
@@ -235,7 +252,7 @@ export const inboxService = {
         .eq('sara_intent', intent),
     );
 
-    const [unreadRes, ...intentRes] = await Promise.all([unreadQ, ...intentQs]);
+    const [unreadRes, needsTriageRes, ...intentRes] = await Promise.all([unreadQ, needsTriageQ, ...intentQs]);
 
     const intents: Record<string, number> = {};
     INTENTS.forEach((intent, i) => {
@@ -243,7 +260,11 @@ export const inboxService = {
       if (c > 0) intents[intent] = c;
     });
 
-    return { unread: unreadRes.count || 0, intents };
+    return {
+      unread: unreadRes.count || 0,
+      needs_triage: needsTriageRes.count || 0,
+      intents,
+    };
   },
 
   async list(userId: string, params: {
@@ -282,6 +303,19 @@ export const inboxService = {
       query = query.eq('is_archived', true);
     } else if (folder === 'sent') {
       query = query.eq('direction', 'outbound');
+    } else if (folder === 'needs_triage') {
+      /*
+       * The queue: inbound replies nobody has decided about.
+       *
+       * Matches the partial index in migration 060 exactly - same three
+       * predicates in the same order - so this stays an index scan rather
+       * than degrading into a sequential one as the mailbox grows.
+       */
+      query = query
+        .eq('direction', 'inbound')
+        .is('triage_decision', null)
+        .is('auto_reply_kind', null)
+        .or('is_archived.is.null,is_archived.eq.false');
     }
 
     if (params.is_read !== undefined) {

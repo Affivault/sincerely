@@ -5,9 +5,12 @@ import { crmService } from './crm.service.js';
 import { suppressionService } from './suppression.service.js';
 import { promoteToContact } from './lifecycle.service.js';
 import {
+  BULK_TRIAGE_LIMIT,
   DEFAULT_SNOOZE_DAYS,
   leadTitleFrom,
   NOT_INTERESTED_REASONS,
+  type BulkTriageOutcome,
+  type BulkTriageResult,
   type TriageDecision,
   type TriageInput,
   type TriageResult,
@@ -29,11 +32,17 @@ import {
    leaves it defined nowhere.
    ═══════════════════════════════════════════════════════════════════════ */
 
-/** The counterparty on a message, whichever way it was going. */
+/**
+ * The counterparty on a message, whichever way it was going.
+ *
+ * The linked contact's address wins where there is one: from_email is
+ * whatever the mail server said, which for a forwarded or aliased reply is
+ * not the address the campaign was sent to. Mirrors how inbox.service
+ * resolves the same thing, rather than inventing a second rule.
+ */
 function counterparty(message: any): string | null {
-  const raw = message.direction === 'outbound'
-    ? (message.contact_email || message.to_email)
-    : (message.contact_email || message.from_email);
+  const linked = message.contacts?.email;
+  const raw = linked || (message.direction === 'outbound' ? message.to_email : message.from_email);
   const trimmed = String(raw || '').trim().toLowerCase();
   return trimmed || null;
 }
@@ -47,9 +56,16 @@ export const triageService = {
   async triage(userId: string, messageId: string, input: TriageInput): Promise<TriageResult> {
     const decision = input.decision as TriageDecision;
 
+    /*
+     * inbox_messages, and only columns that are actually on it.
+     *
+     * There is no `emails` table and no `contact_email` column - both were
+     * assumptions, and both would have failed on the first real request. The
+     * contact's address comes from the join, which is where it lives.
+     */
     const { data: message } = await supabaseAdmin
-      .from('emails')
-      .select('id, user_id, subject, from_email, to_email, direction, contact_id, contact_email, campaign_id')
+      .from('inbox_messages')
+      .select('id, user_id, subject, from_email, to_email, direction, contact_id, campaign_id, triage_decision, triage_ref, contacts(email)')
       .eq('id', messageId)
       .eq('user_id', userId)
       .maybeSingle();
@@ -57,16 +73,222 @@ export const triageService = {
 
     const email = counterparty(message);
 
+    /*
+     * Already decided? Say so rather than doing it twice.
+     *
+     * Two people on one inbox, or a double-press on a slow connection, would
+     * otherwise make two leads or suppress somebody who had been marked
+     * interested a second earlier.
+     */
+    if (message.triage_decision) {
+      return {
+        decision: message.triage_decision,
+        message: `Already triaged as "${message.triage_decision.replace('_', ' ')}"`,
+      };
+    }
+
+    let result: TriageResult;
     switch (decision) {
       case 'interested':
-        return this.markInterested(userId, message, email, input);
+        result = await this.markInterested(userId, message, email, input);
+        break;
       case 'later':
-        return this.markLater(userId, message, email, input);
+        result = await this.markLater(userId, message, email, input);
+        break;
       case 'not_interested':
-        return this.markNotInterested(userId, message, email, input);
+        result = await this.markNotInterested(userId, message, email, input);
+        break;
       default:
         throw new AppError(`Unknown decision "${decision}"`, 400);
     }
+
+    /*
+     * Remember it, or none of this is a feature.
+     *
+     * Without this the decision lives in a component's state: reload and the
+     * thread is back at the start offering to be decided again, and there is
+     * no way to ask "what have I not dealt with yet" - which is the only
+     * question an inbox queue exists to answer.
+     *
+     * The reference is what makes undo exact rather than a guess from
+     * timestamps about which lead to remove.
+     */
+    await supabaseAdmin
+      .from('inbox_messages')
+      .update({
+        triage_decision: decision,
+        triaged_at: new Date().toISOString(),
+        triaged_by: userId,
+        triage_ref: result.lead_id || result.task_id || null,
+      })
+      .eq('id', message.id)
+      .eq('user_id', userId);
+
+    return result;
+  },
+
+  /**
+   * The same decision about many replies at once.
+   *
+   * The point of a queue. Forty replies arrive overnight, most of them the
+   * same kind of answer, and a tool that makes you open each one to say so is
+   * a tool people stop opening.
+   *
+   * Deliberately sequential and deliberately tolerant. Sequential because
+   * "interested" is several writes each and firing a hundred of those
+   * concurrently is how you find out your database has a connection limit.
+   * Tolerant because one message that cannot be triaged - no contact linked,
+   * no address to suppress - must not take the other thirty-nine down with
+   * it; it is reported by name instead.
+   */
+  async triageMany(userId: string, messageIds: string[], input: TriageInput): Promise<BulkTriageResult> {
+    const decision = input.decision as TriageDecision;
+    if (!['interested', 'later', 'not_interested'].includes(decision)) {
+      throw new AppError(`Unknown decision "${decision}"`, 400);
+    }
+
+    /*
+     * De-duplicated, because a selection built from a grouped list can name
+     * the same message twice and the second pass would report it as "already
+     * triaged" - which is true, and confusing, since it was this run that
+     * triaged it.
+     */
+    const ids = [...new Set((messageIds || []).filter((id) => typeof id === 'string' && id))];
+    if (ids.length === 0) throw new AppError('No replies were selected.', 400);
+    if (ids.length > BULK_TRIAGE_LIMIT) {
+      throw new AppError(`That is more than ${BULK_TRIAGE_LIMIT} replies at once. Do it in smaller batches.`, 400);
+    }
+
+    const outcomes: BulkTriageOutcome[] = [];
+    for (const messageId of ids) {
+      try {
+        const result = await this.triage(userId, messageId, input);
+        outcomes.push({ message_id: messageId, ok: true, result });
+      } catch (err: any) {
+        outcomes.push({
+          message_id: messageId,
+          ok: false,
+          error: err?.message || 'Could not record that decision',
+        });
+      }
+    }
+
+    const succeeded = outcomes.filter((o) => o.ok);
+    const failed = outcomes.length - succeeded.length;
+    const label = decision.replace('_', ' ');
+
+    return {
+      decision,
+      succeeded: succeeded.length,
+      failed,
+      outcomes,
+      undoable: succeeded.map((o) => o.message_id),
+      message: failed === 0
+        ? `${succeeded.length} ${succeeded.length === 1 ? 'reply' : 'replies'} marked ${label}`
+        : `${succeeded.length} marked ${label}, ${failed} could not be`,
+    };
+  },
+
+  /**
+   * Take a whole run back.
+   *
+   * A misfire on a bulk action is worse than a misfire on one, by exactly the
+   * size of the selection - thirty people suppressed by a keystroke meant for
+   * something else. Same tolerance as the forward direction: whatever can be
+   * undone is, and what cannot is named.
+   */
+  async undoMany(userId: string, messageIds: string[]): Promise<{ undone: number; failed: number; message: string }> {
+    const ids = [...new Set((messageIds || []).filter((id) => typeof id === 'string' && id))];
+    if (ids.length === 0) throw new AppError('Nothing to undo.', 400);
+    if (ids.length > BULK_TRIAGE_LIMIT) {
+      throw new AppError(`That is more than ${BULK_TRIAGE_LIMIT} replies at once.`, 400);
+    }
+
+    let undone = 0;
+    let failed = 0;
+    for (const messageId of ids) {
+      try {
+        await this.undo(userId, messageId);
+        undone++;
+      } catch {
+        failed++;
+      }
+    }
+
+    return {
+      undone,
+      failed,
+      message: failed === 0
+        ? `${undone} ${undone === 1 ? 'decision' : 'decisions'} undone`
+        : `${undone} undone, ${failed} could not be`,
+    };
+  },
+
+  /**
+   * Take it back.
+   *
+   * Every decision here is one keystroke and two of them are consequential -
+   * a lead somebody now has to deal with, or a person no campaign will ever
+   * reach again. A misfire on a list of forty replies is not a hypothetical,
+   * and "restore it by hand from three different pages" is not an answer.
+   *
+   * The reference recorded at triage time is what makes this exact: the lead
+   * that was created is deleted, not the newest lead, and the suppression
+   * removed is the address on this thread rather than whatever was added
+   * most recently.
+   *
+   * Best-effort on the pieces, strict on the message. If a lead has already
+   * been converted to a deal the delete will fail, and that is fine - the
+   * thread still returns to the queue and the person is told what could not
+   * be undone, which beats refusing the whole thing.
+   */
+  async undo(userId: string, messageId: string): Promise<{ message: string }> {
+    const { data: message } = await supabaseAdmin
+      .from('inbox_messages')
+      .select('id, user_id, direction, from_email, to_email, triage_decision, triage_ref, contacts(email)')
+      .eq('id', messageId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!message) throw new AppError('Message not found', 404);
+    if (!(message as any).triage_decision) {
+      throw new AppError('That reply has not been triaged.', 400);
+    }
+
+    const decision = (message as any).triage_decision as TriageDecision;
+    const ref = (message as any).triage_ref as string | null;
+    const notes: string[] = [];
+
+    if (decision === 'interested' && ref) {
+      const { error } = await supabaseAdmin
+        .from('leads').delete().eq('id', ref).eq('user_id', userId);
+      notes.push(error ? 'the lead could not be removed (it may already be a deal)' : 'the lead was removed');
+    }
+
+    if (decision === 'later' && ref) {
+      const { error } = await supabaseAdmin
+        .from('crm_tasks').delete().eq('id', ref).eq('user_id', userId);
+      notes.push(error ? 'the follow-up could not be removed' : 'the follow-up was removed');
+    }
+
+    if (decision === 'not_interested') {
+      const email = counterparty(message);
+      if (email) {
+        await suppressionService.remove(userId, email).catch(() => {
+          notes.push('the suppression could not be lifted');
+        });
+        if (notes.length === 0) notes.push('they can be emailed again');
+      }
+    }
+
+    await supabaseAdmin
+      .from('inbox_messages')
+      .update({ triage_decision: null, triaged_at: null, triaged_by: null, triage_ref: null })
+      .eq('id', messageId)
+      .eq('user_id', userId);
+
+    return {
+      message: notes.length ? `Undone — ${notes.join(', ')}` : 'Undone',
+    };
   },
 
   /**
