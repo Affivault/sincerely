@@ -12,6 +12,7 @@ import { templateApi } from '../../api/template.api';
 import { apiClient } from '../../api/client';
 import { Link } from 'react-router-dom';
 import { Spinner } from '../../components/ui/Spinner';
+import { CampaignAudienceCard } from '../../components/campaigns/CampaignAudienceCard';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { StatCard } from '../../components/shared/StatCard';
@@ -193,7 +194,23 @@ export function CampaignCreatePage() {
     track_clicks: true,
     include_unsubscribe: false,
     scheduled_at: null,
+    // Cold unless somebody says otherwise, which is what every campaign
+    // before this was.
+    audience: 'cold',
+    trigger_event: null,
+    trigger_offset_days: 0,
   });
+
+  /**
+   * Does this campaign build its own audience?
+   *
+   * Mirrors fillsItselfFromCrm on the server. A triggered post-sale sequence
+   * starts empty on purpose, so every "you have no recipients" prompt in
+   * this wizard has to know not to nag about it.
+   */
+  const fillsItself = campaignForm.audience === 'post_sale'
+    && !!campaignForm.trigger_event
+    && campaignForm.trigger_event !== 'manual';
 
   const [steps, setSteps] = useState<FlowStep[]>([]);
   const [editingStep, setEditingStep] = useState<number | null>(null);
@@ -1742,6 +1759,15 @@ export function CampaignCreatePage() {
           {/* ════════ STEP 3 — Audience ════════ */}
           {wizardStep === 2 && (
             <div className="max-w-3xl mx-auto space-y-4">
+              {/* Before "who receives it" can be answered, "who is this for"
+                  has to be — a customer sequence reaches people a cold one
+                  must never touch, and fills itself rather than being filled. */}
+              <CampaignAudienceCard
+                audience={(campaignForm.audience as any) || 'cold'}
+                trigger={(campaignForm.trigger_event as any) ?? null}
+                offsetDays={campaignForm.trigger_offset_days ?? 0}
+                onChange={(patch) => setCampaignForm((f) => ({ ...f, ...patch }))}
+              />
               <SectionCard
                 icon={Users}
                 title="Recipients"
@@ -1754,7 +1780,28 @@ export function CampaignCreatePage() {
                   </span>
                 ) : undefined}
               >
-                {selectedContactIds.length === 0 ? (
+                {fillsItself ? (
+                  /* Nagging somebody to add recipients to a sequence whose
+                     whole point is that it fills itself is the fastest way
+                     to make them think they have set it up wrong. */
+                  <div className="text-center py-10">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.22)] mx-auto mb-4">
+                      <Zap className="h-6 w-6 text-[var(--indigo)]" strokeWidth={1.5} />
+                    </div>
+                    <h3 className="text-[14px] font-semibold text-[var(--text-primary)] mb-1">This one builds its own audience</h3>
+                    <p className="text-[12px] text-[var(--text-secondary)] max-w-sm mx-auto leading-snug">
+                      Nobody is added by hand. When a deal matches the trigger above, the people on it
+                      are enrolled — once each, per occasion. You can still add somebody yourself if
+                      you want to test it.
+                    </p>
+                    <div className="mt-4 flex items-center gap-2 justify-center">
+                      <Button variant="secondary" onClick={() => setShowContactModal(true)}>
+                        <UserPlus className="h-3.5 w-3.5" />
+                        Add someone anyway
+                      </Button>
+                    </div>
+                  </div>
+                ) : selectedContactIds.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] mx-auto mb-4">
                       <Users className="h-6 w-6 text-[var(--text-tertiary)]" strokeWidth={1.5} />
@@ -1911,7 +1958,12 @@ export function CampaignCreatePage() {
               { label: 'At least one email step', ok: emailSteps.length > 0 },
               { label: 'All emails have subject', ok: emailSteps.every((s) => !!s.subject) },
               { label: 'All emails have body', ok: emailSteps.every((s) => !!s.body_html) },
-              { label: 'Recipients added', ok: selectedContactIds.length > 0 },
+              /* A triggered customer sequence is supposed to be empty: it
+                 fills itself when a deal matches. Demanding recipients here
+                 would make it impossible to ever finish setting one up. */
+              fillsItself
+                ? { label: 'Fills itself from your deals', ok: true }
+                : { label: 'Recipients added', ok: selectedContactIds.length > 0 },
               { label: 'Active days selected', ok: (campaignForm.send_days || []).length > 0 },
               { label: 'Daily limit configured', ok: (campaignForm.daily_limit ?? 0) >= 0 },
             ];
