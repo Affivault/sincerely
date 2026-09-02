@@ -229,13 +229,43 @@ export async function enrolFromDeal(
       .eq('contact_id', contact.id)
       .maybeSingle();
 
+    if (existing && !['completed', 'replied'].includes(existing.status)) {
+      drop('already_enrolled');
+      continue;
+    }
+
+    /*
+     * The ledger row is claimed BEFORE anybody is put into the sequence,
+     * and its unique index is what actually decides.
+     *
+     * Written the other way round first - enrol, then record - which read
+     * more naturally and was wrong. Two workers ticking together both pass
+     * the read check above, both enrol, and only then does one of them lose
+     * on the index, having already reset a live contact back to step one.
+     * Claiming first means the loser has touched nothing at all.
+     */
+    const { data: claimRow, error: ledgerError } = await supabaseAdmin
+      .from('lifecycle_enrolments')
+      .insert({
+        user_id: userId,
+        campaign_id: campaign.id,
+        deal_id: deal.id,
+        contact_id: contact.id,
+        trigger_event: campaign.trigger_event || 'manual',
+        cycle_key: cycleKey,
+      })
+      .select('id')
+      .maybeSingle();
+
+    if (ledgerError) {
+      drop('already_enrolled');
+      continue;
+    }
+    const claimId = (claimRow as any)?.id ?? null;
+
     let campaignContactId: string | null = null;
 
     if (existing) {
-      if (!['completed', 'replied'].includes(existing.status)) {
-        drop('already_enrolled');
-        continue;
-      }
       const { data: reset } = await supabaseAdmin
         .from('campaign_contacts')
         .update({
@@ -248,7 +278,7 @@ export async function enrolFromDeal(
         .eq('id', existing.id)
         .select('id')
         .maybeSingle();
-      campaignContactId = reset?.id ?? existing.id;
+      campaignContactId = (reset as any)?.id ?? existing.id;
     } else {
       const { data: created, error } = await supabaseAdmin
         .from('campaign_contacts')
@@ -264,34 +294,22 @@ export async function enrolFromDeal(
         })
         .select('id')
         .maybeSingle();
-      if (error) throw new AppError(error.message, 500);
-      campaignContactId = created?.id ?? null;
+
+      if (error || !created) {
+        // The claim is released rather than left behind: a ledger row with
+        // nobody in the sequence would block this cycle forever.
+        if (claimId) await supabaseAdmin.from('lifecycle_enrolments').delete().eq('id', claimId);
+        throw new AppError(error?.message || 'Could not enrol into the sequence', 500);
+      }
+      campaignContactId = (created as any).id;
     }
 
-    /*
-     * The ledger last, and its unique index is the real defence. Two workers
-     * ticking at once would both pass the read above; only one of these
-     * inserts can win, and the loser undoes the enrolment it just made
-     * rather than leaving a contact in a sequence no ledger row explains.
-     */
-    const { error: ledgerError } = await supabaseAdmin
-      .from('lifecycle_enrolments')
-      .insert({
-        user_id: userId,
-        campaign_id: campaign.id,
-        deal_id: deal.id,
-        contact_id: contact.id,
-        trigger_event: campaign.trigger_event || 'manual',
-        cycle_key: cycleKey,
-        campaign_contact_id: campaignContactId,
-      });
-
-    if (ledgerError) {
-      if (campaignContactId && !existing) {
-        await supabaseAdmin.from('campaign_contacts').delete().eq('id', campaignContactId);
-      }
-      drop('already_enrolled');
-      continue;
+    // Point the claim at the row it drove, so a send can be traced back.
+    if (claimId && campaignContactId) {
+      await supabaseAdmin
+        .from('lifecycle_enrolments')
+        .update({ campaign_contact_id: campaignContactId })
+        .eq('id', claimId);
     }
 
     enrolledIds.push(contact.id);
