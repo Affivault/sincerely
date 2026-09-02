@@ -17,6 +17,8 @@ inboxRoutes.get('/sync/progress', inboxController.syncProgress);
 // Parameterized routes
 inboxRoutes.get('/:id', inboxController.get);
 inboxRoutes.get('/:id/thread', inboxController.getThread);
+// What a reply is: interested, later, or not interested.
+inboxRoutes.post('/:id/triage', inboxController.triage);
 inboxRoutes.put('/:id/read', inboxController.markRead);
 inboxRoutes.put('/:id/unread', inboxController.markUnread);
 inboxRoutes.put('/:id/star', inboxController.toggleStar);

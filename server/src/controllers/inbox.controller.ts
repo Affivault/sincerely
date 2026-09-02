@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
+import { triageService } from '../services/triage.service.js';
 import { inboxService } from '../services/inbox.service.js';
 import { inboxSyncService } from '../services/inbox-sync.service.js';
 
@@ -82,6 +83,13 @@ export const inboxController = {
       res.status(204).send();
     } catch (err) { next(err); }
   },
+  /** Decide what a reply is, and do the work that follows. */
+  async triage(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await triageService.triage(req.userId!, req.params.id, req.body || {}));
+    } catch (err) { next(err); }
+  },
+
 
   async unarchive(req: AuthRequest, res: Response, next: NextFunction) {
     try {

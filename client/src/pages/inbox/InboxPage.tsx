@@ -16,6 +16,7 @@ import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { RichTextEditor, useRichTextEditorRef } from '../../components/ui/RichTextEditor';
 import { InlineEdit } from '../../components/ui/InlineEdit';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { ReplyTriage } from '../../components/inbox/ReplyTriage';
 import { usePeek } from '../../components/peek/usePeek';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
@@ -1680,6 +1681,13 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
       </div>
 
       {/* ── Deal — made here, where the conversation earns it ── */}
+      {/* The decision comes before the deal: a reply is triaged into a lead
+          first, and only a pursued lead becomes a deal. Inbound only —
+          there is nothing to decide about something you sent. */}
+      {msg.direction !== 'outbound' && (
+        <ReplyTriage messageId={msg.id} contactId={msg.contact_id} />
+      )}
+
       <ThreadDealPanel msg={msg} />
 
       {/* ── Campaign card — which sequence this thread belongs to ── */}

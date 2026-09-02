@@ -1,7 +1,17 @@
 import { apiClient } from './client';
+import type { TriageInput, TriageResult } from '@lemlist/shared';
 import type { InboxMessage, InboxMessageWithContext, InboxCounts, PaginatedResponse, InboxSyncResult, InboxSyncProgress } from '@lemlist/shared';
 
 export const inboxApi = {
+  /**
+   * Decide what a reply is. One call, because "interested" is not one write:
+   * it makes a lead, promotes a lifecycle and carries the campaign across.
+   */
+  triage: async (messageId: string, input: TriageInput) => {
+    const { data } = await apiClient.post<TriageResult>(`/inbox/${messageId}/triage`, input);
+    return data;
+  },
+
   unreadCount: async (): Promise<number> => {
     const { data } = await apiClient.get<{ count: number }>('/inbox/unread-count');
     return data.count;
