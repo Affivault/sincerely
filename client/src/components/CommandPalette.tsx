@@ -6,7 +6,7 @@ import {
   FileText, Webhook, Send, Globe, ShieldOff, ShieldCheck, UserPlus,
   CalendarClock, Wrench, Plus, Search, Sun, Moon, LogOut, CornerDownLeft, Blocks,
   ArrowUp, ArrowDown, Handshake, ListTodo, CalendarDays, Phone, Mail,
-  CheckSquare, Loader2, Building2, Radar, Linkedin, type LucideIcon,
+  CheckSquare, Loader2, Building2, Radar, Linkedin, Sparkles, type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useTheme } from '../context/ThemeContext';
@@ -114,6 +114,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     { id: 'nav-templates', label: 'Templates', icon: FileText, group: 'Navigate', href: '/templates', keywords: 'emails snippets' },
     { id: 'nav-schedules', label: 'Schedules', icon: CalendarClock, group: 'Navigate', href: '/schedules', keywords: 'sending times' },
     { id: 'nav-leads', label: 'Lead lists', icon: Users, group: 'Navigate', href: '/leads', keywords: 'leads prospects outreach audience lists cold' },
+    { id: 'nav-leads-inbox', label: 'Leads inbox', icon: Sparkles, group: 'Navigate', href: '/leads/inbox', keywords: 'triage interested reply queue decisions' },
     { id: 'nav-contacts', label: 'Contacts', icon: Users, group: 'Navigate', href: '/contacts', keywords: 'contacts crm customers relationships people lists' },
     { id: 'nav-companies', label: 'Companies', icon: Building2, group: 'Navigate', href: '/companies', keywords: 'accounts organisations organizations firms' },
     { id: 'nav-prospector', label: 'Prospector', icon: Radar, group: 'Navigate', href: '/prospector', keywords: 'find leads search database discover' },

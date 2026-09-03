@@ -128,7 +128,11 @@ export function buildTagValues(ctx: MergeContext): Record<string, string> {
       if (!(safe in values)) values[safe] = v;
     }
     entries.forEach(([, value], i) => {
-      values[`custom_field_${i + 1}`] = str(value);
+      // Same first-wins rule as above: a real field literally named
+      // "custom_field_N" must not be clobbered by whatever happens to
+      // land at position N-1.
+      const positionalKey = `custom_field_${i + 1}`;
+      if (!(positionalKey in values)) values[positionalKey] = str(value);
     });
   }
 

@@ -423,7 +423,7 @@ export const inboxService = {
     // mailbox) — ilike with escaped wildcards is equality, ignoring case.
     // Quote the email so values containing commas/parens don't break PostgREST OR parsing
     const emailPattern = contactEmail.replace(/([%_\\])/g, '\\$1');
-    const emailQ = `"${emailPattern.replace(/"/g, '""')}"`;
+    const emailQ = `"${emailPattern.replace(/"/g, '')}"`;
     const { data, error } = await supabaseAdmin
       .from('inbox_messages')
       .select('*, contacts(first_name, last_name, email), smtp_accounts(id, email_address, label)')
@@ -536,7 +536,7 @@ export const inboxService = {
     if (!contactEmail) return inboxService.archive(userId, messageId);
     // Case-insensitive match — see markThreadRead for why.
     const emailPattern = contactEmail.replace(/([%_\\])/g, '\\$1');
-    const emailQ = `"${emailPattern.replace(/"/g, '""')}"`;
+    const emailQ = `"${emailPattern.replace(/"/g, '')}"`;
     const { data: affected } = await supabaseAdmin
       .from('inbox_messages')
       .select('id')
@@ -561,7 +561,7 @@ export const inboxService = {
     if (!contactEmail) return inboxService.unarchive(userId, messageId);
     // Case-insensitive match — see markThreadRead for why.
     const emailPattern = contactEmail.replace(/([%_\\])/g, '\\$1');
-    const emailQ = `"${emailPattern.replace(/"/g, '""')}"`;
+    const emailQ = `"${emailPattern.replace(/"/g, '')}"`;
     const { data: affected } = await supabaseAdmin
       .from('inbox_messages')
       .select('id')
@@ -587,7 +587,7 @@ export const inboxService = {
     // Case-insensitive match ("John@X.com" vs "john@x.com" are the same
     // mailbox) — ilike with escaped wildcards is equality, ignoring case.
     const pattern = contactEmail.replace(/([%_\\])/g, '\\$1');
-    const emailQ = `"${pattern.replace(/"/g, '""')}"`;
+    const emailQ = `"${pattern.replace(/"/g, '')}"`;
     const { error } = await supabaseAdmin
       .from('inbox_messages')
       .update({ is_read: true })
