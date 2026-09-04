@@ -323,8 +323,26 @@ export const crmService = {
     await autoLinkContact(userId, input);
 
     // Credit the outreach that produced this, if any did. `source_campaign_id`
-    // on the body is the unibox saying "this came out of that thread".
-    if (!input.source_campaign_id) {
+    // on the body is the unibox saying "this came out of that thread" - but a
+    // caller can also send one directly, and that must be checked exactly like
+    // updateDeal checks it: owned by this user, and never dressed up as
+    // evidence ('reply'/'thread') it didn't earn, since the caller chose it.
+    if (input.source_campaign_id) {
+      await assertOwned(userId, 'campaigns', input.source_campaign_id, 'Campaign');
+      if (input.source_step_id) {
+        const { data: step } = await supabaseAdmin
+          .from('campaign_steps')
+          .select('id')
+          .eq('id', input.source_step_id)
+          .eq('campaign_id', input.source_campaign_id)
+          .maybeSingle();
+        if (!step) throw new AppError('That step is not part of that campaign', 400);
+      } else {
+        input.source_step_id = null;
+      }
+      input.attribution = 'manual';
+      input.attributed_at = new Date().toISOString();
+    } else {
       const credit = await resolveAttribution(userId, input.contact_id, body.source_campaign_id);
       if (credit) Object.assign(input, credit);
     }
