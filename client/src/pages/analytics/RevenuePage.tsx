@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Banknote, TrendingUp, Reply, Info } from 'lucide-react';
+import { Banknote, TrendingUp, Reply, Info, Download } from 'lucide-react';
 import { analyticsApi, type CampaignRevenueRow } from '../../api/analytics.api';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { Skeleton } from '../../components/ui/Skeleton';
+import { Button } from '../../components/ui/Button';
 import { valuePerReply } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 
@@ -33,6 +34,28 @@ function money(v: number): string {
 /** A rate as a percentage, or an em dash where there is no evidence yet. */
 function pct(v: number | null): string {
   return v === null ? '—' : `${Math.round(v * 100)}%`;
+}
+
+function csvCell(v: string | number | null | undefined): string {
+  const s = v == null ? '' : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Export the campaign revenue table as a CSV file the browser downloads directly — no server round-trip. */
+function exportRevenueCsv(rows: CampaignRevenueRow[]) {
+  const header = ['Campaign', 'Sent', 'Replied', 'Deals', 'Won', 'Win rate', 'Per reply', 'Closed'];
+  const body = rows.map(r => [
+    r.name, r.sent, r.replied, r.deals, r.won, pct(r.win_rate),
+    r.value_per_reply === null ? '' : r.value_per_reply, r.won_value,
+  ].map(csvCell).join(','));
+  const csv = [header.join(','), ...body].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `revenue-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function Stat({ icon: Icon, label, value, sub, tone }: {
@@ -98,6 +121,11 @@ export function RevenuePage() {
         }
         title="Revenue by campaign"
         description="What your outreach earned, not just what it sent."
+        actions={sorted.length > 0 && (
+          <Button variant="secondary" onClick={() => exportRevenueCsv(sorted)} title="Export the table below as a CSV file">
+            <Download className="h-4 w-4" /> Export CSV
+          </Button>
+        )}
       />
 
       {isLoading ? (
