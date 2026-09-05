@@ -100,7 +100,13 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
   });
 
   const choose = (decision: TriageDecision) => {
-    if (decision === 'interested') { triage.mutate({ decision }); return; }
+    if (decision === 'interested') {
+      // Same guard as the button's `disabled`: a keyboard shortcut must not
+      // be able to fire a decision the button itself refuses to send.
+      if (!contactId) return;
+      triage.mutate({ decision });
+      return;
+    }
     // The other two ask first: a snooze needs a length, and a suppression
     // is the one action here you cannot take back from this screen.
     setAsking(decision);

@@ -38,3 +38,4 @@ inboxRoutes.post('/:id/forward', inboxController.forward);
 inboxRoutes.post('/:id/ai-reply-assist', inboxController.aiReplyAssist);
 inboxRoutes.post('/:id/schedule-reply', inboxController.scheduleReply);
 inboxRoutes.delete('/:id/schedule', inboxController.cancelScheduled);
+inboxRoutes.put('/:id/schedule', inboxController.rescheduleScheduled);

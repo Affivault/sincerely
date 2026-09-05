@@ -1819,12 +1819,16 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
 }
 
 /* ─── Scheduled Emails Panel ─────────────────────── */
-function ScheduledEmailsPanel({ onCancel }: { onCancel: (id: string) => void }) {
+function ScheduledEmailsPanel({ onCancel, onReschedule }: {
+  onCancel: (id: string) => void;
+  onReschedule: (id: string, scheduledAt: string) => void;
+}) {
   const { data: scheduled, isLoading } = useQuery({
     queryKey: ['inbox', 'scheduled'],
     queryFn: inboxApi.listScheduled,
     refetchInterval: 30000,
   });
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
 
   if (isLoading) {
     return <div className="flex items-center justify-center py-10"><Spinner size="md" /></div>;
@@ -1860,7 +1864,7 @@ function ScheduledEmailsPanel({ onCancel }: { onCancel: (id: string) => void }) 
           return (
             <div
               key={email.id}
-              className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden"
+              className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]"
               style={{ boxShadow: 'var(--shadow-card)' }}
             >
               <div className="flex items-start gap-3 p-4">
@@ -1896,14 +1900,31 @@ function ScheduledEmailsPanel({ onCancel }: { onCancel: (id: string) => void }) 
                     <p className="text-xs text-[var(--text-tertiary)] mt-2 line-clamp-2">{stripHtml(email.body_text || email.body_html || '').slice(0, 200)}</p>
                   )}
                 </div>
-                <button
-                  onClick={() => onCancel(email.id)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-500/10 transition-colors flex-shrink-0"
-                  title="Cancel scheduled email"
-                >
-                  <XCircle className="h-3.5 w-3.5" />
-                  Cancel
-                </button>
+                <div className="relative flex items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => setReschedulingId(reschedulingId === email.id ? null : email.id)}
+                    disabled={isPast}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    title={isPast ? 'Too close to send time to reschedule' : 'Pick a new send time'}
+                  >
+                    <Calendar className="h-3.5 w-3.5" />
+                    Reschedule
+                  </button>
+                  <button
+                    onClick={() => onCancel(email.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-500/10 transition-colors"
+                    title="Cancel scheduled email"
+                  >
+                    <XCircle className="h-3.5 w-3.5" />
+                    Cancel
+                  </button>
+                  {reschedulingId === email.id && (
+                    <ScheduleSendPicker
+                      onSchedule={(scheduledAt) => { onReschedule(email.id, scheduledAt); setReschedulingId(null); }}
+                      onClose={() => setReschedulingId(null)}
+                    />
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -2445,6 +2466,17 @@ export function InboxPage() {
       toast.success('Scheduled email cancelled');
     },
     onError: () => toast.error('Failed to cancel scheduled email'),
+  });
+
+  const rescheduleMut = useMutation({
+    mutationFn: ({ id, scheduled_at }: { id: string; scheduled_at: string }) =>
+      inboxApi.rescheduleScheduled(id, scheduled_at),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['inbox', 'scheduled'] });
+      const dt = new Date(data.scheduled_at);
+      toast.success(`Moved to ${dt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`);
+    },
+    onError: () => toast.error('Failed to reschedule that email'),
   });
 
   /* ── Handlers ── */
@@ -3439,7 +3471,10 @@ export function InboxPage() {
         {/* ── Full-width conversation table ── */}
         {folder === 'scheduled' ? (
           <div className="flex-1 min-h-0 flex bg-[var(--bg-surface)]">
-            <ScheduledEmailsPanel onCancel={(id) => cancelScheduledMut.mutate(id)} />
+            <ScheduledEmailsPanel
+              onCancel={(id) => cancelScheduledMut.mutate(id)}
+              onReschedule={(id, scheduledAt) => rescheduleMut.mutate({ id, scheduled_at: scheduledAt })}
+            />
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto overflow-x-hidden bg-[var(--bg-surface)]">

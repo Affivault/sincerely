@@ -23,6 +23,14 @@ interface ModalProps {
 
 export function Modal({ isOpen, onClose, title, description, children, size = 'md', footer }: ModalProps) {
   const identity = useRef({});
+  // Most callers pass an inline `onClose`, which gets a new identity on every
+  // parent render. Keeping it in the stack effect's deps below would tear
+  // down and rebuild that effect on any re-render while the modal is open —
+  // popping this modal off `openModals` and pushing it back on top, silently
+  // jumping it back above a dialog stacked over it (e.g. a confirm()). Route
+  // calls through a ref instead so the effect only depends on `isOpen`.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -40,7 +48,7 @@ export function Modal({ isOpen, onClose, title, description, children, size = 'm
     const handleKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (openModals[openModals.length - 1] !== self) return;
-      onClose();
+      onCloseRef.current();
     };
     document.addEventListener('keydown', handleKey);
     return () => {
@@ -48,7 +56,7 @@ export function Modal({ isOpen, onClose, title, description, children, size = 'm
       const at = openModals.lastIndexOf(self);
       if (at !== -1) openModals.splice(at, 1);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

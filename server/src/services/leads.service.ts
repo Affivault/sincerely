@@ -208,6 +208,11 @@ export const leadsService = {
       // because it is the deal that eventually wins or loses and makes the
       // source answerable.
       source: lead.source,
+      // Carry the lead's own campaign forward explicitly — otherwise
+      // createDeal falls back to guessing from the contact's most recent
+      // reply, which is wrong when there isn't one yet or when the contact
+      // has replied to more than one campaign since.
+      ...(lead.campaign_id ? { source_campaign_id: lead.campaign_id } : {}),
       expected_close_date: body.expected_close_date || null,
       notes: lead.note,
       ...(body.recurring_amount !== undefined ? { recurring_amount: body.recurring_amount } : {}),

@@ -153,6 +153,11 @@ export const inboxApi = {
     return data;
   },
 
+  rescheduleScheduled: async (id: string, scheduled_at: string) => {
+    const { data } = await apiClient.put<{ success: boolean; scheduled_at: string }>(`/inbox/${id}/schedule`, { scheduled_at });
+    return data;
+  },
+
   listScheduled: async () => {
     const { data } = await apiClient.get<(InboxMessage & { scheduled_at: string; smtp_email: string | null; smtp_label: string | null })[]>('/inbox/scheduled');
     return data;

@@ -303,7 +303,17 @@ export const inboxService = {
       query = query.eq('is_archived', true);
     } else if (folder === 'sent') {
       query = query.eq('direction', 'outbound');
-    } else if (folder === 'needs_triage') {
+    }
+
+    // A message queued via scheduleSend/scheduleReply gets its row (and
+    // received_at) written up front, before it has actually gone out — don't
+    // let it masquerade as already-sent in Inbox/Sent until it really sends.
+    // Callers that explicitly ask for sara_status filter their own view.
+    if ((folder === 'inbox' || folder === 'sent') && params.sara_status === undefined) {
+      query = query.or('sara_status.is.null,sara_status.not.in.(scheduled,sending)');
+    }
+
+    if (folder === 'needs_triage') {
       /*
        * The queue: inbound replies nobody has decided about.
        *
@@ -902,6 +912,38 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
   },
 
   /**
+   * Push a scheduled-but-unsent email to a new send time, without having to
+   * cancel and recompose it from scratch.
+   */
+  async rescheduleScheduledEmail(userId: string, id: string, scheduledAt: string) {
+    if (!scheduledAt || Number.isNaN(new Date(scheduledAt).getTime())) {
+      throw new AppError('A valid scheduled_at is required', 400);
+    }
+
+    const { data: msg } = await supabaseAdmin
+      .from('inbox_messages')
+      .select('id, sara_status')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
+
+    if (!msg) throw new AppError('Message not found', 404);
+    // 'sending' means the scheduler has already claimed this row for delivery
+    // (see processScheduledEmails) — too late to move it.
+    if (msg.sara_status !== 'scheduled') throw new AppError('Message is not scheduled', 400);
+
+    const { error } = await supabaseAdmin
+      .from('inbox_messages')
+      .update({ sara_action: scheduledAt })
+      .eq('id', id)
+      .eq('user_id', userId)
+      .eq('sara_status', 'scheduled');
+
+    if (error) throw new AppError(error.message, 500);
+    return { success: true, scheduled_at: scheduledAt };
+  },
+
+  /**
    * List all pending scheduled emails for a user.
    */
   async listScheduledEmails(userId: string) {
@@ -1097,10 +1139,13 @@ export async function processScheduledEmails(): Promise<number> {
       // Only refund on failure if a slot was actually reserved above.
       await (smtpAccount.user_id ? sendWithQuotaRefund(smtpAccount.user_id, doSend) : doSend());
 
-      // Mark as sent by clearing the schedule markers
+      // Mark as sent by clearing the schedule markers, and stamp received_at
+      // with the real send time — it was set to the scheduling time when the
+      // row was first written, which would otherwise make the message look
+      // like it went out (and sort as if it did) well before it actually did.
       const { error: clearErr } = await supabaseAdmin
         .from('inbox_messages')
-        .update({ sara_status: null, sara_action: null })
+        .update({ sara_status: null, sara_action: null, received_at: new Date().toISOString() })
         .eq('id', msg.id);
       if (clearErr) {
         // The email already sent successfully — the row is now stuck with sara_status
