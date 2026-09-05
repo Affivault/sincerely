@@ -19,12 +19,26 @@
      · Countries spanning several zones (US, Canada, Australia, Russia,
        Brazil) are not mapped at country level at all; they resolve only
        through a city or region that pins the zone down.
-     · "Manchester", "Birmingham", "Cambridge", "Bristol" and "Portland"
-       each name a UK/Los-Angeles-area city *and* a distinct, common
-       US city elsewhere (Manchester NH, Birmingham AL, Cambridge MA,
-       Bristol CT/TN, Portland ME) — omitted from CITY_ZONES so a
-       segment like "MA" or "OR" that follows gets the chance to settle
-       it instead of the city name jumping to the wrong zone first.
+     · "Manchester", "Birmingham", "Cambridge", "Bristol", "Portland",
+       "Athens" and "Moscow" each name a European/Los-Angeles-area city
+       *and* a distinct, common US city elsewhere (Manchester NH,
+       Birmingham AL, Cambridge MA, Bristol CT/TN, Portland ME, Athens
+       GA, Moscow ID) — omitted from CITY_ZONES so a segment like "MA"
+       or "OR" that follows gets the chance to settle it instead of the
+       city name jumping to the wrong zone first. Georgia and Idaho are
+       themselves left out of REGION_ZONES (see below), so for these two
+       there is no later segment to fall back on — the city name has to
+       go entirely rather than resolve confidently to the wrong side of
+       the Atlantic.
+     · Beyond that, matching used to stop at the first segment that named
+       *any* city, region or country. That let a same-named city segment
+       ("London", "Paris", "Dublin"...) win before a later, more specific
+       region/country segment was even looked at, so "London, Ontario,
+       Canada" resolved as Europe/London. Region and country names don't
+       collide with CITY_ZONES the way cities collide with each other, so
+       every segment is now checked for a region/country match first —
+       across the whole location — before any segment's city match is
+       trusted.
    ═══════════════════════════════════════════════════════════════════════ */
 
 /** Cities distinctive enough that the name alone settles the zone. */
@@ -68,8 +82,9 @@ const CITY_ZONES: Record<string, string> = {
   'oslo': 'Europe/Oslo', 'helsinki': 'Europe/Helsinki',
   'warsaw': 'Europe/Warsaw', 'krakow': 'Europe/Warsaw', 'kraków': 'Europe/Warsaw',
   'prague': 'Europe/Prague', 'budapest': 'Europe/Budapest', 'bucharest': 'Europe/Bucharest',
-  'athens': 'Europe/Athens', 'sofia': 'Europe/Sofia', 'kyiv': 'Europe/Kyiv', 'kiev': 'Europe/Kyiv',
-  'istanbul': 'Europe/Istanbul', 'moscow': 'Europe/Moscow',
+  'sofia': 'Europe/Sofia', 'kyiv': 'Europe/Kyiv', 'kiev': 'Europe/Kyiv',
+  'istanbul': 'Europe/Istanbul',
+  // 'athens' and 'moscow' are deliberately absent — see the file header.
 
   // Middle East & Africa
   'dubai': 'Asia/Dubai', 'abu dhabi': 'Asia/Dubai', 'doha': 'Asia/Qatar',
@@ -221,10 +236,13 @@ function normalise(segment: string): string {
  * null when nothing in it is unambiguous.
  *
  * Segments are tried most-specific first, so "Portland, Oregon" resolves on
- * the city and "Somewhereville, Oregon" still resolves on the state. Within
- * a segment, city beats region beats country: "New York" is both a city and
- * a state and they agree, but where the two ever disagreed the city — being
- * the more specific claim — is the one to trust.
+ * the city and "Somewhereville, Oregon" still resolves on the state. But a
+ * region or country name is unambiguous by construction — unlike cities,
+ * they don't collide with each other — so across the *whole* location, any
+ * segment naming a region or country is trusted before any segment's city
+ * match, even one that comes first: "London, Ontario, Canada" must resolve
+ * on "Ontario", not jump to Europe on seeing "London" before it even looks
+ * at the rest of the string.
  */
 export function inferTimezone(location?: string | null): string | null {
   if (!location || typeof location !== 'string') return null;
@@ -233,24 +251,29 @@ export function inferTimezone(location?: string | null): string | null {
   if (segments.length === 0) return null;
 
   for (const segment of segments) {
-    const hit = CITY_ZONES[segment] || REGION_ZONES[segment] || COUNTRY_ZONES[segment];
+    const hit = REGION_ZONES[segment] || COUNTRY_ZONES[segment];
+    if (hit) return hit;
+  }
+  for (const segment of segments) {
+    const hit = CITY_ZONES[segment];
     if (hit) return hit;
   }
 
   // Nothing matched a whole segment. One last try on the entire string, for
   // locations written without commas ("Greater London Area", "Tokyo Japan").
+  // Same region/country-before-city precedence as above.
   const whole = normalise(location);
-  for (const [name, zone] of Object.entries(CITY_ZONES)) {
-    // Word-bounded so "orlando" can't match on "orl" and "india" can't match
-    // inside "indiana".
-    if (new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(whole)) return zone;
-  }
   for (const [name, zone] of Object.entries(REGION_ZONES)) {
     if (name.length < 4) continue; // skip 2-letter abbreviations — too easy to hit by accident
     if (new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(whole)) return zone;
   }
   for (const [name, zone] of Object.entries(COUNTRY_ZONES)) {
     if (name.length < 5) continue; // skip "uk"/"uae" — too easy to hit by accident
+    if (new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(whole)) return zone;
+  }
+  for (const [name, zone] of Object.entries(CITY_ZONES)) {
+    // Word-bounded so "orlando" can't match on "orl" and "india" can't match
+    // inside "indiana".
     if (new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(whole)) return zone;
   }
 

@@ -373,9 +373,19 @@ export const contactsService = {
     }
 
     if (tag_ids && tag_ids.length > 0) {
-      const tagRows = tag_ids.map((tagId: string) => ({ contact_id: data.id, tag_id: tagId }));
-      const { error: tagError } = await supabaseAdmin.from('contact_tags').insert(tagRows);
-      if (tagError) throw new AppError(`Contact created but failed to add tags: ${tagError.message}`, 500);
+      // Verify tags belong to user — otherwise another tenant's tag metadata
+      // could be attached to (and rendered for) this user's contacts.
+      const { data: ownedTags } = await supabaseAdmin
+        .from('tags')
+        .select('id')
+        .eq('user_id', userId)
+        .in('id', tag_ids);
+      const validTagIds = (ownedTags || []).map((t: any) => t.id);
+      if (validTagIds.length > 0) {
+        const tagRows = validTagIds.map((tagId: string) => ({ contact_id: data.id, tag_id: tagId }));
+        const { error: tagError } = await supabaseAdmin.from('contact_tags').insert(tagRows);
+        if (tagError) throw new AppError(`Contact created but failed to add tags: ${tagError.message}`, 500);
+      }
     }
 
     fireEvent(userId, 'contact.created', { contact: data }).catch(() => {});
@@ -428,9 +438,19 @@ export const contactsService = {
       const { error: delErr } = await supabaseAdmin.from('contact_tags').delete().eq('contact_id', id);
       if (delErr) throw new AppError(`Failed to remove tags: ${delErr.message}`, 500);
       if (tag_ids.length > 0) {
-        const tagRows = tag_ids.map((tagId: string) => ({ contact_id: id, tag_id: tagId }));
-        const { error: insErr } = await supabaseAdmin.from('contact_tags').insert(tagRows);
-        if (insErr) throw new AppError(`Failed to apply tags: ${insErr.message}`, 500);
+        // Verify tags belong to user — otherwise another tenant's tag metadata
+        // could be attached to (and rendered for) this user's contacts.
+        const { data: ownedTags } = await supabaseAdmin
+          .from('tags')
+          .select('id')
+          .eq('user_id', userId)
+          .in('id', tag_ids);
+        const validTagIds = (ownedTags || []).map((t: any) => t.id);
+        if (validTagIds.length > 0) {
+          const tagRows = validTagIds.map((tagId: string) => ({ contact_id: id, tag_id: tagId }));
+          const { error: insErr } = await supabaseAdmin.from('contact_tags').insert(tagRows);
+          if (insErr) throw new AppError(`Failed to apply tags: ${insErr.message}`, 500);
+        }
       }
     }
 

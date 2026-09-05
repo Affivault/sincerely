@@ -204,6 +204,15 @@ export const inboxController = {
     } catch (err) { next(err); }
   },
 
+  async rescheduleScheduled(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { scheduled_at } = req.body;
+      if (!scheduled_at) return res.status(400).json({ error: 'scheduled_at is required' });
+      const result = await inboxService.rescheduleScheduledEmail(req.userId!, req.params.id, scheduled_at);
+      res.json(result);
+    } catch (err) { next(err); }
+  },
+
   async listScheduled(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const result = await inboxService.listScheduledEmails(req.userId!);
