@@ -78,7 +78,9 @@ export const triageService = {
      *
      * Two people on one inbox, or a double-press on a slow connection, would
      * otherwise make two leads or suppress somebody who had been marked
-     * interested a second earlier.
+     * interested a second earlier. The check above is only the fast path —
+     * it reads stale data under real concurrency, which is what the atomic
+     * claim below is actually for.
      */
     if (message.triage_decision) {
       return {
@@ -87,40 +89,75 @@ export const triageService = {
       };
     }
 
+    /*
+     * Claim the row before doing anything a second caller could also do.
+     *
+     * The read above can't stop two near-simultaneous calls — a double-click
+     * on a slow connection, or two teammates on a shared inbox — from both
+     * passing it and both running the side effects below, making two leads or
+     * suppressing someone twice. This update only succeeds for whichever call
+     * gets there first: `triage_decision IS NULL` is re-checked by Postgres at
+     * write time, not read from the stale row above, so exactly one caller's
+     * update can match. The loser sees zero rows affected.
+     */
+    const { data: claimed } = await supabaseAdmin
+      .from('inbox_messages')
+      .update({ triage_decision: decision, triaged_at: new Date().toISOString(), triaged_by: userId })
+      .eq('id', message.id)
+      .eq('user_id', userId)
+      .is('triage_decision', null)
+      .select('id');
+
+    if (!claimed || claimed.length === 0) {
+      const { data: settled } = await supabaseAdmin
+        .from('inbox_messages')
+        .select('triage_decision')
+        .eq('id', message.id)
+        .eq('user_id', userId)
+        .maybeSingle();
+      const settledDecision = settled?.triage_decision || decision;
+      return {
+        decision: settledDecision,
+        message: `Already triaged as "${String(settledDecision).replace('_', ' ')}"`,
+      };
+    }
+
     let result: TriageResult;
-    switch (decision) {
-      case 'interested':
-        result = await this.markInterested(userId, message, email, input);
-        break;
-      case 'later':
-        result = await this.markLater(userId, message, email, input);
-        break;
-      case 'not_interested':
-        result = await this.markNotInterested(userId, message, email, input);
-        break;
-      default:
-        throw new AppError(`Unknown decision "${decision}"`, 400);
+    try {
+      switch (decision) {
+        case 'interested':
+          result = await this.markInterested(userId, message, email, input);
+          break;
+        case 'later':
+          result = await this.markLater(userId, message, email, input);
+          break;
+        case 'not_interested':
+          result = await this.markNotInterested(userId, message, email, input);
+          break;
+        default:
+          throw new AppError(`Unknown decision "${decision}"`, 400);
+      }
+    } catch (err) {
+      // The side effect never landed, so release the claim: leaving
+      // triage_decision set would make this message permanently
+      // "already triaged" with nothing behind it, and no way to retry.
+      await supabaseAdmin
+        .from('inbox_messages')
+        .update({ triage_decision: null, triaged_at: null, triaged_by: null })
+        .eq('id', message.id)
+        .eq('user_id', userId);
+      throw err;
     }
 
     /*
-     * Remember it, or none of this is a feature.
-     *
-     * Without this the decision lives in a component's state: reload and the
-     * thread is back at the start offering to be decided again, and there is
-     * no way to ask "what have I not dealt with yet" - which is the only
-     * question an inbox queue exists to answer.
-     *
      * The reference is what makes undo exact rather than a guess from
-     * timestamps about which lead to remove.
+     * timestamps about which lead to remove. Only known once the side effect
+     * above has actually run, so it's a follow-up write rather than part of
+     * the claim.
      */
     await supabaseAdmin
       .from('inbox_messages')
-      .update({
-        triage_decision: decision,
-        triaged_at: new Date().toISOString(),
-        triaged_by: userId,
-        triage_ref: result.lead_id || result.task_id || null,
-      })
+      .update({ triage_ref: result.lead_id || result.task_id || null })
       .eq('id', message.id)
       .eq('user_id', userId);
 

@@ -1,6 +1,6 @@
-import dns from 'dns';
 import net from 'net';
 import { supabaseAdmin } from '../config/supabase.js';
+import { resolveDoh, resolveHostIp } from '../utils/dns-doh.js';
 import {
   noteSmtpOutcome,
   shouldSkipSmtpProbe,
@@ -258,17 +258,21 @@ export function classifyRcpt(code: number): RcptVerdict {
  * @param mxHost
  * @param addresses Ranked; probing stops at the first acceptance.
  */
-export function probeMailbox(mxHost: string, addresses: string[]): Promise<SmtpProbeResult> {
+export async function probeMailbox(mxHost: string, addresses: string[]): Promise<SmtpProbeResult> {
   // Already established that this host can't open port 25: say so at once
   // instead of stalling for the connect timeout on every name looked up.
   if (shouldSkipSmtpProbe()) {
-    return Promise.resolve({
+    return {
       reachable: false,
       catchAll: false,
       verdicts: new Map(),
       reason: smtpBlockedMessage(),
-    });
+    };
   }
+
+  // Dial by resolved IP — net.Socket.connect(port, hostname) does its own DNS
+  // lookup via the OS resolver, which is the exact resolver DoH exists to avoid.
+  const mxIp = await resolveHostIp(mxHost);
 
   return new Promise((resolve) => {
     const verdicts = new Map<string, RcptVerdict>();
@@ -375,7 +379,7 @@ export function probeMailbox(mxHost: string, addresses: string[]): Promise<SmtpP
       }
     });
 
-    socket.connect(SMTP_PORT, mxHost);
+    socket.connect(SMTP_PORT, mxIp || mxHost);
   });
 }
 
@@ -383,39 +387,33 @@ export function probeMailbox(mxHost: string, addresses: string[]): Promise<SmtpP
 /* Domain checks                                                      */
 /* ------------------------------------------------------------------ */
 
-const DNS_TIMEOUT_MS = 6000;
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('DNS timeout')), ms);
-    promise
-      .then((value) => { clearTimeout(timer); resolve(value); })
-      .catch((err) => { clearTimeout(timer); reject(err); });
-  });
-}
-
 /**
  * Mail exchangers for a domain, best priority first. Empty when the domain
  * can't receive mail — which settles the whole lookup.
  *
+ * Resolved via DoH (Cloudflare -> Google -> OS resolver), same as
+ * verification.service.ts, domain.service.ts and smtp.service.ts: classic
+ * UDP/TCP port-53 DNS is blocked on the deployed host, so a plain
+ * dns.promises.resolveMx() here would fail every lookup and report every
+ * domain as unable to receive mail regardless of whether that's true.
+ *
  * @param domain
  */
 async function mailHosts(domain: string): Promise<string[]> {
-  try {
-    const records = await withTimeout(dns.promises.resolveMx(domain), DNS_TIMEOUT_MS);
-    return records
-      .filter((record) => record.exchange)
-      .sort((a, b) => a.priority - b.priority)
-      .map((record) => record.exchange);
-  } catch {
-    // No MX is legal: the A record is the implicit mail host.
-    try {
-      const addresses = await withTimeout(dns.promises.resolve4(domain), DNS_TIMEOUT_MS);
-      return addresses.length ? [domain] : [];
-    } catch {
-      return [];
-    }
-  }
+  const mxAnswers = await resolveDoh(domain, 'MX');
+  const sorted = mxAnswers
+    .map((raw) => {
+      const match = raw.trim().match(/^(\d+)\s+(\S+)$/);
+      return match ? { priority: Number(match[1]), exchange: match[2].replace(/\.$/, '') } : null;
+    })
+    .filter((record): record is { priority: number; exchange: string } => record !== null && Boolean(record.exchange))
+    .sort((a, b) => a.priority - b.priority);
+
+  if (sorted.length > 0) return sorted.map((record) => record.exchange);
+
+  // No MX is legal: the A record is the implicit mail host.
+  const addresses = await resolveDoh(domain, 'A');
+  return addresses.length ? [domain] : [];
 }
 
 /**
