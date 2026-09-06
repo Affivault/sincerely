@@ -1001,7 +1001,9 @@ async function handleCheckKnown(payload) {
 
     // One search per distinct surname rather than per person: a page of
     // results shares few surnames, and the per-key limit is 100/minute.
-    const surnames = [...new Set(people.map((p) => p.last_name).filter(Boolean))].slice(0, 25);
+    const distinctSurnames = [...new Set(people.map((p) => p.last_name).filter(Boolean))];
+    const surnames = distinctSurnames.slice(0, 25);
+    const searchedSurnames = new Set(surnames);
     /** @type {object[]} */
     const pool = [];
     for (const surname of surnames) {
@@ -1031,7 +1033,18 @@ async function handleCheckKnown(payload) {
       .catch(() => ({ emails: new Set(), complete: false }));
 
     for (const person of people) {
-      const contact = await findContactForPerson(person, pool);
+      let contact = await findContactForPerson(person, pool);
+
+      /*
+       * A surname beyond the first 25 distinct ones was never searched, so a
+       * real, already-suppressed contact with that surname would silently
+       * come back as "not known" — and from there as "safe to add" — with no
+       * indication anything was skipped. Spend one more request, same as the
+       * suppression fallback below does, rather than guess.
+       */
+      if (!contact && person.last_name && !searchedSurnames.has(person.last_name)) {
+        contact = await findContactForPerson(person, await searchContactsCached(person.last_name));
+      }
 
       if (!contact) {
         byProfile[person.linkedin_url] = {

@@ -200,6 +200,18 @@ const state = {
 /** Guards against an out-of-order lookup repainting a newer one's result. */
 let lookupSeq = 0;
 
+/**
+ * Guards against an out-of-order tab read repainting a newer one's result.
+ *
+ * The sidebar's `retarget()` only debounces *starting* a new `loadActiveTab()`
+ * call; it never cancels one already in flight. Switching tabs again while a
+ * slow read (a LinkedIn profile still waiting on its contact-info fetch) is
+ * still pending starts a second call, and without this the two race — whichever
+ * `GET_CONTEXT` happens to resolve last wins, which can leave the panel showing
+ * the previous tab's person against the new tab's URL.
+ */
+let activeTabSeq = 0;
+
 /* ------------------------------------------------------------------ */
 /* Messaging                                                          */
 /* ------------------------------------------------------------------ */
@@ -2287,8 +2299,13 @@ async function grantSite() {
  * last person it read unless it goes and looks again.
  */
 async function loadActiveTab() {
+  const seq = (activeTabSeq += 1);
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const context = await send('GET_CONTEXT', { tabId: tab?.id });
+
+  // A newer call already started while these two awaits were in flight —
+  // that one owns the panel now, not this one.
+  if (seq !== activeTabSeq) return;
 
   if (!context.ok) {
     el.main.classList.remove('hidden');
