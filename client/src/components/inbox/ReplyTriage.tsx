@@ -54,6 +54,12 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
   /** Which decision is mid-question. Null means the bar is at rest. */
   const [asking, setAsking] = useState<'later' | 'not_interested' | null>(null);
   const [done, setDone] = useState<TriageResult | null>(null);
+  // Set the moment Undo succeeds, cleared the moment the server's `decision`
+  // prop actually catches up. Without this, `settled` fell back to the
+  // still-stale `decision` prop between the undo call resolving and the
+  // invalidated `['inbox']` query refetching, so Undo looked like it did
+  // nothing until that refetch happened to land.
+  const [undone, setUndone] = useState(false);
 
   /*
    * A thread that was already decided shows its decision, from the message
@@ -61,13 +67,15 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
    * answered reply back at the start, offering to decide it a second time -
    * which is the difference between a demo and a feature.
    */
-  const settled: TriageResult | null = done ?? (decision
+  const settled: TriageResult | null = done ?? (!undone && decision
     ? { decision, lead_id: leadId ?? undefined, message: SETTLED_LABEL[decision].title }
     : null);
 
+  useEffect(() => { if (undone && !decision) setUndone(false); }, [undone, decision]);
+
   // A new message is a new decision: without this the bar would still be
   // showing the last thread's outcome while you read the next one.
-  useEffect(() => { setDone(null); setAsking(null); }, [messageId]);
+  useEffect(() => { setDone(null); setAsking(null); setUndone(false); }, [messageId]);
 
   const triage = useMutation({
     mutationFn: (input: any) => inboxApi.triage(messageId, input),
@@ -90,6 +98,7 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
     mutationFn: () => inboxApi.untriage(messageId),
     onSuccess: (r) => {
       setDone(null);
+      setUndone(true);
       qc.invalidateQueries({ queryKey: ['inbox'] });
       qc.invalidateQueries({ queryKey: ['leads'] });
       qc.invalidateQueries({ queryKey: ['crm'] });

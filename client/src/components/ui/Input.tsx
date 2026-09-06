@@ -1,20 +1,27 @@
-import { forwardRef, type InputHTMLAttributes } from 'react';
+import { forwardRef, type InputHTMLAttributes, type ReactNode } from 'react';
 import { cn } from '../../lib/utils';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   hint?: string;
+  /** Rendered on the same row as the label, right-aligned — e.g. a "Find email" action. */
+  labelExtra?: ReactNode;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, label, error, hint, id, ...props }, ref) => {
+  ({ className, label, error, hint, labelExtra, id, ...props }, ref) => {
     return (
       <div className="space-y-1">
-        {label && (
-          <label htmlFor={id} className="block text-[12px] font-medium text-[var(--text-secondary)]">
-            {label}
-          </label>
+        {(label || labelExtra) && (
+          <div className="flex items-center justify-between gap-2">
+            {label && (
+              <label htmlFor={id} className="block text-[12px] font-medium text-[var(--text-secondary)]">
+                {label}
+              </label>
+            )}
+            {labelExtra}
+          </div>
         )}
         <input
           ref={ref}

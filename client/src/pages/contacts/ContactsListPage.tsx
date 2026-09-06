@@ -805,6 +805,33 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     queryFn: contactsApi.getStats,
   });
 
+  /*
+   * The backend can guess and verify an address from a name and a domain —
+   * findEmail() was wired up months ago but never had anywhere to run from,
+   * so a contact with a known company but no address had to be looked up by
+   * hand, outside the app, or just left out.
+   */
+  const findEmailMutation = useMutation({
+    mutationFn: () => verificationApi.findEmail({
+      domain: form.website || form.company || '',
+      first_name: form.first_name,
+      last_name: form.last_name,
+    }),
+    onSuccess: (result) => {
+      if (!result.found || !result.email) {
+        toast.error(result.reason || 'Could not find an address for that domain');
+        return;
+      }
+      setForm((prev) => ({ ...prev, email: result.email! }));
+      toast.success(
+        result.verified
+          ? `${result.email} — confirmed by the mail server`
+          : `${result.email} — a guess, not confirmed (${result.confidence}% confidence)`
+      );
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Could not look that up'),
+  });
+
   const createMutation = useMutation({
     mutationFn: (input: CreateContactInput) =>
       editId ? contactsApi.update(editId, input) : contactsApi.create(input),
@@ -2398,6 +2425,24 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 placeholder="contact@company.com"
+                labelExtra={
+                  (form.website?.trim() || form.company?.trim()) && (form.first_name?.trim() || form.last_name?.trim()) ? (
+                    <button
+                      type="button"
+                      onClick={() => findEmailMutation.mutate()}
+                      disabled={findEmailMutation.isPending}
+                      title="Guess this address from the name and company, then check it against the mail server"
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--indigo)] hover:underline disabled:opacity-50 disabled:no-underline"
+                    >
+                      {findEmailMutation.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-3 w-3" />
+                      )}
+                      Find email
+                    </button>
+                  ) : undefined
+                }
               />
               <div className="grid grid-cols-2 gap-3">
                 <Input label="First name" value={form.first_name || ''} onChange={(e) => setForm({ ...form, first_name: e.target.value })} placeholder="John" />

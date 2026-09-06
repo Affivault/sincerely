@@ -3494,6 +3494,9 @@ export function InboxPage() {
                   onChange={(e) => {
                     // Capped at what one bulk call will take, rather than
                     // selecting 400 and failing at the far end of the request.
+                    if (e.currentTarget.checked && visibleConversations.length > BULK_TRIAGE_LIMIT) {
+                      toast(`Selected the first ${BULK_TRIAGE_LIMIT} — bulk actions are capped at ${BULK_TRIAGE_LIMIT}.`);
+                    }
                     setPicked(e.currentTarget.checked
                       ? new Set(visibleConversations.slice(0, BULK_TRIAGE_LIMIT).map((c) => c.latestMessage.id))
                       : new Set());

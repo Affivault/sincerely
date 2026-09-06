@@ -923,11 +923,40 @@
    */
   let netEmails = [];
 
+  /**
+   * The profile a captured request's URL was for, when the URL says so.
+   *
+   * Both routes net-tap actually cares about encode it: the voyager contact-info
+   * call as `/profiles/{publicId}/`, the overlay fetch as `/in/{publicId}/`. Null
+   * for anything else (the initial page-load payloads, graphql calls, …), which
+   * is treated as unscoped rather than dropped, since those still matter and
+   * were never wrongly attributed before this existed.
+   *
+   * @param {string} url
+   * @returns {string|null}
+   */
+  function netTapProfileId(url) {
+    if (typeof url !== 'string') return null;
+    const match = url.match(/\/(?:in|profiles)\/([^/?#]+)/i);
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
   window.addEventListener('message', (event) => {
     // Same-window only, and only our own channel.
     if (event.source !== window) return;
     const data = event.data;
     if (!data || data.type !== 'SINCERELY_NET_EMAILS' || !Array.isArray(data.emails)) return;
+
+    /*
+     * A request kicked off on profile A can resolve after the user has already
+     * navigated to profile B (LinkedIn is an SPA, and the contact-info fetch can
+     * take seconds). Without this check, A's address lands in the cache that
+     * profile B's read is about to consume — a contact can be saved with a
+     * different person's email. When the URL names the profile it was for,
+     * only accept it if that is still the one on screen.
+     */
+    const sourceProfile = netTapProfileId(data.url);
+    if (sourceProfile !== null && sourceProfile !== linkedInPublicId()) return;
 
     for (const raw of data.emails) {
       const email = String(raw || '').toLowerCase();

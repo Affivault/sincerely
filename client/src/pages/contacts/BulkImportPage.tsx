@@ -93,7 +93,7 @@ export function BulkImportPage() {
   }, []);
 
   const { data: lists } = useQuery({
-    queryKey: ['lists'],
+    queryKey: ['lists', 'all'],
     // Both kinds: importing a CSV of existing customers into a contact
     // list is as legitimate as importing a cold list into a lead list.
     queryFn: () => listsApi.list(),
