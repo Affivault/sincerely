@@ -32,6 +32,16 @@ interface Options {
   searchRef?: React.RefObject<HTMLInputElement | null>;
   /** Off while the table is loading or empty. */
   enabled?: boolean;
+  /**
+   * Identity of the rows currently on screen (e.g. their ids, joined).
+   *
+   * `count` alone only catches a page that got *shorter* — it says nothing
+   * when a Prev/Next, a sort, or a filter swaps in a same-sized page of
+   * different rows. Without this, the row highlighted by j/k stays at the
+   * same index and now points at whatever landed there on the new page, so
+   * Enter opens the wrong record and x selects the wrong one.
+   */
+  resetKey?: string | number;
 }
 
 export function useGridKeys({
@@ -42,6 +52,7 @@ export function useGridKeys({
   onEscape,
   searchRef,
   enabled = true,
+  resetKey,
 }: Options) {
   /** -1 means nothing is focused, which is where every page starts. */
   const [focusIndex, setFocusIndexState] = useState(-1);
@@ -144,6 +155,15 @@ export function useGridKeys({
   useEffect(() => {
     if (focusRef.current >= count) setFocusIndex(count - 1);
   }, [count, setFocusIndex]);
+
+  // A same-sized page of different rows must not keep the old row focused.
+  const resetKeyRef = useRef(resetKey);
+  useEffect(() => {
+    if (resetKeyRef.current !== resetKey) {
+      resetKeyRef.current = resetKey;
+      setFocusIndex(-1);
+    }
+  }, [resetKey, setFocusIndex]);
 
   return { focusIndex, setFocusIndex };
 }

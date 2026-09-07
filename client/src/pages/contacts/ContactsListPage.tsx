@@ -1102,6 +1102,10 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     count: contacts.length,
     searchRef,
     enabled: !isLoading,
+    // Same length, different rows (Prev/Next, a sort, a filter) must drop
+    // the focused row rather than leave it pointing at whatever landed at
+    // that index on the new page.
+    resetKey: contacts.map((c: any) => c.id).join(','),
     onOpen: (i) => { const c = contacts[i]; if (c) navigate(`/contacts/${c.id}`); },
     onToggleSelect: (i) => { const c = contacts[i]; if (c) toggleSelectContact(c.id); },
     onSelectAll: () => toggleSelectAll(),

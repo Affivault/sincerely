@@ -73,12 +73,23 @@ export const triageService = {
 
     const email = counterparty(message);
 
+    if (!['interested', 'later', 'not_interested'].includes(decision)) {
+      throw new AppError(`Unknown decision "${decision}"`, 400);
+    }
+
     /*
      * Already decided? Say so rather than doing it twice.
      *
      * Two people on one inbox, or a double-press on a slow connection, would
      * otherwise make two leads or suppress somebody who had been marked
-     * interested a second earlier.
+     * interested a second earlier. Checking `message.triage_decision` here
+     * is only the fast path for the common case - it was read before either
+     * request did any work, so two concurrent requests both see it as null
+     * and both would fall through. The claim below is what actually makes
+     * this safe: it is a single conditional UPDATE, so only one of two
+     * simultaneous requests can flip `triage_decision` from null to a
+     * value, and the loser sees 0 rows affected rather than a lead made
+     * twice or a person suppressed a second after being marked interested.
      */
     if (message.triage_decision) {
       return {
@@ -87,40 +98,61 @@ export const triageService = {
       };
     }
 
+    const { data: claimed } = await supabaseAdmin
+      .from('inbox_messages')
+      .update({ triage_decision: decision, triaged_at: new Date().toISOString(), triaged_by: userId })
+      .eq('id', message.id)
+      .eq('user_id', userId)
+      .is('triage_decision', null)
+      .select('id')
+      .maybeSingle();
+
+    if (!claimed) {
+      const { data: current } = await supabaseAdmin
+        .from('inbox_messages')
+        .select('triage_decision')
+        .eq('id', message.id)
+        .eq('user_id', userId)
+        .maybeSingle();
+      const already = current?.triage_decision || decision;
+      return {
+        decision: already,
+        message: `Already triaged as "${String(already).replace('_', ' ')}"`,
+      };
+    }
+
     let result: TriageResult;
-    switch (decision) {
-      case 'interested':
-        result = await this.markInterested(userId, message, email, input);
-        break;
-      case 'later':
-        result = await this.markLater(userId, message, email, input);
-        break;
-      case 'not_interested':
-        result = await this.markNotInterested(userId, message, email, input);
-        break;
-      default:
-        throw new AppError(`Unknown decision "${decision}"`, 400);
+    try {
+      switch (decision) {
+        case 'interested':
+          result = await this.markInterested(userId, message, email, input);
+          break;
+        case 'later':
+          result = await this.markLater(userId, message, email, input);
+          break;
+        case 'not_interested':
+          result = await this.markNotInterested(userId, message, email, input);
+          break;
+      }
+    } catch (err) {
+      // The claim already landed; a failed side effect must release it so
+      // the reply is not stuck looking "triaged" with nothing to show for it.
+      await supabaseAdmin
+        .from('inbox_messages')
+        .update({ triage_decision: null, triaged_at: null, triaged_by: null })
+        .eq('id', message.id)
+        .eq('user_id', userId);
+      throw err;
     }
 
     /*
-     * Remember it, or none of this is a feature.
-     *
-     * Without this the decision lives in a component's state: reload and the
-     * thread is back at the start offering to be decided again, and there is
-     * no way to ask "what have I not dealt with yet" - which is the only
-     * question an inbox queue exists to answer.
-     *
      * The reference is what makes undo exact rather than a guess from
-     * timestamps about which lead to remove.
+     * timestamps about which lead to remove. Decision, timestamp and actor
+     * are already on the row from the claim above.
      */
     await supabaseAdmin
       .from('inbox_messages')
-      .update({
-        triage_decision: decision,
-        triaged_at: new Date().toISOString(),
-        triaged_by: userId,
-        triage_ref: result.lead_id || result.task_id || null,
-      })
+      .update({ triage_ref: result.lead_id || result.task_id || null })
       .eq('id', message.id)
       .eq('user_id', userId);
 

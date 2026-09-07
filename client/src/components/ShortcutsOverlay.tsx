@@ -60,6 +60,17 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
       { keys: ['D'], label: 'Dismiss' },
     ],
   },
+  {
+    // Keys mirror TRIAGE_DECISIONS in shared/src, which is what the
+    // ReplyTriage bar itself binds — kept here by hand since that list
+    // isn't imported by this overlay.
+    title: 'Reply triage',
+    items: [
+      { keys: ['I'], label: 'Interested — create a lead' },
+      { keys: ['L'], label: 'Not now — schedule a follow-up' },
+      { keys: ['N'], label: 'Not interested — suppress' },
+    ],
+  },
 ];
 
 export function ShortcutsOverlay({ open, onClose }: ShortcutsOverlayProps) {
