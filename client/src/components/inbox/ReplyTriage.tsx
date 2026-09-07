@@ -101,9 +101,13 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
 
   const choose = (decision: TriageDecision) => {
     if (decision === 'interested') {
-      // Same guard as the button's `disabled`: a keyboard shortcut must not
-      // be able to fire a decision the button itself refuses to send.
-      if (!contactId) return;
+      // Same guards as the button's `disabled`: a keyboard shortcut must not
+      // be able to fire a decision the button itself refuses to send, and a
+      // second keypress before the first request resolves must not fire a
+      // second one — the mutation has no client-side memory of "already
+      // sent" until `onSuccess` runs, so without this a fast double-tap of
+      // "i" sends two concurrent triage requests for the same message.
+      if (!contactId || triage.isPending) return;
       triage.mutate({ decision });
       return;
     }

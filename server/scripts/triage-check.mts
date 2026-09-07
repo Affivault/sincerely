@@ -352,9 +352,15 @@ console.log('\nthe decision is remembered, or none of this is a feature');
      msg.triage_ref === wrote('leads')[0]?.id, `${msg.triage_ref} vs ${wrote('leads')[0]?.id}`);
   // Scoped to the message: the promotion of the contact's lifecycle is a
   // separate, intended write and counting it here would just be noise.
+  //
+  // Two writes now, not one: the first claims the decision atomically
+  // (`triage_decision` only, `WHERE triage_decision IS NULL`) before the
+  // lead is made, so a second concurrent request sees the claim and backs
+  // off instead of making a second lead; the second records the reference
+  // once the lead exists. Neither write ever touches more than this one row.
   const msgUpdates = world.updated.filter((u: any) => u.table === 'inbox_messages');
-  is('exactly one message row was updated, not the whole table',
-     msgUpdates.length === 1 && msgUpdates[0].rows === 1, JSON.stringify(world.updated));
+  is('every message-table write touched this one row, never the whole table',
+     msgUpdates.length === 2 && msgUpdates.every((u: any) => u.rows === 1), JSON.stringify(world.updated));
 }
 
 console.log('\ndeciding twice does not act twice');
