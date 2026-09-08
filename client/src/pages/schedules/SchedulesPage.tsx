@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { CalendarClock, Moon, Plus, Star, Trash2, Pencil, X, Check } from 'lucide-react';
@@ -25,6 +25,32 @@ const TIMEZONES = [
   'America/Chicago', 'Asia/Tokyo', 'Australia/Sydney', 'Europe/Paris',
 ];
 
+/** Weekday + HH:MM in a given IANA zone, for the "is this schedule live
+ *  right now" indicator below — a schedule's window means nothing at a
+ *  glance until it's read against the clock it actually runs on. */
+function timePartsInZone(date: Date, timeZone: string): { weekday: string; hhmm: string } | null {
+  try {
+    const fmt = new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', hour: '2-digit', minute: '2-digit', weekday: 'short' });
+    const parts = fmt.formatToParts(date);
+    const weekday = parts.find((p) => p.type === 'weekday')?.value.toLowerCase().slice(0, 3);
+    const hour = parts.find((p) => p.type === 'hour')?.value;
+    const minute = parts.find((p) => p.type === 'minute')?.value;
+    if (!weekday || !hour || !minute) return null;
+    return { weekday, hhmm: `${hour}:${minute}` };
+  } catch {
+    return null;
+  }
+}
+
+function isSendingNow(schedule: SendingSchedule, now: Date): boolean {
+  const parts = timePartsInZone(now, schedule.timezone);
+  if (!parts || !schedule.send_days.includes(parts.weekday)) return false;
+  const { send_window_start: start, send_window_end: end } = schedule;
+  return end < start
+    ? (parts.hhmm >= start || parts.hhmm <= end) // overnight window wraps past midnight
+    : (parts.hhmm >= start && parts.hhmm <= end);
+}
+
 export function SchedulesPage() {
   const confirm = useConfirm();
   const qc = useQueryClient();
@@ -35,6 +61,11 @@ export function SchedulesPage() {
 
   const [editing, setEditing] = useState<SendingSchedule | null>(null);
   const [creating, setCreating] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const createMut = useMutation({
     mutationFn: (input: SendingScheduleInput) => sendingSchedulesApi.create(input),
@@ -109,6 +140,7 @@ export function SchedulesPage() {
               <ScheduleCard
                 key={s.id}
                 schedule={s}
+                now={now}
                 onEdit={() => setEditing(s)}
                 onDelete={() => confirm(
                   { title: `Delete "${s.name}"?`, body: 'Campaigns using this schedule fall back to your default sending hours.', tone: 'danger' },
@@ -124,12 +156,15 @@ export function SchedulesPage() {
   );
 }
 
-function ScheduleCard({ schedule, onEdit, onDelete, onMakeDefault }: {
+function ScheduleCard({ schedule, now, onEdit, onDelete, onMakeDefault }: {
   schedule: SendingSchedule;
+  now: Date;
   onEdit: () => void;
   onDelete: () => void;
   onMakeDefault: () => void;
 }) {
+  const parts = timePartsInZone(now, schedule.timezone);
+  const active = isSendingNow(schedule, now);
   return (
     <div className="card card-hover relative overflow-hidden p-4">
       <span className={cn('absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full', schedule.is_default ? 'bg-[var(--indigo)]' : 'bg-slate-300')} />
@@ -140,6 +175,18 @@ function ScheduleCard({ schedule, onEdit, onDelete, onMakeDefault }: {
             {schedule.is_default && (
               <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-medium bg-[var(--indigo-subtle)] text-[var(--indigo)]">
                 <Star className="h-2.5 w-2.5 fill-current" /> Default
+              </span>
+            )}
+            {parts && (
+              <span
+                title={active ? 'Within this schedule’s send window right now' : 'Outside this schedule’s send window right now'}
+                className={cn(
+                  'inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-medium',
+                  active ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]',
+                )}
+              >
+                <span className={cn('h-1.5 w-1.5 rounded-full', active ? 'bg-emerald-500' : 'bg-[var(--text-tertiary)]')} />
+                {active ? 'Sending now' : 'Outside window'}
               </span>
             )}
           </div>
@@ -158,6 +205,9 @@ function ScheduleCard({ schedule, onEdit, onDelete, onMakeDefault }: {
             <div>
               <div className="text-[10.5px] text-[var(--text-tertiary)] font-semibold mb-1">Timezone</div>
               <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{schedule.timezone}</div>
+              {parts && (
+                <div className="text-[11px] text-[var(--text-tertiary)] tabular mt-0.5">{parts.hhmm} there now</div>
+              )}
             </div>
             <div>
               <div className="text-[10.5px] text-[var(--text-tertiary)] font-semibold mb-1">Days</div>

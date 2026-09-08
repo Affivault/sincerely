@@ -527,7 +527,15 @@ export function MeetingModal({
 
         <button
           type="button"
-          onClick={() => set('all_day', !form.all_day)}
+          onClick={() => setForm((f) => {
+            const turningOn = !f.all_day;
+            // Switching to all-day must clear the clock time, or the stale
+            // hour/minute (e.g. from a prior specific-time entry) rides along
+            // in starts_at/ends_at and skews day-bucket sorting and reschedule.
+            return turningOn
+              ? { ...f, all_day: true, starts_at: `${f.starts_at.slice(0, 10)}T00:00`, ends_at: '' }
+              : { ...f, all_day: false };
+          })}
           className="inline-flex items-center gap-2 text-[12px] font-medium text-[var(--text-secondary)]"
         >
           <span className={cn('relative inline-flex h-[18px] w-8 items-center rounded-full transition-colors', form.all_day ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]')}>
