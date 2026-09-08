@@ -278,8 +278,11 @@ export function BulkImportPage() {
       } catch (err: any) {
         errors += batch.length;
         const msg = err.response?.data?.error || err.message || 'Network error';
-        for (const c of batch.slice(0, 5)) {
-          errorDetails.push({ email: c.email || '(unknown)', reason: msg });
+        if (errorDetails.length < 200) {
+          for (const c of batch.slice(0, 5)) {
+            if (errorDetails.length >= 200) break;
+            errorDetails.push({ email: c.email || '(unknown)', reason: msg });
+          }
         }
       }
       setProgress({
