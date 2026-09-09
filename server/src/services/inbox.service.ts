@@ -345,7 +345,12 @@ export const inboxService = {
     }
 
     if (params.search) {
-      const safeSearch = params.search.replace(/[%_]/g, '');
+      // Strip characters that would otherwise break out of the ilike/or
+      // filter below — a search term containing a comma or parenthesis
+      // would splice extra predicates into the .or() and either malform the
+      // request or match unintended rows. Same set search.service.ts's
+      // safe() strips for the same reason.
+      const safeSearch = params.search.replace(/[%_,()\\]/g, '').trim();
       if (safeSearch) {
         query = query.or(
           `subject.ilike.%${safeSearch}%,from_email.ilike.%${safeSearch}%,body_text.ilike.%${safeSearch}%`

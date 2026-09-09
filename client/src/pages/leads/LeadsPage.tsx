@@ -17,7 +17,7 @@ import { SearchInput } from '../../components/shared/SearchInput';
 import { usePeek } from '../../components/peek/usePeek';
 import { cn } from '../../lib/utils';
 import {
-  Archive, ArrowRight, Briefcase, Clock, Inbox, RotateCcw, Sparkles, Trash2,
+  Archive, ArrowRight, Briefcase, Clock, Download, Inbox, RotateCcw, Sparkles, Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -61,6 +61,28 @@ function personName(lead: Lead): string {
   const c = lead.contact;
   if (!c) return lead.title;
   return [c.first_name, c.last_name].filter(Boolean).join(' ') || c.email;
+}
+
+function csvCell(v: string | number | null | undefined): string {
+  const s = v == null ? '' : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Export the given leads as a CSV file the browser downloads directly — no server round-trip. */
+function exportLeadsCsv(leads: Lead[]) {
+  const header = ['Title', 'Person', 'Email', 'Company', 'Status', 'Label', 'Value', 'Currency', 'Source', 'Created', 'Archived reason'];
+  const rows = leads.map((l) => [
+    l.title, personName(l), l.contact?.email, l.company, l.status, l.label,
+    l.value ?? '', l.currency, l.source, l.created_at?.slice(0, 10), l.archived_reason,
+  ].map(csvCell).join(','));
+  const csv = [header.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /* ── Qualifying ───────────────────────────────────────────────────────── */
@@ -237,6 +259,16 @@ export function LeadsPage() {
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
           <SearchInput value={query} onChange={setQuery} placeholder="Search leads…" className="hidden w-56 sm:block" />
+          {visible.length > 0 && (
+            <button
+              type="button"
+              onClick={() => exportLeadsCsv(visible)}
+              className="btn-secondary"
+              title="Export the leads shown below as a CSV file"
+            >
+              <Download className="h-3.5 w-3.5" /> Export CSV
+            </button>
+          )}
         </div>
       </div>
 
