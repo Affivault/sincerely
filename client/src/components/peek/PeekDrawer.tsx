@@ -570,9 +570,23 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
 export function PeekDrawer() {
   const { target, closePeek } = usePeek();
   const identity = useRef({});
+  // usePeek() derives `target` and `closePeek` from useSearchParams(), so
+  // both get a new identity whenever the URL's search params change for
+  // *any* reason — not just a peek opening or closing. Keeping either in
+  // this effect's deps would tear it down and rebuild it on that unrelated
+  // change, popping this drawer off `openModals` and pushing it back on
+  // top — silently jumping it back above a Modal or confirm dialog opened
+  // from inside it (e.g. ContactHistory's activity/meeting/delete dialogs),
+  // so Escape closes the drawer instead of that dialog and discards its
+  // unsaved state. Same failure Modal.tsx documents and avoids the same way:
+  // route the callback through a ref and depend only on whether a peek is
+  // open, keyed by the record it targets.
+  const closePeekRef = useRef(closePeek);
+  closePeekRef.current = closePeek;
+  const targetKey = target ? `${target.type}:${target.id}` : null;
 
   useEffect(() => {
-    if (!target) return;
+    if (!targetKey) return;
     // Join the same overlay stack Modal uses, so Escape closes only the
     // topmost layer: a Modal or confirm dialog opened from inside this
     // drawer (e.g. ContactHistory's activity/meeting/delete dialogs) takes
@@ -582,7 +596,7 @@ export function PeekDrawer() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (openModals[openModals.length - 1] !== self) return;
-      closePeek();
+      closePeekRef.current();
     };
     document.addEventListener('keydown', onKey);
     const original = document.body.style.overflow;
@@ -593,7 +607,7 @@ export function PeekDrawer() {
       if (at !== -1) openModals.splice(at, 1);
       if (openModals.length === 0) document.body.style.overflow = original;
     };
-  }, [target, closePeek]);
+  }, [targetKey]);
 
   if (!target) return null;
 
