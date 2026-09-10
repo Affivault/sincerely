@@ -20,6 +20,7 @@ import { ReplyTriage } from '../../components/inbox/ReplyTriage';
 import { TriageQuestion } from '../../components/inbox/TriageQuestion';
 import { usePeek } from '../../components/peek/usePeek';
 import { cn } from '../../lib/utils';
+import { acceptsShortcut } from '../../lib/keyboard';
 import toast from 'react-hot-toast';
 import { MailHistoryPanel } from '../../components/inbox/MailHistoryPanel';
 import { ReplyActions } from '../../components/inbox/ReplyActions';
@@ -2276,9 +2277,10 @@ export function InboxPage() {
   /* ── Keyboard shortcuts ── */
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Skip when typing in a form element or editable content
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
+      // Skip when typing, in an editable field, or a dialog is open (e.g.
+      // the "mark all read" confirm) — a bare key must not leak through to a
+      // background action while a modal has focus.
+      if (!acceptsShortcut(e.target)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === 'c' && !showCompose && !replyMode) {
         setShowCompose(true);
@@ -2364,6 +2366,31 @@ export function InboxPage() {
     },
   });
 
+  // A single archive/unarchive toggle has a true inverse — the counterpart
+  // mutation — so it gets a real Undo instead of "hope you didn't mean that",
+  // matching the pattern useUndoable offers bulk actions elsewhere.
+  const showUndoToast = useCallback((label: string, onUndo: () => void) => {
+    toast.custom(
+      (t) => (
+        <div
+          className={`flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-2.5 shadow-[var(--shadow-lg)] ${
+            t.visible ? 'animate-in fade-in slide-in-from-bottom-2' : 'opacity-0'
+          }`}
+        >
+          <span className="text-[12.5px] font-medium text-[var(--text-primary)]">{label}</span>
+          <button
+            type="button"
+            onClick={() => { toast.dismiss(t.id); onUndo(); }}
+            className="flex-shrink-0 rounded-lg px-2 py-1 text-[12px] font-bold text-[var(--indigo)] transition-colors hover:bg-[var(--indigo-subtle)]"
+          >
+            Undo
+          </button>
+        </div>
+      ),
+      { duration: 8000 },
+    );
+  }, []);
+
   const archiveMut = useMutation({
     mutationFn: ({ id }: { id: string; contactEmail: string | null }) => inboxApi.archiveThread(id),
     onMutate: async ({ contactEmail }: { id: string; contactEmail: string | null }) => {
@@ -2384,9 +2411,9 @@ export function InboxPage() {
       if (context?.prevData) qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit], context.prevData);
       toast.error('Failed to archive');
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       invalidate();
-      toast.success('Archived');
+      showUndoToast('Archived', () => unarchiveMut.mutate(variables));
     },
   });
 
@@ -2410,9 +2437,9 @@ export function InboxPage() {
       if (context?.prevData) qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit], context.prevData);
       toast.error('Failed to unarchive');
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       invalidate();
-      toast.success('Moved to Inbox');
+      showUndoToast('Moved to Inbox', () => archiveMut.mutate(variables));
     },
   });
 
@@ -2740,8 +2767,7 @@ export function InboxPage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'j' && e.key !== 'k') return;
       if (showCompose || replyMode) return;
-      const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+      if (!acceptsShortcut(e.target)) return;
       e.preventDefault();
       // Navigate within the currently displayed (filtered) list, not the raw list —
       // same reasoning as handleArchiveToggle: never jump to a conversation outside
@@ -2763,8 +2789,7 @@ export function InboxPage() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!currentMsg || showCompose || replyMode) return;
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
+      if (!acceptsShortcut(e.target)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === 'r') {
         setReplyMode('reply');

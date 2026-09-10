@@ -266,7 +266,11 @@ async function connectImap(account: any): Promise<any | null> {
   const connectTimeout = new Promise<never>((_, reject) => {
     connectTimeoutId = setTimeout(() => reject(new Error('connect timeout')), 12000);
   });
-  await Promise.race([client.connect(), connectTimeout]).finally(() => clearTimeout(connectTimeoutId));
+  const connectPromise = client.connect();
+  // Swallow a late rejection if the timeout wins the race below — otherwise
+  // it surfaces as an unhandled rejection and can crash the process.
+  connectPromise.catch(() => {});
+  await Promise.race([connectPromise, connectTimeout]).finally(() => clearTimeout(connectTimeoutId));
   return client;
 }
 
