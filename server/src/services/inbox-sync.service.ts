@@ -579,8 +579,15 @@ export const inboxSyncService = {
         });
 
         let connectTimeoutId: ReturnType<typeof setTimeout>;
+        const connectPromise = client.connect();
+        // If the timeout below wins the race, this promise keeps running in the
+        // background and can reject later (late ECONNRESET/TLS failure) with
+        // nothing attached to observe it — an unhandled rejection that crashes
+        // the whole process. Swallow a late rejection now; Promise.race still
+        // reads whichever settles first.
+        connectPromise.catch(() => {});
         await Promise.race([
-          client.connect(),
+          connectPromise,
           new Promise<never>((_, reject) => {
             connectTimeoutId = setTimeout(() => reject(new Error('IMAP connection timed out')), CONNECT_TIMEOUT_MS);
           }),

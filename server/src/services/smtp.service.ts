@@ -33,7 +33,11 @@ async function verifyImapLogin(opts: { host: string; port: number; secure: boole
   try {
     let timer: ReturnType<typeof setTimeout>;
     const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('IMAP connect timed out')), 12000); });
-    await Promise.race([client.connect(), timeout]).finally(() => clearTimeout(timer!));
+    const connectPromise = client.connect();
+    // Swallow a late rejection if the timeout wins the race below — otherwise
+    // it surfaces as an unhandled rejection and can crash the process.
+    connectPromise.catch(() => {});
+    await Promise.race([connectPromise, timeout]).finally(() => clearTimeout(timer!));
     await client.logout().catch(() => {});
     return { ok: true, status: 'ok', message: 'IMAP works — replies will sync into the unibox.' };
   } catch (err: any) {

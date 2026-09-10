@@ -251,19 +251,43 @@ export function spin(text: string, seed: string): string {
   return out;
 }
 
-/** Every wording a template can produce, for the editor's variation count. */
+/**
+ * Every wording a template can produce, for the editor's variation count.
+ *
+ * A group's options are exclusive choices (sum their variant counts); a
+ * group sitting inside another's option only matters if that branch is the
+ * one picked, so it can't be multiplied in independently of its siblings -
+ * `{Hi|{Hey|Hello}}` produces 3 wordings ("Hi", "Hey", "Hello"), not 4.
+ * Collapse innermost-out as before, but track each collapsed group's own
+ * count behind a placeholder token instead of a fixed first-option string,
+ * so an outer group that contains it sums the real branch counts.
+ */
 export function countSpinVariants(text: string): number {
   if (!text) return 1;
-  let total = 1;
+  // NUL-delimited so a collapsed group's placeholder token can never
+  // collide with a literal digit sequence the copy itself contains.
+  const NUL = String.fromCharCode(0);
+  const TOKEN_PATTERN = new RegExp(NUL + '(\\d+)' + NUL, 'g');
+  const counts = new Map<number, number>();
+  const productOfTokens = (segment: string): number => {
+    let product = 1;
+    for (const m of segment.matchAll(TOKEN_PATTERN)) product *= counts.get(Number(m[1])) ?? 1;
+    return product;
+  };
   let out = text;
+  let nextToken = 0;
   for (let guard = 0; guard < 500; guard++) {
     const match = SPIN_PATTERN.exec(out);
     if (!match) break;
-    total *= match[1].split('|').length;
-    if (total > 1e6) return 1e6;
-    out = out.slice(0, match.index) + match[1].split('|')[0] + out.slice(match.index + match[0].length);
+    const groupCount = Math.min(
+      match[1].split('|').reduce((sum, opt) => sum + productOfTokens(opt), 0),
+      1e6,
+    );
+    const id = nextToken++;
+    counts.set(id, groupCount);
+    out = out.slice(0, match.index) + NUL + id + NUL + out.slice(match.index + match[0].length);
   }
-  return total;
+  return Math.min(productOfTokens(out), 1e6);
 }
 
 /**
@@ -325,6 +349,10 @@ export function previewPersonalization(
     contact: SAMPLE_PREVIEW_CONTACT,
     sender: opts?.sender ?? SAMPLE_PREVIEW_SENDER,
     spinSeed: opts?.spinSeed ?? 'preview',
+    // Leave {{unsubscribe_link}} braces in place so the .replace() below can
+    // still find them — otherwise renderMergeTags already blanks the tag
+    // (no value for it here) and the placeholder URL never gets a chance.
+    defer: LINK_TAGS,
   }).replace(/\{\{\s*unsubscribe_link\s*\}\}/gi, 'https://example.com/unsubscribe/preview');
 }
 
