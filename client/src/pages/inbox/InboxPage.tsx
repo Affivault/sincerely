@@ -2465,7 +2465,10 @@ export function InboxPage() {
       qc.invalidateQueries({ queryKey: ['inbox', 'scheduled'] });
       toast.success('Scheduled email cancelled');
     },
-    onError: () => toast.error('Failed to cancel scheduled email'),
+    onError: (err: any) => {
+      qc.invalidateQueries({ queryKey: ['inbox', 'scheduled'] });
+      toast.error(err.response?.data?.error || 'Failed to cancel scheduled email');
+    },
   });
 
   const rescheduleMut = useMutation({
@@ -2476,7 +2479,10 @@ export function InboxPage() {
       const dt = new Date(data.scheduled_at);
       toast.success(`Moved to ${dt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`);
     },
-    onError: () => toast.error('Failed to reschedule that email'),
+    onError: (err: any) => {
+      qc.invalidateQueries({ queryKey: ['inbox', 'scheduled'] });
+      toast.error(err.response?.data?.error || 'Failed to reschedule that email');
+    },
   });
 
   /* ── Handlers ── */
