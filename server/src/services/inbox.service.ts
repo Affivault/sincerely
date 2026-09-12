@@ -287,10 +287,13 @@ export const inboxService = {
       .eq('user_id', userId);
 
     // Every message to/from a specific contact (both directions, all folders) —
-    // powers the "all past emails" view on the contact page.
+    // powers the "all past emails" view on the contact page. Case-insensitive
+    // ilike (not a stripped .eq()): stored envelope addresses keep whatever
+    // casing the mail server sent, while contact.email is lowercased on save.
     if (params.contact_email) {
-      const e = params.contact_email.replace(/[%_,()]/g, '');
-      query = query.or(`from_email.eq.${e},to_email.eq.${e}`);
+      const pattern = params.contact_email.trim().replace(/([%_\\])/g, '\\$1');
+      const e = `"${pattern.replace(/"/g, '""')}"`;
+      query = query.or(`from_email.ilike.${e},to_email.ilike.${e}`);
     }
 
     // Folder-based filtering (skipped when scoped to a contact)
