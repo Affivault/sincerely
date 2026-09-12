@@ -396,7 +396,12 @@ export function DashboardPage() {
     return [7, 30, 90].includes(saved) ? saved : 30;
   });
   const [metric, setMetric] = useState<MetricKey>('sent');
-  const [smtpBannerDismissed, setSmtpBannerDismissed] = useState(false);
+  // Keyed to *which* accounts are unhealthy, not a plain boolean: a dismissal
+  // survives navigation/reloads but reappears the moment the unhealthy set
+  // changes (a newly-degraded account, or a recovered one being replaced).
+  const [dismissedSmtpKey, setDismissedSmtpKey] = useState<string | null>(() => {
+    try { return localStorage.getItem('dashboard.smtpBannerDismissed'); } catch { return null; }
+  });
 
   const setPeriodPersist = (p: number) => { setPeriod(p); try { localStorage.setItem('dashboard.period', String(p)); } catch { /* ignore */ } };
 
@@ -457,6 +462,12 @@ export function DashboardPage() {
 
   const unhealthySmtpAccounts = (smtpAccounts || [])
     .filter((a) => a.is_active && a.health_score < SMTP_HEALTH_THRESHOLD);
+  const unhealthySmtpKey = unhealthySmtpAccounts.map((a) => a.id).sort().join(',');
+  const smtpBannerDismissed = unhealthySmtpKey !== '' && dismissedSmtpKey === unhealthySmtpKey;
+  const dismissSmtpBanner = () => {
+    setDismissedSmtpKey(unhealthySmtpKey);
+    try { localStorage.setItem('dashboard.smtpBannerDismissed', unhealthySmtpKey); } catch { /* ignore */ }
+  };
 
   const s = analytics || {
     total_campaigns: 0, active_campaigns: 0, total_contacts: 0,
@@ -537,9 +548,9 @@ export function DashboardPage() {
           <Head
             title="Needs attention"
             desc="Everything waiting on you, in one queue"
-            action={allClear && !unhealthySmtpAccounts.length ? undefined : <MoreLink to="/inbox" label="Open unibox" />}
+            action={allClear && (smtpBannerDismissed || !unhealthySmtpAccounts.length) ? undefined : <MoreLink to="/inbox" label="Open unibox" />}
           />
-          {allClear && unhealthySmtpAccounts.length === 0 ? (
+          {allClear && (smtpBannerDismissed || unhealthySmtpAccounts.length === 0) ? (
             <div className="flex items-center gap-2.5 px-4 py-8 justify-center">
               <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" strokeWidth={2} />
               <span className="text-[13px] text-[var(--text-secondary)]">All clear — nothing waiting on you right now.</span>
@@ -566,7 +577,7 @@ export function DashboardPage() {
                   sub={unhealthySmtpAccounts.map((a) => a.label || a.email_address).join(', ')}
                   to="/email-accounts"
                   tone="warn"
-                  onDismiss={() => setSmtpBannerDismissed(true)}
+                  onDismiss={dismissSmtpBanner}
                 />
               )}
             </div>
