@@ -51,6 +51,24 @@ function isSendingNow(schedule: SendingSchedule, now: Date): boolean {
     : (parts.hhmm >= start && parts.hhmm <= end);
 }
 
+/** What actually happens on delete — matches the server, which promotes the
+ *  oldest remaining schedule to default rather than leaving the account with
+ *  none (deleting a non-default schedule never changes the default). The old
+ *  copy here claimed every deletion "falls back to your default sending
+ *  hours," which was backwards for the one case that matters most: deleting
+ *  the default itself. */
+function deleteWarning(target: SendingSchedule, all: SendingSchedule[]): string {
+  if (!target.is_default) {
+    return 'Campaigns using this schedule fall back to your default sending hours.';
+  }
+  const next = all
+    .filter((s) => s.id !== target.id)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
+  return next
+    ? `This is your default schedule. Deleting it will make "${next.name}" the new default.`
+    : 'This is your only schedule. Deleting it leaves campaigns on the hard-coded default window (09:00-17:00 UTC) until you create a new one.';
+}
+
 export function SchedulesPage() {
   const confirm = useConfirm();
   const qc = useQueryClient();
@@ -143,7 +161,7 @@ export function SchedulesPage() {
                 now={now}
                 onEdit={() => setEditing(s)}
                 onDelete={() => confirm(
-                  { title: `Delete "${s.name}"?`, body: 'Campaigns using this schedule fall back to your default sending hours.', tone: 'danger' },
+                  { title: `Delete "${s.name}"?`, body: deleteWarning(s, schedules), tone: 'danger' },
                   () => deleteMut.mutate(s.id),
                 )}
                 onMakeDefault={() => updateMut.mutate({ id: s.id, input: { is_default: true } })}

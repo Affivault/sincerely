@@ -173,6 +173,14 @@ export function QuickCompose({
           onChange={body.handleChange}
           templates={templates as any}
           minHeight="120px"
+          // This panel can be open at the same time as the Unibox's reply
+          // composer (e.g. via a Peek opened from a linked deal) or a
+          // campaign/template editor (Peek is mounted app-wide). Those pages
+          // broadcast AI-draft and personalization-tag inserts as plain
+          // window events with no addressee, so without this a message being
+          // written here to a completely different person gets silently
+          // overwritten by whatever the other editor just inserted.
+          globalInserts={false}
         />
       </div>
 

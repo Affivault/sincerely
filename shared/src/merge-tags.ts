@@ -251,19 +251,63 @@ export function spin(text: string, seed: string): string {
   return out;
 }
 
-/** Every wording a template can produce, for the editor's variation count. */
+/**
+ * Every wording a template can produce, for the editor's variation count.
+ *
+ * Sibling groups multiply — `{Hi|Hey} {there|friend}` really is 2 * 2 = 4
+ * combinations, since each is chosen independently. But a *nested* group is
+ * not a sibling: `{Hi|{Hey|Hello}}` is one choice with three outcomes ("Hi",
+ * "Hey", "Hello"), not a 2-way choice times a 2-way choice. Multiplying group
+ * sizes as each is collapsed inside-out — the way this used to work, and the
+ * way `spin()` still resolves a chosen wording — overcounts nested spintax:
+ * it reported 4 for `{Hi|{Hey|Hello}} there`, a template `spin()` itself can
+ * only ever turn into one of 3 distinct strings. Inflating the number shown
+ * to a sender is exactly backwards for a stat whose purpose is warning them
+ * how identical their sends will look to a spam filter.
+ *
+ * So each innermost group is collapsed into a placeholder carrying its own
+ * *summed* variant count (one option contributes 1, unless it embeds an
+ * already-collapsed group, in which case it contributes that group's count)
+ * rather than the literal text `spin()` would have picked. The placeholder
+ * uses a NUL byte, which cannot appear in a template a person typed, so it
+ * can never collide with real content.
+ */
 export function countSpinVariants(text: string): number {
   if (!text) return 1;
-  let total = 1;
+
+  const CAP = 1_000_000;
+  const weights = new Map<string, number>();
+  const PLACEHOLDER = /\u0000(\d+)\u0000/g;
+
+  // The number of distinct outputs `segment` (an option's text, or the
+  // whole resolved template) can produce, given what its embedded
+  // placeholders are already known to be worth.
+  const weightOf = (segment: string): number => {
+    let w = 1;
+    for (const m of segment.matchAll(PLACEHOLDER)) {
+      w *= weights.get(m[1]) ?? 1;
+      if (w >= CAP) return CAP;
+    }
+    return w;
+  };
+
   let out = text;
+  let nextId = 0;
+  // Bounded: each pass removes one group, and a template with more than a
+  // few hundred is a runaway, not a legitimate one.
   for (let guard = 0; guard < 500; guard++) {
     const match = SPIN_PATTERN.exec(out);
     if (!match) break;
-    total *= match[1].split('|').length;
-    if (total > 1e6) return 1e6;
-    out = out.slice(0, match.index) + match[1].split('|')[0] + out.slice(match.index + match[0].length);
+    let groupTotal = 0;
+    for (const option of match[1].split('|')) {
+      groupTotal += weightOf(option);
+      if (groupTotal >= CAP) { groupTotal = CAP; break; }
+    }
+    const id = String(nextId++);
+    weights.set(id, groupTotal);
+    out = out.slice(0, match.index) + `\u0000${id}\u0000` + out.slice(match.index + match[0].length);
   }
-  return total;
+  return Math.min(weightOf(out), CAP);
 }
 
 /**
