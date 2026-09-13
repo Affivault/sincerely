@@ -38,19 +38,25 @@ export const sseController = {
         return;
       }
       await campaignsService.assertOwnership(req.userId!, req.params.campaignId);
-      if (account_ids.length > 0) {
+      // De-duplicated before the ownership count check: `.in()` matches each
+      // distinct id once, so a body listing the same account twice (a
+      // double-submitted checkbox, a client-side merge bug) made `count` come
+      // back lower than `account_ids.length` and this rejected a perfectly
+      // valid, fully-owned pool with a false "not found".
+      const uniqueAccountIds = [...new Set(account_ids)];
+      if (uniqueAccountIds.length > 0) {
         const { count, error } = await supabaseAdmin
           .from('smtp_accounts')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', req.userId!)
-          .in('id', account_ids);
+          .in('id', uniqueAccountIds);
         if (error) throw error;
-        if ((count || 0) !== account_ids.length) {
+        if ((count || 0) !== uniqueAccountIds.length) {
           res.status(404).json({ error: 'One or more SMTP accounts not found' });
           return;
         }
       }
-      await sseService.setCampaignPool(req.params.campaignId, account_ids);
+      await sseService.setCampaignPool(req.params.campaignId, uniqueAccountIds);
       res.status(204).send();
     } catch (err) { next(err); }
   },
