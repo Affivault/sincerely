@@ -127,6 +127,7 @@ export function ContactDetailPage() {
       toast.success('Contact deleted');
       navigate('/contacts');
     },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Failed to delete contact'),
   });
 
   const addToListMutation = useMutation({
@@ -346,7 +347,8 @@ export function ContactDetailPage() {
               { title: 'Delete this contact?', body: 'Their notes, activity and place in every campaign go with them.', tone: 'danger' },
               () => deleteMutation.mutate(),
             )}
-            className="icon-btn hover:text-rose-500 hover:bg-rose-500/10 flex-shrink-0"
+            disabled={deleteMutation.isPending}
+            className="icon-btn hover:text-rose-500 hover:bg-rose-500/10 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Delete contact"
           >
             <Trash2 className="h-3.5 w-3.5" />

@@ -325,6 +325,7 @@ export function previewPersonalization(
     contact: SAMPLE_PREVIEW_CONTACT,
     sender: opts?.sender ?? SAMPLE_PREVIEW_SENDER,
     spinSeed: opts?.spinSeed ?? 'preview',
+    defer: LINK_TAGS,
   }).replace(/\{\{\s*unsubscribe_link\s*\}\}/gi, 'https://example.com/unsubscribe/preview');
 }
 

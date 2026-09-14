@@ -124,10 +124,12 @@ export const campaignHealthService = {
       supabaseAdmin.from('campaign_contacts').select('*', { count: 'exact', head: true })
         .eq('campaign_id', campaignId).in('status', ['pending', 'active']),
       supabaseAdmin.from('campaign_activities').select('*', { count: 'exact', head: true })
-        .eq('campaign_id', campaignId).eq('activity_type', 'sent').gte('created_at', since),
+        .eq('campaign_id', campaignId).eq('activity_type', 'sent').gte('occurred_at', since),
       supabaseAdmin.from('sending_domains').select('domain, spf_ok, dkim_ok').eq('user_id', userId),
       bounceGuard.assessCampaign(userId, campaignId).catch(() => null),
     ]);
+
+    if (sentRes.error) throw new AppError(sentRes.error.message, 500);
 
     const pending = pendingRes.count || 0;
     const errored = erroredRes.count || 0;

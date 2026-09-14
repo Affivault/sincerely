@@ -100,13 +100,16 @@ export const sendingSchedulesService = {
       if (swapError) throw new AppError(swapError.message, 500);
       data.is_default = true;
     } else if (is_default === false) {
-      const { error: unsetError } = await supabaseAdmin
-        .from('sending_schedules')
-        .update({ is_default: false })
-        .eq('id', id)
-        .eq('user_id', userId);
-      if (unsetError) throw new AppError(unsetError.message, 500);
-      data.is_default = false;
+      // A schedule can only stop being default by another one taking its
+      // place (see `set_default_sending_schedule`, migration 061) — turning
+      // this flag off on its own would leave the account with zero
+      // defaults, the exact bug that RPC exists to prevent.
+      if (data.is_default) {
+        throw new AppError(
+          'Cannot unset the default schedule directly — set a different schedule as default instead',
+          409,
+        );
+      }
     }
     return data;
   },
