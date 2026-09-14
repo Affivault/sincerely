@@ -528,18 +528,29 @@ export const templateService = {
     });
   },
 
-  async incrementEmailUsage(id: string) {
+  /**
+   * Bump a template's usage counter.
+   *
+   * Takes the owner because it writes. It did not, and nothing called it, so
+   * it was harmless - but an unscoped update sitting in a service is a leak
+   * waiting for its first caller, and the next person to wire it up has no
+   * reason to suspect it. Two cross-tenant holes were found by hand in this
+   * codebase in a fortnight; this is the shape both of them had.
+   */
+  async incrementEmailUsage(userId: string, id: string) {
     try {
       const { data } = await supabaseAdmin
         .from('email_templates')
         .select('usage_count')
         .eq('id', id)
-        .single();
+        .eq('user_id', userId)
+        .maybeSingle();
       if (data) {
         await supabaseAdmin
           .from('email_templates')
           .update({ usage_count: (data.usage_count || 0) + 1 })
-          .eq('id', id);
+          .eq('id', id)
+          .eq('user_id', userId);
       }
     } catch { /* non-critical */ }
   },
