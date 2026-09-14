@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { DEAL_STAGES, type DealStage } from '@lemlist/shared';
+import { OutcomeDialog } from '../crm/OutcomeDialog';
 
 /* ═══════════════════════════════════════════════════════════════════════
    The peek drawer.
@@ -253,12 +254,31 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
   const qc = useQueryClient();
   const { data: deals, isLoading } = useQuery({ queryKey: ['crm', 'deals'], queryFn: () => crmApi.listDeals() });
   const deal = (deals || []).find((d) => d.id === id);
+  // Won/lost need a reason, same as the board's drag and the table's
+  // dropdown — see DealsPage's moveStage for why this funnel exists.
+  const [outcomeStage, setOutcomeStage] = useState<Extract<DealStage, 'won' | 'lost'> | null>(null);
 
   const setStage = useMutation({
     mutationFn: (stage: DealStage) => crmApi.updateDeal(id, { stage }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm'] }); toast.success('Stage updated'); },
     onError: () => toast.error('Could not update the stage'),
   });
+
+  const outcomeMutation = useMutation({
+    mutationFn: ({ stage, reason }: { stage: DealStage; reason: string | null }) =>
+      crmApi.updateDeal(id, { stage, outcome_reason: reason } as any),
+    onSuccess: (_data, { stage }) => {
+      qc.invalidateQueries({ queryKey: ['crm'] });
+      toast.success(stage === 'won' ? 'Marked won' : 'Marked lost');
+    },
+    onError: () => toast.error('Could not update the stage'),
+  });
+
+  const changeStage = (stage: DealStage) => {
+    if (!deal || stage === deal.stage) return;
+    if (stage === 'won' || stage === 'lost') { setOutcomeStage(stage); return; }
+    setStage.mutate(stage);
+  };
 
   const save = async (patch: Record<string, unknown>) => {
     try {
@@ -346,8 +366,8 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
           {DEAL_STAGES.map((s) => (
             <button
               key={s.id}
-              onClick={() => s.id !== deal.stage && setStage.mutate(s.id)}
-              disabled={setStage.isPending}
+              onClick={() => changeStage(s.id)}
+              disabled={setStage.isPending || outcomeMutation.isPending}
               className={cn(
                 'h-7 px-2.5 rounded-lg border text-[12px] font-medium transition-colors disabled:opacity-60',
                 s.id === deal.stage
@@ -359,6 +379,14 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
             </button>
           ))}
         </div>
+        {deal.outcome_reason && (deal.stage === 'won' || deal.stage === 'lost') && (
+          <p className={cn(
+            'mt-2 text-[12px]',
+            deal.stage === 'won' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500',
+          )}>
+            {deal.stage === 'won' ? 'Won because: ' : 'Lost because: '}{deal.outcome_reason}
+          </p>
+        )}
       </div>
 
       <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
@@ -377,6 +405,19 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
         <div className="px-4 py-3">
           <PeekLink contactId={deal.contact_id} label={leadName || 'View the lead'} />
         </div>
+      )}
+
+      {outcomeStage && (
+        <OutcomeDialog
+          deal={deal}
+          stage={outcomeStage}
+          onCancel={() => setOutcomeStage(null)}
+          onConfirm={(reason) => {
+            const stage = outcomeStage;
+            setOutcomeStage(null);
+            outcomeMutation.mutate({ stage, reason });
+          }}
+        />
       )}
     </>
   );

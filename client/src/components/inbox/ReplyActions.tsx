@@ -42,7 +42,13 @@ type Sheet = 'deal' | 'task' | 'note';
 function tomorrow(): string {
   const d = new Date();
   d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  // Build from local date components — toISOString() converts to UTC first,
+  // which shifts the calendar day for anyone behind UTC (see
+  // CampaignCreatePage's toDatetimeLocalValue for the same pitfall).
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /** A subject line, stripped of the Re:/Fwd: it has collected. */

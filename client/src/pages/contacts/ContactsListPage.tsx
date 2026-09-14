@@ -957,6 +957,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       toast.success(editingList ? 'List updated' : 'List created');
       closeListModal();
     },
+    onError: (e: any) => toast.error(e.response?.data?.error || (editingList ? 'Failed to update list' : 'Failed to create list')),
   });
 
   const addToList = (listId: string, listName: string) => {
@@ -984,6 +985,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       setCsvHeaders([]);
       setColumnMapping({});
     },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Import failed'),
   });
 
   const closeCreateModal = () => {
