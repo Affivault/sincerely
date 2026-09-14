@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { crmService } from '../services/crm.service.js';
+import { parseDayWindow } from '../utils/day-window.js';
 
 export const crmController = {
   // Deals
@@ -25,7 +26,7 @@ export const crmController = {
   },
   async insights(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const days = req.query.days !== undefined ? Number(req.query.days) : undefined;
+      const days = parseDayWindow(req.query.days);
       res.json(await crmService.insights(req.userId!, days));
     } catch (err) { next(err); }
   },
