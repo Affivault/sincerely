@@ -676,6 +676,7 @@ export const crmService = {
     if (input.deal_id) await assertOwned(userId, 'deals', input.deal_id, 'Deal');
     if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
     if (input.company_id) await assertOwned(userId, 'companies', input.company_id, 'Company');
+    if (input.event_type_id) await assertOwned(userId, 'calendar_event_types', input.event_type_id, 'Event type');
     await autoLinkContact(userId, input);
     const { data, error } = await supabaseAdmin
       .from('crm_events')
@@ -693,6 +694,7 @@ export const crmService = {
     if (input.type && !EVENT_TYPES.includes(input.type)) throw new AppError('Invalid event type', 400);
     if (input.deal_id) await assertOwned(userId, 'deals', input.deal_id, 'Deal');
     if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
+    if (input.event_type_id) await assertOwned(userId, 'calendar_event_types', input.event_type_id, 'Event type');
     const { data, error } = await supabaseAdmin
       .from('crm_events')
       .update(input)

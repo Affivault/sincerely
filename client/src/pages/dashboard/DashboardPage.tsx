@@ -397,7 +397,12 @@ export function DashboardPage() {
     return [7, 30, 90].includes(saved) ? saved : 30;
   });
   const [metric, setMetric] = useState<MetricKey>('sent');
-  const [smtpBannerDismissed, setSmtpBannerDismissed] = useState(false);
+  // Persisted by which accounts are unhealthy, not just a boolean — so
+  // dismissing today's warning doesn't also hide tomorrow's warning about
+  // a different account, and the dismissal survives navigating away and back.
+  const [dismissedSmtpSignature, setDismissedSmtpSignature] = useState<string | null>(() => {
+    try { return localStorage.getItem('dashboard.smtpBannerDismissed'); } catch { return null; }
+  });
 
   const setPeriodPersist = (p: number) => { setPeriod(p); try { localStorage.setItem('dashboard.period', String(p)); } catch { /* ignore */ } };
 
@@ -458,6 +463,14 @@ export function DashboardPage() {
 
   const unhealthySmtpAccounts = (smtpAccounts || [])
     .filter((a) => a.is_active && a.health_score < SMTP_HEALTH_THRESHOLD);
+  const smtpBannerSignature = unhealthySmtpAccounts.length
+    ? unhealthySmtpAccounts.map((a) => a.id).sort().join(',')
+    : null;
+  const smtpBannerDismissed = smtpBannerSignature !== null && smtpBannerSignature === dismissedSmtpSignature;
+  const dismissSmtpBanner = () => {
+    setDismissedSmtpSignature(smtpBannerSignature);
+    try { if (smtpBannerSignature) localStorage.setItem('dashboard.smtpBannerDismissed', smtpBannerSignature); } catch { /* ignore */ }
+  };
 
   const s = analytics || {
     total_campaigns: 0, active_campaigns: 0, total_contacts: 0,
@@ -567,7 +580,7 @@ export function DashboardPage() {
                   sub={unhealthySmtpAccounts.map((a) => a.label || a.email_address).join(', ')}
                   to="/email-accounts"
                   tone="warn"
-                  onDismiss={() => setSmtpBannerDismissed(true)}
+                  onDismiss={dismissSmtpBanner}
                 />
               )}
             </div>
