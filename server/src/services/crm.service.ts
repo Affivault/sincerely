@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { widenWindowStart } from './calendar.service.js';
 import { resumeAfterTask } from './sequence.service.js';
 import { hasEconomics, totalContractValue } from '@lemlist/shared';
 import { contactIdsOnDeal, promoteToContact, promoteToCustomer } from './lifecycle.service.js';
@@ -35,7 +36,9 @@ const PARTICIPANT_SELECT =
   'id, deal_id, contact_id, role, note, created_at, ' +
   'contact:contacts(id, email, first_name, last_name, company, company_id, job_title, phone, linkedin_url)';
 const TASK_KEYS = ['title', 'due_date', 'priority', 'type', 'all_day', 'deal_id', 'contact_id', 'contact_name', 'notes', 'is_done', 'channel', 'payload', 'target_url'] as const;
-const EVENT_KEYS = ['title', 'type', 'starts_at', 'ends_at', 'all_day', 'contact_id', 'contact_name', 'contact_email', 'location', 'notes', 'outcome', 'deal_id'] as const;
+const EVENT_KEYS = ['title', 'type', 'starts_at', 'ends_at', 'all_day', 'contact_id', 'contact_name', 'contact_email', 'location', 'notes', 'outcome', 'deal_id',
+  // Migration 062: what a calendar needs to draw an event properly.
+  'event_type_id', 'colour', 'status', 'conferencing_url', 'timezone'] as const;
 const NOTE_KEYS = ['body', 'contact_id', 'deal_id', 'pinned'] as const;
 
 const TASK_TYPES = ['todo', 'call', 'meeting', 'email', 'follow_up', 'deadline'];
@@ -650,7 +653,13 @@ export const crmService = {
   /* ── Events (calendar) ── */
   async listEvents(userId: string, from?: string, to?: string, filters?: { contactId?: string; dealId?: string }) {
     let query = supabaseAdmin.from('crm_events').select(EVENT_SELECT).eq('user_id', userId);
-    if (from) query = query.gte('starts_at', from);
+    /*
+     * Widened at the near end. This filters on starts_at, so a meeting that
+     * began at 23:00 on Monday and runs to 01:00 on Tuesday used to be
+     * absent from Tuesday entirely - the grid knows how to clip an event to
+     * the day it is drawing, but never got the row to clip.
+     */
+    if (from) query = query.gte('starts_at', widenWindowStart(from));
     if (to) query = query.lte('starts_at', to);
     if (filters?.contactId) query = query.eq('contact_id', filters.contactId);
     if (filters?.dealId) query = query.eq('deal_id', filters.dealId);
