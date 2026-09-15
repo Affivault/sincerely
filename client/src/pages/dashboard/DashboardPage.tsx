@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { TodayPanel } from '../../components/dashboard/TodayPanel';
 import { analyticsApi, type TrendDataPoint } from '../../api/analytics.api';
 import { inboxApi } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
@@ -573,6 +574,11 @@ export function DashboardPage() {
           )}
         </section>
 
+        {/* The right-hand column carries the two time-critical things: what
+            is happening today, and what has just come in. */}
+        <div className="flex flex-col gap-4">
+        <TodayPanel />
+
         <section className="panel overflow-hidden flex flex-col">
           <Head title="Latest replies" action={<MoreLink to="/inbox" label={unreadReplies > 0 ? `${unreadReplies} new` : 'Open'} />} />
           {recentMessages.length > 0 ? (
@@ -610,6 +616,7 @@ export function DashboardPage() {
             </div>
           )}
         </section>
+        </div>
       </div>
 
       {/* ── Row 2: one performance module — metric strip drives the chart ── */}

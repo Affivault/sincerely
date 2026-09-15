@@ -66,6 +66,7 @@ const ID = {
   integration: 'b0000000-0000-0000-0000-000000000002',
   asset: 'c0000000-0000-0000-0000-000000000001',
   apikey: 'd0000000-0000-0000-0000-000000000001',
+  eventType: 'd0000000-0000-0000-0000-000000000002',
 };
 
 const owned = (id: string, extra: Record<string, any> = {}) => ({
@@ -98,6 +99,7 @@ function freshWorld(): World {
     crm_notes: [owned(ID.note, { deal_id: ID.deal, contact_id: ID.contact, pinned: false })],
     deal_participants: [owned(ID.participant, { deal_id: ID.deal, contact_id: ID.contact, role: 'Champion' })],
     crm_events: [owned('30000000-0000-0000-0000-000000000005', { starts_at: '2026-02-01T00:00:00Z', type: 'meeting' })],
+    calendar_event_types: [owned(ID.eventType, { colour: '#6366f1', duration_minutes: 30, location_kind: 'video', is_default: true, archived_at: null })],
     leads: [owned(ID.lead, { contact_id: ID.contact, status: 'open' })],
     contact_lists: [owned(ID.list, { kind: 'lead' })],
     list_contacts: [owned('50000000-0000-0000-0000-000000000009', { list_id: ID.list, contact_id: ID.contact })],
@@ -267,7 +269,7 @@ function judge(name: string, returned: unknown, threw: unknown) {
 /* ── The methods, called as somebody else ─────────────────────────── */
 
 const [
-  contacts, campaigns, campaignSteps, campaignContacts, crm, leads, lists, companies,
+  contacts, campaigns, campaignSteps, campaignContacts, crm, calendar, leads, lists, companies,
   template, segments, tags, smtp, inbox, triage, webhook, integrations, asset, apikey, settings, suppression,
 ] = await Promise.all([
   import('../src/services/contacts.service.js'),
@@ -275,6 +277,7 @@ const [
   import('../src/services/campaign-steps.service.js'),
   import('../src/services/campaign-contacts.service.js'),
   import('../src/services/crm.service.js'),
+  import('../src/services/calendar.service.js'),
   import('../src/services/leads.service.js'),
   import('../src/services/lists.service.js'),
   import('../src/services/companies.service.js'),
@@ -328,6 +331,7 @@ const tagsService = S(tags, 'tagsService');
 const smtpService = S(smtp, 'smtpService');
 const inboxService = S(inbox, 'inboxService');
 const triageService = S(triage, 'triageService');
+const calendarService = S(calendar, 'calendarService');
 
 const cases: Case[] = [
   // Contacts
@@ -357,6 +361,11 @@ const cases: Case[] = [
   { name: 'crm.updateNote',          on: crmService, method: 'updateNote',       args: [INTRUDER, ID.note, { body: 'x' }] },
   { name: 'crm.deleteNote',          on: crmService, method: 'deleteNote',       args: [INTRUDER, ID.note] },
   { name: 'crm.contactSummary',      on: crmService, method: 'contactSummary',   args: [INTRUDER, ID.contact] },
+
+  // Calendar
+  { name: 'calendar.getType',     on: calendarService, method: 'getType',     args: [INTRUDER, ID.eventType] },
+  { name: 'calendar.updateType',  on: calendarService, method: 'updateType',  args: [INTRUDER, ID.eventType, { name: 'x' }] },
+  { name: 'calendar.archiveType', on: calendarService, method: 'archiveType', args: [INTRUDER, ID.eventType] },
 
   // Leads
   { name: 'leads.update',            on: leadsService, method: 'update',  args: [INTRUDER, ID.lead, { title: 'x' }] },
