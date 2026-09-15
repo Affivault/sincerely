@@ -5,7 +5,7 @@ export interface PaginationParams {
 
 function toInt(value: unknown, fallback: number): number {
   const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
+  return Number.isFinite(n) ? Math.trunc(n) : fallback;
 }
 
 export function getPagination(params: PaginationParams, maxLimit = 100) {
