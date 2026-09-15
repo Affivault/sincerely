@@ -287,7 +287,10 @@ export function TimeGrid({
                   const Icon = LOCATION_ICON[
                     (types.find((t) => t.id === event.event_type_id)?.location_kind ?? 'other') as keyof typeof LOCATION_ICON
                   ] ?? Users;
-                  const short = mins <= 30;
+                  // Under half an hour there is genuinely no room for a
+                  // second line; at exactly 30 there is, and 30 is the most
+                  // common meeting length in the app.
+                  const short = mins < 30;
 
                   return (
                     <div

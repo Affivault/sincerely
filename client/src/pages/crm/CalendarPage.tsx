@@ -237,7 +237,7 @@ export function CalendarPage() {
         const a = w[0], b = w[6];
         const same = a.getMonth() === b.getMonth();
         return same
-          ? `${a.toLocaleDateString(undefined, { day: 'numeric' })}–${b.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}`
+          ? `${a.toLocaleDateString(undefined, { day: 'numeric' })}–${b.getDate()} ${b.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`
           : `${a.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – ${b.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`;
       })()
     : anchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
@@ -254,7 +254,7 @@ export function CalendarPage() {
   }, [byDay, anchor]);
 
   const upcomingCount = useMemo(
-    () => events.filter((e) => new Date(e.starts_at) >= today).length,
+    () => events.filter((e) => e.status !== 'cancelled' && new Date(e.starts_at) >= today).length,
     [events, today],
   );
 
@@ -514,7 +514,9 @@ export function CalendarPage() {
 
         <p className="flex items-center gap-1.5 text-[11.5px] text-[var(--text-tertiary)]">
           <Clock className="h-3 w-3" />
-          Drag any meeting or activity onto another day to reschedule it — the time of day is kept.
+          {view === 'week' || view === 'day'
+            ? 'Click any empty space to book at that time. Drag a meeting to move it, or its bottom edge to change how long it runs.'
+            : 'Drag any meeting or activity onto another day to reschedule it — the time of day is kept.'}
         </p>
       </div>
 
