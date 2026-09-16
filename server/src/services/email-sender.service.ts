@@ -9,6 +9,7 @@ import * as sse from './sse.service.js';
 import { checkAndAutoCompleteCampaign, htmlToText } from './sequence.service.js';
 import { warmupAllowance } from '@lemlist/shared';
 import { renderMergeTags, spin } from '@lemlist/shared';
+import { personaliseBookingLinks } from '../utils/booking-token.js';
 import { settingsService } from './settings.service.js';
 import { trackingBaseUrl } from './tracking-domain.service.js';
 import { isLinkedinStep } from '@lemlist/shared';
@@ -516,6 +517,22 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
   const spinFor = (part: string) => `${stepId}:${campaignContactId}:${part}`;
   const finalSubject = spin(fillSenderTags(subject), spinFor('subject'));
   finalHtml = spin(fillSenderTags(finalHtml), spinFor('body'));
+
+  /*
+   * Name the send on any booking link in the body.
+   *
+   * Placed here for two reasons, and both are ordering. It runs before the
+   * plaintext part is derived, so the text carries the personalised URL
+   * rather than a bare one - otherwise a prospect reading in plain text
+   * meets the page as a stranger. And it runs before click-wrapping, so the
+   * tracker's redirect target is the personalised URL; wrapping first would
+   * make the redirect land on the bare link and lose the identity entirely.
+   *
+   * The token is the one the pixel and the click tracker already carry, so
+   * the product has one notion of "which send was this" rather than two.
+   */
+  finalHtml = personaliseBookingLinks(finalHtml, trackingId);
+
   // Derived from the spun HTML rather than spun on its own: two independent
   // spins of the same copy can land on different branches, and a plaintext
   // part that contradicts the HTML part is worse than having no spintax.

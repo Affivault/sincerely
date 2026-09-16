@@ -108,7 +108,9 @@ function strip(booking: any) {
 export const publicBookingController = {
   async page(req: Request, res: Response, next: NextFunction) {
     try {
-      res.json(await publicBookingService.page(req.params.slug));
+      // `k` is the signed token a campaign email puts on the link. It is
+      // never required, and a bad one is indistinguishable from none.
+      res.json(await publicBookingService.page(req.params.slug, req.query.k as string | undefined));
     } catch (err) { next(err); }
   },
 
@@ -122,7 +124,9 @@ export const publicBookingController = {
 
   async book(req: Request, res: Response, next: NextFunction) {
     try {
-      res.status(201).json(await publicBookingService.book(req.params.slug, req.body || {}));
+      res.status(201).json(await publicBookingService.book(
+        req.params.slug, req.body || {}, req.query.k as string | undefined,
+      ));
     } catch (err) { next(err); }
   },
 

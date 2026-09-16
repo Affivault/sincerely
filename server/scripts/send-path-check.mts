@@ -26,6 +26,7 @@ process.env.TRACKING_BASE_URL = 'https://app.sincerely.io';
 process.env.SMTP_RELAY_URL = 'https://relay.test/api/send-email';
 process.env.SMTP_RELAY_SECRET = 'relay-secret';
 
+const { readBookingIdentity } = await import('../src/utils/booking-token.js');
 const { supabaseAdmin } = await import('../src/config/supabase.js');
 const { encrypt } = await import('../src/utils/encryption.js');
 
@@ -330,6 +331,26 @@ console.log('\na send actually happens, and everything composes');
      */
     is('the booking link became a real address',
        m.html.includes('/b/meet-jordan'), m.html);
+    /*
+     * And it names the send it went out on. This is the whole of campaign
+     * attribution: without the token the booking page meets the prospect as
+     * a stranger and "which sequence booked this meeting" is unanswerable.
+     * Verified by reading the token back rather than by matching a string,
+     * because a token that is present but does not decode is worth nothing.
+     */
+    {
+      const link = m.html.match(/\/b\/meet-jordan\?k=([A-Za-z0-9_-]+)/);
+      is('carrying a token that names the send', !!link, m.html);
+      if (link) {
+        const identity = readBookingIdentity(link[1]);
+        is('which verifies', !!identity, link[1]);
+        is('as this contact on this step',
+           identity?.campaignContactId === CC && identity?.stepId === 'step-1',
+           JSON.stringify(identity));
+      }
+    }
+    is('the plain text part carries it too, not just the html',
+       /\/b\/meet-jordan\?k=/.test(m.text || ''), m.text);
 
     console.log('\n  a booking link that is not live');
     // Nothing raw may ship. An account with every link paused is the common
