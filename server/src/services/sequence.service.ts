@@ -4,6 +4,7 @@ import { classifyReply } from './sara.service.js';
 import { sendCampaignEmail } from './email-sender.service.js';
 import { suppressionService } from './suppression.service.js';
 import { billingService } from './billing.service.js';
+import { defaultBookingLinkUrl } from './booking.service.js';
 import * as sse from './sse.service.js';
 import { nowInTimezone, partsInTimezone, startOfDayInTimezone, tzWallTimeToUtc } from '../utils/timezone.js';
 import { renderMergeTags, personalize, previewPersonalization, SENDER_TAGS, LINK_TAGS } from '@lemlist/shared';
@@ -518,10 +519,14 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     rawSubject = useVariantB ? step.subject_b : rawSubject;
   }
 
-  // Interpolate merge tags in subject and body
-  const subject = interpolateMergeTags(rawSubject, cc.contacts);
+  // Interpolate merge tags in subject and body. The booking link belongs to
+  // the account rather than the contact, so it is looked up once per send
+  // and passed in; a missing one blanks the tag rather than shipping a
+  // half-written URL.
+  const bookingLink = ownerId ? await defaultBookingLinkUrl(ownerId) : null;
+  const subject = interpolateMergeTags(rawSubject, cc.contacts, bookingLink);
   const rawBodyHtml = (step.body_html_b && useVariantB) ? step.body_html_b : (step.body_html || '');
-  const bodyHtml = interpolateMergeTags(rawBodyHtml, cc.contacts);
+  const bodyHtml = interpolateMergeTags(rawBodyHtml, cc.contacts, bookingLink);
   const bodyText = htmlToText(bodyHtml);
 
   // Atomically claim this contact BEFORE sending to prevent re-processing.
@@ -1348,8 +1353,8 @@ export function htmlToText(html: string): string {
  * merge fallback that survived into this pass would look exactly like a
  * spin group to the spinner. The send path spins once, at the end.
  */
-export function interpolateMergeTags(text: string, contact: any): string {
-  return renderMergeTags(text, { contact, defer: [...SENDER_TAGS, ...LINK_TAGS] });
+export function interpolateMergeTags(text: string, contact: any, bookingLink?: string | null): string {
+  return renderMergeTags(text, { contact, bookingLink, defer: [...SENDER_TAGS, ...LINK_TAGS] });
 }
 
 /**

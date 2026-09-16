@@ -34,6 +34,14 @@ export interface BookingLink {
   is_active: boolean;
   views: number;
   bookings: number;
+  /** A booking opens a deal, because that is what a booking means. */
+  create_deal: boolean;
+  /** Which stage it opens in. Null means the pipeline's first. */
+  deal_stage: string | null;
+  /** Tell the account by email when somebody books. */
+  notify_organiser: boolean;
+  /** Appended to the confirmation email. Dial-in details, what to prepare. */
+  confirmation_note: string | null;
   created_at: string;
   updated_at: string;
   archived_at: string | null;
@@ -54,6 +62,10 @@ export interface CreateBookingLinkInput {
   collect_company?: boolean;
   question?: string | null;
   is_active?: boolean;
+  create_deal?: boolean;
+  deal_stage?: string | null;
+  notify_organiser?: boolean;
+  confirmation_note?: string | null;
 }
 
 /**

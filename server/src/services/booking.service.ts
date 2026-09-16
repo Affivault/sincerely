@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { availabilityService } from './calendar.service.js';
+import { bookingMail, type BookingMailContext } from './booking-mail.service.js';
+import { env } from '../config/env.js';
 import {
   slugify, looksLikeEmail, buildIcs,
   type BookingLink, type CreateBookingLinkInput,
@@ -29,6 +31,7 @@ import {
 const LINK_SELECT = `
   id, user_id, slug, event_type_id, duration_minutes, headline, blurb,
   collect_phone, collect_company, question, is_active, views, bookings,
+  create_deal, deal_stage, notify_organiser, confirmation_note,
   created_at, updated_at, archived_at,
   event_type:calendar_event_types (id, name, colour, duration_minutes, location_kind)
 `;
@@ -107,12 +110,50 @@ function validateLink(input: CreateBookingLinkInput, partial = false): Record<st
     }
   }
 
+  if (input.confirmation_note !== undefined) {
+    const note = input.confirmation_note === null
+      ? null : String(input.confirmation_note).trim().slice(0, 2000);
+    patch.confirmation_note = note || null;
+  }
+
+  if (input.deal_stage !== undefined) {
+    const stage = input.deal_stage || null;
+    if (stage && !['lead', 'qualified', 'proposal', 'won', 'lost'].includes(stage)) {
+      throw new AppError('That is not a stage in the pipeline.', 400);
+    }
+    patch.deal_stage = stage;
+  }
+
+  if (input.create_deal !== undefined) patch.create_deal = !!input.create_deal;
+  if (input.notify_organiser !== undefined) patch.notify_organiser = !!input.notify_organiser;
   if (input.event_type_id !== undefined) patch.event_type_id = input.event_type_id || null;
   if (input.collect_phone !== undefined) patch.collect_phone = !!input.collect_phone;
   if (input.collect_company !== undefined) patch.collect_company = !!input.collect_company;
   if (input.is_active !== undefined) patch.is_active = !!input.is_active;
 
   return patch;
+}
+
+/**
+ * The address `{{booking_link}}` resolves to.
+ *
+ * The oldest live link, because that is the one an account thinks of as
+ * "my link" - the seeded one, or the first they made. Null when nothing is
+ * live, which blanks the tag rather than sending a dead URL to a prospect.
+ */
+export async function defaultBookingLinkUrl(userId: string): Promise<string | null> {
+  const { data } = await supabaseAdmin
+    .from('booking_links')
+    .select('slug')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .is('archived_at', null)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!data?.slug) return null;
+  const origin = (env.CLIENT_URL || 'https://app.usesincerely.com').replace(/\/+$/, '');
+  return `${origin}/b/${data.slug}`;
 }
 
 export const bookingService = {
@@ -253,6 +294,7 @@ async function linkBySlug(slug: string) {
     .select(`
       id, user_id, slug, headline, blurb, duration_minutes, is_active, archived_at,
       collect_phone, collect_company, question, event_type_id,
+      create_deal, deal_stage, notify_organiser, confirmation_note,
       event_type:calendar_event_types (id, name, colour, duration_minutes, location_kind)
     `)
     .eq('slug', clean)
@@ -263,7 +305,7 @@ async function linkBySlug(slug: string) {
 }
 
 /** A display name, assembled from settings. Never the login email. */
-async function organiserName(userId: string): Promise<string> {
+export async function organiserName(userId: string): Promise<string> {
   const { data } = await supabaseAdmin
     .from('user_settings')
     .select('first_name, last_name, company')
@@ -398,13 +440,51 @@ export const publicBookingService = {
       throw new AppError(error.message, 500);
     }
 
-    await this.logActivity(link.user_id, contactId, `Booked ${minutes} minutes via ${link.slug}`);
+    /*
+     * Everything after the booking itself is follow-through, and none of it
+     * may take the meeting down with it. A deal that failed to open or an
+     * SMTP host that timed out is a thing to fix later; a 500 here is a
+     * prospect who thinks they have no meeting and goes elsewhere.
+     */
+    const eventId = String(data);
+    const organiser = await organiserName(link.user_id);
+
+    await Promise.allSettled([
+      this.logActivity(link.user_id, contactId, `Booked ${minutes} minutes via ${link.slug}`),
+      link.create_deal
+        ? this.openDeal(link, eventId, contactId, { name, email, company: input.company })
+        : Promise.resolve(),
+      bookingMail.confirmed({
+        userId: link.user_id,
+        eventId,
+        manageToken: token,
+        start, end,
+        durationMinutes: minutes,
+        headline: link.headline,
+        organiser,
+        inviteeName: name,
+        inviteeEmail: email,
+        inviteeTimezone: input.timezone || prefs.timezone,
+        organiserTimezone: prefs.timezone,
+        locationKind: link.event_type?.location_kind ?? 'video',
+        confirmationNote: link.confirmation_note,
+        inviteeMessage: input.answer || null,
+        sequence: 0,
+        notifyOrganiser: link.notify_organiser !== false,
+      }).then(async (sent) => {
+        if (sent.invitee) {
+          await supabaseAdmin.from('crm_events')
+            .update({ confirmation_sent_at: new Date().toISOString() })
+            .eq('id', eventId);
+        }
+      }),
+    ]);
 
     return {
       start: start.toISOString(),
       end: end.toISOString(),
       headline: link.headline,
-      organiser: await organiserName(link.user_id),
+      organiser,
       duration_minutes: minutes,
       location_kind: (link.event_type?.location_kind ?? 'video') as EventLocationKind,
       timezone: input.timezone || prefs.timezone,
@@ -415,6 +495,75 @@ export const publicBookingService = {
       slug: link.slug,
       ...(data ? {} : {}),
     };
+  },
+
+  /**
+   * A booked meeting opens a deal, or moves the one that exists.
+   *
+   * This is the part a standalone scheduler cannot do. Somebody agreeing to
+   * a meeting is the most meaningful thing that happens in a cold outreach
+   * cycle, and leaving it as a note on a contact wastes it - the pipeline is
+   * where the account looks to decide what to do tomorrow.
+   *
+   * An existing open deal for the same contact is reused rather than
+   * duplicated; booking a second call does not mean a second opportunity.
+   */
+  async openDeal(link: any, eventId: string, contactId: string | null, who: {
+    name: string; email: string; company?: string;
+  }): Promise<void> {
+    try {
+      const stage = link.deal_stage || 'lead';
+
+      // Anything already open for this person, newest first.
+      let existing: any = null;
+      if (contactId) {
+        const { data } = await supabaseAdmin
+          .from('deals')
+          .select('id, stage')
+          .eq('user_id', link.user_id)
+          .eq('contact_id', contactId)
+          .not('stage', 'in', '(won,lost)')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        existing = data;
+      }
+
+      if (existing) {
+        // Point the meeting at the deal it belongs to. The stage is only
+        // moved forward, never back - a booking on a deal already at
+        // proposal must not demote it to lead.
+        const order = ['lead', 'qualified', 'proposal'];
+        const shouldAdvance = order.indexOf(stage) > order.indexOf(existing.stage);
+        if (shouldAdvance) {
+          await supabaseAdmin.from('deals').update({ stage }).eq('id', existing.id);
+        }
+        await supabaseAdmin.from('crm_events')
+          .update({ deal_id: existing.id }).eq('id', eventId);
+        return;
+      }
+
+      const { data: deal } = await supabaseAdmin
+        .from('deals')
+        .insert({
+          user_id: link.user_id,
+          title: `${who.company || who.name} - ${link.headline}`,
+          company: who.company || null,
+          contact_id: contactId,
+          contact_name: who.name,
+          contact_email: who.email,
+          stage,
+        })
+        .select('id')
+        .single();
+
+      if (deal) {
+        await supabaseAdmin.from('crm_events')
+          .update({ deal_id: deal.id }).eq('id', eventId);
+      }
+    } catch (err: any) {
+      console.error(`[Booking] Could not open a deal: ${err?.message || err}`);
+    }
   },
 
   /**
@@ -503,7 +652,8 @@ export const publicBookingService = {
       .select(`
         id, user_id, title, starts_at, ends_at, status, contact_name, contact_email,
         invitee_timezone, cancelled_at, cancel_reason, manage_token,
-        booking_link:booking_links (slug, headline),
+        ics_sequence, invitee_message,
+        booking_link:booking_links (slug, headline, notify_organiser, confirmation_note),
         event_type:calendar_event_types (name, colour, duration_minutes, location_kind)
       `)
       .eq('manage_token', clean)
@@ -532,7 +682,13 @@ export const publicBookingService = {
       cancelled_at: row.cancelled_at,
       cancel_reason: row.cancel_reason,
       slug: row.booking_link?.slug ?? null,
-    };
+      // Carried for the notification path, which needs more than a visitor
+      // is shown. The controller strips everything a visitor may not see.
+      ics_sequence: row.ics_sequence ?? 0,
+      invitee_message: row.invitee_message ?? null,
+      notify_organiser: row.booking_link?.notify_organiser !== false,
+      confirmation_note: row.booking_link?.confirmation_note ?? null,
+    } as any;
   },
 
   /** Free times for moving an existing booking, excluding its own slot. */
@@ -586,7 +742,48 @@ export const publicBookingService = {
       }
       throw new AppError(error.message, 500);
     }
-    return this.byToken(token);
+
+    const moved = await this.byToken(token);
+    // Told after the move, not before: an email announcing a time the
+    // database then refused is worse than one that arrives a second late.
+    await this.notify(moved, (ctx) => bookingMail.rescheduled(ctx, new Date(booking.start)));
+    return moved;
+  },
+
+  /**
+   * Assemble the mail context from a booking and send something with it.
+   *
+   * Every notification needs the same dozen fields, gathered the same way,
+   * and none of them may throw into a request somebody is waiting on.
+   */
+  async notify(
+    booking: Record<string, any>,
+    send: (ctx: BookingMailContext) => Promise<any>,
+  ): Promise<void> {
+    try {
+      const prefs = await availabilityService.getPrefs(booking.user_id);
+      await send({
+        userId: booking.user_id,
+        eventId: booking.id,
+        manageToken: booking.manage_token,
+        start: new Date(booking.start),
+        end: new Date(booking.end),
+        durationMinutes: booking.duration_minutes,
+        headline: booking.headline,
+        organiser: booking.organiser,
+        inviteeName: booking.invitee_name,
+        inviteeEmail: booking.invitee_email,
+        inviteeTimezone: booking.timezone || prefs.timezone,
+        organiserTimezone: prefs.timezone,
+        locationKind: booking.location_kind,
+        confirmationNote: booking.confirmation_note ?? null,
+        inviteeMessage: booking.invitee_message ?? null,
+        sequence: booking.ics_sequence ?? 0,
+        notifyOrganiser: booking.notify_organiser !== false,
+      });
+    } catch (err: any) {
+      console.error(`[Booking] Notification failed: ${err?.message || err}`);
+    }
   },
 
   async cancel(token: string, reason: string | undefined, by: 'invitee' | 'organiser' = 'invitee') {
@@ -603,7 +800,10 @@ export const publicBookingService = {
       })
       .eq('id', booking.id);
     if (error) throw new AppError(error.message, 500);
-    return this.byToken(token);
+
+    const cancelled = await this.byToken(token);
+    await this.notify(cancelled, (ctx) => bookingMail.cancelled(ctx, by, reason));
+    return cancelled;
   },
 
   /** The calendar file for a booking, so it lands in whatever they use. */

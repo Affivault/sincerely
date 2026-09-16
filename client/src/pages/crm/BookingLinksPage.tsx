@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Link2, Plus, Copy, Check, ExternalLink, Trash2, Eye, CalendarCheck,
   Loader2, Settings2, X, Clock, Video, Phone, MapPin, Calendar as CalendarIcon,
+  AlertTriangle, Handshake, Mail, ChevronDown,
 } from 'lucide-react';
 import { bookingLinksApi, publicBookingUrl } from '../../api/booking.api';
 import { calendarApi } from '../../api/calendar.api';
@@ -33,6 +34,7 @@ export function BookingLinksPage() {
   const qc = useQueryClient();
   const [editing, setEditing] = useState<BookingLink | 'new' | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [opened, setOpened] = useState<string | null>(null);
 
   const { data: links = [], isLoading } = useQuery({
     queryKey: ['booking-links'],
@@ -42,6 +44,13 @@ export function BookingLinksPage() {
   const { data: types = [] } = useQuery({
     queryKey: ['calendar', 'types'],
     queryFn: calendarApi.listTypes,
+  });
+
+  // A link that takes bookings and sends nothing is the worst outcome: the
+  // account thinks it works and the prospect thinks they were ignored.
+  const { data: readiness } = useQuery({
+    queryKey: ['booking-links', 'readiness'],
+    queryFn: bookingLinksApi.readiness,
   });
 
   const toggle = useMutation({
@@ -101,6 +110,24 @@ export function BookingLinksPage() {
           </button>
         }
       />
+
+      {readiness && !readiness.can_email && links.length > 0 && (
+        <div
+          className="mb-3 flex items-start gap-2 rounded-lg border border-[rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.08)] px-3 py-2.5"
+          data-no-mailbox
+        >
+          <AlertTriangle className="mt-[1px] h-3.5 w-3.5 flex-shrink-0 text-[#f59e0b]" />
+          <p className="text-[12.5px] text-[var(--text-primary)]">
+            No mailbox connected, so nobody gets a confirmation.{' '}
+            <span className="text-[var(--text-secondary)]">
+              Bookings still land on your calendar, but the person who booked hears nothing.
+            </span>{' '}
+            <a href="/email-accounts" className="text-[var(--indigo)] hover:underline">
+              Connect one
+            </a>
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <section className="lg:col-span-2 self-start space-y-2.5">
@@ -182,9 +209,33 @@ export function BookingLinksPage() {
                       <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {minutes} min</span>
                       <span className="flex items-center gap-1"><Loc className="h-3 w-3" /> {link.event_type?.name || 'No kind set'}</span>
                       <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {link.views}</span>
-                      <span className="flex items-center gap-1">
+                      <button
+                        onClick={() => setOpened((o) => (o === link.id ? null : link.id))}
+                        disabled={link.bookings === 0}
+                        className={cn(
+                          'flex items-center gap-1',
+                          link.bookings > 0 && 'hover:text-[var(--indigo)]',
+                        )}
+                        data-open-bookings={link.slug}
+                      >
                         <CalendarCheck className="h-3 w-3" /> {link.bookings} booked
-                      </span>
+                        {link.bookings > 0 && (
+                          <ChevronDown className={cn(
+                            'h-3 w-3 transition-transform',
+                            opened === link.id && 'rotate-180',
+                          )} />
+                        )}
+                      </button>
+                      {link.create_deal && (
+                        <span className="flex items-center gap-1" title="A booking opens a deal">
+                          <Handshake className="h-3 w-3" />
+                        </span>
+                      )}
+                      {link.notify_organiser && (
+                        <span className="flex items-center gap-1" title="You are emailed on every booking">
+                          <Mail className="h-3 w-3" />
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -211,6 +262,8 @@ export function BookingLinksPage() {
                     />
                   </div>
                 </div>
+
+                {opened === link.id && <Bookings linkId={link.id} />}
               </div>
             );
           })}
@@ -249,13 +302,72 @@ export function BookingLinksPage() {
                 </li>
               </ol>
               <p className="mt-3 text-[11.5px] text-[var(--text-tertiary)]">
-                Paste a link into a sequence with the <code>{'{{booking_link}}'}</code> style
-                you already use for anything else.
+                In a sequence, <code className="rounded bg-[var(--bg-elevated)] px-1 py-[1px]">{'{{booking_link}}'}</code>{' '}
+                becomes your first live link. It blanks if none is live, so a
+                paused link never sends a dead address to a prospect.
               </p>
             </div>
           )}
         </section>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Who booked through a link.
+ *
+ * Loaded only when asked for. The list of links is the page somebody keeps
+ * open; fetching every link's bookings to render a number nobody clicked is
+ * a request per link on every visit.
+ */
+function Bookings({ linkId }: { linkId: string }) {
+  const { data = [], isLoading } = useQuery({
+    queryKey: ['booking-links', linkId, 'bookings'],
+    queryFn: () => bookingLinksApi.bookings(linkId),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
+        <div className="h-8 rounded bg-[var(--bg-elevated)] animate-pulse" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 border-t border-[var(--border-subtle)] pt-2.5 space-y-1.5" data-bookings>
+      {data.map((b: any) => {
+        const past = new Date(b.starts_at).getTime() < Date.now();
+        const off = b.status === 'cancelled';
+        return (
+          <div key={b.id} className="flex items-center gap-2 text-[12px]">
+            <span className={cn(
+              'h-1.5 w-1.5 flex-shrink-0 rounded-full',
+              off ? 'bg-[var(--text-tertiary)]' : past ? 'bg-[var(--border-strong,#a1a1aa)]' : 'bg-[#10b981]',
+            )} />
+            <span className={cn(
+              'min-w-0 flex-1 truncate',
+              off ? 'text-[var(--text-tertiary)] line-through' : 'text-[var(--text-primary)]',
+            )}>
+              {b.contact_name || b.contact_email || 'Someone'}
+            </span>
+            <span className="flex-shrink-0 tabular text-[var(--text-secondary)]">
+              {new Date(b.starts_at).toLocaleDateString(undefined, {
+                day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
+              })}
+            </span>
+            {off && (
+              <span className="flex-shrink-0 text-[10.5px] text-[var(--text-tertiary)]">
+                {b.cancelled_by === 'invitee' ? 'they cancelled' : 'cancelled'}
+              </span>
+            )}
+          </div>
+        );
+      })}
+      {data.length === 0 && (
+        <p className="text-[12px] text-[var(--text-tertiary)]">Nothing booked through this yet.</p>
+      )}
     </div>
   );
 }
@@ -279,6 +391,14 @@ function Editor({ link, types, onClose, onArchive }: {
     collect_company: link?.collect_company ?? false,
     question: link?.question ?? '',
     is_active: link?.is_active ?? true,
+    create_deal: link?.create_deal ?? true,
+    // Defaulted to the stage the dropdown already displays. Null would mean
+    // the same thing to the server, but a form that shows "Lead" and saves
+    // "unset" is a disagreement waiting to surface the day the first stage
+    // is configurable.
+    deal_stage: link?.deal_stage ?? 'lead',
+    notify_organiser: link?.notify_organiser ?? true,
+    confirmation_note: link?.confirmation_note ?? '',
   });
   // Only auto-derive the address while it has never been set by hand, so a
   // published link's URL never moves under somebody who has already sent it.
@@ -296,6 +416,10 @@ function Editor({ link, types, onClose, onArchive }: {
         collect_company: form.collect_company,
         question: form.question || null,
         is_active: form.is_active,
+        create_deal: form.create_deal,
+        deal_stage: form.deal_stage || null,
+        notify_organiser: form.notify_organiser,
+        confirmation_note: form.confirmation_note || null,
       };
       return link
         ? bookingLinksApi.update(link.id, payload)
@@ -405,7 +529,42 @@ function Editor({ link, types, onClose, onArchive }: {
           />
         </Field>
 
+        <Field label="What they get told" hint="Added to the confirmation email. Dial-in details, what to bring.">
+          <textarea
+            rows={2}
+            value={form.confirmation_note}
+            onChange={(e) => setForm({ ...form, confirmation_note: e.target.value })}
+            placeholder="I will send a Meet link the morning of."
+            className="input-field w-full resize-none"
+            maxLength={2000}
+            data-note
+          />
+        </Field>
+
+        <Field label="When somebody books" hint="A meeting agreed is the most useful thing in a pipeline.">
+          <select
+            value={form.create_deal ? (form.deal_stage || 'lead') : 'none'}
+            onChange={(e) => setForm({
+              ...form,
+              create_deal: e.target.value !== 'none',
+              deal_stage: e.target.value === 'none' ? '' : e.target.value,
+            })}
+            className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+            data-deal
+          >
+            <option value="none">Just book it</option>
+            <option value="lead">Open a deal at Lead</option>
+            <option value="qualified">Open a deal at Qualified</option>
+            <option value="proposal">Open a deal at Proposal</option>
+          </select>
+        </Field>
+
         <div className="space-y-1.5 pt-1">
+          <Check2
+            on={form.notify_organiser}
+            onChange={(v) => setForm({ ...form, notify_organiser: v })}
+            label="Email me when somebody books"
+          />
           <Check2
             on={form.collect_company}
             onChange={(v) => setForm({ ...form, collect_company: v })}

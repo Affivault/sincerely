@@ -42,6 +42,8 @@ interface World {
   settings: Record<string, any>;
   trackingDomain: Record<string, any> | null;
   smtpAccount: Record<string, any>;
+  /** The account's live booking link, which {{booking_link}} resolves to. */
+  bookingLink: Record<string, any> | null;
   /** activity_type -> count, for the guard's counting queries. */
   activityCounts: Record<string, number>;
 }
@@ -65,6 +67,7 @@ function freshWorld(): World {
       is_unsubscribed: false,
       is_bounced: false,
     },
+    bookingLink: { slug: 'meet-jordan' },
     step: {
       id: 'step-1',
       campaign_id: CAMPAIGN,
@@ -72,6 +75,7 @@ function freshWorld(): World {
       step_type: 'email',
       subject: '{Quick|Short} question about {{company}}',
       body_html: '<p>{Hi|Hey} {{first_name|there}}, we help {{industry|teams}} in {{city}}.</p>'
+             + '<p>Grab a time: {{booking_link}}</p>'
         + '<p>Best,<br>{{sender_name}}</p><p><a href="https://acme.example/demo">Book a demo</a></p>',
       subject_b: null,
       body_html_b: null,
@@ -155,6 +159,7 @@ function rowFixture(table: string): any {
     case 'user_settings': return world.settings;
     case 'smtp_accounts': return world.smtpAccount;
     case 'tracking_domains': return world.trackingDomain;
+    case 'booking_links': return world.bookingLink;
     case 'campaign_smtp_accounts': return null;
     case 'campaign_activities': return null;
     default: return null;
@@ -317,6 +322,31 @@ console.log('\na send actually happens, and everything composes');
     is('unknown tag with a fallback used the fallback', m.html.includes('teams'), m.html);
     is('NOTHING left in braces — the bug that started all this',
        !/\{\{/.test(m.html) && !/\{\{/.test(m.subject), `${m.subject} | ${m.html}`);
+    /*
+     * Asserted on the URL, not on the absence of braces. A tag that resolves
+     * to nothing also leaves no braces, so "nothing in braces" passes just as
+     * happily for a booking link that silently did not render - which is the
+     * exact failure this tag was added to stop.
+     */
+    is('the booking link became a real address',
+       m.html.includes('/b/meet-jordan'), m.html);
+
+    console.log('\n  a booking link that is not live');
+    // Nothing raw may ship. An account with every link paused is the common
+    // case on day one, and "Grab a time: undefined" is what a naive
+    // implementation sends them.
+    {
+      world.bookingLink = null;
+      const withoutLink = await send();
+      is('the send still goes out', !!withoutLink);
+      if (withoutLink) {
+        is('no braces survive', !/\{\{/.test(withoutLink.html), withoutLink.html);
+        is('and nothing that reads like a broken URL does either',
+           !/undefined|null|\/b\/$/.test(withoutLink.html.replace(/https?:\/\/[^"'\s<]+/g, (u: string) => u.includes('/b/') ? 'LINK' : u)),
+           withoutLink.html);
+      }
+      world.bookingLink = { slug: 'meet-jordan' };
+    }
 
     console.log('\n  spintax');
     is('subject picked one option', /^(Quick|Short) question/.test(m.subject), m.subject);
