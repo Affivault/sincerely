@@ -51,16 +51,20 @@ const publicClient = axios.create({
 export interface WireSlot { start: string; end: string }
 
 export const publicBookingApi = {
-  page: async (slug: string) =>
-    (await publicClient.get<PublicBookingPage>(`/${encodeURIComponent(slug)}`)).data,
+  page: async (slug: string, k?: string) =>
+    (await publicClient.get<PublicBookingPage>(`/${encodeURIComponent(slug)}`, {
+      params: k ? { k } : undefined,
+    })).data,
 
   slots: async (slug: string, from: string, to: string) =>
     (await publicClient.get<WireSlot[]>(`/${encodeURIComponent(slug)}/slots`, {
       params: { from, to },
     })).data,
 
-  book: async (slug: string, input: CreateBookingInput) =>
-    (await publicClient.post<BookingConfirmation>(`/${encodeURIComponent(slug)}`, input)).data,
+  book: async (slug: string, input: CreateBookingInput, k?: string) =>
+    (await publicClient.post<BookingConfirmation>(`/${encodeURIComponent(slug)}`, input, {
+      params: k ? { k } : undefined,
+    })).data,
 
   byToken: async (token: string) =>
     (await publicClient.get<BookingConfirmation>(`/manage/${encodeURIComponent(token)}`)).data,

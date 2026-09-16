@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { availabilityService } from './calendar.service.js';
 import { bookingMail, type BookingMailContext } from './booking-mail.service.js';
+import { readBookingIdentity } from '../utils/booking-token.js';
 import { env } from '../config/env.js';
 import {
   slugify, looksLikeEmail, buildIcs,
@@ -270,7 +271,12 @@ export const bookingService = {
   async linkBookings(userId: string, id: string, limit = 50) {
     const { data, error } = await supabaseAdmin
       .from('crm_events')
-      .select('id, title, starts_at, ends_at, status, contact_name, contact_email, invitee_message, booked_at, cancelled_at, cancelled_by')
+      .select(`
+        id, title, starts_at, ends_at, status, contact_name, contact_email,
+        invitee_message, booked_at, cancelled_at, cancelled_by,
+        source_campaign_id,
+        campaign:campaigns!crm_events_source_campaign_id_fkey (id, name)
+      `)
       .eq('user_id', userId)
       .eq('booking_link_id', id)
       .order('starts_at', { ascending: false })
@@ -321,6 +327,62 @@ async function organiserEmail(userId: string): Promise<string | null> {
   return data?.user?.email ?? null;
 }
 
+/**
+ * Who a token says this visitor is.
+ *
+ * Returns null for anything that does not verify, for a send belonging to
+ * another account, or for a contact that has since been deleted - and the
+ * page then treats them as a stranger, which is exactly what it does for
+ * everybody arriving from a signature or a website. Nothing here may refuse
+ * a booking; the token is worth a prefill and an attribution, never a gate.
+ */
+async function identify(token: string | undefined, linkUserId: string): Promise<{
+  contactId: string | null;
+  campaignId: string | null;
+  stepId: string | null;
+  name: string;
+  email: string;
+  company: string;
+} | null> {
+  const identity = readBookingIdentity(token);
+  if (!identity) return null;
+
+  try {
+    const { data } = await supabaseAdmin
+      .from('campaign_contacts')
+      .select(`
+        id, campaign_id, contact_id,
+        campaigns (id, user_id),
+        contacts (id, email, first_name, last_name, company)
+      `)
+      .eq('id', identity.campaignContactId)
+      .maybeSingle();
+
+    const row = data as any;
+    if (!row) return null;
+
+    /*
+     * The token verifies, but it names a send in SOMEBODY's account - and
+     * this page belongs to a particular one. A valid token from a different
+     * account must not prefill a name here, or a link could be made to
+     * greet a stranger with somebody else's contact.
+     */
+    if (row.campaigns?.user_id !== linkUserId) return null;
+
+    const c = row.contacts;
+    return {
+      contactId: row.contact_id ?? null,
+      campaignId: row.campaign_id ?? null,
+      stepId: identity.stepId,
+      name: [c?.first_name, c?.last_name].filter(Boolean).join(' ').trim(),
+      email: c?.email || '',
+      company: c?.company || '',
+    };
+  } catch {
+    return null;
+  }
+}
+
 export const publicBookingService = {
   /**
    * What the page renders.
@@ -329,14 +391,27 @@ export const publicBookingService = {
    * booked is the single most useful thing the list of links can tell you,
    * and it is invisible otherwise.
    */
-  async page(slug: string): Promise<PublicBookingPage> {
+  async page(slug: string, visitorToken?: string): Promise<PublicBookingPage> {
     const link = await linkBySlug(slug);
     if (!link.is_active) throw new AppError('This booking page is not taking bookings at the moment.', 403);
 
-    const [prefs, organiser] = await Promise.all([
+    const [prefs, organiser, who] = await Promise.all([
       availabilityService.getPrefs(link.user_id),
       organiserName(link.user_id),
+      identify(visitorToken, link.user_id),
     ]);
+
+    // A visit from a campaign is worth recording; one from a signature is
+    // not distinguishable from any other and is only a view count.
+    if (who) {
+      supabaseAdmin.from('booking_link_visits').insert({
+        link_id: link.id,
+        user_id: link.user_id,
+        campaign_id: who.campaignId,
+        step_id: who.stepId,
+        contact_id: who.contactId,
+      }).then(() => undefined, () => undefined);
+    }
 
     // Fire and forget: a failed counter must never fail the page.
     supabaseAdmin.rpc('increment_link_views', { p_link_id: link.id }).then(
@@ -357,6 +432,11 @@ export const publicBookingService = {
       collect_company: link.collect_company,
       question: link.question,
       horizon_days: prefs.booking_horizon_days,
+      // Only ever a convenience. Everything on the form stays editable, and
+      // a page reached without a token simply asks for all of it.
+      invitee: who && who.email
+        ? { name: who.name, email: who.email, company: who.company }
+        : null,
     };
   },
 
@@ -384,7 +464,7 @@ export const publicBookingService = {
    * advisory lock, and asks the only question that cannot be answered
    * early: is the diary still clear at the instant of writing.
    */
-  async book(slug: string, input: CreateBookingInput): Promise<BookingConfirmation> {
+  async book(slug: string, input: CreateBookingInput, visitorToken?: string): Promise<BookingConfirmation> {
     const link = await linkBySlug(slug);
     if (!link.is_active) throw new AppError('This booking page is not taking bookings at the moment.', 403);
 
@@ -406,9 +486,20 @@ export const publicBookingService = {
     }
 
     const prefs = await availabilityService.getPrefs(link.user_id);
-    const contactId = await this.upsertContact(link.user_id, {
-      email, name, phone: input.phone, company: input.company,
-    });
+    const who = await identify(visitorToken, link.user_id);
+
+    /*
+     * The contact the token names is preferred over one matched by email,
+     * but only when the addresses agree. Somebody forwarding a booking link
+     * to a colleague is common and entirely legitimate, and crediting the
+     * colleague's meeting to the original contact would quietly corrupt
+     * both the CRM and the attribution.
+     */
+    const knownContactId = who && who.email.toLowerCase() === email ? who.contactId : null;
+    const contactId = knownContactId
+      ?? await this.upsertContact(link.user_id, {
+        email, name, phone: input.phone, company: input.company,
+      });
 
     // 32 bytes of randomness, url-safe. This stands in for a login.
     const token = crypto.randomBytes(24).toString('base64url');
@@ -450,9 +541,25 @@ export const publicBookingService = {
     const organiser = await organiserName(link.user_id);
 
     await Promise.allSettled([
+      // Where it came from, recorded on the meeting itself so "this sequence
+      // booked four meetings" is a count rather than a reconstruction.
+      knownContactId && who
+        ? supabaseAdmin.from('crm_events').update({
+            source_campaign_id: who.campaignId,
+            source_step_id: who.stepId,
+          }).eq('id', eventId)
+        : Promise.resolve(),
+      knownContactId && who
+        ? supabaseAdmin.from('booking_link_visits')
+            .update({ booked_event_id: eventId })
+            .eq('link_id', link.id)
+            .eq('contact_id', who.contactId)
+            .is('booked_event_id', null)
+        : Promise.resolve(),
       this.logActivity(link.user_id, contactId, `Booked ${minutes} minutes via ${link.slug}`),
       link.create_deal
-        ? this.openDeal(link, eventId, contactId, { name, email, company: input.company })
+        ? this.openDeal(link, eventId, contactId, { name, email, company: input.company },
+                        knownContactId ? who : null)
         : Promise.resolve(),
       bookingMail.confirmed({
         userId: link.user_id,
@@ -510,16 +617,33 @@ export const publicBookingService = {
    */
   async openDeal(link: any, eventId: string, contactId: string | null, who: {
     name: string; email: string; company?: string;
-  }): Promise<void> {
+  }, source?: { campaignId: string | null; stepId: string | null } | null): Promise<void> {
     try {
       const stage = link.deal_stage || 'lead';
+
+      /*
+       * The strongest attribution this product can record.
+       *
+       * 'reply' and 'enrolment' are inferences - they say a contact was in a
+       * sequence around the time a deal appeared. This one is not: they
+       * clicked the link in a specific step and put a meeting in the diary.
+       * The action IS the evidence, which is why 067 puts it above 'thread'.
+       */
+      const attribution = source?.campaignId
+        ? {
+            source_campaign_id: source.campaignId,
+            source_step_id: source.stepId,
+            attribution: 'booking',
+            attributed_at: new Date().toISOString(),
+          }
+        : {};
 
       // Anything already open for this person, newest first.
       let existing: any = null;
       if (contactId) {
         const { data } = await supabaseAdmin
           .from('deals')
-          .select('id, stage')
+          .select('id, stage, attribution')
           .eq('user_id', link.user_id)
           .eq('contact_id', contactId)
           .not('stage', 'in', '(won,lost)')
@@ -535,8 +659,19 @@ export const publicBookingService = {
         // proposal must not demote it to lead.
         const order = ['lead', 'qualified', 'proposal'];
         const shouldAdvance = order.indexOf(stage) > order.indexOf(existing.stage);
-        if (shouldAdvance) {
-          await supabaseAdmin.from('deals').update({ stage }).eq('id', existing.id);
+        if (shouldAdvance || Object.keys(attribution).length > 0) {
+          /*
+           * Attribution is only written onto a deal that does not have any.
+           * A deal already credited to the reply that created it must not be
+           * silently re-credited to whichever sequence happened to carry the
+           * booking link - the first cause is the true one.
+           */
+          await supabaseAdmin.from('deals')
+            .update({
+              ...(shouldAdvance ? { stage } : {}),
+              ...(existing.attribution ? {} : attribution),
+            })
+            .eq('id', existing.id);
         }
         await supabaseAdmin.from('crm_events')
           .update({ deal_id: existing.id }).eq('id', eventId);
@@ -553,6 +688,7 @@ export const publicBookingService = {
           contact_name: who.name,
           contact_email: who.email,
           stage,
+          ...attribution,
         })
         .select('id')
         .single();

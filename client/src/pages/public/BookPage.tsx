@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   Clock, Video, Phone, MapPin, Globe, Calendar as CalendarIcon,
@@ -55,6 +55,10 @@ function dayKey(d: Date, timeZone: string): string {
 
 export function BookPage() {
   const { slug = '' } = useParams();
+  // The signed token a campaign email put on the link. Absent for anybody
+  // arriving from a signature, a website or a forwarded message.
+  const [params] = useSearchParams();
+  const k = params.get('k') || undefined;
   const [zone, setZone] = useState(guessZone);
   const [month, setMonth] = useState(() => {
     const d = new Date();
@@ -66,8 +70,8 @@ export function BookPage() {
   const [booked, setBooked] = useState<any | null>(null);
 
   const page = useQuery({
-    queryKey: ['public-booking', slug],
-    queryFn: () => publicBookingApi.page(slug),
+    queryKey: ['public-booking', slug, k],
+    queryFn: () => publicBookingApi.page(slug, k),
     retry: false,
   });
 
@@ -104,6 +108,26 @@ export function BookPage() {
     return m;
   }, [slots.data, zone]);
 
+  /*
+   * Fill in what the link already knows.
+   *
+   * Guarded on the fields being untouched rather than run once on mount:
+   * the page query resolves after the first render, so a plain mount effect
+   * would fire before there is anything to fill. Anything typed since wins,
+   * because a prospect correcting their own address must not be overwritten
+   * by what a CSV said six weeks ago.
+   */
+  const invitee = page.data?.invitee;
+  useEffect(() => {
+    if (!invitee) return;
+    setForm((f) => (f.name || f.email ? f : {
+      ...f,
+      name: invitee.name || '',
+      email: invitee.email || '',
+      company: invitee.company || '',
+    }));
+  }, [invitee]);
+
   // Land on the first day that has anything, so the page is never a grid of
   // dead squares with no hint where to click.
   useEffect(() => {
@@ -120,7 +144,7 @@ export function BookPage() {
       company: form.company || undefined,
       answer: form.answer || undefined,
       timezone: zone,
-    }),
+    }, k),
     onSuccess: (data) => setBooked(data),
   });
 
@@ -413,9 +437,12 @@ export function BookPage() {
 
 
 function Header({ page, LocIcon }: { page: any; LocIcon: any }) {
+  const firstName = (page.invitee?.name || '').split(/\s+/)[0];
   return (
     <div>
-      <p className="text-[12.5px] font-medium text-[var(--text-tertiary)]">{page.organiser}</p>
+      <p className="text-[12.5px] font-medium text-[var(--text-tertiary)]" data-organiser>
+        {firstName ? `${firstName}, book a time with ${page.organiser}` : page.organiser}
+      </p>
       <h1 className="mt-0.5 text-[18px] font-semibold leading-snug text-[var(--text-primary)]">
         {page.headline}
       </h1>

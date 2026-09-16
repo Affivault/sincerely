@@ -357,6 +357,17 @@ function Bookings({ linkId }: { linkId: string }) {
                 day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
               })}
             </span>
+            {/* Which sequence produced it. The whole argument for owning
+                the scheduler rather than linking out to one. */}
+            {b.campaign?.name && (
+              <span
+                className="flex-shrink-0 max-w-[120px] truncate rounded bg-[var(--bg-elevated)] px-1.5 py-[1px] text-[10.5px] text-[var(--text-secondary)]"
+                title={`Booked from ${b.campaign.name}`}
+                data-campaign
+              >
+                {b.campaign.name}
+              </span>
+            )}
             {off && (
               <span className="flex-shrink-0 text-[10.5px] text-[var(--text-tertiary)]">
                 {b.cancelled_by === 'invitee' ? 'they cancelled' : 'cancelled'}

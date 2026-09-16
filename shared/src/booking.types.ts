@@ -91,6 +91,14 @@ export interface PublicBookingPage {
   question: string | null;
   /** How far ahead this page will offer anything. */
   horizon_days: number;
+  /**
+   * Who the page thinks this is, when the link arrived in a campaign email.
+   *
+   * A convenience only. Every field it fills stays editable, a page reached
+   * without a token simply asks for all of it, and nothing about a booking
+   * is gated on recognising somebody.
+   */
+  invitee?: { name: string; email: string; company: string } | null;
 }
 
 /** What a visitor sends to take a slot. */
