@@ -6,7 +6,7 @@ import {
   DEFAULT_SCHEDULING_PREFS, durationLabel,
   type AvailabilityWindow, type SchedulingPrefs,
 } from '@lemlist/shared';
-import { availabilityApi } from '../../api/calendar.api';
+import { availabilityApi, type AvailabilityResponse } from '../../api/calendar.api';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
@@ -64,7 +64,13 @@ export function AvailabilityPage() {
 
   const saveWindows = useMutation({
     mutationFn: (next: AvailabilityWindow[]) => availabilityApi.replaceWindows(next),
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      // Put the saved week in the cache *before* clearing the edit flag. The
+      // seeding effect below fires the moment dirty goes false, and if the
+      // cache still held the pre-save week it would put the old hours back on
+      // screen until the refetch landed.
+      qc.setQueryData(['calendar', 'availability'], (old: AvailabilityResponse | undefined) =>
+        (old ? { ...old, windows: saved } : old));
       setDirty(false);
       qc.invalidateQueries({ queryKey: ['calendar'] });
       toast.success('Hours saved');
@@ -165,7 +171,9 @@ export function AvailabilityPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* ── The week ── */}
-        <section className="panel lg:col-span-2 overflow-hidden">
+        {/* self-start so the week ends at Sunday rather than stretching to
+            match the taller column beside it and leaving a dead white field. */}
+        <section className="panel lg:col-span-2 overflow-hidden self-start">
           <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--border-subtle)]">
             <div>
               <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Working hours</h3>
@@ -198,7 +206,7 @@ export function AvailabilityPage() {
                 const list = byDay.get(weekday) || [];
                 const off = list.length === 0;
                 return (
-                  <div key={weekday} className="flex items-start gap-3 px-4 py-2.5">
+                  <div key={weekday} data-day={weekday} className="flex items-start gap-3 px-4 py-2.5">
                     <div className="w-[92px] flex-shrink-0 pt-1">
                       <p className={cn(
                         'text-[12.5px] font-medium',
@@ -212,7 +220,14 @@ export function AvailabilityPage() {
                       {off ? (
                         <p className="pt-1 text-[12px] text-[var(--text-tertiary)]">Not available</p>
                       ) : list.map((w) => (
-                        <div key={`${weekday}-${w.start_minute}`} className="flex items-center gap-1.5">
+                        /*
+                         * Both minutes are in the key on purpose. The time
+                         * fields are uncontrolled, so the only thing that can
+                         * put a discarded edit back to the saved value is a
+                         * remount — and that only happens if the key moves
+                         * with whichever end of the window was typed into.
+                         */
+                        <div key={`${weekday}-${w.start_minute}-${w.end_minute}`} className="flex items-center gap-1.5">
                           <input
                             type="time"
                             defaultValue={minuteLabel(w.start_minute)}

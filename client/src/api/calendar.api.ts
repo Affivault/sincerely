@@ -16,10 +16,15 @@ export const calendarApi = {
     (await apiClient.delete<{ archived: boolean; events: number }>(`/calendar/types/${id}`)).data,
 };
 
+export interface AvailabilityResponse {
+  windows: AvailabilityWindow[];
+  prefs: SchedulingPrefs;
+}
+
 /** When you are free, and the rules around a booking. */
 export const availabilityApi = {
   get: async () =>
-    (await apiClient.get<{ windows: AvailabilityWindow[]; prefs: SchedulingPrefs }>('/calendar/availability')).data,
+    (await apiClient.get<AvailabilityResponse>('/calendar/availability')).data,
 
   /** The whole week at once — a partial save is how a day goes missing. */
   replaceWindows: async (windows: AvailabilityWindow[]) =>
