@@ -99,6 +99,8 @@ function freshWorld(): World {
     crm_notes: [owned(ID.note, { deal_id: ID.deal, contact_id: ID.contact, pinned: false })],
     deal_participants: [owned(ID.participant, { deal_id: ID.deal, contact_id: ID.contact, role: 'Champion' })],
     crm_events: [owned('30000000-0000-0000-0000-000000000005', { starts_at: '2026-02-01T00:00:00Z', type: 'meeting' })],
+    calendar_availability: [owned('d0000000-0000-0000-0000-000000000003', { weekday: 1, start_minute: 540, end_minute: 1020 })],
+    calendar_scheduling_prefs: [owned('d0000000-0000-0000-0000-000000000004', { timezone: 'Secret/Zone', buffer_before_minutes: 0, buffer_after_minutes: 0, minimum_notice_minutes: 240, max_bookings_per_day: null, slot_interval_minutes: 15, booking_horizon_days: 60 })],
     calendar_event_types: [owned(ID.eventType, { colour: '#6366f1', duration_minutes: 30, location_kind: 'video', is_default: true, archived_at: null })],
     leads: [owned(ID.lead, { contact_id: ID.contact, status: 'open' })],
     contact_lists: [owned(ID.list, { kind: 'lead' })],
@@ -152,6 +154,8 @@ function table(name: string): any {
   let counting = false;
   let deleting = false;
   let pendingUpdate: any = null;
+  /** Rows this chain just wrote, so .select() returns them and not the table. */
+  let justInserted: any[] = [];
   const filters: { op: string; col: string; value: any }[] = [];
   const orGroups: string[] = [];
 
@@ -174,6 +178,21 @@ function table(name: string): any {
   };
 
   const resolve = () => {
+    /*
+     * An insert or upsert followed by .select() returns the rows written,
+     * which is what PostgREST does. Falling through to rowsFor() here
+     * returned the WHOLE table - no filters are set on an insert chain - so
+     * every upsert looked like it was handing back everybody's rows. It
+     * flagged availabilityService.updatePrefs as a leak when that method is
+     * perfectly safe, which is the kind of false alarm that gets an audit
+     * switched off.
+     */
+    if (justInserted.length > 0) {
+      const written = justInserted;
+      justInserted = [];
+      return { data: single ? written[0] : written, error: null, count: written.length };
+    }
+
     const rows = rowsFor();
 
     if (pendingUpdate) {
@@ -214,6 +233,7 @@ function table(name: string): any {
           }));
           // An insert creates the caller's own row; it cannot reach OWNER's.
           world[name] = [...(world[name] ?? []), ...rows];
+          justInserted = rows;
           writes.push({ table: name, op: 'insert', matched: [] });
           return chain;
         };
@@ -332,6 +352,7 @@ const smtpService = S(smtp, 'smtpService');
 const inboxService = S(inbox, 'inboxService');
 const triageService = S(triage, 'triageService');
 const calendarService = S(calendar, 'calendarService');
+const availabilityService = S(calendar, 'availabilityService');
 
 const cases: Case[] = [
   // Contacts
@@ -366,6 +387,11 @@ const cases: Case[] = [
   { name: 'calendar.getType',     on: calendarService, method: 'getType',     args: [INTRUDER, ID.eventType] },
   { name: 'calendar.updateType',  on: calendarService, method: 'updateType',  args: [INTRUDER, ID.eventType, { name: 'x' }] },
   { name: 'calendar.archiveType', on: calendarService, method: 'archiveType', args: [INTRUDER, ID.eventType] },
+  { name: 'availability.listWindows',    on: availabilityService, method: 'listWindows',    args: [INTRUDER] },
+  { name: 'availability.replaceWindows', on: availabilityService, method: 'replaceWindows', args: [INTRUDER, [{ weekday: 1, start_minute: 540, end_minute: 1020 }]] },
+  { name: 'availability.getPrefs',       on: availabilityService, method: 'getPrefs',       args: [INTRUDER] },
+  { name: 'availability.updatePrefs',    on: availabilityService, method: 'updatePrefs',    args: [INTRUDER, { timezone: 'UTC' }] },
+  { name: 'availability.busyBetween',    on: availabilityService, method: 'busyBetween',    args: [INTRUDER, new Date('2026-01-01'), new Date('2026-12-31')] },
 
   // Leads
   { name: 'leads.update',            on: leadsService, method: 'update',  args: [INTRUDER, ID.lead, { title: 'x' }] },
