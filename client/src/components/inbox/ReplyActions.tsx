@@ -9,7 +9,8 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { cn } from '../../lib/utils';
-import { Briefcase, CheckSquare, ExternalLink, StickyNote } from 'lucide-react';
+import { Briefcase, CheckSquare, ExternalLink, StickyNote, CalendarPlus, Loader2 } from 'lucide-react';
+import { bookingLinksApi } from '../../api/booking.api';
 import toast from 'react-hot-toast';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -28,6 +29,8 @@ import toast from 'react-hot-toast';
    ═══════════════════════════════════════════════════════════════════════ */
 
 interface ReplyTarget {
+  /** The message being replied to, for the one-click booking link. */
+  messageId: string;
   contactId: string | null;
   contactName: string | null;
   contactEmail: string;
@@ -36,7 +39,7 @@ interface ReplyTarget {
   company: string | null;
 }
 
-type Sheet = 'deal' | 'task' | 'note';
+type Sheet = 'deal' | 'task' | 'note' | 'link';
 
 /** Tomorrow morning, in the value format a date input wants. */
 function tomorrow(): string {
@@ -118,6 +121,25 @@ export function ReplyActions({ target, compact }: { target: ReplyTarget; compact
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not add the task'),
   });
 
+  /*
+   * The reply that answers "sure, when suits?" without writing one.
+   *
+   * This is the shortest path in the product between a reply and a meeting,
+   * and the reason it is worth a button rather than a snippet: the link it
+   * sends carries a token naming this thread, so the booking that comes
+   * back is attributed to the campaign rather than arriving from nowhere.
+   */
+  const sendLink = useMutation({
+    mutationFn: (note: string) => bookingLinksApi.sendLinkInReply(target.messageId, note),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inbox'] });
+      done('Sent, with your booking link');
+    },
+    onError: (e: any) => toast.error(
+      e?.response?.data?.error || 'Could not send that',
+    ),
+  });
+
   const createNote = useMutation({
     mutationFn: (body: string) =>
       crmApi.createNote({
@@ -145,6 +167,7 @@ export function ReplyActions({ target, compact }: { target: ReplyTarget; compact
         ) : (
           <ActionButton icon={Briefcase} label="Create deal" onClick={() => setSheet('deal')} primary />
         )}
+        <ActionButton icon={CalendarPlus} label="Send my link" onClick={() => setSheet('link')} />
         <ActionButton icon={CheckSquare} label="Add task" onClick={() => setSheet('task')} />
         <ActionButton icon={StickyNote} label="Note" onClick={() => setSheet('note')} />
       </div>
@@ -163,6 +186,14 @@ export function ReplyActions({ target, compact }: { target: ReplyTarget; compact
           busy={createTask.isPending}
           onClose={() => setSheet(null)}
           onSubmit={(v) => createTask.mutate(v)}
+        />
+      )}
+      {sheet === 'link' && (
+        <LinkSheet
+          target={target}
+          busy={sendLink.isPending}
+          onClose={() => setSheet(null)}
+          onSubmit={(v) => sendLink.mutate(v)}
         />
       )}
       {sheet === 'note' && (
@@ -194,6 +225,89 @@ function ActionButton({
       <Icon className="h-3 w-3" />
       {label}
     </button>
+  );
+}
+
+/**
+ * The sheet behind "Send my link".
+ *
+ * It shows the line that will be sent and lets it be changed, rather than
+ * firing on the click. A one-click send of words nobody read is how an
+ * account discovers its own tone in a prospect's inbox - and the line is
+ * short enough that editing it costs a second.
+ */
+function LinkSheet({ target, busy, onClose, onSubmit }: {
+  target: ReplyTarget;
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: (note: string) => void;
+}) {
+  const [note, setNote] = useState('Here is my calendar - grab whatever time suits you:');
+
+  const { data: readiness } = useQuery({
+    queryKey: ['booking-links', 'readiness'],
+    queryFn: bookingLinksApi.readiness,
+    meta: { silentError: true },
+  });
+
+  const { data: links } = useQuery({
+    queryKey: ['booking-links'],
+    queryFn: bookingLinksApi.list,
+    meta: { silentError: true },
+  });
+  const live = (links || []).find((l: any) => l.is_active);
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      size="sm"
+      title="Reply with your booking link"
+      description={`Goes to ${target.contactName || target.contactEmail}, in this thread.`}
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button onClick={() => onSubmit(note.trim())} disabled={busy || !live}>
+            {busy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Sending…</> : 'Send reply'}
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-3">
+        {!live ? (
+          <p className="text-[12.5px] text-[var(--text-secondary)]" data-no-link>
+            No booking link is live.{' '}
+            <Link to="/calendar/links" className="text-[var(--indigo)] hover:underline">
+              Turn one on
+            </Link>{' '}
+            and this becomes one click.
+          </p>
+        ) : (
+          <>
+            <Field label="What to say">
+              <textarea
+                rows={3}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="input-field w-full resize-none"
+                autoFocus
+                data-note
+              />
+            </Field>
+            <p className="text-[11.5px] text-[var(--text-tertiary)]">
+              Sends as a reply in this thread, with{' '}
+              <span className="text-[var(--text-secondary)]">/b/{live.slug}</span> underneath.
+              Whatever they book is credited to the campaign this thread came from.
+            </p>
+            {readiness && !readiness.can_email && (
+              <p className="text-[11.5px] text-[#f59e0b]" data-no-mailbox>
+                No mailbox is connected, so this will not send.
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    </Modal>
   );
 }
 

@@ -11,6 +11,8 @@ bookingRoutes.post('/', bookingController.create);
 bookingRoutes.patch('/:id', bookingController.update);
 bookingRoutes.delete('/:id', bookingController.archive);
 bookingRoutes.get('/:id/bookings', bookingController.bookings);
+// Replying to a thread with the link, from the inbox.
+bookingRoutes.post('/reply/:messageId', bookingController.sendLinkInReply);
 
 /* ═══════════════════════════════════════════════════════════════════════
    The public booking pages. Mounted outside /api/v1, before any auth.

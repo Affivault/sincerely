@@ -22,6 +22,11 @@ export const bookingLinksApi = {
   bookings: async (id: string) =>
     (await apiClient.get<any[]>(`/booking-links/${id}/bookings`)).data,
 
+  /** Reply to a thread with the account's link, in one action. */
+  sendLinkInReply: async (messageId: string, note?: string) =>
+    (await apiClient.post<{ sent: boolean; url: string }>(
+      `/booking-links/reply/${messageId}`, { note })).data,
+
   /** Whether a booking can send a confirmation at all. */
   readiness: async () =>
     (await apiClient.get<{ can_email: boolean }>('/booking-links/readiness')).data,

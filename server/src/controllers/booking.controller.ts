@@ -35,6 +35,15 @@ export const bookingController = {
     } catch (err) { next(err); }
   },
 
+  /** Reply to a thread with the account's booking link, in one action. */
+  async sendLinkInReply(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await bookingService.sendLinkInReply(
+        req.userId!, req.params.messageId, (req.body || {}).note,
+      ));
+    } catch (err) { next(err); }
+  },
+
   /**
    * Whether a booking can actually send anything.
    *

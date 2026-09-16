@@ -400,6 +400,7 @@ const cases: Case[] = [
   { name: 'booking.archiveLink',  on: bookingService, method: 'archiveLink',  args: [INTRUDER, ID.bookingLink] },
   { name: 'booking.listLinks',    on: bookingService, method: 'listLinks',    args: [INTRUDER] },
   { name: 'booking.linkBookings', on: bookingService, method: 'linkBookings', args: [INTRUDER, ID.bookingLink] },
+  { name: 'booking.sendLinkInReply', on: bookingService, method: 'sendLinkInReply', args: [INTRUDER, ID.message] },
   { name: 'availability.listWindows',    on: availabilityService, method: 'listWindows',    args: [INTRUDER] },
   { name: 'availability.replaceWindows', on: availabilityService, method: 'replaceWindows', args: [INTRUDER, [{ weekday: 1, start_minute: 540, end_minute: 1020 }]] },
   { name: 'availability.getPrefs',       on: availabilityService, method: 'getPrefs',       args: [INTRUDER] },
