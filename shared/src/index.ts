@@ -19,6 +19,8 @@ export * from './sequence-performance.types.js';
 export * from './billing.types.js';
 export * from './crm.types.js';
 export * from './calendar.types.js';
+export * from './timezone.js';
+export * from './availability.types.js';
 export * from './lead.types.js';
 export * from './lifecycle.types.js';
 export * from './attribution.types.js';
