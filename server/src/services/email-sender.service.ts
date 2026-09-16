@@ -38,6 +38,17 @@ interface SmtpSendParams {
   /** Override SMTP handshake/socket timeouts (ms). Interactive test sends use
    *  a short budget so the API replies well before the client's 30s timeout. */
   timeoutMs?: number;
+  /**
+   * A calendar invitation carried in the message itself.
+   *
+   * Attaching the .ics as a file gets you a download. Sending it as a
+   * text/calendar alternative is what makes Gmail and Outlook render the
+   * invite inline with Yes/No buttons and put it straight in the diary,
+   * which is the whole difference between "an email about a meeting" and
+   * "a meeting". The relay path cannot carry it, so the caller must always
+   * include a link to the file as well.
+   */
+  icsEvent?: { method: 'REQUEST' | 'CANCEL'; content: string };
 }
 
 /**
@@ -290,6 +301,11 @@ async function sendDirect(params: SmtpSendParams): Promise<SmtpSendResult> {
       text: params.text || undefined,
       messageId: params.messageId || undefined,
       headers: params.headers || undefined,
+      // nodemailer builds the multipart/alternative for us; the filename is
+      // what a client that cannot render it inline falls back to offering.
+      icalEvent: params.icsEvent
+        ? { method: params.icsEvent.method, filename: 'invite.ics', content: params.icsEvent.content }
+        : undefined,
     });
   } finally {
     transporter.close();

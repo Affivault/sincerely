@@ -31,10 +31,31 @@ const SERVICES = join(here, '../src/services');
 
 /* ---- what the database actually has ---------------------------------- */
 
-const sql = readdirSync(MIGRATIONS)
-  .filter((f) => f.endsWith('.sql'))
-  .map((f) => readFileSync(join(MIGRATIONS, f), 'utf8'))
-  .join('\n');
+/**
+ * Comments come out before anything is parsed.
+ *
+ * Postgres does not care, but every regex below is delimited by `;` - and a
+ * semicolon inside a `-- comment` ends a statement early, silently dropping
+ * whichever columns were declared after it. The failure reads as "the code
+ * uses a column the database does not have", which sends you looking at the
+ * wrong file entirely.
+ *
+ * Dollar-quoted bodies are left alone: a DO block is full of semicolons and
+ * is not a statement boundary, but nothing inside one declares a column, so
+ * an early cut there costs nothing.
+ */
+function stripComments(text: string): string {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/--[^\n]*/g, '');
+}
+
+const sql = stripComments(
+  readdirSync(MIGRATIONS)
+    .filter((f) => f.endsWith('.sql'))
+    .map((f) => readFileSync(join(MIGRATIONS, f), 'utf8'))
+    .join('\n'),
+);
 
 const tables = new Set<string>();
 const columns = new Map<string, Set<string>>();

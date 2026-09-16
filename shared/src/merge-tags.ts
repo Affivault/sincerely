@@ -45,6 +45,15 @@ export interface MergeContext {
   contact?: any;
   sender?: SenderIdentity | null;
   /**
+   * The account's booking page address, for `{{booking_link}}`.
+   *
+   * Resolved by the send path rather than read off the contact, because it
+   * belongs to the sender, not the recipient. Absent when the account has no
+   * live link - and the tag then blanks like any other unfillable one, so a
+   * sequence never ships a dangling URL to a prospect.
+   */
+  bookingLink?: string | null;
+  /**
    * Tags to leave exactly as they are, braces and all, because a later
    * stage owns them. Anything not deferred and not resolvable is blanked.
    */
@@ -99,6 +108,12 @@ export function buildTagValues(ctx: MergeContext): Record<string, string> {
     location: str(c.location),
     city: cityFromLocation(c.location),
     country: countryFromLocation(c.location),
+
+    // ─── The account's own scheduler ───
+    // A cold email that ends "here is my calendar" converts a reply into a
+    // meeting without a second round trip, which is the whole reason this
+    // product owns a scheduler rather than linking out to one.
+    booking_link: str(ctx.bookingLink),
 
     // ─── Sender ───
     sender_name: senderName,
@@ -347,6 +362,7 @@ export const TAG_LABELS: Record<string, string> = {
   sender_first_name: 'Your first name',
   sender_email: 'Your email',
   sender_company: 'Your company',
+  booking_link: 'Your booking link',
   unsubscribe_link: 'Unsubscribe link',
 };
 

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { bookingService, publicBookingService } from '../services/booking.service.js';
+import { bookingMail } from '../services/booking-mail.service.js';
 
 /* The account's own links. Ordinary authenticated CRUD. */
 export const bookingController = {
@@ -33,6 +34,20 @@ export const bookingController = {
       res.json(await bookingService.linkBookings(req.userId!, req.params.id));
     } catch (err) { next(err); }
   },
+
+  /**
+   * Whether a booking can actually send anything.
+   *
+   * Asked by the links page so it can say so up front. A link that takes
+   * bookings but silently sends no confirmation is the worst of both: the
+   * account believes it is working, and the prospect thinks they were
+   * ignored.
+   */
+  async readiness(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json({ can_email: await bookingMail.canSend(req.userId!) });
+    } catch (err) { next(err); }
+  },
 };
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -62,6 +77,34 @@ function range(req: Request): { from: Date; to: Date } | null {
   return { from: start, to: capped };
 }
 
+/**
+ * What a visitor may see of their own booking.
+ *
+ * byToken carries more than a visitor needs - the owning account, the row
+ * id, the ics sequence, whether the organiser wants emails - because the
+ * notification path is built from the same object. A whitelist rather than
+ * a blacklist, so a field added later is invisible by default rather than
+ * public by accident.
+ */
+function strip(booking: any) {
+  return {
+    start: booking.start,
+    end: booking.end,
+    headline: booking.headline,
+    organiser: booking.organiser,
+    duration_minutes: booking.duration_minutes,
+    location_kind: booking.location_kind,
+    timezone: booking.timezone,
+    invitee_name: booking.invitee_name,
+    invitee_email: booking.invitee_email,
+    manage_token: booking.manage_token,
+    status: booking.status,
+    cancelled_at: booking.cancelled_at ?? null,
+    cancel_reason: booking.cancel_reason ?? null,
+    slug: booking.slug ?? null,
+  };
+}
+
 export const publicBookingController = {
   async page(req: Request, res: Response, next: NextFunction) {
     try {
@@ -87,11 +130,7 @@ export const publicBookingController = {
 
   async byToken(req: Request, res: Response, next: NextFunction) {
     try {
-      const booking = await publicBookingService.byToken(req.params.token);
-      // user_id is how the service reaches the diary. It is not the
-      // visitor's business, and it is stripped on the way out.
-      const { user_id: _omit, id: _also, ...safe } = booking as any;
-      res.json(safe);
+      res.json(strip(await publicBookingService.byToken(req.params.token)));
     } catch (err) { next(err); }
   },
 
@@ -105,17 +144,13 @@ export const publicBookingController = {
 
   async reschedule(req: Request, res: Response, next: NextFunction) {
     try {
-      const booking = await publicBookingService.reschedule(req.params.token, (req.body || {}).start);
-      const { user_id: _omit, id: _also, ...safe } = booking as any;
-      res.json(safe);
+      res.json(strip(await publicBookingService.reschedule(req.params.token, (req.body || {}).start)));
     } catch (err) { next(err); }
   },
 
   async cancel(req: Request, res: Response, next: NextFunction) {
     try {
-      const booking = await publicBookingService.cancel(req.params.token, (req.body || {}).reason);
-      const { user_id: _omit, id: _also, ...safe } = booking as any;
-      res.json(safe);
+      res.json(strip(await publicBookingService.cancel(req.params.token, (req.body || {}).reason)));
     } catch (err) { next(err); }
   },
 

@@ -5,6 +5,8 @@ import { bookingController, publicBookingController } from '../controllers/booki
 export const bookingRoutes = Router();
 
 bookingRoutes.get('/', bookingController.list);
+// Declared before '/:id/...' so 'readiness' is never read as a link id.
+bookingRoutes.get('/readiness', bookingController.readiness);
 bookingRoutes.post('/', bookingController.create);
 bookingRoutes.patch('/:id', bookingController.update);
 bookingRoutes.delete('/:id', bookingController.archive);
