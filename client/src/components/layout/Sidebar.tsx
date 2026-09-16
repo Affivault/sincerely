@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers, Blocks,
   ChevronRight, Wrench, Clock, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck, Sparkles,
-  CalendarDays, ListTodo, Building2, Linkedin, Contact2, Banknote,
+  CalendarDays, ListTodo, Building2, Linkedin, Contact2, Banknote, Link2,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
@@ -89,6 +89,7 @@ const primaryNav: NavItem[] = [
     children: [
       { name: 'Calendar',     href: '/calendar', icon: CalendarDays, exact: true },
       { name: 'Availability', href: '/calendar/availability', icon: Clock },
+      { name: 'Booking links', href: '/calendar/links', icon: Link2 },
       { name: 'Activities',   href: '/tasks',    icon: ListTodo },
     ],
   },
