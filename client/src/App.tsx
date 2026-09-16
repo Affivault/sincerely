@@ -32,6 +32,7 @@ const CompaniesPage        = lazy(() => import('./pages/companies/CompaniesPage'
 const LinkedinPage         = lazy(() => import('./pages/linkedin/LinkedinPage').then(m => ({ default: m.LinkedinPage })));
 const CompanyDetailPage    = lazy(() => import('./pages/companies/CompanyDetailPage').then(m => ({ default: m.CompanyDetailPage })));
 const TasksPage            = lazy(() => import('./pages/crm/TasksPage').then(m => ({ default: m.TasksPage })));
+const AvailabilityPage     = lazy(() => import('./pages/crm/AvailabilityPage').then(m => ({ default: m.AvailabilityPage })));
 const CalendarPage         = lazy(() => import('./pages/crm/CalendarPage').then(m => ({ default: m.CalendarPage })));
 const ProspectorPage       = lazy(() => import('./pages/prospector/ProspectorPage').then(m => ({ default: m.ProspectorPage })));
 const AdminPage            = lazy(() => import('./pages/admin/AdminPage').then(m => ({ default: m.AdminPage })));
@@ -149,6 +150,7 @@ export default function App() {
           <Route path="/companies/:id"      element={<CompanyDetailPage />} />
           <Route path="/tasks"              element={<TasksPage />} />
           <Route path="/calendar"           element={<CalendarPage />} />
+          <Route path="/calendar/availability" element={<AvailabilityPage />} />
           {/* CRM used to be one tabbed page; keep old links working. */}
           <Route path="/crm"                element={<Navigate to="/deals" replace />} />
           <Route path="/prospector"         element={<ProspectorPage />} />

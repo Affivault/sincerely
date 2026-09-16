@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers, Blocks,
-  ChevronRight, Wrench, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck, Sparkles,
+  ChevronRight, Wrench, Clock, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck, Sparkles,
   CalendarDays, ListTodo, Building2, Linkedin, Contact2, Banknote,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -87,8 +87,9 @@ const primaryNav: NavItem[] = [
     kind: 'group', id: 'calendar',
     name: 'Calendar', href: '/calendar', icon: CalendarDays,
     children: [
-      { name: 'Calendar',   href: '/calendar', icon: CalendarDays },
-      { name: 'Activities', href: '/tasks',    icon: ListTodo },
+      { name: 'Calendar',     href: '/calendar', icon: CalendarDays, exact: true },
+      { name: 'Availability', href: '/calendar/availability', icon: Clock },
+      { name: 'Activities',   href: '/tasks',    icon: ListTodo },
     ],
   },
 ];
