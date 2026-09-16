@@ -11,6 +11,7 @@
     "check:availability": "tsx scripts/availability-check.mts",
     "check:bookingmail": "tsx scripts/booking-mail-check.mts",
     "check:bookingtoken": "tsx scripts/booking-token-check.mts",
+    "check:bookingreply": "tsx scripts/booking-reply-check.mts",
     "check:calendar": "tsx scripts/calendar-layout-check.mts",
     "check:days": "tsx scripts/day-window-check.mts",
     "audit:tenants": "tsx scripts/audit-tenant-isolation.mts",
@@ -26,7 +27,7 @@
     "check:health": "tsx scripts/campaign-health-check.mts",
     "check:pipeline": "tsx scripts/pipeline-check.mts",
     "check:overlay": "tsx scripts/overlay-containment-check.mts",
-    "check": "npm run check:html && npm run check:imap && npm run check:failures && npm run check:send && npm run check:steps && npm run check:enrol && npm run check:triage && npm run check:schema && npm run check:health && npm run check:pipeline && npm run check:overlay && npm run check:readiness && npm run check:apikeys && npm run check:calendar && npm run check:availability && npm run check:bookingmail && npm run check:bookingtoken && npm run check:days && npm run audit:writes && npm run audit:tenants",
+    "check": "npm run check:html && npm run check:imap && npm run check:failures && npm run check:send && npm run check:steps && npm run check:enrol && npm run check:triage && npm run check:schema && npm run check:health && npm run check:pipeline && npm run check:overlay && npm run check:readiness && npm run check:apikeys && npm run check:calendar && npm run check:availability && npm run check:bookingmail && npm run check:bookingtoken && npm run check:bookingreply && npm run check:days && npm run audit:writes && npm run audit:tenants",
     "check:html": "tsx scripts/outgoing-html-check.mts",
     "check:imap": "tsx scripts/imap-window-check.mts"
   },

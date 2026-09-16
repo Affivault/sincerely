@@ -3,7 +3,8 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { availabilityService } from './calendar.service.js';
 import { bookingMail, type BookingMailContext } from './booking-mail.service.js';
-import { readBookingIdentity } from '../utils/booking-token.js';
+import { readBookingIdentity, isStepId, signBookingIdentity, NO_STEP } from '../utils/booking-token.js';
+import { inboxService } from './inbox.service.js';
 import { env } from '../config/env.js';
 import {
   slugify, looksLikeEmail, buildIcs,
@@ -267,6 +268,70 @@ export const bookingService = {
     return { archived: true };
   },
 
+  /**
+   * Reply to somebody with your booking link, in one action.
+   *
+   * The loop this closes is the one that actually loses meetings. A prospect
+   * writes "sure, when suits?", and answering it means leaving the inbox,
+   * finding the link, writing three lines, and remembering to log it. Most
+   * people do it eventually; the ones who do it four hours later book fewer
+   * meetings than the ones who do it now.
+   *
+   * The link is personalised with a token naming this contact, so the
+   * booking that comes back is attributed to the campaign the thread
+   * belongs to - a reply is part of a sequence's result whether or not it
+   * came from a step of it.
+   */
+  async sendLinkInReply(userId: string, messageId: string, note?: string): Promise<{
+    sent: boolean; url: string;
+  }> {
+    const { data: message } = await supabaseAdmin
+      .from('inbox_messages')
+      .select('id, user_id, from_email, campaign_id, contact_id, contacts(first_name)')
+      .eq('id', messageId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!message) throw new AppError('No such message.', 404);
+
+    const base = await defaultBookingLinkUrl(userId);
+    if (!base) {
+      throw new AppError(
+        'No booking link is live. Turn one on and it will be one click from here.', 409,
+      );
+    }
+
+    // Name the send, when the thread belongs to a campaign and we know who.
+    let url = base;
+    if (message.campaign_id && message.contact_id) {
+      const { data: cc } = await supabaseAdmin
+        .from('campaign_contacts')
+        .select('id')
+        .eq('campaign_id', message.campaign_id)
+        .eq('contact_id', message.contact_id)
+        .maybeSingle();
+      if (cc?.id) {
+        url = `${base}?k=${signBookingIdentity(cc.id, NO_STEP)}`;
+      }
+    }
+
+    const first = (message as any).contacts?.first_name?.trim();
+    const greeting = first ? `Hi ${first},` : 'Hi,';
+    const body = [
+      greeting,
+      '',
+      (note || '').trim() || 'Here is my calendar - grab whatever time suits you:',
+      '',
+      url,
+    ].join('\n');
+
+    const html = `<p>${greeting}</p><p>${
+      (note || '').trim() || 'Here is my calendar &mdash; grab whatever time suits you:'
+    }</p><p><a href="${url}">${url}</a></p>`;
+
+    await inboxService.reply(userId, messageId, body, undefined, html);
+    return { sent: true, url };
+  },
+
   /** Meetings booked through this link, newest first. */
   async linkBookings(userId: string, id: string, limit = 50) {
     const { data, error } = await supabaseAdmin
@@ -373,7 +438,13 @@ async function identify(token: string | undefined, linkUserId: string): Promise<
     return {
       contactId: row.contact_id ?? null,
       campaignId: row.campaign_id ?? null,
-      stepId: identity.stepId,
+      /*
+       * A link sent by hand from the inbox belongs to a campaign but to no
+       * step of it, and says so with a sentinel. Nulling anything that is
+       * not a real id keeps it out of the foreign key rather than failing
+       * the write and losing the attribution entirely.
+       */
+      stepId: isStepId(identity.stepId) ? identity.stepId : null,
       name: [c?.first_name, c?.last_name].filter(Boolean).join(' ').trim(),
       email: c?.email || '',
       company: c?.company || '',

@@ -44,6 +44,21 @@ export function signBookingIdentity(campaignContactId: string, stepId: string): 
 }
 
 /**
+ * The step a link sent by hand came from, which is no step at all.
+ *
+ * A reply typed in the inbox belongs to a campaign - that is how the thread
+ * exists - but not to any step of it. The sentinel says so explicitly rather
+ * than borrowing a step id that would be a lie, and identify() turns it back
+ * into a null so nothing tries to write it into a foreign key.
+ */
+export const NO_STEP = 'reply';
+
+/** Does this look like something campaign_steps could actually contain? */
+export function isStepId(value: string | null | undefined): boolean {
+  return !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+/**
  * Read a token back, or null.
  *
  * Null for anything that does not verify, and the caller treats that as "we
