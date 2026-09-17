@@ -68,6 +68,7 @@ const ID = {
   apikey: 'd0000000-0000-0000-0000-000000000001',
   eventType: 'd0000000-0000-0000-0000-000000000002',
   bookingLink: 'd0000000-0000-0000-0000-000000000005',
+  calendarConnection: 'd0000000-0000-0000-0000-000000000006',
 };
 
 const owned = (id: string, extra: Record<string, any> = {}) => ({
@@ -102,6 +103,7 @@ function freshWorld(): World {
     crm_events: [owned('30000000-0000-0000-0000-000000000005', { starts_at: '2026-02-01T00:00:00Z', type: 'meeting' })],
     calendar_availability: [owned('d0000000-0000-0000-0000-000000000003', { weekday: 1, start_minute: 540, end_minute: 1020 })],
     calendar_scheduling_prefs: [owned('d0000000-0000-0000-0000-000000000004', { timezone: 'Secret/Zone', buffer_before_minutes: 0, buffer_after_minutes: 0, minimum_notice_minutes: 240, max_bookings_per_day: null, slot_interval_minutes: 15, booking_horizon_days: 60 })],
+    calendar_connections: [owned(ID.calendarConnection, { provider: 'google', account_email: `${SECRET}@owner.test`, access_token: SECRET, refresh_token: SECRET, read_busy: true, write_events: true, broken_at: null, calendar_ids: ['primary'] })],
     booking_links: [owned(ID.bookingLink, { slug: 'owner-secret-slug', headline: SECRET, event_type_id: ID.eventType, is_active: true, views: 3, bookings: 2, archived_at: null, duration_minutes: null, collect_phone: false, collect_company: false, question: null })],
     calendar_event_types: [owned(ID.eventType, { colour: '#6366f1', duration_minutes: 30, location_kind: 'video', is_default: true, archived_at: null })],
     leads: [owned(ID.lead, { contact_id: ID.contact, status: 'open' })],
@@ -291,7 +293,7 @@ function judge(name: string, returned: unknown, threw: unknown) {
 /* ── The methods, called as somebody else ─────────────────────────── */
 
 const [
-  contacts, campaigns, campaignSteps, campaignContacts, crm, calendar, booking, leads, lists, companies,
+  contacts, campaigns, campaignSteps, campaignContacts, crm, calendar, booking, calsync, leads, lists, companies,
   template, segments, tags, smtp, inbox, triage, webhook, integrations, asset, apikey, settings, suppression,
 ] = await Promise.all([
   import('../src/services/contacts.service.js'),
@@ -301,6 +303,7 @@ const [
   import('../src/services/crm.service.js'),
   import('../src/services/calendar.service.js'),
   import('../src/services/booking.service.js'),
+  import('../src/services/calendar-sync.service.js'),
   import('../src/services/leads.service.js'),
   import('../src/services/lists.service.js'),
   import('../src/services/companies.service.js'),
@@ -355,6 +358,7 @@ const smtpService = S(smtp, 'smtpService');
 const inboxService = S(inbox, 'inboxService');
 const triageService = S(triage, 'triageService');
 const bookingService = S(booking, 'bookingService');
+const calendarSyncService = S(calsync, 'calendarSync');
 const calendarService = S(calendar, 'calendarService');
 const availabilityService = S(calendar, 'availabilityService');
 
@@ -401,6 +405,9 @@ const cases: Case[] = [
   { name: 'booking.listLinks',    on: bookingService, method: 'listLinks',    args: [INTRUDER] },
   { name: 'booking.linkBookings', on: bookingService, method: 'linkBookings', args: [INTRUDER, ID.bookingLink] },
   { name: 'booking.sendLinkInReply', on: bookingService, method: 'sendLinkInReply', args: [INTRUDER, ID.message] },
+  { name: 'calsync.list',         on: calendarSyncService, method: 'list',       args: [INTRUDER] },
+  { name: 'calsync.update',       on: calendarSyncService, method: 'update',     args: [INTRUDER, ID.calendarConnection, { read_busy: false }] },
+  { name: 'calsync.disconnect',   on: calendarSyncService, method: 'disconnect', args: [INTRUDER, ID.calendarConnection] },
   { name: 'availability.listWindows',    on: availabilityService, method: 'listWindows',    args: [INTRUDER] },
   { name: 'availability.replaceWindows', on: availabilityService, method: 'replaceWindows', args: [INTRUDER, [{ weekday: 1, start_minute: 540, end_minute: 1020 }]] },
   { name: 'availability.getPrefs',       on: availabilityService, method: 'getPrefs',       args: [INTRUDER] },

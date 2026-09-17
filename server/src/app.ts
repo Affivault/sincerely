@@ -9,6 +9,7 @@ import { webhookInboundRoutes } from './routes/webhook-inbound.routes.js';
 import { trackingRoutes } from './routes/tracking.routes.js';
 import { publicBookingRoutes } from './routes/booking.routes.js';
 import { integrationsOAuthRoutes } from './routes/integrations-oauth.routes.js';
+import { calendarOAuthRoutes } from './routes/calendar-oauth.routes.js';
 import { billingController } from './controllers/billing.controller.js';
 
 const app = express();
@@ -49,6 +50,9 @@ app.use('/api/track', trackingRoutes);
 // Public OAuth callbacks for integrations (no auth — identity comes from
 // the HMAC-signed state parameter; the browser arrives via provider redirect)
 app.use('/api/oauth/integrations', integrationsOAuthRoutes);
+
+// Public Google Calendar callback (no auth - identity is in the signed state)
+app.use('/api/oauth/calendar', calendarOAuthRoutes);
 
 // Public booking pages (no auth - a stranger with a link is the point).
 // Rate limited in the router; every response is a hand-written whitelist.

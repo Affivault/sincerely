@@ -42,6 +42,12 @@ const envSchema = z.object({
   HUBSPOT_CLIENT_SECRET: z.string().optional().default(''),
   NOTION_CLIENT_ID: z.string().optional().default(''),
   NOTION_CLIENT_SECRET: z.string().optional().default(''),
+  // Google Calendar, for reading free/busy so a booking page never offers a
+  // time the account is already busy in a calendar Sincerely does not own.
+  // Redirect URI: <API_BASE_URL>/api/oauth/calendar/google/callback
+  // Absent = the feature is simply off; everything else works unchanged.
+  GOOGLE_CLIENT_ID: z.string().optional().default(''),
+  GOOGLE_CLIENT_SECRET: z.string().optional().default(''),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -33,6 +33,28 @@ export const availabilityApi = {
   updatePrefs: async (patch: Partial<SchedulingPrefs>) =>
     (await apiClient.patch<SchedulingPrefs>('/calendar/availability/prefs', patch)).data,
 
+  /* ── Calendars kept elsewhere ── */
+
+  connections: async () =>
+    (await apiClient.get<{
+      available: boolean;
+      connections: {
+        id: string; provider: string; account_email: string | null;
+        read_busy: boolean; write_events: boolean;
+        broken_at: string | null; broken_reason: string | null;
+        last_synced_at: string | null;
+      }[];
+    }>('/calendar/connections')).data,
+
+  authorizeGoogle: async () =>
+    (await apiClient.get<{ url: string }>('/calendar/connections/authorize')).data,
+
+  updateConnection: async (id: string, input: { read_busy?: boolean; write_events?: boolean }) =>
+    (await apiClient.patch(`/calendar/connections/${id}`, input)).data,
+
+  disconnect: async (id: string) =>
+    (await apiClient.delete(`/calendar/connections/${id}`)).data,
+
   /** What could be offered, straight from the server that would honour it. */
   slots: async (params: { from: string; to: string; duration: number }) =>
     (await apiClient.get<{ start: string; end: string }[]>('/calendar/slots', { params })).data,

@@ -4,6 +4,7 @@ import { AppError } from '../middleware/error.middleware.js';
 import { availabilityService } from './calendar.service.js';
 import { bookingMail, type BookingMailContext } from './booking-mail.service.js';
 import { readBookingIdentity, isStepId, signBookingIdentity, NO_STEP } from '../utils/booking-token.js';
+import { calendarSync } from './calendar-sync.service.js';
 import { inboxService } from './inbox.service.js';
 import { env } from '../config/env.js';
 import {
@@ -632,6 +633,16 @@ export const publicBookingService = {
         ? this.openDeal(link, eventId, contactId, { name, email, company: input.company },
                         knownContactId ? who : null)
         : Promise.resolve(),
+      // Put it in the account's real calendar too. Best effort by design:
+      // the meeting exists here either way, and a booking refused because
+      // Google was slow is a lost meeting nobody can explain.
+      calendarSync.pushEvent(link.user_id, {
+        id: eventId,
+        title: `${link.event_type?.name || link.headline} with ${name}`,
+        start, end,
+        inviteeEmail: email,
+        description: input.answer || null,
+      }),
       bookingMail.confirmed({
         userId: link.user_id,
         eventId,
@@ -1009,7 +1020,12 @@ export const publicBookingService = {
     if (error) throw new AppError(error.message, 500);
 
     const cancelled = await this.byToken(token);
-    await this.notify(cancelled, (ctx) => bookingMail.cancelled(ctx, by, reason));
+    await Promise.allSettled([
+      this.notify(cancelled, (ctx) => bookingMail.cancelled(ctx, by, reason)),
+      // Take it back out of the real calendar, or the slot stays blocked
+      // there forever and the account's own availability quietly shrinks.
+      calendarSync.removeEvent(booking.user_id, booking.id),
+    ]);
     return cancelled;
   },
 
