@@ -23,10 +23,32 @@ function back(res: Response, params: Record<string, string>) {
 }
 
 calendarOAuthRoutes.get('/google/callback', async (req: Request, res: Response) => {
-  const { code, state, error } = req.query as Record<string, string>;
+  const { code, state, error, error_description: description } = req.query as Record<string, string>;
 
-  // The user pressed Cancel. Not an error, and must not read as one.
-  if (error) return back(res, { calendar: 'cancelled' });
+  if (error) {
+    /*
+     * access_denied means two very different things and Google sends the
+     * same code for both: the person pressed Cancel, or Google refused them
+     * because the app is unverified and they are not on the test-user list.
+     *
+     * Treating it only as a cancellation - which this did - leaves somebody
+     * who was BLOCKED staring at a page that says nothing happened, with no
+     * idea the consent screen is the thing to fix. So the message names
+     * both possibilities and where to look.
+     */
+    if (error === 'access_denied') {
+      return back(res, {
+        calendar: 'denied',
+        message: description
+          || 'Cancelled, or Google blocked it. If you did not press cancel, add this '
+           + 'address as a test user on the OAuth consent screen.',
+      });
+    }
+    return back(res, {
+      calendar: 'error',
+      message: String(description || error).slice(0, 200),
+    });
+  }
   if (!code || !state) return back(res, { calendar: 'error', message: 'Missing code or state' });
 
   try {
