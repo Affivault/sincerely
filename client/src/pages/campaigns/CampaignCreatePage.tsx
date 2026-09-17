@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
 import { PersonalizationPanel, TimezoneCoverageNote, countGaps, shouldPauseLaunch } from '../../components/campaigns/PersonalizationPanel';
 import { ReadinessSummary } from '../../components/delivery/ReadinessPanel';
-import { previewPersonalization, countSpinVariants } from '@lemlist/shared';
+import { previewPersonalization, countSpinVariants, PLACEHOLDER } from '@lemlist/shared';
 import { smtpApi } from '../../api/smtp.api';
 import { contactsApi, listsApi } from '../../api/contacts.api';
 import { sendingSchedulesApi, type SendingSchedule } from '../../api/sending-schedules.api';
@@ -2739,7 +2739,7 @@ function RecipientPreview({ subject, bodyHtml, fromName, fromEmail }: {
               <span className="font-semibold">{fromName}</span>{' '}
               <span className="text-gray-500">&lt;{fromEmail}&gt;</span>
             </div>
-            <div className="text-[10px] text-gray-500">to Sarah Chen — now</div>
+            <div className="text-[10px] text-gray-500">to {PLACEHOLDER.contactName} — now</div>
           </div>
         </div>
       </div>

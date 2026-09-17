@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { SmtpAccount, CreateSmtpAccountInput, SmtpPreset, VerifyLegResult, SmtpDiagnostics } from '@lemlist/shared';
-import { SMTP_PRESETS, detectPresetFromEmail } from '@lemlist/shared';
+import { SMTP_PRESETS, detectPresetFromEmail, PLACEHOLDER } from '@lemlist/shared';
 
 /** Map the MX check's provider hint onto our connection presets. */
 const HINT_TO_PRESET: Record<string, string> = {
@@ -536,8 +536,8 @@ export function SmtpAccountModal({
 
             <Section icon={Mail} title="Sender" subtitle="How your emails appear to recipients.">
               <div className="grid grid-cols-2 gap-3">
-                <Input label="From name" value={form.from_name || ''} onChange={(e) => updateField('from_name', e.target.value)} placeholder="e.g. Thomas Vance" hint="Shown in the From field" />
-                <Input label="Label (internal)" value={form.label} onChange={(e) => updateField('label', e.target.value)} placeholder="e.g. Outreach, Yieldtrak" error={err('label')} />
+                <Input label="From name" value={form.from_name || ''} onChange={(e) => updateField('from_name', e.target.value)} placeholder={`e.g. ${PLACEHOLDER.senderName}`} hint="Shown in the From field" />
+                <Input label="Label (internal)" value={form.label} onChange={(e) => updateField('label', e.target.value)} placeholder={`e.g. Outreach, ${PLACEHOLDER.senderCompany}`} error={err('label')} />
               </div>
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <Input label="From email" type="email" value={form.email_address} onChange={(e) => handleEmailChange(e.target.value)} placeholder={activePreset?.username_hint || 'you@company.com'} error={err('email_address')} />
@@ -663,7 +663,7 @@ export function SmtpAccountModal({
                 initialContent={form.signature_html || ''}
                 onChange={(html, text) => updateField('signature_html', text.trim() ? html : '')}
                 minHeight="100px"
-                placeholder="e.g. Thomas Vance — Growth, Yieldtrak · thomas@yieldtrak.com"
+                placeholder={`e.g. ${PLACEHOLDER.senderName} — Growth, ${PLACEHOLDER.senderCompany} · ${PLACEHOLDER.senderEmail}`}
               />
             </Section>
           </div>

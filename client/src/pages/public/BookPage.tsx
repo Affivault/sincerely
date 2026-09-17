@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, Check, Loader2, ArrowLeft, Download, AlertCircle,
 } from 'lucide-react';
 import { publicBookingApi, type WireSlot } from '../../api/booking.api';
-import { WEEKDAY_SHORT } from '@lemlist/shared';
+import { WEEKDAY_SHORT, PLACEHOLDER } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import { PublicShell } from './PublicShell';
 
@@ -268,7 +268,7 @@ export function BookPage() {
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="input-field w-full"
-                placeholder="Jordan Ellis"
+                placeholder={PLACEHOLDER.contactName}
               />
             </Field>
             <Field label="Email" required hint="Where the confirmation goes.">
