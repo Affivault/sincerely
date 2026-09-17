@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Clock, Plus, X, Loader2, Check, Globe, CalendarCheck } from 'lucide-react';
+import {
+  Clock, Plus, X, Loader2, Check, Globe, CalendarCheck,
+  RefreshCw, AlertTriangle,
+} from 'lucide-react';
 import {
   WEEKDAY_NAMES, SLOT_INTERVALS, minuteLabel, parseMinuteLabel, describeWeek,
   DEFAULT_SCHEDULING_PREFS, durationLabel,
@@ -43,6 +47,146 @@ const PRESETS: { label: string; windows: AvailabilityWindow[] }[] = [
     windows: [1, 2, 3, 4, 5].map((weekday) => ({ weekday, start_minute: 540, end_minute: 720 })),
   },
 ];
+
+/**
+ * Calendars kept somewhere else.
+ *
+ * The one part of availability that is about correctness rather than
+ * preference: without it, the page offers times the account is already busy
+ * in, and the person who connected a calendar precisely so that would not
+ * happen is the one it happens to.
+ */
+function ExternalCalendars() {
+  const qc = useQueryClient();
+  const [params, setParams] = useSearchParams();
+
+  const { data } = useQuery({
+    queryKey: ['calendar', 'connections'],
+    queryFn: availabilityApi.connections,
+  });
+
+  // The OAuth callback lands back here with a result in the query string.
+  useEffect(() => {
+    const outcome = params.get('calendar');
+    if (!outcome) return;
+    if (outcome === 'connected') toast.success(`Connected ${params.get('account') || 'your calendar'}`);
+    else if (outcome === 'error') toast.error(params.get('message') || 'Could not connect');
+    // 'cancelled' says nothing: they pressed Cancel and know it.
+    qc.invalidateQueries({ queryKey: ['calendar', 'connections'] });
+    const next = new URLSearchParams(params);
+    ['calendar', 'account', 'message'].forEach((k) => next.delete(k));
+    setParams(next, { replace: true });
+  }, [params, qc, setParams]);
+
+  const connect = useMutation({
+    mutationFn: availabilityApi.authorizeGoogle,
+    onSuccess: ({ url }) => { window.location.href = url; },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not start that'),
+  });
+
+  const drop = useMutation({
+    mutationFn: (id: string) => availabilityApi.disconnect(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['calendar'] });
+      toast.success('Disconnected');
+    },
+  });
+
+  const toggleWrite = useMutation({
+    mutationFn: ({ id, write_events }: { id: string; write_events: boolean }) =>
+      availabilityApi.updateConnection(id, { write_events }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['calendar', 'connections'] }),
+  });
+
+  if (!data) return null;
+  const connections = data.connections || [];
+
+  return (
+    <section className="panel overflow-hidden" data-connections>
+      <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
+        <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
+          <RefreshCw className="h-3.5 w-3.5 text-[var(--indigo)]" />
+          Your other calendars
+        </h3>
+        <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)]">
+          So a booking page never offers a time you are already busy in.
+        </p>
+      </div>
+
+      <div className="px-4 py-3 space-y-2">
+        {!data.available ? (
+          <p className="text-[12px] text-[var(--text-secondary)]" data-unavailable>
+            Google Calendar is not set up on this deployment yet. Until it is,
+            only meetings booked here count against your availability.
+          </p>
+        ) : connections.length === 0 ? (
+          <>
+            <p className="text-[12px] text-[var(--text-secondary)]">
+              Nothing connected. Meetings in your Google calendar will not block
+              a slot, so the page can offer a time you already have something in.
+            </p>
+            <button
+              onClick={() => connect.mutate()}
+              disabled={connect.isPending}
+              className="btn-secondary w-full justify-center"
+              data-connect
+            >
+              {connect.isPending
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <RefreshCw className="h-3.5 w-3.5" />}
+              Connect Google Calendar
+            </button>
+          </>
+        ) : (
+          connections.map((c) => (
+            <div key={c.id} data-connection={c.id} className="rounded-lg border border-[var(--border-subtle)] px-3 py-2">
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  'h-1.5 w-1.5 flex-shrink-0 rounded-full',
+                  c.broken_at ? 'bg-[#ef4444]' : 'bg-[#10b981]',
+                )} />
+                <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--text-primary)]">
+                  {c.account_email || 'Google Calendar'}
+                </span>
+                <button
+                  onClick={() => drop.mutate(c.id)}
+                  className="text-[11.5px] text-[var(--text-tertiary)] hover:text-[#ef4444]"
+                >
+                  Disconnect
+                </button>
+              </div>
+
+              {c.broken_at ? (
+                <p className="mt-1.5 flex items-start gap-1.5 text-[11.5px] text-[#ef4444]" data-broken>
+                  <AlertTriangle className="mt-[1px] h-3 w-3 flex-shrink-0" />
+                  {c.broken_reason || 'Reconnect needed.'}
+                  <button
+                    onClick={() => connect.mutate()}
+                    className="underline hover:no-underline"
+                  >
+                    Reconnect
+                  </button>
+                </p>
+              ) : (
+                <label className="mt-1.5 flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={c.write_events}
+                    onChange={(e) => toggleWrite.mutate({ id: c.id, write_events: e.target.checked })}
+                    className="h-3.5 w-3.5 rounded border-[var(--border-subtle)]"
+                  />
+                  <span className="text-[11.5px] text-[var(--text-secondary)]">
+                    Also put bookings in it
+                  </span>
+                </label>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
 
 export function AvailabilityPage() {
   const qc = useQueryClient();
@@ -337,6 +481,8 @@ export function AvailabilityPage() {
               </Field>
             </div>
           </section>
+
+          <ExternalCalendars />
 
           {/* ── What the rules actually produce ── */}
           <section className="panel overflow-hidden" data-preview>

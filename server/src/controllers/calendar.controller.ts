@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { calendarService, availabilityService } from '../services/calendar.service.js';
+import { calendarSync, googleConfigured } from '../services/calendar-sync.service.js';
 
 export const calendarController = {
   /** Every kind of meeting this account uses, seeded on first read. */
@@ -51,6 +52,37 @@ export const calendarController = {
   async updatePrefs(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       res.json(await availabilityService.updatePrefs(req.userId!, req.body || {}));
+    } catch (err) { next(err); }
+  },
+
+  /* ── Calendars kept elsewhere ── */
+
+  async listConnections(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json({
+        // Said plainly rather than by an empty list, so the UI can explain
+        // "not set up on this deployment" instead of "none connected".
+        available: googleConfigured(),
+        connections: await calendarSync.list(req.userId!),
+      });
+    } catch (err) { next(err); }
+  },
+
+  async authorizeGoogle(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json({ url: calendarSync.authorizeUrl(req.userId!) });
+    } catch (err) { next(err); }
+  },
+
+  async updateConnection(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await calendarSync.update(req.userId!, req.params.id, req.body || {}));
+    } catch (err) { next(err); }
+  },
+
+  async disconnect(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await calendarSync.disconnect(req.userId!, req.params.id));
     } catch (err) { next(err); }
   },
 

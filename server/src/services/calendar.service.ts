@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { calendarSync } from './calendar-sync.service.js';
 import {
   EVENT_LOCATION_KINDS, DEFAULT_EVENT_COLOUR, isHexColour,
   computeSlots, isSlotBookable, resolveEnd,
@@ -473,7 +474,16 @@ export const availabilityService = {
       (types || []).map((t: any) => [t.id, t.duration_minutes]),
     );
 
-    return (data || []).map((e: any) => {
+    /*
+     * A meeting in a calendar Sincerely does not own is still a meeting.
+     * Without this the page offers times the account is already busy in,
+     * which is the one way this feature can be actively wrong rather than
+     * merely incomplete. Never throws: see calendar-sync for why an outage
+     * degrades to stale rather than to "free".
+     */
+    const external = await calendarSync.externalBusy(userId, from, to);
+
+    return external.concat((data || []).map((e: any) => {
       const start = new Date(e.starts_at);
       /*
        * An all-day event blocks the whole day rather than a moment. Treating
@@ -486,7 +496,7 @@ export const availabilityService = {
         return { start: dayStart, end: new Date(dayStart.getTime() + 86_400_000) };
       }
       return { start, end: resolveEnd(e, minutesById.get(e.event_type_id) ?? null) };
-    });
+    }));
   },
 
   /**
