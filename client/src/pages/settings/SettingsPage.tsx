@@ -11,6 +11,7 @@ import { SettingsShell } from '../../components/shared/SettingsShell';
 import { Avatar } from '../../components/shared/Avatar';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
+import { PLACEHOLDER } from '@lemlist/shared';
 import {
   User,
   Mail,
@@ -746,7 +747,7 @@ export function SettingsPage() {
                   <textarea
                     value={defaultSignature}
                     onChange={(e) => { setDefaultSignature(e.target.value); markChanged(); }}
-                    placeholder="Best regards,&#10;John Doe"
+                    placeholder={`Best regards,\n${PLACEHOLDER.senderName}`}
                     rows={4}
                     className="input-field resize-none"
                   />

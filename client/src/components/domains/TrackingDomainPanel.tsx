@@ -157,19 +157,45 @@ export function TrackingDomainPanel() {
           {/* Only shown while it isn't live — once active, the record is just noise. */}
           {!record.verified && data?.cname && (
             <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 p-3 space-y-2.5">
-              <p className="text-[11.5px] text-[var(--text-secondary)] leading-relaxed">
-                Add this record at your DNS provider, then press Verify.
+              {/*
+                * Two steps, and the second one is the one people miss.
+                *
+                * The DNS record alone gets you a name that resolves and a TLS
+                * handshake that fails, because the certificate is issued by
+                * the host, not the registrar - and it will not issue one for a
+                * domain it has never been told about. This used to say "add it
+                * to your hosting provider" without saying where, which is a
+                * step nobody can follow. Numbering them also stops the second
+                * looking like a footnote to the first.
+                */}
+              <p className="text-[11.5px] font-medium text-[var(--text-primary)]">
+                Step 1 &mdash; add this record at your DNS provider
               </p>
               <div className="grid gap-2 sm:grid-cols-3">
                 <CopyField label="Type" value={data.cname.type} />
                 <CopyField label="Name" value={data.cname.host} />
                 <CopyField label="Value" value={data.cname.value} />
               </div>
+
+              <p className="text-[11.5px] font-medium text-[var(--text-primary)] pt-1">
+                Step 2 &mdash; add the domain where this app is hosted
+              </p>
               <p className="text-[11px] text-[var(--text-tertiary)] leading-relaxed">
-                You also need to add <code className="text-[var(--text-secondary)]">{record.domain}</code> to
-                your hosting provider so it can issue an HTTPS certificate for it. Verification checks
-                for that too &mdash; nothing switches over until the domain genuinely serves traffic,
-                because a broken link in a sent email cannot be fixed afterwards.
+                Your host issues the HTTPS certificate, and it will not issue one for a
+                domain it has never been told about &mdash; so the DNS record on its own
+                gives you a name that resolves and a connection that fails. Add{' '}
+                <code className="text-[var(--text-secondary)]">{record.domain}</code> as a
+                custom domain on the service that serves{' '}
+                <code className="text-[var(--text-secondary)]">{data.cname.value}</code>.
+                On Render that is <span className="text-[var(--text-secondary)]">Dashboard &rarr;
+                your service &rarr; Settings &rarr; Custom Domains &rarr; Add</span>; on
+                Vercel, <span className="text-[var(--text-secondary)]">Project &rarr; Settings
+                &rarr; Domains</span>. A certificate usually appears within a few minutes.
+              </p>
+              <p className="text-[11px] text-[var(--text-tertiary)] leading-relaxed">
+                Then press Verify. Both halves are checked, and nothing switches over until
+                the domain genuinely serves this app over HTTPS &mdash; a broken link in an
+                email that has already been sent cannot be fixed afterwards.
               </p>
             </div>
           )}

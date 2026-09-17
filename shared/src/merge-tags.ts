@@ -322,9 +322,43 @@ export const SAMPLE_PREVIEW_CONTACT = {
 
 export const SAMPLE_PREVIEW_SENDER: SenderIdentity = {
   name: 'Jordan Lee',
-  email: 'jordan@yourcompany.com',
+  email: 'jordan@example.com',
   company: 'Your Company',
 };
+
+/* ═══════════════════════════════════════════════════════════════════════
+   The same people, in the empty boxes.
+
+   Placeholder text had drifted into a cast of invented brands - Yieldtrak,
+   Northbeam, Thomas Vance, Jordan Ellis, John Doe - scattered across the
+   forms with no relation to each other or to the sample data a preview
+   actually renders. Somebody signing up on their first day reads "e.g.
+   Thomas Vance - Growth, Yieldtrak" in the signature box and reasonably
+   wonders who that is and why the product knows them.
+
+   Northbeam was the worse half of it: a real company, named in a form and
+   quoted on the landing page beside a fabricated line of dialogue.
+
+   So there is one cast, it is the cast the previews already use, and it
+   lives beside them. A placeholder is a promise about what goes in the box,
+   and the most useful version of that promise is showing the very names
+   that will appear when the box is filled in and previewed. `example.com`
+   is reserved by RFC 2606 precisely so nobody has to wonder.
+   ═══════════════════════════════════════════════════════════════════════ */
+export const PLACEHOLDER = {
+  /** The contact you are writing to. */
+  contactName: `${SAMPLE_PREVIEW_CONTACT.first_name} ${SAMPLE_PREVIEW_CONTACT.last_name}`,
+  contactFirstName: SAMPLE_PREVIEW_CONTACT.first_name,
+  contactEmail: SAMPLE_PREVIEW_CONTACT.email,
+  jobTitle: SAMPLE_PREVIEW_CONTACT.job_title,
+  /** The company you are writing to. Acme is the universal stand-in. */
+  company: SAMPLE_PREVIEW_CONTACT.company,
+  companyDomain: 'acme.example.com',
+  /** You, the sender. */
+  senderName: SAMPLE_PREVIEW_SENDER.name,
+  senderEmail: SAMPLE_PREVIEW_SENDER.email,
+  senderCompany: SAMPLE_PREVIEW_SENDER.company,
+} as const;
 
 /**
  * Render copy the way a recipient will actually receive it.

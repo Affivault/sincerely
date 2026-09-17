@@ -41,6 +41,7 @@ import {
   type CrmTask, type TaskPriority,
   type CrmEvent, type EventType,
   type ContactWithTags,
+  PLACEHOLDER,
 } from '@lemlist/shared';
 
 /* ─── Helpers ─────────────────────────────────────── */
@@ -231,7 +232,7 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
   return (
     <Modal isOpen onClose={onClose} title={editing ? 'Edit deal' : 'New deal'} size="md">
       <form onSubmit={(e) => { e.preventDefault(); if (form.title.trim()) save.mutate(); }} className="space-y-4">
-        <Input label="Deal name" value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Northbeam — annual plan" required autoFocus />
+        <Input label="Deal name" value={form.title} onChange={e => set('title', e.target.value)} placeholder={`e.g. ${PLACEHOLDER.company} — annual plan`} required autoFocus />
         <ContactPicker
           label="Lead"
           contactId={form.contact_id || null}
@@ -241,7 +242,7 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
           onLink={linkContact}
           onUnlink={() => setForm(f => ({ ...f, contact_id: null, contact_email: null, contact_name: '' }))}
         />
-        <Input label="Company" value={form.company || ''} onChange={e => set('company', e.target.value)} placeholder="Northbeam" />
+        <Input label="Company" value={form.company || ''} onChange={e => set('company', e.target.value)} placeholder={PLACEHOLDER.company} />
         <div className="grid grid-cols-2 gap-4">
           <Select label="Stage" options={DEAL_STAGES.map(s => ({ value: s.id, label: s.label }))} value={form.stage} onChange={e => set('stage', e.target.value)} />
           <Input label="Close date" type="date" value={form.expected_close_date || ''} onChange={e => set('expected_close_date', e.target.value)} />

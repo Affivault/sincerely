@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 import type {
   CrmTask, CrmEvent, TaskType, TaskPriority, EventType, ContactWithTags,
 } from '@lemlist/shared';
-import { TASK_TYPES } from '@lemlist/shared';
+import { TASK_TYPES, PLACEHOLDER } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Shared CRM building blocks.
@@ -482,7 +482,7 @@ export function MeetingModal({
     >
       <form id="meeting-form" onSubmit={(e) => { e.preventDefault(); if (form.title.trim()) save.mutate(); }} className="space-y-3.5">
         <div className="grid grid-cols-[1fr_auto] gap-3 items-end">
-          <Input label="Title" value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Intro call — Yieldtrak" autoFocus />
+          <Input label="Title" value={form.title} onChange={(e) => set('title', e.target.value)} placeholder={`e.g. Intro call — ${PLACEHOLDER.company}`} autoFocus />
           <div className="flex gap-1.5 pb-0.5">
             {(['call', 'meeting'] as EventType[]).map((t) => (
               <button
