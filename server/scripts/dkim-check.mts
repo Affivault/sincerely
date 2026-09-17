@@ -241,6 +241,65 @@ console.log('\na known selector is tried first, and clearing goes back to guessi
 }
 
 /*
+ * The registrar-bundled mailbox providers.
+ *
+ * This section is a real domain, copied from the live zone that exposed the
+ * gap: MX on spacemail.com, SPF include:spf.spacemail.com, and a perfectly
+ * good key at spacemail._domainkey. Nothing knew that mx1.spacemail.com
+ * meant Spacemail, and "spacemail" was not on the guess list, so a working
+ * setup was reported as having no DKIM. None of these providers is a
+ * household name and between them they are what a great many small domains
+ * send from, which is exactly this product's population.
+ */
+console.log('a registrar-bundled provider is recognised and its selector found');
+{
+  ZONE = {
+    'yieldstones.co.uk': [
+      { type: 'TXT', data: '"v=spf1 include:spf.spacemail.com ~all"' },
+      { type: 'TXT', data: '"sincerely-verify=abc"' },
+    ],
+    'spacemail._domainkey.yieldstones.co.uk': [{ type: 'TXT', data: KEY }],
+  };
+  ZONE['yieldstones.co.uk'].push({ type: 'MX', data: '0 mx1.spacemail.com.' });
+  domain({ domain: 'yieldstones.co.uk' });
+  const { dns } = await domainService.verify('u1', 'd1');
+
+  is('the provider is identified from its MX', dns.provider_hint === 'Spacemail', String(dns.provider_hint));
+  is('the SPF include is credited to it', dns.spf.includes_provider === true);
+  is('and the selector is found without anybody typing it',
+     dns.dkim.found === true && dns.dkim.selector === 'spacemail',
+     `${dns.dkim.selector} / ${dns.dkim.note}`);
+}
+
+console.log('the signing provider is found even when the MX is somebody else');
+{
+  /*
+   * Receiving on Google, signing with IONOS - a half-finished migration,
+   * and the ordinary shape of any domain whose mailboxes and whose sending
+   * are different companies. Provider detection reads MX, which is about
+   * INBOUND mail, so it says Google and offers "google". The record that
+   * matters is IONOS's, and the SPF line names it in plain sight.
+   *
+   * "ionos1" is deliberately not on the generic fallback list, so this
+   * assertion can only pass by way of the SPF includes.
+   */
+  ZONE = {
+    'northbeam.io': [
+      { type: 'TXT', data: '"v=spf1 include:_spf.google.com include:_spf-eu.ionos.com ~all"' },
+      { type: 'MX', data: '1 aspmx.l.google.com.' },
+    ],
+    'ionos1._domainkey.northbeam.io': [{ type: 'TXT', data: KEY }],
+  };
+  domain();
+  const { dns } = await domainService.verify('u1', 'd1');
+
+  is('MX still reports the mailbox provider', dns.provider_hint === 'Google Workspace', String(dns.provider_hint));
+  is('but the SPF include supplies the signer’s selectors too',
+     dns.dkim.found === true && dns.dkim.selector === 'ionos1',
+     `${dns.dkim.selector} / ${dns.dkim.note}`);
+}
+
+/*
  * Whether DKIM exists AT ALL is a different question from what it is
  * called, and unlike the second one, DNS will answer it.
  *

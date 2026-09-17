@@ -133,6 +133,19 @@ const PROVIDER_SPF_MAP: Record<string, string[]> = {
   'Amazon SES': ['amazonses.com'],
   'Fastmail': ['messagingengine.com'],
   'Yahoo Mail': ['yahoodns.net'],
+  'Spacemail': ['spf.spacemail.com', 'spacemail.com'],
+  'Namecheap Private Email': ['spf.privateemail.com', 'privateemail.com'],
+  'Titan': ['spf.titan.email', 'titan.email'],
+  'GoDaddy': ['secureserver.net'],
+  'IONOS': ['ionos.com', 'ionos.co.uk', '_spf-eu.ionos.com'],
+  'Hostinger': ['hostinger.com', '_spf.mail.hostinger.com'],
+  'Rackspace': ['emailsrvr.com'],
+  'Migadu': ['migadu.com'],
+  'ImprovMX': ['improvmx.com'],
+  'Mailchimp': ['servers.mcsv.net', 'mailchimp.com'],
+  'Klaviyo': ['_spf.klaviyo.com', 'klaviyo.com'],
+  'Brevo': ['spf.brevo.com', 'spf.sendinblue.com'],
+  'Postmark': ['spf.mtasv.net'],
 };
 
 /** Common DKIM selectors by provider */
@@ -145,6 +158,19 @@ const PROVIDER_DKIM_SELECTORS: Record<string, string[]> = {
   'Amazon SES': ['dkim'],
   'Fastmail': ['fm1', 'fm2', 'fm3'],
   'ProtonMail': ['protonmail', 'protonmail2', 'protonmail3'],
+  // Verified live against a real yieldstones.co.uk lookup.
+  'Spacemail': ['spacemail', 'spaceship', 'default'],
+  'Namecheap Private Email': ['default', 'privateemail'],
+  'Titan': ['titan1', 'titan2'],
+  'GoDaddy': ['default', 'dk1', 'dkim'],
+  'IONOS': ['ionos1', 'ionos2', 'default'],
+  'Hostinger': ['hostingermail1', 'hostingermail2', 'default'],
+  'Rackspace': ['rackspace', 'default'],
+  'Migadu': ['key1', 'key2'],
+  'Mailchimp': ['k1', 'k2', 'mailchimp'],
+  'Klaviyo': ['klaviyo', 'kl', 'kl2'],
+  'Brevo': ['brevo', 'sendinblue', 'mail'],
+  'Postmark': ['pm', 'postmark'],
 };
 
 /**
@@ -166,6 +192,10 @@ const FALLBACK_DKIM_SELECTORS = [
   'postmark', 'pm', 'protonmail', 'protonmail2', 'titan1', 'titan2',
   'fm1', 'fm2', 'fm3', 'zendesk1', 'zendesk2', 'klaviyo', 'kl', 'kl2',
   'sendgrid', 'smtpapi', 'mailerlite', 'mailchimp', 'cm', 'everlytic',
+  // Registrar-bundled mailboxes, which is what a lot of small domains use
+  // and what the list was conspicuously missing.
+  'spacemail', 'spaceship', 'hostingermail1', 'hostingermail2',
+  'dk1', 'dkim1', 'dkim2', 'x', 'scph', 'migadu',
 ];
 
 function generateVerificationToken(): string {
@@ -203,7 +233,41 @@ function detectProvider(mxHosts: string[]): string | null {
   if (mxStr.includes('sendgrid')) return 'SendGrid';
   if (mxStr.includes('mailgun')) return 'Mailgun';
   if (mxStr.includes('amazonaws') || mxStr.includes('amazonses')) return 'Amazon SES';
+  /*
+   * Registrar-bundled mailboxes. Easy to leave out because none of them is
+   * a household name, and between them they are what an enormous number of
+   * small domains actually send from - which is exactly the population this
+   * product has. Spacemail was the one that proved the point: a real domain
+   * with perfectly good DKIM at "spacemail._domainkey", unrecognised and
+   * unguessed, reported as having none.
+   */
+  if (mxStr.includes('spacemail') || mxStr.includes('spaceship')) return 'Spacemail';
+  if (mxStr.includes('privateemail')) return 'Namecheap Private Email';
+  if (mxStr.includes('titan')) return 'Titan';
+  if (mxStr.includes('secureserver')) return 'GoDaddy';
+  if (mxStr.includes('ionos') || mxStr.includes('1and1')) return 'IONOS';
+  if (mxStr.includes('hostinger')) return 'Hostinger';
+  if (mxStr.includes('emailsrvr')) return 'Rackspace';
+  if (mxStr.includes('migadu')) return 'Migadu';
+  if (mxStr.includes('improvmx')) return 'ImprovMX';
   return null;
+}
+
+/*
+ * Who the domain SENDS through, which is not always who it receives with.
+ *
+ * Provider detection reads MX, and MX is about inbound mail. A domain
+ * receiving on Google while sending through SendGrid gets no SendGrid
+ * selectors from that - but its SPF record says `include:sendgrid.net`
+ * plainly. Reusing PROVIDER_SPF_MAP backwards costs one string scan and
+ * catches the split-provider case that MX alone cannot.
+ */
+function providersFromSpf(spf: string | null): string[] {
+  if (!spf) return [];
+  const lower = spf.toLowerCase();
+  return Object.entries(PROVIDER_SPF_MAP)
+    .filter(([, includes]) => includes.some((inc) => lower.includes(inc)))
+    .map(([provider]) => provider);
 }
 
 /** Parse the DMARC policy without being fooled by sp= / np= / fo= tags. */
@@ -363,7 +427,19 @@ async function performDnsCheck(
    * Then the provider's, then the common ones, all in parallel; the first
    * hit in priority order wins.
    */
-  const providerSelectors = result.provider_hint ? (PROVIDER_DKIM_SELECTORS[result.provider_hint] || []) : [];
+  /*
+   * Candidates come from three places, in descending order of how much they
+   * are worth: what the account told us, who the domain demonstrably uses,
+   * and the common names. The middle one reads BOTH the MX provider and the
+   * SPF includes, because they are frequently not the same company and the
+   * sending one is the one that signs.
+   */
+  const hinted = [
+    ...(result.provider_hint ? [result.provider_hint] : []),
+    ...providersFromSpf(result.spf.record),
+  ];
+  const providerSelectors = [...new Set(hinted)]
+    .flatMap((p) => PROVIDER_DKIM_SELECTORS[p] || []);
   const known = knownSelector ? [knownSelector] : [];
   const allSelectors = [...new Set([...known, ...providerSelectors, ...FALLBACK_DKIM_SELECTORS])];
 
