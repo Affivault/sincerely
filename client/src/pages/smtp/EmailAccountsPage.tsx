@@ -214,7 +214,17 @@ export function EmailAccountsPage() {
       if (result.success) { toast.success(result.message); queryClient.invalidateQueries({ queryKey: ['smtp-accounts'] }); }
       else toast.error(result.message);
     },
-    onError: (err: any) => toast.error(err.response?.data?.error || err.message || 'Connection test failed'),
+    /*
+     * axios reports a timeout and a dropped connection identically, as
+     * "Network Error" — which told people their internet was broken when
+     * the mail server was simply slow to answer. Name the real situation.
+     */
+    onError: (err: any) => toast.error(
+      err.response?.data?.error
+      || (err?.code === 'ECONNABORTED' || /timeout|network error/i.test(err?.message || '')
+        ? 'The check took too long to answer. The mail server may be slow — try again in a moment.'
+        : err.message || 'Connection test failed'),
+    ),
     onSettled: () => setTestingId(null),
   });
 

@@ -55,6 +55,11 @@ interface SyncAccount {
   email_address: string;
   smtp_host: string;
   smtp_user: string | null;
+  // The mailbox server this account was configured with. Read, not derived -
+  // see imapHostFor.
+  imap_host: string | null;
+  imap_port: number | null;
+  imap_secure: boolean | null;
   imap_user: string | null;
   smtp_pass_encrypted: string;
   last_inbox_sync_at: string | null;
@@ -75,7 +80,34 @@ interface FolderState {
 }
 
 /** IMAP host from the SMTP host, which is how every provider names them. */
-export function imapHostFor(account: { smtp_host?: string | null; email_address?: string | null }): string {
+export function imapHostFor(account: {
+  imap_host?: string | null;
+  smtp_host?: string | null;
+  email_address?: string | null;
+}): string {
+  /*
+   * What the account actually says, first.
+   *
+   * This used to start at smtp_host and derive a name from it, ignoring the
+   * imap_host column entirely - the column the form edits, the connection
+   * check tests, and the repair writes. So the field was decorative: you
+   * could set it, watch "Check connection" log into it successfully, save,
+   * and the unibox would still be dialling somewhere else.
+   *
+   * For a Spacemail mailbox that is exactly what happened. smtp.spacemail.com
+   * sends perfectly; the derivation turned it into imap.spacemail.com, which
+   * is not a name, and the sync reported "The IMAP host could not be found"
+   * against a value nobody had ever entered.
+   *
+   * The warm-up service has always honoured imap_host. Two functions of the
+   * same name in the same codebase, disagreeing about which server a mailbox
+   * lives on.
+   */
+  const explicit = (account.imap_host || '').trim();
+  if (explicit) return explicit;
+
+  // Nothing stored: derive, as before. A guess is still better than refusing
+  // to sync a mailbox that was connected before this field existed.
   const host = account.smtp_host || '';
   if (host.includes('smtp.gmail')) return 'imap.gmail.com';
   if (host.includes('smtp.outlook') || host.includes('office365')) return 'outlook.office365.com';
@@ -530,7 +562,7 @@ export const inboxSyncService = {
   async syncInbox(userId: string): Promise<InboxSyncResult> {
     const { data: accounts, error: dbError } = await supabaseAdmin
       .from('smtp_accounts')
-      .select('id, user_id, smtp_host, smtp_user, imap_user, smtp_pass_encrypted, email_address, last_inbox_sync_at, inbox_sync_months')
+      .select('id, user_id, smtp_host, smtp_user, imap_host, imap_port, imap_secure, imap_user, smtp_pass_encrypted, email_address, last_inbox_sync_at, inbox_sync_months')
       .eq('user_id', userId)
       .eq('is_active', true);
 
@@ -571,8 +603,11 @@ export const inboxSyncService = {
 
         client = new ImapFlow({
           host: ip || host,
-          port: 993,
-          secure: true,
+          // The account's own port and TLS setting, not a hardcoded pair.
+          // A provider on 143 with STARTTLS was unreachable purely because
+          // this said 993 regardless of what had been saved.
+          port: raw.imap_port || 993,
+          secure: raw.imap_secure !== false,
           servername: host,
           auth: { user: raw.imap_user || raw.smtp_user || raw.email_address, pass: password },
           logger: false,

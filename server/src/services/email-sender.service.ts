@@ -174,6 +174,24 @@ export async function postToRelay(url: string, body: string, signal?: AbortSigna
 async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
   console.log(`[SMTP Relay] Sending to ${params.to} via ${env.SMTP_RELAY_URL}`);
 
+  /*
+   * A budget on the HTTP call itself.
+   *
+   * postToRelay accepts an AbortSignal and was never given one, so the fetch
+   * had no deadline at all. The relay's own limit does not help here - that
+   * bounds the SMTP conversation INSIDE the function, and says nothing about
+   * a Vercel cold start, a queued invocation, or a hop that never answers.
+   * With nothing aborting it, the request outlived the browser's 30s HTTP
+   * timeout and the user got "Network error" - intermittently, because cold
+   * starts are intermittent.
+   *
+   * The ceiling is the relay's own 30s function limit plus a little, so a
+   * relay that is merely slow still gets to finish and report.
+   */
+  const controller = new AbortController();
+  const budget = Math.min((params.timeoutMs ?? 12_000) + 8_000, 25_000);
+  const deadline = setTimeout(() => controller.abort(), budget);
+
   let response: Response;
   try {
     const result = await postToRelay(env.SMTP_RELAY_URL!, JSON.stringify({
@@ -191,7 +209,7 @@ async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
       message_id: params.messageId,
       headers: params.headers,
       timeout_ms: params.timeoutMs,
-    }));
+    }), controller.signal);
     response = result.response;
     if (result.redirected) {
       console.warn(
@@ -200,10 +218,24 @@ async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
       );
     }
   } catch (err: any) {
+    /*
+     * An abort means we gave up waiting, not that the relay failed - it may
+     * well be delivering the message right now. Falling back to a direct
+     * send here is how the same email arrives twice, and on the hosts this
+     * relay exists for that direct attempt cannot work anyway.
+     */
+    if (err?.name === 'AbortError') {
+      throw new Error(
+        `The SMTP relay did not answer within ${Math.round(budget / 1000)}s. `
+        + 'It may be cold-starting - try again, and check the relay is deployed.',
+      );
+    }
     // Relay host unreachable (DNS/network) — fall back to a direct SMTP attempt
     // rather than hard-failing the send.
     console.warn(`[SMTP Relay] Unreachable (${err.message}); falling back to direct SMTP`);
     return sendDirect(params);
+  } finally {
+    clearTimeout(deadline);
   }
 
   /* Whether to fall back turns on one question: did the relay run the send?
