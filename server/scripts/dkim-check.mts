@@ -34,14 +34,34 @@ let queried: string[] = [];
 
 const TYPE_NUM: Record<string, number> = { A: 1, CNAME: 5, MX: 15, TXT: 16 };
 
+/*
+ * Set when the zone under test answers NOERROR for names that are not in
+ * it - a wildcard, or a provider that never says NXDOMAIN. Real zones do
+ * this, and it is what makes the presence probe untrustworthy, so it has to
+ * be simulable here.
+ */
+let ALWAYS_NOERROR = false;
+
+/**
+ * A name EXISTS if it has records of any type, or if anything lives below
+ * it - an empty non-terminal. Modelling this is not decoration: it is the
+ * exact distinction the DKIM presence probe reads, and a stub that answered
+ * NXDOMAIN for every recordless name would have made the probe look broken
+ * while the real thing worked.
+ */
+const nameExists = (name: string) =>
+  ZONE[name] !== undefined || Object.keys(ZONE).some((k) => k.endsWith(`.${name}`));
+
 (globalThis as any).fetch = async (url: string) => {
   const u = new URL(String(url));
   const name = (u.searchParams.get('name') || '').toLowerCase();
   const type = u.searchParams.get('type') || 'TXT';
   queried.push(`${type} ${name}`);
   const records = (ZONE[name] || []).filter((r) => r.type === type);
+  const exists = ALWAYS_NOERROR || nameExists(name);
   return new Response(JSON.stringify({
-    Status: records.length > 0 ? 0 : 3,
+    // NOERROR with no answers is NODATA: the name is there, this type is not.
+    Status: records.length > 0 || exists ? 0 : 3,
     Answer: records.map((r) => ({ type: TYPE_NUM[r.type], data: r.data })),
   }), { status: 200, headers: { 'content-type': 'application/dns-json' } });
 };
@@ -75,6 +95,7 @@ function domain(row: Partial<any> = {}) {
   };
   saved = null;
   queried = [];
+  ALWAYS_NOERROR = false;
 }
 
 console.log('a selector on the guess list is found');
@@ -204,8 +225,10 @@ console.log('\na known selector is tried first, and clearing goes back to guessi
   domain({ dkim_selector: 'custom9', dkim_selector_source: 'manual' });
   const { dns } = await domainService.verify('u1', 'd1');
   is('a stored selector is used on a plain re-check', dns.dkim.selector === 'custom9');
-  is('and it was the first thing looked up',
-     queried.find((q) => q.includes('_domainkey'))?.includes('custom9') === true,
+  // The presence probe asks about bare _domainkey before any selector, so
+  // this looks for the first SELECTOR lookup rather than the first lookup.
+  is('and it was the first selector looked up',
+     queried.find((q) => /[a-z0-9]\._domainkey/.test(q))?.includes('custom9') === true,
      queried.filter((q) => q.includes('_domainkey')).slice(0, 3).join(' | '));
   is('a manual selector is never overwritten by a guess',
      saved?.dkim_selector === undefined, JSON.stringify(saved?.dkim_selector));
@@ -215,6 +238,86 @@ console.log('\na known selector is tried first, and clearing goes back to guessi
   is('clearing it returns to guessing',
      saved?.dkim_selector === null && saved?.dkim_selector_source === null,
      JSON.stringify([saved?.dkim_selector, saved?.dkim_selector_source]));
+}
+
+/*
+ * Whether DKIM exists AT ALL is a different question from what it is
+ * called, and unlike the second one, DNS will answer it.
+ *
+ * Every key lives under _domainkey.<domain>. A name with children exists
+ * even when it holds no records of its own, and a resolver reports that
+ * (NOERROR, no answers) differently from a name that is not in the zone
+ * (NXDOMAIN). So a miss can be told apart from an absence, which is the
+ * thing guessing could never do.
+ */
+console.log('an unguessable selector is still proved to exist');
+{
+  // A selector no list would ever contain - the shape Amazon SES uses.
+  ZONE = {
+    ...base('northbeam.io'),
+    'gk7xq2mzld4vp9rnw3tc6fh8sjy5abke._domainkey.northbeam.io': [{ type: 'TXT', data: KEY }],
+  };
+  domain();
+  const { dns } = await domainService.verify('u1', 'd1');
+
+  is('guessing does not find it, because it cannot', dns.dkim.found === false, dns.dkim.note);
+  is('but the keys are proved to be there', dns.dkim.subtree === 'present', String(dns.dkim.subtree));
+  is('and the wording says so rather than implying absence',
+     /does have DKIM keys published/.test(dns.dkim.note), dns.dkim.note);
+  is('it still asks for the selector, which is the only missing thing',
+     /enter it below|enter your selector/i.test(dns.dkim.note), dns.dkim.note);
+}
+
+console.log('a domain with genuinely no DKIM is told so plainly');
+{
+  ZONE = { ...base('northbeam.io') };
+  domain();
+  const { dns } = await domainService.verify('u1', 'd1');
+
+  is('the subtree is reported absent', dns.dkim.subtree === 'absent', String(dns.dkim.subtree));
+  is('and this time we do say there is none',
+     /No DKIM is published/.test(dns.dkim.note), dns.dkim.note);
+
+  /*
+   * Nothing lives under _domainkey, so every selector guess is a foregone
+   * miss. Spending 35 lookups proving that is waste.
+   */
+  is('and no selector guesses were spent looking for it',
+     queried.filter((q) => /[a-z0-9]\._domainkey/.test(q)).length === 0,
+     queried.filter((q) => q.includes('_domainkey')).join(' | '));
+}
+
+console.log('a zone that never says NXDOMAIN is not guessed about');
+{
+  /*
+   * The failure that matters. A wildcard makes every name look present,
+   * including _domainkey - so the probe would cheerfully report DKIM keys
+   * on a domain that has none. It must refuse to answer instead.
+   */
+  ZONE = { ...base('northbeam.io') };
+  domain();
+  ALWAYS_NOERROR = true;
+  const { dns } = await domainService.verify('u1', 'd1');
+
+  is('the probe declines rather than claiming keys exist',
+     dns.dkim.subtree === 'unknown', String(dns.dkim.subtree));
+  is('and it certainly does not say they are there',
+     !/does have DKIM keys/.test(dns.dkim.note), dns.dkim.note);
+  is('nor that they are missing, which it also cannot know',
+     !/No DKIM is published/.test(dns.dkim.note), dns.dkim.note);
+  is('it says the guess list missed and asks for the name',
+     /not proof/.test(dns.dkim.note), dns.dkim.note);
+}
+
+console.log('the presence probe cannot be fooled by its own control name');
+{
+  ZONE = { ...base('northbeam.io'), 'google._domainkey.northbeam.io': [{ type: 'TXT', data: KEY }] };
+  domain();
+  await domainService.verify('u1', 'd1');
+  const control = queried.find((q) => q.includes('nx-probe'));
+  is('a random control name is looked up to test the zone', !!control, queried.slice(0, 4).join(' | '));
+  is('and it is random, not a fixed string somebody could publish',
+     /[0-9a-f]{16}\.nx-probe\./.test(control || ''), String(control));
 }
 
 /*
@@ -259,6 +362,14 @@ console.log('\nthe selector box is on the screen, not just in the file');
   is('and the old flat claim of absence is gone from the client',
      !/No DKIM record found/.test(page),
      'the page still asserts DKIM does not exist, which it cannot know');
+
+  // "we could not find it" and "you have not got one" are different news.
+  is('the verdict is driven by the presence probe, not just the guess result',
+     /dkim\?\.subtree/.test(page));
+  is('and proven-present is not dressed as a failure',
+     /subtree === 'present'/.test(page));
+  is('the evidence is shown to anyone who wants to check our working',
+     /What we checked/.test(page));
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

@@ -32,8 +32,25 @@ function unquoteTxt(data: string): string {
 
 const stripDot = (s: string) => s.replace(/\.$/, '');
 
-/** One DoH endpoint query. Returns raw `data` strings, or null when the endpoint itself failed. */
-async function dohQuery(endpoint: string, name: string, type: DnsType): Promise<string[] | null> {
+/*
+ * An empty answer is not one fact, it is three, and the difference between
+ * them is the whole of the DKIM diagnosis below.
+ *
+ *   records    the name exists and has records of this type
+ *   nodata     the name EXISTS but has no records of this type (NOERROR)
+ *   nxdomain   the name does not exist at all, at any type
+ *   unreachable  nobody would answer, so we know nothing
+ *
+ * Everything outside the DKIM presence probe only wants the records, and
+ * `resolveRecords` below keeps handing those over unchanged.
+ */
+export type DnsAnswer = {
+  status: 'records' | 'nodata' | 'nxdomain' | 'unreachable';
+  records: string[];
+};
+
+/** One DoH endpoint query, or null when the endpoint itself could not answer. */
+async function dohQuery(endpoint: string, name: string, type: DnsType): Promise<DnsAnswer | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 6000);
   try {
@@ -43,11 +60,14 @@ async function dohQuery(endpoint: string, name: string, type: DnsType): Promise<
     });
     if (!res.ok) return null;
     const json: any = await res.json();
-    // Status 0 = NOERROR, 3 = NXDOMAIN (a definitive "no records") — both are
-    // valid answers. Anything else (SERVFAIL…) means "endpoint couldn't say".
-    if (json.Status !== 0 && json.Status !== 3) return null;
+    // Status 3 = NXDOMAIN: a definitive "this name does not exist".
+    if (json.Status === 3) return { status: 'nxdomain', records: [] };
+    // Anything but NOERROR from here (SERVFAIL, REFUSED…) means the endpoint
+    // could not say, which is not the same as there being nothing to say.
+    if (json.Status !== 0) return null;
     const answers: any[] = Array.isArray(json.Answer) ? json.Answer : [];
-    return answers.filter((a) => a.type === DNS_TYPE[type]).map((a) => String(a.data));
+    const records = answers.filter((a) => a.type === DNS_TYPE[type]).map((a) => String(a.data));
+    return { status: records.length > 0 ? 'records' : 'nodata', records };
   } catch {
     return null;
   } finally {
@@ -55,20 +75,31 @@ async function dohQuery(endpoint: string, name: string, type: DnsType): Promise<
   }
 }
 
-/** Resolve via Cloudflare DoH → Google DoH → OS resolver. Missing records → []. */
-async function resolveRecords(name: string, type: DnsType): Promise<string[]> {
+/** Resolve via Cloudflare DoH → Google DoH → OS resolver, keeping the reason. */
+async function resolveDetailed(name: string, type: DnsType): Promise<DnsAnswer> {
   for (const endpoint of ['https://cloudflare-dns.com/dns-query', 'https://dns.google/resolve']) {
-    const answers = await dohQuery(endpoint, name, type);
-    if (answers !== null) return answers;
+    const answer = await dohQuery(endpoint, name, type);
+    if (answer !== null) return answer;
   }
   // Both DoH endpoints unreachable — classic resolver as a last resort.
   try {
-    if (type === 'TXT') return (await resolver.resolveTxt(name)).map((chunks) => `"${chunks.join('" "')}"`);
-    if (type === 'MX') return (await resolver.resolveMx(name)).map((r) => `${r.priority} ${r.exchange}`);
-    return await resolver.resolveCname(name);
-  } catch {
-    return [];
+    const records = type === 'TXT'
+      ? (await resolver.resolveTxt(name)).map((chunks) => `"${chunks.join('" "')}"`)
+      : type === 'MX'
+        ? (await resolver.resolveMx(name)).map((r) => `${r.priority} ${r.exchange}`)
+        : await resolver.resolveCname(name);
+    return { status: records.length > 0 ? 'records' : 'nodata', records };
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (code === 'ENOTFOUND' || code === 'NXDOMAIN') return { status: 'nxdomain', records: [] };
+    if (code === 'ENODATA') return { status: 'nodata', records: [] };
+    return { status: 'unreachable', records: [] };
   }
+}
+
+/** Resolve via Cloudflare DoH → Google DoH → OS resolver. Missing records → []. */
+async function resolveRecords(name: string, type: DnsType): Promise<string[]> {
+  return (await resolveDetailed(name, type)).records;
 }
 
 /** All TXT record strings at a name (chunks joined, quotes stripped). */
@@ -201,6 +232,65 @@ async function probeDkimSelector(domain: string, selector: string): Promise<{ se
   return null;
 }
 
+/*
+ * ─────────────── Do you have DKIM at all, whatever it is called? ───────────────
+ *
+ * Guessing selectors can only ever answer "we found one". It can never
+ * answer the question people actually have, which is whether their DKIM is
+ * there. So this asks a different question, and DNS will answer this one.
+ *
+ * Every DKIM key lives under `_domainkey.<domain>`. A name that has
+ * children EXISTS even when it holds no records of its own - an empty
+ * non-terminal - and a resolver distinguishes that (NOERROR, no answers)
+ * from a name that is not in the zone at all (NXDOMAIN). So:
+ *
+ *   NXDOMAIN at _domainkey    nothing lives below it. No DKIM. Definitively.
+ *   NOERROR  at _domainkey    something lives below it. DKIM EXISTS, and we
+ *                             simply have not guessed its name.
+ *
+ * The catch is that not every zone is honest about NXDOMAIN. A wildcard
+ * record, or a provider that answers NOERROR for everything, makes the whole
+ * signal meaningless - and it fails in the direction that would have us
+ * cheerfully tell somebody they have DKIM when they do not.
+ *
+ * So the zone is tested first. A random name nobody has ever published is
+ * looked up, and if THAT comes back as existing, the zone answers NOERROR
+ * for names that are not there and this probe says nothing at all. Only a
+ * zone that correctly says NXDOMAIN for the control is trusted about
+ * _domainkey. Verified against real zones: anthropic.com gives NXDOMAIN for
+ * the control and NOERROR for _domainkey (it has DKIM), while
+ * cloudflare.com answers NOERROR for the control and is therefore reported
+ * as unknown rather than guessed at.
+ */
+export type DkimSubtree = 'present' | 'absent' | 'unknown';
+
+async function probeDkimSubtree(domain: string): Promise<DkimSubtree> {
+  // Two labels of randomness, so no real zone could plausibly hold it.
+  const control = `${crypto.randomBytes(8).toString('hex')}.nx-probe.${domain}`;
+
+  const [subject, sentinel] = await Promise.all([
+    resolveDetailed(`_domainkey.${domain}`, 'TXT'),
+    resolveDetailed(control, 'TXT'),
+  ]);
+
+  // Nobody answered. Not evidence of anything.
+  if (subject.status === 'unreachable' || sentinel.status === 'unreachable') return 'unknown';
+
+  /*
+   * NXDOMAIN at _domainkey needs no control: a name that does not exist has
+   * nothing below it, so there are no keys. This is the one direction that
+   * cannot be faked by a permissive zone - a wildcard makes names appear,
+   * never disappear.
+   */
+  if (subject.status === 'nxdomain') return 'absent';
+
+  // The other direction is only worth anything if this zone denies names it
+  // does not have. If the control "exists", it does not.
+  if (sentinel.status !== 'nxdomain') return 'unknown';
+
+  return 'present';
+}
+
 async function performDnsCheck(
   domain: string,
   verificationToken: string,
@@ -276,7 +366,18 @@ async function performDnsCheck(
   const providerSelectors = result.provider_hint ? (PROVIDER_DKIM_SELECTORS[result.provider_hint] || []) : [];
   const known = knownSelector ? [knownSelector] : [];
   const allSelectors = [...new Set([...known, ...providerSelectors, ...FALLBACK_DKIM_SELECTORS])];
-  const probes = await Promise.all(allSelectors.map((s) => probeDkimSelector(domain, s)));
+
+  /*
+   * Ask whether there is anything to find before spending 35 lookups
+   * looking for it. A definitive "nothing lives under _domainkey" makes
+   * every one of those guesses a foregone miss.
+   */
+  const subtree = await probeDkimSubtree(domain);
+  result.dkim.subtree = subtree;
+
+  const probes = subtree === 'absent'
+    ? []
+    : await Promise.all(allSelectors.map((s) => probeDkimSelector(domain, s)));
   const hit = probes.find((p) => p !== null);
   if (hit) {
     result.dkim.found = true;
@@ -294,10 +395,23 @@ async function performDnsCheck(
      * which is worse than saying nothing, and left them no way to correct
      * it. This says what actually happened and what to do about it.
      */
-    result.dkim.note = knownSelector
-      ? `Nothing found at "${knownSelector}._domainkey.${domain}". Check the selector is right.`
-      : `Could not find DKIM by guessing ${allSelectors.length} common selectors. `
-        + 'If it is set up, enter your selector and we will check that exactly.';
+    const missed = knownSelector
+      ? `Nothing found at "${knownSelector}._domainkey.${domain}". `
+      : `Tried ${allSelectors.length} common selectors and none matched. `;
+
+    result.dkim.note = subtree === 'present'
+      // The one case worth getting right: they DO have DKIM. Never imply
+      // otherwise, and do not make them wonder which of us is wrong.
+      ? `${missed}Your domain does have DKIM keys published - we just cannot `
+        + 'guess what yours is called. Copy the selector from your email provider '
+        + 'and enter it below.'
+      : subtree === 'absent'
+        ? `No DKIM is published on ${domain}. Nothing exists under `
+          + `_domainkey.${domain}, so there is no selector to find. Set DKIM up `
+          + 'with your email provider, then check again.'
+        : `${missed}DNS gives no way to list selectors, so this is not proof `
+          + 'there is none. If DKIM is set up, enter your selector below and we '
+          + 'will check that exact name.';
     result.dkim.checked_selectors = allSelectors.length;
   }
 
@@ -660,15 +774,50 @@ export const domainService = {
 
     if (error || !domainRow) throw new AppError('Domain not found', 404);
 
-    // If we have cached DNS results, use them; otherwise do a fresh check
-    const dnsCheck = domainRow.last_dns_check
-      ? (domainRow.last_dns_check as unknown as DnsCheckResult)
-      : await performDnsCheck(
+    /*
+     * Serve the cached result, but not forever.
+     *
+     * The auto re-check only runs while a domain is unverified, so a
+     * verified one kept whatever it was told the first time - for good. That
+     * made a fixed check look unfixed: the panel went on reproducing an
+     * answer from before the fix, including its wording, and no amount of
+     * reopening it would change that. A cached result is refreshed once it
+     * is an hour old, or when it predates the DKIM presence probe and so
+     * cannot say what it now needs to.
+     */
+    const cached = domainRow.last_dns_check as unknown as DnsCheckResult | null;
+    const checkedAt = domainRow.last_checked_at ? Date.parse(domainRow.last_checked_at) : 0;
+    const usable = !!cached
+      && cached.dkim?.subtree !== undefined
+      && Number.isFinite(checkedAt)
+      && Date.now() - checkedAt < 60 * 60 * 1000;
+
+    let row = domainRow;
+    let dnsCheck = cached!;
+
+    if (!usable) {
+      dnsCheck = await performDnsCheck(
         domainRow.domain, domainRow.verification_token, domainRow.dkim_selector,
       );
+      /*
+       * Keep what it found. Throwing a fresh check away left the badges
+       * reading from the stale row while the note beside them read from the
+       * new one, so DKIM could show a red cross and "DKIM configured" at the
+       * same time. A failure to write is not worth failing the read over -
+       * the answer in hand is still the right one to show.
+       */
+      const { data: updated } = await supabaseAdmin
+        .from('sending_domains')
+        .update(dnsUpdatePayload(dnsCheck))
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+      if (updated) row = updated;
+    }
 
     const records = buildRecordInstructions(domainRow.domain, domainRow.verification_token, dnsCheck);
 
-    return { domain: domainRow, dns: dnsCheck, records };
+    return { domain: row, dns: dnsCheck, records };
   },
 };

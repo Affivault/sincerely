@@ -47,6 +47,17 @@ export interface DnsCheckResult {
      * many names and none of them was yours".
      */
     checked_selectors?: number;
+    /**
+     * Whether ANY DKIM key is published on the domain, whatever it is called.
+     *
+     * Guessing selectors can only ever say "we found one". This answers the
+     * question people actually have. Every key lives under `_domainkey`, and
+     * a name with children exists even when it holds no records of its own,
+     * so NXDOMAIN there means no keys and NOERROR means keys we have not
+     * named. 'unknown' when the zone answers NOERROR for names that do not
+     * exist, which makes the signal worthless and is not guessed around.
+     */
+    subtree?: 'present' | 'absent' | 'unknown';
   };
   dmarc: { found: boolean; record: string | null; policy: string | null };
   verification_txt: { found: boolean };
