@@ -29,11 +29,20 @@ function MailboxRow({
   account,
   onChoose,
   saving,
+  onRepair,
+  repairing,
 }: {
   account: InboxSyncProgress;
   onChoose: (months: SyncWindowMonths) => void;
   saving: boolean;
+  onRepair: () => void;
+  repairing: boolean;
 }) {
+  const error = account.last_error || '';
+  const fixed = error.startsWith('Fixed automatically:');
+  // The one failure with a one-press remedy: a server name that is not a name.
+  const badHost = /could not be found/i.test(error) || /does not exist/i.test(error);
+
   return (
     <li className="px-4 py-3 border-b border-[var(--border-subtle)] last:border-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -87,10 +96,41 @@ function MailboxRow({
       </div>
 
       {account.last_error && (
-        <p className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400">
-          <AlertTriangle className="mt-px h-3 w-3 flex-shrink-0" />
-          {account.last_error}
-        </p>
+        /*
+         * A repair that already happened is news, not a warning. Showing
+         * "Fixed automatically: ..." behind a red triangle would read as a
+         * fresh problem and send somebody looking for one.
+         */
+        fixed ? (
+          <p className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-emerald-600 dark:text-emerald-400">
+            <Check className="mt-px h-3 w-3 flex-shrink-0" strokeWidth={3} />
+            {account.last_error.replace(/^Fixed automatically:\s*/, '')}
+          </p>
+        ) : (
+          <div className="mt-1.5 flex flex-wrap items-start gap-x-2 gap-y-1">
+            <p className="flex min-w-0 flex-1 items-start gap-1.5 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="mt-px h-3 w-3 flex-shrink-0" />
+              {account.last_error}
+            </p>
+            {/*
+              * The server address this complains about is frequently one the
+              * app filled in itself, so "check the server address" is asking
+              * somebody to correct a mistake they did not make. One press
+              * looks up where the mail actually lives and puts it right.
+              */}
+            {badHost && (
+              <button
+                type="button"
+                onClick={onRepair}
+                disabled={repairing}
+                className="h-6 flex-shrink-0 rounded-md bg-[var(--indigo)] px-2 text-[10.5px] font-semibold text-white disabled:opacity-50"
+                data-repair-hosts
+              >
+                {repairing ? 'Checking…' : 'Fix this for me'}
+              </button>
+            )}
+          </div>
+        )
       )}
     </li>
   );
@@ -128,6 +168,33 @@ export function MailHistoryPanel({ onSynced }: { onSynced?: () => void }) {
       sync.mutate();
     },
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Could not change the history window'),
+  });
+
+  const repair = useMutation({
+    mutationFn: smtpApi.repairHosts,
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ['inbox-sync-progress'] });
+      qc.invalidateQueries({ queryKey: ['smtp-accounts'] });
+      if (result.repaired > 0) {
+        const one = result.results.find((r) => r.repaired);
+        toast.success(
+          result.repaired === 1 && one
+            ? `${one.email_address}: now reading from ${one.to}`
+            : `${result.repaired} mailboxes corrected`,
+        );
+        // Read the mail straight away, which is the point of pressing it.
+        sync.mutate();
+      } else {
+        /*
+         * Nothing changed, and the reason matters more than the fact - the
+         * host may resolve fine (so this refuses to touch it) or there may
+         * be no working alternative. Show what the server said rather than
+         * a shrug.
+         */
+        toast(result.results[0]?.note || 'Nothing to correct on these mailboxes.', { icon: 'ℹ️' });
+      }
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || 'Could not check the mail servers'),
   });
 
   const sync = useMutation({
@@ -177,6 +244,8 @@ export function MailHistoryPanel({ onSynced }: { onSynced?: () => void }) {
             account={account}
             saving={setWindow.isPending}
             onChoose={(months) => setWindow.mutate({ id: account.smtp_account_id, months })}
+            onRepair={() => repair.mutate()}
+            repairing={repair.isPending}
           />
         ))}
       </ul>

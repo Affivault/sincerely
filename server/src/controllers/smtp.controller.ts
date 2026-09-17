@@ -12,6 +12,7 @@ import { smtpDiagnosticsService } from '../services/smtp-diagnostics.service.js'
 import { billingService } from '../services/billing.service.js';
 import { detectProvider } from '../services/domain.service.js';
 import { discoverMailHosts, type MailHostDiscovery } from '../services/mail-discovery.service.js';
+import { repairAllImapHosts } from '../services/mailbox-repair.service.js';
 import { warmupService } from '../services/warmup.service.js';
 
 const resolveTxt = promisify(dns.resolveTxt);
@@ -216,6 +217,19 @@ export const smtpController = {
         smtp_pass: password,
       });
       res.json(result);
+    } catch (err) { next(err); }
+  },
+
+  /**
+   * POST /smtp-accounts/repair-hosts
+   *
+   * Replace IMAP server addresses that do not exist in DNS with ones that
+   * do. Only names that are definitively absent are touched - see the
+   * safety argument in mailbox-repair.service.
+   */
+  async repairHosts(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await repairAllImapHosts(req.userId!));
     } catch (err) { next(err); }
   },
 

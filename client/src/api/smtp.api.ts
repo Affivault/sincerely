@@ -57,6 +57,27 @@ export const smtpApi = {
     return data;
   },
 
+  /**
+   * Correct IMAP server addresses that do not exist in DNS.
+   *
+   * Only names that are definitively absent are replaced — a host that
+   * resolves is left alone even if it looks wrong, because wrong-looking is
+   * not the same as impossible.
+   */
+  repairHosts: async () => {
+    const { data } = await apiClient.post<{
+      repaired: number;
+      results: Array<{
+        email_address: string;
+        repaired: boolean;
+        from: string | null;
+        to: string | null;
+        note: string;
+      }>;
+    }>('/smtp-accounts/repair-hosts');
+    return data;
+  },
+
   checkDomain: async (domain: string) => {
     const { data } = await apiClient.post<{
       domain: string;

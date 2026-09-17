@@ -10,6 +10,8 @@ smtpRoutes.get('/warmup', smtpController.warmupSummary);
 smtpRoutes.post('/verify', smtpController.verify);
 smtpRoutes.post('/check-domain', smtpController.checkDomain);
 smtpRoutes.post('/diagnose', smtpController.diagnose);
+// Correcting a mail server address the app itself filled in wrongly.
+smtpRoutes.post('/repair-hosts', smtpController.repairHosts);
 smtpRoutes.post('/', smtpController.create);
 
 smtpRoutes.get('/:id', smtpController.get);
