@@ -21,7 +21,7 @@ const resolver = new dns.promises.Resolver({ timeout: 4000, tries: 2 });
  * back to the OS resolver when both DoH endpoints are unreachable.
  * ──────────────────────────────────────────────────────────────────────── */
 
-const DNS_TYPE = { TXT: 16, MX: 15, CNAME: 5 } as const;
+const DNS_TYPE = { TXT: 16, MX: 15, CNAME: 5, A: 1, SRV: 33 } as const;
 type DnsType = keyof typeof DNS_TYPE;
 
 /** Unwrap presentation-format TXT data: `"chunk1" "chunk2"` → `chunk1chunk2`. */
@@ -76,7 +76,7 @@ async function dohQuery(endpoint: string, name: string, type: DnsType): Promise<
 }
 
 /** Resolve via Cloudflare DoH → Google DoH → OS resolver, keeping the reason. */
-async function resolveDetailed(name: string, type: DnsType): Promise<DnsAnswer> {
+export async function resolveDetailed(name: string, type: DnsType): Promise<DnsAnswer> {
   for (const endpoint of ['https://cloudflare-dns.com/dns-query', 'https://dns.google/resolve']) {
     const answer = await dohQuery(endpoint, name, type);
     if (answer !== null) return answer;
@@ -87,7 +87,12 @@ async function resolveDetailed(name: string, type: DnsType): Promise<DnsAnswer> 
       ? (await resolver.resolveTxt(name)).map((chunks) => `"${chunks.join('" "')}"`)
       : type === 'MX'
         ? (await resolver.resolveMx(name)).map((r) => `${r.priority} ${r.exchange}`)
-        : await resolver.resolveCname(name);
+        : type === 'A'
+          ? await resolver.resolve4(name)
+          : type === 'SRV'
+            // Presentation format, so the DoH and OS paths parse identically.
+            ? (await resolver.resolveSrv(name)).map((r) => `${r.priority} ${r.weight} ${r.port} ${r.name}`)
+            : await resolver.resolveCname(name);
     return { status: records.length > 0 ? 'records' : 'nodata', records };
   } catch (err) {
     const code = (err as NodeJS.ErrnoException)?.code;
@@ -108,7 +113,7 @@ async function lookupTxt(name: string): Promise<string[]> {
 }
 
 /** MX records at a name, sorted by priority. */
-async function lookupMx(name: string): Promise<Array<{ exchange: string; priority: number }>> {
+export async function lookupMx(name: string): Promise<Array<{ exchange: string; priority: number }>> {
   return (await resolveRecords(name, 'MX'))
     .map((d) => {
       const m = d.trim().match(/^(\d+)\s+(\S+)$/);
@@ -119,7 +124,7 @@ async function lookupMx(name: string): Promise<Array<{ exchange: string; priorit
 }
 
 /** CNAME targets at a name. */
-async function lookupCname(name: string): Promise<string[]> {
+export async function lookupCname(name: string): Promise<string[]> {
   return (await resolveRecords(name, 'CNAME')).map((d) => stripDot(d.trim()));
 }
 
@@ -222,7 +227,7 @@ export function normalizeDomain(input: string): string {
 }
 
 /** Detect the mailbox provider from MX hostnames. */
-function detectProvider(mxHosts: string[]): string | null {
+export function detectProvider(mxHosts: string[]): string | null {
   const mxStr = mxHosts.join(' ').toLowerCase();
   if (mxStr.includes('google') || mxStr.includes('gmail')) return 'Google Workspace';
   if (mxStr.includes('outlook') || mxStr.includes('microsoft')) return 'Microsoft 365';

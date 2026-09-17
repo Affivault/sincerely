@@ -23,6 +23,11 @@ const HINT_TO_PRESET: Record<string, string> = {
   'Microsoft 365': 'Outlook / Microsoft 365',
   'Zoho Mail': 'Zoho Mail',
   'Fastmail': 'Fastmail',
+  'Spacemail': 'Spacemail',
+  'Namecheap Private Email': 'Namecheap Private Email',
+  'Titan': 'Titan',
+  'Yahoo Mail': 'Yahoo Mail',
+  'ProtonMail': 'ProtonMail Bridge',
 };
 
 const FORM_ID = 'smtp-account-form';
@@ -273,18 +278,38 @@ export function SmtpAccountModal({
         if (preset) {
           applyDetectedPreset(preset, `Detected ${result.provider_hint} from ${domain}'s mail records — settings assigned.`);
         } else if (result.mx?.found) {
-          // Unknown provider but real mail service: pre-fill sensible guesses,
-          // only into fields the user hasn't already set.
+          /*
+           * No preset for this provider, so ask where the mail servers
+           * actually are.
+           *
+           * This used to fill in `smtp.<domain>` / `imap.<domain>`, which for
+           * a hosted mailbox is a name that does not exist - the mailboxes
+           * live on the provider's hostname, and the MX record says which
+           * provider that is. The invented host was accepted, saved, and
+           * came back later as "The IMAP host could not be found", blaming
+           * the user for a value the app had made up.
+           *
+           * Only hosts the server resolved are filled in now. Nothing found
+           * means an empty field and a sentence saying so, which is worse to
+           * look at and better to act on.
+           */
+          const hosts = result.hosts;
           setForm((prev) => ({
             ...prev,
-            smtp_host: prev.smtp_host || `smtp.${domain}`,
-            smtp_port: prev.smtp_host ? prev.smtp_port : 465,
-            smtp_secure: prev.smtp_host ? prev.smtp_secure : true,
-            imap_host: prev.imap_host || `imap.${domain}`,
-            imap_port: prev.imap_port || 993,
-            imap_secure: prev.imap_secure ?? true,
+            smtp_host: prev.smtp_host || hosts?.smtp?.host || '',
+            smtp_port: prev.smtp_host ? prev.smtp_port : (hosts?.smtp?.port ?? 465),
+            smtp_secure: prev.smtp_host ? prev.smtp_secure : (hosts?.smtp?.secure ?? true),
+            imap_host: prev.imap_host || hosts?.imap?.host || undefined,
+            imap_port: prev.imap_port || hosts?.imap?.port || 993,
+            imap_secure: prev.imap_secure ?? hosts?.imap?.secure ?? true,
           }));
-          setMxState({ status: 'done', note: `${domain} runs its own mail — pre-filled smtp.${domain} / imap.${domain} as a starting point. Check your provider's docs if the connection test fails.` });
+          setMxState({
+            status: 'done',
+            note: hosts?.note
+              // An older server that does not send `hosts` yet. Say nothing
+              // about servers rather than inventing them again.
+              || `${domain} runs its own mail. Enter the IMAP and SMTP servers from your provider.`,
+          });
         } else {
           setMxState({ status: 'done', note: `${domain} has no mail (MX) records — double-check the address.` });
         }

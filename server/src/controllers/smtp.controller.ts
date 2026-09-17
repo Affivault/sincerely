@@ -10,6 +10,8 @@ import { previewWithSampleData } from '../services/sequence.service.js';
 import { resolveDoh } from '../utils/dns-doh.js';
 import { smtpDiagnosticsService } from '../services/smtp-diagnostics.service.js';
 import { billingService } from '../services/billing.service.js';
+import { detectProvider } from '../services/domain.service.js';
+import { discoverMailHosts, type MailHostDiscovery } from '../services/mail-discovery.service.js';
 import { warmupService } from '../services/warmup.service.js';
 
 const resolveTxt = promisify(dns.resolveTxt);
@@ -234,6 +236,7 @@ export const smtpController = {
         dkim: { found: boolean; note: string };
         dmarc: { found: boolean; record: string | null; policy: string | null };
         provider_hint: string | null;
+        hosts?: MailHostDiscovery;
       } = {
         domain: cleanDomain,
         mx: { found: false, records: [] },
@@ -260,13 +263,24 @@ export const smtpController = {
         .sort((a, b) => a.priority - b.priority);
       results.mx.found = mxRecords.length > 0;
       results.mx.records = mxRecords;
-      const mxStr = mxRecords.map((r) => r.exchange.toLowerCase()).join(' ');
-      if (mxStr.includes('google') || mxStr.includes('gmail')) results.provider_hint = 'Google Workspace';
-      else if (mxStr.includes('outlook') || mxStr.includes('microsoft')) results.provider_hint = 'Microsoft 365';
-      else if (mxStr.includes('zoho')) results.provider_hint = 'Zoho Mail';
-      else if (mxStr.includes('fastmail') || mxStr.includes('messagingengine')) results.provider_hint = 'Fastmail';
-      else if (mxStr.includes('protonmail') || mxStr.includes('proton')) results.provider_hint = 'ProtonMail';
-      else if (mxStr.includes('yahoo')) results.provider_hint = 'Yahoo Mail';
+      /*
+       * Detection used to be a second, shorter copy of the list in
+       * domain.service, and it had drifted: the Domains page could
+       * recognise a provider that this form could not, for the same domain,
+       * in the same session. One list.
+       */
+      results.provider_hint = detectProvider(mxRecords.map((r) => r.exchange));
+
+      /*
+       * Where the mailboxes actually live.
+       *
+       * This form used to fall back to `imap.<domain>`, which for a hosted
+       * mailbox is a name that does not exist - the mailboxes are on the
+       * PROVIDER'S hostname. Saving that produced "The IMAP host could not
+       * be found" against a value the app had invented. This only ever
+       * returns hosts that resolve.
+       */
+      results.hosts = await discoverMailHosts(cleanDomain);
 
       // SPF record
       for (const raw of await resolveDoh(cleanDomain, 'TXT')) {
