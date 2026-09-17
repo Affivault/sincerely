@@ -65,6 +65,19 @@ export const smtpApi = {
       dkim: { found: boolean; note: string };
       dmarc: { found: boolean; record: string | null; policy: string | null };
       provider_hint: string | null;
+      /**
+       * Mail servers that were shown to exist in DNS.
+       *
+       * Null where nothing could be established. Absent entirely from an
+       * older API build, which is why every read of it is optional: an app
+       * deployed ahead of its server must fall back, not crash.
+       */
+      hosts?: {
+        imap: { host: string; port: number; secure: boolean; via: 'srv' | 'provider' | 'domain' } | null;
+        smtp: { host: string; port: number; secure: boolean; via: 'srv' | 'provider' | 'domain' } | null;
+        mail_provider: string | null;
+        note: string;
+      };
     }>('/smtp-accounts/check-domain', { domain });
     return data;
   },

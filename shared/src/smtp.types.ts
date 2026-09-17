@@ -436,6 +436,53 @@ export const SMTP_PRESETS: SmtpPreset[] = [
     password_hint: 'Bridge-generated password',
     recommended_daily_limit: 150,
   },
+  /*
+   * The registrar-bundled mailboxes. None of them is a household name and
+   * between them they are what a great many small domains run on, which is
+   * exactly the population this product sells to. Note that none of these
+   * uses `imap.<provider>` - Spacemail's IMAP is mail.spacemail.com, and
+   * imap.spacemail.com does not resolve at all. That is the whole reason
+   * `imap.<domain>` was never going to work as a guess.
+   */
+  {
+    name: 'Spacemail',
+    smtp_host: 'smtp.spacemail.com',
+    smtp_port: 465,
+    smtp_secure: true,
+    imap_host: 'mail.spacemail.com',
+    imap_port: 993,
+    imap_secure: true,
+    domains: [],
+    username_hint: 'Your full mailbox address',
+    password_hint: 'Your mailbox password',
+    recommended_daily_limit: 300,
+  },
+  {
+    name: 'Namecheap Private Email',
+    smtp_host: 'mail.privateemail.com',
+    smtp_port: 465,
+    smtp_secure: true,
+    imap_host: 'mail.privateemail.com',
+    imap_port: 993,
+    imap_secure: true,
+    domains: [],
+    username_hint: 'Your full mailbox address',
+    password_hint: 'Your mailbox password',
+    recommended_daily_limit: 300,
+  },
+  {
+    name: 'Titan',
+    smtp_host: 'smtp.titan.email',
+    smtp_port: 465,
+    smtp_secure: true,
+    imap_host: 'imap.titan.email',
+    imap_port: 993,
+    imap_secure: true,
+    domains: [],
+    username_hint: 'Your full mailbox address',
+    password_hint: 'Your mailbox password',
+    recommended_daily_limit: 300,
+  },
 ];
 
 /** Auto-detect SMTP preset from email domain */
