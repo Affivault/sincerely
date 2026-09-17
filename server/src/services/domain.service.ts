@@ -108,15 +108,34 @@ const PROVIDER_SPF_MAP: Record<string, string[]> = {
 const PROVIDER_DKIM_SELECTORS: Record<string, string[]> = {
   'Google Workspace': ['google'],
   'Microsoft 365': ['selector1', 'selector2'],
-  'Zoho Mail': ['zmail'],
-  'SendGrid': ['s1', 's2', 'smtpapi'],
-  'Mailgun': ['smtp', 'k1', 'mailo'],
+  'Zoho Mail': ['zoho', 'zmail'],
+  'SendGrid': ['s1', 's2', 'smtpapi', 'sendgrid'],
+  'Mailgun': ['smtp', 'k1', 'mailo', 'mg', 'pic'],
   'Amazon SES': ['dkim'],
   'Fastmail': ['fm1', 'fm2', 'fm3'],
   'ProtonMail': ['protonmail', 'protonmail2', 'protonmail3'],
 };
 
-const FALLBACK_DKIM_SELECTORS = ['google', 'selector1', 'selector2', 'default', 'dkim', 'k1', 's1', 'mail'];
+/**
+ * Selectors worth guessing, commonest first.
+ *
+ * Guessing is all DNS allows - there is no way to ask which selectors a
+ * domain has - so this is a best effort and its failure means "not found by
+ * guessing", never "not configured". Anything genuinely unguessable
+ * (Amazon SES tokens, HubSpot account ids, Postmark's dated selectors) is
+ * what the manual selector exists for.
+ */
+const FALLBACK_DKIM_SELECTORS = [
+  // The big two, and the cPanel/Plesk default. Between them, most domains.
+  'google', 'selector1', 'selector2', 'default',
+  // Generic names used by a long tail of hosts and self-managed setups.
+  'dkim', 'mail', 'email', 'key1', 'k1', 'k2', 's1', 's2', 'smtp',
+  // Named by their provider, which is common enough to be worth the lookup.
+  'zoho', 'zmail', 'mandrill', 'mailjet', 'brevo', 'sendinblue',
+  'postmark', 'pm', 'protonmail', 'protonmail2', 'titan1', 'titan2',
+  'fm1', 'fm2', 'fm3', 'zendesk1', 'zendesk2', 'klaviyo', 'kl', 'kl2',
+  'sendgrid', 'smtpapi', 'mailerlite', 'mailchimp', 'cm', 'everlytic',
+];
 
 function generateVerificationToken(): string {
   return `sincerely-verify=${crypto.randomBytes(16).toString('hex')}`;
@@ -182,7 +201,11 @@ async function probeDkimSelector(domain: string, selector: string): Promise<{ se
   return null;
 }
 
-async function performDnsCheck(domain: string, verificationToken: string): Promise<DnsCheckResult> {
+async function performDnsCheck(
+  domain: string,
+  verificationToken: string,
+  knownSelector?: string | null,
+): Promise<DnsCheckResult> {
   const result: DnsCheckResult = {
     mx: { found: false, records: [] },
     spf: { found: false, record: null, valid: false, includes_provider: false, multiple: false },
@@ -243,10 +266,16 @@ async function performDnsCheck(domain: string, verificationToken: string): Promi
     }
   }
 
-  // 4. DKIM — probe provider-specific selectors first, then common ones,
-  // all in parallel. First hit (in priority order) wins.
+  /*
+   * 4. DKIM.
+   *
+   * A known selector goes first - it is the only one that is not a guess.
+   * Then the provider's, then the common ones, all in parallel; the first
+   * hit in priority order wins.
+   */
   const providerSelectors = result.provider_hint ? (PROVIDER_DKIM_SELECTORS[result.provider_hint] || []) : [];
-  const allSelectors = [...new Set([...providerSelectors, ...FALLBACK_DKIM_SELECTORS])];
+  const known = knownSelector ? [knownSelector] : [];
+  const allSelectors = [...new Set([...known, ...providerSelectors, ...FALLBACK_DKIM_SELECTORS])];
   const probes = await Promise.all(allSelectors.map((s) => probeDkimSelector(domain, s)));
   const hit = probes.find((p) => p !== null);
   if (hit) {
@@ -255,6 +284,21 @@ async function performDnsCheck(domain: string, verificationToken: string): Promi
     result.dkim.note = hit.via === 'txt'
       ? `DKIM configured with selector "${hit.selector}"`
       : `DKIM CNAME configured with selector "${hit.selector}"`;
+  } else {
+    /*
+     * The important sentence in this whole file.
+     *
+     * DNS cannot be asked which selectors exist, so a miss means the guess
+     * list did not contain the right name - NOT that DKIM is absent. Saying
+     * "No DKIM record found" told people their working setup was broken,
+     * which is worse than saying nothing, and left them no way to correct
+     * it. This says what actually happened and what to do about it.
+     */
+    result.dkim.note = knownSelector
+      ? `Nothing found at "${knownSelector}._domainkey.${domain}". Check the selector is right.`
+      : `Could not find DKIM by guessing ${allSelectors.length} common selectors. `
+        + 'If it is set up, enter your selector and we will check that exactly.';
+    result.dkim.checked_selectors = allSelectors.length;
   }
 
   return result;
@@ -375,6 +419,23 @@ function buildRecordInstructions(domain: string, verificationToken: string, dnsC
 }
 
 /** Persistable column updates derived from a DNS check. */
+/**
+ * Remember a selector this check discovered.
+ *
+ * Only ever written over a 'detected' one. A selector somebody typed is a
+ * statement of fact from the person who configured the DNS, and a guess that
+ * happened to also match must not quietly replace it - the next check would
+ * then be checking the guess rather than what they told us.
+ */
+function selectorPayload(dnsCheck: DnsCheckResult, existingSource?: string | null) {
+  if (!dnsCheck.dkim.found || !dnsCheck.dkim.selector) return {};
+  if (existingSource === 'manual') return {};
+  return {
+    dkim_selector: dnsCheck.dkim.selector,
+    dkim_selector_source: 'detected',
+  };
+}
+
 function dnsUpdatePayload(dnsCheck: DnsCheckResult) {
   return {
     is_verified: dnsCheck.verification_txt.found,
@@ -484,17 +545,105 @@ export const domainService = {
 
     if (error || !domainRow) throw new AppError('Domain not found', 404);
 
-    const dnsCheck = await performDnsCheck(domainRow.domain, domainRow.verification_token);
+    const dnsCheck = await performDnsCheck(
+      domainRow.domain, domainRow.verification_token, domainRow.dkim_selector,
+    );
     const records = buildRecordInstructions(domainRow.domain, domainRow.verification_token, dnsCheck);
 
     const { data: updated, error: updateError } = await supabaseAdmin
       .from('sending_domains')
-      .update(dnsUpdatePayload(dnsCheck))
+      .update({
+        ...dnsUpdatePayload(dnsCheck),
+        ...selectorPayload(dnsCheck, domainRow.dkim_selector_source),
+      })
       .eq('id', id)
       .eq('user_id', userId)
       .select()
       .single();
 
+    if (updateError) throw new AppError(updateError.message, 500);
+
+    return { domain: updated, dns: dnsCheck, records };
+  },
+
+  /**
+   * Tell us the DKIM selector, because DNS will not.
+   *
+   * The whole reason this exists: <selector>._domainkey.<domain> can only be
+   * looked up by a name you already know, and a great many providers use
+   * names nobody could guess - Amazon SES publishes random 32-character
+   * tokens, HubSpot uses the account id, Postmark dates them. For those
+   * domains no amount of guessing will ever work, and before this there was
+   * no way for a person who KNEW the answer to supply it.
+   *
+   * Setting it re-checks immediately, so the result is the answer to "is
+   * this right", not a promise to look later.
+   */
+  async setDkimSelector(userId: string, id: string, selector: string | null) {
+    const clean = String(selector ?? '').trim().replace(/\._?domainkey.*$/i, '');
+
+    // Empty clears it and goes back to guessing, which is a legitimate thing
+    // to want after typing the wrong thing.
+    if (clean && !/^[A-Za-z0-9]([A-Za-z0-9._-]{0,61}[A-Za-z0-9])?$/.test(clean)) {
+      throw new AppError(
+        'A selector is the bit before ._domainkey - letters, numbers, dots and hyphens only.', 400,
+      );
+    }
+
+    const { data: domainRow, error } = await supabaseAdmin
+      .from('sending_domains')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
+    if (error || !domainRow) throw new AppError('Domain not found', 404);
+
+    /*
+     * Probe what they typed on its own first.
+     *
+     * The full check also guesses, and guessing can succeed with a DIFFERENT
+     * selector - at which point reporting a cheerful "DKIM found" would hide
+     * the fact that the name they gave us resolves to nothing, and we would
+     * then store that dead name as a statement of fact and try it first
+     * forever after. So the two questions are asked separately: does YOURS
+     * work, and does the domain have DKIM at all.
+     */
+    const direct = clean ? await probeDkimSelector(domainRow.domain, clean) : null;
+
+    const dnsCheck = await performDnsCheck(
+      domainRow.domain, domainRow.verification_token, clean || null,
+    );
+
+    if (clean && !direct) {
+      dnsCheck.dkim.note = dnsCheck.dkim.found
+        ? `Nothing at "${clean}._domainkey.${domainRow.domain}", but DKIM is working `
+          + `under "${dnsCheck.dkim.selector}". Kept that one.`
+        : `Nothing found at "${clean}._domainkey.${domainRow.domain}". Check the selector is right.`;
+    }
+
+    const records = buildRecordInstructions(domainRow.domain, domainRow.verification_token, dnsCheck);
+
+    /*
+     * Only store a selector that actually resolves. A name that does not is
+     * worse than none: it would be tried first on every future check and
+     * would be shown back to the account as though it were confirmed.
+     */
+    const keep = direct
+      ? { dkim_selector: clean, dkim_selector_source: 'manual' }
+      : dnsCheck.dkim.found && dnsCheck.dkim.selector
+        ? { dkim_selector: dnsCheck.dkim.selector, dkim_selector_source: 'detected' }
+        : { dkim_selector: null, dkim_selector_source: null };
+
+    const { data: updated, error: updateError } = await supabaseAdmin
+      .from('sending_domains')
+      .update({
+        ...dnsUpdatePayload(dnsCheck),
+        ...keep,
+      })
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single();
     if (updateError) throw new AppError(updateError.message, 500);
 
     return { domain: updated, dns: dnsCheck, records };
@@ -514,7 +663,9 @@ export const domainService = {
     // If we have cached DNS results, use them; otherwise do a fresh check
     const dnsCheck = domainRow.last_dns_check
       ? (domainRow.last_dns_check as unknown as DnsCheckResult)
-      : await performDnsCheck(domainRow.domain, domainRow.verification_token);
+      : await performDnsCheck(
+        domainRow.domain, domainRow.verification_token, domainRow.dkim_selector,
+      );
 
     const records = buildRecordInstructions(domainRow.domain, domainRow.verification_token, dnsCheck);
 

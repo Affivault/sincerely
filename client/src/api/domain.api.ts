@@ -26,6 +26,19 @@ export const domainApi = {
     return data;
   },
 
+  /**
+   * Tell the check which DKIM selector to look at.
+   *
+   * DNS cannot be asked which selectors exist, so for the providers that use
+   * unguessable names this is the only way the check can ever succeed.
+   */
+  setDkimSelector: async (id: string, selector: string | null) => {
+    const { data } = await apiClient.put<DomainVerifyResponse>(
+      `/domains/${id}/dkim-selector`, { selector },
+    );
+    return data;
+  },
+
   getRecords: async (id: string) => {
     const { data } = await apiClient.get<DomainVerifyResponse>(`/domains/${id}/records`);
     return data;

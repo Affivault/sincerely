@@ -220,6 +220,23 @@ export function DomainDetailPanel({
   const passing = CHECKS.filter((c) => domain[c.key]).length;
   const records = recordsData?.records || [];
   const mx = recordsData?.dns?.mx;
+  const dkim = recordsData?.dns?.dkim;
+
+  const [selector, setSelector] = useState(domain.dkim_selector || '');
+  const saveSelector = useMutation({
+    mutationFn: () => domainApi.setDkimSelector(domain.id, selector.trim() || null),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['domains'] });
+      queryClient.invalidateQueries({ queryKey: ['domain-records', domain.id] });
+      // Show what was actually stored. A name that did not resolve is not
+      // stored, and leaving their text in the box is what lets them fix a
+      // typo rather than retype the whole thing.
+      if (result.domain.dkim_selector) setSelector(result.domain.dkim_selector);
+      if (result.dns.dkim.found) toast.success(result.dns.dkim.note);
+      else toast.error(result.dns.dkim.note);
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Could not check that selector'),
+  });
 
   const copyAll = async () => {
     const lines = records
@@ -232,6 +249,60 @@ export function DomainDetailPanel({
       toast.error('Failed to copy to clipboard');
     }
   };
+
+  /*
+   * The DKIM selector box.
+   *
+   * It exists because DNS has no way to list the selectors a domain has -
+   * a key lives at <selector>._domainkey and you can only look up a name
+   * you already know. So the check guesses, and for Amazon SES, HubSpot,
+   * Postmark and anything else with per-account names, guessing cannot
+   * work even in principle. Before this there was no way for somebody who
+   * KNEW the answer to tell us, and the screen simply insisted their
+   * working DKIM did not exist.
+   */
+  const dkimHelp = (
+    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3" data-dkim-help>
+      <p className="text-[12.5px] font-medium text-[var(--text-primary)]">
+        {domain.dkim_ok ? 'DKIM is working' : 'We could not find your DKIM'}
+      </p>
+      <p className="mt-0.5 text-[11.5px] leading-relaxed text-[var(--text-secondary)]" data-dkim-note>
+        {dkim?.note
+          || 'DNS gives no way to list DKIM selectors, so we guess the common ones.'}
+      </p>
+      {!domain.dkim_ok && (
+        <p className="mt-1.5 text-[11.5px] leading-relaxed text-[var(--text-tertiary)]">
+          Providers like Amazon SES, HubSpot and Postmark use selectors nobody
+          could guess. Find yours in your provider&rsquo;s DNS settings &mdash;
+          it is the part before <code>._domainkey</code> &mdash; and enter it here.
+        </p>
+      )}
+      <div className="mt-2 flex items-center gap-1.5">
+        <input
+          value={selector}
+          onChange={(e) => setSelector(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') saveSelector.mutate(); }}
+          placeholder="e.g. selector1, google, hs1-4021"
+          className="input-field h-8 flex-1 text-[12px]"
+          data-dkim-selector
+        />
+        <button
+          onClick={() => saveSelector.mutate()}
+          disabled={saveSelector.isPending}
+          className="btn-secondary h-8"
+          data-dkim-check
+        >
+          {saveSelector.isPending ? 'Checking…' : 'Check it'}
+        </button>
+      </div>
+      {domain.dkim_selector && (
+        <p className="mt-1.5 text-[11px] text-[var(--text-tertiary)]">
+          Using <code>{domain.dkim_selector}._domainkey.{domain.domain}</code>
+          {domain.dkim_selector_source === 'manual' ? ' (you set this)' : ' (we found this)'}
+        </p>
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -332,6 +403,9 @@ export function DomainDetailPanel({
           ))}
         </div>
       ) : null}
+
+      {/* DKIM selector — the one check that cannot be finished by guessing */}
+      {!loadingRecords && dkimHelp}
 
       {/* Last checked */}
       {domain.last_checked_at && (
