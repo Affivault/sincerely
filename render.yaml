@@ -47,6 +47,13 @@ services:
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
+      # Google Calendar (optional). Without these the feature is off and the
+      # Availability page says so; nothing else changes. Listed here so a
+      # blueprint re-apply cannot silently drop them.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
 
   - type: redis
     name: sincerely-redis
