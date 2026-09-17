@@ -56,13 +56,40 @@ const PRESETS: { label: string; windows: AvailabilityWindow[] }[] = [
  * in, and the person who connected a calendar precisely so that would not
  * happen is the one it happens to.
  */
+/**
+ * The panel's title, which has to say two different things.
+ *
+ * Before connecting, the heading is the pitch. After, it is a status - and
+ * a panel still headed "Connect your calendar" above a connected account is
+ * how somebody concludes it did not work and clicks again.
+ */
+function Heading({ connected }: { connected?: boolean }) {
+  return (
+    <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
+      <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]" data-heading>
+        {connected
+          ? <Check className="h-3.5 w-3.5 text-[#10b981]" />
+          : <RefreshCw className="h-3.5 w-3.5 text-[var(--indigo)]" />}
+        {connected ? 'Calendar connected' : 'Connect your calendar'}
+      </h3>
+      <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)]">
+        {connected
+          ? 'Your real diary is checked before any time is offered.'
+          : 'So nobody can book a time you are already busy in.'}
+      </p>
+    </div>
+  );
+}
+
 function ExternalCalendars() {
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
 
-  const { data } = useQuery({
+  const { data, isLoading, error: loadError } = useQuery({
     queryKey: ['calendar', 'connections'],
     queryFn: availabilityApi.connections,
+    retry: false,
+    meta: { silentError: true },
   });
 
   // The OAuth callback lands back here with a result in the query string.
@@ -106,32 +133,49 @@ function ExternalCalendars() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['calendar', 'connections'] }),
   });
 
-  if (!data) return null;
+  /*
+   * A failed load used to render nothing at all - no panel, no message.
+   * Which meant the commonest real failure, a migration not yet run, looked
+   * exactly like a feature that does not exist, and there was nowhere for
+   * somebody to find out otherwise.
+   */
+  if (loadError) {
+    return (
+      <section className="panel overflow-hidden" data-connections>
+        <Heading />
+        <div className="px-4 py-3">
+          <p className="flex items-start gap-1.5 text-[12px] text-[#ef4444]" data-load-error>
+            <AlertTriangle className="mt-[1px] h-3.5 w-3.5 flex-shrink-0" />
+            {(loadError as any)?.response?.data?.error
+              || 'Could not read your calendar connections.'}
+          </p>
+          <p className="mt-1.5 text-[11.5px] text-[var(--text-tertiary)]">
+            If this mentions a missing table, migration 068 has not been run yet.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  if (isLoading || !data) return null;
   const connections = data.connections || [];
 
   return (
     <section className="panel overflow-hidden" data-connections>
-      <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
-        <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
-          <RefreshCw className="h-3.5 w-3.5 text-[var(--indigo)]" />
-          Your other calendars
-        </h3>
-        <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)]">
-          So a booking page never offers a time you are already busy in.
-        </p>
-      </div>
+      <Heading connected={connections.some((c) => !c.broken_at)} />
 
       <div className="px-4 py-3 space-y-2">
         {!data.available ? (
           <p className="text-[12px] text-[var(--text-secondary)]" data-unavailable>
-            Google Calendar is not set up on this deployment yet. Until it is,
-            only meetings booked here count against your availability.
+            Calendar syncing is not switched on for this deployment yet. Until
+            it is, only meetings booked in Sincerely count against your
+            availability.
           </p>
         ) : connections.length === 0 ? (
           <>
             <p className="text-[12px] text-[var(--text-secondary)]">
-              Nothing connected. Meetings in your Google calendar will not block
-              a slot, so the page can offer a time you already have something in.
+              Right now only meetings booked in Sincerely block a slot, so your
+              booking page can offer a time you already have something in.
             </p>
             <button
               onClick={() => connect.mutate()}
@@ -142,7 +186,7 @@ function ExternalCalendars() {
               {connect.isPending
                 ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 : <RefreshCw className="h-3.5 w-3.5" />}
-              Connect Google Calendar
+              Sync with Google
             </button>
           </>
         ) : (
@@ -184,7 +228,7 @@ function ExternalCalendars() {
                     className="h-3.5 w-3.5 rounded border-[var(--border-subtle)]"
                   />
                   <span className="text-[11.5px] text-[var(--text-secondary)]">
-                    Also put bookings in it
+                    Add new bookings to this calendar
                   </span>
                 </label>
               )}
