@@ -16,6 +16,7 @@ import {
 } from '../utils/imap-window.js';
 import { DEFAULT_SYNC_WINDOW_MONTHS, isSyncWindow } from '@lemlist/shared';
 import type { InboxSyncResult, SyncFolderRole, SyncWindowMonths } from '@lemlist/shared';
+import { repairImapHost } from './mailbox-repair.service.js';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Reading a mailbox.
@@ -670,12 +671,43 @@ export const inboxSyncService = {
       } catch (err: any) {
         const friendly = categoriseImapError(err.message || String(err));
         console.error(`[InboxSync] Failed for ${raw.email_address}:`, err.message);
-        errors.push(`${raw.email_address}: ${friendly}`);
+
+        /*
+         * A host that cannot be resolved may be one this app invented.
+         *
+         * Until recently the Add Mailbox form filled in `imap.<domain>` for
+         * any provider it had no preset for, which for a hosted mailbox is
+         * not a name at all. The account holder never typed it, so telling
+         * them to "check the server address" sends them to correct a
+         * mistake they did not make. Where the stored host demonstrably does
+         * not exist, find the real one and use it - see the safety argument
+         * in mailbox-repair.service.
+         */
+        let recorded = friendly;
+        if (/could not be found/.test(friendly)) {
+          try {
+            const repair = await repairImapHost(raw as any);
+            if (repair.repaired) {
+              console.log(`[InboxSync] Repaired ${raw.email_address}: ${repair.from} -> ${repair.to}`);
+              // The corrected host is picked up on the next pass rather than
+              // retried inside this one, so a repair loop cannot form.
+              more = true;
+              recorded = `Fixed automatically: ${repair.note}`;
+            } else {
+              recorded = repair.note;
+            }
+          } catch (repairErr: any) {
+            // A failed repair must never replace the real error with its own.
+            console.error(`[InboxSync] Repair failed for ${raw.email_address}:`, repairErr?.message);
+          }
+        }
+
+        errors.push(`${raw.email_address}: ${recorded}`);
         // Recorded so the mailbox can say why it is empty rather than just
         // being empty.
         await supabaseAdmin
           .from('smtp_accounts')
-          .update({ last_inbox_sync_error: friendly })
+          .update({ last_inbox_sync_error: recorded })
           .eq('id', raw.id)
           .then(() => {}, () => {});
         if (client) { try { await client.logout(); } catch { /* ignore */ } }
