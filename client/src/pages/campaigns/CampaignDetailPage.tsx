@@ -156,6 +156,7 @@ export function CampaignDetailPage() {
   const deleteMutation = useMutation({
     mutationFn: () => campaignsApi.delete(id!),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
       toast.success('Campaign deleted');
       navigate('/campaigns');
     },

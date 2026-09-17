@@ -124,6 +124,8 @@ export function ContactDetailPage() {
   const deleteMutation = useMutation({
     mutationFn: () => contactsApi.delete(id!),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
       toast.success('Contact deleted');
       navigate('/contacts');
     },

@@ -325,6 +325,28 @@ export function AvailabilityPage() {
     enabled: !dirty,
   });
 
+  /**
+   * Grouped by day, not left flat: a bare "10:00 AM" says nothing about
+   * which of the next seven days it falls on, and two of those days can
+   * easily offer the same time. This is also where "most per day" becomes
+   * visible - a day at its cap shows fewer slots than an identical day
+   * that isn't, right in the preview.
+   */
+  const slotsByDay = useMemo(() => {
+    const groups = new Map<string, { label: string; slots: typeof slots }>();
+    for (const s of slots) {
+      const d = new Date(s.start);
+      const key = d.toDateString();
+      const group = groups.get(key);
+      if (group) group.slots.push(s);
+      else groups.set(key, {
+        label: d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }),
+        slots: [s],
+      });
+    }
+    return [...groups.values()];
+  }, [slots]);
+
   const zones = useMemo(() => {
     try {
       return (Intl as any).supportedValuesOf?.('timeZone') as string[] ?? [prefs.timezone];
@@ -575,20 +597,29 @@ export function AvailabilityPage() {
                       })}
                     </strong>
                   </p>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {slots.slice(0, 12).map((s) => (
-                      <span
-                        key={s.start}
-                        className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[11px] tabular text-[var(--text-secondary)]"
-                      >
-                        {new Date(s.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-                      </span>
+                  <div className="mt-2 space-y-2">
+                    {slotsByDay.map((day) => (
+                      <div key={day.label}>
+                        <p className="mb-1 text-[10.5px] font-medium text-[var(--text-tertiary)]">
+                          {day.label}
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {day.slots.slice(0, 12).map((s) => (
+                            <span
+                              key={s.start}
+                              className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[11px] tabular text-[var(--text-secondary)]"
+                            >
+                              {new Date(s.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                            </span>
+                          ))}
+                          {day.slots.length > 12 && (
+                            <span className="px-1 py-0.5 text-[11px] text-[var(--text-tertiary)]">
+                              +{day.slots.length - 12} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     ))}
-                    {slots.length > 12 && (
-                      <span className="px-1 py-0.5 text-[11px] text-[var(--text-tertiary)]">
-                        +{slots.length - 12} more
-                      </span>
-                    )}
                   </div>
                 </>
               )}
