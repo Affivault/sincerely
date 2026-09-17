@@ -71,7 +71,15 @@ function ExternalCalendars() {
     if (!outcome) return;
     if (outcome === 'connected') toast.success(`Connected ${params.get('account') || 'your calendar'}`);
     else if (outcome === 'error') toast.error(params.get('message') || 'Could not connect');
-    // 'cancelled' says nothing: they pressed Cancel and know it.
+    // Google sends the same code whether somebody pressed Cancel or was
+    // refused for being off the test-user list, so this says both rather
+    // than guessing - and stays on screen long enough to be read and acted
+    // on, which a two-second toast would not be.
+    else if (outcome === 'denied') {
+      toast(params.get('message') || 'Google did not allow that connection.', {
+        icon: '\u26A0\uFE0F', duration: 12000,
+      });
+    }
     qc.invalidateQueries({ queryKey: ['calendar', 'connections'] });
     const next = new URLSearchParams(params);
     ['calendar', 'account', 'message'].forEach((k) => next.delete(k));
