@@ -198,9 +198,17 @@ export function computeSlots(input: ComputeSlotsInput): Slot[] {
     if (list) list.push(w); else byWeekday.set(w.weekday, [w]);
   }
 
-  /** Busy intervals already counted against a day's cap. */
+  /**
+   * Busy intervals already counted against a day's cap.
+   *
+   * Deliberately counts the original `busy` list, not `merged`: merging
+   * exists to make the clash check cheap, and its threshold treats touching
+   * intervals as one (`b.start <= last.end`). Back-to-back meetings are the
+   * normal case, not the exception, so counting merged blocks collapsed two
+   * or three consecutive bookings into "1" and the cap never tripped.
+   */
   const bookingsOnDay = (dayStart: Date, dayEnd: Date): number =>
-    merged.filter((b) => overlaps(b.start, b.end, dayStart, dayEnd)).length;
+    busy.filter((b) => overlaps(b.start, b.end, dayStart, dayEnd)).length;
 
   const slots: Slot[] = [];
 
