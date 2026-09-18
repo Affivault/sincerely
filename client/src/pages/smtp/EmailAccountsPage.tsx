@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { smtpApi } from '../../api/smtp.api';
+import { inboxApi } from '../../api/inbox.api';
 import { domainApi } from '../../api/domain.api';
 import { SkeletonList } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
@@ -17,14 +18,14 @@ import {
   ChevronDown, ChevronRight, AlertTriangle, RefreshCw, Gauge,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import type { SmtpAccount, SmtpPreset, SendingDomain } from '@lemlist/shared';
+import type { SmtpAccount, SmtpPreset, SendingDomain, InboxSyncProgress, SyncWindowMonths } from '@lemlist/shared';
 import { SMTP_PRESETS, warmupAllowance, formatDailyLimit } from '@lemlist/shared';
 import { SmtpAccountModal } from './SmtpAccountModal';
 import { WarmupPanel } from './WarmupPanel';
 import { StatusBadge, DomainDetailPanel } from '../domains/DomainsPage';
 import { TrackingDomainPanel } from '../../components/domains/TrackingDomainPanel';
 import { ReadinessPanel } from '../../components/delivery/ReadinessPanel';
-import { MailHistoryPanel } from '../../components/inbox/MailHistoryPanel';
+import { MailboxList } from '../../components/delivery/MailboxList';
 
 /* ─── Quick-connect providers ─────────────────────── */
 interface QuickConnectProvider { preset: SmtpPreset; icon: React.ReactNode; description: string; }
@@ -182,6 +183,21 @@ export function EmailAccountsPage() {
 
   const { data: accounts, isLoading, isError: accountsError } = useQuery({ queryKey: ['smtp-accounts'], queryFn: smtpApi.list, meta: { silentError: true } });
   const { data: domainsData, isLoading: loadingDomains, isError: domainsError } = useQuery({ queryKey: ['domains'], queryFn: domainApi.list, meta: { silentError: true } });
+  /*
+   * Sync progress is what makes a row honest. Without it the list can only
+   * report stored flags - which is exactly how three mailboxes showed
+   * "Verified" while none of them could read a reply.
+   */
+  const { data: progressData } = useQuery({
+    queryKey: ['inbox-sync-progress'],
+    queryFn: inboxApi.syncProgress,
+    refetchInterval: (query) => {
+      const rows = query.state.data as InboxSyncProgress[] | undefined;
+      return rows?.some((a) => !a.history_complete && !a.blocked) ? 5000 : 60000;
+    },
+    meta: { silentError: true },
+  });
+  const syncProgress = progressData || [];
   const domains = domainsData || [];
   const list = accounts || [];
 
@@ -205,6 +221,34 @@ export function EmailAccountsPage() {
     mutationFn: smtpApi.delete,
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['smtp-accounts'] }); toast.success('Account removed'); },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to remove account'),
+  });
+
+  /* Correcting a server address or login the app itself got wrong. */
+  const repairMutation = useMutation({
+    mutationFn: smtpApi.repairHosts,
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['smtp-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['inbox-sync-progress'] });
+      if (result.repaired > 0) {
+        const one = result.results.find((r) => r.repaired);
+        toast.success(result.repaired === 1 && one ? one.note : `${result.repaired} mailboxes corrected`);
+      } else {
+        // The reason matters more than the fact. Show what the server said.
+        toast(result.results.find((r) => r.note)?.note || 'Nothing to correct.', { icon: 'ℹ️' });
+      }
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Could not check the mail servers'),
+  });
+
+  const windowMutation = useMutation({
+    mutationFn: ({ id, months }: { id: string; months: SyncWindowMonths }) =>
+      smtpApi.update(id, { inbox_sync_months: months } as any),
+    onSuccess: (_d, v) => {
+      queryClient.invalidateQueries({ queryKey: ['inbox-sync-progress'] });
+      toast.success(`Keeping ${v.months} month${v.months === 1 ? '' : 's'}. Older mail arrives in the background.`);
+      inboxApi.syncInbox().catch(() => { /* background */ });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Could not change the history window'),
   });
 
   const testMutation = useMutation({
@@ -377,14 +421,6 @@ export function EmailAccountsPage() {
       {tab === 'readiness' && <ReadinessPanel />}
 
       {/* ── Mailboxes tab ── */}
-      {tab === 'mailboxes' && list.length > 0 && (
-        <div className="mb-4">
-          {/* Belongs with the mailbox: it is that mailbox's history being
-              kept, and the cost of a wide window is per mailbox. */}
-          <MailHistoryPanel />
-        </div>
-      )}
-
       {tab === 'mailboxes' && (
         list.length === 0 ? (
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6">
@@ -412,94 +448,47 @@ export function EmailAccountsPage() {
             </p>
           </div>
         ) : (
-          <Card padding="none" className="overflow-hidden">
-            <div className="flex items-center gap-2 px-3 h-12 border-b border-[var(--border-subtle)]">
-              <Search className="h-4 w-4 text-[var(--text-tertiary)]" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search mailboxes by name or email…" className="flex-1 bg-transparent text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none" />
-              <span className="text-[11.5px] text-[var(--text-tertiary)] tabular">{filtered.length} of {list.length}</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[880px] text-left">
-                <thead>
-                  <tr className="border-b border-[var(--border-subtle)] text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                    <th className="py-2.5 pl-4 pr-3">Sender</th>
-                    <th className="py-2.5 px-3">Domain auth</th>
-                    <th className="py-2.5 px-3">Status</th>
-                    <th className="py-2.5 px-3">Warm-up</th>
-                    <th className="py-2.5 px-3">Deliverability</th>
-                    <th className="py-2.5 px-3">Sent today</th>
-                    <th className="py-2.5 pr-4 pl-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((account: SmtpAccount) => {
-                    // During an active ramp the real enforced cap is the ramped allowance for
-                    // today, not the eventual target — matches the Warm-up tab's own number.
-                    const limit = warmupAllowance(account);
-                    const displayName = account.from_name || account.label;
-                    const dom = matchDomain(domains, account.email_address);
-                    return (
-                      <tr key={account.id} className="group border-b border-[var(--border-subtle)] last:border-0 hover:bg-[var(--bg-hover)] transition-colors">
-                        <td className="py-2.5 pl-4 pr-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className={cn('h-2 w-2 rounded-full flex-shrink-0', account.is_verified ? 'bg-emerald-500' : 'bg-slate-400')} title={account.is_verified ? 'Verified' : 'Unverified'} />
-                            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)] flex-shrink-0">
-                              <span className="text-[12px] font-semibold text-[var(--indigo)]">{(displayName || '?').charAt(0).toUpperCase()}</span>
-                            </span>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">{displayName}</span>
-                                {account.label && account.from_name && account.label !== account.from_name && (
-                                  <span className="hidden sm:inline-flex items-center px-1.5 h-[17px] text-[10px] font-medium text-[var(--text-secondary)] bg-[var(--bg-elevated)] rounded-[4px]">{account.label}</span>
-                                )}
-                              </div>
-                              <p className="text-[12px] text-[var(--text-tertiary)] truncate">{account.email_address}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          {dom?.is_verified ? (
-                            <span className="inline-flex items-center gap-1 px-1.5 h-[19px] text-[10.5px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 rounded-[4px]"><ShieldCheck className="h-2.5 w-2.5" /> Authenticated</span>
-                          ) : dom ? (
-                            <button onClick={() => goToDomain(dom.id)} className="inline-flex items-center gap-1 px-1.5 h-[19px] text-[10.5px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 rounded-[4px] hover:brightness-95" title="Finish DNS setup"><AlertTriangle className="h-2.5 w-2.5" /> Setup DNS</button>
-                          ) : (
-                            <button onClick={() => { setNewDomain(domainOf(account.email_address)); setAddDomainOpen(true); }} className="inline-flex items-center gap-1 px-1.5 h-[19px] text-[10.5px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 rounded-[4px] hover:brightness-95" title="Add this domain to authenticate it"><Plus className="h-2.5 w-2.5" /> Add domain</button>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          {account.is_verified
-                            ? <span className="inline-flex items-center gap-1 px-1.5 h-[19px] text-[10.5px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 rounded-[4px]"><CheckCircle2 className="h-2.5 w-2.5" /> Verified</span>
-                            : <span className="inline-flex items-center gap-1 px-1.5 h-[19px] text-[10.5px] font-medium text-[var(--text-secondary)] bg-[var(--bg-elevated)] rounded-[4px]"><XCircle className="h-2.5 w-2.5" /> Unverified</span>}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          {account.warmup_mode
-                            ? <span className="inline-flex items-center gap-1 px-1.5 h-[19px] text-[10.5px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 rounded-[4px]"><Flame className="h-2.5 w-2.5" /> Warming</span>
-                            : <button onClick={() => setTab('warmup')} className="text-[11.5px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Off</button>}
-                        </td>
-                        <td className="py-2.5 px-3"><span className={cn('text-[12.5px] font-semibold tabular', healthColor(account.health_score))}>{account.health_score}%</span></td>
-                        <td className="py-2.5 px-3"><span className="text-[12.5px] text-[var(--text-secondary)] tabular">{account.sends_today}<span className="text-[var(--text-muted)]">/{formatDailyLimit(limit)}</span></span></td>
-                        <td className="py-2.5 pr-4 pl-3">
-                          <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => testMutation.mutate(account.id)} disabled={testingId === account.id} className="icon-btn h-7 px-2 text-[11.5px]" title="Test connection"><TestTube className="h-3 w-3" /> {testingId === account.id ? 'Testing…' : 'Test'}</button>
-                            <button onClick={() => openEdit(account)} className="icon-btn h-7 w-7" title="Edit"><Settings className="h-3 w-3" /></button>
-                            <button
-                              onClick={() => confirm(
-                                { title: `Disconnect ${account.email_address}?`, body: 'Campaigns sending from this mailbox will stop until you connect it again.', tone: 'danger', confirmLabel: 'Disconnect' },
-                                () => deleteMutation.mutate(account.id),
-                              )}
-                              className="icon-btn h-7 w-7 hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
-                              title="Remove"
-                            ><Trash2 className="h-3 w-3" /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            {filtered.length === 0 && <div className="py-10 text-center text-[12.5px] text-[var(--text-tertiary)]">No mailboxes match “{search}”.</div>}
-          </Card>
+          <>
+            {/*
+              * Search appears once it earns its place. A filter box above
+              * three rows is chrome; above twenty it is the fastest way in.
+              */}
+            {list.length > 8 && (
+              <div className="mb-3 flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 h-9">
+                <Search className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search mailboxes…" className="flex-1 bg-transparent text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none" />
+                {search && <span className="text-[11.5px] text-[var(--text-tertiary)] tabular">{filtered.length} of {list.length}</span>}
+              </div>
+            )}
+            {filtered.length === 0 ? (
+              <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-10 text-center text-[12.5px] text-[var(--text-tertiary)]">
+                No mailboxes match “{search}”.
+              </div>
+            ) : (
+              <MailboxList
+                accounts={filtered}
+                progress={syncProgress}
+                domainVerified={(email) => !!matchDomain(domains, email)?.is_verified}
+                domainKnown={(email) => !!matchDomain(domains, email)}
+                onEdit={openEdit}
+                onTest={(a) => testMutation.mutate(a.id)}
+                onRepair={() => repairMutation.mutate()}
+                onWindow={(a, months) => windowMutation.mutate({ id: a.id, months })}
+                onAuthenticateDomain={(a) => {
+                  const dom = matchDomain(domains, a.email_address);
+                  if (dom) { goToDomain(dom.id); return; }
+                  setNewDomain(domainOf(a.email_address));
+                  setAddDomainOpen(true);
+                }}
+                onRemove={(a) => confirm(
+                  { title: `Disconnect ${a.email_address}?`, body: 'Campaigns sending from this mailbox will stop until you connect it again.', tone: 'danger', confirmLabel: 'Disconnect' },
+                  () => deleteMutation.mutate(a.id),
+                )}
+                testingId={testingId}
+                repairing={repairMutation.isPending}
+              />
+            )}
+          </>
         )
       )}
 

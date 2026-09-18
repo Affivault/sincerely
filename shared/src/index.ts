@@ -2,6 +2,7 @@ export * from './enums.js';
 export * from './contact.types.js';
 export * from './campaign.types.js';
 export * from './smtp.types.js';
+export * from './mailbox-state.js';
 export * from './analytics.types.js';
 export * from './inbox.types.js';
 export * from './inbox-sync.types.js';
