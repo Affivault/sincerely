@@ -697,32 +697,65 @@ export const inboxSyncService = {
           });
 
           /* ---- one slice of history ---- */
-          if (budget > 0) {
-            const slice = planBackfill(
-              forward.uidReset ? { backfill_cursor: null, backfill_done: false } : state,
-              months,
-            );
-            if (slice) {
-              const back = await ingestRange(
-                client,
-                { since: slice.since, before: slice.before },
-                {},
-                ctx,
-                Math.min(budget, BACKFILL_BATCH),
-              );
-              totalBackfilled += back.stored;
-              budget -= back.stored;
+          /* ---- history, as far back as the budget reaches ---- */
+          /*
+           * Slices, plural.
+           *
+           * This used to fetch exactly one fortnight per run and then stop,
+           * whatever budget was left. Six months is thirteen fortnights, so
+           * filling a mailbox took thirteen separate syncs - thirteen IMAP
+           * connections, and at the scheduler's five-minute cadence over an
+           * hour of staring at "still fetching older mail". Worse, a quiet
+           * fortnight cost a whole run to discover it was empty, and the
+           * quiet ones are exactly what you get walking back through
+           * history.
+           *
+           * The budget already bounds the work. Spending it is the point.
+           */
+          let cursorState = forward.uidReset
+            ? { backfill_cursor: null as string | null, backfill_done: false }
+            : { backfill_cursor: state.backfill_cursor, backfill_done: state.backfill_done };
 
-              const moved = advanceCursor(slice);
-              await saveFolderState(raw.id, target.path, {
-                backfill_cursor: moved.cursor,
-                backfill_done: moved.done,
-              });
-              if (!moved.done) more = true;
-            }
-          } else {
-            more = true;
+          while (budget > 0) {
+            const slice = planBackfill(cursorState, months);
+            if (!slice) break;
+
+            const back = await ingestRange(
+              client,
+              { since: slice.since, before: slice.before },
+              {},
+              ctx,
+              Math.min(budget, BACKFILL_BATCH),
+            );
+            totalBackfilled += back.stored;
+            budget -= back.stored;
+
+            const moved = advanceCursor(slice);
+            await saveFolderState(raw.id, target.path, {
+              backfill_cursor: moved.cursor,
+              backfill_done: moved.done,
+            });
+            cursorState = { backfill_cursor: moved.cursor, backfill_done: moved.done };
+
+            if (moved.done) break;
+
+            /*
+             * A slice that filled the batch had more mail in it than one
+             * batch holds. Stop the walk here and leave the rest of the
+             * budget alone: a fortnight that busy deserves a run to itself
+             * rather than being raced through behind eleven others.
+             *
+             * Known limit, stated rather than papered over: the cursor has
+             * already moved to this slice's floor, so anything in the
+             * fortnight beyond the first BACKFILL_BATCH messages is not
+             * collected. Fixing that needs a watermark inside a slice, not
+             * just between slices, and is a larger change than this one.
+             */
+            if (back.stored >= BACKFILL_BATCH) { more = true; break; }
           }
+
+          // Still history left, or the budget ran out mid-walk.
+          if (!cursorState.backfill_done) more = true;
         }
 
         await supabaseAdmin
