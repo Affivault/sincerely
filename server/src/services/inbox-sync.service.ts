@@ -616,8 +616,17 @@ export const inboxSyncService = {
          */
         const login = raw.imap_user || raw.smtp_user || raw.email_address;
         if (isSenderMismatch(login, raw.email_address)) {
+          /*
+           * Name the field, not just the value. There are two usernames on
+           * a mailbox - sending and receiving - and "set the username to X"
+           * sends somebody to correct the one they can see while the other
+           * goes on being wrong.
+           */
+          const which = raw.imap_user && isSenderMismatch(raw.imap_user, raw.email_address)
+            ? 'IMAP username (Server tab, under "receiving replies")'
+            : 'sign-in username';
           const message = `This mailbox is set to sign in as ${login}, so syncing it `
-            + `would read ${login}'s inbox instead of its own. Set the username to `
+            + `would read ${login}'s inbox instead of its own. Set the ${which} to `
             + `${raw.email_address} and enter that mailbox's password.`;
           errors.push(`${raw.email_address}: ${message}`);
           await supabaseAdmin
