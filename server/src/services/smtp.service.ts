@@ -155,6 +155,29 @@ export const smtpService = {
       updateData.smtp_pass_encrypted = encrypt(input.smtp_pass);
     }
 
+    /*
+     * A changed connection makes the last failure a description of
+     * something that no longer exists.
+     *
+     * last_inbox_sync_error is a stored string, and nothing was clearing it
+     * except a successful sync. So somebody could correct the exact thing
+     * the message complained about, save, and go on reading "this mailbox
+     * is set to sign in as <the old value>" until the scheduler came round
+     * - which reads as the app ignoring them, and is indistinguishable from
+     * the fix not having worked.
+     *
+     * Only cleared when something about reaching the server actually
+     * changed. Renaming a mailbox is not grounds for forgetting why it is
+     * failing.
+     */
+    const CONNECTION_FIELDS = [
+      'smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user',
+      'imap_host', 'imap_port', 'imap_secure', 'imap_user',
+    ];
+    if (input.smtp_pass || CONNECTION_FIELDS.some((f) => f in updateData)) {
+      updateData.last_inbox_sync_error = null;
+    }
+
     for (let attempt = 0; attempt < 4; attempt++) {
       const { data, error } = await supabaseAdmin
         .from('smtp_accounts')

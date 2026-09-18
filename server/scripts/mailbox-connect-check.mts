@@ -496,5 +496,63 @@ console.log('\na repaired mailbox forgets where it had read to');
   is('scoped to the repaired account', /\.eq\('smtp_account_id', account\.id\)/.test(repair));
 }
 
+console.log('\na fixed mailbox stops saying it is broken');
+{
+  const smtpSvc = src('services/smtp.service.ts');
+  const repair = src('services/mailbox-repair.service.ts');
+  const panel = readFileSync(join(here, '../../client/src/components/inbox/MailHistoryPanel.tsx'), 'utf8');
+
+  /*
+   * last_inbox_sync_error is a stored string, and nothing cleared it except
+   * a successful sync. So somebody could correct the exact thing it
+   * complained about, save, and go on reading "this mailbox is set to sign
+   * in as <the old value>" - indistinguishable from the fix not having
+   * worked, and the reason this came back as "it says X but it is not X".
+   */
+  is('saving new connection settings clears the stale failure',
+     /last_inbox_sync_error: null;/.test(smtpSvc) || /updateData\.last_inbox_sync_error = null;/.test(smtpSvc),
+     'a corrected mailbox keeps showing the old reason');
+  is('but only when something about reaching the server changed',
+     /CONNECTION_FIELDS\.some\(\(f\) => f in updateData\)/.test(smtpSvc),
+     'renaming a mailbox would forget why it is failing');
+
+  is('the repair clears it too, so the button visibly works',
+     /last_inbox_sync_error: null,/.test(repair.slice(repair.indexOf('repairSenderIdentity'))),
+     'pressing Fix this for me would leave the warning up');
+
+  /*
+   * "No IMAP server is set" had no button beside it, because the panel's
+   * condition did not match the sentence the server was sending - so the
+   * easiest problem of the three looked like the only unfixable one.
+   */
+  is('an empty IMAP server offers the repair like any other',
+     /No IMAP server is set/i.test(panel), 'that message still has no remedy beside it');
+}
+
+console.log('\nno mailbox server at all is the easiest case, not a refusal');
+{
+  const repair = src('services/mailbox-repair.service.ts');
+  const blank = repair.slice(repair.indexOf('if (!current) {'), repair.indexOf('if (!await definitelyMissing(current))'));
+
+  /*
+   * This used to return "No IMAP server is set on this mailbox" as a reason
+   * NOT to act, which reads as a diagnosis and is really a shrug. There is
+   * nothing to be careful of: no working configuration to destroy, no
+   * deliberate choice to second-guess, and a discovery service that already
+   * knows where the domain keeps its mail. The safety rule exists to stop
+   * us overwriting a host somebody set; an empty field is not that.
+   */
+  is('an empty host is discovered rather than refused',
+     /discoverMailHosts\(blank\)/.test(blank), 'the repair still gives up on a blank field');
+  is('and written, with the port and TLS that go with it',
+     /imap_host: guess\.imap\.host,/.test(blank) && /imap_secure: guess\.imap\.secure,/.test(blank));
+  is('a domain with nothing to find still says so honestly',
+     /none could be found for/.test(blank));
+  is('the IP-address exemption survives the reordering',
+     /if \(current && \(\/\^\[0-9\.\]\+\\\$\//.test(repair)
+     || /current && \(\/\^\[0-9/.test(repair),
+     'a fixed address could now be overwritten');
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 assert.equal(fail, 0, `${fail} mailbox connection check(s) failed`);

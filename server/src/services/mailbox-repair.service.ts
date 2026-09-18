@@ -71,12 +71,54 @@ export async function repairImapHost(account: {
   imap_port: number | null;
 }): Promise<HostRepair> {
   const current = (account.imap_host || '').trim();
-  if (!current) return NOT_REPAIRED('No IMAP server is set on this mailbox.');
 
   // An IP address is somebody's deliberate choice and has no DNS name to be
   // missing. Never touched.
-  if (/^[0-9.]+$/.test(current) || current.includes(':')) {
+  if (current && (/^[0-9.]+$/.test(current) || current.includes(':'))) {
     return NOT_REPAIRED('This mailbox points at a fixed address, so it was left alone.');
+  }
+
+  /*
+   * No server set at all is the EASIEST case, and this used to refuse it.
+   *
+   * "No IMAP server is set on this mailbox" was returned as a reason not to
+   * act - which reads as a diagnosis and is really a shrug, because there
+   * is nothing to be careful of: no working configuration to destroy, no
+   * deliberate choice to second-guess, and a discovery service that already
+   * knows where the domain keeps its mail. The safety rule exists to stop
+   * us overwriting a host somebody set. An empty field is not that.
+   */
+  if (!current) {
+    const blank = (account.email_address.split('@')[1] || '').toLowerCase();
+    const guess = await discoverMailHosts(blank);
+    if (!guess.imap) {
+      return NOT_REPAIRED(
+        `No IMAP server is set, and none could be found for ${blank}. `
+        + "Copy the IMAP server from your provider's settings page.",
+      );
+    }
+
+    const { error: blankError } = await supabaseAdmin
+      .from('smtp_accounts')
+      .update({
+        imap_host: guess.imap.host,
+        imap_port: account.imap_port || guess.imap.port,
+        imap_secure: guess.imap.secure,
+        last_inbox_sync_error: null,
+      })
+      .eq('id', account.id)
+      .eq('user_id', account.user_id);
+
+    if (blankError) return NOT_REPAIRED(`Could not save the mailbox server: ${blankError.message}`);
+
+    return {
+      repaired: true,
+      from: null,
+      to: guess.imap.host,
+      note: `No mailbox server was set, so replies could not be read at all. `
+        + `Set to ${guess.imap.host}, which is where ${blank} keeps its mail. `
+        + 'Your password was not touched.',
+    };
   }
 
   if (!await definitelyMissing(current)) {
@@ -170,6 +212,12 @@ export async function repairSenderIdentity(account: {
   const patch: Record<string, any> = {
     smtp_user: address,
     /*
+     * The stored failure describes the login this is about to replace, so
+     * leaving it would have the mailbox go on complaining about a value it
+     * no longer holds - which reads as the button not having worked.
+     */
+    last_inbox_sync_error: null,
+    /*
      * The password almost certainly belongs to the other mailbox - that is
      * why the sign-in was working. Saying "verified" after changing the
      * username would be asserting something we have just made untestable.
@@ -217,9 +265,9 @@ export async function repairSenderIdentity(account: {
     to: address,
     note: `This mailbox was signing in as ${wrong}, which is why the server `
       + `refused to let it send as ${address} - and why it was reading `
-      + `${wrong}'s inbox rather than its own. The username is now ${address}. `
-      + `You will need to enter ${address}'s own password, because the saved `
-      + `one belongs to ${wrong}.`,
+      + `${wrong}'s inbox rather than its own. Both the sending and mailbox `
+      + `usernames are now ${address}. You will need to enter ${address}'s own `
+      + `password, because the saved one belongs to ${wrong}.`,
   };
 }
 

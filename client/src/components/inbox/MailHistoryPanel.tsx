@@ -45,7 +45,14 @@ function MailboxRow({
     || /does not exist/i.test(error)
     // A mailbox set to sign in as its neighbour is repairable too, and it is
     // the one that is actively reading the wrong inbox.
-    || /set to sign in as/i.test(error);
+    || /set to sign in as/i.test(error)
+    /*
+     * And no server at all, which is the easiest of the lot to put right -
+     * discovery knows where the domain keeps its mail. This read as a
+     * diagnosis with no remedy purely because the button's condition did
+     * not match the sentence the server was sending.
+     */
+    || /No IMAP server is set/i.test(error);
 
   return (
     <li className="px-4 py-3 border-b border-[var(--border-subtle)] last:border-0">
