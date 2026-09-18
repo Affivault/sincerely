@@ -3,7 +3,7 @@ import nodemailer from 'nodemailer';
 import { env } from '../config/env.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
 import { describeSmtpError, postToRelay } from './email-sender.service.js';
-import type { DiagStage, SmtpDiagnostics } from '@lemlist/shared';
+import type { DiagStage, SmtpDiagnostics, ImapDiagnostics, MailboxDiagnostics } from '@lemlist/shared';
 
 /**
  * Staged SMTP connection diagnostics.
@@ -115,7 +115,196 @@ async function probeRelay(): Promise<{ ok: boolean; detail: string }> {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   The same staircase, pointed at the mailbox server.
+
+   Diagnostics covered sending only. That is the leg that tends to work -
+   it is proven the moment a campaign goes out - while the failure people
+   actually hit is the other one: mail sends fine, replies never arrive.
+   Pressing "find out exactly why" then ran a diagnosis of the half that was
+   already healthy and reported everything green, which is worse than having
+   no button at all, because it looks like an answer.
+
+   Four stages, same as SMTP, because the same four things can be wrong and
+   they need telling apart:
+
+     DNS   the name does not exist - which is how this whole thread started
+     TCP   the name resolves but nothing accepts a socket on 993
+     TLS   something answers but does not greet as an IMAP server
+     LOGIN the server is there and the credentials are refused
+   ═══════════════════════════════════════════════════════════════════════ */
+async function diagnoseImap(input: {
+  host: string;
+  port: number;
+  secure: boolean;
+  user?: string;
+  pass?: string;
+}): Promise<ImapDiagnostics> {
+  const { host } = input;
+  const port = input.port || 993;
+  const stages: DiagStage[] = [];
+
+  // ── Stage 1: does the name exist? ──
+  let t0 = Date.now();
+  const ip = await resolveHostIp(host).catch(() => null);
+  if (!ip) {
+    stages.push(
+      { id: 'dns', label: 'Find the mailbox server', status: 'fail', detail: `${host} does not resolve`, ms: Date.now() - t0 },
+      { id: 'tcp', label: `Reach port ${port}`, status: 'skipped', detail: 'Skipped - no address to reach' },
+      { id: 'tls', label: 'IMAP greeting', status: 'skipped', detail: 'Skipped - no address to reach' },
+      { id: 'auth', label: 'Sign in', status: 'skipped', detail: 'Skipped - no address to reach' },
+    );
+    return {
+      host, port, stages, portBlocked: false,
+      verdict: `"${host}" is not a name that exists in DNS, so nothing can connect to it.`,
+      fix: 'Copy the IMAP server from your provider\'s settings page. It is often not imap.<your domain> - a hosted mailbox lives on the provider\'s hostname.',
+    };
+  }
+  stages.push({ id: 'dns', label: 'Find the mailbox server', status: 'ok', detail: `${host} resolves to ${ip}`, ms: Date.now() - t0 });
+
+  // ── Stage 2: raw reachability, which is what proves a port block ──
+  t0 = Date.now();
+  const tcp = await probeTcp(ip, port, 8000);
+  if (!tcp.ok) {
+    const blocked = tcp.code === 'ETIMEDOUT';
+    stages.push(
+      { id: 'tcp', label: `Reach port ${port}`, status: 'fail', detail: tcp.error || 'could not connect', ms: Date.now() - t0 },
+      { id: 'tls', label: 'IMAP greeting', status: 'skipped', detail: 'Skipped - port unreachable' },
+      { id: 'auth', label: 'Sign in', status: 'skipped', detail: 'Skipped - port unreachable' },
+    );
+    return {
+      host, port, stages, portBlocked: blocked,
+      verdict: blocked
+        ? `${host} resolves, but nothing answers on port ${port} within 8 seconds.`
+        : `${host} resolves, but the connection to port ${port} was refused.`,
+      fix: blocked
+        ? 'Either this server\'s host blocks outbound IMAP, or the port is wrong. 993 is IMAP over SSL; 143 is plain or STARTTLS.'
+        : `Nothing is listening on ${port}. Check the port with your provider - 993 for SSL, 143 otherwise.`,
+    };
+  }
+  stages.push({ id: 'tcp', label: `Reach port ${port}`, status: 'ok', detail: 'Port is open', ms: Date.now() - t0 });
+
+  // ── Stages 3 and 4: greeting, then credentials ──
+  let ImapFlow: any;
+  try {
+    ({ ImapFlow } = await import('imapflow'));
+  } catch {
+    stages.push(
+      { id: 'tls', label: 'IMAP greeting', status: 'skipped', detail: 'Skipped - IMAP module unavailable on this server' },
+      { id: 'auth', label: 'Sign in', status: 'skipped', detail: 'Skipped - IMAP module unavailable on this server' },
+    );
+    return {
+      host, port, stages, portBlocked: false,
+      verdict: 'The server is reachable, but this API cannot load its IMAP client to go further.',
+      fix: 'Install imapflow on the API server.',
+    };
+  }
+
+  if (!input.pass) {
+    stages.push(
+      { id: 'tls', label: 'IMAP greeting', status: 'skipped', detail: 'Skipped - no password to test with' },
+      { id: 'auth', label: 'Sign in', status: 'skipped', detail: 'Skipped - no password to test with' },
+    );
+    return {
+      host, port, stages, portBlocked: false,
+      verdict: `${host}:${port} is reachable. The credentials were not tested.`,
+      fix: 'Enter the mailbox password to test the sign-in as well.',
+    };
+  }
+
+  t0 = Date.now();
+  const client = new ImapFlow({
+    host: ip, port, secure: input.secure, servername: host,
+    auth: { user: input.user || '', pass: input.pass },
+    logger: false,
+    connectionTimeout: 9000, greetingTimeout: 7000, socketTimeout: 10000,
+  });
+
+  try {
+    let timer: ReturnType<typeof setTimeout>;
+    await Promise.race([
+      client.connect(),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('IMAP connect timed out')), 11000); }),
+    ]).finally(() => clearTimeout(timer!));
+    await client.logout().catch(() => {});
+
+    stages.push(
+      { id: 'tls', label: 'IMAP greeting', status: 'ok', detail: 'The server greeted us', ms: Date.now() - t0 },
+      { id: 'auth', label: 'Sign in', status: 'ok', detail: `Signed in as ${input.user}` },
+    );
+    return {
+      host, port, stages, portBlocked: false,
+      verdict: 'Receiving works. This mailbox can be read.',
+      fix: '',
+    };
+  } catch (err: any) {
+    try { await client.close?.(); } catch { /* ignore */ }
+    const raw = String(err?.message || err);
+
+    /*
+     * A refused sign-in is a different problem from a refused connection,
+     * and conflating them is what sends somebody to re-check a hostname
+     * that was right all along.
+     */
+    const isAuth = /auth|invalid credentials|login failed|AUTHENTICATIONFAILED/i.test(raw);
+    if (isAuth) {
+      stages.push(
+        { id: 'tls', label: 'IMAP greeting', status: 'ok', detail: 'The server greeted us', ms: Date.now() - t0 },
+        { id: 'auth', label: 'Sign in', status: 'fail', detail: raw },
+      );
+      return {
+        host, port, stages, portBlocked: false,
+        verdict: `${host} is the right server and it is working - it refused the username or password.`,
+        fix: `Check the username is the full address (${input.user || 'the mailbox address'}) and re-enter the password. `
+          + 'Gmail and Outlook need an app password rather than the normal login; most other providers want the mailbox password itself.',
+      };
+    }
+
+    const timedOut = /timed out|timeout/i.test(raw);
+    stages.push(
+      { id: 'tls', label: 'IMAP greeting', status: 'fail', detail: raw, ms: Date.now() - t0 },
+      { id: 'auth', label: 'Sign in', status: 'skipped', detail: 'Skipped - no greeting' },
+    );
+    return {
+      host, port, stages, portBlocked: false,
+      verdict: timedOut
+        ? `${host}:${port} accepted a connection but never greeted us as an IMAP server.`
+        : `${host}:${port} answered, but not as an IMAP server this could talk to.`,
+      fix: port === 993
+        ? 'Port 993 requires SSL. Check SSL is on, or try 143 without it.'
+        : 'Port 143 is plain or STARTTLS. If your provider wants SSL, use 993 instead.',
+    };
+  }
+}
+
 export const smtpDiagnosticsService = {
+  /** Both legs, because "which one is broken" is the question being asked. */
+  async diagnoseMailbox(input: {
+    smtp_host: string;
+    smtp_port: number;
+    smtp_secure?: boolean;
+    smtp_user?: string;
+    smtp_pass?: string;
+    imap_host?: string | null;
+    imap_port?: number | null;
+    imap_secure?: boolean | null;
+    imap_user?: string | null;
+  }): Promise<MailboxDiagnostics> {
+    const smtp = await this.diagnose(input);
+
+    const imapHost = String(input.imap_host || '').trim();
+    if (!imapHost) return { smtp, imap: null };
+
+    const imap = await diagnoseImap({
+      host: imapHost,
+      port: Number(input.imap_port) || 993,
+      secure: input.imap_secure !== false,
+      user: input.imap_user || input.smtp_user || undefined,
+      pass: input.smtp_pass,
+    });
+    return { smtp, imap };
+  },
+
   async diagnose(input: {
     smtp_host: string;
     smtp_port: number;

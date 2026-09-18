@@ -196,5 +196,63 @@ console.log('\nthe repair can reach the column it writes');
      /\/could not be found\/\.test\(friendly\)/.test(sync));
 }
 
+console.log('\ndiagnostics cover the leg that is actually broken');
+{
+  const diag = src('services/smtp-diagnostics.service.ts');
+  const modal = readFileSync(join(here, '../../client/src/pages/smtp/SmtpAccountModal.tsx'), 'utf8');
+
+  /*
+   * Diagnostics probed SMTP only. That is the leg proven every time a
+   * campaign goes out; the failure people press the button for is the other
+   * one - sending works, replies never arrive. So "find out exactly why"
+   * ran a staircase of green ticks against the healthy half and answered a
+   * question nobody had asked, which is worse than having no button.
+   */
+  is('there is an IMAP probe at all', /async function diagnoseImap\(/.test(diag));
+  is('and it runs the same four stages as SMTP',
+     ["id: 'dns'", "id: 'tcp'", "id: 'tls'", "id: 'auth'"].every((id) => diag.slice(diag.indexOf('async function diagnoseImap(')).includes(id)),
+     'the IMAP probe does not separate DNS, port, greeting and sign-in');
+
+  // A refused sign-in and a refused connection send somebody to fix
+  // completely different things.
+  is('a refused sign-in is told apart from a refused connection',
+     /const isAuth = /.test(diag) && /refused the username or password/.test(diag));
+
+  is('both legs are returned together', /async diagnoseMailbox\(/.test(diag));
+  is('the endpoint calls the two-leg version',
+     /smtpDiagnosticsService\.diagnoseMailbox\(/.test(src('controllers/smtp.controller.ts')));
+
+  /*
+   * The server can probe IMAP perfectly and still be handed nothing to
+   * probe. The saved row is the fallback so diagnosing an existing mailbox
+   * needs nothing retyped.
+   */
+  is('the endpoint falls back to the saved IMAP settings',
+     /imap_host: req\.body\?\.imap_host \?\? saved\?\.imap_host/.test(src('controllers/smtp.controller.ts')));
+  is('the form sends its IMAP settings too', /imap_host: form\.imap_host \|\| undefined,[\s\S]{0,200}onSuccess: \(res\) => setDiagnostics/.test(modal));
+
+  is('each leg is labelled, so it is clear which one failed',
+     /Sending \(SMTP\)/.test(modal) && /Receiving \(IMAP\)/.test(modal));
+  is('a mailbox with no IMAP server says so rather than showing nothing',
+     /nothing to test/.test(modal));
+}
+
+console.log('\ndiagnostics can be reached without first making a check fail');
+{
+  const modal = readFileSync(join(here, '../../client/src/pages/smtp/SmtpAccountModal.tsx'), 'utf8');
+
+  /*
+   * The button used to require verify.status === 'done' AND a failure, so
+   * the one thing that explains a connection was locked behind the thing
+   * that could not explain itself. If the check errored at the transport -
+   * which it did, for a 30s timeout - or somebody just wanted to know why a
+   * saved mailbox was quiet, there was no way in.
+   */
+  const gate = modal.slice(modal.indexOf('data-run-diagnostics') - 900, modal.indexOf('data-run-diagnostics'));
+  is('the button is not gated on a failed check',
+     !/verifyFailed && !diagnostics && \(\s*<button/.test(modal), 'still requires a failed check first');
+  is('it only needs somewhere to connect to', /!diagnostics && form\.smtp_host && \(/.test(gate), gate.slice(-200));
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 assert.equal(fail, 0, `${fail} mailbox connection check(s) failed`);
