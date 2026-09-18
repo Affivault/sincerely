@@ -12,7 +12,7 @@ import { smtpDiagnosticsService } from '../services/smtp-diagnostics.service.js'
 import { billingService } from '../services/billing.service.js';
 import { detectProvider } from '../services/domain.service.js';
 import { discoverMailHosts, type MailHostDiscovery } from '../services/mail-discovery.service.js';
-import { repairAllImapHosts } from '../services/mailbox-repair.service.js';
+import { repairMailboxes } from '../services/mailbox-repair.service.js';
 import { warmupService } from '../services/warmup.service.js';
 
 const resolveTxt = promisify(dns.resolveTxt);
@@ -244,7 +244,7 @@ export const smtpController = {
    */
   async repairHosts(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      res.json(await repairAllImapHosts(req.userId!));
+      res.json(await repairMailboxes(req.userId!));
     } catch (err) { next(err); }
   },
 

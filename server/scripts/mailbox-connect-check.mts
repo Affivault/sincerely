@@ -344,5 +344,59 @@ console.log('\nthe username follows the address until somebody changes it');
   is('and it can be corrected in one press', /data-fix-sender/.test(modal));
 }
 
+console.log('\nthe app fixes the wrong username itself');
+{
+  const repair = src('services/mailbox-repair.service.ts');
+
+  /*
+   * Telling somebody to go and edit the username on each mailbox is asking
+   * them to clean up after the software. The username can be repaired. The
+   * password cannot - the stored one belongs to the OTHER mailbox, which is
+   * precisely why the sign-in was working - and pretending otherwise would
+   * leave a row claiming to be verified against credentials it can no
+   * longer demonstrate.
+   */
+  is('there is a sender-identity repair', /export async function repairSenderIdentity\(/.test(repair));
+  is('it sets the username to the mailbox\u2019s own address',
+     /smtp_user: address,/.test(repair));
+  is('and the IMAP login with it, which is the half reading the wrong inbox',
+     /if \(isSenderMismatch\(account\.imap_user, address\)\) patch\.imap_user = address;/.test(repair));
+  is('the row stops claiming to be verified',
+     /is_verified: false,/.test(repair),
+     'a repaired mailbox would still assert credentials it can no longer prove');
+  is('and the note says whose password is now needed',
+     /belongs to \$\{wrong\}/.test(repair));
+  is('a mailbox signing in as itself is left alone',
+     /signs in as itself/.test(repair));
+  is('identity is repaired before the host, being the one actively doing harm',
+     repair.indexOf('repairSenderIdentity(account as any)') < repair.indexOf('repairImapHost(account as any)'));
+  is('the endpoint runs both repairs', /repairMailboxes\(req\.userId!\)/.test(src('controllers/smtp.controller.ts')));
+}
+
+console.log('\nthe sync refuses to read somebody else\u2019s inbox');
+{
+  const sync = src('services/inbox-sync.service.ts');
+
+  /*
+   * The worst outcome in this whole thread, and the only one with no
+   * symptom. Valid credentials for the wrong mailbox sign in cleanly, so
+   * the sync succeeds and files that account's mail under this one. The
+   * owner sees a full unibox, their own replies missing, and a colleague's
+   * mail duplicated - with every status in the app reporting health.
+   *
+   * Failing loudly is better by a distance: a mailbox that says why it is
+   * empty can be fixed, one quietly full of the wrong mail cannot even be
+   * noticed.
+   */
+  is('the login is compared against the mailbox it belongs to',
+     /if \(isSenderMismatch\(login, raw\.email_address\)\) \{/.test(sync),
+     'the sync will still log in as whatever username is stored');
+  is('and it skips rather than connecting', /continue;/.test(sync.slice(sync.indexOf('isSenderMismatch(login'))));
+  is('the reason is recorded where the mailbox can show it',
+     /would read \$\{login\}'s inbox instead of its own/.test(sync));
+  is('the check happens before any connection is opened',
+     sync.indexOf('isSenderMismatch(login') < sync.indexOf('new ImapFlow('));
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 assert.equal(fail, 0, `${fail} mailbox connection check(s) failed`);

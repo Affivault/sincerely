@@ -41,7 +41,11 @@ function MailboxRow({
   const error = account.last_error || '';
   const fixed = error.startsWith('Fixed automatically:');
   // The one failure with a one-press remedy: a server name that is not a name.
-  const badHost = /could not be found/i.test(error) || /does not exist/i.test(error);
+  const badHost = /could not be found/i.test(error)
+    || /does not exist/i.test(error)
+    // A mailbox set to sign in as its neighbour is repairable too, and it is
+    // the one that is actively reading the wrong inbox.
+    || /set to sign in as/i.test(error);
 
   return (
     <li className="px-4 py-3 border-b border-[var(--border-subtle)] last:border-0">
