@@ -259,6 +259,31 @@ export interface SmtpDiagnostics {
   fix: string;
 }
 
+/**
+ * The same staged probe, pointed at the mailbox server.
+ *
+ * Diagnostics used to cover sending only, which meant the one mailbox
+ * failure people actually hit - sending works, receiving does not - ran a
+ * diagnosis of the leg that was already fine and reported everything green.
+ * Pressing "find out exactly why" and being told nothing is worse than
+ * having no button.
+ */
+export interface ImapDiagnostics {
+  host: string;
+  port: number;
+  stages: DiagStage[];
+  verdict: string;
+  fix: string;
+  /** True when the host itself is blocking outbound 993. */
+  portBlocked: boolean;
+}
+
+export interface MailboxDiagnostics {
+  smtp: SmtpDiagnostics;
+  /** null when the mailbox has no IMAP server configured to probe. */
+  imap: ImapDiagnostics | null;
+}
+
 export interface DiagnoseSmtpInput {
   smtp_host: string;
   smtp_port: number;
@@ -267,6 +292,10 @@ export interface DiagnoseSmtpInput {
   smtp_pass?: string;
   /** Diagnose a saved mailbox without retyping its password. */
   account_id?: string;
+  imap_host?: string | null;
+  imap_port?: number | null;
+  imap_secure?: boolean | null;
+  imap_user?: string | null;
 }
 
 export interface SmtpPreset {

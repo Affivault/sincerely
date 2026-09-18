@@ -14,7 +14,7 @@ import {
   Stethoscope, AlertTriangle, Circle, Eye, EyeOff,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import type { SmtpAccount, CreateSmtpAccountInput, SmtpPreset, VerifyLegResult, SmtpDiagnostics } from '@lemlist/shared';
+import type { SmtpAccount, CreateSmtpAccountInput, SmtpPreset, VerifyLegResult, MailboxDiagnostics, DiagStage } from '@lemlist/shared';
 import { SMTP_PRESETS, detectPresetFromEmail, PLACEHOLDER } from '@lemlist/shared';
 
 /** Map the MX check's provider hint onto our connection presets. */
@@ -137,6 +137,69 @@ function LegRow({ label, leg }: { label: string; leg?: VerifyLegResult }) {
 }
 
 /**
+ * One leg of a staged diagnosis.
+ *
+ * Titled, because the whole point of running both is being able to tell
+ * which one is broken - an unlabelled list of green ticks next to a mailbox
+ * that plainly does not work is how the old panel managed to be actively
+ * misleading.
+ */
+function DiagLeg({ title, diag, relayHealthy }: {
+  title: string;
+  diag: { host: string; port: number; stages: DiagStage[]; verdict: string; fix: string; portBlocked: boolean };
+  relayHealthy: boolean | null;
+}) {
+  const failed = diag.stages.some((s) => s.status === 'fail');
+  // A blocked outbound port is only a problem when no relay covers it — with
+  // a healthy relay this is a normal, working setup and should read that way.
+  const blocking = diag.portBlocked && !relayHealthy;
+
+  return (
+    <div>
+      <p className="text-[11.5px] font-semibold text-[var(--text-primary)] mb-1.5 flex items-center gap-1.5">
+        {failed
+          ? <XCircle className="h-3.5 w-3.5 text-rose-500" />
+          : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
+        {title}
+        <span className="font-normal text-[var(--text-tertiary)]">— {diag.host}:{diag.port}</span>
+      </p>
+
+      <ol className="space-y-1">
+        {diag.stages.map((s) => (
+          <li key={s.id} className="flex items-start gap-2 text-[11.5px]">
+            <span className="mt-px flex-shrink-0">
+              {s.status === 'ok' && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
+              {s.status === 'fail' && <XCircle className="h-3.5 w-3.5 text-rose-500" />}
+              {s.status === 'skipped' && <MinusCircle className="h-3.5 w-3.5 text-[var(--text-muted)]" />}
+            </span>
+            <span className="min-w-0">
+              <span className={cn('font-medium', s.status === 'fail' ? 'text-rose-600 dark:text-rose-400' : 'text-[var(--text-primary)]')}>{s.label}</span>
+              <span className="text-[var(--text-secondary)]"> — {s.detail}</span>
+              {s.ms != null && <span className="text-[var(--text-muted)]"> ({s.ms}ms)</span>}
+            </span>
+          </li>
+        ))}
+      </ol>
+
+      <div className={cn(
+        'mt-2 rounded-lg px-3 py-2.5 border',
+        blocking ? 'border-amber-500/30 bg-amber-500/8'
+          : failed ? 'border-rose-500/30 bg-rose-500/8'
+          : 'border-emerald-500/30 bg-emerald-500/8',
+      )}>
+        <p className="text-[12px] font-medium text-[var(--text-primary)]">{diag.verdict}</p>
+        {diag.fix && <p className="text-[11.5px] text-[var(--text-secondary)] mt-1 leading-relaxed">{diag.fix}</p>}
+        {blocking && (
+          <p className="text-[11px] text-[var(--text-tertiary)] mt-1.5">
+            This is a server-side setting, not something to change on this mailbox.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Connect / edit a sending mailbox.
  *
  * Laid out as three short tabs (Account → Server → Options) rather than one
@@ -163,7 +226,7 @@ export function SmtpAccountModal({
   const [flagged, setFlagged] = useState<string[]>([]);
   /* Staged probe (DNS → port → handshake → sign-in) run on demand after a
      failed check, so the user learns which layer is actually broken. */
-  const [diagnostics, setDiagnostics] = useState<SmtpDiagnostics | null>(null);
+  const [diagnostics, setDiagnostics] = useState<MailboxDiagnostics | null>(null);
 
   const editId = editAccount?.id || null;
 
@@ -400,6 +463,12 @@ export function SmtpAccountModal({
       smtp_secure: !!form.smtp_secure,
       smtp_user: form.smtp_user || form.email_address,
       smtp_pass: form.smtp_pass,
+      // Without these the receiving leg cannot be probed at all, which is
+      // the leg that is usually broken when somebody presses this button.
+      imap_host: form.imap_host || undefined,
+      imap_port: form.imap_port ? Number(form.imap_port) : undefined,
+      imap_secure: form.imap_secure,
+      imap_user: form.imap_user || form.smtp_user || form.email_address,
     }),
     onSuccess: (res) => setDiagnostics(res),
     onError: (err: any) => toast.error(err.response?.data?.error || 'Could not run diagnostics'),
@@ -714,75 +783,67 @@ export function SmtpAccountModal({
             <div className="space-y-1.5">
               <LegRow label="SMTP (sending)" leg={verify.smtp} />
               <LegRow label="IMAP (receiving)" leg={verify.imap} />
-              {verifyFailed && !diagnostics && (
-                <button
-                  type="button"
-                  onClick={() => diagnoseMutation.mutate()}
-                  disabled={diagnoseMutation.isPending}
-                  className="mt-1 inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-[var(--indigo)] hover:underline disabled:opacity-60"
-                >
-                  {diagnoseMutation.isPending
-                    ? <><Loader2 className="h-3 w-3 animate-spin" /> Pinpointing the failure…</>
-                    : <><Stethoscope className="h-3 w-3" /> Find out exactly why</>}
-                </button>
-              )}
             </div>
+          )}
+
+          {/*
+            * Diagnostics on demand, not only after a failed check.
+            *
+            * This used to appear solely when a check had run AND come back
+            * failed, so the one thing that explains a connection was locked
+            * behind the thing that could not explain itself - and if the
+            * check errored at the transport, or somebody simply wanted to
+            * know why a saved mailbox was quiet, there was no way in at all.
+            * There is nothing to protect here: it is four read-only probes.
+            */}
+          {!diagnostics && form.smtp_host && (
+            <button
+              type="button"
+              onClick={() => diagnoseMutation.mutate()}
+              disabled={diagnoseMutation.isPending}
+              className="mt-1 inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-[var(--indigo)] hover:underline disabled:opacity-60"
+              data-run-diagnostics
+            >
+              {diagnoseMutation.isPending
+                ? <><Loader2 className="h-3 w-3 animate-spin" /> Pinpointing the failure…</>
+                : <><Stethoscope className="h-3 w-3" /> {verifyFailed ? 'Find out exactly why' : 'Run diagnostics'}</>}
+            </button>
           )}
         </div>
 
         {/* Staged diagnosis — turns "timed out" into a specific, fixable cause */}
         {diagnostics && (
-          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 p-3.5">
-            <div className="flex items-center gap-1.5 mb-2.5">
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 p-3.5 space-y-3">
+            <div className="flex items-center gap-1.5">
               <Stethoscope className="h-3.5 w-3.5 text-[var(--indigo)]" />
-              <p className="text-[12px] font-semibold text-[var(--text-primary)]">
-                Diagnosis — {diagnostics.host}:{diagnostics.port}
-              </p>
+              <p className="text-[12px] font-semibold text-[var(--text-primary)]">Diagnosis</p>
               <span className="flex-1" />
               <button type="button" onClick={() => setDiagnostics(null)} className="text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">
                 Hide
               </button>
             </div>
 
-            <ol className="space-y-1">
-              {diagnostics.stages.map((s) => (
-                <li key={s.id} className="flex items-start gap-2 text-[11.5px]">
-                  <span className="mt-px flex-shrink-0">
-                    {s.status === 'ok' && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
-                    {s.status === 'fail' && <XCircle className="h-3.5 w-3.5 text-rose-500" />}
-                    {s.status === 'skipped' && <MinusCircle className="h-3.5 w-3.5 text-[var(--text-muted)]" />}
-                  </span>
-                  <span className="min-w-0">
-                    <span className={cn('font-medium', s.status === 'fail' ? 'text-rose-600 dark:text-rose-400' : 'text-[var(--text-primary)]')}>{s.label}</span>
-                    <span className="text-[var(--text-secondary)]"> — {s.detail}</span>
-                    {s.ms != null && <span className="text-[var(--text-muted)]"> ({s.ms}ms)</span>}
-                  </span>
-                </li>
-              ))}
-            </ol>
-
-            {(() => {
-              // A blocked direct port is only a problem when no relay is
-              // covering it — with a healthy relay this is a normal, working
-              // setup and should read that way.
-              const blocking = diagnostics.portBlocked && !diagnostics.relayHealthy;
-              return (
-                <div className={cn(
-                  'mt-3 rounded-lg px-3 py-2.5 border',
-                  blocking ? 'border-amber-500/30 bg-amber-500/8'
-                    : diagnostics.relayHealthy ? 'border-emerald-500/30 bg-emerald-500/8'
-                    : 'border-[var(--border-subtle)] bg-[var(--bg-surface)]',
-                )}>
-                  <p className="text-[12px] font-medium text-[var(--text-primary)]">{diagnostics.verdict}</p>
-                  <p className="text-[11.5px] text-[var(--text-secondary)] mt-1 leading-relaxed">{diagnostics.fix}</p>
-                  {blocking && (
-                    <p className="text-[11px] text-[var(--text-tertiary)] mt-1.5">
-                      This is a server-side setting, not something to change on this mailbox.
-                    </p>
-                  )}
+            {/*
+              * Both halves, always, and labelled.
+              *
+              * This used to show one unlabelled staircase for the SMTP host.
+              * When sending worked and receiving did not - which is the
+              * common case, and the reason anybody presses this button - it
+              * reported every stage green and answered a question nobody had
+              * asked.
+              */}
+            <DiagLeg title="Sending (SMTP)" diag={diagnostics.smtp} relayHealthy={diagnostics.smtp.relayHealthy} />
+            {diagnostics.imap
+              ? <DiagLeg title="Receiving (IMAP)" diag={diagnostics.imap} relayHealthy={null} />
+              : (
+                <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2.5">
+                  <p className="text-[12px] font-medium text-[var(--text-primary)]">Receiving (IMAP) — nothing to test</p>
+                  <p className="text-[11.5px] text-[var(--text-secondary)] mt-1 leading-relaxed">
+                    No IMAP server is set on this mailbox, so replies cannot sync into the unibox.
+                    Add one on the Server tab.
+                  </p>
                 </div>
-              );
-            })()}
+              )}
           </div>
         )}
 

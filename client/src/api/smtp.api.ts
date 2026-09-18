@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { SmtpAccount, CreateSmtpAccountInput, UpdateSmtpAccountInput, VerifySmtpInput, VerifySmtpResult, WarmupSummary, SetWarmupInput, DiagnoseSmtpInput, SmtpDiagnostics } from '@lemlist/shared';
+import type { SmtpAccount, CreateSmtpAccountInput, UpdateSmtpAccountInput, VerifySmtpInput, VerifySmtpResult, WarmupSummary, SetWarmupInput, DiagnoseSmtpInput, MailboxDiagnostics } from '@lemlist/shared';
 
 export const smtpApi = {
   list: async () => {
@@ -38,7 +38,7 @@ export const smtpApi = {
 
   /** Staged probe that pinpoints where a connection fails (and whether the host blocks SMTP). */
   diagnose: async (input: DiagnoseSmtpInput) => {
-    const { data } = await apiClient.post<SmtpDiagnostics>('/smtp-accounts/diagnose', input);
+    const { data } = await apiClient.post<MailboxDiagnostics>('/smtp-accounts/diagnose', input);
     return data;
   },
 
