@@ -292,9 +292,11 @@ function bounceRateCheck(sent: number, bounced: number, thresholdPercent: number
   const fix = { label: 'Verify your lists', href: '/verification' };
   if (sent < MIN_SENDS_BEFORE_GUARD) {
     return check({
-      id: 'bounce_rate', group: 'reputation', label: 'Bounce rate', status: 'pass',
+      // No sends is no evidence. A green tick over it claims a clean
+      // record that has never been tested.
+      id: 'bounce_rate', group: 'reputation', label: 'Bounce rate', status: 'unknown',
       headline: sent === 0
-        ? 'Nothing sent yet — no bounce history to judge.'
+        ? 'Nothing sent yet, so there is no bounce history to judge.'
         : `Only ${plural(sent, 'send')} so far, too few to read anything into.`,
     });
   }
@@ -510,9 +512,17 @@ function summarise(verdict: string, failed: ReadinessCheck[], warned: ReadinessC
       : `Not safe to send yet — ${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} need fixing first.`;
   }
   if (verdict === 'risky') {
+    /*
+     * Written as a sentence rather than assembled from a label.
+     *
+     * Slotting a check's name straight in produced "You can send, but link
+     * tracking domain will cost you deliverability" - missing the article,
+     * and unmistakably a template rather than something anybody wrote. The
+     * article is cheap and it is the difference between the two.
+     */
     return warned.length === 1
-      ? `You can send, but ${warned[0].label.toLowerCase()} will cost you deliverability.`
-      : `You can send, but ${plural(warned.length, 'thing')} on this list will cost you deliverability.`;
+      ? `You can send, but your ${warned[0].label.toLowerCase()} will cost you deliverability.`
+      : `You can send, but ${plural(warned.length, 'thing')} below will cost you deliverability.`;
   }
   return 'Safe to send — domain, mailboxes and safeguards all check out.';
 }

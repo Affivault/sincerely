@@ -248,7 +248,14 @@ console.log('\nwhat must NOT be called a problem');
 }
 {
   const r = await report((w) => { w.activities = { sent: 6, bounced: 2 }; });
-  is('2 bounces out of 6 is too small a sample to judge', statusOf(r, 'bounce_rate') === 'pass', r.summary);
+  /*
+   * Reported as unknown rather than pass. "Too small a sample to judge" is
+   * the definition of not measured, and a green tick over it claims a clean
+   * record that has never been tested - the same manufactured reassurance
+   * as a 100% health score on a mailbox that has never sent.
+   */
+  is('2 bounces out of 6 is too small a sample to judge', statusOf(r, 'bounce_rate') === 'unknown', r.summary);
+  is('and being unmeasured does not make the verdict worse', r.verdict !== 'risky' && r.verdict !== 'blocked', r.verdict);
 }
 {
   const r = await report((w) => {
