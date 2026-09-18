@@ -554,5 +554,67 @@ console.log('\nno mailbox server at all is the easiest case, not a refusal');
      'a fixed address could now be overwritten');
 }
 
+console.log('\nnothing asks to be run again without having moved');
+{
+  const sync = src('services/inbox-sync.service.ts');
+  const panel = readFileSync(join(here, '../../client/src/components/inbox/MailHistoryPanel.tsx'), 'utf8');
+
+  /*
+   * The loading-for-ever bug, and it was mine.
+   *
+   * planBackfill returns null once the cursor reaches the window floor. The
+   * loop broke out on that without recording it, so backfill_done stayed
+   * false, the run reported `more`, the client obligingly synced again,
+   * planned nothing again, reported `more` again. "Still fetching older
+   * mail" was literally true and permanent, and the browser hammered the
+   * sync endpoint in a tight loop the whole time.
+   */
+  const loop = sync.slice(sync.indexOf('history, as far back as the budget reaches'));
+  // The whole `if (!slice) { ... }` block, rather than a fixed-width window
+  // after it - an earlier bound was shorter than the comment inside it and
+  // failed against code that was correct.
+  const noSlice = loop.slice(loop.indexOf('if (!slice) {'), loop.indexOf('const back = await ingestRange'));
+  is('running out of slices is recorded as finished',
+     /backfill_done: true/.test(noSlice) && /break;/.test(noSlice),
+     `a walk with nothing left to plan still reports more work: ${noSlice.slice(0, 120)}`);
+  is('and the in-memory cursor agrees, so the run does not re-report it',
+     /cursorState = \{ \.\.\.cursorState, backfill_done: true \};/.test(loop));
+
+  /*
+   * The client's half. This recursion was unbounded, so ANY server bug that
+   * reports `more` without progress becomes an infinite loop in somebody's
+   * browser. The cap is right regardless of that particular bug.
+   */
+  is('the client chain is bounded', /chained\.current < 20/.test(panel),
+     'the browser will loop forever on a server that always says more');
+  is('and every deliberate start resets it',
+     (panel.match(/chained\.current = 0;/g) || []).length >= 2);
+}
+
+console.log('\na mailbox that cannot sync does not pretend to be syncing');
+{
+  const progress = src('services/inbox-sync.service.ts');
+  const panel = readFileSync(join(here, '../../client/src/components/inbox/MailHistoryPanel.tsx'), 'utf8');
+
+  /*
+   * Progress was two states, complete or not. A mailbox with no server set,
+   * or a login pointing at another account, has no folder rows at all - so
+   * history_complete is false for ever and it sat on "still fetching older
+   * mail" with a spinner. It was not fetching. It was stopped, and the
+   * spinner said the opposite of the truth while burying the one line worth
+   * reading.
+   */
+  is('the server reports a blocked mailbox as blocked', /blocked: !!account\.last_inbox_sync_error/.test(progress));
+  is('a repair note does not count as blocked',
+     /startsWith\('Fixed automatically:'\)/.test(progress.slice(progress.indexOf('blocked: !!account'))));
+  is('the row shows stopped rather than a spinner',
+     /account\.blocked \? \(/.test(panel) && /stopped/.test(panel));
+  is('the header stops claiming to load',
+     /!a\.history_complete && !a\.blocked/.test(panel),
+     'a stopped mailbox keeps the panel spinner going');
+  is('and it stops polling every five seconds for a mailbox that will not change',
+     (panel.match(/!a\.history_complete && !a\.blocked/g) || []).length >= 2);
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 assert.equal(fail, 0, `${fail} mailbox connection check(s) failed`);
