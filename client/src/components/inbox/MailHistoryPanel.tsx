@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { inboxApi } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
@@ -95,7 +96,18 @@ function MailboxRow({
             synced {formatRelativeTime(account.last_synced_at)}
           </span>
         )}
-        {account.history_complete ? (
+        {/*
+          * Three states, not two.
+          *
+          * A mailbox that cannot sync used to show "still fetching older
+          * mail" with a spinner, for ever - which is the opposite of the
+          * truth and buries the one line worth reading underneath it.
+          */}
+        {account.blocked ? (
+          <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+            <AlertTriangle className="h-3 w-3" /> stopped
+          </span>
+        ) : account.history_complete ? (
           <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
             <Check className="h-3 w-3" strokeWidth={3} /> history loaded
           </span>
@@ -160,7 +172,9 @@ export function MailHistoryPanel({ onSynced }: { onSynced?: () => void }) {
     // and a number that only updates on page reload would look stalled.
     refetchInterval: (query) => {
       const rows = query.state.data as InboxSyncProgress[] | undefined;
-      return rows?.some((a) => !a.history_complete) ? 5000 : 60000;
+      // Polling every five seconds for a mailbox that will never change is
+      // noise on the network and a spinner that never stops on the screen.
+      return rows?.some((a) => !a.history_complete && !a.blocked) ? 5000 : 60000;
     },
     meta: { silentError: true },
   });
@@ -176,6 +190,7 @@ export function MailHistoryPanel({ onSynced }: { onSynced?: () => void }) {
       );
       // Start straight away rather than waiting for the next poll — the whole
       // point of pressing it is to see the older mail.
+      chained.current = 0;
       sync.mutate();
     },
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Could not change the history window'),
@@ -194,6 +209,7 @@ export function MailHistoryPanel({ onSynced }: { onSynced?: () => void }) {
             : `${result.repaired} mailboxes corrected`,
         );
         // Read the mail straight away, which is the point of pressing it.
+        chained.current = 0;
         sync.mutate();
       } else {
         /*
@@ -208,6 +224,9 @@ export function MailHistoryPanel({ onSynced }: { onSynced?: () => void }) {
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Could not check the mail servers'),
   });
 
+  /** How many runs this chain has already asked for. Reset on each manual start. */
+  const chained = useRef(0);
+
   const sync = useMutation({
     mutationFn: inboxApi.syncInbox,
     onSuccess: (result) => {
@@ -216,9 +235,24 @@ export function MailHistoryPanel({ onSynced }: { onSynced?: () => void }) {
       if (result.backfilled > 0) {
         toast.success(`${result.backfilled} older message${result.backfilled === 1 ? '' : 's'} loaded`);
       }
-      // More history left: keep going rather than making the user press again
-      // for every fortnight of mail.
-      if (result.more) sync.mutate();
+      /*
+       * Keep going while there is more history, but never for ever.
+       *
+       * This recursion was unbounded, so a run that reported `more` without
+       * making progress - which a bug on the server did - had the browser
+       * call the sync endpoint in a tight loop until the tab was closed.
+       * The symptom is a panel that loads and loads and loads.
+       *
+       * A cap is the right shape regardless of that particular bug: the
+       * server decides when to stop, and this is the client refusing to
+       * take its word for it indefinitely. Twenty chained runs is far more
+       * history than any window holds; past that the scheduler can pick it
+       * up on its own five-minute cadence.
+       */
+      if (result.more && chained.current < 20) {
+        chained.current += 1;
+        sync.mutate();
+      }
     },
     meta: { silentError: true },
   });
@@ -226,7 +260,9 @@ export function MailHistoryPanel({ onSynced }: { onSynced?: () => void }) {
   if (isLoading) return <div className="h-24 rounded-xl bg-[var(--bg-elevated)] animate-pulse" />;
   if (!accounts || accounts.length === 0) return null;
 
-  const loading = accounts.some((a) => !a.history_complete);
+  // Only mailboxes that are actually getting somewhere. A stopped one is
+  // not loading, and counting it kept the header spinning indefinitely.
+  const loading = accounts.some((a) => !a.history_complete && !a.blocked);
 
   return (
     <div className="panel overflow-hidden">

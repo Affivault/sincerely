@@ -545,6 +545,12 @@ export const inboxSyncService = {
           : DEFAULT_SYNC_WINDOW_MONTHS,
         oldest_synced_at: oldest?.received_at ?? null,
         history_complete: rows.length > 0 && rows.every((r: any) => r.backfill_done),
+        /*
+         * An unresolved failure means nothing is in flight. A repair note
+         * is not a failure - it says something was already put right.
+         */
+        blocked: !!account.last_inbox_sync_error
+          && !String(account.last_inbox_sync_error).startsWith('Fixed automatically:'),
         stored: count || 0,
         last_synced_at: account.last_inbox_sync_at ?? null,
         last_error: account.last_inbox_sync_error ?? null,
@@ -727,7 +733,26 @@ export const inboxSyncService = {
 
           while (budget > 0) {
             const slice = planBackfill(cursorState, months);
-            if (!slice) break;
+            if (!slice) {
+              /*
+               * Nothing left to plan means the window is covered - either
+               * the cursor has reached its floor or the walk was already
+               * finished. Say so.
+               *
+               * This is the bug that made the panel spin forever. Breaking
+               * out without recording it left backfill_done false, so the
+               * run below reported `more`, the client obligingly synced
+               * again, planned nothing again, reported `more` again - and
+               * "still fetching older mail" was, quite literally, true and
+               * permanent. A loop that cannot make progress must not ask to
+               * be run again.
+               */
+              if (!cursorState.backfill_done) {
+                await saveFolderState(raw.id, target.path, { backfill_done: true });
+                cursorState = { ...cursorState, backfill_done: true };
+              }
+              break;
+            }
 
             const back = await ingestRange(
               client,
