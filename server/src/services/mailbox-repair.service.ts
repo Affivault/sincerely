@@ -189,6 +189,28 @@ export async function repairSenderIdentity(account: {
 
   if (error) return NOT_REPAIRED(`Could not save the corrected username: ${error.message}`);
 
+  /*
+   * The sync's bookmarks describe the mailbox it was reading, which is no
+   * longer the mailbox it will read.
+   *
+   * imap_folder_state holds a UID watermark, a UIDVALIDITY and a backfill
+   * cursor, all of them meaningful only within one mailbox. Carried across
+   * to a different one they are worse than useless: a stored "last UID
+   * seen" of 40,000 skips everything below it, and a backfill marked done
+   * means history is never fetched at all. The forward pass clears them
+   * when UIDVALIDITY changes, but only if a validity was ever stored - and
+   * a mailbox that has been failing at connect has none.
+   *
+   * A failure to clear is not worth failing the repair over: the username
+   * is already corrected, and a stale cursor costs history rather than
+   * correctness.
+   */
+  await supabaseAdmin
+    .from('imap_folder_state')
+    .delete()
+    .eq('smtp_account_id', account.id)
+    .then(() => {}, () => {});
+
   return {
     repaired: true,
     from: wrong,

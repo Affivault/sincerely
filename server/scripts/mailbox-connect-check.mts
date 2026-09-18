@@ -447,5 +447,54 @@ console.log('\nnothing else gets to write the sign-in username');
      /Use a different username/.test(modal));
 }
 
+console.log('\nhistory is walked with the whole budget, not one fortnight of it');
+{
+  const sync = src('services/inbox-sync.service.ts');
+  const backfill = sync.slice(sync.indexOf('history, as far back as the budget reaches'));
+
+  /*
+   * It used to fetch exactly one fortnight per run and stop, whatever
+   * budget was left. Six months is thirteen fortnights, so filling a
+   * mailbox took thirteen separate syncs - thirteen IMAP connections, and
+   * at the scheduler's five-minute cadence over an hour of "still fetching
+   * older mail". A quiet fortnight cost a whole run to discover it was
+   * empty, and walking back through history is mostly quiet fortnights.
+   */
+  is('slices are walked in a loop', /while \(budget > 0\) \{/.test(backfill),
+     'the backfill still takes one slice per run');
+  is('the cursor carried between slices is the one just saved',
+     /cursorState = \{ backfill_cursor: moved\.cursor, backfill_done: moved\.done \};/.test(backfill),
+     're-planning from stale state would fetch the same fortnight forever');
+  is('reaching the window edge ends the walk', /if \(moved\.done\) break;/.test(backfill));
+  is('a slice that fills its batch yields the run',
+     /back\.stored >= BACKFILL_BATCH/.test(backfill));
+  is('and unfinished history still asks for another run',
+     /if \(!cursorState\.backfill_done\) more = true;/.test(backfill));
+
+  // The limitation is stated in the source rather than papered over.
+  is('the in-slice limit is written down, not hidden', /Known limit/.test(backfill));
+}
+
+console.log('\na repaired mailbox forgets where it had read to');
+{
+  const repair = src('services/mailbox-repair.service.ts');
+
+  /*
+   * imap_folder_state holds a UID watermark, a UIDVALIDITY and a backfill
+   * cursor, all meaningful only within one mailbox. After the login is
+   * corrected the account reads a different one, where a stored "last UID
+   * seen" of 40,000 skips everything below it and a backfill marked done
+   * means history is never fetched at all.
+   *
+   * The forward pass clears these when UIDVALIDITY changes - but only if a
+   * validity was ever stored, and a mailbox that has been failing at
+   * connect has none.
+   */
+  is('the folder bookmarks are cleared with the login',
+     /from\('imap_folder_state'\)[\s\S]{0,80}\.delete\(\)/.test(repair),
+     'the sync would resume from another mailbox\u2019s cursor');
+  is('scoped to the repaired account', /\.eq\('smtp_account_id', account\.id\)/.test(repair));
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 assert.equal(fail, 0, `${fail} mailbox connection check(s) failed`);
