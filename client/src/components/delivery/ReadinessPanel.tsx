@@ -1,11 +1,11 @@
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { readinessApi } from '../../api/readiness.api';
-import { READINESS_GROUP_LABELS } from '@lemlist/shared';
-import type { ReadinessCheck, ReadinessGroup, ReadinessReport, ReadinessStatus } from '@lemlist/shared';
+import type { ReadinessCheck, ReadinessReport, ReadinessStatus } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import {
-  AlertTriangle, ArrowRight, Check, RefreshCw, ShieldAlert, ShieldCheck, XCircle,
+  AlertTriangle, ArrowRight, Check, ChevronDown, Minus, RefreshCw, ShieldAlert, ShieldCheck, XCircle,
 } from 'lucide-react';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -40,6 +40,19 @@ const STATUS_STYLE: Record<ReadinessStatus, { ring: string; bg: string; text: st
     text: 'text-rose-600 dark:text-rose-400',
     Icon: XCircle,
   },
+  /*
+   * Not measured yet, and deliberately colourless.
+   *
+   * "Nothing sent yet - no bounce history to judge" used to carry a green
+   * tick, which is an absence of evidence wearing the colour of evidence.
+   * A dash says the same thing without the reassurance.
+   */
+  unknown: {
+    ring: 'border-[var(--border-subtle)]',
+    bg: 'bg-[var(--bg-elevated)]',
+    text: 'text-[var(--text-muted)]',
+    Icon: Minus,
+  },
 };
 
 const VERDICT_STYLE = {
@@ -68,8 +81,6 @@ const VERDICT_STYLE = {
     icon: 'text-rose-600 dark:text-rose-400',
   },
 } as const;
-
-const GROUP_ORDER: ReadinessGroup[] = ['identity', 'reputation', 'capacity', 'safeguards'];
 
 /** The small round status marker used everywhere a check appears. */
 export function StatusDot({ status, className }: { status: ReadinessStatus; className?: string }) {
@@ -124,6 +135,7 @@ function capacityLine(report: ReadinessReport): string | null {
 
 export function ReadinessPanel() {
   const qc = useQueryClient();
+  const [showAll, setShowAll] = useState(false);
   const { data: report, isLoading, isError, isFetching } = useQuery({
     queryKey: ['readiness'],
     queryFn: readinessApi.get,
@@ -154,7 +166,11 @@ export function ReadinessPanel() {
 
   const v = VERDICT_STYLE[report.verdict];
   const capacity = capacityLine(report);
-  const problems = report.checks.filter((c) => c.status !== 'pass').length;
+  const attention = report.checks.filter((c) => c.status === 'warn' || c.status === 'fail');
+  const passing = report.checks.filter((c) => c.status === 'pass');
+  const unknown = report.checks.filter((c) => c.status === 'unknown');
+  const settled = [...passing, ...unknown];
+  const problems = attention.length;
 
   return (
     <div className="space-y-3">
@@ -166,12 +182,19 @@ export function ReadinessPanel() {
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider', v.chip)}>
+              {/*
+                * Sentence case, not a hazard placard. SEND WITH CARE in
+                * bold caps shouts at somebody whose setup is very nearly
+                * fine, and shouting is what you have left when the sentence
+                * underneath is not carrying its weight.
+                */}
+              <span className={cn('inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold', v.chip)}>
                 {v.label}
               </span>
               {problems > 0 && (
                 <span className="text-[11px] text-[var(--text-tertiary)]">
-                  {problems} of {report.checks.length} checks need attention
+                  {problems} of {report.checks.length} check{problems === 1 ? '' : 's'}{' '}
+                  need{problems === 1 ? 's' : ''} attention
                 </span>
               )}
             </div>
@@ -194,24 +217,53 @@ export function ReadinessPanel() {
         </div>
       </div>
 
-      {/* ── The evidence ── */}
-      {GROUP_ORDER.map((group) => {
-        const rows = report.checks.filter((c) => c.group === group);
-        if (rows.length === 0) return null;
-        return (
-          <div key={group} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
-            <div className="flex items-center gap-2 px-3.5 h-9 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40">
-              <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                {READINESS_GROUP_LABELS[group]}
-              </span>
-              <span className="flex items-center gap-1 ml-auto">
-                {rows.map((r) => <StatusDot key={r.id} status={r.status} className="!h-2 !w-2 [&>svg]:hidden" />)}
-              </span>
-            </div>
-            <ul>{rows.map((c) => <CheckRow key={c.id} check={c} />)}</ul>
-          </div>
-        );
-      })}
+      {/*
+        * What needs you, then everything else out of the way.
+        *
+        * This used to render four cards, one per group, listing all eight
+        * checks at equal weight - so the single thing that wanted doing sat
+        * fifth, styled identically to seven that did not, under editorial
+        * headings nobody navigates by. A checklist where seven of eight are
+        * green should show you the one. The seven are reassurance you
+        * consult once, not content to scroll past every time.
+        */}
+      {attention.length > 0 && (
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
+          <ul>{attention.map((c) => <CheckRow key={c.id} check={c} />)}</ul>
+        </div>
+      )}
+
+      {settled.length > 0 && (
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            className="flex w-full items-center gap-2 px-3.5 h-10 text-left"
+            aria-expanded={showAll}
+            data-show-settled
+          >
+            <Check className="h-3.5 w-3.5 flex-shrink-0 text-emerald-500" strokeWidth={3} />
+            <span className="text-[12.5px] text-[var(--text-secondary)]">
+              {passing.length > 0 && <>{passing.length} check{passing.length === 1 ? '' : 's'} passing</>}
+              {passing.length > 0 && unknown.length > 0 && ', '}
+              {unknown.length > 0 && (
+                <span className="text-[var(--text-tertiary)]">
+                  {unknown.length} not measured yet
+                </span>
+              )}
+            </span>
+            <ChevronDown className={cn(
+              'ml-auto h-4 w-4 flex-shrink-0 text-[var(--text-muted)] transition-transform',
+              showAll && 'rotate-180',
+            )} />
+          </button>
+          {showAll && (
+            <ul className="border-t border-[var(--border-subtle)]">
+              {settled.map((c) => <CheckRow key={c.id} check={c} />)}
+            </ul>
+          )}
+        </div>
+      )}
 
       <p className="text-[11px] text-[var(--text-muted)]">
         Checked {new Date(report.generated_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.

@@ -182,5 +182,86 @@ console.log('\nthe page no longer leads with a settings panel');
      /list\.length > 8 &&/.test(page), 'a filter box above three rows is chrome');
 }
 
+console.log('\nthe readiness verdict reads like a sentence somebody wrote');
+{
+  const svc = readFileSync(join(here, '../src/services/readiness.service.ts'), 'utf8');
+  const panel = readFileSync(join(here, '../../client/src/components/delivery/ReadinessPanel.tsx'), 'utf8');
+
+  /*
+   * The screenshot said: "You can send, but link tracking domain will cost
+   * you deliverability." No article, because the check's label was slotted
+   * straight into a template - which is exactly what makes copy read as
+   * generated rather than written.
+   */
+  is('the risky sentence has its article',
+     /but your \$\{warned\[0\]\.label\.toLowerCase\(\)\}/.test(svc),
+     'a label is still being slotted in bare');
+
+  // "1 of 8 checks need attention" - the verb did not agree either.
+  is('the count agrees with its verb',
+     /need\{problems === 1 \? 's' : ''\} attention/.test(panel),
+     'the header still says "1 ... need attention"');
+  is('and so does its noun',
+     /check\{problems === 1 \? '' : 's'\}/.test(panel));
+
+  is('the verdict is not shouted in capitals',
+     !/uppercase tracking-wider', v\.chip/.test(panel),
+     'SEND WITH CARE is still a hazard placard');
+}
+
+console.log('\nan absence of evidence is not a pass');
+{
+  const svc = readFileSync(join(here, '../src/services/readiness.service.ts'), 'utf8');
+  const { worseStatus } = await import('@lemlist/shared');
+
+  /*
+   * "Nothing sent yet - no bounce history to judge" carried a green tick,
+   * which is the same mistake as a 100% health score on a mailbox that has
+   * never sent: reassurance manufactured out of nothing.
+   */
+  const bounce = svc.slice(svc.indexOf('function bounceRateCheck'));
+  is('no send history reports as unknown, not pass',
+     /label: 'Bounce rate', status: 'unknown'/.test(bounce),
+     'a green tick is still claiming an untested clean record');
+
+  /*
+   * The invariant is about the VERDICT, not about which of two equal-rank
+   * strings the reducer happens to return. An earlier version of this
+   * asserted worseStatus('unknown','pass') === 'pass' and failed against
+   * correct code, because ties return the left-hand side - which changes
+   * nothing, since the verdict only looks for 'warn' and 'fail'.
+   */
+  const verdictOf = (worst: string) => worst === 'fail' ? 'blocked' : worst === 'warn' ? 'risky' : 'ready';
+  is('a report of passes and unmeasured checks is still ready',
+     verdictOf(['pass', 'unknown', 'pass'].reduce((a, b) => worseStatus(a as any, b as any), 'pass')) === 'ready');
+  is('an unmeasured check cannot mask a real failure',
+     verdictOf(['pass', 'unknown', 'fail'].reduce((a, b) => worseStatus(a as any, b as any), 'pass')) === 'blocked');
+  is('nor a warning',
+     verdictOf(['unknown', 'warn'].reduce((a, b) => worseStatus(a as any, b as any), 'pass')) === 'risky');
+}
+
+console.log('\nthe page shows what needs you, not all eight checks');
+{
+  const panel = readFileSync(join(here, '../../client/src/components/delivery/ReadinessPanel.tsx'), 'utf8');
+
+  /*
+   * Four cards, one per editorial group, listing every check at equal
+   * weight - so the single thing that wanted doing sat fifth of eight,
+   * styled identically to seven that did not, under headings nobody
+   * navigates by. Roughly a thousand pixels to say "one thing".
+   */
+  is('the four group cards are gone', !/GROUP_ORDER\.map/.test(panel),
+     'the evidence is still rendered as four equal-weight cards');
+  is('warnings and failures are listed first',
+     /const attention = report\.checks\.filter/.test(panel));
+  is('the settled ones are collapsed behind one line',
+     /data-show-settled/.test(panel));
+  is('and that line counts them honestly, separating the unmeasured',
+     /not measured yet/.test(panel));
+  is('unknown has a colourless marker rather than a tick',
+     /unknown: \{[\s\S]{0,200}Icon: Minus/.test(panel),
+     'not-measured still wears a status colour');
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 assert.equal(fail, 0, `${fail} mailbox UI check(s) failed`);
