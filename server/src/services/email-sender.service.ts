@@ -72,6 +72,30 @@ export function describeSmtpError(err: any, opts?: { withRelayHint?: boolean }):
       : env.SMTP_RELAY_URL
         ? ' SMTP_RELAY_URL is set but SMTP_RELAY_SECRET is not, so the relay is inactive and sends are going direct. Set both to activate it.'
         : ' If this keeps happening on every port, your hosting provider is blocking outbound SMTP — set SMTP_RELAY_URL + SMTP_RELAY_SECRET to route sends through the bundled Vercel relay (/api/send-email).';
+  /*
+   * Signing in as one mailbox and sending as another.
+   *
+   * Checked before the auth rule below, which would otherwise swallow it -
+   * the text contains "rejected" and often "auth", and the advice it gives
+   * ("check the username/password") sends somebody to re-enter a password
+   * that was always correct. The password is fine. The USERNAME belongs to a
+   * different mailbox.
+   *
+   * The server helpfully names the account it is signed in as, so quote it
+   * back rather than making somebody parse an SMTP reply code.
+   */
+  const notOwned = String(err?.message || err || '')
+    .match(/sender address rejected[^]*?not owned by user\s+(\S+?)[\s"']*$/i);
+  if (notOwned || /\b553\b[^]*not owned by user/i.test(raw)) {
+    const owner = notOwned?.[1]?.replace(/[.,;]$/, '');
+    return owner
+      ? `The server refused the send because this mailbox is signed in as ${owner}, `
+        + 'which does not own the From address. Set the SMTP username to the mailbox\'s '
+        + 'own address - the password is not the problem.'
+      : 'The server refused the send because the signed-in account does not own the '
+        + 'From address. Set the SMTP username to the mailbox\'s own address.';
+  }
+
   if (raw.includes('invalid login') || raw.includes('auth') || raw.includes('535') || raw.includes('credentials') || raw.includes('username and password'))
     return 'Authentication failed — check the username/password. Gmail & Outlook need an app password, not your normal login.';
   if (raw.includes('etimedout') || raw.includes('timeout') || raw.includes('timed out'))
