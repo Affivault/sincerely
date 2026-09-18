@@ -611,7 +611,25 @@ export function SmtpAccountModal({
         </>
       }
     >
-      <form id={FORM_ID} onSubmit={handleSubmit} className="space-y-3.5">
+      {/*
+        * autoComplete="off" on the form, and again per field.
+        *
+        * Chrome ignores the form-level hint on its own, and every manager
+        * has its own opt-out attribute, so all three are needed. Without
+        * them this form is the classic shape a password manager fills - an
+        * email field, a "Username" field and a password field on the same
+        * domain - and it filled the username with a DIFFERENT mailbox on
+        * that domain. The account holder typed one address and never saw
+        * the other one land on a tab they had no reason to revisit.
+        */}
+      <form
+        id={FORM_ID}
+        onSubmit={handleSubmit}
+        className="space-y-3.5"
+        autoComplete="off"
+        data-1p-ignore
+        data-lpignore="true"
+      >
         {/* Tabs — three short panels instead of one long scroll */}
         <div className="flex items-center gap-1 p-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
           {TABS.map((t) => (
@@ -654,7 +672,7 @@ export function SmtpAccountModal({
                 <Input label="Label (internal)" value={form.label} onChange={(e) => updateField('label', e.target.value)} placeholder={`e.g. Outreach, ${PLACEHOLDER.senderCompany}`} error={err('label')} />
               </div>
               <div className="grid grid-cols-2 gap-3 mt-3">
-                <Input label="From email" type="email" value={form.email_address} onChange={(e) => handleEmailChange(e.target.value)} placeholder={activePreset?.username_hint || 'you@company.com'} error={err('email_address')} />
+                <Input label="From email" type="email" value={form.email_address} onChange={(e) => handleEmailChange(e.target.value)} placeholder={activePreset?.username_hint || 'you@company.com'} error={err('email_address')} autoComplete="off" data-1p-ignore data-lpignore="true" name="sincerely-from-email" />
                 <div className="relative">
                   <Input
                     label={passwordLabel}
@@ -727,8 +745,51 @@ export function SmtpAccountModal({
                 <Input label="Host" value={form.smtp_host} onChange={(e) => updateField('smtp_host', e.target.value)} placeholder="smtp.example.com" error={err('smtp_host')} />
                 <Input label="Port" type="number" value={String(form.smtp_port)} onChange={(e) => updateField('smtp_port', parseInt(e.target.value) || 0)} error={err('smtp_port')} />
               </div>
+              {/*
+                * The sign-in is shown, not typed.
+                *
+                * A bare text field called "Username" sitting beside a
+                * password field, on a tab nobody revisits, is the ideal
+                * shape for a password manager to fill - and it filled it
+                * with a DIFFERENT mailbox on the same domain. The account
+                * holder typed one address into "From email" and never saw
+                * the other one get written here.
+                *
+                * For nearly every provider this value is the address, so
+                * showing it removes a field that can only go wrong. The
+                * override stays for the handful that use something else -
+                * SendGrid signs in as "apikey", Mailgun as a postmaster
+                * handle - but it has to be asked for.
+                */}
               <div className="mt-3">
-                <Input label="Username" value={form.smtp_user} onChange={(e) => { setUserEdited(true); updateField('smtp_user', e.target.value); }} placeholder={activePreset?.username_hint || 'Usually your email address'} hint="Leave blank to use your from email" />
+                {userEdited ? (
+                  <Input
+                    label="Sign-in username"
+                    value={form.smtp_user}
+                    onChange={(e) => updateField('smtp_user', e.target.value)}
+                    placeholder={activePreset?.username_hint || 'Usually your email address'}
+                    hint="Only change this if your provider signs in with something other than the address"
+                    autoComplete="off"
+                    data-1p-ignore
+                    data-lpignore="true"
+                    name="sincerely-smtp-login"
+                  />
+                ) : (
+                  <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2">
+                    <p className="text-[11.5px] text-[var(--text-tertiary)]">Signs in as</p>
+                    <p className="text-[12.5px] font-medium text-[var(--text-primary)]" data-signs-in-as>
+                      {form.email_address || 'your From email'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setUserEdited(true)}
+                      className="mt-1 text-[11.5px] font-semibold text-[var(--indigo)] hover:underline"
+                      data-override-login
+                    >
+                      Use a different username
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="mt-3">
                 <EncryptionRadios secure={!!form.smtp_secure} onChange={(v) => updateField('smtp_secure', v)} />

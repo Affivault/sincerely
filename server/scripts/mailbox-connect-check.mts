@@ -398,5 +398,54 @@ console.log('\nthe sync refuses to read somebody else\u2019s inbox');
      sync.indexOf('isSenderMismatch(login') < sync.indexOf('new ImapFlow('));
 }
 
+console.log('\nnothing else gets to write the sign-in username');
+{
+  const modal = readFileSync(join(here, '../../client/src/pages/smtp/SmtpAccountModal.tsx'), 'utf8');
+
+  /*
+   * How the wrong username really got there. Not a mistyped address - a
+   * password manager.
+   *
+   * An email field, a field labelled "Username" and a password field, all
+   * on one domain, is the exact shape a manager fills. The password field
+   * was protected with autoComplete="new-password"; nothing else was. So a
+   * saved credential for one mailbox on yieldstones.co.uk was written into
+   * the username of another, on a tab the account holder had no reason to
+   * revisit, after they had typed the right address into "From email".
+   *
+   * Which is why "you must have typed it" was the wrong diagnosis, and why
+   * this section is about the field existing at all rather than about
+   * mirroring.
+   */
+  /*
+   * Scoped to the <form> tag itself. An earlier version of this assertion
+   * searched the whole file for autoComplete="off" near data-1p-ignore,
+   * which the override field also satisfies - so deleting the form-level
+   * opt-out failed nothing.
+   */
+  const formTag = modal.slice(modal.indexOf('<form'), modal.indexOf('>', modal.indexOf('<form')) + 1);
+  is('the form opts out of autofill',
+     /autoComplete="off"/.test(formTag) && /data-1p-ignore/.test(formTag) && /data-lpignore/.test(formTag),
+     `the form tag is still a password manager target: ${formTag.replace(/\s+/g, ' ')}`);
+  is('and so does the From email field',
+     /name="sincerely-from-email"/.test(modal));
+
+  /*
+   * Better than defending a field: not having one. For nearly every
+   * provider the sign-in IS the address, so it is shown rather than typed,
+   * and there is nothing for anything to fill.
+   */
+  is('the sign-in is displayed, not a text input, by default',
+     /data-signs-in-as/.test(modal), 'there is still a free-text username field by default');
+  is('the override has to be asked for', /data-override-login/.test(modal));
+  is('and the override field is off-limits to autofill too',
+     /name="sincerely-smtp-login"/.test(modal));
+
+  // SendGrid signs in as "apikey", Mailgun as a postmaster handle. The
+  // override exists for them and must not be removed.
+  is('a provider that needs a different login can still have one',
+     /Use a different username/.test(modal));
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 assert.equal(fail, 0, `${fail} mailbox connection check(s) failed`);
