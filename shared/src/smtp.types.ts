@@ -1,3 +1,5 @@
+import type { PoolQuality } from './warmup-pool.js';
+
 export interface SmtpAccount {
   id: string;
   user_id: string;
@@ -155,6 +157,15 @@ export interface WarmupAccountStatus {
 export interface WarmupSummary {
   accounts: WarmupAccountStatus[];
   peer_pool: number;
+  /**
+   * What this pool can actually achieve.
+   *
+   * A count on its own let three mailboxes on one domain read as a working
+   * warm-up, when mail between them never leaves the provider and the
+   * receivers whose opinion decides deliverability never see any of it.
+   */
+  pool_quality: PoolQuality;
+  pool_note: string;
   total_warming: number;
   sent_7d: number;
   replied_7d: number;
