@@ -17,6 +17,7 @@ import {
 import { DEFAULT_SYNC_WINDOW_MONTHS, isSyncWindow } from '@lemlist/shared';
 import type { InboxSyncResult, SyncFolderRole, SyncWindowMonths } from '@lemlist/shared';
 import { repairImapHost } from './mailbox-repair.service.js';
+import { isSenderMismatch } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Reading a mailbox.
@@ -598,6 +599,35 @@ export const inboxSyncService = {
       let budget = PER_RUN_LIMIT;
       try {
         const password = decrypt(raw.smtp_pass_encrypted);
+
+        /*
+         * Never read a mailbox that is not this one.
+         *
+         * A row whose IMAP login is a DIFFERENT address signs in
+         * successfully - the credentials are valid, they just belong to
+         * somebody else - and then files that account's mail under this
+         * one. Nothing downstream can tell: the sync reports success, the
+         * unibox fills up, and the only symptom is a mailbox whose own
+         * replies never arrive while a colleague's appear twice.
+         *
+         * Failing here is the better outcome by a distance. A mailbox that
+         * says why it is empty can be fixed; one quietly full of the wrong
+         * mail cannot even be noticed.
+         */
+        const login = raw.imap_user || raw.smtp_user || raw.email_address;
+        if (isSenderMismatch(login, raw.email_address)) {
+          const message = `This mailbox is set to sign in as ${login}, so syncing it `
+            + `would read ${login}'s inbox instead of its own. Set the username to `
+            + `${raw.email_address} and enter that mailbox's password.`;
+          errors.push(`${raw.email_address}: ${message}`);
+          await supabaseAdmin
+            .from('smtp_accounts')
+            .update({ last_inbox_sync_error: message })
+            .eq('id', raw.id)
+            .then(() => {}, () => {});
+          continue;
+        }
+
         const host = imapHostFor(raw);
         const ip = await resolveHostIp(host).catch(() => null);
 
