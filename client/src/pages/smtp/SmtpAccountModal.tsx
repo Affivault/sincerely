@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { SmtpAccount, CreateSmtpAccountInput, SmtpPreset, VerifyLegResult, MailboxDiagnostics, DiagStage } from '@lemlist/shared';
-import { SMTP_PRESETS, detectPresetFromEmail, PLACEHOLDER } from '@lemlist/shared';
+import { SMTP_PRESETS, detectPresetFromEmail, PLACEHOLDER, isSenderMismatch } from '@lemlist/shared';
 
 /** Map the MX check's provider hint onto our connection presets. */
 const HINT_TO_PRESET: Record<string, string> = {
@@ -222,6 +222,23 @@ export function SmtpAccountModal({
   const [replyToOn, setReplyToOn] = useState(false);
   const [tab, setTab] = useState<TabId>('account');
   const [showPass, setShowPass] = useState(false);
+  /*
+   * Has the sign-in username been typed deliberately?
+   *
+   * It mirrors the From address until somebody edits it, and the reason to
+   * track that rather than just copying is that `prev.smtp_user || email`
+   * looks like it does the same thing and does not: once the field holds
+   * anything at all, a later correction to the From address never reaches
+   * it. Type acquisitions@, change your mind, type invest@, save - and the
+   * mailbox signs in as acquisitions@ for good.
+   *
+   * The server then rejects the send with "553 Sender address rejected: not
+   * owned by user acquisitions@...", which names a mailbox the account
+   * holder never typed into this form. Worse, the IMAP leg SUCCEEDS,
+   * because those credentials are perfectly valid - so the row quietly
+   * reads somebody else's inbox and reports that receiving works.
+   */
+  const [userEdited, setUserEdited] = useState(false);
   /** Fields flagged after a check/save attempt, so the gap is visible in place. */
   const [flagged, setFlagged] = useState<string[]>([]);
   /* Staged probe (DNS → port → handshake → sign-in) run on demand after a
@@ -238,6 +255,13 @@ export function SmtpAccountModal({
     setFlagged([]);
     setTab('account');
     setReplyToOn(!!editAccount?.reply_to);
+    /*
+     * A saved username that differs from the address is treated as
+     * deliberate, so re-opening a mailbox never silently rewrites it. It may
+     * well be the bug above rather than a choice - the warning below says so
+     * - but this form is not entitled to decide that on somebody's behalf.
+     */
+    setUserEdited(!!editAccount && editAccount.smtp_user !== editAccount.email_address);
     if (editAccount) {
       setActivePreset(null);
       setAutoDetected(false);
@@ -311,7 +335,7 @@ export function SmtpAccountModal({
     setAutoDetected(true);
     setForm((prev) => ({
       ...prev,
-      smtp_user: prev.smtp_user || prev.email_address,
+      smtp_user: userEdited ? prev.smtp_user : (prev.email_address || prev.smtp_user),
       label: prev.label || preset.name,
       smtp_host: preset.smtp_host,
       smtp_port: preset.smtp_port,
@@ -386,7 +410,13 @@ export function SmtpAccountModal({
   const handleEmailChange = useCallback((email: string) => {
     setVerify({ status: 'idle' });
     setFlagged((prev) => prev.filter((f) => f !== 'email_address'));
-    setForm((prev) => ({ ...prev, email_address: email, smtp_user: prev.smtp_user || email }));
+    setForm((prev) => ({
+      ...prev,
+      email_address: email,
+      // Mirrors until edited. `prev.smtp_user || email` was the bug: it
+      // pins the username to whatever was typed first.
+      smtp_user: userEdited ? prev.smtp_user : email,
+    }));
     if (!editId && (!activePreset || autoDetected)) {
       const detected = detectPresetFromEmail(email);
       if (detected) {
@@ -530,6 +560,21 @@ export function SmtpAccountModal({
   const isQuickMode = !!activePreset && !editId;
   const passwordLabel = activePreset?.password_hint || 'Password';
   const passwordPlaceholder = activePreset?.password_hint || (editId ? 'Leave blank to keep the saved password' : 'Enter password or app key');
+  /*
+   * Signing in as one mailbox and sending as another.
+   *
+   * Nearly every provider refuses this outright - "553 Sender address
+   * rejected: not owned by user ..." - and the ones that allow it need the
+   * sender explicitly authorised. It is worth saying before a send fails,
+   * because the error names a mailbox the account holder never typed here
+   * and reads like a server problem.
+   *
+   * The receiving half is the quieter danger: those credentials are valid,
+   * so IMAP connects happily and this mailbox reads the OTHER account's
+   * inbox, reporting success the whole time.
+   */
+  const senderMismatch = isSenderMismatch(form.smtp_user, form.email_address);
+
   const verifyOk = verify.status === 'done' && verify.smtp?.ok && verify.imap?.status !== 'fail';
   const verifyFailed = verify.status === 'done' && !verifyOk;
 
@@ -683,7 +728,7 @@ export function SmtpAccountModal({
                 <Input label="Port" type="number" value={String(form.smtp_port)} onChange={(e) => updateField('smtp_port', parseInt(e.target.value) || 0)} error={err('smtp_port')} />
               </div>
               <div className="mt-3">
-                <Input label="Username" value={form.smtp_user} onChange={(e) => updateField('smtp_user', e.target.value)} placeholder={activePreset?.username_hint || 'Usually your email address'} hint="Leave blank to use your from email" />
+                <Input label="Username" value={form.smtp_user} onChange={(e) => { setUserEdited(true); updateField('smtp_user', e.target.value); }} placeholder={activePreset?.username_hint || 'Usually your email address'} hint="Leave blank to use your from email" />
               </div>
               <div className="mt-3">
                 <EncryptionRadios secure={!!form.smtp_secure} onChange={(v) => updateField('smtp_secure', v)} />
@@ -783,6 +828,30 @@ export function SmtpAccountModal({
             <div className="space-y-1.5">
               <LegRow label="SMTP (sending)" leg={verify.smtp} />
               <LegRow label="IMAP (receiving)" leg={verify.imap} />
+            </div>
+          )}
+
+          {senderMismatch && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/8 px-3 py-2.5" data-sender-mismatch>
+              <p className="text-[12px] font-medium text-[var(--text-primary)] flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+                This mailbox signs in as a different address
+              </p>
+              <p className="text-[11.5px] text-[var(--text-secondary)] mt-1 leading-relaxed">
+                Sending as <span className="font-medium text-[var(--text-primary)]">{form.email_address}</span>{' '}
+                but signing in as <span className="font-medium text-[var(--text-primary)]">{form.smtp_user}</span>.
+                Most providers reject that outright, and the ones that allow it need the
+                sender authorised first. Receiving is the quieter risk: those credentials
+                work, so this mailbox would read {form.smtp_user}&rsquo;s inbox instead of its own.
+              </p>
+              <button
+                type="button"
+                onClick={() => { setUserEdited(false); updateField('smtp_user', form.email_address); }}
+                className="mt-1.5 text-[11.5px] font-semibold text-[var(--indigo)] hover:underline"
+                data-fix-sender
+              >
+                Sign in as {form.email_address} instead
+              </button>
             </div>
           )}
 

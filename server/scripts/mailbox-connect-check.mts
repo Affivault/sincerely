@@ -254,5 +254,95 @@ console.log('\ndiagnostics can be reached without first making a check fail');
   is('it only needs somewhere to connect to', /!diagnostics && form\.smtp_host && \(/.test(gate), gate.slice(-200));
 }
 
+console.log('\nsigning in as one mailbox and sending as another');
+{
+  const { describeSmtpError } = await import('../src/services/email-sender.service.js');
+
+  /*
+   * The exact string a live Spacemail server returned for a mailbox whose
+   * username had been left pointing at a sibling account. It matters that
+   * this is quoted verbatim: the previous classifier saw "rejected" and
+   * "auth"-ish text, fell through to "check the username/password", and
+   * sent somebody to re-enter a password that was always correct.
+   */
+  const real = "SMTP relay error: Can't send mail - all recipients were rejected: "
+    + '553 5.7.1 <invest@yieldstones.co.uk>: Sender address rejected: '
+    + 'not owned by user acquisitions@yieldstones.co.uk';
+  const said = describeSmtpError(new Error(real));
+
+  is('the signed-in account is named back to the user',
+     said.includes('acquisitions@yieldstones.co.uk'), said);
+  is('it points at the username, not the password',
+     /username/i.test(said) && /password is not the problem/i.test(said), said);
+  is('and it is not mistaken for a bad password',
+     !/Authentication failed/.test(said), said);
+  is('nor for a raw relay error', !said.startsWith('SMTP relay error'), said);
+
+  // Ordinary auth failures must still classify as auth failures.
+  const authFail = describeSmtpError(new Error('Invalid login: 535 5.7.8 Authentication failed'));
+  is('a genuine bad password still reads as one',
+     /Authentication failed/.test(authFail), authFail);
+}
+
+console.log('\nthe username follows the address until somebody changes it');
+{
+  const modal = readFileSync(join(here, '../../client/src/pages/smtp/SmtpAccountModal.tsx'), 'utf8');
+
+  /*
+   * How the wrong username got saved. `prev.smtp_user || email` looks like
+   * it mirrors the From address and does not: once the field holds anything,
+   * a later correction never reaches it. Type acquisitions@, change your
+   * mind, type invest@, save - and the mailbox signs in as acquisitions@
+   * for good.
+   *
+   * The IMAP leg then SUCCEEDS, because those credentials are valid, so the
+   * row quietly reads the other account's inbox and reports that receiving
+   * works. That is why this needed catching in the form rather than only in
+   * the error message.
+   */
+  is('the username is no longer pinned to whatever was typed first',
+     !/smtp_user: prev\.smtp_user \|\| email/.test(modal),
+     'a corrected From address still leaves the old username behind');
+  is('it mirrors the address until deliberately edited',
+     /smtp_user: userEdited \? prev\.smtp_user : email/.test(modal));
+  is('editing the field marks it deliberate',
+     /setUserEdited\(true\)/.test(modal));
+  is('and a saved mailbox whose username already differs is left alone',
+     /setUserEdited\(!!editAccount && editAccount\.smtp_user !== editAccount\.email_address\)/.test(modal));
+
+  /*
+   * Guarded on the condition, not merely present in the file. An earlier
+   * draft of this assertion looked for `data-sender-mismatch` anywhere in
+   * the source, which stays true when the block is rendered behind a
+   * constant false - so replacing the guard broke the warning and failed
+   * nothing.
+   */
+  is('a mismatch is flagged before a send has to fail',
+     /\{senderMismatch && \(/.test(modal),
+     'the warning is not rendered on the mismatch condition');
+  is('and the condition is the shared predicate, not an inline comparison',
+     /isSenderMismatch\(form\.smtp_user, form\.email_address\)/.test(modal));
+
+  /*
+   * Asserted against real values rather than by grepping the component,
+   * because a grep for the comparison stays true when somebody prefixes the
+   * whole expression with `false &&`.
+   */
+  const { isSenderMismatch } = await import('@lemlist/shared');
+  is('the exact failing pair is a mismatch',
+     isSenderMismatch('acquisitions@yieldstones.co.uk', 'invest@yieldstones.co.uk') === true);
+  is('a matching pair is not', isSenderMismatch('invest@yieldstones.co.uk', 'invest@yieldstones.co.uk') === false);
+  is('case and padding do not invent one',
+     isSenderMismatch('  Invest@Yieldstones.co.uk ', 'invest@yieldstones.co.uk') === false);
+  // SendGrid signs in as "apikey", Mailgun as a postmaster handle. Neither
+  // says anything about who owns the From address.
+  is('a non-address username is not treated as one', isSenderMismatch('apikey', 'invest@example.com') === false);
+  is('and a blank username is not', isSenderMismatch('', 'invest@example.com') === false);
+  is('the warning names the receiving risk, not just the sending one',
+     /read \{form\.smtp_user\}&rsquo;s inbox instead of its own/.test(modal),
+     'the quieter half - reading the wrong mailbox - is not mentioned');
+  is('and it can be corrected in one press', /data-fix-sender/.test(modal));
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 assert.equal(fail, 0, `${fail} mailbox connection check(s) failed`);

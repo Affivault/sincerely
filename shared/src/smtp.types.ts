@@ -284,6 +284,34 @@ export interface MailboxDiagnostics {
   imap: ImapDiagnostics | null;
 }
 
+/**
+ * Is this mailbox set to sign in as a different address than it sends from?
+ *
+ * Nearly every provider refuses that outright - "553 Sender address
+ * rejected: not owned by user ..." - and the ones that allow it need the
+ * sender explicitly authorised first.
+ *
+ * The receiving half is the quieter danger and the reason this is worth
+ * catching in the form rather than only in a send error: the other
+ * mailbox's credentials are perfectly valid, so IMAP connects happily and
+ * the account reads somebody else's inbox while reporting success.
+ *
+ * Lives in shared, and takes plain strings, so it can be asserted against
+ * real values rather than by grepping the component for a comparison.
+ */
+export function isSenderMismatch(
+  smtpUser: string | null | undefined,
+  emailAddress: string | null | undefined,
+): boolean {
+  const user = (smtpUser || '').trim().toLowerCase();
+  const from = (emailAddress || '').trim().toLowerCase();
+  // A username that is not an address is a provider's own login scheme
+  // (SendGrid's "apikey", Mailgun's postmaster form) and says nothing about
+  // who owns the From address.
+  if (!user || !from || !user.includes('@')) return false;
+  return user !== from;
+}
+
 export interface DiagnoseSmtpInput {
   smtp_host: string;
   smtp_port: number;
