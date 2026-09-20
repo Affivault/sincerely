@@ -1360,10 +1360,17 @@ async function handleScanSite(payload) {
     /** People the site names but publishes no address for, keyed by name. */
     const unlisted = new Map();
 
+    // Reserved synchronously (no await between the check and the increment),
+    // so the SCAN_CONCURRENCY pooled workers can't all pass the check before
+    // any of them records a visit — visited.length itself isn't updated until
+    // after the fetch resolves, which let a scan run a few pages past the
+    // limit it was supposed to be bounded by.
+    let reserved = 0;
     const visit = async (url) => {
-      if (visited.length >= SCAN_PAGE_LIMIT) return;
+      if (reserved >= SCAN_PAGE_LIMIT) return;
+      reserved += 1;
       const html = await fetchPage(url);
-      if (!html) return;
+      if (!html) { reserved -= 1; return; }
       visited.push(url);
 
       const pageResults = extractFromHtml(html, url);

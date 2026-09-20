@@ -22,11 +22,15 @@ function currentPeriodStart(): string {
 }
 
 async function getSubscription(userId: string): Promise<any | null> {
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('subscriptions')
     .select('*')
     .eq('user_id', userId)
     .maybeSingle();
+  // A real lookup failure (network/DB error) must not be treated the same as
+  // "no subscription row" — that silently drops a paying customer to Free
+  // plan limits for the duration of the outage.
+  if (error) throw new AppError(`Failed to look up subscription: ${error.message}`, 500);
   return data ?? null;
 }
 

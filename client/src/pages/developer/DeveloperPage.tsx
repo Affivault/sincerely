@@ -106,7 +106,7 @@ export function DeveloperPage() {
     if (!latestDeliveryByEndpoint.has(d.endpoint_id)) latestDeliveryByEndpoint.set(d.endpoint_id, d);
   }
 
-  const { data: apiKeys, isLoading: loadingKeys } = useQuery({
+  const { data: apiKeys, isLoading: loadingKeys, isError: keysErrored, refetch: refetchKeys } = useQuery({
     queryKey: ['api-keys'],
     queryFn: apikeyApi.list,
     enabled: tab === 'api-keys',
@@ -699,6 +699,23 @@ export function DeveloperPage() {
           {loadingKeys ? (
             <div className="flex items-center justify-center py-12">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--border-subtle)] border-t-[#6366F1]" />
+            </div>
+          ) : keysErrored ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center border border-[var(--border-subtle)] rounded-lg">
+              <div className="w-12 h-12 rounded-md bg-rose-500/10 flex items-center justify-center mb-3">
+                <XCircle className="h-6 w-6 text-rose-500" />
+              </div>
+              <h3 className="font-medium text-[var(--text-primary)] mb-1">Couldn't load your API keys</h3>
+              <p className="text-sm text-[var(--text-secondary)] mb-3">
+                This is a lookup failure, not necessarily an empty list — a security-sensitive page
+                shouldn't say "none" when it isn't sure.
+              </p>
+              <button
+                onClick={() => refetchKeys()}
+                className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-md text-[12px] font-medium bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Try again
+              </button>
             </div>
           ) : !apiKeys || apiKeys.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center border border-[var(--border-subtle)] rounded-lg">

@@ -187,7 +187,13 @@ function AppContent() {
       if (e.key === 'n' || e.key === 'N') { e.preventDefault(); navigate('/campaigns/new'); }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      if (goPending.current !== null) {
+        window.clearTimeout(goPending.current);
+        goPending.current = null;
+      }
+    };
   }, [navigate]);
 
   return (
