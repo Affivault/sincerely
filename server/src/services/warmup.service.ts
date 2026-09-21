@@ -160,7 +160,9 @@ async function runWarmupTick(maxGlobalSends = 60): Promise<number> {
     .select('*')
     .eq('warmup_mode', true)
     .eq('is_active', true)
-    .eq('is_verified', true);
+    .eq('is_verified', true)
+    // A seed mailbox receives placement probes and never sends.
+    .eq('is_seed', false);
 
   const senders = (warming || []) as any[];
   if (senders.length === 0) return 0;
@@ -172,7 +174,9 @@ async function runWarmupTick(maxGlobalSends = 60): Promise<number> {
     .select('id, user_id, email_address, smtp_host')
     .in('user_id', userIds)
     .eq('is_active', true)
-    .eq('is_verified', true);
+    .eq('is_verified', true)
+    // A seed mailbox receives placement probes and never sends.
+    .eq('is_seed', false);
   const peersByUser = new Map<string, any[]>();
   for (const p of (pool || []) as any[]) {
     if (!peersByUser.has(p.user_id)) peersByUser.set(p.user_id, []);

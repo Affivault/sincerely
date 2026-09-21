@@ -455,6 +455,8 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
       .eq('user_id', campaign.user_id)
       .eq('is_active', true)
       .eq('is_verified', true)
+      // A seed mailbox receives placement probes and never sends.
+      .eq('is_seed', false)
       .maybeSingle();
     if (fallback) {
       const limit = warmupAllowance(fallback);
@@ -483,7 +485,9 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
       .select('*')
       .eq('user_id', campaign.user_id)
       .eq('is_active', true)
-      .eq('is_verified', true);
+      .eq('is_verified', true)
+      // A seed mailbox receives placement probes and never sends.
+      .eq('is_seed', false);
     // Reserve atomically per candidate (in listed order) instead of just
     // filtering by a stale sends_today snapshot, so a concurrent
     // processDueSteps() run can't grab the same last slot on this mailbox.

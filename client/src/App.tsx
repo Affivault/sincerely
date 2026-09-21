@@ -13,6 +13,7 @@ import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 // Lazy-loaded — each becomes its own JS chunk
 const DashboardPage        = lazy(() => import('./pages/dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const CampaignRevenuePage  = lazy(() => import('./pages/analytics/CampaignRevenuePage').then(m => ({ default: m.CampaignRevenuePage })));
+const PlacementPage        = lazy(() => import('./pages/placement/PlacementPage').then(m => ({ default: m.PlacementPage })));
 const RevenuePage          = lazy(() => import('./pages/analytics/RevenuePage').then(m => ({ default: m.RevenuePage })));
 const ContactsListPage     = lazy(() => import('./pages/contacts/ContactsListPage').then(m => ({ default: m.ContactsListPage })));
 const ContactDetailPage    = lazy(() => import('./pages/contacts/ContactDetailPage').then(m => ({ default: m.ContactDetailPage })));
@@ -148,6 +149,7 @@ export default function App() {
           <Route path="/email-accounts"     element={<EmailAccountsPage />} />
           <Route path="/smtp-accounts"      element={<Navigate to="/email-accounts" replace />} />
           <Route path="/smtp-accounts/guide" element={<SmtpGuidePage />} />
+          <Route path="/placement"          element={<PlacementPage />} />
           <Route path="/domains"            element={<Navigate to="/email-accounts" replace />} />
           <Route path="/analytics"          element={<AnalyticsDashboardPage />} />
           <Route path="/analytics/revenue"   element={<RevenuePage />} />

@@ -148,6 +148,19 @@ export function mailboxScore(m: { health_score: number; total_sent: number }): n
  * One definition, so a change to what "sendable" means cannot reach one
  * caller and miss another.
  */
-export function isSendable(a: { is_active: boolean; is_verified: boolean }): boolean {
+export function isSendable(a: { is_active: boolean; is_verified: boolean; is_seed?: boolean }): boolean {
+  /*
+   * A seed mailbox is never a sender.
+   *
+   * Seeds exist to receive placement probes and report which folder they
+   * land in. One that started carrying campaign mail would do two kinds of
+   * damage at once: send from an address the account holder never meant to
+   * send from, and destroy the measurement, because a seed with real
+   * sending history is no longer a clean read of where new mail lands.
+   *
+   * Enforced here rather than in each query, because "each query" is five
+   * services and the one that forgets is the one that sends.
+   */
+  if (a.is_seed) return false;
   return a.is_active && a.is_verified;
 }
