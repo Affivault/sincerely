@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { replyQueueService } from './reply-queue.service.js';
 import { escapeHtml, textToHtml } from '../utils/html.js';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { decrypt } from '../utils/encryption.js';
@@ -680,6 +681,17 @@ export const inboxService = {
       thread_id: original.thread_id || original.message_id,
       received_at: new Date().toISOString(),
     });
+
+    /*
+     * The clock stops here, for the whole thread.
+     *
+     * This is the only place a human actually answers the person who
+     * wrote in, so it is the only place first_response_at may be set.
+     * Triage deliberately does not: deciding a reply is "interested" is a
+     * note to yourself, and letting it stop the clock would turn the SLA
+     * into a measure of how fast somebody clicks a label.
+     */
+    await replyQueueService.markResponded(userId, messageId);
 
     // A manual reply to a message SARA had flagged (pending review or already
     // approved) counts as the reply having gone out — keep the "Sent Today"
