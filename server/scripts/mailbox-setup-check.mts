@@ -270,8 +270,10 @@ console.log('\na daily limit has guidance attached to it');
    */
   is('a sensible limit passes quietly', limitAdvice(200).tone === 'ok');
   is('and so does a conservative one', limitAdvice(40).tone === 'ok');
-  is('zero is called out — it means nothing sends',
-     limitAdvice(0).tone === 'danger' && /will not send/.test(limitAdvice(0).note));
+  is('zero is the unlimited sentinel, not an error',
+     limitAdvice(0).tone === 'ok', JSON.stringify(limitAdvice(0)));
+  is('a negative value is called out as invalid',
+     limitAdvice(-5).tone === 'danger' && /invalid/.test(limitAdvice(-5).note));
   is('above 200 is a warning', limitAdvice(350).tone === 'warning', JSON.stringify(limitAdvice(350)));
   is('and it says to add a mailbox rather than raise this one',
      /Add another mailbox/.test(limitAdvice(350).note), limitAdvice(350).note);
@@ -302,8 +304,11 @@ console.log('\nthe sending summary is honest with the section shut');
   const hot = sendingSummary({ daily_send_limit: 900, signature_html: 'Steven' });
   is('an unsurvivable limit is a warning even collapsed', hot.tone === 'warning', JSON.stringify(hot));
   is('and the collapsed line carries the reason', /900/.test(hot.text), hot.text);
-  is('a zero limit is not quietly clean',
-     sendingSummary({ daily_send_limit: 0 }).tone === 'warning');
+  is('a zero limit reads clean — it is the unlimited sentinel',
+     sendingSummary({ daily_send_limit: 0 }).tone === 'ok');
+  is('and the collapsed line says so in words',
+     /no daily cap/i.test(sendingSummary({ daily_send_limit: 0 }).text),
+     sendingSummary({ daily_send_limit: 0 }).text);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

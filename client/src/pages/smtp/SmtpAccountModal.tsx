@@ -955,10 +955,16 @@ export function SmtpAccountModal({
             <div className="grid grid-cols-2 gap-3">
               <Input
                 type="number"
+                min={0}
+                placeholder="0 = unlimited"
                 value={String(form.daily_send_limit ?? '')}
                 onChange={(e) => updateField('daily_send_limit', parseInt(e.target.value) || 0)}
                 error={limit.tone === 'danger' ? limit.note : undefined}
-                hint={limit.tone === 'ok' ? 'Warm-up ramps up to this over time' : undefined}
+                hint={
+                  limit.tone !== 'ok' ? undefined
+                    : Number(form.daily_send_limit) === 0 ? 'No daily cap on this mailbox'
+                    : 'Warm-up ramps up to this over time'
+                }
               />
             </div>
             {/*
