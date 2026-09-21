@@ -64,6 +64,8 @@ const SINGLE: Array<{ name: string; why: string }> = [
   { name: 'sectionsToOpen', why: 'what starts open is the only thing keeping a gap visible' },
   { name: 'rateReadout', why: 'one rule about when a percentage has earned the right to be one' },
   { name: 'setupNudge', why: 'the sidebar and the dashboard must agree about the same account' },
+  { name: 'stepHasVariantB', why: 'the sender and the report disagreed about what an A/B test is' },
+  { name: 'assignVariant', why: 'two ways of picking an arm would split the same contact both ways' },
 ];
 
 console.log('\nnothing load-bearing is defined twice');

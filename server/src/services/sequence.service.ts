@@ -12,6 +12,7 @@ import { settingsService } from './settings.service.js';
 import { guardAfterBounce } from './bounce-guard.service.js';
 import * as domainThrottle from './domain-throttle.service.js';
 import { isLinkedinStep, inferTimezone } from '@lemlist/shared';
+import { stepHasVariantB, assignVariant } from '@lemlist/shared';
 import { classifySendFailure, stallReasonFor } from '../utils/send-failure.js';
 
 /**
@@ -275,8 +276,28 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
     return;
   }
 
-  // Check centralised suppression list
-  const suppressed = await suppressionService.isSuppressed(cc.campaigns.user_id, cc.contacts.email);
+  /*
+   * Check the centralised suppression list.
+   *
+   * A failure here is not permission to send. isSuppressed used to answer
+   * `false` on a query error - "not suppressed" - so a timed out lookup
+   * put a campaign through to somebody who had unsubscribed. It throws
+   * now, and this leaves `next_send_at` exactly where it is: the contact
+   * is untouched, the worker picks it up again on the next tick, and
+   * nothing goes out in the meantime.
+   *
+   * The reason is written to the campaign as well. A campaign that quietly
+   * stops while the reason lives only in a server log is the failure mode
+   * this codebase keeps rediscovering.
+   */
+  let suppressed: boolean;
+  try {
+    suppressed = await suppressionService.isSuppressed(cc.campaigns.user_id, cc.contacts.email);
+  } catch (err: any) {
+    await recordStall(cc.campaign_id, 'The suppression list could not be checked, so sending is paused until it can be. Nothing has been sent that should not have been.');
+    console.error(`[Sequence] Suppression check failed for ${cc.contacts.email}, holding the send: ${err?.message || err}`);
+    return;
+  }
   if (suppressed) {
     await supabaseAdmin
       .from('campaign_contacts')
@@ -510,9 +531,22 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
   // A/B testing is a paid feature — fall back to variant A when not included.
   const abAllowed = ownerId ? await billingService.hasFeature(ownerId, 'abTesting') : true;
 
-  // A/B split: deterministic 50/50 based on contact ID hash
-  const charCode = cc.contact_id.charCodeAt(0) || 0;
-  const useVariantB = abAllowed && charCode % 2 !== 0;
+  /*
+   * Is this step a split test, and which arm is this contact in?
+   *
+   * Both answers come from shared/ab-test, because the sender and the
+   * report had different answers to the first one. Analytics treats either
+   * a variant subject OR a variant body as a test - correctly, the builder
+   * offers them separately - while this stamped the variant onto the
+   * activity only when there was a variant SUBJECT. A body-only test ran,
+   * varied the body, and recorded nothing.
+   *
+   * The assignment mixes the step in. It used to be the contact id's first
+   * character alone, which is an even split but the SAME split in every
+   * test that contact is ever in.
+   */
+  const isAbTest = abAllowed && stepHasVariantB(step);
+  const useVariantB = isAbTest && assignVariant(cc.contact_id, step.id) === 'b';
 
   let rawSubject = step.subject || '';
   if (step.subject_b) {
@@ -573,7 +607,8 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
       subject,
       bodyHtml,
       bodyText,
-      ab_variant: step.subject_b ? (useVariantB ? 'b' : 'a') : undefined,
+      // Recorded for every send in a test, including a body-only one.
+      ab_variant: isAbTest ? (useVariantB ? 'b' : 'a') : undefined,
     });
     // (Quota already reserved above before sending.)
     // Whatever was blocking this campaign clearly isn't any more.

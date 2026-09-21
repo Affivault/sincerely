@@ -99,13 +99,32 @@ export const suppressionService = {
     if (error) throw new AppError(error.message, 500);
   },
 
+  /**
+   * Is this address on the list?
+   *
+   * THROWS rather than answering when it cannot tell, and that is the
+   * whole point of the function.
+   *
+   * It used to destructure `data` alone and `return !!data`, so a timed
+   * out query, a connection blip or a permissions error all came back as
+   * `false` - "not suppressed" - from the last check standing between a
+   * campaign and somebody who had unsubscribed. A guard that answers "go
+   * ahead" when it is broken is not a guard.
+   *
+   * Compare the domain throttle, which deliberately fails open and says
+   * so: a burst is a reputation cost, but a throttle failing closed stops
+   * every campaign. The trade here runs the other way. Not sending is a
+   * delay of a few minutes; sending is mail to somebody who asked not to
+   * receive it, which is a legal matter rather than a UX one.
+   */
   async isSuppressed(userId: string, email: string): Promise<boolean> {
-    const { data } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from('suppression_list')
       .select('id')
       .eq('user_id', userId)
       .eq('email', email.toLowerCase().trim())
       .maybeSingle();
+    if (error) throw new AppError(`Could not check the suppression list: ${error.message}`, 503);
     return !!data;
   },
 };

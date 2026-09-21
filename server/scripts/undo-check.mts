@@ -328,6 +328,23 @@ console.log('\nthe bar is mounted where a route change cannot kill it');
   is('without a provider the action still runs',
      /if \(ctx\) \{ ctx\.offer\(entry\); return; \}\s*void entry\.commit\(\);/.test(bar),
      'a delete outside the app shell would do nothing at all');
+
+  /*
+   * Two undo mechanisms exist on purpose - one defers the action, the
+   * other runs it and offers a reversing call - and for a while both hooks
+   * were called useUndoable with different signatures. Importing the wrong
+   * one either deletes something twice or never.
+   */
+  const hook = readFileSync(join(here, '../../client/src/hooks/useUndoable.tsx'), 'utf8');
+  is('the two mechanisms do not share a name',
+     /export function useDeferredAction/.test(bar) && !/export function useUndoable/.test(bar),
+     'two hooks named useUndoable with different contracts');
+  is('and the same gesture draws the same bar',
+     /<UndoBarShell/.test(bar) && /<UndoBarShell/.test(hook),
+     'one undo appears as a toast and the other as a bar');
+  is('with one window constant each, named and justified',
+     /UNDO_REVERSE_WINDOW_MS/.test(hook) && !/const UNDO_WINDOW_MS = /.test(hook),
+     'the reversal window is redeclared locally and will drift');
 }
 
 console.log('\nrows on their way out are hidden by the page that owns them');
