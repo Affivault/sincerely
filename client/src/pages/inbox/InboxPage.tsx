@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inboxApi } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
@@ -2134,6 +2134,28 @@ export function InboxPage() {
     setMessageLimit(50);
   }, [folder, tagFilter, search]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  /*
+   * Opened from somewhere else, by id.
+   *
+   * The reply queue is a worklist and this is the mail client, so every
+   * row there has to land on the actual conversation here - a queue whose
+   * items open nothing is a list of things to feel bad about.
+   *
+   * The param is consumed once and cleared, so going back to the inbox
+   * later does not silently reopen the message somebody looked at on
+   * Tuesday.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const wanted = searchParams.get('message');
+    if (!wanted) return;
+    setSelectedId(wanted);
+    const next = new URLSearchParams(searchParams);
+    next.delete('message');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   const [showCompose, setShowCompose] = useState(false);
   const [replyMode, setReplyMode] = useState<'reply' | 'forward' | null>(null);
   const [forwardTo, setForwardTo] = useState('');

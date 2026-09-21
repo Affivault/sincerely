@@ -69,6 +69,8 @@ const SINGLE: Array<{ name: string; why: string }> = [
   { name: 'abStatusLine', why: 'the campaign page and the panel must describe one test the same way' },
   { name: 'placementSummary', why: 'one set of rules about when placement may be reported as a rate' },
   { name: 'classifyFolder', why: 'inbox-versus-spam decided twice is a report that disagrees with itself' },
+  { name: 'needsHuman', why: 'one gate on the reply queue; a second copy lets robots back in' },
+  { name: 'replyPriority', why: 'two orderings would put different replies at the top of the same queue' },
 ];
 
 console.log('\nnothing load-bearing is defined twice');

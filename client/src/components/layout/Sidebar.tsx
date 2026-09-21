@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
+  MessageSquare,
   Target,
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers, Blocks,
@@ -47,6 +48,10 @@ const isGroup = (item: NavItem): item is NavGroup => (item as NavGroup).kind ===
 const primaryNav: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Unibox',    href: '/inbox',     icon: Inbox },
+  /* What you owe people, hardest first. Beside the unibox because it is
+     the same subject, separate from it because reading mail and working a
+     queue are different jobs. */
+  { name: 'Replies',   href: '/replies',   icon: MessageSquare },
   {
     kind: 'group', id: 'campaigns',
     name: 'Campaigns', href: '/campaigns', icon: Megaphone,
