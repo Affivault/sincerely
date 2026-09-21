@@ -216,6 +216,15 @@ export const listsService = {
   },
 
   async getListsForContact(userId: string, contactId: string) {
+    const { data: contact, error: contactError } = await supabaseAdmin
+      .from('contacts')
+      .select('id')
+      .eq('id', contactId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (contactError) throw new AppError(contactError.message, 500);
+    if (!contact) throw new AppError('Contact not found', 404);
+
     // Get all list_ids this contact is on
     const { data: memberships, error: memError } = await supabaseAdmin
       .from('list_contacts')
