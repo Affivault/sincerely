@@ -255,7 +255,7 @@ export function ContactDetailPage() {
       {/* Back link */}
       <button
         onClick={() => navigate('/contacts')}
-        className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group"
+        className="flex items-center gap-1.5 text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group"
       >
         <ArrowLeft className="h-3.5 w-3.5 group-hover:-translate-x-0.5 transition-transform" />
         Contacts
@@ -270,8 +270,8 @@ export function ContactDetailPage() {
               value={fullName}
               placeholder={contact.email}
               ariaLabel="name"
-              textClassName="text-[18px] font-semibold text-[var(--text-primary)]"
-              inputClassName="text-[18px] font-semibold"
+              textClassName="text-title font-semibold text-[var(--text-primary)]"
+              inputClassName="text-title font-semibold"
               onSave={(next) => {
                 // First token is the given name, the remainder the surname, so
                 // "van der Berg" stays in one piece.
@@ -282,24 +282,24 @@ export function ContactDetailPage() {
                   : { first_name: trimmed.slice(0, cut), last_name: trimmed.slice(cut + 1).trim() || null });
               }}
             />
-            <p className="text-[12.5px] text-[var(--text-secondary)] truncate">
+            <p className="text-body text-[var(--text-secondary)] truncate">
               {[contact.job_title, contact.company].filter(Boolean).join(' · ') || contact.email}
             </p>
             <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
               {contact.tags?.map((tag: any) => (
                 <span
                   key={tag.id}
-                  className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold"
+                  className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-micro font-semibold"
                   style={{ backgroundColor: tag.color + '20', color: tag.color }}
                 >
                   {tag.name}
                 </span>
               ))}
               {contact.is_unsubscribed && (
-                <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10">Unsubscribed</span>
+                <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-micro font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10">Unsubscribed</span>
               )}
               {contact.is_bounced && (
-                <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold text-rose-700 dark:text-rose-400 bg-rose-500/10">Bounced</span>
+                <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-micro font-semibold text-rose-700 dark:text-rose-400 bg-rose-500/10">Bounced</span>
               )}
             </div>
           </div>
@@ -317,19 +317,19 @@ export function ContactDetailPage() {
             title={coldEmailable
               ? undefined
               : 'Cold campaigns only send to lead lists. Add this person to a lead list first.'}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[12.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-[var(--bg-surface)] disabled:hover:text-[var(--text-secondary)]"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-[var(--bg-surface)] disabled:hover:text-[var(--text-secondary)]"
           >
             <Send className="h-3.5 w-3.5" /> Add to campaign
           </button>
           <button
             onClick={() => setEventModal({ ...eventPrefill, type: 'meeting' })}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[12.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
           >
             <CalendarPlus className="h-3.5 w-3.5" /> Book meeting
           </button>
           <button
             onClick={() => setDealModal({ contact_name: fullName || contact.email, contact_email: contact.email, contact_id: contact.id, company: contact.company || null })}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo)] text-white text-[12.5px] font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]"
           >
             <Plus className="h-3.5 w-3.5" /> New deal
           </button>
@@ -367,9 +367,9 @@ export function ContactDetailPage() {
           { label: 'Open pipeline', value: money(pipelineValue), sub: `${openDeals.length} deal${openDeals.length === 1 ? '' : 's'}` },
         ].map((s) => (
           <div key={s.label} className="card px-3.5 py-3">
-            <p className="text-[11px] font-medium text-[var(--text-tertiary)]">{s.label}</p>
-            <p className="mt-1 text-[17px] font-semibold text-[var(--text-primary)] tabular leading-none truncate">{s.value}</p>
-            <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">{s.sub}</p>
+            <p className="text-caption font-medium text-[var(--text-tertiary)]">{s.label}</p>
+            <p className="mt-1 text-title font-semibold text-[var(--text-primary)] tabular leading-none truncate">{s.value}</p>
+            <p className="mt-1.5 text-caption text-[var(--text-muted)]">{s.sub}</p>
           </div>
         ))}
       </div>
@@ -387,7 +387,7 @@ export function ContactDetailPage() {
           */}
           <div className="card p-4">
             <div className="flex items-center justify-between gap-2 mb-2.5">
-              <h2 className="text-[11px] font-bold text-[var(--text-tertiary)]">Stage</h2>
+              <h2 className="text-caption font-bold text-[var(--text-tertiary)]">Stage</h2>
               <span
                 title={
                   stage === 'customer' ? 'Won a deal.'
@@ -395,7 +395,7 @@ export function ContactDetailPage() {
                     : 'Sourced but never engaged.'
                 }
                 className={cn(
-                  'inline-flex items-center px-1.5 h-[20px] rounded-md text-[10.5px] font-semibold',
+                  'inline-flex items-center px-1.5 h-[20px] rounded-md text-micro font-semibold',
                   stage === 'customer' ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/12'
                     : stage === 'contact' ? 'text-indigo-700 dark:text-indigo-300 bg-indigo-500/12'
                     : 'text-[var(--text-tertiary)] bg-[var(--bg-elevated)]',
@@ -405,7 +405,7 @@ export function ContactDetailPage() {
               </span>
             </div>
             <div className={cn(
-              'flex items-start gap-2 rounded-[6px] px-2.5 py-2 text-[11.5px] leading-snug',
+              'flex items-start gap-2 rounded-[6px] px-2.5 py-2 text-caption leading-snug',
               coldEmailable
                 ? 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
                 : 'bg-[var(--indigo-subtle)] text-[var(--text-primary)] border border-[var(--indigo)]/20',
@@ -422,7 +422,7 @@ export function ContactDetailPage() {
           </div>
 
           <div className="card p-4">
-            <h2 className="text-[11px] font-bold text-[var(--text-tertiary)] mb-3">Contact Info</h2>
+            <h2 className="text-caption font-bold text-[var(--text-tertiary)] mb-3">Contact Info</h2>
             <div className="space-y-2.5">
               {/* Every field renders whether or not it's filled — you can't type
                   into a row the UI hides because it's empty. */}
@@ -444,10 +444,10 @@ export function ContactDetailPage() {
                 <div className="flex items-start gap-3">
                   <Building2 className="h-4 w-4 text-[var(--text-secondary)] mt-0.5 shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs text-[var(--text-secondary)]">Company</p>
+                    <p className="text-body text-[var(--text-secondary)]">Company</p>
                     <Link
                       to={`/companies/${contact.company_id}`}
-                      className="group inline-flex items-center gap-1 text-sm text-[var(--text-primary)] hover:text-[var(--indigo)] transition-colors min-w-0"
+                      className="group inline-flex items-center gap-1 text-strong text-[var(--text-primary)] hover:text-[var(--indigo)] transition-colors min-w-0"
                     >
                       <span className="truncate">{contact.company || 'View account'}</span>
                       <ArrowUpRight className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -469,18 +469,18 @@ export function ContactDetailPage() {
                 importedAt={contact.imported_at}
                 createdAt={contact.created_at}
               />
-              <p className="text-[11px] text-[var(--text-tertiary)]">Added {formatDate(contact.created_at)} · updated {formatDate(contact.updated_at)}</p>
+              <p className="text-caption text-[var(--text-tertiary)]">Added {formatDate(contact.created_at)} · updated {formatDate(contact.updated_at)}</p>
             </div>
           </div>
 
           {/* Lists Section */}
           <div className="card p-4">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-[11px] font-bold text-[var(--text-tertiary)]">Lists</h2>
+              <h2 className="text-caption font-bold text-[var(--text-tertiary)]">Lists</h2>
               <div className="relative">
                 <button
                   onClick={() => setShowAddToListDropdown(!showAddToListDropdown)}
-                  className="inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] rounded-md transition-colors"
+                  className="inline-flex items-center gap-1 h-6 px-2 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] rounded-md transition-colors"
                 >
                   <Plus className="h-3 w-3" />
                   Add
@@ -490,7 +490,7 @@ export function ContactDetailPage() {
                     <div className="fixed inset-0 z-40" onClick={() => setShowAddToListDropdown(false)} />
                     <div className="absolute right-0 top-full mt-1 z-50 w-52 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl shadow-lg overflow-hidden">
                       {nonMemberLists.length === 0 ? (
-                        <p className="px-3 py-3 text-xs text-[var(--text-tertiary)] text-center">
+                        <p className="px-3 py-3 text-body text-[var(--text-tertiary)] text-center">
                           Already on all lists
                         </p>
                       ) : (
@@ -499,7 +499,7 @@ export function ContactDetailPage() {
                             key={list.id}
                             onClick={() => addToListMutation.mutate(list.id)}
                             disabled={addToListMutation.isPending}
-                            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                            className="w-full flex items-center gap-2 px-3 py-2.5 text-strong text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
                           >
                             <FolderOpen className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
                             <span className="flex-1 text-left truncate">{list.name}</span>
@@ -512,7 +512,7 @@ export function ContactDetailPage() {
               </div>
             </div>
             {memberLists.length === 0 ? (
-              <p className="text-[12px] text-[var(--text-tertiary)]">Not on any lists yet</p>
+              <p className="text-body text-[var(--text-tertiary)]">Not on any lists yet</p>
             ) : (
               <div className="space-y-1">
                 {/*
@@ -526,7 +526,7 @@ export function ContactDetailPage() {
                   ['Contact lists', crmLists, 'Cold campaigns can never send to these.'],
                 ] as [string, any[], string][]).filter(([, ls]) => ls.length > 0).map(([label, ls, hint]) => (
                   <div key={label} className="pt-1 first:pt-0">
-                    <p className="px-0.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-tertiary)]" title={hint}>
+                    <p className="px-0.5 pb-1 text-micro font-semibold uppercase tracking-wide text-[var(--text-tertiary)]" title={hint}>
                       {label}
                     </p>
                     <div className="space-y-1">
@@ -536,7 +536,7 @@ export function ContactDetailPage() {
                     className="flex items-center gap-2 h-8 px-2.5 rounded-[6px] bg-[var(--bg-elevated)] group"
                   >
                     <FolderOpen className="h-3 w-3 text-[var(--text-tertiary)] flex-shrink-0" />
-                    <span className="flex-1 text-[12px] font-medium text-[var(--text-primary)] truncate">
+                    <span className="flex-1 text-body font-medium text-[var(--text-primary)] truncate">
                       {list.name}
                     </span>
                     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -571,7 +571,7 @@ export function ContactDetailPage() {
           {/* Deals — this lead's CRM pipeline */}
           <div className="card p-4">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-[11px] font-bold text-[var(--text-tertiary)]">Deals</h2>
+              <h2 className="text-caption font-bold text-[var(--text-tertiary)]">Deals</h2>
               <div className="flex items-center gap-1">
                 {/* The step before a deal. A promising reply is not a
                     forecast entry yet, and putting it straight into the
@@ -580,13 +580,13 @@ export function ContactDetailPage() {
                   onClick={() => makeLead.mutate()}
                   disabled={makeLead.isPending || !!openLead}
                   title={openLead ? 'Already has an open lead' : 'Hold this person as a lead, out of the pipeline, until they are qualified'}
-                  className="inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] rounded-md transition-colors disabled:opacity-50"
+                  className="inline-flex items-center gap-1 h-6 px-2 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] rounded-md transition-colors disabled:opacity-50"
                 >
                   <Sparkles className="h-3 w-3" /> New lead
                 </button>
                 <button
                   onClick={() => setDealModal({ contact_name: fullName || contact.email, contact_email: contact.email, contact_id: contact.id, company: contact.company || null })}
-                  className="inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] rounded-md transition-colors"
+                  className="inline-flex items-center gap-1 h-6 px-2 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] rounded-md transition-colors"
                 >
                   <Plus className="h-3 w-3" /> New deal
                 </button>
@@ -601,14 +601,14 @@ export function ContactDetailPage() {
                 className="mb-2 flex items-center gap-2 rounded-[6px] border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-2.5 py-1.5 transition-colors hover:bg-[var(--indigo-subtle)]/70"
               >
                 <Sparkles className="h-3 w-3 flex-shrink-0 text-[var(--indigo)]" />
-                <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium text-[var(--text-primary)]">
+                <span className="min-w-0 flex-1 truncate text-caption font-medium text-[var(--text-primary)]">
                   Open lead: {openLead.title}
                 </span>
-                <span className="flex-shrink-0 text-[10.5px] text-[var(--text-tertiary)]">Qualify →</span>
+                <span className="flex-shrink-0 text-micro text-[var(--text-tertiary)]">Qualify →</span>
               </Link>
             )}
             {!contactDeals || contactDeals.length === 0 ? (
-              <p className="text-[12px] text-[var(--text-tertiary)]">Not on any deals yet</p>
+              <p className="text-body text-[var(--text-tertiary)]">Not on any deals yet</p>
             ) : (
               <div className="space-y-1">
                 {contactDeals.map((d) => {
@@ -622,15 +622,15 @@ export function ContactDetailPage() {
                     >
                       <span className={cn('h-2 w-2 rounded-full flex-shrink-0', dot)} />
                       <span className="flex-1 min-w-0">
-                        <span className="block truncate text-[12px] font-medium text-[var(--text-primary)]">{d.title}</span>
+                        <span className="block truncate text-body font-medium text-[var(--text-primary)]">{d.title}</span>
                         {/* Says why they are on it. "Blocker on the Northbeam
                             renewal" is a different fact from "owns it". */}
                         {d.participant_role && (
-                          <span className="block truncate text-[10.5px] text-[var(--text-tertiary)]">{d.participant_role}</span>
+                          <span className="block truncate text-micro text-[var(--text-tertiary)]">{d.participant_role}</span>
                         )}
                       </span>
-                      <span className="text-[11px] text-[var(--text-tertiary)] flex-shrink-0">{stage?.label}</span>
-                      <span className="text-[12px] font-semibold text-[var(--text-primary)] tabular flex-shrink-0">${Math.round(d.value || 0).toLocaleString()}</span>
+                      <span className="text-caption text-[var(--text-tertiary)] flex-shrink-0">{stage?.label}</span>
+                      <span className="text-body font-semibold text-[var(--text-primary)] tabular flex-shrink-0">${Math.round(d.value || 0).toLocaleString()}</span>
                     </Link>
                   );
                 })}
@@ -695,11 +695,11 @@ export function ContactDetailPage() {
                   )}
                 >
                   <FolderOpen className={cn('h-4 w-4', moveToListId === list.id ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} />
-                  <span className="flex-1 text-left text-[13px] font-medium text-[var(--text-primary)] truncate">
+                  <span className="flex-1 text-left text-strong font-medium text-[var(--text-primary)] truncate">
                     {list.name}
                   </span>
                   {list.is_member && (
-                    <span className="text-[10px] font-medium text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded-full">
+                    <span className="text-micro font-medium text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded-full">
                       Already on
                     </span>
                   )}
@@ -750,7 +750,7 @@ function InfoRow({
     <div className="flex items-start gap-3 group/inforow">
       <Icon className="h-4 w-4 text-[var(--text-secondary)] mt-0.5 shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="text-xs text-[var(--text-secondary)]">{label}</p>
+        <p className="text-body text-[var(--text-secondary)]">{label}</p>
         <div className="flex items-center gap-1.5 min-w-0">
           {onSave ? (
             <span className="min-w-0 flex-1">
@@ -759,8 +759,8 @@ function InfoRow({
                 placeholder={`Add ${label.toLowerCase()}`}
                 ariaLabel={label.toLowerCase()}
                 type={isLink ? 'url' : 'text'}
-                textClassName="text-sm text-[var(--text-primary)]"
-                inputClassName="text-sm"
+                textClassName="text-strong text-[var(--text-primary)]"
+                inputClassName="text-strong"
                 onSave={onSave}
               />
             </span>
@@ -769,12 +769,12 @@ function InfoRow({
               href={(value || '').startsWith('http') ? value! : `https://${value}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-[var(--text-primary)] hover:underline truncate block"
+              className="text-strong text-[var(--text-primary)] hover:underline truncate block"
             >
               {value}
             </a>
           ) : (
-            <p className="text-sm text-[var(--text-primary)] truncate">{value}</p>
+            <p className="text-strong text-[var(--text-primary)] truncate">{value}</p>
           )}
           {onSave && isLink && value && (
             <a

@@ -14,7 +14,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <div className="space-y-1">
         {label && (
-          <label htmlFor={id} className="block text-[12px] font-medium text-[var(--text-secondary)]">
+          <label htmlFor={id} className="block text-body font-medium text-[var(--text-secondary)]">
             {label}
           </label>
         )}
@@ -22,7 +22,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           ref={ref}
           id={id}
           className={cn(
-            'block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-[13px] text-[var(--text-primary)] transition-[border-color,box-shadow] duration-150 ease-out hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] cursor-pointer',
+            'block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-strong text-[var(--text-primary)] transition-[border-color,box-shadow] duration-150 ease-out hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] cursor-pointer',
             error && 'border-[var(--error)] hover:border-[var(--error)] focus:border-[var(--error)] focus:shadow-[0_0_0_3px_rgba(239,68,68,0.12)]',
             className
           )}
@@ -39,8 +39,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             </option>
           ))}
         </select>
-        {error && <p className="text-[11.5px] text-[var(--error)] leading-tight">{error}</p>}
-        {hint && !error && <p className="text-[11.5px] text-[var(--text-tertiary)] leading-tight">{hint}</p>}
+        {error && <p className="text-caption text-[var(--error)] leading-tight">{error}</p>}
+        {hint && !error && <p className="text-caption text-[var(--text-tertiary)] leading-tight">{hint}</p>}
       </div>
     );
   }

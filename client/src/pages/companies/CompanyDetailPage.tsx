@@ -50,9 +50,9 @@ const KIND_META: Record<StreamItem['kind'], { icon: typeof Mail; tone: string; l
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="card px-3.5 py-3">
-      <p className="text-[11px] font-medium text-[var(--text-tertiary)]">{label}</p>
-      <p className="mt-1 text-[17px] font-semibold text-[var(--text-primary)] tabular leading-none truncate">{value}</p>
-      {sub && <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">{sub}</p>}
+      <p className="text-caption font-medium text-[var(--text-tertiary)]">{label}</p>
+      <p className="mt-1 text-title font-semibold text-[var(--text-primary)] tabular leading-none truncate">{value}</p>
+      {sub && <p className="mt-1.5 text-caption text-[var(--text-muted)]">{sub}</p>}
     </div>
   );
 }
@@ -69,7 +69,7 @@ function InfoRow({ icon: Icon, label, value, onSave, href, type }: {
     <div className="flex items-start gap-3 group/row">
       <Icon className="h-4 w-4 text-[var(--text-secondary)] mt-0.5 shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="text-xs text-[var(--text-secondary)]">{label}</p>
+        <p className="text-body text-[var(--text-secondary)]">{label}</p>
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="min-w-0 flex-1">
             <InlineEdit
@@ -77,8 +77,8 @@ function InfoRow({ icon: Icon, label, value, onSave, href, type }: {
               placeholder={`Add ${label.toLowerCase()}`}
               ariaLabel={label.toLowerCase()}
               type={type}
-              textClassName="text-sm text-[var(--text-primary)]"
-              inputClassName="text-sm"
+              textClassName="text-strong text-[var(--text-primary)]"
+              inputClassName="text-strong"
               onSave={onSave}
             />
           </span>
@@ -221,7 +221,7 @@ export function CompanyDetailPage() {
     <div className="space-y-4">
       <button
         onClick={() => navigate('/companies')}
-        className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group"
+        className="flex items-center gap-1.5 text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group"
       >
         <ArrowLeft className="h-3.5 w-3.5 group-hover:-translate-x-0.5 transition-transform" />
         Companies
@@ -238,11 +238,11 @@ export function CompanyDetailPage() {
               value={company.name}
               placeholder="Unnamed company"
               ariaLabel="company name"
-              textClassName="text-[18px] font-semibold text-[var(--text-primary)]"
-              inputClassName="text-[18px] font-semibold"
+              textClassName="text-title font-semibold text-[var(--text-primary)]"
+              inputClassName="text-title font-semibold"
               onSave={(next) => save({ name: next })}
             />
-            <p className="text-[12.5px] text-[var(--text-secondary)] truncate">
+            <p className="text-body text-[var(--text-secondary)] truncate">
               {[company.industry, company.location].filter(Boolean).join(' · ') || company.domain || 'No details yet'}
             </p>
           </div>
@@ -283,7 +283,7 @@ export function CompanyDetailPage() {
         {/* Left rail */}
         <div className="space-y-3">
           <div className="card p-4">
-            <h2 className="text-[11px] font-bold text-[var(--text-tertiary)] mb-3">Company info</h2>
+            <h2 className="text-caption font-bold text-[var(--text-tertiary)] mb-3">Company info</h2>
             <div className="space-y-2.5">
               <InfoRow icon={Globe} label="Domain" value={company.domain} onSave={field('domain')} href={website} />
               <InfoRow icon={Globe} label="Website" value={company.website} onSave={field('website')} type="url" href={company.website || undefined} />
@@ -293,7 +293,7 @@ export function CompanyDetailPage() {
               <div className="flex items-start gap-3">
                 <Users className="h-4 w-4 text-[var(--text-secondary)] mt-0.5 shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs text-[var(--text-secondary)]">Headcount</p>
+                  <p className="text-body text-[var(--text-secondary)]">Headcount</p>
                   <InlineSelect
                     value={(company.size || '') as string}
                     options={COMPANY_SIZE_OPTIONS}
@@ -303,14 +303,14 @@ export function CompanyDetailPage() {
               </div>
             </div>
             <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
-              <p className="text-[11px] text-[var(--text-tertiary)]">
+              <p className="text-caption text-[var(--text-tertiary)]">
                 Added {formatDate(company.created_at)} · updated {formatDate(company.updated_at)}
               </p>
             </div>
           </div>
 
           <div className="card p-4">
-            <h2 className="text-[11px] font-bold text-[var(--text-tertiary)] mb-2">Notes</h2>
+            <h2 className="text-caption font-bold text-[var(--text-tertiary)] mb-2">Notes</h2>
             <InlineEdit
               value={company.notes}
               multiline
@@ -333,14 +333,14 @@ export function CompanyDetailPage() {
                 key={t.id}
                 onClick={() => setTab(t.id)}
                 className={cn(
-                  'relative flex items-center gap-1.5 h-full px-2.5 text-[13px] font-medium transition-colors',
+                  'relative flex items-center gap-1.5 h-full px-2.5 text-strong font-medium transition-colors',
                   tab === t.id ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
                 )}
               >
                 {t.label}
                 {t.count > 0 && (
                   <span className={cn(
-                    'flex h-[17px] min-w-[17px] items-center justify-center rounded-[5px] px-1 text-[10.5px] font-semibold tabular',
+                    'flex h-[17px] min-w-[17px] items-center justify-center rounded-[5px] px-1 text-micro font-semibold tabular',
                     tab === t.id ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]',
                   )}>{t.count}</span>
                 )}
@@ -355,8 +355,8 @@ export function CompanyDetailPage() {
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elevated)] mb-2">
                   <Building2 className="h-4 w-4 text-[var(--text-tertiary)]" />
                 </span>
-                <p className="text-[12.5px] font-medium text-[var(--text-primary)]">Nothing has happened yet</p>
-                <p className="text-[11.5px] text-[var(--text-tertiary)] mt-0.5 max-w-sm">
+                <p className="text-body font-medium text-[var(--text-primary)]">Nothing has happened yet</p>
+                <p className="text-caption text-[var(--text-tertiary)] mt-0.5 max-w-sm">
                   Emails, notes, calls and meetings with anyone at {company.name} collect here as a single history.
                 </p>
               </div>
@@ -372,15 +372,15 @@ export function CompanyDetailPage() {
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className={cn(
-                          'text-[12.5px] text-[var(--text-primary)]',
+                          'text-body text-[var(--text-primary)]',
                           item.kind === 'note' ? 'whitespace-pre-wrap' : 'truncate font-medium',
                         )}>
                           {item.title}
                         </p>
                         {item.detail && (
-                          <p className="text-[11.5px] text-[var(--text-tertiary)] truncate mt-0.5">{item.detail}</p>
+                          <p className="text-caption text-[var(--text-tertiary)] truncate mt-0.5">{item.detail}</p>
                         )}
-                        <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                        <p className="text-caption text-[var(--text-muted)] mt-0.5">
                           {meta.label}
                           {item.who && (
                             <>
@@ -409,8 +409,8 @@ export function CompanyDetailPage() {
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elevated)] mb-2">
                   <Users className="h-4 w-4 text-[var(--text-tertiary)]" />
                 </span>
-                <p className="text-[12.5px] font-medium text-[var(--text-primary)]">Nobody linked yet</p>
-                <p className="text-[11.5px] text-[var(--text-tertiary)] mt-0.5 max-w-sm">
+                <p className="text-body font-medium text-[var(--text-primary)]">Nobody linked yet</p>
+                <p className="text-caption text-[var(--text-tertiary)] mt-0.5 max-w-sm">
                   Set a contact's company to this account and they'll appear here.
                 </p>
               </div>
@@ -423,16 +423,16 @@ export function CompanyDetailPage() {
                       <div className="flex items-center gap-2.5">
                         <Avatar name={name} email={c.email} size="sm" />
                         <button onClick={() => openPeek('contact', c.id)} className="min-w-0 flex-1 text-left group/p">
-                          <span className="block text-[12.5px] font-medium text-[var(--text-primary)] truncate group-hover/p:text-[var(--indigo)] transition-colors">
+                          <span className="block text-body font-medium text-[var(--text-primary)] truncate group-hover/p:text-[var(--indigo)] transition-colors">
                             {name}
                           </span>
-                          <span className="block text-[11.5px] text-[var(--text-tertiary)] truncate">
+                          <span className="block text-caption text-[var(--text-tertiary)] truncate">
                             {[c.job_title, c.email].filter(Boolean).join(' · ')}
                           </span>
                         </button>
                         <button
                           onClick={() => setWritingTo(writingTo === c.id ? null : c.id)}
-                          className="flex-shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors"
+                          className="flex-shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors"
                         >
                           <Mail className="h-3 w-3" /> Email
                         </button>
@@ -460,8 +460,8 @@ export function CompanyDetailPage() {
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elevated)] mb-2">
                   <Handshake className="h-4 w-4 text-[var(--text-tertiary)]" />
                 </span>
-                <p className="text-[12.5px] font-medium text-[var(--text-primary)]">No deals against this account</p>
-                <p className="text-[11.5px] text-[var(--text-tertiary)] mt-0.5 max-w-sm">
+                <p className="text-body font-medium text-[var(--text-primary)]">No deals against this account</p>
+                <p className="text-caption text-[var(--text-tertiary)] mt-0.5 max-w-sm">
                   Deals created from a conversation with anyone here will show up in this list.
                 </p>
                 <Link to="/deals" className="btn-secondary mt-3"><Plus className="h-3.5 w-3.5" /> Open pipeline</Link>
@@ -478,14 +478,14 @@ export function CompanyDetailPage() {
                       <Handshake className="h-3 w-3 text-[var(--indigo)]" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[12.5px] font-medium text-[var(--text-primary)] truncate group-hover/d:text-[var(--indigo)] transition-colors">
+                      <span className="block text-body font-medium text-[var(--text-primary)] truncate group-hover/d:text-[var(--indigo)] transition-colors">
                         {d.title}
                       </span>
-                      <span className="block text-[11.5px] text-[var(--text-tertiary)]">
+                      <span className="block text-caption text-[var(--text-tertiary)]">
                         {DEAL_STAGES.find((s) => s.id === d.stage)?.label || d.stage}
                       </span>
                     </span>
-                    <span className="text-[12.5px] font-semibold tabular text-[var(--text-primary)] flex-shrink-0">
+                    <span className="text-body font-semibold tabular text-[var(--text-primary)] flex-shrink-0">
                       {money(Number(d.value) || 0)}
                     </span>
                   </button>

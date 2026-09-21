@@ -104,13 +104,13 @@ export function AdminPage() {
             <ShieldCheck className="h-5 w-5 text-white" />
           </span>
           <div>
-            <h1 className="text-[19px] font-semibold text-[var(--text-primary)] tracking-[-0.01em] flex items-center gap-2">
+            <h1 className="text-title font-semibold text-[var(--text-primary)] tracking-[-0.01em] flex items-center gap-2">
               Admin
-              <span className="inline-flex items-center gap-1 px-1.5 h-[19px] rounded-[5px] text-[10.5px] font-semibold bg-[var(--indigo-subtle)] text-[var(--indigo)]">
+              <span className="inline-flex items-center gap-1 px-1.5 h-[19px] rounded-[5px] text-micro font-semibold bg-[var(--indigo-subtle)] text-[var(--indigo)]">
                 <Crown className="h-2.5 w-2.5" /> Owner
               </span>
             </h1>
-            <p className="text-[12.5px] text-[var(--text-tertiary)]">Signed in as {user?.email} — this page is visible to you alone.</p>
+            <p className="text-body text-[var(--text-tertiary)]">Signed in as {user?.email} — this page is visible to you alone.</p>
           </div>
         </div>
       </div>
@@ -119,11 +119,11 @@ export function AdminPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
         {statCards.map((s) => (
           <div key={s.label} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3">
-            <p className="text-[11px] font-medium text-[var(--text-tertiary)] flex items-center gap-1.5">
+            <p className="text-caption font-medium text-[var(--text-tertiary)] flex items-center gap-1.5">
               <span className={cn('flex h-5 w-5 items-center justify-center rounded-md', s.accentCls)}><s.icon className="h-3 w-3" /></span>
               {s.label}
             </p>
-            <p className="mt-1.5 text-[20px] font-semibold text-[var(--text-primary)] tabular leading-none">
+            <p className="mt-1.5 text-title font-semibold text-[var(--text-primary)] tabular leading-none">
               {s.value == null ? '—' : s.value.toLocaleString()}
             </p>
           </div>
@@ -131,7 +131,7 @@ export function AdminPage() {
       </div>
 
       {/* Platform totals — one quiet strip */}
-      <div className="flex items-center gap-4 flex-wrap rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-muted)]/40 px-4 py-2.5 mb-5 text-[11.5px] text-[var(--text-tertiary)]">
+      <div className="flex items-center gap-4 flex-wrap rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-muted)]/40 px-4 py-2.5 mb-5 text-caption text-[var(--text-tertiary)]">
         {platformCards.map((p) => (
           <span key={p.label} className="inline-flex items-center gap-1.5">
             <p.icon className="h-3 w-3" />
@@ -149,8 +149,8 @@ export function AdminPage() {
               <InfinityIcon className="h-4 w-4 text-[var(--indigo)]" />
             </span>
             <div>
-              <p className="text-[13.5px] font-semibold text-[var(--text-primary)]">Grant lifetime access</p>
-              <p className="text-[11.5px] text-[var(--text-tertiary)]">Free forever · unlimited inboxes, emails & prospect credits · every feature · Stripe can never downgrade it.</p>
+              <p className="text-strong font-semibold text-[var(--text-primary)]">Grant lifetime access</p>
+              <p className="text-caption text-[var(--text-tertiary)]">Free forever · unlimited inboxes, emails & prospect credits · every feature · Stripe can never downgrade it.</p>
             </div>
           </div>
           <form
@@ -162,7 +162,7 @@ export function AdminPage() {
               value={grantEmail}
               onChange={(e) => setGrantEmail(e.target.value)}
               placeholder="user@example.com — must already have an account"
-              className="flex-1 h-9 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-3 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-[border-color,box-shadow]"
+              className="flex-1 h-9 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-3 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-[border-color,box-shadow]"
               required
             />
             <Button type="submit" disabled={grantMutation.isPending || !grantEmail.trim()}>
@@ -170,7 +170,7 @@ export function AdminPage() {
             </Button>
           </form>
           {lifetimeMembers.length > 0 && !search && (
-            <p className="mt-2.5 text-[11.5px] text-[var(--text-tertiary)]">
+            <p className="mt-2.5 text-caption text-[var(--text-tertiary)]">
               <Crown className="h-3 w-3 inline mr-1 text-[var(--indigo)]" />
               {lifetimeMembers.length} lifetime member{lifetimeMembers.length === 1 ? '' : 's'}: {lifetimeMembers.slice(0, 5).map((m) => m.email).join(', ')}{lifetimeMembers.length > 5 ? '…' : ''}
             </p>
@@ -183,7 +183,7 @@ export function AdminPage() {
         <div className="flex items-center gap-3 px-3 h-12 border-b border-[var(--border-subtle)]">
           <SearchInput value={search} onChange={setSearch} placeholder="Search users by email…" className="w-72" />
           <span className="flex-1" />
-          <span className="text-[11.5px] text-[var(--text-tertiary)] tabular">
+          <span className="text-caption text-[var(--text-tertiary)] tabular">
             {users.length}{usersData && usersData.total > users.length ? ` of ${usersData.total}` : ''} user{users.length === 1 ? '' : 's'}
           </span>
         </div>
@@ -191,12 +191,12 @@ export function AdminPage() {
         {loadingUsers ? (
           <div className="flex justify-center py-16"><Spinner size="md" /></div>
         ) : users.length === 0 ? (
-          <div className="py-14 text-center text-[12.5px] text-[var(--text-tertiary)]">No users match “{search}”.</div>
+          <div className="py-14 text-center text-body text-[var(--text-tertiary)]">No users match “{search}”.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-left">
               <thead>
-                <tr className="border-b border-[var(--border-subtle)] text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                <tr className="border-b border-[var(--border-subtle)] text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                   <th className="py-2.5 pl-4 pr-3">User</th>
                   <th className="py-2.5 px-3">Plan</th>
                   <th className="py-2.5 px-3">Confirmed</th>
@@ -216,21 +216,21 @@ export function AdminPage() {
                         <div className="flex items-center gap-2.5 min-w-0">
                           <Avatar email={u.email} size="lg" />
                           <div className="min-w-0">
-                            <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">
+                            <p className="text-strong font-medium text-[var(--text-primary)] truncate">
                               {u.email}
-                              {isSelf && <span className="ml-1.5 text-[10px] font-semibold text-[var(--indigo)]">(you)</span>}
+                              {isSelf && <span className="ml-1.5 text-micro font-semibold text-[var(--indigo)]">(you)</span>}
                             </p>
-                            <p className="text-[10.5px] text-[var(--text-muted)] font-mono truncate">{u.id}</p>
+                            <p className="text-micro text-[var(--text-muted)] font-mono truncate">{u.id}</p>
                           </div>
                         </div>
                       </td>
                       <td className="py-2.5 px-3">
-                        <span className={cn('inline-flex items-center gap-1 px-1.5 h-[19px] text-[10.5px] font-medium rounded-[4px]', PLAN_BADGE[u.plan] || PLAN_BADGE.free)}>
+                        <span className={cn('inline-flex items-center gap-1 px-1.5 h-[19px] text-micro font-medium rounded-[4px]', PLAN_BADGE[u.plan] || PLAN_BADGE.free)}>
                           {isLifetime && <Crown className="h-2.5 w-2.5" />}
                           {planName}
                         </span>
                         {u.status !== 'active' && u.status !== 'free' && u.status !== 'trialing' && (
-                          <span className="ml-1.5 text-[10px] text-[var(--text-muted)]">{u.status}</span>
+                          <span className="ml-1.5 text-micro text-[var(--text-muted)]">{u.status}</span>
                         )}
                       </td>
                       <td className="py-2.5 px-3">
@@ -238,14 +238,14 @@ export function AdminPage() {
                           ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
                           : <XCircle className="h-3.5 w-3.5 text-[var(--text-muted)]" />}
                       </td>
-                      <td className="py-2.5 px-3 text-[12px] text-[var(--text-secondary)] tabular whitespace-nowrap">{relTime(u.created_at)}</td>
-                      <td className="py-2.5 px-3 text-[12px] text-[var(--text-tertiary)] tabular whitespace-nowrap">{relTime(u.last_sign_in_at)}</td>
+                      <td className="py-2.5 px-3 text-body text-[var(--text-secondary)] tabular whitespace-nowrap">{relTime(u.created_at)}</td>
+                      <td className="py-2.5 px-3 text-body text-[var(--text-tertiary)] tabular whitespace-nowrap">{relTime(u.last_sign_in_at)}</td>
                       <td className="py-2.5 pr-4 pl-3">
                         <div className="flex justify-end">
                           {isLifetime ? (
                             confirmRevoke?.id === u.id ? (
                               <span className="inline-flex items-center gap-1.5">
-                                <span className="text-[11px] text-[var(--text-tertiary)]">Drop to Free?</span>
+                                <span className="text-caption text-[var(--text-tertiary)]">Drop to Free?</span>
                                 <Button size="sm" variant="danger" disabled={revokeMutation.isPending} onClick={() => revokeMutation.mutate(u.id)}>
                                   {revokeMutation.isPending ? 'Revoking…' : 'Confirm'}
                                 </Button>
@@ -254,7 +254,7 @@ export function AdminPage() {
                             ) : (
                               <button
                                 onClick={() => setConfirmRevoke(u)}
-                                className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11.5px] font-medium text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 hover:text-rose-500 hover:bg-rose-500/10 transition-all"
+                                className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-caption font-medium text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 hover:text-rose-500 hover:bg-rose-500/10 transition-all"
                               >
                                 <Undo2 className="h-3 w-3" /> Revoke
                               </button>
@@ -280,7 +280,7 @@ export function AdminPage() {
         )}
       </div>
 
-      <p className="mt-3 text-[11px] text-[var(--text-muted)]">
+      <p className="mt-3 text-caption text-[var(--text-muted)]">
         Access is enforced server-side: only {ADMIN_EMAILS.join(', ')} can call these endpoints — everyone else receives a 404.
       </p>
     </div>

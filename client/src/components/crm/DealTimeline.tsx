@@ -115,22 +115,22 @@ function AddNote({ dealId, contactId }: { dealId: string; contactId: string | nu
         }}
         rows={draft ? 3 : 1}
         placeholder="Add a note — what was said, what changed, what you promised…"
-        className="w-full resize-none bg-transparent px-1 py-1 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+        className="w-full resize-none bg-transparent px-1 py-1 text-strong text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
       />
       {draft.trim() && (
         <div className="mt-1 flex items-center justify-end gap-2">
-          <span className="mr-auto text-[10.5px] text-[var(--text-muted)]">Enter to save · Shift+Enter for a new line</span>
+          <span className="mr-auto text-micro text-[var(--text-muted)]">Enter to save · Shift+Enter for a new line</span>
           <button
             type="button"
             onClick={() => setDraft('')}
-            className="rounded-lg px-2 py-1 text-[12px] font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]"
+            className="rounded-lg px-2 py-1 text-body font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={save.isPending}
-            className="rounded-lg bg-[var(--indigo)] px-2.5 py-1 text-[12px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="rounded-lg bg-[var(--indigo)] px-2.5 py-1 text-body font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {save.isPending ? 'Saving…' : 'Save note'}
           </button>
@@ -306,7 +306,7 @@ export function DealTimeline({
               type="button"
               onClick={() => onWriteTo(null)}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11.5px] font-medium transition-colors',
+                'inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-caption font-medium transition-colors',
                 writeTo === null
                   ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
                   : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
@@ -315,7 +315,7 @@ export function DealTimeline({
               <StickyNote className="h-3 w-3" /> Note
             </button>
             <span className="mx-0.5 h-3.5 w-px bg-[var(--border-default)]" />
-            <span className="text-[11px] text-[var(--text-muted)]">Email</span>
+            <span className="text-caption text-[var(--text-muted)]">Email</span>
             {recipients.map((r) => (
               <button
                 key={r.email}
@@ -323,7 +323,7 @@ export function DealTimeline({
                 onClick={() => onWriteTo(writeTo?.email === r.email ? null : r)}
                 title={r.email}
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-[11.5px] font-medium transition-colors',
+                  'inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-caption font-medium transition-colors',
                   writeTo?.email === r.email
                     ? 'bg-[var(--indigo)] text-white'
                     : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
@@ -357,7 +357,7 @@ export function DealTimeline({
             type="button"
             onClick={() => setTab(t.id)}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-medium transition-colors',
+              'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-body font-medium transition-colors',
               tab === t.id
                 ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
                 : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
@@ -365,7 +365,7 @@ export function DealTimeline({
           >
             {t.label}
             {(counts[t.id] || 0) > 0 && (
-              <span className="text-[10.5px] tabular-nums text-[var(--text-muted)]">{counts[t.id]}</span>
+              <span className="text-micro tabular-nums text-[var(--text-muted)]">{counts[t.id]}</span>
             )}
           </button>
         ))}
@@ -373,14 +373,14 @@ export function DealTimeline({
         <button
           type="button"
           onClick={onAddActivity}
-          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-medium text-[var(--indigo)] hover:underline"
+          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-caption font-medium text-[var(--indigo)] hover:underline"
         >
           <CheckSquare className="h-3 w-3" /> Activity
         </button>
         <button
           type="button"
           onClick={onBookMeeting}
-          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-medium text-[var(--indigo)] hover:underline"
+          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-caption font-medium text-[var(--indigo)] hover:underline"
         >
           <CalendarPlus className="h-3 w-3" /> Meeting
         </button>
@@ -393,7 +393,7 @@ export function DealTimeline({
           {pinned.map((n) => (
             <div key={n.id} className="flex gap-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-2.5">
               <Pin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
-              <p className="min-w-0 flex-1 whitespace-pre-wrap text-[12.5px] leading-relaxed text-[var(--text-primary)]">{n.body}</p>
+              <p className="min-w-0 flex-1 whitespace-pre-wrap text-body leading-relaxed text-[var(--text-primary)]">{n.body}</p>
               <button type="button" onClick={() => pinNote.mutate(n)} className="icon-btn h-6 w-6 flex-shrink-0" title="Unpin">
                 <Pin className="h-3.5 w-3.5" />
               </button>
@@ -404,10 +404,10 @@ export function DealTimeline({
 
       {shown.length === 0 ? (
         <div className="panel py-10 text-center">
-          <p className="text-[13px] font-medium text-[var(--text-primary)]">
+          <p className="text-strong font-medium text-[var(--text-primary)]">
             {tab === 'all' ? 'Nothing on this deal yet' : `No ${TABS.find((t) => t.id === tab)?.label.toLowerCase()} yet`}
           </p>
-          <p className="mt-1 text-[12px] text-[var(--text-tertiary)]">
+          <p className="mt-1 text-body text-[var(--text-tertiary)]">
             {tab === 'emails'
               ? 'Emails to or from anybody on this deal appear here automatically.'
               : 'Notes, activities, meetings and stage changes all land here.'}
@@ -417,7 +417,7 @@ export function DealTimeline({
         <div className="panel divide-y divide-[var(--border-subtle)]">
           {groups.map((g) => (
             <div key={g.day} className="px-3.5 py-3">
-              <p className="mb-2 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">{g.day}</p>
+              <p className="mb-2 text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">{g.day}</p>
               <div className="space-y-2">
                 {g.items.map((e) => {
                   const Icon = e.icon;
@@ -453,7 +453,7 @@ export function DealTimeline({
                           >
                             <p
                               className={cn(
-                                'text-[12.5px] leading-relaxed text-[var(--text-primary)]',
+                                'text-body leading-relaxed text-[var(--text-primary)]',
                                 e.note ? 'whitespace-pre-wrap' : 'truncate',
                                 e.task?.is_done && 'text-[var(--text-muted)] line-through',
                               )}
@@ -461,7 +461,7 @@ export function DealTimeline({
                               {e.title}
                             </p>
                           </button>
-                          <span className="flex-shrink-0 text-[10.5px] tabular-nums text-[var(--text-muted)]">
+                          <span className="flex-shrink-0 text-micro tabular-nums text-[var(--text-muted)]">
                             {timeLabel(e.at)}
                           </span>
                           {e.note && (
@@ -484,11 +484,11 @@ export function DealTimeline({
                         </div>
 
                         {e.detail && (
-                          <p className="mt-0.5 whitespace-pre-wrap text-[12px] leading-relaxed text-[var(--text-secondary)]">{e.detail}</p>
+                          <p className="mt-0.5 whitespace-pre-wrap text-body leading-relaxed text-[var(--text-secondary)]">{e.detail}</p>
                         )}
                         {e.meta && (
                           <p className={cn(
-                            'mt-0.5 text-[10.5px]',
+                            'mt-0.5 text-micro',
                             e.task && !e.task.is_done && e.task.due_date
                               ? DUE_TONE[dueLabel(e.task.due_date).tone]
                               : 'text-[var(--text-tertiary)]',

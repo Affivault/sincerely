@@ -57,12 +57,12 @@ const QUICK_PROVIDERS: QuickConnectProvider[] = [
   },
   {
     preset: SMTP_PRESETS.find((p) => p.name === 'SendGrid')!,
-    icon: <div className="flex items-center justify-center w-5 h-5 rounded bg-blue-600 text-white text-[10px] font-bold">SG</div>,
+    icon: <div className="flex items-center justify-center w-5 h-5 rounded bg-blue-600 text-white text-micro font-bold">SG</div>,
     description: 'Transactional email with API key',
   },
   {
     preset: SMTP_PRESETS.find((p) => p.name === 'Zoho Mail')!,
-    icon: <div className="flex items-center justify-center w-5 h-5 rounded bg-green-600 text-white text-[10px] font-bold">Z</div>,
+    icon: <div className="flex items-center justify-center w-5 h-5 rounded bg-green-600 text-white text-micro font-bold">Z</div>,
     description: 'Zoho Mail or Zoho Workplace',
   },
 ];
@@ -84,7 +84,7 @@ function matchDomain(domains: SendingDomain[], email: string): SendingDomain | n
 function ExplainerModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal isOpen onClose={onClose} title="How inbox delivery works" description="SPF, DKIM & DMARC in plain English — a 2-minute read." size="lg">
-      <div className="space-y-4 text-[12.5px] text-[var(--text-secondary)] leading-relaxed">
+      <div className="space-y-4 text-body text-[var(--text-secondary)] leading-relaxed">
         <p>Every time you send, the receiving server (Gmail, Outlook…) asks one question: <span className="font-medium text-[var(--text-primary)]">“is this sender really who they claim to be?”</span> Three DNS records answer it. Without them, cold email lands in spam — or is rejected outright.</p>
         <div className="grid sm:grid-cols-3 gap-2.5">
           {[
@@ -93,21 +93,21 @@ function ExplainerModal({ onClose }: { onClose: () => void }) {
             { k: 'DMARC', c: 'What to do if a check fails', d: 'Ties SPF + DKIM to your visible “From” address and tells receivers how strict to be. Required by Gmail/Yahoo for bulk senders.' },
           ].map((x) => (
             <div key={x.k} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-muted)]/40 p-3">
-              <p className="text-[12px] font-semibold text-[var(--text-primary)]">{x.k}</p>
-              <p className="text-[11px] font-medium text-[var(--indigo)] mb-1">{x.c}</p>
-              <p className="text-[11.5px] text-[var(--text-tertiary)]">{x.d}</p>
+              <p className="text-body font-semibold text-[var(--text-primary)]">{x.k}</p>
+              <p className="text-caption font-medium text-[var(--indigo)] mb-1">{x.c}</p>
+              <p className="text-caption text-[var(--text-tertiary)]">{x.d}</p>
             </div>
           ))}
         </div>
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-muted)]/40 p-3">
-          <p className="text-[12px] font-semibold text-[var(--text-primary)] mb-1.5">Where each thing goes</p>
-          <ul className="space-y-1 text-[11.5px]">
+          <p className="text-body font-semibold text-[var(--text-primary)] mb-1.5">Where each thing goes</p>
+          <ul className="space-y-1 text-caption">
             <li><span className="font-medium text-[var(--text-primary)]">DNS records (SPF/DKIM/DMARC)</span> → published on your <span className="font-medium">domain</span>, at your registrar/DNS host (Cloudflare, Namecheap, GoDaddy…). Your mail provider gives you the exact values.</li>
             <li><span className="font-medium text-[var(--text-primary)]">Mailbox credentials (SMTP/IMAP)</span> → entered here in Sincerely, so we can send and read replies.</li>
           </ul>
-          <p className="text-[11.5px] text-[var(--text-tertiary)] mt-2">Best practice: authenticate the domain <span className="font-medium text-[var(--text-primary)]">first</span>, then connect its mailboxes, then warm them up before sending real volume.</p>
+          <p className="text-caption text-[var(--text-tertiary)] mt-2">Best practice: authenticate the domain <span className="font-medium text-[var(--text-primary)]">first</span>, then connect its mailboxes, then warm them up before sending real volume.</p>
         </div>
-        <p className="text-[11.5px] text-[var(--text-tertiary)]">
+        <p className="text-caption text-[var(--text-tertiary)]">
           Need a full walkthrough? <Link to="/smtp-accounts/guide" className="text-[var(--indigo)] hover:underline" onClick={onClose}>Read the setup guide</Link>.
         </p>
       </div>
@@ -141,13 +141,13 @@ function SetupProgress({
                 <CheckCircle2 className="h-[18px] w-[18px] text-emerald-500 flex-shrink-0" />
               ) : (
                 <span className={cn(
-                  'flex h-[18px] w-[18px] items-center justify-center rounded-full text-[10px] font-bold flex-shrink-0',
+                  'flex h-[18px] w-[18px] items-center justify-center rounded-full text-micro font-bold flex-shrink-0',
                   active ? 'bg-[var(--indigo)] text-white' : 'border border-[var(--border-default)] text-[var(--text-muted)]'
                 )}>{i + 1}</span>
               )}
               <span className="min-w-0">
-                <span className={cn('block text-[12.5px] font-medium', step.done ? 'text-[var(--text-tertiary)] line-through decoration-[var(--text-muted)]' : 'text-[var(--text-primary)]')}>{step.label}</span>
-                {!step.done && <span className="block text-[11px] text-[var(--text-tertiary)] truncate">{step.hint}</span>}
+                <span className={cn('block text-body font-medium', step.done ? 'text-[var(--text-tertiary)] line-through decoration-[var(--text-muted)]' : 'text-[var(--text-primary)]')}>{step.label}</span>
+                {!step.done && <span className="block text-caption text-[var(--text-tertiary)] truncate">{step.hint}</span>}
               </span>
               {active && <ArrowRight className="h-3.5 w-3.5 text-[var(--indigo)] ml-auto flex-shrink-0" />}
             </button>
@@ -346,7 +346,7 @@ export function EmailAccountsPage() {
         }
         actions={
           <>
-            <button onClick={() => setShowExplainer(true)} className="icon-btn h-8 px-2.5 text-[12.5px] whitespace-nowrap">
+            <button onClick={() => setShowExplainer(true)} className="icon-btn h-8 px-2.5 text-body whitespace-nowrap">
               <HelpCircle className="h-3.5 w-3.5" /> How it works
             </button>
             {tab === 'domains'
@@ -361,12 +361,12 @@ export function EmailAccountsPage() {
       {(accountsError || domainsError) && (
         <div className="w-full mb-4 flex items-center gap-2.5 rounded-xl border border-red-500/25 bg-red-500/5 px-4 py-2.5">
           <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 flex-shrink-0" />
-          <span className="text-[12.5px] text-[var(--text-secondary)] flex-1">
+          <span className="text-body text-[var(--text-secondary)] flex-1">
             Couldn't load your {accountsError && domainsError ? 'mailboxes or domains' : accountsError ? 'mailboxes' : 'domains'} — this isn't necessarily empty, something went wrong fetching it.
           </span>
           <button
             onClick={() => { if (accountsError) queryClient.invalidateQueries({ queryKey: ['smtp-accounts'] }); if (domainsError) queryClient.invalidateQueries({ queryKey: ['domains'] }); }}
-            className="text-[12px] font-semibold text-[var(--indigo)] hover:underline flex-shrink-0"
+            className="text-body font-semibold text-[var(--indigo)] hover:underline flex-shrink-0"
           >
             Retry
           </button>
@@ -385,7 +385,7 @@ export function EmailAccountsPage() {
           className="w-full mb-4 flex items-center gap-2.5 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-2.5 text-left hover:bg-amber-500/10 transition-colors"
         >
           <ShieldAlert className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-          <span className="text-[12.5px] text-[var(--text-secondary)]">
+          <span className="text-body text-[var(--text-secondary)]">
             <span className="font-medium text-[var(--text-primary)]">{unauthedMailboxes} mailbox{unauthedMailboxes === 1 ? '' : 'es'}</span> sending from an unauthenticated domain — fix the DNS to protect deliverability.
           </span>
           <ArrowRight className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 ml-auto flex-shrink-0" />
@@ -402,14 +402,14 @@ export function EmailAccountsPage() {
               key={t.id}
               onClick={() => setTab(t.id)}
               className={cn(
-                'relative flex items-center gap-1.5 h-9 px-3 text-[13px] font-medium transition-colors',
+                'relative flex items-center gap-1.5 h-9 px-3 text-strong font-medium transition-colors',
                 active ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
               )}
             >
               <Icon className="h-3.5 w-3.5" />
               {t.label}
               {t.count != null && t.count > 0 && (
-                <span className={cn('flex h-[17px] min-w-[17px] items-center justify-center rounded-[5px] px-1 text-[10.5px] font-semibold tabular', active ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]')}>{t.count}</span>
+                <span className={cn('flex h-[17px] min-w-[17px] items-center justify-center rounded-[5px] px-1 text-micro font-semibold tabular', active ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]')}>{t.count}</span>
               )}
               {t.alert && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
               <span className={cn('absolute left-2 right-2 -bottom-px h-[2px] rounded-t-full transition-opacity', active ? 'bg-[var(--indigo)] opacity-100' : 'opacity-0')} />
@@ -427,22 +427,22 @@ export function EmailAccountsPage() {
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6">
             <div className="text-center mb-5">
               <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] mb-3"><Mail className="h-5 w-5 text-[var(--indigo)]" /></span>
-              <p className="text-[15px] font-semibold text-[var(--text-primary)]">Connect your first mailbox</p>
-              <p className="text-[12.5px] text-[var(--text-tertiary)] mt-1">Pick your provider — settings are pre-filled, you just add email and password.</p>
+              <p className="text-heading font-semibold text-[var(--text-primary)]">Connect your first mailbox</p>
+              <p className="text-body text-[var(--text-tertiary)] mt-1">Pick your provider — settings are pre-filled, you just add email and password.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-xl mx-auto">
               {QUICK_PROVIDERS.map((provider) => (
                 <button key={provider.preset.name} onClick={() => openQuick(provider.preset)} className="group surface flex items-center gap-2.5 p-3 hover:shadow-[var(--shadow-md)] hover:border-[rgba(91,91,245,0.25)] transition-all text-left">
                   <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] shrink-0">{provider.icon}</div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">{provider.preset.name}</p>
-                    <p className="text-[11.5px] text-[var(--text-tertiary)] truncate">{provider.description}</p>
+                    <p className="text-strong font-medium text-[var(--text-primary)] truncate">{provider.preset.name}</p>
+                    <p className="text-caption text-[var(--text-tertiary)] truncate">{provider.description}</p>
                   </div>
                   <ArrowRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] group-hover:text-[var(--indigo)] transition-colors shrink-0" />
                 </button>
               ))}
             </div>
-            <p className="text-center text-[11.5px] text-[var(--text-tertiary)] mt-4">
+            <p className="text-center text-caption text-[var(--text-tertiary)] mt-4">
               Different provider?{' '}
               <button onClick={openAdd} className="text-[var(--indigo)] hover:underline font-medium">Connect any mailbox</button>
               {' '}— {SMTP_PRESETS.length} providers auto-detected.
@@ -457,12 +457,12 @@ export function EmailAccountsPage() {
             {list.length > 8 && (
               <div className="mb-3 flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 h-9">
                 <Search className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search mailboxes…" className="flex-1 bg-transparent text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none" />
-                {search && <span className="text-[11.5px] text-[var(--text-tertiary)] tabular">{filtered.length} of {list.length}</span>}
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search mailboxes…" className="flex-1 bg-transparent text-strong text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none" />
+                {search && <span className="text-caption text-[var(--text-tertiary)] tabular">{filtered.length} of {list.length}</span>}
               </div>
             )}
             {filtered.length === 0 ? (
-              <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-10 text-center text-[12.5px] text-[var(--text-tertiary)]">
+              <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-10 text-center text-body text-[var(--text-tertiary)]">
                 No mailboxes match “{search}”.
               </div>
             ) : (
@@ -507,12 +507,12 @@ export function EmailAccountsPage() {
         domains.length === 0 ? (
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center">
             <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] mb-3"><Globe className="h-5 w-5 text-[var(--indigo)]" /></span>
-            <p className="text-[15px] font-semibold text-[var(--text-primary)]">Authenticate your sending domain</p>
-            <p className="text-[12.5px] text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
+            <p className="text-heading font-semibold text-[var(--text-primary)]">Authenticate your sending domain</p>
+            <p className="text-body text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
               We generate the exact SPF, DKIM and DMARC records to paste into your DNS — the single biggest factor in reaching the inbox.
             </p>
             <Button className="mt-4" onClick={() => setAddDomainOpen(true)}><Plus className="h-3.5 w-3.5" /> Add domain</Button>
-            <p className="text-[11.5px] text-[var(--text-tertiary)] mt-3">
+            <p className="text-caption text-[var(--text-tertiary)] mt-3">
               Not sure why this matters? <button onClick={() => setShowExplainer(true)} className="text-[var(--indigo)] hover:underline">2-minute explainer</button>
             </p>
           </div>
@@ -531,11 +531,11 @@ export function EmailAccountsPage() {
                       </span>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-[14px] font-semibold text-[var(--text-primary)] truncate">{domain.domain}</h3>
+                          <h3 className="text-heading font-semibold text-[var(--text-primary)] truncate">{domain.domain}</h3>
                           {domain.is_verified
-                            ? <span className="inline-flex items-center px-1.5 h-[18px] text-[10.5px] font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-[4px]">Authenticated</span>
-                            : <span className="inline-flex items-center px-1.5 h-[18px] text-[10.5px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-[4px]">Needs DNS setup</span>}
-                          {mailboxCount > 0 && <span className="text-[10.5px] text-[var(--text-tertiary)]">{mailboxCount} mailbox{mailboxCount === 1 ? '' : 'es'}</span>}
+                            ? <span className="inline-flex items-center px-1.5 h-[18px] text-micro font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-[4px]">Authenticated</span>
+                            : <span className="inline-flex items-center px-1.5 h-[18px] text-micro font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-[4px]">Needs DNS setup</span>}
+                          {mailboxCount > 0 && <span className="text-micro text-[var(--text-tertiary)]">{mailboxCount} mailbox{mailboxCount === 1 ? '' : 'es'}</span>}
                         </div>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <StatusBadge ok={domain.txt_verified} label="Ownership" />
@@ -591,7 +591,7 @@ export function EmailAccountsPage() {
       {/* Add domain modal */}
       <Modal isOpen={addDomainOpen} onClose={() => { setAddDomainOpen(false); setNewDomain(''); }} title="Add a sending domain" size="md">
         <form onSubmit={(e) => { e.preventDefault(); if (newDomain.trim()) addDomainMutation.mutate(newDomain.trim()); }} className="space-y-4">
-          <p className="text-[12.5px] text-[var(--text-secondary)]">Enter the root domain you send from. We'll generate the exact SPF, DKIM and DMARC records to add to your DNS — then check them automatically.</p>
+          <p className="text-body text-[var(--text-secondary)]">Enter the root domain you send from. We'll generate the exact SPF, DKIM and DMARC records to add to your DNS — then check them automatically.</p>
           <Input label="Domain" value={newDomain} onChange={(e) => setNewDomain(e.target.value.replace(/^https?:\/\//, '').replace(/\/.*$/, ''))} placeholder="yourcompany.com" required autoFocus hint="Root domain, not a subdomain or email address" />
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="secondary" type="button" onClick={() => { setAddDomainOpen(false); setNewDomain(''); }}>Cancel</Button>

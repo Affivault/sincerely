@@ -63,13 +63,13 @@ export function DealStageBar({
                 (busy || active) && 'cursor-default',
               )}
             >
-              <span className="flex items-center gap-1.5 text-[12px] font-semibold">
+              <span className="flex items-center gap-1.5 text-body font-semibold">
                 {done && !active && <Check className="h-3 w-3 flex-shrink-0" />}
                 <span className="truncate">{meta?.label}</span>
               </span>
               <span
                 className={cn(
-                  'text-[10.5px] tabular-nums',
+                  'text-micro tabular-nums',
                   active ? 'text-white/75' : 'text-[var(--text-muted)]',
                 )}
               >
@@ -86,7 +86,7 @@ export function DealStageBar({
           disabled={busy || deal.stage === 'won'}
           onClick={() => onStage('won')}
           className={cn(
-            'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-[12.5px] font-semibold transition-colors',
+            'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-body font-semibold transition-colors',
             deal.stage === 'won'
               ? 'cursor-default bg-emerald-500 text-white'
               : 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400',
@@ -99,7 +99,7 @@ export function DealStageBar({
           disabled={busy || deal.stage === 'lost'}
           onClick={() => onStage('lost')}
           className={cn(
-            'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-[12.5px] font-semibold transition-colors',
+            'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-body font-semibold transition-colors',
             deal.stage === 'lost'
               ? 'cursor-default bg-rose-500 text-white'
               : 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 dark:text-rose-400',

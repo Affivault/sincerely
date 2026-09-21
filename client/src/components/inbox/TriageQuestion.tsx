@@ -40,13 +40,13 @@ export function TriageQuestion({ kind, count = 1, pending, onAnswer, onCancel, c
       compact && 'flex items-center gap-2 flex-wrap min-w-0',
     )}>
       <div className={cn(compact && 'flex items-baseline gap-2 flex-shrink-0')}>
-        <p className={cn('text-[11.5px] font-medium text-[var(--text-secondary)]', !compact && 'mb-0.5')}>
+        <p className={cn('text-caption font-medium text-[var(--text-secondary)]', !compact && 'mb-0.5')}>
           {kind === 'later'
             ? (many ? `Come back to ${noun} when?` : 'Come back to this when?')
             : 'Why not?'}
         </p>
         {kind === 'not_interested' && (
-          <p className={cn('text-[10.5px] text-[var(--text-tertiary)]', !compact && 'mb-2')}>
+          <p className={cn('text-micro text-[var(--text-tertiary)]', !compact && 'mb-2')}>
             {many
               ? `All ${count} will be suppressed, so no campaign reaches them again.`
               : 'They will be suppressed, so no campaign reaches them again.'}
@@ -60,7 +60,7 @@ export function TriageQuestion({ kind, count = 1, pending, onAnswer, onCancel, c
             onClick={() => onAnswer(o.answer)}
             disabled={pending}
             className={cn(
-              'h-7 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-[11.5px] font-medium text-[var(--text-primary)] transition-colors disabled:opacity-50',
+              'h-7 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-caption font-medium text-[var(--text-primary)] transition-colors disabled:opacity-50',
               hoverBorder,
             )}
           >
@@ -70,7 +70,7 @@ export function TriageQuestion({ kind, count = 1, pending, onAnswer, onCancel, c
         <button
           onClick={onCancel}
           disabled={pending}
-          className="h-7 px-2 text-[11.5px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] disabled:opacity-50"
+          className="h-7 px-2 text-caption text-[var(--text-tertiary)] hover:text-[var(--text-primary)] disabled:opacity-50"
         >
           Cancel
         </button>

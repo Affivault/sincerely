@@ -63,14 +63,14 @@ function WebhookUrlField({ campaignId }: { campaignId: string }) {
 
   return (
     <div>
-      <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Inbound webhook URL</label>
+      <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Inbound webhook URL</label>
       <div className="flex items-center gap-1.5">
         <input
           type="text"
           readOnly
           value={isLoading ? 'Loading…' : data?.url || ''}
           onFocus={(e) => e.target.select()}
-          className="flex-1 h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-xs font-mono text-[var(--text-secondary)] outline-none"
+          className="flex-1 h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-body font-mono text-[var(--text-secondary)] outline-none"
         />
         <button
           type="button"
@@ -82,7 +82,7 @@ function WebhookUrlField({ campaignId }: { campaignId: string }) {
           {copied ? <Check className="h-3.5 w-3.5 text-[var(--success)]" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
       </div>
-      <p className="text-xs text-[var(--text-tertiary)] mt-1">POST here with <code>{'{ event, contact_email }'}</code> to resume matching contacts. The token proves the call is authorized — keep this URL private.</p>
+      <p className="text-body text-[var(--text-tertiary)] mt-1">POST here with <code>{'{ event, contact_email }'}</code> to resume matching contacts. The token proves the call is authorized — keep this URL private.</p>
     </div>
   );
 }
@@ -169,7 +169,7 @@ function AddStepMenu({ onAdd, showAbove }: AddStepMenuProps) {
             "absolute z-30 w-52 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)] shadow-xl py-1 animate-fade-in",
             showAbove ? "bottom-full mb-2" : "top-full mt-2"
           )}>
-            <p className="px-3 pb-1.5 pt-1.5 text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.08em]">
+            <p className="px-3 pb-1.5 pt-1.5 text-micro font-bold text-[var(--text-tertiary)] uppercase tracking-[0.08em]">
               Add Step
             </p>
             {[
@@ -186,8 +186,8 @@ function AddStepMenu({ onAdd, showAbove }: AddStepMenuProps) {
                   <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[12px] font-semibold text-[var(--text-primary)]">{label}</p>
-                  <p className="text-[10.5px] text-[var(--text-tertiary)] leading-tight">{desc}</p>
+                  <p className="text-body font-semibold text-[var(--text-primary)]">{label}</p>
+                  <p className="text-micro text-[var(--text-tertiary)] leading-tight">{desc}</p>
                 </div>
               </button>
             ))}
@@ -207,8 +207,8 @@ function AddStepMenu({ onAdd, showAbove }: AddStepMenuProps) {
                   <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[12px] font-semibold text-[var(--text-primary)]">{label}</p>
-                  <p className="text-[10.5px] text-[var(--text-tertiary)] leading-tight">{desc}</p>
+                  <p className="text-body font-semibold text-[var(--text-primary)]">{label}</p>
+                  <p className="text-micro text-[var(--text-tertiary)] leading-tight">{desc}</p>
                 </div>
               </button>
             ))}
@@ -227,8 +227,8 @@ function AddStepMenu({ onAdd, showAbove }: AddStepMenuProps) {
                   <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[12px] font-semibold text-[var(--text-primary)]">{label}</p>
-                  <p className="text-[10.5px] text-[var(--text-tertiary)] leading-tight">{desc}</p>
+                  <p className="text-body font-semibold text-[var(--text-primary)]">{label}</p>
+                  <p className="text-micro text-[var(--text-tertiary)] leading-tight">{desc}</p>
                 </div>
               </button>
             ))}
@@ -371,7 +371,7 @@ function FlowNode({
       >
         {/* Step Number Badge */}
         <div className={cn(
-          'absolute -top-2.5 left-5 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold shadow-sm',
+          'absolute -top-2.5 left-5 flex items-center gap-1 px-2 py-0.5 rounded-full text-micro font-bold shadow-sm',
           stepColors.badgeBg
         )}>
           <span>Step {index + 1}</span>
@@ -380,7 +380,7 @@ function FlowNode({
 
         {/* Timeline badge — when this step fires relative to enrollment */}
         <div
-          className="absolute -top-2.5 right-5 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-[var(--bg-elevated)] text-[var(--text-tertiary)] border border-[var(--border-subtle)] shadow-sm"
+          className="absolute -top-2.5 right-5 flex items-center gap-1 px-2 py-0.5 rounded-full text-micro font-semibold bg-[var(--bg-elevated)] text-[var(--text-tertiary)] border border-[var(--border-subtle)] shadow-sm"
           title="When this step fires after a contact is enrolled"
         >
           <Clock className="h-2.5 w-2.5" strokeWidth={2.2} />
@@ -397,22 +397,22 @@ function FlowNode({
             {/* Content */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 mb-0.5">
-                <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">{config.label}</h3>
+                <h3 className="text-strong font-semibold text-[var(--text-primary)]">{config.label}</h3>
                 {step.step_type === 'email' && step.skip_if_replied !== false && (
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-[10px] font-semibold bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-micro font-semibold bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
                     <SkipForward className="h-2.5 w-2.5" />
                     Skip if replied
                   </span>
                 )}
                 {step.step_type === 'condition' && (
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-[10px] font-semibold bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-micro font-semibold bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
                     <GitBranch className="h-2.5 w-2.5" />
                     If/Else
                   </span>
                 )}
                 {isUnconfigured && (
                   <span
-                    className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                    className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-micro font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
                     title="This step won't do anything until it's configured — it'll block launch."
                   >
                     <AlertTriangle className="h-2.5 w-2.5" />
@@ -420,7 +420,7 @@ function FlowNode({
                   </span>
                 )}
               </div>
-              <p className={cn('text-[12px] truncate', isUnconfigured ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-secondary)]')}>
+              <p className={cn('text-body truncate', isUnconfigured ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-secondary)]')}>
                 {getStepSummary()}
               </p>
 
@@ -435,10 +435,10 @@ function FlowNode({
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Clock className="h-3 w-3 text-[var(--indigo)] flex-shrink-0" strokeWidth={2.2} />
-                  <span className="text-[11.5px] font-medium text-[var(--text-secondary)]">Sends</span>
+                  <span className="text-caption font-medium text-[var(--text-secondary)]">Sends</span>
                   <DelayUnit value={step.delay_days || 0} unit="d" onChange={(v) => onUpdate({ delay_days: v })} />
                   <DelayUnit value={step.delay_hours || 0} unit="h" onChange={(v) => onUpdate({ delay_hours: v })} />
-                  <span className="text-[11.5px] text-[var(--text-tertiary)] whitespace-nowrap">
+                  <span className="text-caption text-[var(--text-tertiary)] whitespace-nowrap">
                     {stepDelayInDays(step) > 0 ? 'after the previous step' : '— immediately after previous'}
                   </span>
                 </div>
@@ -452,10 +452,10 @@ function FlowNode({
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Clock className="h-3 w-3 text-sky-500 flex-shrink-0" strokeWidth={2.2} />
-                  <span className="text-[11.5px] font-medium text-[var(--text-secondary)]">Do this</span>
+                  <span className="text-caption font-medium text-[var(--text-secondary)]">Do this</span>
                   <DelayUnit value={step.delay_days || 0} unit="d" onChange={(v) => onUpdate({ delay_days: v })} />
                   <DelayUnit value={step.delay_hours || 0} unit="h" onChange={(v) => onUpdate({ delay_hours: v })} />
-                  <span className="text-[11.5px] text-[var(--text-tertiary)] whitespace-nowrap">
+                  <span className="text-caption text-[var(--text-tertiary)] whitespace-nowrap">
                     {stepDelayInDays(step) > 0 ? 'after the previous step' : '— immediately after previous'}
                   </span>
                 </div>
@@ -468,11 +468,11 @@ function FlowNode({
                   {step.step_type === 'linkedin_connect' && (
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="text-[11px] font-semibold text-[var(--text-secondary)]">
+                        <label className="text-caption font-semibold text-[var(--text-secondary)]">
                           Invite note <span className="font-normal text-[var(--text-tertiary)]">(optional)</span>
                         </label>
                         <span className={cn(
-                          'text-[10.5px] tabular',
+                          'text-micro tabular',
                           (step.linkedin_note || '').length > LINKEDIN_NOTE_MAX
                             ? 'text-[var(--error)] font-semibold'
                             : 'text-[var(--text-muted)]',
@@ -486,9 +486,9 @@ function FlowNode({
                         rows={3}
                         maxLength={LINKEDIN_NOTE_MAX}
                         placeholder="Hi {{first_name}} — saw you're leading growth at {{company}}. Would love to connect."
-                        className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 py-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-sky-500"
+                        className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 py-2 text-body text-[var(--text-primary)] outline-none focus:border-sky-500"
                       />
-                      <p className="mt-1 text-[10.5px] text-[var(--text-tertiary)]">
+                      <p className="mt-1 text-micro text-[var(--text-tertiary)]">
                         Invites without a note are accepted more often — leave it empty and it's sent bare.
                       </p>
                     </div>
@@ -496,29 +496,29 @@ function FlowNode({
 
                   {step.step_type === 'linkedin_message' && (
                     <div>
-                      <label className="block text-[11px] font-semibold text-[var(--text-secondary)] mb-1">Message</label>
+                      <label className="block text-caption font-semibold text-[var(--text-secondary)] mb-1">Message</label>
                       <textarea
                         value={step.body_text || ''}
                         onChange={(e) => onUpdate({ body_text: e.target.value })}
                         rows={4}
                         placeholder="Thanks for connecting, {{first_name}}…"
-                        className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 py-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-sky-500"
+                        className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 py-2 text-body text-[var(--text-primary)] outline-none focus:border-sky-500"
                       />
-                      <p className="mt-1 text-[10.5px] text-[var(--text-tertiary)]">
+                      <p className="mt-1 text-micro text-[var(--text-tertiary)]">
                         Only reaches people you're already connected to — put an invite step before this one.
                       </p>
                     </div>
                   )}
 
                   {step.step_type === 'linkedin_visit' && (
-                    <p className="text-[11.5px] text-[var(--text-tertiary)]">
+                    <p className="text-caption text-[var(--text-tertiary)]">
                       Nothing to write — a visit shows up in their notifications and often earns a look back.
                     </p>
                   )}
 
                   <div className="flex items-start gap-2 rounded-lg border border-sky-500/25 bg-sky-500/[0.06] px-2.5 py-2">
                     <Linkedin className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-[10.5px] text-[var(--text-secondary)] leading-snug">
+                    <p className="text-micro text-[var(--text-secondary)] leading-snug">
                       LinkedIn has no API for this, so the step lands in your Activities queue when it's due —
                       personalised, with the profile one click away. Tick it off and the sequence carries on.
                       Leads without a LinkedIn URL skip the step.
@@ -533,7 +533,7 @@ function FlowNode({
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setShowHtmlPreview((v) => !v); }}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] transition-colors"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] transition-colors"
                   >
                     {showHtmlPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                     {showHtmlPreview ? 'Hide preview' : 'Preview email'}
@@ -556,11 +556,11 @@ function FlowNode({
               {step.step_type === 'condition' && isEditing && (
                 <div className="mt-3 p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-subtle)] space-y-3">
                   <div>
-                    <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Condition Field</label>
+                    <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Condition Field</label>
                     <select
                       value={step.condition_field || ''}
                       onChange={(e) => onUpdate({ condition_field: (e.target.value || undefined) as ConditionField | undefined })}
-                      className="w-full h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-sm focus:border-[var(--text-primary)] focus:ring-2 focus:ring-[var(--text-primary)]/20"
+                      className="w-full h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-strong focus:border-[var(--text-primary)] focus:ring-2 focus:ring-[var(--text-primary)]/20"
                     >
                       <option value="">Select field...</option>
                       {conditionFieldOptions.map((opt) => (
@@ -570,11 +570,11 @@ function FlowNode({
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Operator</label>
+                      <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Operator</label>
                       <select
                         value={step.condition_operator || ''}
                         onChange={(e) => onUpdate({ condition_operator: (e.target.value || undefined) as ConditionOperator | undefined })}
-                        className="w-full h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-sm focus:border-[var(--text-primary)] focus:ring-2 focus:ring-[var(--text-primary)]/20"
+                        className="w-full h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-strong focus:border-[var(--text-primary)] focus:ring-2 focus:ring-[var(--text-primary)]/20"
                       >
                         <option value="">Select...</option>
                         {conditionOperatorOptions.map((opt) => (
@@ -583,27 +583,27 @@ function FlowNode({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Value</label>
+                      <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Value</label>
                       <input
                         type="text"
                         value={step.condition_value || ''}
                         onChange={(e) => onUpdate({ condition_value: e.target.value })}
                         placeholder="e.g., interested"
-                        className="w-full h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-sm focus:border-[var(--text-primary)] focus:ring-2 focus:ring-[var(--text-primary)]/20"
+                        className="w-full h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-strong focus:border-[var(--text-primary)] focus:ring-2 focus:ring-[var(--text-primary)]/20"
                       />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div className="p-2.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
-                      <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ True branch</p>
-                      <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">Continues to next step</p>
+                      <p className="text-body font-semibold text-emerald-700 dark:text-emerald-400">✓ True branch</p>
+                      <p className="text-caption text-emerald-600 dark:text-emerald-400 mt-0.5">Continues to next step</p>
                     </div>
                     <div className="p-2.5 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)] space-y-1.5">
-                      <p className="text-xs font-semibold text-[var(--text-primary)]">✗ False Branch</p>
+                      <p className="text-body font-semibold text-[var(--text-primary)]">✗ False Branch</p>
                       <select
                         value={step.false_branch_step ?? ''}
                         onChange={(e) => onUpdate({ false_branch_step: e.target.value === '' ? undefined : Number(e.target.value) })}
-                        className="w-full h-7 rounded border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-xs focus:border-[var(--indigo)] outline-none"
+                        className="w-full h-7 rounded border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body focus:border-[var(--indigo)] outline-none"
                       >
                         <option value="">Skip to end</option>
                         {Array.from({ length: totalSteps }, (_, i) => i).filter((i) => i !== index).map((i) => (
@@ -619,31 +619,31 @@ function FlowNode({
               {step.step_type === 'webhook_wait' && isEditing && (
                 <div className="mt-3 p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-subtle)] space-y-3">
                   <div>
-                    <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Webhook Event</label>
+                    <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Webhook Event</label>
                     <input
                       type="text"
                       value={step.webhook_event || ''}
                       onChange={(e) => onUpdate({ webhook_event: e.target.value })}
                       placeholder="e.g., payment.completed"
-                      className="w-full h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-sm focus:border-[var(--text-primary)] focus:ring-2 focus:ring-[var(--text-primary)]/20"
+                      className="w-full h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-strong focus:border-[var(--text-primary)] focus:ring-2 focus:ring-[var(--text-primary)]/20"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Timeout (hours)</label>
+                    <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Timeout (hours)</label>
                     <input
                       type="number"
                       min="1"
                       max="720"
                       value={step.webhook_timeout_hours || 72}
                       onChange={(e) => onUpdate({ webhook_timeout_hours: parseInt(e.target.value) || 72 })}
-                      className="w-full h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-sm focus:border-[var(--text-primary)] focus:ring-2 focus:ring-[var(--text-primary)]/20"
+                      className="w-full h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-strong focus:border-[var(--text-primary)] focus:ring-2 focus:ring-[var(--text-primary)]/20"
                     />
-                    <p className="text-xs text-[var(--text-tertiary)] mt-1">Contact proceeds to next step after timeout if webhook not received.</p>
+                    <p className="text-body text-[var(--text-tertiary)] mt-1">Contact proceeds to next step after timeout if webhook not received.</p>
                   </div>
                   {campaignId ? (
                     <WebhookUrlField campaignId={campaignId} />
                   ) : (
-                    <p className="text-xs text-[var(--text-tertiary)]">Save the campaign to get your inbound webhook URL.</p>
+                    <p className="text-body text-[var(--text-tertiary)]">Save the campaign to get your inbound webhook URL.</p>
                   )}
                 </div>
               )}
@@ -672,7 +672,7 @@ function FlowNode({
                   type="button"
                   onClick={onEdit}
                   className={cn(
-                    'px-2 py-1 rounded text-[11.5px] font-semibold transition-colors',
+                    'px-2 py-1 rounded text-caption font-semibold transition-colors',
                     isEditing
                       ? 'bg-[var(--indigo)] text-white'
                       : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
@@ -707,9 +707,9 @@ function DelayUnit({ value, unit, onChange }: { value: number; unit: string; onC
         value={value || 0}
         onChange={(e) => onChange(Math.max(0, Math.min(999, parseInt(e.target.value) || 0)))}
         onClick={(e) => e.stopPropagation()}
-        className="font-data w-10 h-7 text-center rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] text-[12.5px] font-medium text-[var(--text-primary)] tabular focus:border-amber-500 focus:ring-2 focus:ring-amber-500/15 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+        className="font-data w-10 h-7 text-center rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-primary)] tabular focus:border-amber-500 focus:ring-2 focus:ring-amber-500/15 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
       />
-      <span className="text-[11px] font-medium text-[var(--text-tertiary)]">{unit}</span>
+      <span className="text-caption font-medium text-[var(--text-tertiary)]">{unit}</span>
     </span>
   );
 }
@@ -734,7 +734,7 @@ function DelayChip({ step, onUpdate, onRemove, onMoveUp, onMoveDown, isFirst, is
         empty ? 'border-amber-500/40' : 'border-amber-500/25'
       )}>
         <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0" strokeWidth={2} />
-        <span className="text-[12px] font-medium text-[var(--text-secondary)]">Wait</span>
+        <span className="text-body font-medium text-[var(--text-secondary)]">Wait</span>
         <DelayUnit value={step.delay_days || 0} unit="d" onChange={(v) => onUpdate({ delay_days: v })} />
         <DelayUnit value={step.delay_hours || 0} unit="h" onChange={(v) => onUpdate({ delay_hours: v })} />
         <DelayUnit value={step.delay_minutes || 0} unit="m" onChange={(v) => onUpdate({ delay_minutes: v })} />
@@ -875,8 +875,8 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)] mb-3">
           <Sparkles className="h-6 w-6 text-[var(--indigo)]" strokeWidth={1.5} />
         </div>
-        <p className="text-[14px] font-semibold text-[var(--text-primary)] mb-1">Campaign Start</p>
-        <p className="text-[12px] text-[var(--text-tertiary)] mb-5">Add your first step to begin building the sequence</p>
+        <p className="text-heading font-semibold text-[var(--text-primary)] mb-1">Campaign Start</p>
+        <p className="text-body text-[var(--text-tertiary)] mb-5">Add your first step to begin building the sequence</p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-w-2xl">
           {[
@@ -894,8 +894,8 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
                 <Icon className="h-4 w-4" strokeWidth={1.75} />
               </div>
               <div className="min-w-0">
-                <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">{label}</p>
-                <p className="text-[10.5px] text-[var(--text-tertiary)] leading-tight">{desc}</p>
+                <p className="text-body font-semibold text-[var(--text-primary)]">{label}</p>
+                <p className="text-micro text-[var(--text-tertiary)] leading-tight">{desc}</p>
               </div>
             </button>
           ))}
@@ -931,12 +931,12 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
     <div className="relative py-4">
       {/* Start Node */}
       <div className="flex flex-col items-center gap-1.5 mb-1">
-        <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--indigo)] text-white text-[11.5px] font-bold shadow-[0_2px_6px_rgba(91,91,245,0.3)]">
+        <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--indigo)] text-white text-caption font-bold shadow-[0_2px_6px_rgba(91,91,245,0.3)]">
           <Sparkles className="h-3 w-3" />
           Campaign Start
         </div>
         {emailCount > 0 && (
-          <p className="text-[11px] text-[var(--text-tertiary)]">
+          <p className="text-caption text-[var(--text-tertiary)]">
             {emailCount} email{emailCount !== 1 ? 's' : ''}
             {totalDays > 0 && <> · spans ~{totalDays} day{totalDays !== 1 ? 's' : ''}</>}
           </p>
@@ -984,7 +984,7 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
 
       {/* End Node */}
       <div className="flex justify-center mt-1">
-        <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)] text-[11.5px] font-bold border border-[var(--border-subtle)]">
+        <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)] text-caption font-bold border border-[var(--border-subtle)]">
           <Flag className="h-3 w-3" />
           Campaign End
         </div>

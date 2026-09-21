@@ -52,10 +52,10 @@ export function StatCard({
     >
       <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
         {Icon && <Icon className="h-4 w-4 flex-shrink-0" strokeWidth={1.75} style={{ color }} />}
-        <span className="text-[12.5px] font-medium truncate">{label}</span>
+        <span className="text-body font-medium truncate">{label}</span>
         {delta != null && (
           <span className={cn(
-            'ml-auto flex items-center gap-0.5 text-[12px] font-semibold tabular flex-shrink-0',
+            'ml-auto flex items-center gap-0.5 text-body font-semibold tabular flex-shrink-0',
             flat ? 'text-[var(--text-tertiary)]' : deltaGood ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-500'
           )}>
             {!flat && (delta > 0 ? <ArrowUp className="h-3 w-3" strokeWidth={2.5} /> : <ArrowDown className="h-3 w-3" strokeWidth={2.5} />)}
@@ -64,10 +64,10 @@ export function StatCard({
         )}
       </div>
 
-      <div className="mt-3 text-[28px] font-semibold text-[var(--text-primary)] tabular leading-none tracking-[-0.03em]">
+      <div className="mt-3 text-hero font-semibold text-[var(--text-primary)] tabular leading-none tracking-[-0.03em]">
         {value}
       </div>
-      {hint && <div className="mt-2 text-[12px] text-[var(--text-tertiary)] truncate">{hint}</div>}
+      {hint && <div className="mt-2 text-body text-[var(--text-tertiary)] truncate">{hint}</div>}
     </div>
   );
 }

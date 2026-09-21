@@ -60,7 +60,7 @@ function Verdict({ summary }: { summary: PlacementSummary }) {
   return (
     <div className={cn('rounded-xl border px-4 py-3.5', v.ring)} data-placement-verdict>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className={cn('text-[15px] font-semibold tracking-[-0.01em]', v.tone)}>{v.label}</span>
+        <span className={cn('text-heading font-semibold tracking-[-0.01em]', v.tone)}>{v.label}</span>
         {/*
           * The rate appears only when shared/placement is willing to
           * produce one - which is never while a probe is outstanding, and
@@ -68,12 +68,12 @@ function Verdict({ summary }: { summary: PlacementSummary }) {
           * not "100% inbox", and showing it as one invites a launch.
           */}
         {summary.inboxRate !== null && (
-          <span className="text-[13px] font-semibold tabular text-[var(--text-secondary)]">
+          <span className="text-strong font-semibold tabular text-[var(--text-secondary)]">
             {Math.round(summary.inboxRate * 100)}% inbox
           </span>
         )}
       </div>
-      <p className="mt-1 text-[12.5px] leading-relaxed text-[var(--text-secondary)]">{summary.headline}</p>
+      <p className="mt-1 text-body leading-relaxed text-[var(--text-secondary)]">{summary.headline}</p>
     </div>
   );
 }
@@ -100,8 +100,8 @@ function Counts({ summary }: { summary: PlacementSummary }) {
     <div className="flex divide-x divide-[var(--border-subtle)] rounded-xl border border-[var(--border-subtle)] overflow-hidden">
       {cells.map((c) => (
         <div key={c.label} className="flex-1 px-4 py-3" title={c.hint}>
-          <div className={cn('text-[20px] font-semibold tabular leading-none tracking-[-0.02em]', c.className)}>{c.value}</div>
-          <div className="mt-1 text-[11.5px] font-medium text-[var(--text-tertiary)]">{c.label}</div>
+          <div className={cn('text-title font-semibold tabular leading-none tracking-[-0.02em]', c.className)}>{c.value}</div>
+          <div className="mt-1 text-caption font-medium text-[var(--text-tertiary)]">{c.label}</div>
         </div>
       ))}
     </div>
@@ -111,7 +111,7 @@ function Counts({ summary }: { summary: PlacementSummary }) {
 function ProviderRow({ provider, summary }: { provider: string; summary: PlacementSummary }) {
   return (
     <div className="flex items-center gap-3 px-4 py-2.5">
-      <span className="w-20 shrink-0 text-[12.5px] font-medium text-[var(--text-primary)]">{provider}</span>
+      <span className="w-20 shrink-0 text-body font-medium text-[var(--text-primary)]">{provider}</span>
 
       {/* A bar of what actually happened, in the order it matters. */}
       <div className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
@@ -125,7 +125,7 @@ function ProviderRow({ provider, summary }: { provider: string; summary: Placeme
         * seeds, and "50%" over two observations reads as a measurement
         * when it is a coin flip.
         */}
-      <span className="w-28 shrink-0 text-right text-[11.5px] tabular text-[var(--text-secondary)]">
+      <span className="w-28 shrink-0 text-right text-caption tabular text-[var(--text-secondary)]">
         {summary.pending > 0
           ? `${summary.answered}/${summary.total} answered`
           : `${summary.inbox} of ${summary.answered} inbox`}
@@ -140,24 +140,24 @@ function ProbeRow({ probe }: { probe: PlacementProbe }) {
   return (
     <div className="flex items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-2.5 last:border-0">
       <Mail className="h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]" />
-      <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--text-primary)]">{probe.seed_email}</span>
+      <span className="min-w-0 flex-1 truncate text-body text-[var(--text-primary)]">{probe.seed_email}</span>
 
       {/*
         * The folder it was actually found in, so a surprising verdict can
         * be checked rather than taken on trust.
         */}
       {probe.folder && (
-        <span className="hidden shrink-0 truncate text-[11px] text-[var(--text-tertiary)] sm:block max-w-[160px]" title={probe.folder}>
+        <span className="hidden shrink-0 truncate text-caption text-[var(--text-tertiary)] sm:block max-w-[160px]" title={probe.folder}>
           {probe.folder}
         </span>
       )}
       {probe.send_error && (
-        <span className="hidden shrink-0 truncate text-[11px] text-[var(--text-tertiary)] sm:block max-w-[220px]" title={probe.send_error}>
+        <span className="hidden shrink-0 truncate text-caption text-[var(--text-tertiary)] sm:block max-w-[220px]" title={probe.send_error}>
           {probe.send_error}
         </span>
       )}
 
-      <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-[10.5px] font-semibold', chip.className)}>
+      <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-micro font-semibold', chip.className)}>
         <Icon className={cn('h-3 w-3', probe.placement === 'pending' && 'animate-spin')} />
         {chip.label}
       </span>
@@ -182,15 +182,15 @@ function TestDetail({ detail, onRefresh, refreshing }: {
       {advice && (
         <div className="flex items-start gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 px-4 py-3">
           <Info className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--indigo)]" />
-          <p className="text-[12.5px] leading-relaxed text-[var(--text-secondary)]" data-placement-advice>{advice}</p>
+          <p className="text-body leading-relaxed text-[var(--text-secondary)]" data-placement-advice>{advice}</p>
         </div>
       )}
 
       {groups.length > 1 && (
         <section className="panel overflow-hidden">
           <div className="border-b border-[var(--border-subtle)] px-4 py-3">
-            <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">By provider</h3>
-            <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)]">
+            <h3 className="text-strong font-semibold text-[var(--text-primary)]">By provider</h3>
+            <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
               Filtering is decided per provider, so one bad result here is a finding rather than an average.
             </p>
           </div>
@@ -205,8 +205,8 @@ function TestDetail({ detail, onRefresh, refreshing }: {
       <section className="panel overflow-hidden">
         <div className="flex items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-3">
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-[13px] font-semibold text-[var(--text-primary)]">{detail.test.subject}</h3>
-            <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)]">
+            <h3 className="truncate text-strong font-semibold text-[var(--text-primary)]">{detail.test.subject}</h3>
+            <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
               Sent {new Date(detail.test.started_at).toLocaleString()}
               {detail.test.completed_at ? ' · finished' : ''}
             </p>
@@ -314,8 +314,8 @@ function StartTestModal({ open, onClose, seeds }: {
           * about the word "test".
           */}
         <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 p-3.5">
-          <p className="text-[12px] font-semibold text-[var(--text-primary)]">What to send</p>
-          <p className="mt-0.5 text-[11.5px] leading-snug text-[var(--text-tertiary)]">
+          <p className="text-body font-semibold text-[var(--text-primary)]">What to send</p>
+          <p className="mt-0.5 text-caption leading-snug text-[var(--text-tertiary)]">
             Use a real step wherever you can. Filters score the subject and the body, so a probe
             saying &ldquo;test&rdquo; tells you how deliverable the word test is.
           </p>
@@ -344,18 +344,18 @@ function StartTestModal({ open, onClose, seeds }: {
 
           {!stepId && (
             <div className="mt-3">
-              <label className="mb-1 block text-[12px] font-medium text-[var(--text-secondary)]">Subject line</label>
+              <label className="mb-1 block text-body font-medium text-[var(--text-secondary)]">Subject line</label>
               <input
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder="The subject you would actually send"
-                className="block h-8 w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none"
+                className="block h-8 w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none"
               />
             </div>
           )}
         </div>
 
-        <p className="flex items-start gap-1.5 text-[11.5px] leading-relaxed text-[var(--text-tertiary)]">
+        <p className="flex items-start gap-1.5 text-caption leading-relaxed text-[var(--text-tertiary)]">
           <Info className="mt-px h-3 w-3 shrink-0" />
           Nothing is added to the message — no code in the subject, no tracking pixel. The probe is
           identified by a header, so what gets scored is what you would actually send.
@@ -387,8 +387,8 @@ function SeedPanel({ seeds }: { seeds: PlacementSeed[] }) {
   return (
     <section className="panel overflow-hidden">
       <div className="border-b border-[var(--border-subtle)] px-4 py-3">
-        <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Seed mailboxes</h3>
-        <p className="mt-0.5 text-[11.5px] leading-snug text-[var(--text-tertiary)]">
+        <h3 className="text-strong font-semibold text-[var(--text-primary)]">Seed mailboxes</h3>
+        <p className="mt-0.5 text-caption leading-snug text-[var(--text-tertiary)]">
           Mailboxes you control, at the providers your recipients use. They receive the probes and
           never send anything.
         </p>
@@ -397,8 +397,8 @@ function SeedPanel({ seeds }: { seeds: PlacementSeed[] }) {
       {seeds.length === 0 ? (
         <div className="px-4 py-6 text-center">
           <Target className="mx-auto mb-2 h-5 w-5 text-[var(--text-muted)]" strokeWidth={1.5} />
-          <p className="text-[12.5px] font-medium text-[var(--text-primary)]">No seed mailboxes yet</p>
-          <p className="mx-auto mt-1 max-w-sm text-[11.5px] leading-relaxed text-[var(--text-tertiary)]">
+          <p className="text-body font-medium text-[var(--text-primary)]">No seed mailboxes yet</p>
+          <p className="mx-auto mt-1 max-w-sm text-caption leading-relaxed text-[var(--text-tertiary)]">
             Connect a mailbox at Gmail, Outlook and Yahoo on the{' '}
             <Link to="/email-accounts" className="font-medium text-[var(--indigo)] hover:underline">email accounts</Link>{' '}
             page, then mark it as a seed below. Each one needs an incoming (IMAP) server so it can be read back.
@@ -408,10 +408,10 @@ function SeedPanel({ seeds }: { seeds: PlacementSeed[] }) {
         <div className="divide-y divide-[var(--border-subtle)]">
           {seeds.map((seed) => (
             <div key={seed.id} className="flex items-center gap-3 px-4 py-2.5">
-              <span className="w-16 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">
+              <span className="w-16 shrink-0 text-caption font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">
                 {PROVIDER_LABELS[seed.provider]}
               </span>
-              <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--text-primary)]">{seed.email_address}</span>
+              <span className="min-w-0 flex-1 truncate text-body text-[var(--text-primary)]">{seed.email_address}</span>
 
               {/*
                 * A seed with no IMAP server can be sent to and never read,
@@ -420,7 +420,7 @@ function SeedPanel({ seeds }: { seeds: PlacementSeed[] }) {
                 * Said here rather than discovered there.
                 */}
               {!seed.readable && (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-[5px] bg-amber-500/10 px-1.5 py-0.5 text-[10.5px] font-semibold text-amber-600 dark:text-amber-400">
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-[5px] bg-amber-500/10 px-1.5 py-0.5 text-micro font-semibold text-amber-600 dark:text-amber-400">
                   <AlertTriangle className="h-3 w-3" /> No IMAP — cannot be read
                 </span>
               )}
@@ -428,7 +428,7 @@ function SeedPanel({ seeds }: { seeds: PlacementSeed[] }) {
               <button
                 type="button"
                 onClick={() => toggle.mutate({ id: seed.id, isSeed: false })}
-                className="shrink-0 text-[11.5px] font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]"
+                className="shrink-0 text-caption font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]"
               >
                 Remove
               </button>
@@ -445,7 +445,7 @@ function SeedPanel({ seeds }: { seeds: PlacementSeed[] }) {
       {seeds.length > 0 && seeds.length < MIN_SEEDS_FOR_RATE && (
         <div className="flex items-start gap-2 border-t border-[var(--border-subtle)] px-4 py-2.5" data-seed-coverage>
           <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0 text-amber-500" />
-          <p className="text-[11.5px] leading-relaxed text-[var(--text-secondary)]">
+          <p className="text-caption leading-relaxed text-[var(--text-secondary)]">
             {seeds.length} seed{seeds.length === 1 ? '' : 's'}, covering {providers.size} provider
             {providers.size === 1 ? '' : 's'}. Results will not be reported as a percentage under{' '}
             {MIN_SEEDS_FOR_RATE} — add one at each provider your recipients actually use.
@@ -455,7 +455,7 @@ function SeedPanel({ seeds }: { seeds: PlacementSeed[] }) {
       {unreadable.length > 0 && seeds.length >= MIN_SEEDS_FOR_RATE && (
         <div className="flex items-start gap-2 border-t border-[var(--border-subtle)] px-4 py-2.5">
           <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0 text-amber-500" />
-          <p className="text-[11.5px] leading-relaxed text-[var(--text-secondary)]">
+          <p className="text-caption leading-relaxed text-[var(--text-secondary)]">
             {unreadable.length} seed{unreadable.length === 1 ? '' : 's'} cannot be read back. Add an
             incoming (IMAP) server to {unreadable.length === 1 ? 'it' : 'them'} or they will be skipped.
           </p>
@@ -464,7 +464,7 @@ function SeedPanel({ seeds }: { seeds: PlacementSeed[] }) {
 
       {candidates.length > 0 && (
         <div className="border-t border-[var(--border-subtle)] px-4 py-3">
-          <p className="mb-2 text-[11.5px] font-medium text-[var(--text-tertiary)]">Make a connected mailbox a seed</p>
+          <p className="mb-2 text-caption font-medium text-[var(--text-tertiary)]">Make a connected mailbox a seed</p>
           <div className="flex flex-wrap gap-1.5">
             {candidates.map((a: any) => (
               <button
@@ -472,13 +472,13 @@ function SeedPanel({ seeds }: { seeds: PlacementSeed[] }) {
                 type="button"
                 onClick={() => toggle.mutate({ id: a.id, isSeed: true })}
                 disabled={toggle.isPending}
-                className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1 text-[11.5px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-60"
+                className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1 text-caption font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-60"
               >
                 <Plus className="h-3 w-3" /> {a.email_address}
               </button>
             ))}
           </div>
-          <p className="mt-2 text-[11px] leading-snug text-[var(--text-tertiary)]">
+          <p className="mt-2 text-caption leading-snug text-[var(--text-tertiary)]">
             A seed stops being available to send campaigns, and its sending history stops being
             clean, so use mailboxes kept for this.
           </p>
@@ -573,7 +573,7 @@ export function PlacementPage() {
         */}
       <div className="flex items-start gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 px-4 py-3">
         <Info className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]" />
-        <p className="text-[11.5px] leading-relaxed text-[var(--text-secondary)]" data-placement-caveat>
+        <p className="text-caption leading-relaxed text-[var(--text-secondary)]" data-placement-caveat>
           Seed mailboxes have no history with you, never reply and never drag a message out of spam —
           real recipients do all three, so a real list usually does better than its seeds. Read this as a
           direction, not as a measurement of any individual recipient. Gmail&rsquo;s tabs are labels rather
@@ -611,8 +611,8 @@ export function PlacementPage() {
           {(tests?.length || 0) > 1 && (
             <section className="panel overflow-hidden">
               <div className="border-b border-[var(--border-subtle)] px-4 py-3">
-                <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Earlier tests</h3>
-                <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)]">
+                <h3 className="text-strong font-semibold text-[var(--text-primary)]">Earlier tests</h3>
+                <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
                   Placement moves with your volume, your records and your copy. The trend is the point.
                 </p>
               </div>
@@ -632,11 +632,11 @@ export function PlacementPage() {
                         : t.summary.verdict === 'mixed' ? 'bg-amber-500'
                         : t.summary.verdict === 'poor' ? 'bg-rose-500'
                         : 'bg-[var(--text-muted)]')} />
-                    <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--text-primary)]">{t.subject}</span>
-                    <span className="hidden shrink-0 text-[11px] text-[var(--text-tertiary)] sm:block">
+                    <span className="min-w-0 flex-1 truncate text-body text-[var(--text-primary)]">{t.subject}</span>
+                    <span className="hidden shrink-0 text-caption text-[var(--text-tertiary)] sm:block">
                       {new Date(t.started_at).toLocaleDateString()}
                     </span>
-                    <span className="w-24 shrink-0 text-right text-[11.5px] tabular text-[var(--text-secondary)]">
+                    <span className="w-24 shrink-0 text-right text-caption tabular text-[var(--text-secondary)]">
                       {t.summary.inboxRate !== null
                         ? `${Math.round(t.summary.inboxRate * 100)}% inbox`
                         : t.summary.pending > 0 ? 'Looking…' : '—'}
@@ -655,11 +655,11 @@ export function PlacementPage() {
           </AsyncPanel>
 
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 px-4 py-3">
-            <p className="flex items-center gap-1.5 text-[12px] font-semibold text-[var(--text-primary)]">
+            <p className="flex items-center gap-1.5 text-body font-semibold text-[var(--text-primary)]">
               <CheckCircle2 className="h-3.5 w-3.5 text-[var(--indigo)]" />
               Before you blame the copy
             </p>
-            <p className="mt-1 text-[11.5px] leading-relaxed text-[var(--text-secondary)]">
+            <p className="mt-1 text-caption leading-relaxed text-[var(--text-secondary)]">
               Authentication moves placement more than wording does.{' '}
               <Link to="/domains" className="font-medium text-[var(--indigo)] hover:underline">Check SPF, DKIM and DMARC</Link>{' '}
               are all passing before rewriting anything.

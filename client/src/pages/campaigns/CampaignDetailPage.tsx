@@ -229,7 +229,7 @@ export function CampaignDetailPage() {
       {/* Top nav */}
       <button
         onClick={() => navigate('/campaigns')}
-        className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group"
+        className="flex items-center gap-1.5 text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group"
       >
         <ArrowLeft className="h-3.5 w-3.5 group-hover:-translate-x-0.5 transition-transform" />
         Campaigns
@@ -239,10 +239,10 @@ export function CampaignDetailPage() {
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-[18px] font-semibold text-[var(--text-primary)] truncate">{campaign.name}</h1>
+            <h1 className="text-title font-semibold text-[var(--text-primary)] truncate">{campaign.name}</h1>
             <StatusBadge status={campaign.status} type="campaign" />
           </div>
-          <p className="mt-0.5 text-[12px] text-[var(--text-secondary)]">
+          <p className="mt-0.5 text-body text-[var(--text-secondary)]">
             Created {formatDate(campaign.created_at)}
             {campaign.started_at && ` · Started ${formatDate(campaign.started_at)}`}
           </p>
@@ -263,10 +263,10 @@ export function CampaignDetailPage() {
           )}
           {campaign.status === 'running' && (
             <>
-              <button onClick={() => pauseMutation.mutate()} disabled={pauseMutation.isPending} className="btn-secondary text-[12px] h-8 px-3 rounded-lg gap-1.5 disabled:opacity-50 disabled:pointer-events-none">
+              <button onClick={() => pauseMutation.mutate()} disabled={pauseMutation.isPending} className="btn-secondary text-body h-8 px-3 rounded-lg gap-1.5 disabled:opacity-50 disabled:pointer-events-none">
                 <Pause className="h-3.5 w-3.5" /> Pause
               </button>
-              <button onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending} className="btn-secondary text-[12px] h-8 px-3 rounded-lg gap-1.5 hover:text-rose-500 hover:border-rose-500/30 disabled:opacity-50 disabled:pointer-events-none">
+              <button onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending} className="btn-secondary text-body h-8 px-3 rounded-lg gap-1.5 hover:text-rose-500 hover:border-rose-500/30 disabled:opacity-50 disabled:pointer-events-none">
                 <Square className="h-3.5 w-3.5" /> Cancel
               </button>
             </>
@@ -313,13 +313,13 @@ export function CampaignDetailPage() {
         <div className="flex items-start gap-3 rounded-xl border border-[var(--error)]/30 bg-[var(--error-bg)] px-4 py-3">
           <ShieldAlert className="h-4 w-4 flex-shrink-0 mt-0.5 text-[var(--error)]" />
           <div className="min-w-0 flex-1">
-            <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">
+            <p className="text-body font-semibold text-[var(--text-primary)]">
               Sending stopped
             </p>
-            <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed mt-0.5">
+            <p className="text-body text-[var(--text-secondary)] leading-relaxed mt-0.5">
               {campaign.paused_reason}
             </p>
-            <p className="text-[11.5px] text-[var(--text-tertiary)] mt-1.5">
+            <p className="text-caption text-[var(--text-tertiary)] mt-1.5">
               Clean the list — remove or re-verify the addresses that bounced — before you resume.
               Resuming clears this message.
             </p>
@@ -331,7 +331,7 @@ export function CampaignDetailPage() {
         <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
           <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-500" />
           <div className="min-w-0 flex-1">
-            <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">
+            <p className="text-body font-semibold text-[var(--text-primary)]">
               Running, but nothing is going out
               {campaign.stall_since && (
                 <span className="font-normal text-[var(--text-tertiary)]">
@@ -339,7 +339,7 @@ export function CampaignDetailPage() {
                 </span>
               )}
             </p>
-            <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed mt-0.5">
+            <p className="text-body text-[var(--text-secondary)] leading-relaxed mt-0.5">
               {campaign.stall_reason}
             </p>
           </div>
@@ -353,7 +353,7 @@ export function CampaignDetailPage() {
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              'px-3.5 h-7 rounded-md text-[12px] font-medium transition-all',
+              'px-3.5 h-7 rounded-md text-body font-medium transition-all',
               activeTab === tab.id
                 ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
                 : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -379,7 +379,7 @@ export function CampaignDetailPage() {
 
               {chartData.some((d) => d.value > 0) && (
                 <div className="panel p-4">
-                  <h3 className="mb-4 text-[13px] font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Performance</h3>
+                  <h3 className="mb-4 text-strong font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Performance</h3>
                   <div className="h-56">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData}>
@@ -403,7 +403,7 @@ export function CampaignDetailPage() {
 
           <div className="panel overflow-hidden">
             <div className="px-5 py-3.5 border-b border-[var(--border-subtle)]">
-              <h3 className="text-[13px] font-semibold text-[var(--text-primary)] tracking-[-0.005em]">Campaign Settings</h3>
+              <h3 className="text-strong font-semibold text-[var(--text-primary)] tracking-[-0.005em]">Campaign Settings</h3>
             </div>
             <dl className="divide-y divide-[var(--border-subtle)]">
               {[
@@ -418,8 +418,8 @@ export function CampaignDetailPage() {
                 { label: 'Unsubscribe Link', value: campaign.include_unsubscribe ? 'Included' : 'Not included' },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-center justify-between px-5 py-3">
-                  <dt className="text-[12.5px] text-[var(--text-secondary)]">{label}</dt>
-                  <dd className="text-[12.5px] font-medium text-[var(--text-primary)] text-right">{value}</dd>
+                  <dt className="text-body text-[var(--text-secondary)]">{label}</dt>
+                  <dd className="text-body font-medium text-[var(--text-primary)] text-right">{value}</dd>
                 </div>
               ))}
             </dl>
@@ -431,7 +431,7 @@ export function CampaignDetailPage() {
       {activeTab === 'sequence' && (
         <div className="space-y-3">
           {(!campaign.steps || campaign.steps.length === 0) ? (
-            <p className="py-8 text-center text-sm text-tertiary">No steps in this campaign.</p>
+            <p className="py-8 text-center text-strong text-tertiary">No steps in this campaign.</p>
           ) : (
             <>
               {campaign.steps.map((step: CampaignStep, index: number) => (
@@ -449,8 +449,8 @@ export function CampaignDetailPage() {
               {personalization && personalization.tags.length > 0 && (
                 <div className="panel p-4">
                   <div className="flex items-baseline justify-between mb-3">
-                    <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Personalization</h3>
-                    <span className="text-[11.5px] text-[var(--text-tertiary)]">
+                    <h3 className="text-strong font-semibold text-[var(--text-primary)]">Personalization</h3>
+                    <span className="text-caption text-[var(--text-tertiary)]">
                       across {personalization.total_contacts.toLocaleString()} contact{personalization.total_contacts === 1 ? '' : 's'}
                     </span>
                   </div>
@@ -479,7 +479,7 @@ export function CampaignDetailPage() {
                   value={contactSearch}
                   onChange={(e) => setContactSearch(e.target.value)}
                   placeholder="Search by name or email…"
-                  className="w-full h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] pl-8 pr-8 text-[12.5px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
+                  className="w-full h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] pl-8 pr-8 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
                 />
                 {contactSearch && (
                   <button onClick={() => setContactSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
@@ -490,7 +490,7 @@ export function CampaignDetailPage() {
               <select
                 value={contactStatusFilter}
                 onChange={(e) => setContactStatusFilter(e.target.value)}
-                className="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 text-[12.5px] text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
+                className="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 text-body text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
               >
                 <option value="">All statuses</option>
                 <option value="active">Active</option>
@@ -502,14 +502,14 @@ export function CampaignDetailPage() {
                 <option value="suppressed">Suppressed</option>
                 <option value="error">Error</option>
               </select>
-              <span className="text-[11.5px] text-[var(--text-tertiary)] whitespace-nowrap tabular">
+              <span className="text-caption text-[var(--text-tertiary)] whitespace-nowrap tabular">
                 {filteredContacts.length} / {campaignContacts.data.length}
               </span>
               {campaignContacts.data.some((cc: any) => cc.status === 'error') && (
                 <button
                   onClick={() => retryErrorsMutation.mutate()}
                   disabled={retryErrorsMutation.isPending}
-                  className="ml-auto flex items-center gap-1.5 h-8 px-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 text-[12.5px] font-medium hover:bg-amber-100 disabled:opacity-50 transition-colors dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60"
+                  className="ml-auto flex items-center gap-1.5 h-8 px-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 text-body font-medium hover:bg-amber-100 disabled:opacity-50 transition-colors dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60"
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${retryErrorsMutation.isPending ? 'animate-spin' : ''}`} />
                   Retry Errors
@@ -523,13 +523,13 @@ export function CampaignDetailPage() {
               <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bg-elevated)] mb-3">
                 <MessageSquare className="h-5 w-5 text-[var(--text-tertiary)]" />
               </span>
-              <p className="text-[13px] text-[var(--text-secondary)]">No contacts in this campaign.</p>
+              <p className="text-strong text-[var(--text-secondary)]">No contacts in this campaign.</p>
             </div>
           ) : filteredContacts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
               <Search className="h-8 w-8 text-[var(--text-tertiary)] mb-3" />
-              <p className="text-[13px] text-[var(--text-secondary)]">No contacts match your filter.</p>
-              <button onClick={() => { setContactSearch(''); setContactStatusFilter(''); }} className="mt-2 text-[12px] text-[var(--indigo)] hover:underline">
+              <p className="text-strong text-[var(--text-secondary)]">No contacts match your filter.</p>
+              <button onClick={() => { setContactSearch(''); setContactStatusFilter(''); }} className="mt-2 text-body text-[var(--indigo)] hover:underline">
                 Clear filters
               </button>
             </div>
@@ -538,11 +538,11 @@ export function CampaignDetailPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
-                    <th className="px-4 py-2.5 text-left text-[10px] font-medium text-[var(--text-tertiary)]">Contact</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-medium text-[var(--text-tertiary)]">Status</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-medium text-[var(--text-tertiary)]">Progress</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-medium text-[var(--text-tertiary)]">Next Send</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-medium text-[var(--text-tertiary)]">Error</th>
+                    <th className="px-4 py-2.5 text-left text-micro font-medium text-[var(--text-tertiary)]">Contact</th>
+                    <th className="px-4 py-2.5 text-left text-micro font-medium text-[var(--text-tertiary)]">Status</th>
+                    <th className="px-4 py-2.5 text-left text-micro font-medium text-[var(--text-tertiary)]">Progress</th>
+                    <th className="px-4 py-2.5 text-left text-micro font-medium text-[var(--text-tertiary)]">Next Send</th>
+                    <th className="px-4 py-2.5 text-left text-micro font-medium text-[var(--text-tertiary)]">Error</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -557,8 +557,8 @@ export function CampaignDetailPage() {
                           <div className="flex items-center gap-2.5">
                             <Avatar name={fullName || cc.contact?.email || '?'} email={cc.contact?.email} size="sm" />
                             <div className="min-w-0">
-                              <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">{fullName || '—'}</p>
-                              {cc.contact?.email && <p className="text-[11px] text-[var(--text-tertiary)] truncate">{cc.contact.email}</p>}
+                              <p className="text-strong font-medium text-[var(--text-primary)] truncate">{fullName || '—'}</p>
+                              {cc.contact?.email && <p className="text-caption text-[var(--text-tertiary)] truncate">{cc.contact.email}</p>}
                             </div>
                           </div>
                         </td>
@@ -573,27 +573,27 @@ export function CampaignDetailPage() {
                                 style={{ width: `${progressPct}%` }}
                               />
                             </div>
-                            <span className="text-[11px] tabular text-[var(--text-secondary)] whitespace-nowrap">
+                            <span className="text-caption tabular text-[var(--text-secondary)] whitespace-nowrap">
                               {totalSteps > 0 ? `${currentStep}/${totalSteps}` : `Step ${currentStep}`}
                             </span>
                           </div>
                         </td>
                         <td className="px-4 py-2.5">
                           {cc.next_send_at ? (
-                            <span className="text-[12px] text-[var(--text-secondary)]" title={formatDateTime(cc.next_send_at)}>
+                            <span className="text-body text-[var(--text-secondary)]" title={formatDateTime(cc.next_send_at)}>
                               {formatTimeUntil(cc.next_send_at)}
                             </span>
                           ) : cc.waiting_for_webhook ? (
                             <span
-                              className="inline-flex items-center gap-1 text-[12px] text-amber-500"
+                              className="inline-flex items-center gap-1 text-body text-amber-500"
                               title={`Waiting for "${cc.waiting_for_webhook}"${cc.webhook_wait_until ? ` — times out ${formatDateTime(cc.webhook_wait_until)}` : ''}`}
                             >
                               <Webhook className="w-3 h-3" />
                               {cc.webhook_wait_until ? `Until ${formatTimeUntil(cc.webhook_wait_until)}` : 'Waiting for webhook'}
                             </span>
-                          ) : <span className="text-[12px] text-[var(--text-tertiary)]">—</span>}
+                          ) : <span className="text-body text-[var(--text-tertiary)]">—</span>}
                         </td>
-                        <td className="px-4 py-2.5 text-[11px] text-rose-500">{cc.error_message || '—'}</td>
+                        <td className="px-4 py-2.5 text-caption text-rose-500">{cc.error_message || '—'}</td>
                       </tr>
                     );
                   })}
@@ -634,8 +634,8 @@ function ContactProgressCard({ campaign }: { campaign: any }) {
   return (
     <div className="panel p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-[13px] font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Contact Progress</h3>
-        <span className="text-[12px] text-[var(--text-secondary)]">{total} total</span>
+        <h3 className="text-strong font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Contact Progress</h3>
+        <span className="text-body text-[var(--text-secondary)]">{total} total</span>
       </div>
 
       {/* Segmented progress bar */}
@@ -664,15 +664,15 @@ function ContactProgressCard({ campaign }: { campaign: any }) {
         {segments.map((seg) => (
           <div key={seg.label} className="flex items-center gap-1.5">
             <span className={`inline-block h-2.5 w-2.5 rounded-full ${seg.color}`} />
-            <span className="text-xs text-secondary">{seg.label}</span>
-            <span className="text-xs font-semibold text-primary">{seg.count}</span>
+            <span className="text-body text-secondary">{seg.label}</span>
+            <span className="text-body font-semibold text-primary">{seg.count}</span>
           </div>
         ))}
         {pending > 0 && (
           <div className="flex items-center gap-1.5">
             <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--bg-hover)] border border-subtle" />
-            <span className="text-xs text-secondary">Pending</span>
-            <span className="text-xs font-semibold text-primary">{pending}</span>
+            <span className="text-body text-secondary">Pending</span>
+            <span className="text-body font-semibold text-primary">{pending}</span>
           </div>
         )}
       </div>
@@ -704,7 +704,7 @@ function SequenceStepCard({ step, index, ab }: {
     <div className="card card-hover relative overflow-hidden">
       <div className={cn('absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full', cfg.accent)} />
       <div className="flex items-center gap-3 pl-3">
-        <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold', cfg.iconBg, cfg.iconColor)}>
+        <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-caption font-bold', cfg.iconBg, cfg.iconColor)}>
           {index + 1}
         </span>
 
@@ -712,7 +712,7 @@ function SequenceStepCard({ step, index, ab }: {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <Mail className={cn('h-3.5 w-3.5 shrink-0', cfg.iconColor)} />
-              <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">{step.subject || 'Untitled Email'}</span>
+              <span className="text-strong font-medium text-[var(--text-primary)] truncate">{step.subject || 'Untitled Email'}</span>
               {/*
                 * Gated on the shared predicate. This was `step.subject_b`
                 * alone - the third place that decided for itself what an
@@ -722,7 +722,7 @@ function SequenceStepCard({ step, index, ab }: {
                 <span
                   title={ab?.detail}
                   className={cn(
-                    'inline-flex shrink-0 items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold',
+                    'inline-flex shrink-0 items-center px-1.5 h-[18px] rounded-[4px] text-micro font-semibold',
                     ab?.tone === 'ready'
                       ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                       : 'bg-[rgba(99,102,241,0.08)] text-[var(--indigo)]',
@@ -734,7 +734,7 @@ function SequenceStepCard({ step, index, ab }: {
               )}
             </div>
             {step.body_text && (
-              <p className="mt-0.5 line-clamp-2 text-[11px] text-[var(--text-secondary)]">{step.body_text}</p>
+              <p className="mt-0.5 line-clamp-2 text-caption text-[var(--text-secondary)]">{step.body_text}</p>
             )}
             {/*
               * Said in words where the test lives, not only in a panel one
@@ -750,7 +750,7 @@ function SequenceStepCard({ step, index, ab }: {
                     style={{ width: `${ab.percent}%` }}
                   />
                 </div>
-                <span className="text-[11px] leading-snug text-[var(--text-tertiary)]">{ab.detail}</span>
+                <span className="text-caption leading-snug text-[var(--text-tertiary)]">{ab.detail}</span>
               </div>
             )}
           </div>
@@ -759,7 +759,7 @@ function SequenceStepCard({ step, index, ab }: {
         {step.step_type === 'delay' && (
           <div className="flex items-center gap-2">
             <Clock className={cn('h-3.5 w-3.5', cfg.iconColor)} />
-            <span className="text-[13px] font-medium text-[var(--text-primary)]">
+            <span className="text-strong font-medium text-[var(--text-primary)]">
               {formatDelay(step.delay_days, step.delay_hours, step.delay_minutes)}
             </span>
           </div>
@@ -768,7 +768,7 @@ function SequenceStepCard({ step, index, ab }: {
         {step.step_type === 'condition' && (
           <div className="flex items-center gap-2">
             <GitBranch className={cn('h-3.5 w-3.5', cfg.iconColor)} />
-            <span className="text-[13px] font-medium text-[var(--text-primary)]">
+            <span className="text-strong font-medium text-[var(--text-primary)]">
               Condition: {step.condition_field || 'unknown'}
               {step.condition_operator && (
                 <span className="ml-1 text-[var(--text-secondary)] font-normal">
@@ -783,22 +783,22 @@ function SequenceStepCard({ step, index, ab }: {
         {step.step_type === 'webhook_wait' && (
           <div className="flex items-center gap-2">
             <Webhook className={cn('h-3.5 w-3.5', cfg.iconColor)} />
-            <span className="text-[13px] font-medium text-[var(--text-primary)]">
+            <span className="text-strong font-medium text-[var(--text-primary)]">
               Wait for webhook
               {step.webhook_event && (
-                <span className="ml-1 font-mono text-[11px] bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded text-[var(--text-secondary)]">
+                <span className="ml-1 font-mono text-caption bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded text-[var(--text-secondary)]">
                   {step.webhook_event}
                 </span>
               )}
             </span>
             {step.webhook_timeout_hours && (
-              <span className="text-[11px] text-[var(--text-tertiary)]">(timeout: {step.webhook_timeout_hours}h)</span>
+              <span className="text-caption text-[var(--text-tertiary)]">(timeout: {step.webhook_timeout_hours}h)</span>
             )}
           </div>
         )}
 
         {step.skip_if_replied && (
-          <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold bg-[var(--bg-elevated)] text-[var(--text-secondary)] ml-auto flex-shrink-0">Skip if replied</span>
+          <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-micro font-semibold bg-[var(--bg-elevated)] text-[var(--text-secondary)] ml-auto flex-shrink-0">Skip if replied</span>
         )}
       </div>
     </div>

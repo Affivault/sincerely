@@ -109,7 +109,7 @@ function Th({
     <th
       style={width ? { width } : undefined}
       className={cn(
-        'sticky top-0 z-10 bg-[var(--bg-surface)] px-3 py-2 text-[11px] font-semibold uppercase tracking-wider',
+        'sticky top-0 z-10 bg-[var(--bg-surface)] px-3 py-2 text-caption font-semibold uppercase tracking-wider',
         'border-b border-[var(--border-subtle)] text-[var(--text-tertiary)]',
         align === 'right' ? 'text-right' : 'text-left',
       )}
@@ -212,13 +212,13 @@ export function DealTable({
 
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-[12.5px] font-medium text-[var(--text-primary)]">
+                      <span className="truncate text-body font-medium text-[var(--text-primary)]">
                         {d.title}
                       </span>
                       {rot.rotting && (
                         <span
                           title={`No movement for ${rot.days} days — ${d.stage} deals are expected to move within ${rot.limit}`}
-                          className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-rose-600 dark:text-rose-400"
+                          className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-rose-500/10 px-1.5 py-0.5 text-micro font-semibold text-rose-600 dark:text-rose-400"
                         >
                           <Clock className="h-2.5 w-2.5" /> Stalled
                         </span>
@@ -231,13 +231,13 @@ export function DealTable({
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onOpenCompany(d); }}
-                        className="inline-flex min-w-0 items-center gap-1.5 text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--indigo)]"
+                        className="inline-flex min-w-0 items-center gap-1.5 text-body text-[var(--text-secondary)] transition-colors hover:text-[var(--indigo)]"
                       >
                         <Building2 className="h-3 w-3 flex-shrink-0" />
                         <span className="truncate">{d.company}</span>
                       </button>
                     ) : (
-                      <span className="text-[12px] text-[var(--text-muted)]">—</span>
+                      <span className="text-body text-[var(--text-muted)]">—</span>
                     )}
                   </td>
 
@@ -246,13 +246,13 @@ export function DealTable({
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onOpenLead(d); }}
-                        className="inline-flex min-w-0 items-center gap-1.5 text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--indigo)]"
+                        className="inline-flex min-w-0 items-center gap-1.5 text-body text-[var(--text-secondary)] transition-colors hover:text-[var(--indigo)]"
                       >
                         <Avatar name={lead} email={leadEmail(d)} size="xs" />
                         <span className="truncate">{lead}</span>
                       </button>
                     ) : (
-                      <span className="text-[12px] text-[var(--text-muted)]">—</span>
+                      <span className="text-body text-[var(--text-muted)]">—</span>
                     )}
                   </td>
 
@@ -266,7 +266,7 @@ export function DealTable({
                         value={d.stage}
                         onChange={(e) => onStageChange(d, e.target.value as DealStage)}
                         aria-label={`Stage for ${d.title}`}
-                        className="cursor-pointer appearance-none bg-transparent pr-4 text-[12px] font-medium text-[var(--text-primary)] outline-none focus:underline"
+                        className="cursor-pointer appearance-none bg-transparent pr-4 text-body font-medium text-[var(--text-primary)] outline-none focus:underline"
                       >
                         {DEAL_STAGES.map((s) => (
                           <option key={s.id} value={s.id}>{s.label}</option>
@@ -275,23 +275,23 @@ export function DealTable({
                     </div>
                   </td>
 
-                  <td className="px-3 py-2.5 text-right text-[12.5px] font-semibold tabular-nums text-[var(--text-primary)]">
+                  <td className="px-3 py-2.5 text-right text-body font-semibold tabular-nums text-[var(--text-primary)]">
                     {money(d.value, d.currency || currency)}
                   </td>
 
                   <td
-                    className="px-3 py-2.5 text-right text-[12px] tabular-nums text-[var(--text-secondary)]"
+                    className="px-3 py-2.5 text-right text-body tabular-nums text-[var(--text-secondary)]"
                     title={`${probabilityOf(d)}% of ${money(d.value, d.currency || currency)}`}
                   >
                     {money(weightedValue(d), d.currency || currency)}
-                    <span className="ml-1 text-[10.5px] text-[var(--text-muted)]">{probabilityOf(d)}%</span>
+                    <span className="ml-1 text-micro text-[var(--text-muted)]">{probabilityOf(d)}%</span>
                   </td>
 
-                  <td className={cn('px-3 py-2.5 text-[12px] tabular-nums', close.tone)}>{close.text}</td>
+                  <td className={cn('px-3 py-2.5 text-body tabular-nums', close.tone)}>{close.text}</td>
 
                   <td
                     className={cn(
-                      'px-3 py-2.5 text-right text-[12px] tabular-nums',
+                      'px-3 py-2.5 text-right text-body tabular-nums',
                       rot.rotting ? 'font-medium text-rose-500' : 'text-[var(--text-tertiary)]',
                     )}
                   >

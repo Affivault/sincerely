@@ -75,15 +75,15 @@ export function TodayPanel() {
     <section className="panel overflow-hidden flex flex-col">
       <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-[var(--border-subtle)]">
         <div className="min-w-0">
-          <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
+          <h3 className="flex items-center gap-1.5 text-strong font-semibold text-[var(--text-primary)]">
             <CalendarDays className="h-3.5 w-3.5 text-[var(--indigo)]" />
             Today
           </h3>
-          <p className="mt-0.5 truncate text-[11.5px] text-[var(--text-tertiary)]">{todayLabel}</p>
+          <p className="mt-0.5 truncate text-caption text-[var(--text-tertiary)]">{todayLabel}</p>
         </div>
         <Link
           to="/calendar"
-          className="inline-flex flex-shrink-0 items-center gap-1 text-[11.5px] font-semibold text-[var(--indigo)] hover:underline"
+          className="inline-flex flex-shrink-0 items-center gap-1 text-caption font-semibold text-[var(--indigo)] hover:underline"
         >
           Calendar <ArrowRight className="h-3 w-3" />
         </Link>
@@ -97,13 +97,13 @@ export function TodayPanel() {
         </div>
       ) : upcoming.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
-          <p className="text-[12.5px] font-medium text-[var(--text-primary)]">Nothing left today</p>
-          <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)]">
+          <p className="text-body font-medium text-[var(--text-primary)]">Nothing left today</p>
+          <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
             A clear afternoon. Book something, or leave it clear.
           </p>
           <Link
             to="/calendar"
-            className="mt-3 inline-flex h-7 items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-2.5 text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+            className="mt-3 inline-flex h-7 items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-2.5 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
           >
             Open the calendar
           </Link>
@@ -129,25 +129,25 @@ export function TodayPanel() {
               >
                 <span className="h-7 w-[3px] flex-shrink-0 rounded-full" style={{ background: colour }} />
                 <span className="w-[54px] flex-shrink-0">
-                  <span className="block text-[12px] font-semibold tabular text-[var(--text-primary)]">
+                  <span className="block text-body font-semibold tabular text-[var(--text-primary)]">
                     {clockLabel(start)}
                   </span>
-                  <span className="block text-[10.5px] tabular text-[var(--text-tertiary)]">
+                  <span className="block text-micro tabular text-[var(--text-tertiary)]">
                     {durationLabel(mins)}
                   </span>
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[12.5px] font-medium text-[var(--text-primary)]">
+                  <span className="block truncate text-body font-medium text-[var(--text-primary)]">
                     {e.title}
                   </span>
-                  <span className="flex items-center gap-1 truncate text-[11px] text-[var(--text-tertiary)]">
+                  <span className="flex items-center gap-1 truncate text-caption text-[var(--text-tertiary)]">
                     <Icon className="h-2.5 w-2.5 flex-shrink-0" />
                     {e.contact_name || type?.name || 'Meeting'}
                   </span>
                 </span>
                 {(live || soon) && (
                   <span className={cn(
-                    'flex-shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+                    'flex-shrink-0 rounded-full px-1.5 py-0.5 text-micro font-semibold',
                     live
                       ? 'bg-rose-500/12 text-rose-600 dark:text-rose-400'
                       : 'bg-amber-500/12 text-amber-600 dark:text-amber-400',

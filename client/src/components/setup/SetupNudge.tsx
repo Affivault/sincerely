@@ -47,7 +47,7 @@ export function SetupNudge({ collapsed }: { collapsed: boolean }) {
       <Link
         to={nudge.step.href}
         title={`${nudge.position} — ${nudge.step.label}`}
-        className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-[9px] border border-[var(--indigo)]/30 bg-[var(--indigo-subtle)] text-[10.5px] font-bold tabular-nums text-[var(--indigo)] transition-colors hover:bg-[var(--indigo-subtle)]/80"
+        className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-[9px] border border-[var(--indigo)]/30 bg-[var(--indigo-subtle)] text-micro font-bold tabular-nums text-[var(--indigo)] transition-colors hover:bg-[var(--indigo-subtle)]/80"
         data-setup-nudge
       >
         {nudge.done_count}/{nudge.total}
@@ -62,14 +62,14 @@ export function SetupNudge({ collapsed }: { collapsed: boolean }) {
       data-setup-nudge
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[11px] font-medium text-[var(--indigo)]">{nudge.position}</span>
-        <span className="text-[11px] font-semibold tabular-nums text-[var(--text-tertiary)]">
+        <span className="text-caption font-medium text-[var(--indigo)]">{nudge.position}</span>
+        <span className="text-caption font-semibold tabular-nums text-[var(--text-tertiary)]">
           {nudge.done_count}/{nudge.total}
         </span>
       </div>
 
       {/* The step, in the words of the button it leads to. */}
-      <p className="mt-1 text-[12px] font-semibold leading-snug text-[var(--text-primary)]">
+      <p className="mt-1 text-body font-semibold leading-snug text-[var(--text-primary)]">
         {nudge.step.label}
       </p>
 
@@ -80,7 +80,7 @@ export function SetupNudge({ collapsed }: { collapsed: boolean }) {
         />
       </div>
 
-      <span className="mt-2 inline-flex items-center gap-1 text-[11.5px] font-semibold text-[var(--indigo)]">
+      <span className="mt-2 inline-flex items-center gap-1 text-caption font-semibold text-[var(--indigo)]">
         {nudge.step.cta}
         <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
       </span>

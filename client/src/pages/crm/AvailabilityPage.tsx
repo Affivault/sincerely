@@ -67,13 +67,13 @@ const PRESETS: { label: string; windows: AvailabilityWindow[] }[] = [
 function Heading({ connected }: { connected?: boolean }) {
   return (
     <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
-      <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]" data-heading>
+      <h3 className="flex items-center gap-1.5 text-strong font-semibold text-[var(--text-primary)]" data-heading>
         {connected
           ? <Check className="h-3.5 w-3.5 text-[#10b981]" />
           : <RefreshCw className="h-3.5 w-3.5 text-[var(--indigo)]" />}
         {connected ? 'Calendar connected' : 'Connect your calendar'}
       </h3>
-      <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)]">
+      <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
         {connected
           ? 'Your real diary is checked before any time is offered.'
           : 'So nobody can book a time you are already busy in.'}
@@ -145,12 +145,12 @@ function ExternalCalendars() {
       <section className="panel overflow-hidden" data-connections>
         <Heading />
         <div className="px-4 py-3">
-          <p className="flex items-start gap-1.5 text-[12px] text-[#ef4444]" data-load-error>
+          <p className="flex items-start gap-1.5 text-body text-[#ef4444]" data-load-error>
             <AlertTriangle className="mt-[1px] h-3.5 w-3.5 flex-shrink-0" />
             {(loadError as any)?.response?.data?.error
               || 'Could not read your calendar connections.'}
           </p>
-          <p className="mt-1.5 text-[11.5px] text-[var(--text-tertiary)]">
+          <p className="mt-1.5 text-caption text-[var(--text-tertiary)]">
             If this mentions a missing table, migration 068 has not been run yet.
           </p>
         </div>
@@ -167,14 +167,14 @@ function ExternalCalendars() {
 
       <div className="px-4 py-3 space-y-2">
         {!data.available ? (
-          <p className="text-[12px] text-[var(--text-secondary)]" data-unavailable>
+          <p className="text-body text-[var(--text-secondary)]" data-unavailable>
             Calendar syncing is not switched on for this deployment yet. Until
             it is, only meetings booked in Sincerely count against your
             availability.
           </p>
         ) : connections.length === 0 ? (
           <>
-            <p className="text-[12px] text-[var(--text-secondary)]">
+            <p className="text-body text-[var(--text-secondary)]">
               Right now only meetings booked in Sincerely block a slot, so your
               booking page can offer a time you already have something in.
             </p>
@@ -198,19 +198,19 @@ function ExternalCalendars() {
                   'h-1.5 w-1.5 flex-shrink-0 rounded-full',
                   c.broken_at ? 'bg-[#ef4444]' : 'bg-[#10b981]',
                 )} />
-                <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--text-primary)]">
+                <span className="min-w-0 flex-1 truncate text-body text-[var(--text-primary)]">
                   {c.account_email || 'Google Calendar'}
                 </span>
                 <button
                   onClick={() => drop.mutate(c.id)}
-                  className="text-[11.5px] text-[var(--text-tertiary)] hover:text-[#ef4444]"
+                  className="text-caption text-[var(--text-tertiary)] hover:text-[#ef4444]"
                 >
                   Disconnect
                 </button>
               </div>
 
               {c.broken_at ? (
-                <p className="mt-1.5 flex items-start gap-1.5 text-[11.5px] text-[#ef4444]" data-broken>
+                <p className="mt-1.5 flex items-start gap-1.5 text-caption text-[#ef4444]" data-broken>
                   <AlertTriangle className="mt-[1px] h-3 w-3 flex-shrink-0" />
                   {c.broken_reason || 'Reconnect needed.'}
                   <button
@@ -228,7 +228,7 @@ function ExternalCalendars() {
                     onChange={(e) => toggleWrite.mutate({ id: c.id, write_events: e.target.checked })}
                     className="h-3.5 w-3.5 rounded border-[var(--border-subtle)]"
                   />
-                  <span className="text-[11.5px] text-[var(--text-secondary)]">
+                  <span className="text-caption text-[var(--text-secondary)]">
                     Add new bookings to this calendar
                   </span>
                 </label>
@@ -395,8 +395,8 @@ export function AvailabilityPage() {
         <section className="panel lg:col-span-2 overflow-hidden self-start">
           <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--border-subtle)]">
             <div>
-              <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Working hours</h3>
-              <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)]">
+              <h3 className="text-strong font-semibold text-[var(--text-primary)]">Working hours</h3>
+              <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
                 Written on your own clock. They stay put when the clocks change.
               </p>
             </div>
@@ -405,7 +405,7 @@ export function AvailabilityPage() {
                 <button
                   key={p.label}
                   onClick={() => edit(p.windows.map((w) => ({ ...w })))}
-                  className="h-7 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--indigo)] transition-colors"
+                  className="h-7 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--indigo)] transition-colors"
                 >
                   {p.label}
                 </button>
@@ -426,7 +426,7 @@ export function AvailabilityPage() {
                   <div key={weekday} data-day={weekday} className="flex items-start gap-3 px-4 py-2.5">
                     <div className="w-[92px] flex-shrink-0 pt-1">
                       <p className={cn(
-                        'text-[12.5px] font-medium',
+                        'text-body font-medium',
                         off ? 'text-[var(--text-tertiary)]' : 'text-[var(--text-primary)]',
                       )}>
                         {WEEKDAY_NAMES[weekday]}
@@ -435,7 +435,7 @@ export function AvailabilityPage() {
 
                     <div className="flex-1 min-w-0 space-y-1.5">
                       {off ? (
-                        <p className="pt-1 text-[12px] text-[var(--text-tertiary)]">Not available</p>
+                        <p className="pt-1 text-body text-[var(--text-tertiary)]">Not available</p>
                       ) : list.map((w) => (
                         /*
                          * Both minutes are in the key on purpose. The time
@@ -449,14 +449,14 @@ export function AvailabilityPage() {
                             type="time"
                             defaultValue={minuteLabel(w.start_minute)}
                             onBlur={(e) => changeWindow(weekday, w.start_minute, 'start_minute', e.target.value)}
-                            className="h-7 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-[12px] tabular text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+                            className="h-7 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body tabular text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
                           />
-                          <span className="text-[11.5px] text-[var(--text-tertiary)]">to</span>
+                          <span className="text-caption text-[var(--text-tertiary)]">to</span>
                           <input
                             type="time"
                             defaultValue={minuteLabel(w.end_minute)}
                             onBlur={(e) => changeWindow(weekday, w.start_minute, 'end_minute', e.target.value)}
-                            className="h-7 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-[12px] tabular text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+                            className="h-7 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body tabular text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
                           />
                           <button
                             onClick={() => removeWindow(weekday, w.start_minute)}
@@ -487,8 +487,8 @@ export function AvailabilityPage() {
         <div className="space-y-4">
           <section className="panel overflow-hidden">
             <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
-              <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Rules</h3>
-              <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)]">Saved as you change them.</p>
+              <h3 className="text-strong font-semibold text-[var(--text-primary)]">Rules</h3>
+              <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">Saved as you change them.</p>
             </div>
             <div className="p-4 space-y-3">
               <Field label="Your timezone" hint="The clock your hours are written against.">
@@ -497,7 +497,7 @@ export function AvailabilityPage() {
                   <select
                     value={prefs.timezone}
                     onChange={(e) => savePrefs.mutate({ timezone: e.target.value })}
-                    className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] pl-7 pr-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+                    className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] pl-7 pr-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
                   >
                     {zones.map((z) => <option key={z} value={z}>{z}</option>)}
                   </select>
@@ -524,7 +524,7 @@ export function AvailabilityPage() {
                 <select
                   value={prefs.slot_interval_minutes}
                   onChange={(e) => savePrefs.mutate({ slot_interval_minutes: Number(e.target.value) })}
-                  className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+                  className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
                 >
                   {SLOT_INTERVALS.map((m) => <option key={m} value={m}>{durationLabel(m)}</option>)}
                 </select>
@@ -536,7 +536,7 @@ export function AvailabilityPage() {
                   onChange={(e) => savePrefs.mutate({
                     max_bookings_per_day: e.target.value === '' ? null : Number(e.target.value),
                   })}
-                  className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+                  className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
                 >
                   <option value="">No limit</option>
                   {[1, 2, 3, 4, 5, 6, 8, 10].map((n) => <option key={n} value={n}>{n} a day</option>)}
@@ -547,7 +547,7 @@ export function AvailabilityPage() {
                 <select
                   value={prefs.booking_horizon_days}
                   onChange={(e) => savePrefs.mutate({ booking_horizon_days: Number(e.target.value) })}
-                  className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+                  className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
                 >
                   {[7, 14, 30, 60, 90, 180, 365].map((d) => <option key={d} value={d}>{d} days ahead</option>)}
                 </select>
@@ -560,25 +560,25 @@ export function AvailabilityPage() {
           {/* ── What the rules actually produce ── */}
           <section className="panel overflow-hidden" data-preview>
             <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
-              <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
+              <h3 className="flex items-center gap-1.5 text-strong font-semibold text-[var(--text-primary)]">
                 <CalendarCheck className="h-3.5 w-3.5 text-[var(--indigo)]" />
                 What a 30-minute meeting would be offered
               </h3>
-              <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)]">
+              <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
                 The next seven days, from the same place a booking page would ask.
               </p>
             </div>
             <div className="px-4 py-3">
               {dirty ? (
-                <p className="text-[12px] text-[var(--text-tertiary)]">
+                <p className="text-body text-[var(--text-tertiary)]">
                   Save your hours to see what they offer.
                 </p>
               ) : previewing ? (
-                <p className="flex items-center gap-1.5 text-[12px] text-[var(--text-tertiary)]">
+                <p className="flex items-center gap-1.5 text-body text-[var(--text-tertiary)]">
                   <Loader2 className="h-3 w-3 animate-spin" /> Working it out…
                 </p>
               ) : slots.length === 0 ? (
-                <p className="text-[12px] text-[var(--text-secondary)]">
+                <p className="text-body text-[var(--text-secondary)]">
                   {/* The commonest reason is notice, not hours, and it is the
                       one nobody thinks of. */}
                   Nothing in the next seven days. Check your hours, and whether
@@ -586,7 +586,7 @@ export function AvailabilityPage() {
                 </p>
               ) : (
                 <>
-                  <p className="text-[12px] text-[var(--text-secondary)]">
+                  <p className="text-body text-[var(--text-secondary)]">
                     <strong className="text-[var(--text-primary)] tabular" data-slot-count>{slots.length}</strong>
                     {' '}slot{slots.length === 1 ? '' : 's'}, first on{' '}
                     <strong className="text-[var(--text-primary)]">
@@ -599,20 +599,20 @@ export function AvailabilityPage() {
                   <div className="mt-2 space-y-2">
                     {slotsByDay.map((day) => (
                       <div key={day.label}>
-                        <p className="mb-1 text-[10.5px] font-medium text-[var(--text-tertiary)]">
+                        <p className="mb-1 text-micro font-medium text-[var(--text-tertiary)]">
                           {day.label}
                         </p>
                         <div className="flex flex-wrap gap-1">
                           {day.slots.slice(0, 12).map((s) => (
                             <span
                               key={s.start}
-                              className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[11px] tabular text-[var(--text-secondary)]"
+                              className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-1.5 py-0.5 text-caption tabular text-[var(--text-secondary)]"
                             >
                               {new Date(s.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
                             </span>
                           ))}
                           {day.slots.length > 12 && (
-                            <span className="px-1 py-0.5 text-[11px] text-[var(--text-tertiary)]">
+                            <span className="px-1 py-0.5 text-caption text-[var(--text-tertiary)]">
                               +{day.slots.length - 12} more
                             </span>
                           )}
@@ -633,8 +633,8 @@ export function AvailabilityPage() {
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[11.5px] font-medium text-[var(--text-secondary)]">{label}</label>
-      {hint && <p className="mb-1 text-[10.5px] text-[var(--text-tertiary)]">{hint}</p>}
+      <label className="block text-caption font-medium text-[var(--text-secondary)]">{label}</label>
+      {hint && <p className="mb-1 text-micro text-[var(--text-tertiary)]">{hint}</p>}
       {children}
     </div>
   );
@@ -647,7 +647,7 @@ function Minutes({ value, options, onChange }: {
     <select
       value={value}
       onChange={(e) => onChange(Number(e.target.value))}
-      className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+      className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
     >
       {options.map((m) => (
         <option key={m} value={m}>{m === 0 ? 'None' : durationLabel(m)}</option>

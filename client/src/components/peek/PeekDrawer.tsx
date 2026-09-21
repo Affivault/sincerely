@@ -70,7 +70,7 @@ function Row({ icon: Icon, value, href, copyLabel }: { icon: typeof Mail; value?
   const body = (
     <span className="flex items-center gap-2 min-w-0">
       <Icon className="h-3.5 w-3.5 text-[var(--text-tertiary)] flex-shrink-0" />
-      <span className="text-[12.5px] text-[var(--text-secondary)] truncate">{value}</span>
+      <span className="text-body text-[var(--text-secondary)] truncate">{value}</span>
     </span>
   );
   return (
@@ -177,8 +177,8 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
             value={name}
             placeholder="Unnamed contact"
             ariaLabel="name"
-            textClassName="text-[16px] font-semibold text-[var(--text-primary)]"
-            inputClassName="text-[16px] font-semibold"
+            textClassName="text-heading font-semibold text-[var(--text-primary)]"
+            inputClassName="text-heading font-semibold"
             onSave={(next) => {
               // Everything before the first space is the first name; the rest
               // is the surname, so "van der Berg" survives intact.
@@ -189,13 +189,13 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
                 : { first_name: trimmed.slice(0, cut), last_name: trimmed.slice(cut + 1).trim() || null });
             }}
           />
-          <p className="text-[12.5px] text-[var(--text-tertiary)] truncate">
+          <p className="text-body text-[var(--text-tertiary)] truncate">
             {[contact.job_title, contact.company].filter(Boolean).join(' · ') || contact.email}
           </p>
         </div>
         <Link
           to={`/contacts/${contact.id}`}
-          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
+          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
         >
           <ExternalLink className="h-3 w-3" /> Full page
         </Link>
@@ -210,7 +210,7 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
             className="flex items-center gap-2 min-w-0 w-full text-left hover:text-[var(--indigo)]"
           >
             <Building2 className="h-3.5 w-3.5 text-[var(--text-tertiary)] flex-shrink-0" />
-            <span className="text-[12.5px] text-[var(--text-secondary)] truncate hover:text-[var(--indigo)]">{contact.company}</span>
+            <span className="text-body text-[var(--text-secondary)] truncate hover:text-[var(--indigo)]">{contact.company}</span>
             <ArrowRight className="h-3 w-3 text-[var(--text-muted)] flex-shrink-0" />
           </button>
         ) : (
@@ -294,8 +294,8 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
   if (!deal) {
     return (
       <div className="px-4 py-16 text-center">
-        <p className="text-[13px] font-medium text-[var(--text-primary)]">That deal no longer exists</p>
-        <button onClick={onClose} className="mt-2 text-[12px] text-[var(--indigo)] hover:underline">Close</button>
+        <p className="text-strong font-medium text-[var(--text-primary)]">That deal no longer exists</p>
+        <button onClick={onClose} className="mt-2 text-body text-[var(--indigo)] hover:underline">Close</button>
       </div>
     );
   }
@@ -318,17 +318,17 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
             value={deal.title}
             placeholder="Untitled deal"
             ariaLabel="deal title"
-            textClassName="text-[16px] font-semibold text-[var(--text-primary)]"
-            inputClassName="text-[16px] font-semibold"
+            textClassName="text-heading font-semibold text-[var(--text-primary)]"
+            inputClassName="text-heading font-semibold"
             onSave={(next) => save({ title: next })}
           />
-          <p className="text-[12.5px] text-[var(--text-tertiary)] truncate">
+          <p className="text-body text-[var(--text-tertiary)] truncate">
             {[deal.company, leadName].filter(Boolean).join(' · ') || 'No company yet'}
           </p>
         </div>
         <Link
           to={`/deals/${deal.id}`}
-          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
+          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
         >
           <ExternalLink className="h-3 w-3" /> Pipeline
         </Link>
@@ -340,8 +340,8 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
           type="number"
           placeholder="Add a value"
           ariaLabel="deal value"
-          textClassName="text-[22px] font-semibold tabular text-[var(--text-primary)] tracking-[-0.02em] leading-none"
-          inputClassName="text-[22px] font-semibold tabular"
+          textClassName="text-display font-semibold tabular text-[var(--text-primary)] tracking-[-0.02em] leading-none"
+          inputClassName="text-display font-semibold tabular"
           format={(v) => Number(v).toLocaleString('en-US', {
             style: 'currency', currency: deal.currency || 'USD', maximumFractionDigits: 0,
           })}
@@ -353,7 +353,7 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
           }}
         />
         {deal.expected_close_date && (
-          <p className="text-[11.5px] text-[var(--text-tertiary)] mt-1">
+          <p className="text-caption text-[var(--text-tertiary)] mt-1">
             Expected {new Date(deal.expected_close_date).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         )}
@@ -361,7 +361,7 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
 
       {/* Stage is the one edit worth having inline — it's the whole point of a pipeline */}
       <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
-        <p className="text-[11px] font-semibold text-[var(--text-tertiary)] mb-2">Stage</p>
+        <p className="text-caption font-semibold text-[var(--text-tertiary)] mb-2">Stage</p>
         <div className="flex flex-wrap gap-1.5">
           {DEAL_STAGES.map((s) => (
             <button
@@ -369,7 +369,7 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
               onClick={() => changeStage(s.id)}
               disabled={setStage.isPending || outcomeMutation.isPending}
               className={cn(
-                'h-7 px-2.5 rounded-lg border text-[12px] font-medium transition-colors disabled:opacity-60',
+                'h-7 px-2.5 rounded-lg border text-body font-medium transition-colors disabled:opacity-60',
                 s.id === deal.stage
                   ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
                   : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)]',
@@ -381,7 +381,7 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
         {deal.outcome_reason && (deal.stage === 'won' || deal.stage === 'lost') && (
           <p className={cn(
-            'mt-2 text-[12px]',
+            'mt-2 text-body',
             deal.stage === 'won' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500',
           )}>
             {deal.stage === 'won' ? 'Won because: ' : 'Lost because: '}{deal.outcome_reason}
@@ -390,7 +390,7 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
       </div>
 
       <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
-        <p className="text-[11px] font-semibold text-[var(--text-tertiary)] mb-1">Notes</p>
+        <p className="text-caption font-semibold text-[var(--text-tertiary)] mb-1">Notes</p>
         <InlineEdit
           value={deal.notes}
           multiline
@@ -431,7 +431,7 @@ function PeekLink({ contactId, label }: { contactId: string; label: string }) {
       onClick={() => openPeek('contact', contactId)}
       className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-subtle)] text-left hover:border-[var(--indigo)]/40 hover:bg-[var(--bg-hover)] transition-colors"
     >
-      <span className="flex-1 min-w-0 text-[12.5px] font-medium text-[var(--text-primary)] truncate">{label}</span>
+      <span className="flex-1 min-w-0 text-body font-medium text-[var(--text-primary)] truncate">{label}</span>
       <ArrowRight className="h-3.5 w-3.5 text-[var(--text-muted)] flex-shrink-0" />
     </button>
   );
@@ -462,8 +462,8 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
   if (!data) {
     return (
       <div className="px-4 py-16 text-center">
-        <p className="text-[13px] font-medium text-[var(--text-primary)]">That company no longer exists</p>
-        <button onClick={onClose} className="mt-2 text-[12px] text-[var(--indigo)] hover:underline">Close</button>
+        <p className="text-strong font-medium text-[var(--text-primary)]">That company no longer exists</p>
+        <button onClick={onClose} className="mt-2 text-body text-[var(--indigo)] hover:underline">Close</button>
       </div>
     );
   }
@@ -485,17 +485,17 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
             value={company.name}
             placeholder="Unnamed company"
             ariaLabel="company name"
-            textClassName="text-[16px] font-semibold text-[var(--text-primary)]"
-            inputClassName="text-[16px] font-semibold"
+            textClassName="text-heading font-semibold text-[var(--text-primary)]"
+            inputClassName="text-heading font-semibold"
             onSave={(next) => save({ name: next })}
           />
-          <p className="text-[12.5px] text-[var(--text-tertiary)] truncate">
+          <p className="text-body text-[var(--text-tertiary)] truncate">
             {[company.industry, company.location].filter(Boolean).join(' · ') || company.domain || 'No details yet'}
           </p>
         </div>
         <Link
           to={`/companies/${company.id}`}
-          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
+          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
         >
           <ExternalLink className="h-3 w-3" /> Full page
         </Link>
@@ -504,18 +504,18 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
       {/* What this account is worth right now */}
       <div className="grid grid-cols-3 divide-x divide-[var(--border-subtle)] border-b border-[var(--border-subtle)]">
         <div className="px-3 py-3">
-          <p className="text-[17px] font-semibold tabular text-[var(--text-primary)] leading-none">{contacts.length}</p>
-          <p className="text-[10.5px] text-[var(--text-tertiary)] mt-1">People</p>
+          <p className="text-title font-semibold tabular text-[var(--text-primary)] leading-none">{contacts.length}</p>
+          <p className="text-micro text-[var(--text-tertiary)] mt-1">People</p>
         </div>
         <div className="px-3 py-3">
-          <p className="text-[17px] font-semibold tabular text-[var(--text-primary)] leading-none">{openDeals.length}</p>
-          <p className="text-[10.5px] text-[var(--text-tertiary)] mt-1">Open deals</p>
+          <p className="text-title font-semibold tabular text-[var(--text-primary)] leading-none">{openDeals.length}</p>
+          <p className="text-micro text-[var(--text-tertiary)] mt-1">Open deals</p>
         </div>
         <div className="px-3 py-3">
-          <p className="text-[17px] font-semibold tabular text-[var(--text-primary)] leading-none">
+          <p className="text-title font-semibold tabular text-[var(--text-primary)] leading-none">
             {(company.open_value || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0, notation: 'compact' })}
           </p>
-          <p className="text-[10.5px] text-[var(--text-tertiary)] mt-1">Open value</p>
+          <p className="text-micro text-[var(--text-tertiary)] mt-1">Open value</p>
         </div>
       </div>
 
@@ -549,11 +549,11 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
 
       {/* Who works here — the question that was unanswerable before */}
       <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
-        <p className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-tertiary)] mb-2">
+        <p className="flex items-center gap-1.5 text-caption font-semibold text-[var(--text-tertiary)] mb-2">
           <Users className="h-3 w-3" /> People
         </p>
         {contacts.length === 0 ? (
-          <p className="text-[12px] text-[var(--text-tertiary)]">Nobody linked to this company yet.</p>
+          <p className="text-body text-[var(--text-tertiary)]">Nobody linked to this company yet.</p>
         ) : (
           <div className="space-y-1">
             {contacts.map((c) => {
@@ -566,8 +566,8 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
                 >
                   <Avatar name={name} email={c.email} size="sm" />
                   <span className="flex-1 min-w-0">
-                    <span className="block text-[12.5px] font-medium text-[var(--text-primary)] truncate">{name}</span>
-                    <span className="block text-[11px] text-[var(--text-tertiary)] truncate">{c.job_title || c.email}</span>
+                    <span className="block text-body font-medium text-[var(--text-primary)] truncate">{name}</span>
+                    <span className="block text-caption text-[var(--text-tertiary)] truncate">{c.job_title || c.email}</span>
                   </span>
                   <ArrowRight className="h-3.5 w-3.5 text-[var(--text-muted)] flex-shrink-0" />
                 </button>
@@ -579,11 +579,11 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
 
       {/* What's open here */}
       <div className="px-4 py-3">
-        <p className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-tertiary)] mb-2">
+        <p className="flex items-center gap-1.5 text-caption font-semibold text-[var(--text-tertiary)] mb-2">
           <Handshake className="h-3 w-3" /> Deals
         </p>
         {deals.length === 0 ? (
-          <p className="text-[12px] text-[var(--text-tertiary)]">No deals attached to this company yet.</p>
+          <p className="text-body text-[var(--text-tertiary)]">No deals attached to this company yet.</p>
         ) : (
           <div className="space-y-1">
             {deals.map((d) => (
@@ -593,10 +593,10 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
                 className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left hover:bg-[var(--bg-hover)] transition-colors"
               >
                 <span className="flex-1 min-w-0">
-                  <span className="block text-[12.5px] font-medium text-[var(--text-primary)] truncate">{d.title}</span>
-                  <span className="block text-[11px] text-[var(--text-tertiary)] capitalize">{d.stage}</span>
+                  <span className="block text-body font-medium text-[var(--text-primary)] truncate">{d.title}</span>
+                  <span className="block text-caption text-[var(--text-tertiary)] capitalize">{d.stage}</span>
                 </span>
-                <span className="text-[12px] font-semibold tabular text-[var(--text-primary)] flex-shrink-0">
+                <span className="text-body font-semibold tabular text-[var(--text-primary)] flex-shrink-0">
                   {(d.value || 0).toLocaleString('en-US', { style: 'currency', currency: d.currency || 'USD', maximumFractionDigits: 0 })}
                 </span>
               </button>

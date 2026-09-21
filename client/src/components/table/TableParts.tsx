@@ -40,7 +40,7 @@ export function SortableHeader<K extends string>({ label, colKey, sortBy, sortDi
         active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
       )}
     >
-      <span className="text-[11px] font-medium truncate">{label}</span>
+      <span className="text-caption font-medium truncate">{label}</span>
       {active
         ? (sortDir === 'asc'
             ? <ChevronUp className="h-3 w-3 flex-shrink-0" />

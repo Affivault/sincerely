@@ -63,17 +63,17 @@ function Stat({ icon: Icon, label, value, sub, tone }: {
 }) {
   return (
     <div className="card px-4 py-3.5">
-      <p className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-tertiary)]">
+      <p className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-tertiary)]">
         <Icon className="h-3 w-3" strokeWidth={2} />
         {label}
       </p>
       <p className={cn(
-        'mt-1.5 text-[22px] font-semibold leading-none tabular-nums',
+        'mt-1.5 text-display font-semibold leading-none tabular-nums',
         tone === 'money' ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--text-primary)]',
       )}>
         {value}
       </p>
-      {sub && <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">{sub}</p>}
+      {sub && <p className="mt-1.5 text-caption text-[var(--text-muted)]">{sub}</p>}
     </div>
   );
 }
@@ -176,7 +176,7 @@ export function RevenuePage() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[880px] text-left">
               <thead>
-                <tr className="border-b border-[var(--border-subtle)] text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                <tr className="border-b border-[var(--border-subtle)] text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                   <th className="py-2.5 pl-4 pr-3">Campaign</th>
                   <th className="py-2.5 px-3 text-right">Sent</th>
                   <th className="py-2.5 px-3 text-right">Replied</th>
@@ -201,21 +201,21 @@ export function RevenuePage() {
                           <td className="py-2.5 pl-4 pr-3 max-w-[280px]">
                             <Link
                               to={`/analytics/revenue/${r.id}`}
-                              className="block truncate text-[12.5px] font-semibold text-[var(--text-primary)] hover:text-[var(--indigo)] hover:underline decoration-[var(--indigo)]/40 underline-offset-2"
+                              className="block truncate text-body font-semibold text-[var(--text-primary)] hover:text-[var(--indigo)] hover:underline decoration-[var(--indigo)]/40 underline-offset-2"
                             >
                               {r.name}
                             </Link>
                           </td>
-                          <td className="py-2.5 px-3 text-right text-[12.5px] tabular-nums text-[var(--text-tertiary)]">{r.sent.toLocaleString()}</td>
-                          <td className="py-2.5 px-3 text-right text-[12.5px] tabular-nums text-[var(--text-secondary)]">{r.replied.toLocaleString()}</td>
-                          <td className="py-2.5 px-3 text-right text-[12.5px] tabular-nums text-[var(--text-secondary)]">{r.deals.toLocaleString()}</td>
-                          <td className="py-2.5 px-3 text-right text-[12.5px] tabular-nums text-[var(--text-secondary)]">{r.won.toLocaleString()}</td>
-                          <td className="py-2.5 px-3 text-right text-[12.5px] tabular-nums text-[var(--text-tertiary)]">{pct(r.win_rate)}</td>
-                          <td className="py-2.5 px-3 text-right text-[12.5px] tabular-nums text-[var(--text-tertiary)]">
+                          <td className="py-2.5 px-3 text-right text-body tabular-nums text-[var(--text-tertiary)]">{r.sent.toLocaleString()}</td>
+                          <td className="py-2.5 px-3 text-right text-body tabular-nums text-[var(--text-secondary)]">{r.replied.toLocaleString()}</td>
+                          <td className="py-2.5 px-3 text-right text-body tabular-nums text-[var(--text-secondary)]">{r.deals.toLocaleString()}</td>
+                          <td className="py-2.5 px-3 text-right text-body tabular-nums text-[var(--text-secondary)]">{r.won.toLocaleString()}</td>
+                          <td className="py-2.5 px-3 text-right text-body tabular-nums text-[var(--text-tertiary)]">{pct(r.win_rate)}</td>
+                          <td className="py-2.5 px-3 text-right text-body tabular-nums text-[var(--text-tertiary)]">
                             {r.value_per_reply === null ? '—' : money(r.value_per_reply)}
                           </td>
                           <td className={cn(
-                            'py-2.5 pl-3 pr-4 text-right text-[13px] font-semibold tabular-nums',
+                            'py-2.5 pl-3 pr-4 text-right text-strong font-semibold tabular-nums',
                             earned ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--text-muted)]',
                           )}>
                             {earned ? money(r.won_value) : '—'}
@@ -230,7 +230,7 @@ export function RevenuePage() {
       )}
 
       {!nothingAttributed && !isLoading && totals.strongShare !== null && totals.strongShare < 1 && (
-        <p className="px-1 text-[11.5px] text-[var(--text-tertiary)]">
+        <p className="px-1 text-caption text-[var(--text-tertiary)]">
           {money(totals.won - totals.strong)} of the total rests on weaker evidence — deals whose
           contact was in a campaign but never replied to it. Those are shown because they may well
           be real, and named because they may well not be.

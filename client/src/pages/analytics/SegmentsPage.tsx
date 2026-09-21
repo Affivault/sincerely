@@ -50,7 +50,7 @@ function Row({ row, dimension }: { row: SegmentRow; dimension: SegmentDimension 
     <div className="flex items-start gap-3 border-b border-[var(--border-subtle)] px-4 py-3 last:border-0">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className="text-[13px] font-semibold text-[var(--text-primary)]">{row.value}</span>
+          <span className="text-strong font-semibold text-[var(--text-primary)]">{row.value}</span>
 
           {/*
             * The multiple, only where shared was willing to compute one -
@@ -59,7 +59,7 @@ function Row({ row, dimension }: { row: SegmentRow; dimension: SegmentDimension 
             */}
           {row.lift != null && (
             <span className={cn(
-              'inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-[10.5px] font-semibold',
+              'inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-micro font-semibold',
               strong ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                 : weak ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
                 : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]',
@@ -75,7 +75,7 @@ function Row({ row, dimension }: { row: SegmentRow; dimension: SegmentDimension 
           * zero; a sentence reads as "not yet".
           */}
         {row.note && (
-          <p className="mt-0.5 text-[11.5px] leading-snug text-[var(--text-tertiary)]" data-segment-note>
+          <p className="mt-0.5 text-caption leading-snug text-[var(--text-tertiary)]" data-segment-note>
             {row.note}
           </p>
         )}
@@ -83,15 +83,15 @@ function Row({ row, dimension }: { row: SegmentRow; dimension: SegmentDimension 
 
       <div className="flex shrink-0 items-center gap-5 text-right">
         <div className="w-16">
-          <div className="text-[13px] font-semibold tabular text-[var(--text-primary)]">{row.reached.toLocaleString()}</div>
-          <div className="text-[10.5px] text-[var(--text-tertiary)]">reached</div>
+          <div className="text-strong font-semibold tabular text-[var(--text-primary)]">{row.reached.toLocaleString()}</div>
+          <div className="text-micro text-[var(--text-tertiary)]">reached</div>
         </div>
 
         <div className="hidden w-16 sm:block">
-          <div className={cn('text-[13px] tabular', row.replyRate != null ? 'font-semibold text-[var(--text-primary)]' : 'text-[11.5px] text-[var(--text-tertiary)]')}>
+          <div className={cn('text-strong tabular', row.replyRate != null ? 'font-semibold text-[var(--text-primary)]' : 'text-caption text-[var(--text-tertiary)]')}>
             {row.replyRate != null ? `${(row.replyRate * 100).toFixed(1)}%` : `${row.replied}/${row.reached}`}
           </div>
-          <div className="text-[10.5px] text-[var(--text-tertiary)]">replied</div>
+          <div className="text-micro text-[var(--text-tertiary)]">replied</div>
         </div>
 
         <div className="w-16">
@@ -99,16 +99,16 @@ function Row({ row, dimension }: { row: SegmentRow; dimension: SegmentDimension 
             * Counts, not a win rate, below the floor. Won-of-closed over
             * three deals is a coin flip with a percent sign.
             */}
-          <div className={cn('text-[13px] tabular', row.winRate != null ? 'font-semibold text-[var(--text-primary)]' : 'text-[11.5px] text-[var(--text-tertiary)]')}>
+          <div className={cn('text-strong tabular', row.winRate != null ? 'font-semibold text-[var(--text-primary)]' : 'text-caption text-[var(--text-tertiary)]')}>
             {row.winRate != null ? `${Math.round(row.winRate * 100)}%` : `${row.won}/${row.closed || 0}`}
           </div>
-          <div className="text-[10.5px] text-[var(--text-tertiary)]">won</div>
+          <div className="text-micro text-[var(--text-tertiary)]">won</div>
         </div>
 
         <div className="w-20">
           {/* Always true: money divided by people, no inference in it. */}
-          <div className="text-[13px] font-semibold tabular text-[var(--text-primary)]">{money(row.wonValue)}</div>
-          <div className="text-[10.5px] text-[var(--text-tertiary)]">{money(row.valuePerContact)}/contact</div>
+          <div className="text-strong font-semibold tabular text-[var(--text-primary)]">{money(row.wonValue)}</div>
+          <div className="text-micro text-[var(--text-tertiary)]">{money(row.valuePerContact)}/contact</div>
         </div>
       </div>
     </div>
@@ -122,10 +122,10 @@ function Verdict({ report }: { report: SegmentReport }) {
       'rounded-xl border px-4 py-3.5',
       actionable ? 'border-emerald-500/30 bg-emerald-500/8' : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60',
     )}>
-      <p className="text-[13px] font-semibold leading-snug text-[var(--text-primary)]" data-segment-verdict>
+      <p className="text-strong font-semibold leading-snug text-[var(--text-primary)]" data-segment-verdict>
         {report.verdict}
       </p>
-      <p className="mt-1 text-[11.5px] leading-relaxed text-[var(--text-secondary)]">
+      <p className="mt-1 text-caption leading-relaxed text-[var(--text-secondary)]">
         Across {report.baseline.reached.toLocaleString()} contacts reached,{' '}
         {report.baseline.closed} closed deal{report.baseline.closed === 1 ? '' : 's'}
         {report.baseline.winRate != null && <> and a {Math.round(report.baseline.winRate * 100)}% average win rate</>}
@@ -171,7 +171,7 @@ export function SegmentsPage() {
             type="button"
             onClick={() => setDimension(d)}
             className={cn(
-              'h-8 shrink-0 rounded-lg px-3 text-[12.5px] font-medium transition-colors',
+              'h-8 shrink-0 rounded-lg px-3 text-body font-medium transition-colors',
               dimension === d
                 ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.06)]'
                 : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
@@ -203,8 +203,8 @@ export function SegmentsPage() {
             <section className="panel overflow-hidden">
               <div className="flex items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-3">
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">By {DIMENSION_LABELS[dimension].toLowerCase()}</h3>
-                  <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)]">
+                  <h3 className="text-strong font-semibold text-[var(--text-primary)]">By {DIMENSION_LABELS[dimension].toLowerCase()}</h3>
+                  <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
                     Ranked by how confidently each group beats your average — not by raw win rate, which puts small lucky groups on top.
                   </p>
                 </div>
@@ -226,7 +226,7 @@ export function SegmentsPage() {
             */}
           <div className="flex items-start gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 px-4 py-3">
             <Info className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]" />
-            <p className="text-[11.5px] leading-relaxed text-[var(--text-secondary)]" data-segment-caveat>
+            <p className="text-caption leading-relaxed text-[var(--text-secondary)]" data-segment-caveat>
               Compare enough groups and one of them looks good by chance — that is arithmetic, not a
               finding. A group is only given a win rate once it has closed {MIN_CLOSED_FOR_RATE} deals,
               the multiple is computed against the cautious end of that rate rather than the flattering
@@ -238,7 +238,7 @@ export function SegmentsPage() {
           {report.compared === 0 && report.rows.length > 0 && (
             <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-3">
               <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0 text-amber-500" />
-              <p className="text-[11.5px] leading-relaxed text-[var(--text-secondary)]">
+              <p className="text-caption leading-relaxed text-[var(--text-secondary)]">
                 Nothing here has closed enough to compare yet. The revenue-per-contact column is still
                 worth reading — it needs no inference, it is money divided by people — but treat the
                 ordering as a guess until the deals arrive.

@@ -48,7 +48,7 @@ function RoleChip({ role }: { role: string }) {
   return (
     <span
       className={cn(
-        'inline-flex flex-shrink-0 items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+        'inline-flex flex-shrink-0 items-center rounded-full px-1.5 py-0.5 text-micro font-semibold',
         ROLE_TONE[role] || 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]',
       )}
     >
@@ -109,7 +109,7 @@ function AddParticipant({
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }}
           placeholder="Search contacts by name or email…"
-          className="min-w-0 flex-1 bg-transparent text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+          className="min-w-0 flex-1 bg-transparent text-body text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
         />
         <button type="button" onClick={onCancel} className="icon-btn h-5 w-5" title="Cancel">
           <X className="h-3.5 w-3.5" />
@@ -123,7 +123,7 @@ function AddParticipant({
             type="button"
             onClick={() => setRole(role === r ? '' : r)}
             className={cn(
-              'rounded-full px-2 py-0.5 text-[10.5px] font-medium transition-colors',
+              'rounded-full px-2 py-0.5 text-micro font-medium transition-colors',
               role === r
                 ? 'bg-[var(--indigo)] text-white'
                 : 'bg-[var(--bg-surface)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
@@ -135,11 +135,11 @@ function AddParticipant({
       </div>
 
       {debounced.length < 2 ? (
-        <p className="px-1 py-1 text-[11px] text-[var(--text-muted)]">
+        <p className="px-1 py-1 text-caption text-[var(--text-muted)]">
           Type at least two characters. Pick a role first and it is applied to whoever you add.
         </p>
       ) : options.length === 0 ? (
-        <p className="px-1 py-1 text-[11px] text-[var(--text-muted)]">
+        <p className="px-1 py-1 text-caption text-[var(--text-muted)]">
           {isFetching ? 'Searching…' : 'Nobody new matches that. Everyone already on the deal is hidden.'}
         </p>
       ) : (
@@ -154,8 +154,8 @@ function AddParticipant({
             >
               <Avatar name={fullName(c)} email={c.email} size="sm" />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[12px] font-medium text-[var(--text-primary)]">{fullName(c)}</span>
-                <span className="block truncate text-[10.5px] text-[var(--text-tertiary)]">
+                <span className="block truncate text-body font-medium text-[var(--text-primary)]">{fullName(c)}</span>
+                <span className="block truncate text-micro text-[var(--text-tertiary)]">
                   {c.email}{c.job_title ? ` · ${c.job_title}` : ''}
                 </span>
               </span>
@@ -203,7 +203,7 @@ function PersonRow({
             <span className="flex items-center gap-1.5">
               <span
                 className={cn(
-                  'truncate text-[12.5px] font-medium text-[var(--text-primary)]',
+                  'truncate text-body font-medium text-[var(--text-primary)]',
                   contactId && 'group-hover:text-[var(--indigo)] group-hover:underline',
                 )}
               >
@@ -216,13 +216,13 @@ function PersonRow({
               )}
             </span>
             {(jobTitle || company) && (
-              <span className="flex items-center gap-1 truncate text-[10.5px] text-[var(--text-tertiary)]">
+              <span className="flex items-center gap-1 truncate text-micro text-[var(--text-tertiary)]">
                 <Briefcase className="h-2.5 w-2.5 flex-shrink-0" />
                 {[jobTitle, company].filter(Boolean).join(' @ ')}
               </span>
             )}
             {email && (
-              <span className="flex items-center gap-1 truncate text-[10.5px] text-[var(--text-tertiary)]">
+              <span className="flex items-center gap-1 truncate text-micro text-[var(--text-tertiary)]">
                 <Mail className="h-2.5 w-2.5 flex-shrink-0" />{email}
               </span>
             )}
@@ -263,7 +263,7 @@ function PersonRow({
                   type="button"
                   onClick={() => { onRole(role === r ? null : r); setEditingRole(false); }}
                   className={cn(
-                    'rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-colors',
+                    'rounded-full px-1.5 py-0.5 text-micro font-medium transition-colors',
                     role === r ? 'bg-[var(--indigo)] text-white' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
                   )}
                 >
@@ -279,7 +279,7 @@ function PersonRow({
             <button
               type="button"
               onClick={() => setEditingRole(true)}
-              className="text-[10.5px] text-[var(--text-muted)] transition-colors hover:text-[var(--indigo)]"
+              className="text-micro text-[var(--text-muted)] transition-colors hover:text-[var(--indigo)]"
             >
               Set a role…
             </button>
@@ -340,14 +340,14 @@ export function DealPeople({
   return (
     <div className="panel p-3.5">
       <div className="mb-2 flex items-center gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">People</p>
-        {total > 0 && <span className="text-[11px] font-medium tabular-nums text-[var(--text-tertiary)]">{total}</span>}
+        <p className="text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)]">People</p>
+        {total > 0 && <span className="text-caption font-medium tabular-nums text-[var(--text-tertiary)]">{total}</span>}
         <span className="flex-1" />
         {!adding && (
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[var(--indigo)] hover:underline"
+            className="inline-flex items-center gap-1 text-caption font-medium text-[var(--indigo)] hover:underline"
           >
             <UserPlus className="h-3 w-3" /> Add
           </button>
@@ -366,7 +366,7 @@ export function DealPeople({
           onEmail={onEmail && primaryEmail ? () => onEmail(primaryEmail, primaryName) : undefined}
         />
       ) : (
-        <p className="px-1.5 py-1 text-[11.5px] text-[var(--text-muted)]">
+        <p className="px-1.5 py-1 text-caption text-[var(--text-muted)]">
           No primary contact. Edit the deal to link one.
         </p>
       )}
@@ -407,13 +407,13 @@ export function DealPeople({
       )}
 
       {!adding && participants.length === 0 && (
-        <p className="mt-1.5 px-1.5 text-[11px] text-[var(--text-muted)]">
+        <p className="mt-1.5 px-1.5 text-caption text-[var(--text-muted)]">
           Add the other people involved and their emails join this deal&rsquo;s conversation.
         </p>
       )}
 
       {!hasDecisionMaker && deal.stage === 'proposal' && (
-        <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+        <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-500/10 px-2 py-1.5 text-caption text-amber-700 dark:text-amber-400">
           <Building2 className="mt-px h-3 w-3 flex-shrink-0" />
           A proposal is out and nobody here is marked as the decision maker.
         </p>

@@ -190,7 +190,7 @@ export function IntegrationsPage() {
 
       {sections.map(({ kind, providers }) => (
         <section key={kind} className="space-y-2.5">
-          <h2 className="text-[12px] font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">
+          <h2 className="text-body font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">
             {KIND_LABELS[kind]}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -207,9 +207,9 @@ export function IntegrationsPage() {
                     <BrandTile providerId={meta.id} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <h3 className="text-[13.5px] font-semibold text-[var(--text-primary)]">{meta.name}</h3>
+                        <h3 className="text-strong font-semibold text-[var(--text-primary)]">{meta.name}</h3>
                         {oneClick && !connected && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(99,102,241,0.1)] px-2 py-0.5 text-[10.5px] font-medium text-[var(--indigo)]">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(99,102,241,0.1)] px-2 py-0.5 text-micro font-medium text-[var(--indigo)]">
                             <Sparkles className="h-2.5 w-2.5" />
                             1-click
                           </span>
@@ -217,7 +217,7 @@ export function IntegrationsPage() {
                         {connected && (
                           <span
                             className={cn(
-                              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-medium',
+                              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-micro font-medium',
                               connected.is_active
                                 ? 'bg-[rgba(34,197,94,0.1)] text-[#16a34a]'
                                 : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
@@ -233,14 +233,14 @@ export function IntegrationsPage() {
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 text-[12px] leading-relaxed text-[var(--text-secondary)] line-clamp-2">
+                      <p className="mt-1 text-body leading-relaxed text-[var(--text-secondary)] line-clamp-2">
                         {cMeta || meta.description}
                       </p>
                     </div>
                   </div>
 
                   {connected?.last_error && (
-                    <p className="text-[11.5px] text-[#dc2626] bg-[rgba(220,38,38,0.06)] rounded-md px-2.5 py-1.5 line-clamp-2">
+                    <p className="text-caption text-[#dc2626] bg-[rgba(220,38,38,0.06)] rounded-md px-2.5 py-1.5 line-clamp-2">
                       {connected.last_error.startsWith('Choose') ? connected.last_error : `Last delivery failed: ${connected.last_error}`}
                     </p>
                   )}
@@ -251,7 +251,7 @@ export function IntegrationsPage() {
                         <button
                           onClick={() => oauthStartMutation.mutate(meta.id)}
                           disabled={oauthStartMutation.isPending}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-[var(--indigo)] text-white hover:opacity-90 shadow-[0_1px_3px_rgba(99,102,241,0.4)] transition-all disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-semibold bg-[var(--indigo)] text-white hover:opacity-90 shadow-[0_1px_3px_rgba(99,102,241,0.4)] transition-all disabled:opacity-50"
                         >
                           {oauthStartMutation.isPending && oauthStartMutation.variables === meta.id
                             ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -260,7 +260,7 @@ export function IntegrationsPage() {
                         </button>
                         <button
                           onClick={() => setOpenProviderId(meta.id)}
-                          className="text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-1.5"
+                          className="text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-1.5"
                         >
                           Manual setup
                         </button>
@@ -269,7 +269,7 @@ export function IntegrationsPage() {
                       <button
                         onClick={() => setOpenProviderId(meta.id)}
                         className={cn(
-                          'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all',
+                          'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-semibold transition-all',
                           connected
                             ? 'bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] hover:border-[var(--border-default)]'
                             : 'bg-[var(--indigo)] text-white hover:opacity-90 shadow-[0_1px_3px_rgba(99,102,241,0.4)]'
@@ -283,13 +283,13 @@ export function IntegrationsPage() {
                         onClick={() =>
                           toggleActiveMutation.mutate({ id: connected.id, is_active: !connected.is_active })
                         }
-                        className="text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-1.5"
+                        className="text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-1.5"
                       >
                         {connected.is_active ? 'Pause' : 'Resume'}
                       </button>
                     )}
                     {connected?.last_success_at && !connected.last_error && (
-                      <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-[var(--text-tertiary)]">
+                      <span className="ml-auto inline-flex items-center gap-1 text-caption text-[var(--text-tertiary)]">
                         <CheckCircle2 className="h-3 w-3 text-[#16a34a]" />
                         {formatDateTime(connected.last_success_at)}
                       </span>
@@ -303,7 +303,7 @@ export function IntegrationsPage() {
       ))}
 
       {isLoading && (
-        <p className="text-[12px] text-[var(--text-tertiary)]">Loading your connections…</p>
+        <p className="text-body text-[var(--text-tertiary)]">Loading your connections…</p>
       )}
 
       {openMeta && (
@@ -428,10 +428,10 @@ function ProviderModal({
         <div className="flex items-center gap-3 p-5 border-b border-[var(--border-subtle)]">
           <BrandTile providerId={meta.id} size="lg" />
           <div className="flex-1 min-w-0">
-            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
+            <h2 className="text-heading font-semibold text-[var(--text-primary)]">
               {existing ? `Manage ${meta.name}` : `Connect ${meta.name}`}
             </h2>
-            <p className="text-[12px] text-[var(--text-secondary)]">
+            <p className="text-body text-[var(--text-secondary)]">
               {existing && connectionMeta(existing) ? connectionMeta(existing) : KIND_LABELS[meta.kind]}
             </p>
           </div>
@@ -444,17 +444,17 @@ function ProviderModal({
           {/* One-click connect (not yet connected via OAuth) */}
           {oauthEnabled && !isOAuthConnected && (
             <div className="rounded-lg border border-[var(--indigo)] bg-[rgba(99,102,241,0.05)] p-3.5 space-y-2">
-              <p className="text-[12px] text-[var(--text-primary)] font-medium">
+              <p className="text-body text-[var(--text-primary)] font-medium">
                 Skip the copy-paste — connect in one click
               </p>
               <button
                 onClick={onOAuthStart}
-                className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-[12px] font-semibold hover:opacity-90 transition-all shadow-[0_1px_3px_rgba(99,102,241,0.4)]"
+                className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:opacity-90 transition-all shadow-[0_1px_3px_rgba(99,102,241,0.4)]"
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 Connect with {meta.name}
               </button>
-              <p className="text-[11px] text-[var(--text-tertiary)]">
+              <p className="text-caption text-[var(--text-tertiary)]">
                 You'll approve access on {meta.name}'s own page and come straight back. Or set up manually below.
               </p>
             </div>
@@ -464,20 +464,20 @@ function ProviderModal({
           {!isOAuthConnected && (
             <div className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3.5">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-[12px] font-semibold text-[var(--text-primary)]">How to get your credentials</h3>
+                <h3 className="text-body font-semibold text-[var(--text-primary)]">How to get your credentials</h3>
                 <a
                   href={meta.docsUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[var(--indigo)] hover:underline"
+                  className="inline-flex items-center gap-1 text-caption font-medium text-[var(--indigo)] hover:underline"
                 >
                   {meta.name} docs <ExternalLink className="h-3 w-3" />
                 </a>
               </div>
               <ol className="space-y-1.5">
                 {meta.setupSteps.map((step, i) => (
-                  <li key={i} className="flex gap-2 text-[12px] leading-relaxed text-[var(--text-secondary)]">
-                    <span className="flex min-w-[18px] h-[18px] w-[18px] items-center justify-center rounded-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[10px] font-semibold text-[var(--text-tertiary)] mt-0.5">
+                  <li key={i} className="flex gap-2 text-body leading-relaxed text-[var(--text-secondary)]">
+                    <span className="flex min-w-[18px] h-[18px] w-[18px] items-center justify-center rounded-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-micro font-semibold text-[var(--text-tertiary)] mt-0.5">
                       {i + 1}
                     </span>
                     {step}
@@ -515,7 +515,7 @@ function ProviderModal({
                         )}
                       />
                     </button>
-                    <span className="text-[12.5px] text-[var(--text-primary)]">{field.label}</span>
+                    <span className="text-body text-[var(--text-primary)]">{field.label}</span>
                   </label>
                 );
               }
@@ -523,12 +523,12 @@ function ProviderModal({
               const options = field.picker ? pickerOptions(field) : null;
               return (
                 <div key={field.key}>
-                  <label className="text-xs text-[var(--text-tertiary)] mb-1 block">{field.label}</label>
+                  <label className="text-body text-[var(--text-tertiary)] mb-1 block">{field.label}</label>
                   {options && options.length > 0 ? (
                     <select
                       value={config[field.key] || existing?.config[field.key] || ''}
                       onChange={(e) => setConfig((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                      className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--text-primary)]"
+                      className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-strong text-[var(--text-primary)] focus:outline-none focus:border-[var(--text-primary)]"
                     >
                       <option value="">— pick one —</option>
                       {options.map((o) => (
@@ -548,14 +548,14 @@ function ProviderModal({
                             ? `${existing.config[field.key]} (leave blank to keep)`
                             : field.placeholder
                         }
-                        className="flex-1 rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-sm font-mono text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] placeholder:font-sans focus:outline-none focus:border-[var(--text-primary)]"
+                        className="flex-1 rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-strong font-mono text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] placeholder:font-sans focus:outline-none focus:border-[var(--text-primary)]"
                       />
                       {field.picker && (
                         <button
                           onClick={() => resourcesMutation.mutate()}
                           disabled={resourcesMutation.isPending}
                           title="Load choices from your account"
-                          className="inline-flex items-center gap-1.5 px-3 rounded-md bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[12px] font-medium text-[var(--text-primary)] hover:border-[var(--border-default)] transition-all disabled:opacity-50 shrink-0"
+                          className="inline-flex items-center gap-1.5 px-3 rounded-md bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-body font-medium text-[var(--text-primary)] hover:border-[var(--border-default)] transition-all disabled:opacity-50 shrink-0"
                         >
                           {resourcesMutation.isPending
                             ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -565,7 +565,7 @@ function ProviderModal({
                       )}
                     </div>
                   )}
-                  {field.help && <p className="mt-1 text-[11px] text-[var(--text-tertiary)]">{field.help}</p>}
+                  {field.help && <p className="mt-1 text-caption text-[var(--text-tertiary)]">{field.help}</p>}
                 </div>
               );
             })}
@@ -573,7 +573,7 @@ function ProviderModal({
               <button
                 onClick={() => resourcesMutation.mutate()}
                 disabled={resourcesMutation.isPending}
-                className="inline-flex items-center gap-1 text-[11.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                className="inline-flex items-center gap-1 text-caption text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               >
                 <RefreshCw className={cn('h-3 w-3', resourcesMutation.isPending && 'animate-spin')} />
                 Refresh lists
@@ -584,7 +584,7 @@ function ProviderModal({
           {/* Event picker with presets */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs text-[var(--text-tertiary)]">
+              <label className="text-body text-[var(--text-tertiary)]">
                 {meta.kind === 'crm' ? 'Sync when' : 'Send on these events'}
               </label>
               {meta.kind !== 'crm' && (
@@ -593,7 +593,7 @@ function ProviderModal({
                     <button
                       key={preset.label}
                       onClick={() => setEvents(preset.events.filter((e) => meta.supportedEvents.includes(e)))}
-                      className="rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 py-0.5 text-[10.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-all"
+                      className="rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 py-0.5 text-micro font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-all"
                     >
                       {preset.label}
                     </button>
@@ -607,7 +607,7 @@ function ProviderModal({
                   key={event}
                   onClick={() => toggleEvent(event)}
                   className={cn(
-                    'rounded border px-2.5 py-1 text-xs transition-all',
+                    'rounded border px-2.5 py-1 text-body transition-all',
                     events.includes(event)
                       ? 'bg-[rgba(99,102,241,0.1)] border-[var(--indigo)] text-[var(--indigo)]'
                       : 'bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -622,11 +622,11 @@ function ProviderModal({
           {/* Recent activity (connected only) */}
           {existing && (
             <div>
-              <h3 className="text-xs text-[var(--text-tertiary)] mb-2">Recent activity</h3>
+              <h3 className="text-body text-[var(--text-tertiary)] mb-2">Recent activity</h3>
               {activity && activity.length > 0 ? (
                 <ul className="space-y-1 max-h-44 overflow-y-auto rounded-lg border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">
                   {activity.map((a) => (
-                    <li key={a.id} className="flex items-start gap-2 px-3 py-2 text-[12px]">
+                    <li key={a.id} className="flex items-start gap-2 px-3 py-2 text-body">
                       {a.success ? (
                         <CheckCircle2 className="h-3.5 w-3.5 text-[#16a34a] mt-0.5 shrink-0" />
                       ) : (
@@ -635,10 +635,10 @@ function ProviderModal({
                       <div className="min-w-0 flex-1">
                         <p className="text-[var(--text-primary)] truncate">{a.summary}</p>
                         {!a.success && a.detail && (
-                          <p className="text-[11px] text-[var(--text-tertiary)] truncate">{a.detail}</p>
+                          <p className="text-caption text-[var(--text-tertiary)] truncate">{a.detail}</p>
                         )}
                       </div>
-                      <span className="inline-flex items-center gap-1 text-[10.5px] text-[var(--text-tertiary)] shrink-0">
+                      <span className="inline-flex items-center gap-1 text-micro text-[var(--text-tertiary)] shrink-0">
                         <Clock className="h-3 w-3" />
                         {formatDateTime(a.created_at)}
                       </span>
@@ -646,7 +646,7 @@ function ProviderModal({
                   ))}
                 </ul>
               ) : (
-                <p className="text-[12px] text-[var(--text-tertiary)]">
+                <p className="text-body text-[var(--text-tertiary)]">
                   Nothing yet — activity appears here as events are delivered.
                 </p>
               )}
@@ -659,7 +659,7 @@ function ProviderModal({
           <button
             onClick={() => connectMutation.mutate()}
             disabled={!canSubmit || events.length === 0 || connectMutation.isPending}
-            className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-[12px] font-semibold hover:opacity-90 transition-all disabled:opacity-50 shadow-[0_1px_3px_rgba(99,102,241,0.4)]"
+            className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:opacity-90 transition-all disabled:opacity-50 shadow-[0_1px_3px_rgba(99,102,241,0.4)]"
           >
             {connectMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {existing ? 'Save & test' : 'Connect & test'}
@@ -669,7 +669,7 @@ function ProviderModal({
               <button
                 onClick={() => testMutation.mutate()}
                 disabled={testMutation.isPending}
-                className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-[12px] font-medium hover:border-[var(--border-default)] transition-all disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-body font-medium hover:border-[var(--border-default)] transition-all disabled:opacity-50"
               >
                 {testMutation.isPending ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -691,7 +691,7 @@ function ProviderModal({
                   );
                 }}
                 disabled={disconnectMutation.isPending}
-                className="ml-auto inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-[12px] font-medium text-[#dc2626] hover:bg-[rgba(220,38,38,0.06)] transition-all disabled:opacity-50"
+                className="ml-auto inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-body font-medium text-[#dc2626] hover:bg-[rgba(220,38,38,0.06)] transition-all disabled:opacity-50"
               >
                 <Unplug className="h-3.5 w-3.5" />
                 Disconnect

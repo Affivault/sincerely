@@ -114,8 +114,8 @@ export function SchedulesPage() {
           <div className="mx-auto w-10 h-10 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex items-center justify-center mb-2">
             <CalendarClock className="h-4 w-4 text-[var(--text-tertiary)]" />
           </div>
-          <h3 className="text-[14px] font-semibold text-[var(--text-primary)] mb-1">No schedules yet</h3>
-          <p className="text-[12.5px] text-[var(--text-secondary)] mb-3 max-w-md mx-auto">Create a reusable send-time window to apply to campaigns in one click.</p>
+          <h3 className="text-heading font-semibold text-[var(--text-primary)] mb-1">No schedules yet</h3>
+          <p className="text-body text-[var(--text-secondary)] mb-3 max-w-md mx-auto">Create a reusable send-time window to apply to campaigns in one click.</p>
           <Button size="sm" onClick={() => setCreating(true)}>
             <Plus className="h-3.5 w-3.5" /> Create your first schedule
           </Button>
@@ -172,9 +172,9 @@ function ScheduleCard({ schedule, now, onEdit, onDelete, onMakeDefault }: {
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <h3 className="text-[14px] font-semibold text-[var(--text-primary)] tracking-[-0.005em]">{schedule.name}</h3>
+            <h3 className="text-heading font-semibold text-[var(--text-primary)] tracking-[-0.005em]">{schedule.name}</h3>
             {schedule.is_default && (
-              <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-medium bg-[var(--indigo-subtle)] text-[var(--indigo)]">
+              <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-medium bg-[var(--indigo-subtle)] text-[var(--indigo)]">
                 <Star className="h-2.5 w-2.5 fill-current" /> Default
               </span>
             )}
@@ -182,7 +182,7 @@ function ScheduleCard({ schedule, now, onEdit, onDelete, onMakeDefault }: {
               <span
                 title={active ? 'Within this schedule’s send window right now' : 'Outside this schedule’s send window right now'}
                 className={cn(
-                  'inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-medium',
+                  'inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-medium',
                   active ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]',
                 )}
               >
@@ -193,8 +193,8 @@ function ScheduleCard({ schedule, now, onEdit, onDelete, onMakeDefault }: {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <div className="text-[10.5px] text-[var(--text-tertiary)] font-semibold mb-1">Time window</div>
-              <div className="text-[13px] font-semibold text-[var(--text-primary)] tabular flex items-center gap-1.5">
+              <div className="text-micro text-[var(--text-tertiary)] font-semibold mb-1">Time window</div>
+              <div className="text-strong font-semibold text-[var(--text-primary)] tabular flex items-center gap-1.5">
                 {schedule.send_window_start} – {schedule.send_window_end}
                 {schedule.send_window_end < schedule.send_window_start && (
                   <span title="Overnight — wraps past midnight">
@@ -204,18 +204,18 @@ function ScheduleCard({ schedule, now, onEdit, onDelete, onMakeDefault }: {
               </div>
             </div>
             <div>
-              <div className="text-[10.5px] text-[var(--text-tertiary)] font-semibold mb-1">Timezone</div>
-              <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{schedule.timezone}</div>
+              <div className="text-micro text-[var(--text-tertiary)] font-semibold mb-1">Timezone</div>
+              <div className="text-strong font-medium text-[var(--text-primary)] truncate">{schedule.timezone}</div>
               {parts && (
-                <div className="text-[11px] text-[var(--text-tertiary)] tabular mt-0.5">{parts.hhmm} there now</div>
+                <div className="text-caption text-[var(--text-tertiary)] tabular mt-0.5">{parts.hhmm} there now</div>
               )}
             </div>
             <div>
-              <div className="text-[10.5px] text-[var(--text-tertiary)] font-semibold mb-1">Days</div>
+              <div className="text-micro text-[var(--text-tertiary)] font-semibold mb-1">Days</div>
               <div className="flex gap-0.5">
                 {DAYS.map((d) => (
                   <span key={d.key} className={cn(
-                    'w-6 h-6 inline-flex items-center justify-center rounded-md text-[10.5px] font-semibold',
+                    'w-6 h-6 inline-flex items-center justify-center rounded-md text-micro font-semibold',
                     schedule.send_days.includes(d.key)
                       ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
                       : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
@@ -287,7 +287,7 @@ function ScheduleEditor({ initial, onCancel, onSave, loading }: {
 
       <div className="space-y-4">
         <div>
-          <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Name</label>
+          <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Name</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -298,37 +298,37 @@ function ScheduleEditor({ initial, onCancel, onSave, loading }: {
 
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Timezone</label>
+            <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Timezone</label>
             <select value={timezone} onChange={(e) => setTimezone(e.target.value)} className="input-field">
               {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Start time</label>
+            <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Start time</label>
             <input type="time" value={start} onChange={(e) => setStart(e.target.value)} className="input-field" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">End time</label>
+            <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">End time</label>
             <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className="input-field" />
           </div>
         </div>
 
         {end !== '' && start !== '' && end < start && (
-          <div className="flex items-center gap-1.5 text-[12px] text-[var(--indigo)] bg-[var(--indigo-subtle)] rounded-lg px-2.5 py-1.5">
+          <div className="flex items-center gap-1.5 text-body text-[var(--indigo)] bg-[var(--indigo-subtle)] rounded-lg px-2.5 py-1.5">
             <Moon className="h-3 w-3 flex-shrink-0" />
             Overnight window — wraps past midnight into the next day
           </div>
         )}
 
         <div>
-          <label className="block text-xs font-medium text-[var(--text-secondary)] mb-2">Days of week</label>
+          <label className="block text-body font-medium text-[var(--text-secondary)] mb-2">Days of week</label>
           <div className="flex gap-2 flex-wrap">
             {DAYS.map((d) => (
               <button
                 key={d.key}
                 type="button"
                 onClick={() => toggleDay(d.key)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-strong font-medium transition-colors ${
                   days.includes(d.key)
                     ? 'bg-[var(--indigo)] text-white'
                     : 'bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
@@ -340,7 +340,7 @@ function ScheduleEditor({ initial, onCancel, onSave, loading }: {
           </div>
         </div>
 
-        <label className="flex items-center gap-2 text-sm cursor-pointer">
+        <label className="flex items-center gap-2 text-strong cursor-pointer">
           <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} className="rounded" />
           <span className="text-[var(--text-secondary)]">Set as default — applied to new campaigns automatically</span>
         </label>

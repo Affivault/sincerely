@@ -48,18 +48,18 @@ export function SettingsShell({ children }: { children: ReactNode }) {
     <div className="flex gap-8 items-start">
       {/* Grouped settings nav — persistent across every admin page */}
       <aside className="hidden lg:block w-[216px] flex-shrink-0 sticky top-[72px]">
-        <h2 className="px-2.5 mb-4 text-[17px] font-semibold text-[var(--text-primary)] tracking-[-0.015em]">Settings</h2>
+        <h2 className="px-2.5 mb-4 text-title font-semibold text-[var(--text-primary)] tracking-[-0.015em]">Settings</h2>
         <nav className="space-y-5">
           {GROUPS.map((g) => (
             <div key={g.label}>
-              <p className="px-2.5 mb-1 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">{g.label}</p>
+              <p className="px-2.5 mb-1 text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">{g.label}</p>
               <div className="space-y-0.5">
                 {g.items.map((it) => (
                   <NavLink
                     key={it.to}
                     to={it.to}
                     className={({ isActive }) => cn(
-                      'relative flex items-center gap-2.5 h-[30px] px-2.5 rounded-[7px] text-[12.5px] font-medium border transition-colors',
+                      'relative flex items-center gap-2.5 h-[30px] px-2.5 rounded-[7px] text-body font-medium border transition-colors',
                       isActive
                         // Raised-card active state — same language as the app sidebar
                         ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] border-[var(--border-subtle)] shadow-[0_1px_2px_rgba(27,27,31,0.05)]'

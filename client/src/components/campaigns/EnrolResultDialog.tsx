@@ -65,26 +65,26 @@ export function EnrolResultDialog({
           <div className="flex-1 rounded-xl bg-emerald-500/[0.08] px-3.5 py-3">
             <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
               <UserCheck className="h-3.5 w-3.5" />
-              <span className="text-[19px] font-bold leading-none tabular-nums">
+              <span className="text-title font-bold leading-none tabular-nums">
                 {result.added.toLocaleString()}
               </span>
             </div>
-            <p className="mt-1 text-[11px] font-medium text-[var(--text-secondary)]">
+            <p className="mt-1 text-caption font-medium text-[var(--text-secondary)]">
               added
             </p>
           </div>
           <div className="flex-1 rounded-xl bg-[var(--bg-elevated)] px-3.5 py-3">
             <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
               <UserMinus className="h-3.5 w-3.5" />
-              <span className="text-[19px] font-bold leading-none tabular-nums">
+              <span className="text-title font-bold leading-none tabular-nums">
                 {result.skipped.toLocaleString()}
               </span>
             </div>
-            <p className="mt-1 text-[11px] font-medium text-[var(--text-secondary)]">skipped</p>
+            <p className="mt-1 text-caption font-medium text-[var(--text-secondary)]">skipped</p>
           </div>
         </div>
 
-        <p className="text-[11.5px] leading-relaxed text-[var(--text-tertiary)]">
+        <p className="text-caption leading-relaxed text-[var(--text-tertiary)]">
           A skip is usually this working as intended — nobody gets two sequences at once, and
           suppressed and unsubscribed addresses stay that way. Open a reason to see who.
         </p>
@@ -104,10 +104,10 @@ export function EnrolResultDialog({
                   onClick={() => setExpanded(isOpen ? null : reason)}
                   className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-[var(--bg-elevated)]"
                 >
-                  <span className={cn('text-[13px] font-bold tabular-nums', REASON_TONE[reason])}>
+                  <span className={cn('text-strong font-bold tabular-nums', REASON_TONE[reason])}>
                     {count.toLocaleString()}
                   </span>
-                  <span className="min-w-0 flex-1 text-[12.5px] text-[var(--text-secondary)]">
+                  <span className="min-w-0 flex-1 text-body text-[var(--text-secondary)]">
                     {ENROL_SKIP_LABEL[reason]}
                   </span>
                   {people.length > 0 && (
@@ -125,7 +125,7 @@ export function EnrolResultDialog({
                     {people.map((person) => (
                       <li
                         key={person.contact_id}
-                        className="flex flex-wrap items-baseline gap-x-2 py-1 text-[11.5px]"
+                        className="flex flex-wrap items-baseline gap-x-2 py-1 text-caption"
                       >
                         <span className="font-medium text-[var(--text-primary)]">
                           {person.name || person.email || 'Unnamed contact'}
@@ -139,7 +139,7 @@ export function EnrolResultDialog({
                       </li>
                     ))}
                     {hidden > 0 && (
-                      <li className="py-1 text-[11px] italic text-[var(--text-tertiary)]">
+                      <li className="py-1 text-caption italic text-[var(--text-tertiary)]">
                         and {hidden.toLocaleString()} more
                       </li>
                     )}

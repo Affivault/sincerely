@@ -88,8 +88,8 @@ function StatCard({ icon: Icon, label, value, tone }: {
         <Icon className="h-4 w-4" />
       </span>
       <div className="min-w-0">
-        <p className="text-[18px] font-semibold tabular text-[var(--text-primary)] leading-none tracking-[-0.02em]">{value}</p>
-        <p className="text-[11px] text-[var(--text-tertiary)] mt-1">{label}</p>
+        <p className="text-title font-semibold tabular text-[var(--text-primary)] leading-none tracking-[-0.02em]">{value}</p>
+        <p className="text-caption text-[var(--text-tertiary)] mt-1">{label}</p>
       </div>
     </div>
   );
@@ -118,7 +118,7 @@ function LinkedinTaskActions({ task }: { task: CrmTask }) {
         <button
           onClick={copy}
           title={payload}
-          className="inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-[10.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors"
+          className="inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-micro font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors"
         >
           {copied ? <Check className="h-3 w-3 text-[var(--success)]" /> : <Copy className="h-3 w-3" />}
           {copied ? 'Copied' : 'Copy message'}
@@ -129,7 +129,7 @@ function LinkedinTaskActions({ task }: { task: CrmTask }) {
           href={url}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-sky-500/10 text-[10.5px] font-semibold text-sky-700 dark:text-sky-400 hover:bg-sky-500/20 transition-colors"
+          className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-sky-500/10 text-micro font-semibold text-sky-700 dark:text-sky-400 hover:bg-sky-500/20 transition-colors"
         >
           <Linkedin className="h-3 w-3" /> Open profile
         </a>
@@ -169,10 +169,10 @@ function TaskRow({ task, onEdit, onToggle, onSnooze }: {
       </span>
 
       <div className="flex-1 min-w-0">
-        <p className={cn('text-[13px] font-medium text-[var(--text-primary)] truncate', task.is_done && 'line-through')}>
+        <p className={cn('text-strong font-medium text-[var(--text-primary)] truncate', task.is_done && 'line-through')}>
           {task.title}
         </p>
-        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[var(--text-tertiary)]">
+        <div className="flex items-center gap-2 mt-0.5 text-caption text-[var(--text-tertiary)]">
           <span className={cn('font-medium', DUE_TONE[due.tone])}>{due.text}</span>
           {contactName && (
             <>
@@ -213,14 +213,14 @@ function TaskRow({ task, onEdit, onToggle, onSnooze }: {
         <button
           onClick={(e) => { e.stopPropagation(); onSnooze(task); }}
           title="Push to tomorrow"
-          className="hidden sm:inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-[10.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
+          className="hidden sm:inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-micro font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
         >
           <ArrowRight className="h-3 w-3" /> Tomorrow
         </button>
       )}
 
       {task.priority !== 'normal' && (
-        <span className={cn('hidden sm:inline-flex items-center h-5 px-2 rounded-full border text-[10px] font-semibold capitalize flex-shrink-0', PRIORITY_TONE[task.priority])}>
+        <span className={cn('hidden sm:inline-flex items-center h-5 px-2 rounded-full border text-micro font-semibold capitalize flex-shrink-0', PRIORITY_TONE[task.priority])}>
           {task.priority}
         </span>
       )}
@@ -398,14 +398,14 @@ export function TasksPage() {
                 key={t.id}
                 onClick={() => setTypeFilter(t.id as TaskType | 'all')}
                 className={cn(
-                  'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border text-[12px] font-medium transition-all',
+                  'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border text-body font-medium transition-all',
                   active
                     ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
                     : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)]',
                 )}
               >
                 {t.label}
-                <span className={cn('tabular text-[10.5px]', active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')}>{count}</span>
+                <span className={cn('tabular text-micro', active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')}>{count}</span>
               </button>
             );
           })}
@@ -430,18 +430,18 @@ export function TasksPage() {
             {buckets.map((b) => (
               <div key={b.id} className="panel overflow-hidden">
                 <div className="flex items-baseline gap-2 px-4 py-2.5 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50">
-                  <h3 className={cn('text-[12.5px] font-semibold', b.tone)}>{b.label}</h3>
-                  <span className="text-[11px] tabular text-[var(--text-tertiary)]">{b.tasks.length}</span>
+                  <h3 className={cn('text-body font-semibold', b.tone)}>{b.label}</h3>
+                  <span className="text-caption tabular text-[var(--text-tertiary)]">{b.tasks.length}</span>
                   {b.id === 'overdue' && b.tasks.length > 1 ? (
                     <button
                       onClick={() => snoozeAll.mutate(b.tasks)}
                       disabled={snoozeAll.isPending}
-                      className="ml-auto text-[11px] font-medium text-[var(--indigo)] hover:underline disabled:opacity-50"
+                      className="ml-auto text-caption font-medium text-[var(--indigo)] hover:underline disabled:opacity-50"
                     >
                       Push all to tomorrow
                     </button>
                   ) : (
-                    b.hint && <span className="text-[11px] text-[var(--text-muted)] ml-auto">{b.hint}</span>
+                    b.hint && <span className="text-caption text-[var(--text-muted)] ml-auto">{b.hint}</span>
                   )}
                 </div>
                 <div className="p-1.5">
@@ -459,9 +459,9 @@ export function TasksPage() {
                   className="w-full flex items-center gap-2 px-4 py-2.5 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 text-left hover:bg-[var(--bg-hover)] transition-colors"
                 >
                   <Check className="h-3.5 w-3.5 text-emerald-500" />
-                  <h3 className="text-[12.5px] font-semibold text-[var(--text-secondary)]">Completed</h3>
-                  <span className="text-[11px] tabular text-[var(--text-tertiary)]">{done.length}</span>
-                  <span className="ml-auto text-[11px] text-[var(--text-tertiary)]">{showDone ? 'Hide' : 'Show'}</span>
+                  <h3 className="text-body font-semibold text-[var(--text-secondary)]">Completed</h3>
+                  <span className="text-caption tabular text-[var(--text-tertiary)]">{done.length}</span>
+                  <span className="ml-auto text-caption text-[var(--text-tertiary)]">{showDone ? 'Hide' : 'Show'}</span>
                 </button>
                 {showDone && (
                   <div className="p-1.5">

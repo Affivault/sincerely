@@ -43,7 +43,7 @@ export function PageTabs({ tabs, value, onChange }: {
             key={t.value}
             onClick={() => onChange(t.value)}
             className={cn(
-              'group relative flex items-center gap-1.5 px-3 h-9 text-[12.5px] font-medium transition-colors duration-150 border-b-2',
+              'group relative flex items-center gap-1.5 px-3 h-9 text-body font-medium transition-colors duration-150 border-b-2',
               active
                 ? 'text-[var(--text-primary)] border-[var(--indigo)]'
                 : 'text-[var(--text-tertiary)] border-transparent hover:text-[var(--text-primary)]'
@@ -53,7 +53,7 @@ export function PageTabs({ tabs, value, onChange }: {
             {t.count != null && (
               <span
                 className={cn(
-                  'inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-[4px] text-[10.5px] font-semibold tabular',
+                  'inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-[4px] text-micro font-semibold tabular',
                   active
                     ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
                     : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)] group-hover:bg-[var(--bg-hover)]'

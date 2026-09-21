@@ -47,7 +47,7 @@ export function PublicShell({ children, wide }: {
         <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 sm:p-7 shadow-sm">
           {children}
         </div>
-        <p className="mt-4 text-center text-[11px] text-[var(--text-tertiary)]">
+        <p className="mt-4 text-center text-caption text-[var(--text-tertiary)]">
           Scheduling by Sincerely
         </p>
       </div>

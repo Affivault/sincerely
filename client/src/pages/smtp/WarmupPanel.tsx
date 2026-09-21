@@ -40,7 +40,7 @@ function ConfigModal({ account, onClose }: { account: WarmupAccountStatus; onClo
   return (
     <Modal isOpen onClose={onClose} title={`Warm-up · ${account.from_name || account.email_address}`} size="md">
       <div className="space-y-4">
-        <p className="text-[12.5px] text-[var(--text-secondary)]">
+        <p className="text-body text-[var(--text-secondary)]">
           Warm-up ramps this mailbox's real sending volume up gradually while exchanging friendly emails with your other inboxes — building reputation so your campaigns land in the inbox, not spam.
         </p>
         <div className="grid grid-cols-3 gap-4">
@@ -55,7 +55,7 @@ function ConfigModal({ account, onClose }: { account: WarmupAccountStatus; onClo
           />
           <Input label="Ramp days" type="number" value={String(rampDays)} onChange={(e) => setRampDays(parseInt(e.target.value) || 1)} hint="To reach target" />
         </div>
-        <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-muted)]/40 px-3 py-2.5 text-[11.5px] text-[var(--text-tertiary)]">
+        <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-muted)]/40 px-3 py-2.5 text-caption text-[var(--text-tertiary)]">
           Campaigns from this mailbox are capped to the current ramp allowance until warm-up completes, so it never spikes.
         </div>
         <div className="flex justify-end gap-2 pt-1">
@@ -117,8 +117,8 @@ function SetupGuide({ summary, onAddMailbox, onEnable }: {
       <div className="flex items-start gap-2.5 mb-3">
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/12 flex-shrink-0"><Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" /></span>
         <div>
-          <p className="text-[13.5px] font-semibold text-[var(--text-primary)]">Get warm-up running — 3 quick steps</p>
-          <p className="text-[12px] text-[var(--text-secondary)] mt-0.5">Warm-up builds your sender reputation automatically. Here's exactly what it needs from you.</p>
+          <p className="text-strong font-semibold text-[var(--text-primary)]">Get warm-up running — 3 quick steps</p>
+          <p className="text-body text-[var(--text-secondary)] mt-0.5">Warm-up builds your sender reputation automatically. Here's exactly what it needs from you.</p>
         </div>
       </div>
 
@@ -129,25 +129,25 @@ function SetupGuide({ summary, onAddMailbox, onEnable }: {
           return (
             <li key={i} className={cn('flex gap-3 py-3', i > 0 && 'border-t border-[var(--border-subtle)]')}>
               <span className={cn(
-                'flex h-6 w-6 items-center justify-center rounded-full flex-shrink-0 text-[11px] font-semibold',
+                'flex h-6 w-6 items-center justify-center rounded-full flex-shrink-0 text-caption font-semibold',
                 s.done ? 'bg-emerald-500 text-white' : active ? 'bg-[var(--indigo)] text-white' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
               )}>
                 {s.done ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
               </span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className={cn('text-[13px] font-medium', s.done ? 'text-[var(--text-secondary)]' : 'text-[var(--text-primary)]')}>{s.title}</span>
-                  <span className={cn('text-[10.5px] font-medium px-1.5 h-[18px] inline-flex items-center rounded-[4px] tabular', s.done ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]')}>{s.status}</span>
+                  <span className={cn('text-strong font-medium', s.done ? 'text-[var(--text-secondary)]' : 'text-[var(--text-primary)]')}>{s.title}</span>
+                  <span className={cn('text-micro font-medium px-1.5 h-[18px] inline-flex items-center rounded-[4px] tabular', s.done ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]')}>{s.status}</span>
                 </div>
                 {!s.done && (
                   <>
-                    <p className="text-[12px] text-[var(--text-secondary)] mt-1 leading-relaxed">{s.desc}</p>
-                    {s.tip && <p className="text-[11.5px] text-[var(--text-tertiary)] mt-1.5 leading-relaxed">{s.tip}</p>}
+                    <p className="text-body text-[var(--text-secondary)] mt-1 leading-relaxed">{s.desc}</p>
+                    {s.tip && <p className="text-caption text-[var(--text-tertiary)] mt-1.5 leading-relaxed">{s.tip}</p>}
                     <div className="mt-2 flex items-center gap-2">
                       {s.action && ActionIcon && (
-                        <button onClick={s.action.onClick} className="icon-btn h-8 px-3 text-[12.5px] whitespace-nowrap"><ActionIcon className="h-3.5 w-3.5" /> {s.action.label}</button>
+                        <button onClick={s.action.onClick} className="icon-btn h-8 px-3 text-body whitespace-nowrap"><ActionIcon className="h-3.5 w-3.5" /> {s.action.label}</button>
                       )}
-                      {s.hintUp && <span className="inline-flex items-center gap-1 text-[11.5px] text-[var(--text-tertiary)]"><ArrowUp className="h-3 w-3" /> in the Mailboxes list above</span>}
+                      {s.hintUp && <span className="inline-flex items-center gap-1 text-caption text-[var(--text-tertiary)]"><ArrowUp className="h-3 w-3" /> in the Mailboxes list above</span>}
                     </div>
                   </>
                 )}
@@ -164,8 +164,8 @@ function Metric({ icon: Icon, value, label }: { icon: typeof Send; value: number
   return (
     <div className="flex items-center gap-1.5" title={label}>
       <Icon className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-      <span className="text-[12px] font-semibold text-[var(--text-primary)] tabular">{value}</span>
-      <span className="text-[11px] text-[var(--text-tertiary)] hidden lg:inline">{label}</span>
+      <span className="text-body font-semibold text-[var(--text-primary)] tabular">{value}</span>
+      <span className="text-caption text-[var(--text-tertiary)] hidden lg:inline">{label}</span>
     </div>
   );
 }
@@ -190,9 +190,9 @@ export function WarmupPanel({ onAddMailbox }: { onAddMailbox?: () => void }) {
     <>
       <div className="flex items-center gap-2 mb-2.5">
         <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500/12"><Flame className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" /></span>
-        <h2 className="text-[14px] font-semibold text-[var(--text-primary)]">Warm-up</h2>
-        <span className="text-[12px] text-[var(--text-tertiary)]">— build reputation before you send at volume</span>
-        {data.total_warming > 0 && <span className="ml-1 text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1.5 h-[18px] inline-flex items-center rounded-[4px]">{data.total_warming} warming</span>}
+        <h2 className="text-heading font-semibold text-[var(--text-primary)]">Warm-up</h2>
+        <span className="text-body text-[var(--text-tertiary)]">— build reputation before you send at volume</span>
+        {data.total_warming > 0 && <span className="ml-1 text-caption font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1.5 h-[18px] inline-flex items-center rounded-[4px]">{data.total_warming} warming</span>}
       </div>
 
       {/*
@@ -209,15 +209,15 @@ export function WarmupPanel({ onAddMailbox }: { onAddMailbox?: () => void }) {
           className="mb-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3"
           data-pool-quality={data.pool_quality}
         >
-          <p className="text-[12.5px] font-medium text-[var(--text-primary)]">
+          <p className="text-body font-medium text-[var(--text-primary)]">
             {data.pool_quality === 'none'
               ? 'Warm-up has nowhere to send'
               : data.pool_quality === 'internal'
                 ? 'These mailboxes are only warming each other'
                 : 'These mailboxes are all at one provider'}
           </p>
-          <p className="mt-1 text-[11.5px] leading-relaxed text-[var(--text-secondary)]">{data.pool_note}</p>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+          <p className="mt-1 text-caption leading-relaxed text-[var(--text-secondary)]">{data.pool_note}</p>
+          <p className="mt-1.5 text-caption leading-relaxed text-[var(--text-tertiary)]">
             The daily ramp below works regardless, and it is the part with the most
             evidence behind it — along with authenticating the domain, keeping bounces
             low, and earning real replies.
@@ -238,8 +238,8 @@ export function WarmupPanel({ onAddMailbox }: { onAddMailbox?: () => void }) {
                   {a.complete ? <ShieldCheck className="h-4 w-4 text-emerald-500" /> : <Flame className={cn('h-4 w-4', a.warmup_mode ? 'text-amber-500' : 'text-[var(--text-muted)]')} />}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">{a.from_name || a.label}</p>
-                  <p className="text-[11.5px] text-[var(--text-tertiary)] truncate">{a.email_address}</p>
+                  <p className="text-strong font-medium text-[var(--text-primary)] truncate">{a.from_name || a.label}</p>
+                  <p className="text-caption text-[var(--text-tertiary)] truncate">{a.email_address}</p>
                 </div>
               </div>
 
@@ -247,7 +247,7 @@ export function WarmupPanel({ onAddMailbox }: { onAddMailbox?: () => void }) {
               <div className="flex-1 min-w-0">
                 {a.warmup_mode ? (
                   <>
-                    <div className="flex items-center justify-between text-[11px] mb-1">
+                    <div className="flex items-center justify-between text-caption mb-1">
                       <span className="text-[var(--text-secondary)]">
                         {a.complete ? <span className="text-emerald-600 dark:text-emerald-400 font-medium">Ramp complete · full volume</span> : <>Day {a.day} of {a.ramp_days} · sending up to <span className="font-semibold text-[var(--text-primary)]">{a.allowance}/day</span></>}
                       </span>
@@ -266,7 +266,7 @@ export function WarmupPanel({ onAddMailbox }: { onAddMailbox?: () => void }) {
                     </div>
                   </>
                 ) : (
-                  <p className="text-[12px] text-[var(--text-tertiary)]">Warm-up is off. Enable it to ramp this mailbox safely.</p>
+                  <p className="text-body text-[var(--text-tertiary)]">Warm-up is off. Enable it to ramp this mailbox safely.</p>
                 )}
               </div>
 
@@ -278,7 +278,7 @@ export function WarmupPanel({ onAddMailbox }: { onAddMailbox?: () => void }) {
                     <button onClick={() => pause.mutate(a.id)} className="icon-btn h-7 w-7" title="Pause warm-up"><Pause className="h-3.5 w-3.5" /></button>
                   </>
                 ) : (
-                  <button onClick={() => setConfig(a)} className="icon-btn h-7 px-2.5 text-[11.5px] whitespace-nowrap"><Play className="h-3 w-3" /> Enable</button>
+                  <button onClick={() => setConfig(a)} className="icon-btn h-7 px-2.5 text-caption whitespace-nowrap"><Play className="h-3 w-3" /> Enable</button>
                 )}
               </div>
             </div>

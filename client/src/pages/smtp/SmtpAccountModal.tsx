@@ -84,7 +84,7 @@ type VerifyState = {
  *  STARTTLS/None = upgrade-or-plain (587/25). Kept simple: SSL vs STARTTLS. */
 function EncryptionRadios({ secure, onChange }: { secure: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div className="flex items-center gap-4 text-[12.5px]">
+    <div className="flex items-center gap-4 text-body">
       <span className="text-[var(--text-tertiary)]">Encryption</span>
       {[{ v: true, l: 'SSL' }, { v: false, l: 'TLS / STARTTLS' }].map((opt) => (
         <label key={opt.l} className="flex items-center gap-1.5 cursor-pointer text-[var(--text-secondary)]">
@@ -139,7 +139,7 @@ function Disclosure({
           <Icon className="h-3.5 w-3.5" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[12.5px] font-semibold leading-tight text-[var(--text-primary)]">{title}</span>
+          <span className="block text-body font-semibold leading-tight text-[var(--text-primary)]">{title}</span>
           {/*
             * Shown only while shut. With the section open the fields
             * themselves are the summary, and repeating it turns a helpful
@@ -147,7 +147,7 @@ function Disclosure({
             */}
           {!open && summary && (
             <span className={cn(
-              'mt-0.5 block text-[11.5px] leading-snug',
+              'mt-0.5 block text-caption leading-snug',
               tone === 'ok' ? 'text-[var(--text-tertiary)]' : 'text-amber-700 dark:text-amber-400',
             )} data-section-summary>
               {summary.text}
@@ -172,8 +172,8 @@ function Group({ icon: Icon, title, subtitle, children }: {
     <div>
       <div className="mb-2 flex items-baseline gap-1.5">
         <Icon className="h-3 w-3 translate-y-px text-[var(--text-tertiary)]" />
-        <h4 className="text-[11.5px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{title}</h4>
-        {subtitle && <span className="text-[11.5px] text-[var(--text-tertiary)]">{subtitle}</span>}
+        <h4 className="text-caption font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{title}</h4>
+        {subtitle && <span className="text-caption text-[var(--text-tertiary)]">{subtitle}</span>}
       </div>
       {children}
     </div>
@@ -186,7 +186,7 @@ function LegRow({ label, leg }: { label: string; leg?: VerifyLegResult }) {
     : leg.status === 'skipped' ? <MinusCircle className="h-3.5 w-3.5 text-[var(--text-muted)]" />
     : <XCircle className="h-3.5 w-3.5 text-rose-500" />;
   return (
-    <div className="flex items-start gap-2 text-[12px]">
+    <div className="flex items-start gap-2 text-body">
       <span className="flex-shrink-0 mt-px">{icon}</span>
       <span className="text-[var(--text-secondary)]"><span className="font-medium text-[var(--text-primary)]">{label}:</span> {leg.message}</span>
     </div>
@@ -213,7 +213,7 @@ function DiagLeg({ title, diag, relayHealthy }: {
 
   return (
     <div>
-      <p className="text-[11.5px] font-semibold text-[var(--text-primary)] mb-1.5 flex items-center gap-1.5">
+      <p className="text-caption font-semibold text-[var(--text-primary)] mb-1.5 flex items-center gap-1.5">
         {failed
           ? <XCircle className="h-3.5 w-3.5 text-rose-500" />
           : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
@@ -223,7 +223,7 @@ function DiagLeg({ title, diag, relayHealthy }: {
 
       <ol className="space-y-1">
         {diag.stages.map((s) => (
-          <li key={s.id} className="flex items-start gap-2 text-[11.5px]">
+          <li key={s.id} className="flex items-start gap-2 text-caption">
             <span className="mt-px flex-shrink-0">
               {s.status === 'ok' && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
               {s.status === 'fail' && <XCircle className="h-3.5 w-3.5 text-rose-500" />}
@@ -244,10 +244,10 @@ function DiagLeg({ title, diag, relayHealthy }: {
           : failed ? 'border-rose-500/30 bg-rose-500/8'
           : 'border-emerald-500/30 bg-emerald-500/8',
       )}>
-        <p className="text-[12px] font-medium text-[var(--text-primary)]">{diag.verdict}</p>
-        {diag.fix && <p className="text-[11.5px] text-[var(--text-secondary)] mt-1 leading-relaxed">{diag.fix}</p>}
+        <p className="text-body font-medium text-[var(--text-primary)]">{diag.verdict}</p>
+        {diag.fix && <p className="text-caption text-[var(--text-secondary)] mt-1 leading-relaxed">{diag.fix}</p>}
         {blocking && (
-          <p className="text-[11px] text-[var(--text-tertiary)] mt-1.5">
+          <p className="text-caption text-[var(--text-tertiary)] mt-1.5">
             This is a server-side setting, not something to change on this mailbox.
           </p>
         )}
@@ -705,7 +705,7 @@ export function SmtpAccountModal({
             onClick={handleCheck}
             disabled={verifyMutation.isPending}
             className={cn(
-              'mr-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[12.5px] font-medium border transition-colors disabled:opacity-60',
+              'mr-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-body font-medium border transition-colors disabled:opacity-60',
               verifyOk ? 'border-emerald-500/40 text-emerald-700 dark:text-emerald-400 bg-emerald-500/8 hover:bg-emerald-500/12'
                 : verifyFailed ? 'border-rose-500/40 text-rose-700 dark:text-rose-400 bg-rose-500/8 hover:bg-rose-500/12'
                 : 'border-[var(--border-default)] text-[var(--text-primary)] bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)]'
@@ -744,12 +744,12 @@ export function SmtpAccountModal({
         data-lpignore="true"
       >
         {isQuickMode && activePreset!.password_hint && (
-          <div className="flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-[11.5px] text-[var(--text-tertiary)]">
+          <div className="flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-caption text-[var(--text-tertiary)]">
             <HelpCircle className="h-3.5 w-3.5 shrink-0" /> Password tip: {activePreset!.password_hint}
           </div>
         )}
         {autoDetected && activePreset && !editId && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/8 border border-emerald-500/20 text-[12px] text-emerald-700 dark:text-emerald-400">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/8 border border-emerald-500/20 text-body text-emerald-700 dark:text-emerald-400">
             <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
             Auto-detected <span className="font-medium">{activePreset.name}</span> — server settings pre-filled.
           </div>
@@ -797,12 +797,12 @@ export function SmtpAccountModal({
 
           {/* MX-based auto-assignment for custom domains */}
           {mxState.status === 'checking' && (
-            <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-[var(--text-tertiary)]">
+            <p className="mt-2 flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
               <Loader2 className="h-3 w-3 animate-spin" /> Looking up your domain's mail service to assign settings…
             </p>
           )}
           {mxState.status === 'done' && mxState.note && (
-            <p className="mt-2 flex items-start gap-1.5 text-[11.5px] text-[var(--text-secondary)]">
+            <p className="mt-2 flex items-start gap-1.5 text-caption text-[var(--text-secondary)]">
               <Sparkles className="h-3 w-3 text-[var(--indigo)] mt-px shrink-0" /> {mxState.note}
             </p>
           )}
@@ -821,7 +821,7 @@ export function SmtpAccountModal({
           <button
             type="button"
             onClick={() => { setReplyToOn((v) => { if (v) updateField('reply_to', ''); return !v; }); }}
-            className="mt-2.5 inline-flex items-center gap-1.5 text-[11.5px] font-medium text-[var(--indigo)] hover:underline"
+            className="mt-2.5 inline-flex items-center gap-1.5 text-caption font-medium text-[var(--indigo)] hover:underline"
           >
             <span className={cn('relative inline-flex h-[16px] w-7 items-center rounded-full transition-colors', replyToOn ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]')}>
               <span className={cn('inline-block h-3 w-3 rounded-full bg-white shadow transition-transform', replyToOn ? 'translate-x-[13px]' : 'translate-x-[2px]')} />
@@ -894,14 +894,14 @@ export function SmtpAccountModal({
                 />
               ) : (
                 <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2">
-                  <p className="text-[11.5px] text-[var(--text-tertiary)]">Signs in as</p>
-                  <p className="text-[12.5px] font-medium text-[var(--text-primary)]" data-signs-in-as>
+                  <p className="text-caption text-[var(--text-tertiary)]">Signs in as</p>
+                  <p className="text-body font-medium text-[var(--text-primary)]" data-signs-in-as>
                     {form.email_address || 'your email address'}
                   </p>
                   <button
                     type="button"
                     onClick={() => setUserEdited(true)}
-                    className="mt-1 text-[11.5px] font-semibold text-[var(--indigo)] hover:underline"
+                    className="mt-1 text-caption font-semibold text-[var(--indigo)] hover:underline"
                     data-override-login
                   >
                     Use a different username
@@ -934,7 +934,7 @@ export function SmtpAccountModal({
               * having never seen a reply.
               */}
             {!(form.imap_host || '').trim() && (
-              <p className="mt-2.5 flex items-start gap-1.5 text-[11.5px] leading-snug text-amber-700 dark:text-amber-400">
+              <p className="mt-2.5 flex items-start gap-1.5 text-caption leading-snug text-amber-700 dark:text-amber-400">
                 <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
                 Without this, Sincerely can send from this address but will never see the replies — they stay in your provider's inbox only.
               </p>
@@ -967,7 +967,7 @@ export function SmtpAccountModal({
               * like, which is how a new domain ends up set to 2,000 a day.
               */}
             {limit.tone === 'warning' && (
-              <p className="mt-2 flex items-start gap-1.5 text-[11.5px] leading-snug text-amber-700 dark:text-amber-400" data-limit-warning>
+              <p className="mt-2 flex items-start gap-1.5 text-caption leading-snug text-amber-700 dark:text-amber-400" data-limit-warning>
                 <AlertTriangle className="mt-px h-3 w-3 shrink-0" /> {limit.note}
               </p>
             )}
@@ -977,7 +977,7 @@ export function SmtpAccountModal({
 
           <Group icon={Signature} title="Signature" subtitle="— offered in the composer for this inbox">
             <div className="flex items-center justify-end mb-1.5">
-              <button type="button" role="switch" aria-checked={!!form.signature_auto} onClick={() => updateField('signature_auto', !form.signature_auto)} className="flex items-center gap-2 text-[11.5px] font-medium text-[var(--text-secondary)]">
+              <button type="button" role="switch" aria-checked={!!form.signature_auto} onClick={() => updateField('signature_auto', !form.signature_auto)} className="flex items-center gap-2 text-caption font-medium text-[var(--text-secondary)]">
                 Always add to new emails
                 <span className={cn('relative inline-flex h-[18px] w-8 items-center rounded-full transition-colors', form.signature_auto ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]')}>
                   <span className={cn('inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform', form.signature_auto ? 'translate-x-[15px]' : 'translate-x-[2px]')} />
@@ -1004,7 +1004,7 @@ export function SmtpAccountModal({
         )}>
           {verify.status === 'idle' && (
             missing.length ? (
-              <div className="flex items-start gap-2 text-[12px] text-[var(--text-secondary)]">
+              <div className="flex items-start gap-2 text-body text-[var(--text-secondary)]">
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-px" />
                 <span>
                   Still needed before testing:{' '}
@@ -1019,7 +1019,7 @@ export function SmtpAccountModal({
                 </span>
               </div>
             ) : (
-              <div className="flex items-start gap-2 text-[12px] text-[var(--text-secondary)]">
+              <div className="flex items-start gap-2 text-body text-[var(--text-secondary)]">
                 <Circle className="h-3.5 w-3.5 text-[var(--text-muted)] shrink-0 mt-px" />
                 <span>
                   Not tested yet — hit <span className="font-medium text-[var(--text-primary)]">Check connection</span> to send a probe email to yourself
@@ -1030,7 +1030,7 @@ export function SmtpAccountModal({
           )}
 
           {verify.status === 'checking' && (
-            <div className="flex items-center gap-2 text-[12.5px] text-[var(--text-secondary)]">
+            <div className="flex items-center gap-2 text-body text-[var(--text-secondary)]">
               <Loader2 className="h-4 w-4 animate-spin" /> Testing SMTP{form.imap_host ? ' and IMAP' : ''}…
             </div>
           )}
@@ -1044,11 +1044,11 @@ export function SmtpAccountModal({
 
           {senderMismatch && (
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/8 px-3 py-2.5" data-sender-mismatch>
-              <p className="text-[12px] font-medium text-[var(--text-primary)] flex items-center gap-1.5">
+              <p className="text-body font-medium text-[var(--text-primary)] flex items-center gap-1.5">
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
                 This mailbox signs in as a different address
               </p>
-              <p className="text-[11.5px] text-[var(--text-secondary)] mt-1 leading-relaxed">
+              <p className="text-caption text-[var(--text-secondary)] mt-1 leading-relaxed">
                 Sending as <span className="font-medium text-[var(--text-primary)]">{form.email_address}</span>{' '}
                 but signing in as <span className="font-medium text-[var(--text-primary)]">{form.smtp_user}</span>.
                 Most providers reject that outright, and the ones that allow it need the
@@ -1058,7 +1058,7 @@ export function SmtpAccountModal({
               <button
                 type="button"
                 onClick={() => { setUserEdited(false); updateField('smtp_user', form.email_address); }}
-                className="mt-1.5 text-[11.5px] font-semibold text-[var(--indigo)] hover:underline"
+                className="mt-1.5 text-caption font-semibold text-[var(--indigo)] hover:underline"
                 data-fix-sender
               >
                 Sign in as {form.email_address} instead
@@ -1081,7 +1081,7 @@ export function SmtpAccountModal({
               type="button"
               onClick={() => diagnoseMutation.mutate()}
               disabled={diagnoseMutation.isPending}
-              className="mt-1 inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-[var(--indigo)] hover:underline disabled:opacity-60"
+              className="mt-1 inline-flex items-center gap-1.5 text-caption font-semibold text-[var(--indigo)] hover:underline disabled:opacity-60"
               data-run-diagnostics
             >
               {diagnoseMutation.isPending
@@ -1096,9 +1096,9 @@ export function SmtpAccountModal({
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 p-3.5 space-y-3">
             <div className="flex items-center gap-1.5">
               <Stethoscope className="h-3.5 w-3.5 text-[var(--indigo)]" />
-              <p className="text-[12px] font-semibold text-[var(--text-primary)]">Diagnosis</p>
+              <p className="text-body font-semibold text-[var(--text-primary)]">Diagnosis</p>
               <span className="flex-1" />
-              <button type="button" onClick={() => setDiagnostics(null)} className="text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">
+              <button type="button" onClick={() => setDiagnostics(null)} className="text-caption text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">
                 Hide
               </button>
             </div>
@@ -1117,8 +1117,8 @@ export function SmtpAccountModal({
               ? <DiagLeg title="Receiving (IMAP)" diag={diagnostics.imap} relayHealthy={null} />
               : (
                 <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2.5">
-                  <p className="text-[12px] font-medium text-[var(--text-primary)]">Receiving (IMAP) — nothing to test</p>
-                  <p className="text-[11.5px] text-[var(--text-secondary)] mt-1 leading-relaxed">
+                  <p className="text-body font-medium text-[var(--text-primary)]">Receiving (IMAP) — nothing to test</p>
+                  <p className="text-caption text-[var(--text-secondary)] mt-1 leading-relaxed">
                     No IMAP server is set on this mailbox, so replies cannot sync into the unibox.
                     <button type="button" onClick={() => reveal('servers')} className="ml-1 font-medium text-[var(--indigo)] hover:underline">
                       Add one under Servers.
@@ -1129,7 +1129,7 @@ export function SmtpAccountModal({
           </div>
         )}
 
-        <p className="text-[11.5px] text-[var(--text-tertiary)] flex items-center gap-1">
+        <p className="text-caption text-[var(--text-tertiary)] flex items-center gap-1">
           <Globe className="h-3 w-3" /> Sending from your own domain?{' '}
           <Link to="/domains" className="underline underline-offset-2 hover:text-[var(--text-secondary)]">Set up SPF, DKIM &amp; DMARC</Link> for better deliverability.
         </p>

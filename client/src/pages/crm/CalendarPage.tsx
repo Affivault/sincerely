@@ -82,9 +82,9 @@ function ItemChip({ item, onOpen, onDragStart, compact }: {
         className="w-full flex items-center gap-1 px-1.5 py-1 rounded-md bg-[var(--indigo-subtle)] border border-[var(--indigo)]/25 text-left cursor-grab active:cursor-grabbing hover:border-[var(--indigo)]/60 transition-colors"
       >
         <Icon className="h-2.5 w-2.5 flex-shrink-0 text-[var(--indigo)]" />
-        <span className="flex-1 min-w-0 truncate text-[10.5px] font-medium text-[var(--indigo)]">{e.title}</span>
+        <span className="flex-1 min-w-0 truncate text-micro font-medium text-[var(--indigo)]">{e.title}</span>
         {!compact && !e.all_day && (
-          <span className="text-[9.5px] tabular text-[var(--indigo)]/70 flex-shrink-0">{timeOf(item.at)}</span>
+          <span className="text-micro tabular text-[var(--indigo)]/70 flex-shrink-0">{timeOf(item.at)}</span>
         )}
       </button>
     );
@@ -104,7 +104,7 @@ function ItemChip({ item, onOpen, onDragStart, compact }: {
       )}
     >
       <Icon className={cn('h-2.5 w-2.5 flex-shrink-0', TASK_TYPE_TONE[t.type]?.split(' ')[0])} />
-      <span className={cn('flex-1 min-w-0 truncate text-[10.5px] font-medium text-[var(--text-secondary)]', t.is_done && 'line-through')}>
+      <span className={cn('flex-1 min-w-0 truncate text-micro font-medium text-[var(--text-secondary)]', t.is_done && 'line-through')}>
         {t.title}
       </span>
     </button>
@@ -291,10 +291,10 @@ export function CalendarPage() {
             <button onClick={() => shift(-1)} className="icon-btn h-8 w-8" title="Previous"><ChevronLeft className="h-4 w-4" /></button>
             <button onClick={() => shift(1)} className="icon-btn h-8 w-8" title="Next"><ChevronRight className="h-4 w-4" /></button>
           </div>
-          <h2 className="text-[15px] font-semibold text-[var(--text-primary)] tracking-[-0.01em] min-w-[190px]">{periodLabel}</h2>
+          <h2 className="text-heading font-semibold text-[var(--text-primary)] tracking-[-0.01em] min-w-[190px]">{periodLabel}</h2>
           <button
             onClick={() => setAnchor(startOfDay(new Date()))}
-            className="h-8 px-3 rounded-lg border border-[var(--border-subtle)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+            className="h-8 px-3 rounded-lg border border-[var(--border-subtle)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
           >
             Today
           </button>
@@ -305,7 +305,7 @@ export function CalendarPage() {
                 key={v}
                 onClick={() => setView(v)}
                 className={cn(
-                  'h-7 px-3 rounded-md text-[12px] font-medium capitalize transition-colors',
+                  'h-7 px-3 rounded-md text-body font-medium capitalize transition-colors',
                   view === v ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.06)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
                 )}
               >
@@ -332,8 +332,8 @@ export function CalendarPage() {
             {agenda.length === 0 ? (
               <div className="px-4 py-10 text-center">
                 <CalendarDays className="h-6 w-6 mx-auto text-[var(--text-muted)] mb-2" />
-                <p className="text-[13px] font-medium text-[var(--text-primary)]">Nothing scheduled from here on</p>
-                <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Book a meeting or schedule an activity and it'll appear.</p>
+                <p className="text-strong font-medium text-[var(--text-primary)]">Nothing scheduled from here on</p>
+                <p className="text-body text-[var(--text-tertiary)] mt-1">Book a meeting or schedule an activity and it'll appear.</p>
               </div>
             ) : (
               agenda.map((item, i) => {
@@ -352,7 +352,7 @@ export function CalendarPage() {
                         'flex items-baseline gap-2 px-4 py-2 border-b border-[var(--border-subtle)]',
                         isToday ? 'bg-[var(--indigo-subtle)]/40' : 'bg-[var(--bg-elevated)]/50',
                       )}>
-                        <span className={cn('text-[12.5px] font-semibold', isToday ? 'text-[var(--indigo)]' : 'text-[var(--text-primary)]')}>
+                        <span className={cn('text-body font-semibold', isToday ? 'text-[var(--indigo)]' : 'text-[var(--text-primary)]')}>
                           {isToday ? 'Today' : item.at.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
                         </span>
                       </div>
@@ -361,7 +361,7 @@ export function CalendarPage() {
                       onClick={() => openItem(item)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-left border-b border-[var(--border-subtle)] last:border-0 hover:bg-[var(--bg-hover)] transition-colors"
                     >
-                      <span className="w-16 flex-shrink-0 text-[11.5px] tabular font-medium text-[var(--text-tertiary)]">
+                      <span className="w-16 flex-shrink-0 text-caption tabular font-medium text-[var(--text-tertiary)]">
                         {item.kind === 'event' ? timeOf(item.at, item.event.all_day) : timeOf(item.at)}
                       </span>
                       <span className={cn(
@@ -376,12 +376,12 @@ export function CalendarPage() {
                       </span>
                       <span className="flex-1 min-w-0">
                         <span className={cn(
-                          'block text-[13px] font-medium text-[var(--text-primary)] truncate',
+                          'block text-strong font-medium text-[var(--text-primary)] truncate',
                           item.kind === 'task' && item.task.is_done && 'line-through opacity-60',
                         )}>
                           {item.kind === 'event' ? item.event.title : item.task.title}
                         </span>
-                        <span className="flex items-center gap-2 mt-0.5 text-[11px] text-[var(--text-tertiary)]">
+                        <span className="flex items-center gap-2 mt-0.5 text-caption text-[var(--text-tertiary)]">
                           {item.kind === 'event' && item.event.location && (
                             <span className="inline-flex items-center gap-1 truncate"><MapPin className="h-3 w-3" />{item.event.location}</span>
                           )}
@@ -397,7 +397,7 @@ export function CalendarPage() {
                         <Link
                           to={`/contacts/${contactId}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="hidden sm:inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
+                          className="hidden sm:inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
                         >
                           Profile
                         </Link>
@@ -440,7 +440,7 @@ export function CalendarPage() {
             {/* Day-of-week header */}
             <div className="grid grid-cols-7 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50">
               {DOW.map((d) => (
-                <div key={d} className="px-2 py-2 text-[11px] font-semibold text-[var(--text-tertiary)] text-center">{d}</div>
+                <div key={d} className="px-2 py-2 text-caption font-semibold text-[var(--text-tertiary)] text-center">{d}</div>
               ))}
             </div>
 
@@ -472,7 +472,7 @@ export function CalendarPage() {
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className={cn(
-                        'inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-[11px] font-semibold tabular',
+                        'inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-caption font-semibold tabular',
                         isToday ? 'bg-[var(--indigo)] text-white' : inMonth ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]',
                       )}>
                         {day.getDate()}
@@ -499,7 +499,7 @@ export function CalendarPage() {
                       {items.length > 3 && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setAnchor(startOfDay(day)); setView('week'); }}
-                          className="w-full text-left px-1.5 text-[10px] font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] transition-colors"
+                          className="w-full text-left px-1.5 text-micro font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] transition-colors"
                         >
                           +{items.length - 3} more
                         </button>
@@ -512,7 +512,7 @@ export function CalendarPage() {
           </div>
         )}
 
-        <p className="flex items-center gap-1.5 text-[11.5px] text-[var(--text-tertiary)]">
+        <p className="flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
           <Clock className="h-3 w-3" />
           {view === 'week' || view === 'day'
             ? 'Click any empty space to book at that time. Drag a meeting to move it, or its bottom edge to change how long it runs.'

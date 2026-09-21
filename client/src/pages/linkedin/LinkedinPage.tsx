@@ -28,8 +28,8 @@ function Meter({ label, used, limit, tone }: { label: string; used: number; limi
   return (
     <div className="card px-3.5 py-3">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[11px] font-medium text-[var(--text-tertiary)]">{label}</span>
-        <span className="text-[11.5px] font-semibold tabular text-[var(--text-secondary)]">
+        <span className="text-caption font-medium text-[var(--text-tertiary)]">{label}</span>
+        <span className="text-caption font-semibold tabular text-[var(--text-secondary)]">
           {used}<span className="text-[var(--text-muted)] font-normal"> / {limit}</span>
         </span>
       </div>
@@ -46,7 +46,7 @@ function NumberField({ label, value, onChange, min, max, suffix, hint }: {
 }) {
   return (
     <label className="block">
-      <span className="block text-[11.5px] font-medium text-[var(--text-secondary)] mb-1">{label}</span>
+      <span className="block text-caption font-medium text-[var(--text-secondary)] mb-1">{label}</span>
       <span className="flex items-center gap-2">
         <input
           type="number"
@@ -54,11 +54,11 @@ function NumberField({ label, value, onChange, min, max, suffix, hint }: {
           min={min}
           max={max}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="w-24 h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-[12.5px] tabular text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+          className="w-24 h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body tabular text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
         />
-        {suffix && <span className="text-[11.5px] text-[var(--text-tertiary)]">{suffix}</span>}
+        {suffix && <span className="text-caption text-[var(--text-tertiary)]">{suffix}</span>}
       </span>
-      {hint && <span className="block mt-1 text-[10.5px] text-[var(--text-muted)]">{hint}</span>}
+      {hint && <span className="block mt-1 text-micro text-[var(--text-muted)]">{hint}</span>}
     </label>
   );
 }
@@ -97,9 +97,9 @@ export function LinkedinPage() {
         <PageHeader title="LinkedIn" description="Run LinkedIn steps from your own browser" />
         <div className="panel px-5 py-8 text-center">
           <Linkedin className="h-6 w-6 mx-auto text-[var(--text-muted)] mb-2" />
-          <p className="text-[14px] font-semibold text-[var(--text-primary)]">Not set up yet</p>
-          <p className="text-[12.5px] text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
-            Run migration <span className="font-mono text-[11.5px]">040_linkedin_agent.sql</span> in Supabase, then reload.
+          <p className="text-heading font-semibold text-[var(--text-primary)]">Not set up yet</p>
+          <p className="text-body text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
+            Run migration <span className="font-mono text-caption">040_linkedin_agent.sql</span> in Supabase, then reload.
           </p>
         </div>
       </div>
@@ -141,27 +141,27 @@ export function LinkedinPage() {
             : pausedNow ? 'bg-amber-500'
             : data.connected ? 'bg-emerald-500' : 'bg-[var(--text-muted)]',
         )} />
-        <span className="text-[12.5px] text-[var(--text-primary)] font-medium">
+        <span className="text-body text-[var(--text-primary)] font-medium">
           {!s.enabled ? 'Turned off'
             : pausedNow ? 'Paused'
             : data.connected ? 'Extension connected' : 'Waiting for the extension'}
         </span>
         {pausedNow && s.pause_reason && (
-          <span className="text-[11.5px] text-amber-600 dark:text-amber-400">{s.pause_reason}</span>
+          <span className="text-caption text-amber-600 dark:text-amber-400">{s.pause_reason}</span>
         )}
         {!data.connected && s.enabled && !pausedNow && (
-          <span className="text-[11.5px] text-[var(--text-tertiary)]">
+          <span className="text-caption text-[var(--text-tertiary)]">
             Install the extension and paste an API key — nothing runs without it.
           </span>
         )}
         <span className="flex-1" />
-        <span className="text-[11.5px] text-[var(--text-tertiary)]">
+        <span className="text-caption text-[var(--text-tertiary)]">
           <span className="tabular font-semibold text-[var(--text-secondary)]">{data.queued}</span> step{data.queued === 1 ? '' : 's'} waiting
         </span>
         {pausedNow && (
           <button
             onClick={() => saveQuick.mutate({ paused_until: null, pause_reason: null } as any)}
-            className="text-[11.5px] font-semibold text-[var(--indigo)] hover:underline"
+            className="text-caption font-semibold text-[var(--indigo)] hover:underline"
           >
             Resume now
           </button>
@@ -178,7 +178,7 @@ export function LinkedinPage() {
       <div className="panel p-4">
         <div className="flex items-start gap-2.5">
           <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
-          <div className="min-w-0 text-[12.5px] text-[var(--text-secondary)] leading-relaxed">
+          <div className="min-w-0 text-body text-[var(--text-secondary)] leading-relaxed">
             <p className="font-semibold text-[var(--text-primary)] mb-1">How this works, and why</p>
             <p>
               LinkedIn has no API for connection requests or messages to people you aren't connected to.
@@ -203,7 +203,7 @@ export function LinkedinPage() {
       <div className="panel p-4">
         <div className="flex items-center gap-2 mb-3">
           <Gauge className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-          <h2 className="text-[12.5px] font-semibold text-[var(--text-primary)]">Daily limits</h2>
+          <h2 className="text-body font-semibold text-[var(--text-primary)]">Daily limits</h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <NumberField
@@ -226,7 +226,7 @@ export function LinkedinPage() {
       <div className="panel p-4">
         <div className="flex items-center gap-2 mb-3">
           <Clock className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-          <h2 className="text-[12.5px] font-semibold text-[var(--text-primary)]">Pacing</h2>
+          <h2 className="text-body font-semibold text-[var(--text-primary)]">Pacing</h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <NumberField
@@ -242,25 +242,25 @@ export function LinkedinPage() {
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="block">
-            <span className="block text-[11.5px] font-medium text-[var(--text-secondary)] mb-1">Working hours</span>
+            <span className="block text-caption font-medium text-[var(--text-secondary)] mb-1">Working hours</span>
             <span className="flex items-center gap-2">
               <input
                 type="time" value={s.work_start}
                 onChange={(e) => set({ work_start: e.target.value })}
-                className="h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+                className="h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
               />
-              <span className="text-[11.5px] text-[var(--text-tertiary)]">to</span>
+              <span className="text-caption text-[var(--text-tertiary)]">to</span>
               <input
                 type="time" value={s.work_end}
                 onChange={(e) => set({ work_end: e.target.value })}
-                className="h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+                className="h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
               />
             </span>
-            <span className="block mt-1 text-[10.5px] text-[var(--text-muted)]">In {s.timezone}.</span>
+            <span className="block mt-1 text-micro text-[var(--text-muted)]">In {s.timezone}.</span>
           </label>
 
           <div>
-            <span className="block text-[11.5px] font-medium text-[var(--text-secondary)] mb-1">Working days</span>
+            <span className="block text-caption font-medium text-[var(--text-secondary)] mb-1">Working days</span>
             <div className="flex flex-wrap gap-1">
               {DAYS.map((d) => {
                 const on = s.work_days?.includes(d.n);
@@ -273,7 +273,7 @@ export function LinkedinPage() {
                         : [...(s.work_days || []), d.n].sort((a, b) => a - b),
                     })}
                     className={cn(
-                      'h-8 w-11 rounded-lg text-[11.5px] font-semibold transition-colors',
+                      'h-8 w-11 rounded-lg text-caption font-semibold transition-colors',
                       on
                         ? 'bg-[var(--indigo)] text-white'
                         : 'border border-[var(--border-default)] text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)]',
@@ -291,7 +291,7 @@ export function LinkedinPage() {
       {dirty && (
         <div className="sticky bottom-3 flex items-center gap-2 panel px-4 py-2.5 shadow-[var(--shadow-lg)]">
           <AlertTriangle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
-          <span className="text-[12px] text-[var(--text-secondary)]">Unsaved changes</span>
+          <span className="text-body text-[var(--text-secondary)]">Unsaved changes</span>
           <span className="flex-1" />
           <button onClick={() => setDraft({})} className="btn-secondary">Discard</button>
           <button

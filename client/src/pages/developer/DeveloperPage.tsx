@@ -297,7 +297,7 @@ export function DeveloperPage() {
       <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
         <button
           onClick={() => setTab('webhooks')}
-          className={cn('flex items-center gap-1.5 px-3.5 h-7 rounded-md text-[12px] font-medium transition-all',
+          className={cn('flex items-center gap-1.5 px-3.5 h-7 rounded-md text-body font-medium transition-all',
             tab === 'webhooks' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
           )}
         >
@@ -306,7 +306,7 @@ export function DeveloperPage() {
         </button>
         <button
           onClick={() => setTab('api-keys')}
-          className={cn('flex items-center gap-1.5 px-3.5 h-7 rounded-md text-[12px] font-medium transition-all',
+          className={cn('flex items-center gap-1.5 px-3.5 h-7 rounded-md text-body font-medium transition-all',
             tab === 'api-keys' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
           )}
         >
@@ -319,10 +319,10 @@ export function DeveloperPage() {
       {tab === 'webhooks' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-[12px] text-[var(--text-secondary)]">Receive real-time notifications when events happen in Sincerely.</p>
+            <p className="text-body text-[var(--text-secondary)]">Receive real-time notifications when events happen in Sincerely.</p>
             <button
               onClick={() => setShowCreateWebhook(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-[12px] font-semibold hover:opacity-90 transition-all shadow-[0_1px_3px_rgba(99,102,241,0.4)]"
+              className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:opacity-90 transition-all shadow-[0_1px_3px_rgba(99,102,241,0.4)]"
             >
               <Plus className="h-3.5 w-3.5" />
               Add Webhook
@@ -332,14 +332,14 @@ export function DeveloperPage() {
           {revealedSecret && (
             <div className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-default)] p-4 space-y-2">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-[var(--text-primary)]">Signing secret for "{revealedSecret.label}"</h3>
+                <h3 className="text-strong font-medium text-[var(--text-primary)]">Signing secret for "{revealedSecret.label}"</h3>
                 <button onClick={() => setRevealedSecret(null)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X className="h-4 w-4" /></button>
               </div>
-              <p className="text-xs text-[var(--text-tertiary)]">
+              <p className="text-body text-[var(--text-tertiary)]">
                 Copy this now — it won't be shown again. Use it to verify the <code>X-Sincerely-Signature</code> header on incoming deliveries.
               </p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 rounded bg-[var(--bg-surface)] px-3 py-2 text-sm font-mono text-[var(--text-primary)] break-all">{revealedSecret.secret}</code>
+                <code className="flex-1 rounded bg-[var(--bg-surface)] px-3 py-2 text-strong font-mono text-[var(--text-primary)] break-all">{revealedSecret.secret}</code>
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(revealedSecret.secret)
@@ -357,32 +357,32 @@ export function DeveloperPage() {
           {showCreateWebhook && (
             <div className="rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)] p-4 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-[var(--text-primary)]">New Webhook Endpoint</h3>
+                <h3 className="text-strong font-medium text-[var(--text-primary)]">New Webhook Endpoint</h3>
                 <button onClick={() => setShowCreateWebhook(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X className="h-4 w-4" /></button>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs text-[var(--text-tertiary)] mb-1 block">Endpoint URL</label>
-                  <input type="url" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} placeholder="https://your-server.com/webhook" className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--text-primary)]" />
+                  <label className="text-body text-[var(--text-tertiary)] mb-1 block">Endpoint URL</label>
+                  <input type="url" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} placeholder="https://your-server.com/webhook" className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--text-primary)]" />
                 </div>
                 <div>
-                  <label className="text-xs text-[var(--text-tertiary)] mb-1 block">Label</label>
-                  <input type="text" value={webhookLabel} onChange={(e) => setWebhookLabel(e.target.value)} placeholder="My CRM Integration" className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--text-primary)]" />
+                  <label className="text-body text-[var(--text-tertiary)] mb-1 block">Label</label>
+                  <input type="text" value={webhookLabel} onChange={(e) => setWebhookLabel(e.target.value)} placeholder="My CRM Integration" className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--text-primary)]" />
                 </div>
               </div>
               <div>
-                <label className="text-xs text-[var(--text-tertiary)] mb-2 block">Subscribe to events</label>
+                <label className="text-body text-[var(--text-tertiary)] mb-2 block">Subscribe to events</label>
                 <div className="space-y-3">
                   {Object.entries(EVENT_CATEGORIES).map(([category, events]) => (
                     <div key={category}>
-                      <p className="text-xs font-medium text-[var(--text-secondary)] mb-1">{category}</p>
+                      <p className="text-body font-medium text-[var(--text-secondary)] mb-1">{category}</p>
                       <div className="flex flex-wrap gap-2">
                         {events.map((event) => (
                           <button
                             key={event}
                             onClick={() => toggleEvent(event)}
                             className={cn(
-                              'rounded border px-2.5 py-1 text-xs transition-all',
+                              'rounded border px-2.5 py-1 text-body transition-all',
                               webhookEvents.includes(event) ? 'bg-[rgba(99,102,241,0.1)] border-[var(--indigo)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                             )}
                           >
@@ -397,7 +397,7 @@ export function DeveloperPage() {
               <button
                 onClick={() => createEndpointMutation.mutate()}
                 disabled={!webhookUrl || webhookEvents.length === 0 || createEndpointMutation.isPending}
-                className="flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:bg-[#4F46E5] transition-colors"
+                className="flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-strong font-medium text-white disabled:opacity-50 hover:bg-[#4F46E5] transition-colors"
               >
                 <Plus className="h-4 w-4" />
                 Create Webhook
@@ -425,11 +425,11 @@ export function DeveloperPage() {
                     <div className={cn('h-2.5 w-2.5 rounded-full', ep.is_active ? 'bg-[var(--indigo)]' : 'bg-[var(--text-tertiary)]')} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-medium text-[var(--text-primary)]">{ep.label}</h4>
+                        <h4 className="text-strong font-medium text-[var(--text-primary)]">{ep.label}</h4>
                         {lastDelivery && (
                           <span
                             className={cn(
-                              'inline-flex items-center gap-1 h-[18px] px-1.5 rounded-[4px] text-[10.5px] font-medium',
+                              'inline-flex items-center gap-1 h-[18px] px-1.5 rounded-[4px] text-micro font-medium',
                               lastDelivery.success ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
                             )}
                             title={`Last delivery ${formatDateTime(lastDelivery.created_at)} · ${lastDelivery.status_code ?? 'no response'}`}
@@ -439,13 +439,13 @@ export function DeveloperPage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-[var(--text-tertiary)] truncate font-mono">{ep.url}</p>
+                      <p className="text-body text-[var(--text-tertiary)] truncate font-mono">{ep.url}</p>
                     </div>
-                    <span className="text-xs text-[var(--text-tertiary)]">{ep.events.length} events</span>
+                    <span className="text-body text-[var(--text-tertiary)]">{ep.events.length} events</span>
                     <button
                       onClick={() => testEndpointMutation.mutate(ep.id)}
                       disabled={testEndpointMutation.isPending && testEndpointMutation.variables === ep.id}
-                      className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[11px] font-medium bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50"
+                      className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-caption font-medium bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50"
                     >
                       {testEndpointMutation.isPending && testEndpointMutation.variables === ep.id ? (
                         <RefreshCw className="h-3 w-3 animate-spin" />
@@ -464,11 +464,11 @@ export function DeveloperPage() {
                         () => regenerateSecretMutation.mutate(ep.id),
                       )}
                       disabled={regenerateSecretMutation.isPending}
-                      className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[11px] font-medium bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50"
+                      className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-caption font-medium bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50"
                     >
                       <RefreshCw className="h-3 w-3" /> Secret
                     </button>
-                    <button onClick={() => setShowDeliveries(showDeliveries === ep.id ? null : ep.id)} className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[11px] font-medium bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                    <button onClick={() => setShowDeliveries(showDeliveries === ep.id ? null : ep.id)} className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-caption font-medium bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
                       <Clock className="h-3 w-3" /> Logs
                     </button>
                     <button
@@ -484,9 +484,9 @@ export function DeveloperPage() {
                   {showDeliveries === ep.id && deliveries && (
                     <div className="mt-3 border-t border-[var(--border-subtle)] pt-3 space-y-2 max-h-60 overflow-y-auto">
                       {deliveries.length === 0 ? (
-                        <p className="text-xs text-[var(--text-tertiary)] text-center py-2">No deliveries yet</p>
+                        <p className="text-body text-[var(--text-tertiary)] text-center py-2">No deliveries yet</p>
                       ) : deliveries.map((d) => (
-                        <div key={d.id} className="flex items-center gap-3 text-xs">
+                        <div key={d.id} className="flex items-center gap-3 text-body">
                           {d.success ? <CheckCircle2 className="h-3.5 w-3.5 text-[var(--indigo)] shrink-0" /> : <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />}
                           <span className="text-[var(--text-secondary)] font-mono">{d.event_type}</span>
                           <span className="text-[var(--text-tertiary)]">{d.status_code || 'ERR'}</span>
@@ -512,8 +512,8 @@ export function DeveloperPage() {
           {extensionPresent && (
             <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 flex items-center justify-between gap-4">
               <div>
-                <h3 className="text-sm font-medium text-[var(--text-primary)]">Chrome extension</h3>
-                <p className="text-sm text-[var(--text-secondary)] mt-0.5">
+                <h3 className="text-strong font-medium text-[var(--text-primary)]">Chrome extension</h3>
+                <p className="text-strong text-[var(--text-secondary)] mt-0.5">
                   {extensionConnected
                     ? 'Connected. It can add and remove people from your campaigns.'
                     : 'Connect it in one click — we\u2019ll create the key and hand it over. Nothing to copy.'}
@@ -522,7 +522,7 @@ export function DeveloperPage() {
               <button
                 onClick={connectExtension}
                 disabled={connectingExtension}
-                className="flex-shrink-0 flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:bg-[#4F46E5] transition-colors"
+                className="flex-shrink-0 flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-strong font-medium text-white disabled:opacity-50 hover:bg-[#4F46E5] transition-colors"
               >
                 <Key className="h-4 w-4" />
                 {connectingExtension ? 'Connecting…' : extensionConnected ? 'Reconnect' : 'Connect extension'}
@@ -531,18 +531,18 @@ export function DeveloperPage() {
           )}
 
           <div className="flex items-center justify-between">
-            <p className="text-sm text-[var(--text-secondary)]">Manage API keys for headless access to Sincerely.</p>
+            <p className="text-strong text-[var(--text-secondary)]">Manage API keys for headless access to Sincerely.</p>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowConnectHelp((open) => !open)}
-                className="flex items-center gap-2 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                className="flex items-center gap-2 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-strong font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
               >
                 <Chrome className="h-4 w-4" />
                 Connect the Chrome extension
               </button>
             <button
               onClick={() => setShowCreateKey(true)}
-              className="flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-sm font-medium text-white hover:bg-[#4F46E5] transition-colors"
+              className="flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-strong font-medium text-white hover:bg-[#4F46E5] transition-colors"
             >
               <Plus className="h-4 w-4" />
               Create Key
@@ -559,10 +559,10 @@ export function DeveloperPage() {
                 <div className="flex items-start gap-2">
                   <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--indigo)]" />
                   <div>
-                    <h3 className="text-sm font-medium text-[var(--text-primary)]">
+                    <h3 className="text-strong font-medium text-[var(--text-primary)]">
                       Connecting the Chrome extension
                     </h3>
-                    <p className="mt-0.5 text-sm text-[var(--text-secondary)]">
+                    <p className="mt-0.5 text-strong text-[var(--text-secondary)]">
                       An API key is a password the extension uses to prove it's you. You create it
                       here — it isn't something you get from anywhere else.
                     </p>
@@ -577,17 +577,17 @@ export function DeveloperPage() {
               </div>
 
               <div className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-                <p className="text-sm font-medium text-[var(--text-primary)]">
+                <p className="text-strong font-medium text-[var(--text-primary)]">
                   The easy way — nothing to copy
                 </p>
-                <ol className="mt-2 space-y-1.5 text-sm text-[var(--text-secondary)] list-decimal list-inside">
+                <ol className="mt-2 space-y-1.5 text-strong text-[var(--text-secondary)] list-decimal list-inside">
                   <li>Make sure you're signed in to Sincerely in this tab.</li>
                   <li>Click the Sincerely icon in your Chrome toolbar.</li>
                   <li>
                     Press <span className="font-medium text-[var(--text-primary)]">Connect using this tab</span>.
                   </li>
                 </ol>
-                <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                <p className="mt-2 text-strong text-[var(--text-secondary)]">
                   The extension creates its own key from your session and sets itself up. If the
                   extension is installed, the <span className="font-medium text-[var(--text-primary)]">Connect
                   extension</span> button above does the same thing from this side.
@@ -595,8 +595,8 @@ export function DeveloperPage() {
               </div>
 
               <div>
-                <p className="text-sm font-medium text-[var(--text-primary)]">Or paste a key by hand</p>
-                <ol className="mt-2 space-y-1.5 text-sm text-[var(--text-secondary)] list-decimal list-inside">
+                <p className="text-strong font-medium text-[var(--text-primary)]">Or paste a key by hand</p>
+                <ol className="mt-2 space-y-1.5 text-strong text-[var(--text-secondary)] list-decimal list-inside">
                   <li>
                     Press <span className="font-medium text-[var(--text-primary)]">Create Key</span> above and
                     give it a name like "Chrome extension".
@@ -609,13 +609,13 @@ export function DeveloperPage() {
                   <li>
                     Open <span className="font-medium text-[var(--text-primary)]">Or paste a key by hand</span>,
                     set the API URL to{' '}
-                    <code className="rounded bg-[var(--bg-elevated)] px-1 py-0.5 font-mono text-xs">{API_URL}</code>
+                    <code className="rounded bg-[var(--bg-elevated)] px-1 py-0.5 font-mono text-body">{API_URL}</code>
                     , paste the key, and press{' '}
                     <span className="font-medium text-[var(--text-primary)]">Save &amp; test connection</span>.
                   </li>
                 </ol>
-                <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                  A key is 72 characters starting <code className="rounded bg-[var(--bg-elevated)] px-1 py-0.5 font-mono text-xs">sk_live_</code>,
+                <p className="mt-2 text-strong text-[var(--text-secondary)]">
+                  A key is 72 characters starting <code className="rounded bg-[var(--bg-elevated)] px-1 py-0.5 font-mono text-body">sk_live_</code>,
                   and needs both read and write scopes (the default). If you closed the dialog before
                   copying, press <span className="font-medium text-[var(--text-primary)]">New secret</span> on the
                   key below rather than creating another.
@@ -628,13 +628,13 @@ export function DeveloperPage() {
             <div className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-default)] p-4 space-y-2">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-[var(--indigo)]" />
-                <span className="text-sm font-medium text-[var(--text-primary)]">
+                <span className="text-strong font-medium text-[var(--text-primary)]">
                   {newKeyName ? `"${newKeyName}" is ready.` : 'API key ready.'} Copy it now — it is
                   stored hashed and cannot be shown again.
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <code className={cn('flex-1 rounded bg-[var(--bg-elevated)] px-3 py-2 text-sm font-mono', showKey ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]')}>
+                <code className={cn('flex-1 rounded bg-[var(--bg-elevated)] px-3 py-2 text-strong font-mono', showKey ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]')}>
                   {showKey ? newRawKey : newRawKey.substring(0, 16) + '••••••••••••••••'}
                 </code>
                 <button onClick={() => setShowKey(!showKey)} className="p-2 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
@@ -652,10 +652,10 @@ export function DeveloperPage() {
                 </button>
               </div>
               <div className="flex items-center gap-3">
-                <button onClick={() => { setNewRawKey(null); setShowKey(false); setNewKeyName(''); }} className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
+                <button onClick={() => { setNewRawKey(null); setShowKey(false); setNewKeyName(''); }} className="text-body text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
                   Dismiss
                 </button>
-                <span className="text-xs text-[var(--text-tertiary)]">
+                <span className="text-body text-[var(--text-tertiary)]">
                   Lost it later? Use <span className="font-medium text-[var(--text-secondary)]">New secret</span> on
                   the key below — no need to create another.
                 </span>
@@ -666,30 +666,30 @@ export function DeveloperPage() {
           {showCreateKey && !newRawKey && (
             <div className="rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)] p-4 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-[var(--text-primary)]">New API Key</h3>
+                <h3 className="text-strong font-medium text-[var(--text-primary)]">New API Key</h3>
                 <button onClick={() => setShowCreateKey(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X className="h-4 w-4" /></button>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs text-[var(--text-tertiary)] mb-1 block">Key Name</label>
-                  <input type="text" value={keyName} onChange={(e) => setKeyName(e.target.value)} placeholder="e.g. Production CRM" className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--text-primary)]" />
+                  <label className="text-body text-[var(--text-tertiary)] mb-1 block">Key Name</label>
+                  <input type="text" value={keyName} onChange={(e) => setKeyName(e.target.value)} placeholder="e.g. Production CRM" className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--text-primary)]" />
                 </div>
                 <div>
-                  <label className="text-xs text-[var(--text-tertiary)] mb-1 block">Rate limit (requests/min)</label>
+                  <label className="text-body text-[var(--text-tertiary)] mb-1 block">Rate limit (requests/min)</label>
                   <input
                     type="number"
                     min={1}
                     max={10000}
                     value={keyRateLimit}
                     onChange={(e) => setKeyRateLimit(Math.max(1, Number(e.target.value) || 1))}
-                    className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--text-primary)]"
+                    className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-strong text-[var(--text-primary)] focus:outline-none focus:border-[var(--text-primary)]"
                   />
                 </div>
               </div>
               <button
                 onClick={() => createKeyMutation.mutate()}
                 disabled={!keyName || createKeyMutation.isPending}
-                className="flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:bg-[#4F46E5] transition-colors"
+                className="flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-strong font-medium text-white disabled:opacity-50 hover:bg-[#4F46E5] transition-colors"
               >
                 <Key className="h-4 w-4" />
                 Generate Key
@@ -724,18 +724,18 @@ export function DeveloperPage() {
                     <Key className={cn('h-4 w-4', key.is_active ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]')} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-medium text-[var(--text-primary)]">{key.name}</h4>
-                    <p className="text-xs text-[var(--text-tertiary)] font-mono">{key.key_prefix}••••••••</p>
+                    <h4 className="text-strong font-medium text-[var(--text-primary)]">{key.name}</h4>
+                    <p className="text-body text-[var(--text-tertiary)] font-mono">{key.key_prefix}••••••••</p>
                   </div>
                   <div className="text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <span className="text-[10px] text-[var(--text-tertiary)]">{key.rate_limit}/min</span>
-                      <span className={cn('text-xs rounded-full px-2 py-0.5', key.is_active ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]')}>
+                      <span className="text-micro text-[var(--text-tertiary)]">{key.rate_limit}/min</span>
+                      <span className={cn('text-body rounded-full px-2 py-0.5', key.is_active ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]')}>
                         {key.is_active ? 'Active' : 'Revoked'}
                       </span>
                     </div>
                     {key.last_used_at && (
-                      <p className="text-[10px] text-[var(--text-tertiary)] mt-1">Last used {formatDateTime(key.last_used_at)}</p>
+                      <p className="text-micro text-[var(--text-tertiary)] mt-1">Last used {formatDateTime(key.last_used_at)}</p>
                     )}
                   </div>
                   <button
@@ -748,7 +748,7 @@ export function DeveloperPage() {
                       () => rotateKeyMutation.mutate(key.id),
                     )}
                     disabled={rotateKeyMutation.isPending}
-                    className="p-1.5 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-xs flex items-center gap-1 disabled:opacity-50"
+                    className="p-1.5 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-body flex items-center gap-1 disabled:opacity-50"
                     title="The stored key is hashed and cannot be shown again — this issues a fresh one"
                   >
                     <RefreshCw className="h-3 w-3" /> New secret
@@ -759,7 +759,7 @@ export function DeveloperPage() {
                         { title: `Revoke "${key.name}"?`, body: 'Anything still authenticating with this key stops working immediately.', tone: 'danger', confirmLabel: 'Revoke' },
                         () => revokeKeyMutation.mutate(key.id),
                       )}
-                      className="p-1.5 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-xs flex items-center gap-1"
+                      className="p-1.5 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-body flex items-center gap-1"
                     >
                       <Shield className="h-3 w-3" /> Revoke
                     </button>

@@ -157,8 +157,8 @@ export function PreflightDialog({
             ? <ShieldAlert className="mt-px h-4 w-4 flex-shrink-0" />
             : <AlertTriangle className="mt-px h-4 w-4 flex-shrink-0" />}
           <div className="min-w-0">
-            <p className="text-[12.5px] font-semibold leading-snug">{report.summary}</p>
-            <p className="mt-1 text-[11.5px] leading-relaxed opacity-90">
+            <p className="text-body font-semibold leading-snug">{report.summary}</p>
+            <p className="mt-1 text-caption leading-relaxed opacity-90">
               {blocked
                 ? 'These have to be fixed first — with them unresolved nothing goes out at all, so there is nothing to override.'
                 : 'This will send. These are the costs of sending it as things stand, so you are choosing them knowingly rather than finding out from the bounce rate.'}
@@ -173,7 +173,7 @@ export function PreflightDialog({
         </ul>
 
         {!blocked && (
-          <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+          <p className="flex items-start gap-1.5 text-caption leading-relaxed text-[var(--text-tertiary)]">
             <Rocket className="mt-px h-3 w-3 flex-shrink-0" />
             Fixing these later still helps — the checks are re-read on every launch, and a domain that
             authenticates halfway through a campaign improves the rest of it.

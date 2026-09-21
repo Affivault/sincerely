@@ -28,8 +28,8 @@ export function Badge({ children, variant = 'default', size = 'md', dot = false,
   };
 
   const sizes = {
-    sm: 'h-[16px] px-1 text-[10px] gap-0.5',
-    md: 'h-[18px] px-1.5 text-[11px] gap-1',
+    sm: 'h-[16px] px-1 text-micro gap-0.5',
+    md: 'h-[18px] px-1.5 text-caption gap-1',
   };
 
   return (

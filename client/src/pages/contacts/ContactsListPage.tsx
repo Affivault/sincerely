@@ -108,7 +108,7 @@ function SortableHeader({
       onClick={() => onSort(colKey)}
       className={`flex items-center gap-1 group/sort transition-colors ${active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
     >
-      <span className="text-[11px] font-medium">{label}</span>
+      <span className="text-caption font-medium">{label}</span>
       {active
         ? (sortDir === 'asc'
             ? <ChevronUp className="h-3 w-3 flex-shrink-0" />
@@ -148,18 +148,18 @@ function tintFor(str: string): string {
 }
 
 function CompanyCell({ company }: { company?: string | null }) {
-  if (!company) return <span className="text-[12px] text-[var(--text-muted)]">—</span>;
+  if (!company) return <span className="text-body text-[var(--text-muted)]">—</span>;
   const tint = tintFor(company);
   const initials = company.trim().slice(0, 2).toUpperCase();
   return (
     <span className="inline-flex items-center gap-2 min-w-0">
       <span
-        className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-[5px] text-[9px] font-bold leading-none"
+        className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-[5px] text-micro font-bold leading-none"
         style={{ color: tint, background: `color-mix(in srgb, ${tint} 14%, transparent)` }}
       >
         {initials}
       </span>
-      <span className="text-[12.5px] text-[var(--text-secondary)] truncate">{company}</span>
+      <span className="text-body text-[var(--text-secondary)] truncate">{company}</span>
     </span>
   );
 }
@@ -168,7 +168,7 @@ function CopyableEmail({ email }: { email: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <span className="group/email inline-flex items-center gap-1.5 min-w-0">
-      <span className="text-[12.5px] text-[var(--text-secondary)] truncate">{email}</span>
+      <span className="text-body text-[var(--text-secondary)] truncate">{email}</span>
       <button
         type="button"
         title="Copy email"
@@ -189,18 +189,18 @@ function CopyableEmail({ email }: { email: string }) {
 
 function HealthCell({ c }: { c: any }) {
   if (c.is_bounced) return (
-    <span className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-[10.5px] font-semibold text-rose-700 dark:text-rose-400 bg-rose-500/10">
+    <span className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-micro font-semibold text-rose-700 dark:text-rose-400 bg-rose-500/10">
       <ShieldX className="h-3 w-3" />Bounced
     </span>
   );
   if (c.is_unsubscribed) return (
-    <span className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-[10.5px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10">
+    <span className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-micro font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10">
       <ShieldX className="h-3 w-3" />Opted out
     </span>
   );
   if (c.dcs_score !== null && c.dcs_score !== undefined) return (
     <span title={`Deliverability confidence: ${c.dcs_score}/100`} className={cn(
-      'inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-[10.5px] font-semibold tabular',
+      'inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-micro font-semibold tabular',
       c.dcs_score >= 80 ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10'
         : c.dcs_score >= 50 ? 'text-amber-700 dark:text-amber-400 bg-amber-500/10'
         : 'text-rose-700 dark:text-rose-400 bg-rose-500/10'
@@ -209,19 +209,19 @@ function HealthCell({ c }: { c: any }) {
       {c.dcs_score}
     </span>
   );
-  return <span className="text-[11px] text-[var(--text-muted)]">—</span>;
+  return <span className="text-caption text-[var(--text-muted)]">—</span>;
 }
 
 const TextCell = ({ v }: { v?: string | null; mono?: boolean }) =>
-  v ? <span className="text-[12.5px] text-[var(--text-secondary)] truncate">{v}</span>
-    : <span className="text-[12px] text-[var(--text-muted)]">—</span>;
+  v ? <span className="text-body text-[var(--text-secondary)] truncate">{v}</span>
+    : <span className="text-body text-[var(--text-muted)]">—</span>;
 
 const LinkCell = ({ href, label }: { href?: string | null; label?: string | null }) => {
-  if (!href) return <span className="text-[12px] text-[var(--text-muted)]">—</span>;
+  if (!href) return <span className="text-body text-[var(--text-muted)]">—</span>;
   const url = href.startsWith('http') ? href : `https://${href}`;
   return (
     <a href={url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
-      className="inline-flex items-center gap-1 text-[12.5px] text-[var(--indigo)] hover:underline truncate">
+      className="inline-flex items-center gap-1 text-body text-[var(--indigo)] hover:underline truncate">
       {(label || href).replace(/^https?:\/\//, '')}
       <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
     </a>
@@ -265,7 +265,7 @@ function EmailStatusDot({ c }: { c: any }) {
 function VerificationBadge({ c }: { c: any }) {
   const s = emailStatus(c);
   return (
-    <span title={s.tip} className={cn('inline-flex items-center gap-1.5 px-1.5 h-[20px] rounded-md text-[10.5px] font-semibold', STATE_STYLE[s.state].badge)}>
+    <span title={s.tip} className={cn('inline-flex items-center gap-1.5 px-1.5 h-[20px] rounded-md text-micro font-semibold', STATE_STYLE[s.state].badge)}>
       <span className={cn('h-1.5 w-1.5 rounded-full', STATE_STYLE[s.state].dot)} />
       {s.label}
     </span>
@@ -302,7 +302,7 @@ function LifecycleCell({ c }: { c: any }) {
     <span
       title={LIFECYCLE_TIP[stage]}
       className={cn(
-        'inline-flex items-center px-1.5 h-[20px] rounded-md text-[10.5px] font-semibold',
+        'inline-flex items-center px-1.5 h-[20px] rounded-md text-micro font-semibold',
         LIFECYCLE_STYLE[stage],
       )}
     >
@@ -332,33 +332,33 @@ function LinkedInGlyph({ url }: { url?: string | null }) {
 
 /* Chips for tag / list membership, with a +N overflow. */
 function TagsCell({ tags }: { tags?: { id: string; name: string; color?: string }[] }) {
-  if (!tags || tags.length === 0) return <span className="text-[12px] text-[var(--text-muted)]">—</span>;
+  if (!tags || tags.length === 0) return <span className="text-body text-[var(--text-muted)]">—</span>;
   const shown = tags.slice(0, 2);
   return (
     <span className="inline-flex items-center gap-1 align-middle">
       {shown.map((t) => (
-        <span key={t.id} className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-[10.5px] font-medium border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]">
+        <span key={t.id} className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-micro font-medium border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]">
           <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: t.color || 'var(--text-tertiary)' }} />
           {t.name}
         </span>
       ))}
-      {tags.length > shown.length && <span className="text-[10.5px] font-medium text-[var(--text-tertiary)]">+{tags.length - shown.length}</span>}
+      {tags.length > shown.length && <span className="text-micro font-medium text-[var(--text-tertiary)]">+{tags.length - shown.length}</span>}
     </span>
   );
 }
 
 function ListsCell({ lists }: { lists?: { id: string; name: string }[] }) {
-  if (!lists || lists.length === 0) return <span className="text-[12px] text-[var(--text-muted)]">—</span>;
+  if (!lists || lists.length === 0) return <span className="text-body text-[var(--text-muted)]">—</span>;
   const shown = lists.slice(0, 2);
   return (
     <span className="inline-flex items-center gap-1 align-middle">
       {shown.map((l) => (
-        <span key={l.id} className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-[10.5px] font-medium bg-[var(--indigo-subtle)] text-[var(--indigo)]">
+        <span key={l.id} className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-micro font-medium bg-[var(--indigo-subtle)] text-[var(--indigo)]">
           <FolderOpen className="h-2.5 w-2.5 flex-shrink-0" />
           {l.name}
         </span>
       ))}
-      {lists.length > shown.length && <span className="text-[10.5px] font-medium text-[var(--text-tertiary)]">+{lists.length - shown.length}</span>}
+      {lists.length > shown.length && <span className="text-micro font-medium text-[var(--text-tertiary)]">+{lists.length - shown.length}</span>}
     </span>
   );
 }
@@ -371,7 +371,7 @@ function StatusPill({ label, count, dot, active, onClick }: {
     <button
       onClick={onClick}
       className={cn(
-        'inline-flex items-center gap-1.5 h-7 pl-2.5 pr-2.5 rounded-full text-[12px] font-medium border transition-colors',
+        'inline-flex items-center gap-1.5 h-7 pl-2.5 pr-2.5 rounded-full text-body font-medium border transition-colors',
         active
           ? 'bg-[var(--indigo-subtle)] border-[var(--indigo)] text-[var(--indigo)]'
           : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]'
@@ -379,7 +379,7 @@ function StatusPill({ label, count, dot, active, onClick }: {
     >
       <span className={cn('h-1.5 w-1.5 rounded-full', dot)} />
       {label}
-      <span className={cn('text-[10.5px] font-semibold tabular', active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')}>
+      <span className={cn('text-micro font-semibold tabular', active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')}>
         {count.toLocaleString()}
       </span>
     </button>
@@ -414,7 +414,7 @@ function CompanyFilter({ value, options, onChange }: {
         onClick={() => setOpen((o) => !o)}
         title="Filter leads by company"
         className={cn(
-          'inline-flex items-center gap-1.5 h-8 pl-2.5 pr-2 rounded-lg text-[12px] font-medium border transition-colors',
+          'inline-flex items-center gap-1.5 h-8 pl-2.5 pr-2 rounded-lg text-body font-medium border transition-colors',
           value
             ? 'bg-[var(--indigo-subtle)] border-[var(--indigo)] text-[var(--indigo)]'
             : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]'
@@ -444,18 +444,18 @@ function CompanyFilter({ value, options, onChange }: {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search companies…"
-                className="w-full h-8 pl-8 pr-2 text-[12px] rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
+                className="w-full h-8 pl-8 pr-2 text-body rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
               />
             </div>
           </div>
           <div className="max-h-64 overflow-y-auto py-1">
             {value && (
-              <button onClick={() => { onChange(null); setOpen(false); }} className="w-full flex items-center gap-2 px-3 py-1.5 text-[12px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]">
+              <button onClick={() => { onChange(null); setOpen(false); }} className="w-full flex items-center gap-2 px-3 py-1.5 text-body text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]">
                 <X className="h-3 w-3" /> Clear filter
               </button>
             )}
             {filtered.length === 0 ? (
-              <p className="px-3 py-4 text-[12px] text-[var(--text-tertiary)] text-center">
+              <p className="px-3 py-4 text-body text-[var(--text-tertiary)] text-center">
                 {options.length === 0 ? 'No companies on your leads yet' : 'No matches'}
               </p>
             ) : filtered.map((o) => (
@@ -464,8 +464,8 @@ function CompanyFilter({ value, options, onChange }: {
                 onClick={() => { onChange(o.company); setOpen(false); setQ(''); }}
                 className={cn('w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors', value === o.company ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]')}
               >
-                <span className="flex-1 min-w-0 truncate text-[12.5px] text-[var(--text-primary)]">{o.company}</span>
-                <span className="text-[10.5px] font-semibold tabular text-[var(--text-tertiary)]">{o.count.toLocaleString()}</span>
+                <span className="flex-1 min-w-0 truncate text-body text-[var(--text-primary)]">{o.company}</span>
+                <span className="text-micro font-semibold tabular text-[var(--text-tertiary)]">{o.count.toLocaleString()}</span>
               </button>
             ))}
           </div>
@@ -533,7 +533,7 @@ const ALL_COLUMNS: ColumnDef[] = [
   { id: 'linkedin_url',label: 'LinkedIn',  icon: Linkedin,                           tdClass: 'max-w-[180px]', render: (c) => <LinkCell href={c.linkedin_url} label={c.linkedin_url ? 'Profile' : null} /> },
   { id: 'tags',        label: 'Tags',      icon: TagIcon,                            tdClass: 'max-w-[240px]', render: (c) => <TagsCell tags={c.tags} /> },
   { id: 'lists',       label: 'Lists',     icon: List,                               tdClass: 'max-w-[240px]', render: (c) => <ListsCell lists={c.lists} /> },
-  { id: 'added',       label: 'Added',     icon: Clock,       sortKey: 'created_at', render: (c) => <span className="text-[11.5px] text-[var(--text-tertiary)]" title={formatDate(c.created_at)}>{formatRelativeTime(c.created_at)}</span> },
+  { id: 'added',       label: 'Added',     icon: Clock,       sortKey: 'created_at', render: (c) => <span className="text-caption text-[var(--text-tertiary)]" title={formatDate(c.created_at)}>{formatRelativeTime(c.created_at)}</span> },
   { id: 'health',      label: 'Health',    icon: Activity,    sortKey: 'dcs_score',  render: (c) => <HealthCell c={c} /> },
 ];
 const DEFAULT_COLUMNS: ColumnId[] = ['email', 'status', 'lifecycle', 'company', 'location', 'tags', 'lists', 'added'];
@@ -1344,8 +1344,8 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       return {
         id, label: key, tdClass: 'max-w-[220px]',
         render: (c: any) => c.custom_fields?.[key]
-          ? <span className="text-[12.5px] text-[var(--text-secondary)] truncate inline-block max-w-full align-bottom">{c.custom_fields[key]}</span>
-          : <span className="text-[12px] text-[var(--text-muted)]">—</span>,
+          ? <span className="text-body text-[var(--text-secondary)] truncate inline-block max-w-full align-bottom">{c.custom_fields[key]}</span>
+          : <span className="text-body text-[var(--text-muted)]">—</span>,
       };
     }
     return ALL_COLUMNS.find((c) => c.id === id) || null;
@@ -1385,7 +1385,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 onKeyDown={(e) => { if (e.key === 'Escape') setTitleRenaming(false); }}
                 autoFocus
                 maxLength={80}
-                className="w-full max-w-md px-2 py-0.5 -ml-2 text-[22px] font-semibold tracking-[-0.02em] rounded-md border border-[var(--indigo)] bg-[var(--bg-elevated)] text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[#5B5BF5]/15"
+                className="w-full max-w-md px-2 py-0.5 -ml-2 text-display font-semibold tracking-[-0.02em] rounded-md border border-[var(--indigo)] bg-[var(--bg-elevated)] text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[#5B5BF5]/15"
               />
             </form>
           ) : (
@@ -1450,7 +1450,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         <aside className="w-56 flex-shrink-0">
           <div className="sticky top-[60px] panel-inset p-1.5 space-y-0.5">
             <div className="flex items-center justify-between gap-1 px-1.5 pb-1.5 mb-0.5 border-b border-[var(--border-subtle)]">
-              <span className="text-[10px] font-semibold text-[var(--text-tertiary)]">
+              <span className="text-micro font-semibold text-[var(--text-tertiary)]">
                 {listKind === 'lead' ? 'Lead lists' : 'Contact lists'}
               </span>
               <div className="flex items-center gap-0.5">
@@ -1467,7 +1467,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             </div>
 
             {listKind === 'contact' && (
-              <p className="px-1.5 pb-1 text-[10.5px] leading-snug text-[var(--text-tertiary)]">
+              <p className="px-1.5 pb-1 text-micro leading-snug text-[var(--text-tertiary)]">
                 Cold campaigns can never send to these.
               </p>
             )}
@@ -1475,7 +1475,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           <button
             onClick={() => setSearchParams({})}
             className={cn(
-              "w-full flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[13px] font-medium transition-all",
+              "w-full flex items-center gap-2.5 h-8 px-2.5 rounded-md text-strong font-medium transition-all",
               !activeListId
                 ? "bg-[var(--indigo-subtle)] text-[var(--indigo)]"
                 : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
@@ -1484,7 +1484,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             <Users className="h-3.5 w-3.5 flex-shrink-0" />
             <span className="flex-1 text-left">{listKind === 'lead' ? 'All Leads' : 'All Contacts'}</span>
             <span className={cn(
-              "text-[10px] font-semibold tabular px-1.5 rounded",
+              "text-micro font-semibold tabular px-1.5 rounded",
               !activeListId ? "text-[var(--indigo)]" : "text-[var(--text-tertiary)]"
             )}>
               {stats?.total || 0}
@@ -1494,7 +1494,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
 
           {/* Lists section */}
           <div className="pt-1.5">
-            <span className="block px-2 mb-1 text-[10px] font-semibold text-[var(--text-tertiary)]">
+            <span className="block px-2 mb-1 text-micro font-semibold text-[var(--text-tertiary)]">
               Lists
             </span>
 
@@ -1526,7 +1526,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                       >
                         <ChevronRight className={cn('h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-150', !collapsed && 'rotate-90')} />
                         <Folder className="h-3 w-3 flex-shrink-0" style={isFolder ? { color: group.folder!.color } : { color: 'var(--text-tertiary)' }} />
-                        <span className="flex-1 truncate text-[10.5px] font-semibold" style={isFolder ? { color: group.folder!.color } : { color: 'var(--text-tertiary)' }}>
+                        <span className="flex-1 truncate text-micro font-semibold" style={isFolder ? { color: group.folder!.color } : { color: 'var(--text-tertiary)' }}>
                           {isFolder ? group.folder!.name : 'Uncategorised'}
                         </span>
                         {isFolder && (
@@ -1538,7 +1538,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                             <Pencil className="h-2.5 w-2.5 text-[var(--text-tertiary)]" />
                           </button>
                         )}
-                        <span className="text-[10px] font-semibold tabular text-[var(--text-tertiary)]">{group.lists.length}</span>
+                        <span className="text-micro font-semibold tabular text-[var(--text-tertiary)]">{group.lists.length}</span>
                       </div>
                     )}
 
@@ -1566,7 +1566,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                                   onBlur={() => setRenamingListId(null)}
                                   onKeyDown={(e) => { if (e.key === 'Escape') setRenamingListId(null); }}
                                   autoFocus
-                                  className="w-full px-2 py-1 text-[12px] rounded border border-[var(--indigo)] bg-[var(--bg-elevated)] outline-none"
+                                  className="w-full px-2 py-1 text-body rounded border border-[var(--indigo)] bg-[var(--bg-elevated)] outline-none"
                                 />
                               </form>
                             ) : (
@@ -1574,7 +1574,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                                 onClick={() => setSearchParams({ list: list.id })}
                                 onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setListContextMenu({ listId: list.id, x: e.clientX, y: e.clientY }); }}
                                 className={cn(
-                                  'w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-[12px] font-medium transition-all cursor-grab active:cursor-grabbing',
+                                  'w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-body font-medium transition-all cursor-grab active:cursor-grabbing',
                                   draggingListId === list.id && 'opacity-50',
                                   activeListId === list.id
                                     ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
@@ -1588,7 +1588,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                                     reachable by right-click before, which
                                     nobody discovers. */}
                                 <span className={cn(
-                                  'text-[10px] font-semibold tabular transition-opacity group-hover/list:opacity-0',
+                                  'text-micro font-semibold tabular transition-opacity group-hover/list:opacity-0',
                                   activeListId === list.id ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]'
                                 )}>
                                   {list.contact_count || 0}
@@ -1608,7 +1608,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                           </div>
                         ))}
                         {isFolder && group.lists.length === 0 && (
-                          <p className="px-2 py-1 text-[10.5px] text-[var(--text-muted)] italic">
+                          <p className="px-2 py-1 text-micro text-[var(--text-muted)] italic">
                             {isDrop ? 'Drop to add here' : 'Empty folder'}
                           </p>
                         )}
@@ -1619,7 +1619,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               })}
 
               {(!lists || lists.length === 0) && (
-                <p className="px-2 py-2 text-[11px] text-[var(--text-tertiary)] italic">
+                <p className="px-2 py-2 text-caption text-[var(--text-tertiary)] italic">
                   No lists yet
                 </p>
               )}
@@ -1629,7 +1629,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           {/* Other section */}
           <div className="pt-2">
             <div className="px-2 mb-1">
-              <span className="text-[10px] font-semibold text-[var(--text-tertiary)]">
+              <span className="text-micro font-semibold text-[var(--text-tertiary)]">
                 Other
               </span>
             </div>
@@ -1638,7 +1638,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               onClick={() => setSearchParams({ list: UNLISTED_LIST_ID })}
               title="Contacts that don't belong to any list"
               className={cn(
-                'w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-[12px] font-medium transition-all',
+                'w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-body font-medium transition-all',
                 isUnlistedView
                   ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
@@ -1647,7 +1647,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               <FolderMinus className="h-3 w-3 flex-shrink-0" />
               <span className="flex-1 text-left truncate">{UNLISTED_LIST_NAME}</span>
               <span className={cn(
-                'text-[10px] font-semibold tabular',
+                'text-micro font-semibold tabular',
                 isUnlistedView ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]'
               )}>
                 {unlistedCount}
@@ -1655,7 +1655,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             </button>
             <Link
               to="/suppression"
-              className="w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-[12px] font-medium text-[var(--text-secondary)] hover:text-rose-500 hover:bg-rose-500/10 transition-all"
+              className="w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-body font-medium text-[var(--text-secondary)] hover:text-rose-500 hover:bg-rose-500/10 transition-all"
             >
               <ShieldOff className="h-3 w-3 flex-shrink-0" />
               <span className="flex-1 text-left">Do not email</span>
@@ -1682,16 +1682,16 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               const list = (lists || []).find((l: any) => l.id === listContextMenu.listId);
               if (list) { setRenameValue(list.name); setRenamingListId(list.id); setListContextMenu(null); }
             }}
-            className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
+            className="w-full text-left px-3 py-2 text-strong text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
           >
             <Pencil className="h-3.5 w-3.5" /> Rename
           </button>
 
           <div className="border-t border-[var(--border-subtle)] my-1" />
-          <div className="px-3 py-1.5 text-[10px] text-[var(--text-tertiary)]">Move to folder</div>
+          <div className="px-3 py-1.5 text-micro text-[var(--text-tertiary)]">Move to folder</div>
           <button
             onClick={() => folderMoveMut.mutate({ listId: listContextMenu.listId, folderId: null })}
-            className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
+            className="w-full text-left px-3 py-2 text-strong text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
           >
             <Folder className="h-3.5 w-3.5" /> Uncategorised
           </button>
@@ -1699,7 +1699,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             <button
               key={f.id}
               onClick={() => folderMoveMut.mutate({ listId: listContextMenu.listId, folderId: f.id })}
-              className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
+              className="w-full text-left px-3 py-2 text-strong text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
             >
               <Folder className="h-3.5 w-3.5" style={{ color: f.color }} /> {f.name}
             </button>
@@ -1715,7 +1715,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               },
               () => trashListMut.mutate(listContextMenu.listId),
             )}
-            className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-2"
+            className="w-full text-left px-3 py-2 text-strong text-red-500 hover:bg-red-500/10 flex items-center gap-2"
           >
             <Trash2 className="h-3.5 w-3.5" /> Move to trash
           </button>
@@ -1764,14 +1764,14 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                   title={opt.hint}
                   onClick={() => setLifecyclePersisted(opt.id)}
                   className={cn(
-                    'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors',
+                    'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-body font-medium transition-colors',
                     lifecycle === opt.id
                       ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
                       : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
                   )}
                 >
                   {opt.label}
-                  <span className="text-[11px] tabular-nums text-[var(--text-muted)]">
+                  <span className="text-caption tabular-nums text-[var(--text-muted)]">
                     {opt.count.toLocaleString()}
                   </span>
                 </button>
@@ -1781,7 +1781,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 telling you about the people you specifically cannot pitch. */}
             {listKind === 'contact' && lifecycleCounts.customer > 0 && (
               <span
-                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/[0.08] px-2.5 text-[11.5px] font-medium text-emerald-600 dark:text-emerald-400"
+                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/[0.08] px-2.5 text-caption font-medium text-emerald-600 dark:text-emerald-400"
                 title="Won a deal. Kept out of cold campaigns by default."
               >
                 {lifecycleCounts.customer.toLocaleString()} customer{lifecycleCounts.customer === 1 ? '' : 's'}
@@ -1799,7 +1799,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             <StatusPill label="Invalid"    count={breakdown.invalid}    dot="bg-rose-500"                          active={statusFilter === 'invalid'}    onClick={() => { setStatusFilter((s) => s === 'invalid' ? '' : 'invalid'); setPage(1); }} />
             <StatusPill label="Not found"  count={breakdown.not_found}  dot="bg-slate-400 dark:bg-slate-500"       active={statusFilter === 'not_found'}  onClick={() => { setStatusFilter((s) => s === 'not_found' ? '' : 'not_found'); setPage(1); }} />
             <StatusPill label="Unverified" count={breakdown.unverified} dot="bg-slate-300 dark:bg-slate-600"       active={statusFilter === 'unverified'} onClick={() => { setStatusFilter((s) => s === 'unverified' ? '' : 'unverified'); setPage(1); }} />
-            <span className="ml-auto inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[12px] font-medium bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-secondary)]" title="Contacts with a LinkedIn profile on file">
+            <span className="ml-auto inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-body font-medium bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-secondary)]" title="Contacts with a LinkedIn profile on file">
               <Linkedin className="h-3 w-3 text-[#0A66C2]" />
               {breakdown.with_linkedin.toLocaleString()} on LinkedIn
             </span>
@@ -1816,7 +1816,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name, email, or company…  /"
-              className="w-full h-8 pl-8 pr-4 text-[12px] rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
+              className="w-full h-8 pl-8 pr-4 text-body rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
             />
             {search && (
               <button
@@ -1829,7 +1829,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           </div>
           {activeFilters.length > 0 && (
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[11px] font-medium text-[var(--text-tertiary)] tabular-nums">
+              <span className="text-caption font-medium text-[var(--text-tertiary)] tabular-nums">
                 {totalContacts.toLocaleString()} of {(lifecycleCounts?.total ?? totalContacts).toLocaleString()}
               </span>
               {activeFilters.map((f) => (
@@ -1837,7 +1837,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                   key={f.id}
                   onClick={f.clear}
                   title={`Remove this filter`}
-                  className="group inline-flex max-w-[180px] items-center gap-1 rounded-md border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-2 h-6 text-[11px] font-medium text-[var(--indigo)] transition-colors hover:border-[var(--indigo)]/50"
+                  className="group inline-flex max-w-[180px] items-center gap-1 rounded-md border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-2 h-6 text-caption font-medium text-[var(--indigo)] transition-colors hover:border-[var(--indigo)]/50"
                 >
                   <span className="truncate">{f.label}</span>
                   <X className="h-2.5 w-2.5 flex-shrink-0 opacity-50 group-hover:opacity-100" />
@@ -1846,7 +1846,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               {activeFilters.length > 1 && (
                 <button
                   onClick={clearAllFilters}
-                  className="text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] underline decoration-dotted underline-offset-2"
+                  className="text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] underline decoration-dotted underline-offset-2"
                 >
                   Clear all
                 </button>
@@ -1859,7 +1859,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
 
           {/* Live auto-verification indicator */}
           {autoVerifyOn && pendingOnPage > 0 && (
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--indigo)] bg-[var(--indigo-subtle)] px-2.5 h-7 rounded-lg" title="Contacts are being verified in the background">
+            <span className="inline-flex items-center gap-1.5 text-caption font-medium text-[var(--indigo)] bg-[var(--indigo-subtle)] px-2.5 h-7 rounded-lg" title="Contacts are being verified in the background">
               <Loader2 className="h-3 w-3 animate-spin" />
               Verifying {pendingOnPage} on this page…
             </span>
@@ -1870,7 +1870,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             <button
               onClick={() => setColumnMenuOpen((o) => !o)}
               className={cn(
-                'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-[12px] font-medium transition-colors',
+                'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-body font-medium transition-colors',
                 columnMenuOpen
                   ? 'border-[var(--indigo)] text-[var(--indigo)] bg-[var(--indigo-subtle)]'
                   : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
@@ -1879,7 +1879,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             >
               <Columns3 className="h-3.5 w-3.5" />
               Columns
-              <span className="text-[10px] tabular text-[var(--text-tertiary)]">{activeColumns.length}</span>
+              <span className="text-micro tabular text-[var(--text-tertiary)]">{activeColumns.length}</span>
             </button>
             {columnMenuOpen && (() => {
               const q = columnSearch.trim().toLowerCase();
@@ -1898,18 +1898,18 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                           value={columnSearch}
                           onChange={(e) => setColumnSearch(e.target.value)}
                           placeholder="Search columns…"
-                          className="w-full h-8 pl-8 pr-3 text-[12.5px] rounded-md bg-[var(--bg-app)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--indigo)]"
+                          className="w-full h-8 pl-8 pr-3 text-body rounded-md bg-[var(--bg-app)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--indigo)]"
                         />
                       </div>
                     </div>
 
                     <div className="max-h-[320px] overflow-y-auto p-1.5">
                       {/* Shown — drag to reorder, eye to hide */}
-                      <p className="flex items-center justify-between px-1.5 pt-1 pb-1.5 text-[10px] font-semibold text-[var(--text-tertiary)]">
+                      <p className="flex items-center justify-between px-1.5 pt-1 pb-1.5 text-micro font-semibold text-[var(--text-tertiary)]">
                         Shown
                         {!q && <span className="normal-case text-[var(--text-muted)]">drag to reorder</span>}
                       </p>
-                      {shown.length === 0 && <p className="px-2 py-1.5 text-[12px] text-[var(--text-tertiary)]">No matching columns.</p>}
+                      {shown.length === 0 && <p className="px-2 py-1.5 text-body text-[var(--text-tertiary)]">No matching columns.</p>}
                       {shown.map(({ id, i, label }) => (
                         <div
                           key={id}
@@ -1924,7 +1924,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                           )}
                         >
                           {!q && <GripVertical className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-muted)] cursor-grab active:cursor-grabbing" />}
-                          <span className="flex-1 text-[12.5px] text-[var(--text-primary)] truncate">{label}</span>
+                          <span className="flex-1 text-body text-[var(--text-primary)] truncate">{label}</span>
                           <button onClick={() => toggleColumn(id)} title="Hide column" className="p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-active)]">
                             <Eye className="h-3.5 w-3.5" />
                           </button>
@@ -1933,7 +1933,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
 
                       {hidden.length > 0 && (
                         <>
-                          <p className="px-1.5 pt-2.5 pb-1.5 text-[10px] font-semibold text-[var(--text-tertiary)]">Add columns</p>
+                          <p className="px-1.5 pt-2.5 pb-1.5 text-micro font-semibold text-[var(--text-tertiary)]">Add columns</p>
                           {hidden.map((c) => (
                             <button
                               key={c.id}
@@ -1941,7 +1941,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                               className="w-full flex items-center gap-1.5 px-1.5 h-8 rounded-lg text-left hover:bg-[var(--bg-hover)] transition-colors"
                             >
                               <EyeOff className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-muted)]" />
-                              <span className="flex-1 text-[12.5px] text-[var(--text-secondary)] truncate">{c.label}</span>
+                              <span className="flex-1 text-body text-[var(--text-secondary)] truncate">{c.label}</span>
                               <Plus className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
                             </button>
                           ))}
@@ -1952,7 +1952,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                     <div className="border-t border-[var(--border-subtle)] p-1.5">
                       <button
                         onClick={() => { persistColumns(DEFAULT_COLUMNS); setColumnSearch(''); }}
-                        className="w-full flex items-center gap-2 px-1.5 h-8 rounded-lg text-[12px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                        className="w-full flex items-center gap-2 px-1.5 h-8 rounded-lg text-body text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
                         Reset to default
@@ -1969,10 +1969,10 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         {someSelected && (
           <div className="flex items-center gap-4 mb-5 px-4 py-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] animate-fade-in">
             <div className="flex items-center gap-2.5 flex-shrink-0">
-              <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-[var(--indigo)] text-white text-[11px] font-bold">
+              <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-[var(--indigo)] text-white text-caption font-bold">
                 {selectedContacts.size}
               </span>
-              <span className="text-sm font-medium text-[var(--text-primary)] whitespace-nowrap">
+              <span className="text-strong font-medium text-[var(--text-primary)] whitespace-nowrap">
                 contact{selectedContacts.size !== 1 ? 's' : ''} selected
               </span>
             </div>
@@ -1989,7 +1989,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               {listKind === 'lead' ? (
                 <button
                   onClick={() => setShowCampaignModal(true)}
-                  className="inline-flex items-center gap-1.5 text-sm h-8 px-3 rounded-lg font-semibold text-white transition-opacity hover:opacity-90"
+                  className="inline-flex items-center gap-1.5 text-strong h-8 px-3 rounded-lg font-semibold text-white transition-opacity hover:opacity-90"
                   style={{ background: 'var(--indigo-grad)' }}
                 >
                   <Megaphone className="h-3.5 w-3.5" />
@@ -1997,7 +1997,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 </button>
               ) : (
                 <span
-                  className="inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] h-8 px-3 rounded-lg font-medium text-[var(--text-tertiary)] bg-[var(--bg-elevated)] border border-[var(--border-subtle)]"
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap text-body h-8 px-3 rounded-lg font-medium text-[var(--text-tertiary)] bg-[var(--bg-elevated)] border border-[var(--border-subtle)]"
                   title="Cold outreach only goes to lead lists. Move these people to a lead list first if you mean to pitch them."
                 >
                   <Megaphone className="h-3.5 w-3.5 flex-shrink-0" />
@@ -2007,25 +2007,25 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               <button
                 onClick={() => batchVerifyMutation.mutate(Array.from(selectedContacts))}
                 disabled={batchVerifyMutation.isPending}
-                className="btn-secondary text-sm h-8 rounded-lg disabled:opacity-50"
+                className="btn-secondary text-strong h-8 rounded-lg disabled:opacity-50"
               >
                 {batchVerifyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
                 Verify emails
               </button>
-              <button onClick={() => { setTagMode('add'); setTagSel(new Set()); setShowTagModal(true); }} className="btn-secondary text-sm h-8 rounded-lg">
+              <button onClick={() => { setTagMode('add'); setTagSel(new Set()); setShowTagModal(true); }} className="btn-secondary text-strong h-8 rounded-lg">
                 <TagIcon className="h-3.5 w-3.5" />
                 Add tags
               </button>
-              <button onClick={() => { setTagMode('remove'); setTagSel(new Set()); setShowTagModal(true); }} className="btn-secondary text-sm h-8 rounded-lg">
+              <button onClick={() => { setTagMode('remove'); setTagSel(new Set()); setShowTagModal(true); }} className="btn-secondary text-strong h-8 rounded-lg">
                 <TagIcon className="h-3.5 w-3.5" />
                 Remove tags
               </button>
-              <button onClick={() => setShowAddToListModal(true)} className="btn-secondary text-sm h-8 rounded-lg">
+              <button onClick={() => setShowAddToListModal(true)} className="btn-secondary text-strong h-8 rounded-lg">
                 <FolderOpen className="h-3.5 w-3.5" />
                 Add to list
               </button>
               {activeListId && (
-                <button onClick={() => { setMoveTargetId(null); setShowMoveModal(true); }} className="btn-secondary text-sm h-8 rounded-lg">
+                <button onClick={() => { setMoveTargetId(null); setShowMoveModal(true); }} className="btn-secondary text-strong h-8 rounded-lg">
                   <ArrowRightLeft className="h-3.5 w-3.5" />
                   Move
                 </button>
@@ -2039,7 +2039,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                   },
                   () => bulkDeleteMutation.mutate(Array.from(selectedContacts)),
                 )}
-                className="btn-danger text-sm h-8 rounded-lg"
+                className="btn-danger text-strong h-8 rounded-lg"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 Delete
@@ -2171,7 +2171,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                           {col.icon && <col.icon className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />}
                           {col.sortKey
                             ? <SortableHeader label={col.label} colKey={col.sortKey} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
-                            : <span className="text-[11px] font-medium text-[var(--text-tertiary)] truncate">{col.label}</span>}
+                            : <span className="text-caption font-medium text-[var(--text-tertiary)] truncate">{col.label}</span>}
                         </span>
                         {/* Where it will land */}
                         {dropCol?.id === col.id && dragCol && dragCol !== col.id && (
@@ -2226,7 +2226,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                         <td className={cn('sticky left-0 z-[1] pl-3 pr-2 py-1.5 relative border-b border-[var(--border-subtle)]', frozenBg)}>
                           {/* Sheets-style gutter: row number at rest, checkbox on hover/selection */}
                           <span className={cn(
-                            'text-[10.5px] tabular text-[var(--text-muted)] transition-opacity select-none',
+                            'text-micro tabular text-[var(--text-muted)] transition-opacity select-none',
                             isSelected ? 'opacity-0' : 'group-hover:opacity-0'
                           )}>
                             {rowNumber}
@@ -2259,13 +2259,13 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                                 <Link
                                   to={`/contacts/${contact.id}`}
                                   onClick={(e) => e.stopPropagation()}
-                                  className="block text-[12.5px] font-semibold text-[var(--text-primary)] truncate hover:text-[var(--indigo)] hover:underline decoration-[var(--indigo)]/40 underline-offset-2 transition-colors"
+                                  className="block text-body font-semibold text-[var(--text-primary)] truncate hover:text-[var(--indigo)] hover:underline decoration-[var(--indigo)]/40 underline-offset-2 transition-colors"
                                 >
                                   {fullName || 'Unnamed contact'}
                                 </Link>
                                 <LinkedInGlyph url={contact.linkedin_url} />
                               </span>
-                              <p className="text-[11px] text-[var(--text-tertiary)] truncate leading-tight">
+                              <p className="text-caption text-[var(--text-tertiary)] truncate leading-tight">
                                 {contact.job_title || 'No title'}
                               </p>
                             </div>
@@ -2318,7 +2318,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         {totalContacts > 0 && (
           <div className="flex items-center justify-between gap-4 mt-5 px-1">
             <div className="flex items-center gap-3 min-w-0">
-              <p className="text-[13px] text-[var(--text-tertiary)] whitespace-nowrap">
+              <p className="text-strong text-[var(--text-tertiary)] whitespace-nowrap">
                 Showing{' '}
                 <span className="font-medium text-[var(--text-secondary)]">
                   {(page - 1) * pageSize + 1}
@@ -2332,12 +2332,12 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                   {totalContacts.toLocaleString()}
                 </span>
               </p>
-              <label className="flex items-center gap-1.5 text-[12.5px] text-[var(--text-tertiary)] whitespace-nowrap">
+              <label className="flex items-center gap-1.5 text-body text-[var(--text-tertiary)] whitespace-nowrap">
                 Show
                 <select
                   value={pageSize}
                   onChange={(e) => changePageSize(Number(e.target.value))}
-                  className="h-8 pl-2 pr-6 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[12.5px] font-medium text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 transition-all cursor-pointer"
+                  className="h-8 pl-2 pr-6 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-body font-medium text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 transition-all cursor-pointer"
                 >
                   {PAGE_SIZE_OPTIONS.map((n) => (
                     <option key={n} value={n}>{n}</option>
@@ -2354,7 +2354,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <div className="flex items-center h-9 px-4 text-[13px] font-medium text-[var(--text-secondary)] bg-[var(--bg-elevated)] rounded-lg border border-[var(--border-subtle)]">
+              <div className="flex items-center h-9 px-4 text-strong font-medium text-[var(--text-secondary)] bg-[var(--bg-elevated)] rounded-lg border border-[var(--border-subtle)]">
                 <span className="text-[var(--text-primary)]">{page}</span>
                 <span className="mx-1.5 text-[var(--text-muted)]">/</span>
                 <span>{totalPages}</span>
@@ -2406,10 +2406,10 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
                 <Avatar name={previewName || form.email || 'New'} email={form.email} size="lg" />
                 <div className="min-w-0">
-                  <p className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
+                  <p className="text-strong font-semibold text-[var(--text-primary)] truncate">
                     {previewName || 'New contact'}
                   </p>
-                  <p className="text-[12px] text-[var(--text-tertiary)] truncate">
+                  <p className="text-body text-[var(--text-tertiary)] truncate">
                     {previewSub || form.email || 'Fill in the details below'}
                   </p>
                 </div>
@@ -2452,8 +2452,8 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           <div className="relative bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl w-full max-w-lg shadow-xl animate-slide-up">
             <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--border-subtle)]">
               <div>
-                <h2 className="text-lg font-semibold text-[var(--text-primary)]">Import Contacts</h2>
-                <p className="text-[13px] text-[var(--text-tertiary)] mt-0.5">
+                <h2 className="text-title font-semibold text-[var(--text-primary)]">Import Contacts</h2>
+                <p className="text-strong text-[var(--text-tertiary)] mt-0.5">
                   Upload a CSV file and map columns to contact fields
                 </p>
               </div>
@@ -2469,7 +2469,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
                   <span className={cn(
-                    "inline-flex items-center justify-center h-6 w-6 rounded-full text-[11px] font-bold",
+                    "inline-flex items-center justify-center h-6 w-6 rounded-full text-caption font-bold",
                     csvHeaders.length > 0
                       ? "bg-[var(--success)] text-[var(--bg-surface)]"
                       : "bg-[var(--text-primary)] text-[var(--bg-surface)]"
@@ -2477,7 +2477,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                     {csvHeaders.length > 0 ? '\u2713' : '1'}
                   </span>
                   <span className={cn(
-                    "text-[13px] font-medium",
+                    "text-strong font-medium",
                     csvHeaders.length > 0 ? "text-[var(--text-tertiary)]" : "text-[var(--text-primary)]"
                   )}>
                     Upload
@@ -2486,7 +2486,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 <div className="flex-1 h-px bg-[var(--border-subtle)]" />
                 <div className="flex items-center gap-2">
                   <span className={cn(
-                    "inline-flex items-center justify-center h-6 w-6 rounded-full text-[11px] font-bold",
+                    "inline-flex items-center justify-center h-6 w-6 rounded-full text-caption font-bold",
                     csvHeaders.length > 0
                       ? "bg-[var(--text-primary)] text-[var(--bg-surface)]"
                       : "bg-[var(--bg-elevated)] text-[var(--text-tertiary)]"
@@ -2494,7 +2494,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                     2
                   </span>
                   <span className={cn(
-                    "text-[13px] font-medium",
+                    "text-strong font-medium",
                     csvHeaders.length > 0 ? "text-[var(--text-primary)]" : "text-[var(--text-tertiary)]"
                   )}>
                     Map Fields
@@ -2514,8 +2514,8 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                     <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-[var(--success)] bg-opacity-10 mb-3">
                       <Upload className="h-6 w-6 text-[var(--success)]" strokeWidth={1.5} />
                     </div>
-                    <p className="text-sm font-medium text-[var(--text-primary)] mb-0.5">{importFile.name}</p>
-                    <p className="text-[12px] text-[var(--text-tertiary)]">
+                    <p className="text-strong font-medium text-[var(--text-primary)] mb-0.5">{importFile.name}</p>
+                    <p className="text-body text-[var(--text-tertiary)]">
                       {csvHeaders.length} columns detected
                     </p>
                   </>
@@ -2524,10 +2524,10 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                     <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-[var(--bg-elevated)] mb-3">
                       <Upload className="h-6 w-6 text-[var(--text-primary)]" strokeWidth={1.5} />
                     </div>
-                    <p className="text-sm font-medium text-[var(--text-primary)] mb-0.5">
+                    <p className="text-strong font-medium text-[var(--text-primary)] mb-0.5">
                       Drop your CSV file here
                     </p>
-                    <p className="text-[12px] text-[var(--text-tertiary)]">or click to browse files</p>
+                    <p className="text-body text-[var(--text-tertiary)]">or click to browse files</p>
                   </>
                 )}
                 <input
@@ -2541,7 +2541,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               {/* Column mapping */}
               {csvHeaders.length > 0 && (
                 <div className="space-y-2.5 max-h-52 overflow-y-auto pr-1">
-                  <p className="text-[12px] font-semibold text-[var(--text-tertiary)] mb-1">
+                  <p className="text-body font-semibold text-[var(--text-tertiary)] mb-1">
                     Column Mapping
                   </p>
                   {csvHeaders.map((header) => (
@@ -2549,12 +2549,12 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                       key={header}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]"
                     >
-                      <span className="w-28 truncate text-[13px] font-medium text-[var(--text-primary)]">
+                      <span className="w-28 truncate text-strong font-medium text-[var(--text-primary)]">
                         {header}
                       </span>
                       <ArrowRight className="h-3.5 w-3.5 text-[var(--text-muted)] flex-shrink-0" />
                       <select
-                        className="flex-1 h-8 px-2.5 text-[13px] bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-default)] focus:shadow-[0_0_0_3px_var(--bg-elevated)] transition-all duration-200 cursor-pointer"
+                        className="flex-1 h-8 px-2.5 text-strong bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-default)] focus:shadow-[0_0_0_3px_var(--bg-elevated)] transition-all duration-200 cursor-pointer"
                         value={columnMapping[header] || ''}
                         onChange={(e) => setColumnMapping({ ...columnMapping, [header]: e.target.value })}
                       >
@@ -2567,7 +2567,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                         <option value="phone">Phone</option>
                       </select>
                       {columnMapping[header] && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--success-bg)] text-[var(--success)]">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-caption font-medium bg-[var(--success-bg)] text-[var(--success)]">
                           Mapped
                         </span>
                       )}
@@ -2656,7 +2656,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         >
           <div className="space-y-1.5 max-h-64 overflow-y-auto -mx-1 px-1">
             {(lists || []).length === 0 && (
-              <p className="text-[12.5px] text-[var(--text-tertiary)] text-center py-4">No lists yet — create one below.</p>
+              <p className="text-body text-[var(--text-tertiary)] text-center py-4">No lists yet — create one below.</p>
             )}
             {lists?.map((list) => (
               <button
@@ -2667,10 +2667,10 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)] group-hover:bg-[var(--indigo-subtle)] group-hover:text-[var(--indigo)] transition-colors">
                   <FolderOpen className="h-4 w-4" />
                 </div>
-                <span className="flex-1 text-left text-[13px] font-medium text-[var(--text-primary)] truncate">
+                <span className="flex-1 text-left text-strong font-medium text-[var(--text-primary)] truncate">
                   {list.name}
                 </span>
-                <span className="text-[11.5px] font-semibold tabular text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-2 py-0.5 rounded-full">
+                <span className="text-caption font-semibold tabular text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-2 py-0.5 rounded-full">
                   {list.contact_count}
                 </span>
               </button>
@@ -2678,7 +2678,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           </div>
           <button
             onClick={() => { setShowAddToListModal(false); setShowListModal(true); }}
-            className="w-full flex items-center justify-center gap-2 mt-3 py-2.5 border border-dashed border-[var(--border-default)] rounded-xl text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
+            className="w-full flex items-center justify-center gap-2 mt-3 py-2.5 border border-dashed border-[var(--border-default)] rounded-xl text-strong font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
           >
             <Plus className="h-4 w-4" />
             Create new list
@@ -2722,7 +2722,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             )}
             <div className="flex flex-wrap gap-1.5 max-h-56 overflow-y-auto">
               {choices.length === 0 && (
-                <p className="text-[12.5px] text-[var(--text-tertiary)] py-2">
+                <p className="text-body text-[var(--text-tertiary)] py-2">
                   {removing ? 'The selected contacts have no tags to remove.' : 'No tags yet — create one above.'}
                 </p>
               )}
@@ -2734,7 +2734,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                     type="button"
                     onClick={() => setTagSel((prev) => { const n = new Set(prev); n.has(tag.id) ? n.delete(tag.id) : n.add(tag.id); return n; })}
                     className={cn(
-                      'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium border transition-colors',
+                      'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-body font-medium border transition-colors',
                       on
                         ? (removing
                             ? 'bg-rose-500/10 border-rose-500 text-rose-600 dark:text-rose-400'
@@ -2772,7 +2772,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         >
           <div className="space-y-1.5 max-h-64 overflow-y-auto -mx-1 px-1">
             {(lists || []).filter((l) => l.id !== activeListId).length === 0 && (
-              <p className="text-[12.5px] text-[var(--text-tertiary)] text-center py-4">No other lists to move to.</p>
+              <p className="text-body text-[var(--text-tertiary)] text-center py-4">No other lists to move to.</p>
             )}
             {(lists || []).filter((l) => l.id !== activeListId).map((list) => (
               <button
@@ -2784,7 +2784,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 )}
               >
                 <FolderOpen className={cn('h-4 w-4', moveTargetId === list.id ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} />
-                <span className="flex-1 text-left text-[13px] font-medium text-[var(--text-primary)] truncate">{list.name}</span>
+                <span className="flex-1 text-left text-strong font-medium text-[var(--text-primary)] truncate">{list.name}</span>
                 {moveTargetId === list.id && <Check className="h-4 w-4 text-[var(--indigo)]" />}
               </button>
             ))}
@@ -2837,7 +2837,7 @@ function ListFolderModal({ initial, kind, onClose }: {
                 { title: `Delete the folder "${initial.name}"?`, body: 'The lists inside are kept — they move back out to the top level.', tone: 'danger', confirmLabel: 'Delete folder' },
                 () => deleteMut.mutate(),
               )}
-              className="text-[12px] font-medium text-[var(--error)] hover:underline"
+              className="text-body font-medium text-[var(--error)] hover:underline"
             >
               Delete folder
             </button>
@@ -2854,7 +2854,7 @@ function ListFolderModal({ initial, kind, onClose }: {
       <form id="folder-form" onSubmit={(e) => { e.preventDefault(); saveMut.mutate(); }} className="space-y-4">
         <Input label="Name" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Q4 Prospects" />
         <div>
-          <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-2">Colour</label>
+          <label className="block text-body font-medium text-[var(--text-secondary)] mb-2">Colour</label>
           <div className="flex gap-2 flex-wrap">
             {FOLDER_COLORS.map((c) => (
               <button

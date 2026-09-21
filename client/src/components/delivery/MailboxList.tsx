@@ -138,16 +138,16 @@ function Row({
         >
           <span className="min-w-0 flex-1">
             <span className="flex items-baseline gap-2">
-              <span className="truncate text-[13.5px] font-medium text-[var(--text-primary)]">
+              <span className="truncate text-strong font-medium text-[var(--text-primary)]">
                 {account.email_address}
               </span>
               {name && name !== account.email_address && (
-                <span className="hidden truncate text-[12px] text-[var(--text-tertiary)] sm:inline">
+                <span className="hidden truncate text-body text-[var(--text-tertiary)] sm:inline">
                   {name}
                 </span>
               )}
             </span>
-            <span className={cn('mt-0.5 block truncate text-[12px]', tone.text)}>
+            <span className={cn('mt-0.5 block truncate text-body', tone.text)}>
               <span className="font-medium">{state.label}</span>
               {state.detail && <span className="text-[var(--text-tertiary)]"> — {state.detail}</span>}
             </span>
@@ -161,21 +161,21 @@ function Row({
             */}
           <span className="hidden flex-shrink-0 items-center gap-5 text-right sm:flex">
             <span className="w-16">
-              <span className="block text-[12.5px] tabular text-[var(--text-secondary)]">
+              <span className="block text-body tabular text-[var(--text-secondary)]">
                 {account.sends_today}<span className="text-[var(--text-muted)]">/{formatDailyLimit(limit)}</span>
               </span>
-              <span className="block text-[10.5px] text-[var(--text-muted)]">today</span>
+              <span className="block text-micro text-[var(--text-muted)]">today</span>
             </span>
             <span className="w-14">
               {score === null ? (
-                <span className="block text-[12.5px] text-[var(--text-muted)]">—</span>
+                <span className="block text-body text-[var(--text-muted)]">—</span>
               ) : (
                 <span className={cn(
-                  'block text-[12.5px] tabular font-medium',
+                  'block text-body tabular font-medium',
                   score >= 80 ? 'text-[var(--text-secondary)]' : 'text-amber-600 dark:text-amber-400',
                 )}>{score}%</span>
               )}
-              <span className="block text-[10.5px] text-[var(--text-muted)]">health</span>
+              <span className="block text-micro text-[var(--text-muted)]">health</span>
             </span>
           </span>
 
@@ -195,7 +195,7 @@ function Row({
             type="button"
             onClick={remedy.run}
             disabled={remedy.disabled}
-            className="h-7 flex-shrink-0 rounded-md bg-[var(--indigo)] px-2.5 text-[11.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="h-7 flex-shrink-0 rounded-md bg-[var(--indigo)] px-2.5 text-caption font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             data-remedy
           >
             {remedy.label}
@@ -208,7 +208,7 @@ function Row({
           <div className="grid gap-4 sm:grid-cols-2">
             {/* Mail history — a per-mailbox setting, living with its mailbox. */}
             <div>
-              <p className="text-[11.5px] font-medium text-[var(--text-secondary)]">History kept</p>
+              <p className="text-caption font-medium text-[var(--text-secondary)]">History kept</p>
               <div className="mt-1.5 flex items-center gap-1">
                 {SYNC_WINDOW_MONTHS.map((months) => {
                   const active = (progress?.window_months ?? 1) === months;
@@ -218,7 +218,7 @@ function Row({
                       type="button"
                       onClick={() => !active && onWindow(months)}
                       className={cn(
-                        'h-7 rounded-md px-2.5 text-[11.5px] font-semibold transition-colors',
+                        'h-7 rounded-md px-2.5 text-caption font-semibold transition-colors',
                         active
                           ? 'bg-[var(--indigo)] text-white'
                           : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
@@ -230,7 +230,7 @@ function Row({
                   );
                 })}
               </div>
-              <p className="mt-1.5 text-[11px] text-[var(--text-tertiary)]">
+              <p className="mt-1.5 text-caption text-[var(--text-tertiary)]">
                 {progress ? (
                   <>
                     {progress.stored.toLocaleString()} message{progress.stored === 1 ? '' : 's'}
@@ -249,8 +249,8 @@ function Row({
 
             {/* Where it sends from. Reference, not something to edit here. */}
             <div>
-              <p className="text-[11.5px] font-medium text-[var(--text-secondary)]">Servers</p>
-              <dl className="mt-1.5 space-y-0.5 text-[11.5px]">
+              <p className="text-caption font-medium text-[var(--text-secondary)]">Servers</p>
+              <dl className="mt-1.5 space-y-0.5 text-caption">
                 <div className="flex gap-2">
                   <dt className="w-14 flex-shrink-0 text-[var(--text-tertiary)]">Sending</dt>
                   <dd className="truncate font-data text-[var(--text-secondary)]">
@@ -275,17 +275,17 @@ function Row({
 
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--border-subtle)] pt-3">
             <button type="button" onClick={onTest} disabled={testing}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border-default)] px-2.5 text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50">
+              className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border-default)] px-2.5 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50">
               {testing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
               {testing ? 'Testing…' : 'Test connection'}
             </button>
             <button type="button" onClick={onEdit}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border-default)] px-2.5 text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+              className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border-default)] px-2.5 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
               <Settings2 className="h-3 w-3" /> Settings
             </button>
             <span className="flex-1" />
             <button type="button" onClick={onRemove}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[11.5px] font-medium text-[var(--text-tertiary)] hover:text-[var(--error)]">
+              className="inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--error)]">
               <Trash2 className="h-3 w-3" /> Disconnect
             </button>
           </div>
@@ -352,14 +352,14 @@ export function MailboxList(props: MailboxListProps) {
         {needsAttention === 0 ? (
           <>
             <Check className="h-3.5 w-3.5 text-emerald-500" strokeWidth={3} />
-            <p className="text-[12.5px] text-[var(--text-secondary)]">
+            <p className="text-body text-[var(--text-secondary)]">
               All {accounts.length} mailbox{accounts.length === 1 ? '' : 'es'} are sending and receiving.
             </p>
           </>
         ) : (
           <>
             <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-            <p className="text-[12.5px] text-[var(--text-secondary)]">
+            <p className="text-body text-[var(--text-secondary)]">
               <span className="font-medium text-[var(--text-primary)]">{needsAttention}</span> of{' '}
               {accounts.length} need{needsAttention === 1 ? 's' : ''} attention.
             </p>

@@ -73,7 +73,7 @@ export function DealSource({ deal }: { deal: any }) {
   return (
     <div className="panel p-3.5">
       <div className="mb-2.5 flex items-center justify-between gap-2">
-        <h2 className="text-[11px] font-bold text-[var(--text-tertiary)]">Came from</h2>
+        <h2 className="text-caption font-bold text-[var(--text-tertiary)]">Came from</h2>
         {!editing && (
           <button
             onClick={() => { setChoice(deal.source_campaign_id || ''); setEditing(true); }}
@@ -88,14 +88,14 @@ export function DealSource({ deal }: { deal: any }) {
       {editing ? (
         <div className="space-y-2">
           {loadingCampaigns ? (
-            <p className="flex items-center gap-1.5 text-[12px] text-[var(--text-tertiary)]">
+            <p className="flex items-center gap-1.5 text-body text-[var(--text-tertiary)]">
               <Loader2 className="h-3 w-3 animate-spin" /> Loading campaigns…
             </p>
           ) : (
             <select
               value={choice}
               onChange={(e) => setChoice(e.target.value)}
-              className="w-full h-8 px-2 text-[12.5px] rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--indigo)]"
+              className="w-full h-8 px-2 text-body rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--indigo)]"
             >
               <option value="">No campaign — this did not come from outreach</option>
               {(campaigns?.data || []).map((c: any) => (
@@ -103,7 +103,7 @@ export function DealSource({ deal }: { deal: any }) {
               ))}
             </select>
           )}
-          <p className="text-[10.5px] leading-snug text-[var(--text-tertiary)]">
+          <p className="text-micro leading-snug text-[var(--text-tertiary)]">
             Setting this by hand records it as “{ATTRIBUTION_LABEL.manual}”, rather than claiming
             a reply that did not happen.
           </p>
@@ -111,14 +111,14 @@ export function DealSource({ deal }: { deal: any }) {
             <button
               onClick={() => save.mutate(choice || null)}
               disabled={save.isPending}
-              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-[var(--indigo)] text-white text-[11.5px] font-semibold disabled:opacity-50"
+              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-[var(--indigo)] text-white text-caption font-semibold disabled:opacity-50"
             >
               {save.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
               Save
             </button>
             <button
               onClick={() => setEditing(false)}
-              className="h-7 px-2.5 rounded-md text-[11.5px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+              className="h-7 px-2.5 rounded-md text-caption font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
             >
               Cancel
             </button>
@@ -131,29 +131,29 @@ export function DealSource({ deal }: { deal: any }) {
             className="flex items-center gap-2 rounded-[6px] bg-[var(--bg-elevated)] px-2.5 h-8 transition-colors hover:bg-[var(--bg-hover)]"
           >
             <Megaphone className="h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]" />
-            <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-[var(--text-primary)]">
+            <span className="min-w-0 flex-1 truncate text-body font-medium text-[var(--text-primary)]">
               {campaignName || 'A campaign'}
             </span>
           </Link>
           <span
             title={HINT[attribution]}
             className={cn(
-              'inline-flex items-center px-1.5 h-[19px] rounded-md text-[10.5px] font-semibold',
+              'inline-flex items-center px-1.5 h-[19px] rounded-md text-micro font-semibold',
               TONE[attribution],
             )}
           >
             {ATTRIBUTION_LABEL[attribution]}
           </span>
           {attribution === 'enrolment' && (
-            <p className="text-[10.5px] leading-snug text-[var(--text-tertiary)]">
+            <p className="text-micro leading-snug text-[var(--text-tertiary)]">
               They never replied to it, so this credit is a guess. Correct it if you know better.
             </p>
           )}
         </div>
       ) : (
         <div className="space-y-1.5">
-          <p className="text-[12px] text-[var(--text-tertiary)]">Not from a campaign.</p>
-          <p className="text-[10.5px] leading-snug text-[var(--text-muted)]">
+          <p className="text-body text-[var(--text-tertiary)]">Not from a campaign.</p>
+          <p className="text-micro leading-snug text-[var(--text-muted)]">
             Deals are credited automatically when they come out of a reply. Set it by hand if this
             one did and the link was missed.
           </p>
@@ -164,7 +164,7 @@ export function DealSource({ deal }: { deal: any }) {
         <button
           onClick={() => save.mutate(null)}
           disabled={save.isPending}
-          className="mt-2 inline-flex items-center gap-1 text-[10.5px] font-medium text-[var(--text-tertiary)] hover:text-rose-500 disabled:opacity-50"
+          className="mt-2 inline-flex items-center gap-1 text-micro font-medium text-[var(--text-tertiary)] hover:text-rose-500 disabled:opacity-50"
         >
           <X className="h-2.5 w-2.5" /> Clear this credit
         </button>

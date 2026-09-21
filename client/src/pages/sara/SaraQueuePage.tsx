@@ -44,7 +44,7 @@ function relTime(iso?: string): string {
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-[4px] border border-[var(--border-default)] bg-[var(--bg-surface)] text-[10px] font-mono font-semibold text-[var(--text-secondary)] shadow-[inset_0_-1px_0_var(--border-subtle)]">
+    <kbd className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-[4px] border border-[var(--border-default)] bg-[var(--bg-surface)] text-micro font-mono font-semibold text-[var(--text-secondary)] shadow-[inset_0_-1px_0_var(--border-subtle)]">
       {children}
     </kbd>
   );
@@ -224,7 +224,7 @@ export function SaraQueuePage() {
       {/* Intent Distribution */}
       {stats?.top_intents && stats.top_intents.length > 0 && (
         <div className="card p-4">
-          <h3 className="text-[11px] font-bold text-[var(--text-tertiary)] mb-3">Intent Distribution</h3>
+          <h3 className="text-caption font-bold text-[var(--text-tertiary)] mb-3">Intent Distribution</h3>
           <div className="flex gap-1.5 flex-wrap">
             {stats.top_intents.map((item: any) => {
               const config = INTENT_CONFIG[item.intent] || INTENT_CONFIG.other;
@@ -235,7 +235,7 @@ export function SaraQueuePage() {
                   key={item.intent}
                   onClick={() => setIntentFilter(isActive ? undefined : item.intent)}
                   className={cn(
-                    'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium border transition-all',
+                    'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-body font-medium border transition-all',
                     isActive
                       ? 'bg-[rgba(99,102,241,0.1)] border-[rgba(99,102,241,0.3)] text-[var(--indigo)]'
                       : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]'
@@ -259,7 +259,7 @@ export function SaraQueuePage() {
               key={tab.value}
               onClick={() => setStatusFilter(tab.value)}
               className={cn(
-                'flex items-center gap-1.5 px-3 h-7 rounded-md text-[12px] font-medium transition-all',
+                'flex items-center gap-1.5 px-3 h-7 rounded-md text-body font-medium transition-all',
                 statusFilter === tab.value
                   ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -267,7 +267,7 @@ export function SaraQueuePage() {
             >
               {tab.label}
               {tab.value === 'pending_review' && stats?.pending_review ? (
-                <span className="inline-flex items-center justify-center h-[16px] min-w-[16px] px-1 rounded-[4px] bg-amber-500/20 text-amber-700 dark:text-amber-400 text-[10px] font-bold">
+                <span className="inline-flex items-center justify-center h-[16px] min-w-[16px] px-1 rounded-[4px] bg-amber-500/20 text-amber-700 dark:text-amber-400 text-micro font-bold">
                   {stats.pending_review}
                 </span>
               ) : null}
@@ -277,7 +277,7 @@ export function SaraQueuePage() {
         {intentFilter && (
           <button
             onClick={() => setIntentFilter(undefined)}
-            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
           >
             {INTENT_CONFIG[intentFilter]?.label || intentFilter}
             <XCircle className="h-3 w-3 ml-0.5" />
@@ -295,11 +295,11 @@ export function SaraQueuePage() {
           <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 mb-5">
             <XCircle className="h-7 w-7 text-red-600 dark:text-red-400" strokeWidth={1.5} />
           </span>
-          <h3 className="text-[15px] font-semibold text-[var(--text-primary)] mb-1.5">Couldn't load the queue</h3>
-          <p className="text-[12.5px] text-[var(--text-secondary)] max-w-sm mb-4">Something went wrong fetching SARA's queue — this isn't necessarily an empty inbox. Try again.</p>
+          <h3 className="text-heading font-semibold text-[var(--text-primary)] mb-1.5">Couldn't load the queue</h3>
+          <p className="text-body text-[var(--text-secondary)] max-w-sm mb-4">Something went wrong fetching SARA's queue — this isn't necessarily an empty inbox. Try again.</p>
           <button
             onClick={() => queryClient.invalidateQueries({ queryKey: ['sara-queue'] })}
-            className="h-8 px-3.5 rounded-lg bg-[var(--indigo)] text-white text-[12.5px] font-semibold hover:brightness-110 transition-all"
+            className="h-8 px-3.5 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:brightness-110 transition-all"
           >
             Retry
           </button>
@@ -312,10 +312,10 @@ export function SaraQueuePage() {
             </span>
             <Sparkles className="h-4 w-4 text-amber-400 absolute -top-1 -right-1" />
           </div>
-          <h3 className="text-[15px] font-semibold text-[var(--text-primary)] mb-1.5">
+          <h3 className="text-heading font-semibold text-[var(--text-primary)] mb-1.5">
             {statusFilter === 'pending_review' ? 'Inbox zero — nice.' : 'Nothing here yet'}
           </h3>
-          <p className="text-[12.5px] text-[var(--text-secondary)] max-w-sm">
+          <p className="text-body text-[var(--text-secondary)] max-w-sm">
             {statusFilter === 'pending_review'
               ? 'SARA hasn\'t flagged any replies for review. New ones will appear here as they come in.'
               : `No ${STATUS_TABS.find(t => t.value === statusFilter)?.label.toLowerCase()} messages found.`}
@@ -325,9 +325,9 @@ export function SaraQueuePage() {
         <div className="grid grid-cols-[340px,1fr] gap-3 h-[calc(100vh-340px)] min-h-[480px]">
           {/* ── LEFT PANE: message list ───────────────────────────── */}
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden flex flex-col">
-            <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] flex items-center justify-between text-[11px] font-semibold text-[var(--text-tertiary)]">
+            <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] flex items-center justify-between text-caption font-semibold text-[var(--text-tertiary)]">
               <span>{messages.length} {STATUS_TABS.find(t => t.value === statusFilter)?.label.toLowerCase()}</span>
-              <span className="flex items-center gap-1 text-[10px] normal-case font-medium tracking-normal">
+              <span className="flex items-center gap-1 text-micro normal-case font-medium tracking-normal">
                 <Kbd>J</Kbd><Kbd>K</Kbd> navigate
               </span>
             </div>
@@ -357,19 +357,19 @@ export function SaraQueuePage() {
                       <Avatar name={name} email={msg.from_email} size="md" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[12.5px] font-semibold text-[var(--text-primary)] truncate flex-1">
+                          <span className="text-body font-semibold text-[var(--text-primary)] truncate flex-1">
                             {name}
                           </span>
-                          <span className="text-[10.5px] tabular text-[var(--text-tertiary)] flex-shrink-0">
+                          <span className="text-micro tabular text-[var(--text-tertiary)] flex-shrink-0">
                             {relTime(msg.received_at || msg.created_at)}
                           </span>
                         </div>
-                        <p className="text-[11.5px] text-[var(--text-secondary)] truncate mt-0.5">
+                        <p className="text-caption text-[var(--text-secondary)] truncate mt-0.5">
                           {msg.subject || '(no subject)'}
                         </p>
                         <div className="flex items-center gap-1.5 mt-1.5">
                           <span className={cn(
-                            'inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10px] font-semibold',
+                            'inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-semibold',
                             'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
                           )}>
                             <IntentIcon className="h-2.5 w-2.5" />
@@ -377,14 +377,14 @@ export function SaraQueuePage() {
                           </span>
                           {conf > 0 && (
                             <span className={cn(
-                              'text-[10px] tabular font-semibold',
+                              'text-micro tabular font-semibold',
                               conf >= 80 ? 'text-emerald-600 dark:text-emerald-400' : conf >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-tertiary)]'
                             )}>
                               {conf}%
                             </span>
                           )}
                           {autoHandled && (
-                            <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10px] font-semibold bg-[#5B5BF5]/8 text-[var(--indigo)]" title="Handled automatically by SARA — no human review">
+                            <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-semibold bg-[#5B5BF5]/8 text-[var(--indigo)]" title="Handled automatically by SARA — no human review">
                               <Bot className="h-2.5 w-2.5" />
                               Auto
                             </span>
@@ -405,7 +405,7 @@ export function SaraQueuePage() {
                 <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bg-elevated)] mb-3">
                   <MessageSquare className="h-5 w-5 text-[var(--text-tertiary)]" />
                 </span>
-                <p className="text-[13px] text-[var(--text-secondary)]">Select a message to review</p>
+                <p className="text-strong text-[var(--text-secondary)]">Select a message to review</p>
               </div>
             ) : (() => {
               const msg = selectedMsg;
@@ -423,38 +423,38 @@ export function SaraQueuePage() {
                     <Avatar name={name} email={msg.from_email} size="lg" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">{name}</h3>
-                        <span className="text-[11.5px] text-[var(--text-tertiary)]">&lt;{msg.from_email}&gt;</span>
+                        <h3 className="text-heading font-semibold text-[var(--text-primary)]">{name}</h3>
+                        <span className="text-caption text-[var(--text-tertiary)]">&lt;{msg.from_email}&gt;</span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         {msg.contacts?.company && (
-                          <span className="inline-flex items-center gap-1 text-[11.5px] text-[var(--text-secondary)]">
+                          <span className="inline-flex items-center gap-1 text-caption text-[var(--text-secondary)]">
                             <Building2 className="h-3 w-3" />{msg.contacts.company}
                           </span>
                         )}
                         {msg.campaigns?.name && (
-                          <span className="inline-flex items-center gap-1 text-[11.5px] text-[var(--text-secondary)]">
+                          <span className="inline-flex items-center gap-1 text-caption text-[var(--text-secondary)]">
                             <Send className="h-3 w-3" />{msg.campaigns.name}
                           </span>
                         )}
-                        <span className="text-[11.5px] text-[var(--text-tertiary)]">{formatDateTime(msg.received_at || msg.created_at)}</span>
+                        <span className="text-caption text-[var(--text-tertiary)]">{formatDateTime(msg.received_at || msg.created_at)}</span>
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
                       <span className={cn(
-                        'inline-flex items-center gap-1 px-1.5 h-[20px] rounded-[5px] text-[10.5px] font-semibold',
+                        'inline-flex items-center gap-1 px-1.5 h-[20px] rounded-[5px] text-micro font-semibold',
                         'bg-[#5B5BF5]/8 text-[var(--indigo)]'
                       )}>
                         <IntentIcon className="h-2.5 w-2.5" />
                         {intentConfig.label}
                       </span>
                       {conf > 0 && (
-                        <span className="text-[10px] tabular font-semibold text-[var(--text-tertiary)]">
+                        <span className="text-micro tabular font-semibold text-[var(--text-tertiary)]">
                           {conf}% confidence
                         </span>
                       )}
                       {autoHandled && (
-                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10px] font-semibold bg-[#5B5BF5]/8 text-[var(--indigo)]" title="SARA acted on this automatically based on your auto-execute settings">
+                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-semibold bg-[#5B5BF5]/8 text-[var(--indigo)]" title="SARA acted on this automatically based on your auto-execute settings">
                           <Bot className="h-2.5 w-2.5" />
                           Auto-handled
                         </span>
@@ -467,10 +467,10 @@ export function SaraQueuePage() {
                     <div className="px-5 py-4 space-y-4">
                       {/* Original message */}
                       <div>
-                        <h4 className="text-[10px] font-bold text-[var(--text-tertiary)] mb-2">
+                        <h4 className="text-micro font-bold text-[var(--text-tertiary)] mb-2">
                           Reply received
                         </h4>
-                        <div className="text-[13px] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
+                        <div className="text-strong text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
                           {msg.body_text || msg.body_html?.replace(/<[^>]*>/g, '') || '(empty message)'}
                         </div>
                       </div>
@@ -483,12 +483,12 @@ export function SaraQueuePage() {
                               <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--indigo)]">
                                 <Bot className="h-3 w-3 text-white" />
                               </span>
-                              <h4 className="text-[11px] font-bold text-[var(--indigo)]">
+                              <h4 className="text-caption font-bold text-[var(--indigo)]">
                                 SARA's draft reply
                               </h4>
                             </div>
                             {msg.sara_action && (
-                              <span className="text-[10.5px] text-[var(--text-tertiary)]">
+                              <span className="text-micro text-[var(--text-tertiary)]">
                                 Action: <span className="text-[var(--text-secondary)] font-medium">{msg.sara_action}</span>
                               </span>
                             )}
@@ -499,10 +499,10 @@ export function SaraQueuePage() {
                               onChange={(e) => setEditedReply(e.target.value)}
                               rows={8}
                               autoFocus
-                              className="w-full rounded-lg border border-[#5B5BF5]/30 bg-[var(--bg-surface)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 outline-none resize-y"
+                              className="w-full rounded-lg border border-[#5B5BF5]/30 bg-[var(--bg-surface)] px-3 py-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 outline-none resize-y"
                             />
                           ) : (
-                            <div className="text-[13px] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
+                            <div className="text-strong text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
                               {msg.sara_draft_reply}
                             </div>
                           )}
@@ -517,7 +517,7 @@ export function SaraQueuePage() {
                       <button
                         onClick={() => approveMutation.mutate({ id: msg.id, reply: isEditing ? editedReply : undefined })}
                         disabled={approveMutation.isPending}
-                        className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg bg-emerald-600 text-white text-[12px] font-semibold hover:bg-emerald-700 disabled:opacity-40 transition-all shadow-[0_1px_2px_rgba(16,185,129,0.4)]"
+                        className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg bg-emerald-600 text-white text-body font-semibold hover:bg-emerald-700 disabled:opacity-40 transition-all shadow-[0_1px_2px_rgba(16,185,129,0.4)]"
                       >
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         {isEditing ? 'Send edited' : 'Approve & send'}
@@ -526,7 +526,7 @@ export function SaraQueuePage() {
                       {msg.sara_draft_reply && !isEditing && (
                         <button
                           onClick={() => { setEditedReply(msg.sara_draft_reply); setIsEditing(true); }}
-                          className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
+                          className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
                         >
                           <Edit3 className="h-3.5 w-3.5" />
                           Edit
@@ -536,7 +536,7 @@ export function SaraQueuePage() {
                       {isEditing && (
                         <button
                           onClick={() => { setIsEditing(false); setEditedReply(''); }}
-                          className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
+                          className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
                         >
                           Cancel
                           <Kbd>Esc</Kbd>
@@ -545,7 +545,7 @@ export function SaraQueuePage() {
                       <button
                         onClick={() => dismissMutation.mutate(msg.id)}
                         disabled={dismissMutation.isPending}
-                        className="ml-auto inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-[12px] font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-all"
+                        className="ml-auto inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-body font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-all"
                       >
                         <XCircle className="h-3.5 w-3.5" />
                         Dismiss

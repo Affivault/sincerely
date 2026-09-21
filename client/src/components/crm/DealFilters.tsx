@@ -130,7 +130,7 @@ export function DealFilters({
               type="button"
               onClick={() => onChange({ ...filters, focus })}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[12px] font-medium transition-colors',
+                'inline-flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-body font-medium transition-colors',
                 on
                   ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
                   : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
@@ -158,7 +158,7 @@ export function DealFilters({
                 type="button"
                 onClick={() => toggleStage(s.id)}
                 className={cn(
-                  'rounded-lg px-2 py-1 text-[11.5px] font-medium transition-colors',
+                  'rounded-lg px-2 py-1 text-caption font-medium transition-colors',
                   on
                     ? 'bg-[var(--indigo)] text-white'
                     : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]',
@@ -175,7 +175,7 @@ export function DealFilters({
         <button
           type="button"
           onClick={() => onChange({ ...filters, stages: [], minValue: 0 })}
-          className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]"
+          className="inline-flex items-center gap-1 text-caption font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]"
         >
           <X className="h-3 w-3" /> Clear
         </button>
@@ -192,7 +192,7 @@ export function DealFilters({
             title={label}
             aria-pressed={view === id}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[12px] font-medium transition-colors',
+              'inline-flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-body font-medium transition-colors',
               view === id
                 ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
                 : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',

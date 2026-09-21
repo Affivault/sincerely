@@ -99,8 +99,8 @@ function ToggleSwitch({
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <p className="text-[12.5px] font-semibold text-[var(--text-primary)] mb-0.5">{label}</p>
-        <p className="text-[11px] text-[var(--text-tertiary)] leading-snug">{description}</p>
+        <p className="text-body font-semibold text-[var(--text-primary)] mb-0.5">{label}</p>
+        <p className="text-caption text-[var(--text-tertiary)] leading-snug">{description}</p>
       </div>
       <div
         className={cn(
@@ -145,8 +145,8 @@ function SectionCard({
           <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
         </span>
         <div className="flex-1 min-w-0">
-          <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">{title}</h3>
-          {description && <p className="text-[11.5px] text-[var(--text-tertiary)] mt-0.5">{description}</p>}
+          <h3 className="text-strong font-semibold text-[var(--text-primary)]">{title}</h3>
+          {description && <p className="text-caption text-[var(--text-tertiary)] mt-0.5">{description}</p>}
         </div>
         {action}
       </div>
@@ -160,17 +160,17 @@ function SectionCard({
 function Field({ label, hint, children }: { label: React.ReactNode; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[11px] font-semibold text-[var(--text-secondary)] mb-1.5">
+      <label className="block text-caption font-semibold text-[var(--text-secondary)] mb-1.5">
         {label}
       </label>
       {children}
-      {hint && <p className="text-[11px] text-[var(--text-tertiary)] mt-1.5">{hint}</p>}
+      {hint && <p className="text-caption text-[var(--text-tertiary)] mt-1.5">{hint}</p>}
     </div>
   );
 }
 
 const inputCls =
-  'w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all';
+  'w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all';
 
 /* ─── Main component ─────────────────────────────────────────────── */
 
@@ -945,7 +945,7 @@ export function CampaignCreatePage() {
           data-draft-offer
         >
           <History className="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
-          <p className="flex-1 min-w-0 text-[12.5px] text-[var(--text-secondary)]">
+          <p className="flex-1 min-w-0 text-body text-[var(--text-secondary)]">
             <span className="font-medium text-[var(--text-primary)]">
               Unsaved work from {draftAgeLabel(draft.offer.ageMs)}.
             </span>{' '}
@@ -954,7 +954,7 @@ export function CampaignCreatePage() {
           <button
             type="button"
             onClick={restoreDraft}
-            className="h-7 flex-shrink-0 rounded-md bg-[var(--indigo)] px-2.5 text-[11.5px] font-semibold text-white hover:opacity-90"
+            className="h-7 flex-shrink-0 rounded-md bg-[var(--indigo)] px-2.5 text-caption font-semibold text-white hover:opacity-90"
             data-draft-restore
           >
             Restore it
@@ -962,7 +962,7 @@ export function CampaignCreatePage() {
           <button
             type="button"
             onClick={draft.dismiss}
-            className="h-7 flex-shrink-0 rounded-md px-2.5 text-[11.5px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+            className="h-7 flex-shrink-0 rounded-md px-2.5 text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
             data-draft-dismiss
           >
             Discard
@@ -974,7 +974,7 @@ export function CampaignCreatePage() {
       <header className="flex-shrink-0 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-5 py-2.5 flex items-center gap-3">
         <button
           onClick={() => navigate('/campaigns')}
-          className="flex items-center gap-1.5 px-2 h-7 rounded-md text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors flex-shrink-0"
+          className="flex items-center gap-1.5 px-2 h-7 rounded-md text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors flex-shrink-0"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           Campaigns
@@ -988,17 +988,17 @@ export function CampaignCreatePage() {
           value={campaignForm.name}
           onChange={(e) => setCampaignForm({ ...campaignForm, name: e.target.value })}
           placeholder={isEdit ? 'Edit campaign…' : 'Untitled campaign — give it a name'}
-          className="flex-1 max-w-md min-w-0 bg-transparent border-0 text-[14px] font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] placeholder:font-normal outline-none focus:bg-[var(--bg-elevated)] rounded-md px-2 h-7 transition-colors"
+          className="flex-1 max-w-md min-w-0 bg-transparent border-0 text-heading font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] placeholder:font-normal outline-none focus:bg-[var(--bg-elevated)] rounded-md px-2 h-7 transition-colors"
         />
         <div className="flex-1" />
 
         {totalIssues > 0 ? (
-          <span className="inline-flex items-center gap-1.5 px-2 h-7 rounded-md text-[11.5px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+          <span className="inline-flex items-center gap-1.5 px-2 h-7 rounded-md text-caption font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
             <AlertTriangle className="h-3 w-3" />
             {totalIssues} {totalIssues === 1 ? 'issue' : 'issues'}
           </span>
         ) : isReady ? (
-          <span className="inline-flex items-center gap-1.5 px-2 h-7 rounded-md text-[11.5px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+          <span className="inline-flex items-center gap-1.5 px-2 h-7 rounded-md text-caption font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
             <CheckCircle2 className="h-3 w-3" />
             Ready to launch
           </span>
@@ -1007,7 +1007,7 @@ export function CampaignCreatePage() {
         <button
           onClick={handleSave}
           disabled={createCampaignMutation.isPending || !campaignForm.name}
-          className="inline-flex items-center gap-1.5 px-2.5 h-7 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-40 transition-all"
+          className="inline-flex items-center gap-1.5 px-2.5 h-7 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-40 transition-all"
         >
           <Save className="h-3.5 w-3.5" />
           {createCampaignMutation.isPending ? 'Saving…' : 'Save draft'}
@@ -1017,7 +1017,7 @@ export function CampaignCreatePage() {
           disabled={!isReady || launching}
           title={!isReady ? `${totalIssues} issue${totalIssues === 1 ? '' : 's'} remaining` : 'Launch this campaign'}
           className={cn(
-            'inline-flex items-center gap-1.5 px-3 h-7 rounded-md text-[12px] font-semibold transition-all',
+            'inline-flex items-center gap-1.5 px-3 h-7 rounded-md text-body font-semibold transition-all',
             isReady
               ? 'bg-[var(--indigo)] text-white hover:bg-[var(--indigo-hover)] shadow-[0_1px_3px_rgba(91,91,245,0.4)]'
               : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)] cursor-not-allowed'
@@ -1044,7 +1044,7 @@ export function CampaignCreatePage() {
                   className="flex items-center gap-3 group"
                 >
                   <div className={cn(
-                    'flex items-center justify-center h-8 w-8 rounded-full text-[12px] font-bold transition-all',
+                    'flex items-center justify-center h-8 w-8 rounded-full text-body font-bold transition-all',
                     active
                       ? 'bg-[var(--indigo)] text-white shadow-[0_2px_6px_rgba(91,91,245,0.3)] ring-4 ring-[var(--indigo-subtle)]'
                       : completed
@@ -1055,12 +1055,12 @@ export function CampaignCreatePage() {
                   </div>
                   <div className="text-left hidden sm:block">
                     <p className={cn(
-                      'text-[12.5px] font-semibold transition-colors',
+                      'text-body font-semibold transition-colors',
                       active ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
                     )}>
                       {ws.label}
                     </p>
-                    <p className="text-[10.5px] text-[var(--text-tertiary)] leading-tight">
+                    <p className="text-micro text-[var(--text-tertiary)] leading-tight">
                       {status === 'warn'
                         ? `${sectionIssues[i].length} issue${sectionIssues[i].length === 1 ? '' : 's'}`
                         : ws.description
@@ -1093,17 +1093,17 @@ export function CampaignCreatePage() {
                 'h-3.5 w-3.5',
                 totalIssues === 0 ? 'text-emerald-500' : 'text-amber-500'
               )} />
-              <p className="text-[10.5px] font-bold text-[var(--text-secondary)]">
+              <p className="text-micro font-bold text-[var(--text-secondary)]">
                 Pre-flight
               </p>
               {totalIssues > 0 && (
-                <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 tabular">
+                <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded text-micro font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 tabular">
                   {totalIssues}
                 </span>
               )}
             </div>
             {totalIssues === 0 ? (
-              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">All checks passed ✓</p>
+              <p className="text-caption text-emerald-600 dark:text-emerald-400 font-medium">All checks passed ✓</p>
             ) : (
               <ul className="space-y-1">
                 {Object.entries(sectionIssues).flatMap(([sectionIdx, issues]) =>
@@ -1111,7 +1111,7 @@ export function CampaignCreatePage() {
                     <li key={`${sectionIdx}-${j}`}>
                       <button
                         onClick={() => setWizardStep(Number(sectionIdx))}
-                        className="w-full text-left flex items-start gap-1.5 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors py-0.5"
+                        className="w-full text-left flex items-start gap-1.5 text-caption text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors py-0.5"
                       >
                         <span className="h-1 w-1 rounded-full bg-amber-500 mt-1.5 flex-shrink-0" />
                         <span className="leading-snug">{issue}</span>
@@ -1126,7 +1126,7 @@ export function CampaignCreatePage() {
           {/* Live stats */}
           {(selectedContactIds.length > 0 || steps.length > 0) && (
             <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3 mb-3">
-              <p className="text-[10.5px] font-bold text-[var(--text-secondary)] mb-2 flex items-center gap-1.5">
+              <p className="text-micro font-bold text-[var(--text-secondary)] mb-2 flex items-center gap-1.5">
                 <Zap className="h-3 w-3 text-[var(--indigo)]" />
                 Quick stats
               </p>
@@ -1147,13 +1147,13 @@ export function CampaignCreatePage() {
           {/* Help */}
           <div className="rounded-lg border border-dashed border-[var(--border-subtle)] p-3">
             <Sparkles className="h-3.5 w-3.5 text-[var(--text-tertiary)] mb-1.5" />
-            <p className="text-[11px] font-semibold text-[var(--text-secondary)] mb-1">Need a head start?</p>
-            <p className="text-[10.5px] text-[var(--text-tertiary)] leading-snug mb-2">
+            <p className="text-caption font-semibold text-[var(--text-secondary)] mb-1">Need a head start?</p>
+            <p className="text-micro text-[var(--text-tertiary)] leading-snug mb-2">
               Use AI to generate emails or load a saved template to skip the blank page.
             </p>
             <button
               onClick={() => setWizardStep(1)}
-              className="text-[10.5px] font-semibold text-[var(--indigo)] hover:underline"
+              className="text-micro font-semibold text-[var(--indigo)] hover:underline"
             >
               Go to sequence →
             </button>
@@ -1180,7 +1180,7 @@ export function CampaignCreatePage() {
                       value={campaignForm.name}
                       onChange={(e) => setCampaignForm({ ...campaignForm, name: e.target.value })}
                       placeholder="e.g. Q1 Enterprise Outreach"
-                      className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3.5 py-2.5 text-[14px] font-medium text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] placeholder:font-normal focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
+                      className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3.5 py-2.5 text-heading font-medium text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] placeholder:font-normal focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
                     />
                   </Field>
 
@@ -1198,7 +1198,7 @@ export function CampaignCreatePage() {
                     {(smtpAccounts || []).length === 0 && (
                       <div className="mt-2 p-2.5 rounded-lg bg-amber-500/8 border border-amber-500/15 flex items-start gap-2">
                         <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-px" />
-                        <p className="text-[11.5px] text-amber-700 dark:text-amber-400">
+                        <p className="text-caption text-amber-700 dark:text-amber-400">
                           No sending accounts yet.{' '}
                           <Link to="/settings/smtp" className="font-semibold underline">Add one to continue</Link>.
                         </p>
@@ -1211,10 +1211,10 @@ export function CampaignCreatePage() {
                     <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 p-4">
                       <div className="flex items-center gap-2 mb-1">
                         <RotateCcw className="h-3.5 w-3.5 text-[var(--text-secondary)]" />
-                        <h4 className="text-[12.5px] font-semibold text-[var(--text-primary)]">Sender rotation pool</h4>
-                        <span className="text-[10px] font-medium text-[var(--text-tertiary)] bg-[var(--bg-surface)] px-1.5 py-0.5 rounded">Optional</span>
+                        <h4 className="text-body font-semibold text-[var(--text-primary)]">Sender rotation pool</h4>
+                        <span className="text-micro font-medium text-[var(--text-tertiary)] bg-[var(--bg-surface)] px-1.5 py-0.5 rounded">Optional</span>
                       </div>
-                      <p className="text-[11.5px] text-[var(--text-secondary)] mb-3 leading-snug">
+                      <p className="text-caption text-[var(--text-secondary)] mb-3 leading-snug">
                         Distribute sends across multiple accounts to protect reputation and boost deliverability.
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1240,11 +1240,11 @@ export function CampaignCreatePage() {
                                 className="h-3.5 w-3.5 rounded border-[var(--border-default)] accent-[var(--indigo)]"
                               />
                               <div className="flex-1 min-w-0">
-                                <p className="text-[12px] font-semibold text-[var(--text-primary)] truncate">{a.label}</p>
-                                <p className="text-[10.5px] text-[var(--text-tertiary)]">{a.email_address} · {formatDailyLimit(a.daily_send_limit)}/day</p>
+                                <p className="text-body font-semibold text-[var(--text-primary)] truncate">{a.label}</p>
+                                <p className="text-micro text-[var(--text-tertiary)]">{a.email_address} · {formatDailyLimit(a.daily_send_limit)}/day</p>
                               </div>
                               <span className={cn(
-                                'inline-flex items-center px-1.5 h-[18px] rounded text-[10px] font-bold flex-shrink-0',
+                                'inline-flex items-center px-1.5 h-[18px] rounded text-micro font-bold flex-shrink-0',
                                 a.health_score >= 80 ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
                                   : a.health_score >= 50 ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
                                   : 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
@@ -1268,7 +1268,7 @@ export function CampaignCreatePage() {
                   description="When emails will be delivered"
                   accent="amber"
                   action={
-                    <Link to="/schedules" className="text-[11px] font-medium text-[var(--indigo)] hover:underline whitespace-nowrap">
+                    <Link to="/schedules" className="text-caption font-medium text-[var(--indigo)] hover:underline whitespace-nowrap">
                       Manage saved →
                     </Link>
                   }
@@ -1276,7 +1276,7 @@ export function CampaignCreatePage() {
                   <div className="space-y-4">
                     {savedSchedules.length > 0 && (
                       <div className="rounded-lg border border-[var(--indigo-subtle)] bg-[var(--indigo-subtle)] p-2.5">
-                        <label className="block text-[10.5px] font-bold text-[var(--indigo)] mb-1.5">
+                        <label className="block text-micro font-bold text-[var(--indigo)] mb-1.5">
                           Quick apply saved schedule
                         </label>
                         <select
@@ -1344,7 +1344,7 @@ export function CampaignCreatePage() {
                                 });
                               }}
                               className={cn(
-                                'flex-1 py-2 rounded-md text-[11px] font-semibold transition-all',
+                                'flex-1 py-2 rounded-md text-caption font-semibold transition-all',
                                 isActive
                                   ? 'bg-[var(--indigo)] text-white shadow-sm'
                                   : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] border border-[var(--border-subtle)]'
@@ -1374,7 +1374,7 @@ export function CampaignCreatePage() {
                           onChange={(e) => setCampaignForm({ ...campaignForm, daily_limit: parseInt(e.target.value) || 0 })}
                           className={inputCls}
                         />
-                        <span className="text-[11.5px] text-[var(--text-tertiary)] whitespace-nowrap font-medium">/ day</span>
+                        <span className="text-caption text-[var(--text-tertiary)] whitespace-nowrap font-medium">/ day</span>
                       </div>
                     </Field>
 
@@ -1386,26 +1386,26 @@ export function CampaignCreatePage() {
                           onChange={(e) => setCampaignForm({ ...campaignForm, delay_between_emails_min: parseInt(e.target.value) || 0 })}
                           className={inputCls}
                         />
-                        <span className="text-[11.5px] font-medium text-[var(--text-tertiary)]">to</span>
+                        <span className="text-caption font-medium text-[var(--text-tertiary)]">to</span>
                         <input
                           type="number" min="0"
                           value={campaignForm.delay_between_emails_max ?? 200}
                           onChange={(e) => setCampaignForm({ ...campaignForm, delay_between_emails_max: parseInt(e.target.value) || 0 })}
                           className={inputCls}
                         />
-                        <span className="text-[11.5px] text-[var(--text-tertiary)] whitespace-nowrap font-medium">sec</span>
+                        <span className="text-caption text-[var(--text-tertiary)] whitespace-nowrap font-medium">sec</span>
                       </div>
                     </Field>
 
                     {/* Visual capacity hint */}
                     <div className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3">
                       <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[11px] font-medium text-[var(--text-secondary)]">Est. throughput</span>
-                        <span className="text-[11px] font-bold text-[var(--text-primary)] tabular">
+                        <span className="text-caption font-medium text-[var(--text-secondary)]">Est. throughput</span>
+                        <span className="text-caption font-bold text-[var(--text-primary)] tabular">
                           ~{Math.floor(3600 / Math.max(1, ((campaignForm.delay_between_emails_min ?? 50) + (campaignForm.delay_between_emails_max ?? 200)) / 2))}/hour
                         </span>
                       </div>
-                      <p className="text-[10.5px] text-[var(--text-tertiary)] leading-snug">
+                      <p className="text-micro text-[var(--text-tertiary)] leading-snug">
                         Capped by daily limit, then split by send window length.
                       </p>
                     </div>
@@ -1490,12 +1490,12 @@ export function CampaignCreatePage() {
                         <div className="h-8 w-8 rounded-lg bg-[var(--indigo)] flex items-center justify-center text-white">
                           <FolderOpen className="h-4 w-4" />
                         </div>
-                        <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Start from a template</h3>
+                        <h3 className="text-strong font-semibold text-[var(--text-primary)]">Start from a template</h3>
                       </div>
-                      <p className="text-[11.5px] text-[var(--text-secondary)] leading-snug">
+                      <p className="text-caption text-[var(--text-secondary)] leading-snug">
                         Apply one of your saved sequences to skip building from scratch — {sequenceTemplates.length} available.
                       </p>
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--indigo)] mt-3 group-hover:gap-1.5 transition-all">
+                      <span className="inline-flex items-center gap-1 text-caption font-semibold text-[var(--indigo)] mt-3 group-hover:gap-1.5 transition-all">
                         Browse templates <ChevronRight className="h-3 w-3" />
                       </span>
                     </button>
@@ -1505,9 +1505,9 @@ export function CampaignCreatePage() {
                       <div className="h-8 w-8 rounded-lg bg-violet-500 flex items-center justify-center text-white">
                         <Wand2 className="h-4 w-4" />
                       </div>
-                      <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">AI assistance available</h3>
+                      <h3 className="text-strong font-semibold text-[var(--text-primary)]">AI assistance available</h3>
                     </div>
-                    <p className="text-[11.5px] text-[var(--text-secondary)] leading-snug">
+                    <p className="text-caption text-[var(--text-secondary)] leading-snug">
                       Add an email step below, then use "Generate with AI" inside the editor to write the content for you.
                     </p>
                   </div>
@@ -1522,10 +1522,10 @@ export function CampaignCreatePage() {
                       <Layers className="h-3.5 w-3.5 text-[var(--indigo)]" strokeWidth={1.75} />
                     </span>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Sequence builder</h3>
-                      <p className="text-[11.5px] text-[var(--text-tertiary)] mt-0.5">Build the email flow your contacts will experience</p>
+                      <h3 className="text-strong font-semibold text-[var(--text-primary)]">Sequence builder</h3>
+                      <p className="text-caption text-[var(--text-tertiary)] mt-0.5">Build the email flow your contacts will experience</p>
                     </div>
-                    <div className="flex items-center gap-3 text-[11px] text-[var(--text-tertiary)]">
+                    <div className="flex items-center gap-3 text-caption text-[var(--text-tertiary)]">
                       {sequenceTemplates.length > 0 && (
                         <button
                           onClick={() => setShowTemplatePicker(true)}
@@ -1565,15 +1565,15 @@ export function CampaignCreatePage() {
                             <Mail className="h-3 w-3 text-[var(--indigo)]" />
                           </span>
                           <div className="min-w-0">
-                            <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">Email editor</p>
-                            <p className="text-[10.5px] text-[var(--text-tertiary)]">Step {(editingStep ?? 0) + 1} of {steps.length}</p>
+                            <p className="text-body font-semibold text-[var(--text-primary)]">Email editor</p>
+                            <p className="text-micro text-[var(--text-tertiary)]">Step {(editingStep ?? 0) + 1} of {steps.length}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
                             onClick={() => setShowAiModal(true)}
-                            className="inline-flex items-center gap-1 px-2 h-7 rounded-md bg-[var(--indigo)] text-white text-[11px] font-semibold hover:bg-[var(--indigo-hover)] transition-all"
+                            className="inline-flex items-center gap-1 px-2 h-7 rounded-md bg-[var(--indigo)] text-white text-caption font-semibold hover:bg-[var(--indigo-hover)] transition-all"
                           >
                             <Sparkles className="h-3 w-3" />
                             AI
@@ -1604,8 +1604,8 @@ export function CampaignCreatePage() {
                               : { label: 'Too long — may truncate', color: 'text-rose-500' };
                             return (
                               <div className="flex items-center justify-between mt-1 px-0.5">
-                                <span className={cn('text-[10.5px] font-semibold', quality.color)}>{quality.label}</span>
-                                <span className="text-[10.5px] tabular text-[var(--text-tertiary)]">{len} / 80</span>
+                                <span className={cn('text-micro font-semibold', quality.color)}>{quality.label}</span>
+                                <span className="text-micro tabular text-[var(--text-tertiary)]">{len} / 80</span>
                               </div>
                             );
                           })()}
@@ -1631,8 +1631,8 @@ export function CampaignCreatePage() {
                               : { label: 'Long — consider trimming', color: 'text-rose-500' };
                             return (
                               <div className="flex items-center justify-between mt-1 px-0.5">
-                                <span className={cn('text-[10.5px] font-semibold', quality.color)}>{quality.label}</span>
-                                <span className="text-[10.5px] tabular text-[var(--text-tertiary)]">{words} words</span>
+                                <span className={cn('text-micro font-semibold', quality.color)}>{quality.label}</span>
+                                <span className="text-micro tabular text-[var(--text-tertiary)]">{words} words</span>
                               </div>
                             );
                           })()}
@@ -1689,13 +1689,13 @@ export function CampaignCreatePage() {
                           const hasBody = !!(steps[editingStep].body_html || '').replace(/<[^>]*>/g, '').trim();
                           return (
                             <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-                              <p className="text-[11px] font-semibold text-[var(--text-secondary)] mb-2 flex items-center gap-1.5">
+                              <p className="text-caption font-semibold text-[var(--text-secondary)] mb-2 flex items-center gap-1.5">
                                 <Send className="h-3 w-3" />
                                 Send test email
                               </p>
 
                               {accounts.length === 0 ? (
-                                <div className="flex items-start gap-2 text-[11.5px] text-[var(--text-tertiary)] leading-snug">
+                                <div className="flex items-start gap-2 text-caption text-[var(--text-tertiary)] leading-snug">
                                   <AlertTriangle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0 mt-px" />
                                   <span>
                                     Connect a sending account in{' '}
@@ -1716,7 +1716,7 @@ export function CampaignCreatePage() {
                                     <select
                                       value={testSmtpId}
                                       onChange={(e) => setTestSmtpId(e.target.value)}
-                                      className="w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1.5 text-[11.5px] text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo-subtle)] transition-all"
+                                      className="w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1.5 text-caption text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo-subtle)] transition-all"
                                     >
                                       <option value="">Send from…</option>
                                       {accounts.map((a: SmtpAccount) => (
@@ -1732,7 +1732,7 @@ export function CampaignCreatePage() {
                                       value={testEmailTo}
                                       onChange={(e) => setTestEmailTo(e.target.value)}
                                       placeholder="your@email.com"
-                                      className="flex-1 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1.5 text-[11.5px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo-subtle)] transition-all"
+                                      className="flex-1 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1.5 text-caption text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo-subtle)] transition-all"
                                     />
                                     <button
                                       type="button"
@@ -1759,13 +1759,13 @@ export function CampaignCreatePage() {
                                         }
                                         setSendingTest(false);
                                       }}
-                                      className="inline-flex items-center gap-1 px-3 rounded-md bg-[var(--indigo)] text-white text-[11px] font-semibold disabled:opacity-40 hover:bg-[var(--indigo-hover)] transition-colors"
+                                      className="inline-flex items-center gap-1 px-3 rounded-md bg-[var(--indigo)] text-white text-caption font-semibold disabled:opacity-40 hover:bg-[var(--indigo-hover)] transition-colors"
                                     >
                                       <Send className="h-3 w-3" />
                                       {sendingTest ? '…' : 'Send'}
                                     </button>
                                   </div>
-                                  <p className="text-[10.5px] text-[var(--text-tertiary)] leading-snug">
+                                  <p className="text-micro text-[var(--text-tertiary)] leading-snug">
                                     Tags like <span className="font-data">{'{{first_name}}'}</span> are filled with sample data (Alex Morgan @ Acme Inc) so the test reads like the real thing.
                                   </p>
                                 </div>
@@ -1782,12 +1782,12 @@ export function CampaignCreatePage() {
                           <Clock className="h-3 w-3 text-amber-600 dark:text-amber-400" />
                         </span>
                         <div>
-                          <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">Wait / Delay</p>
-                          <p className="text-[10.5px] text-[var(--text-tertiary)]">Step {(editingStep ?? 0) + 1}</p>
+                          <p className="text-body font-semibold text-[var(--text-primary)]">Wait / Delay</p>
+                          <p className="text-micro text-[var(--text-tertiary)]">Step {(editingStep ?? 0) + 1}</p>
                         </div>
                       </div>
                       <div className="p-4 space-y-3">
-                        <p className="text-[12px] text-[var(--text-secondary)] leading-snug">
+                        <p className="text-body text-[var(--text-secondary)] leading-snug">
                           Set how long to wait before triggering the next step.
                         </p>
                         <div className="grid grid-cols-3 gap-2">
@@ -1797,21 +1797,21 @@ export function CampaignCreatePage() {
                             { label: 'Min', key: 'delay_minutes', max: 59 },
                           ].map(({ label, key, max }) => (
                             <div key={key}>
-                              <label className="block text-[10.5px] font-bold text-[var(--text-tertiary)] mb-1.5 text-center">
+                              <label className="block text-micro font-bold text-[var(--text-tertiary)] mb-1.5 text-center">
                                 {label}
                               </label>
                               <input
                                 type="number" min="0" max={max}
                                 value={(steps[editingStep] as any)[key] || 0}
                                 onChange={(e) => updateStep(editingStep, { [key]: parseInt(e.target.value) || 0 } as any)}
-                                className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 py-2 text-center text-[14px] font-bold text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all tabular"
+                                className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 py-2 text-center text-heading font-bold text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all tabular"
                               />
                             </div>
                           ))}
                         </div>
                         <div className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3 flex items-start gap-2">
                           <Sparkles className="h-3.5 w-3.5 text-[var(--indigo)] flex-shrink-0 mt-px" />
-                          <p className="text-[11px] text-[var(--text-secondary)] leading-snug">
+                          <p className="text-caption text-[var(--text-secondary)] leading-snug">
                             <span className="font-semibold text-[var(--text-primary)]">Pro tip:</span> A 1–3 day gap between emails typically yields the best reply rates.
                           </p>
                         </div>
@@ -1822,8 +1822,8 @@ export function CampaignCreatePage() {
                       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] mb-3">
                         <FileText className="h-5 w-5 text-[var(--text-tertiary)]" strokeWidth={1.5} />
                       </div>
-                      <h3 className="text-[13px] font-semibold text-[var(--text-primary)] mb-1">Step editor</h3>
-                      <p className="text-[11.5px] text-[var(--text-tertiary)] max-w-[200px] leading-snug">
+                      <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-1">Step editor</h3>
+                      <p className="text-caption text-[var(--text-tertiary)] max-w-[200px] leading-snug">
                         Select any step in the sequence to configure its content and behaviour here.
                       </p>
                     </div>
@@ -1853,7 +1853,7 @@ export function CampaignCreatePage() {
                 description="Who will receive this campaign"
                 accent="emerald"
                 action={selectedContactIds.length > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2 h-6 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[11px] font-semibold">
+                  <span className="inline-flex items-center gap-1.5 px-2 h-6 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-caption font-semibold">
                     <CheckCircle2 className="h-3 w-3" />
                     {selectedContactIds.length.toLocaleString()} selected
                   </span>
@@ -1864,8 +1864,8 @@ export function CampaignCreatePage() {
                     <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] mx-auto mb-4">
                       <Users className="h-6 w-6 text-[var(--text-tertiary)]" strokeWidth={1.5} />
                     </div>
-                    <h3 className="text-[14px] font-semibold text-[var(--text-primary)] mb-1">No recipients yet</h3>
-                    <p className="text-[12px] text-[var(--text-secondary)] mb-5 max-w-xs mx-auto leading-snug">
+                    <h3 className="text-heading font-semibold text-[var(--text-primary)] mb-1">No recipients yet</h3>
+                    <p className="text-body text-[var(--text-secondary)] mb-5 max-w-xs mx-auto leading-snug">
                       Add individual contacts or pull from your saved lists to start populating the campaign.
                     </p>
                     <div className="flex items-center gap-2 justify-center">
@@ -1881,7 +1881,7 @@ export function CampaignCreatePage() {
                 ) : (
                   <div className="space-y-3">
                     {audienceDiff && (
-                      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11.5px] text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-caption text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
                         <span className="font-semibold">Unsaved audience changes:</span>
                         {audienceDiff.added > 0 && <span>+{audienceDiff.added} to add</span>}
                         {audienceDiff.added > 0 && audienceDiff.removed > 0 && <span>·</span>}
@@ -1891,20 +1891,20 @@ export function CampaignCreatePage() {
                     )}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-                        <p className="text-[10.5px] text-[var(--text-tertiary)] font-bold">Recipients</p>
-                        <p className="text-[20px] font-bold text-[var(--text-primary)] tabular leading-tight mt-0.5">
+                        <p className="text-micro text-[var(--text-tertiary)] font-bold">Recipients</p>
+                        <p className="text-title font-bold text-[var(--text-primary)] tabular leading-tight mt-0.5">
                           {selectedContactIds.length.toLocaleString()}
                         </p>
                       </div>
                       <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-                        <p className="text-[10.5px] text-[var(--text-tertiary)] font-bold">Email steps</p>
-                        <p className="text-[20px] font-bold text-[var(--text-primary)] tabular leading-tight mt-0.5">
+                        <p className="text-micro text-[var(--text-tertiary)] font-bold">Email steps</p>
+                        <p className="text-title font-bold text-[var(--text-primary)] tabular leading-tight mt-0.5">
                           {emailSteps.length}
                         </p>
                       </div>
                       <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--indigo-subtle)] p-3">
-                        <p className="text-[10.5px] text-[var(--indigo)] font-bold">Total sends</p>
-                        <p className="text-[20px] font-bold text-[var(--indigo)] tabular leading-tight mt-0.5">
+                        <p className="text-micro text-[var(--indigo)] font-bold">Total sends</p>
+                        <p className="text-title font-bold text-[var(--indigo)] tabular leading-tight mt-0.5">
                           {(emailSteps.length * selectedContactIds.length).toLocaleString()}
                         </p>
                       </div>
@@ -1914,7 +1914,7 @@ export function CampaignCreatePage() {
                     {selectedContactIds.length > 0 && (
                       <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 p-3">
                         <div className="flex items-center justify-between mb-2.5">
-                          <p className="text-[11px] font-bold text-[var(--text-secondary)]">
+                          <p className="text-caption font-bold text-[var(--text-secondary)]">
                             Selected recipients ({selectedContactIds.length.toLocaleString()})
                           </p>
                           <div className="flex items-center gap-1.5">
@@ -1923,7 +1923,7 @@ export function CampaignCreatePage() {
                             </Button>
                             <button
                               onClick={() => setSelectedContactIds([])}
-                              className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11.5px] font-medium text-[var(--text-tertiary)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                              className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-caption font-medium text-[var(--text-tertiary)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
                               title="Remove all recipients"
                             >
                               <X className="h-3 w-3" /> Clear all
@@ -1937,11 +1937,11 @@ export function CampaignCreatePage() {
                               <div key={c.id} className="group flex items-center gap-2.5 px-2 py-1.5 rounded-md bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
                                 <Avatar name={fullName || c.email} email={c.email} size="sm" />
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-[12px] font-medium text-[var(--text-primary)] truncate">{fullName || c.email}</p>
-                                  {fullName && <p className="text-[10.5px] text-[var(--text-tertiary)] truncate">{c.email}</p>}
+                                  <p className="text-body font-medium text-[var(--text-primary)] truncate">{fullName || c.email}</p>
+                                  {fullName && <p className="text-micro text-[var(--text-tertiary)] truncate">{c.email}</p>}
                                 </div>
                                 {c.company && (
-                                  <span className="hidden sm:flex items-center gap-1 text-[10.5px] text-[var(--text-tertiary)] flex-shrink-0">
+                                  <span className="hidden sm:flex items-center gap-1 text-micro text-[var(--text-tertiary)] flex-shrink-0">
                                     <Building2 className="h-3 w-3" />
                                     <span className="truncate max-w-[120px]">{c.company}</span>
                                   </span>
@@ -1957,7 +1957,7 @@ export function CampaignCreatePage() {
                             );
                           })}
                           {selectedContactIds.length > (selectedContactsPreview || []).length && (
-                            <p className="text-[11px] text-[var(--text-tertiary)] text-center pt-1.5">
+                            <p className="text-caption text-[var(--text-tertiary)] text-center pt-1.5">
                               {(selectedContactIds.length - (selectedContactsPreview || []).length).toLocaleString()} more not shown — use “Add more” to manage the full list.
                             </p>
                           )}
@@ -2058,7 +2058,7 @@ export function CampaignCreatePage() {
                     </div>
                     <ul className="space-y-1.5">
                       {healthChecks.map((c, i) => (
-                        <li key={i} className="flex items-center gap-2 text-[12px]">
+                        <li key={i} className="flex items-center gap-2 text-body">
                           <span className={cn(
                             'flex h-4 w-4 items-center justify-center rounded-full flex-shrink-0',
                             c.ok ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
@@ -2080,23 +2080,23 @@ export function CampaignCreatePage() {
                     accent="indigo"
                   >
                     {steps.length === 0 ? (
-                      <p className="text-[12px] text-[var(--text-tertiary)] py-4 text-center">No sequence steps yet</p>
+                      <p className="text-body text-[var(--text-tertiary)] py-4 text-center">No sequence steps yet</p>
                     ) : (
                       <div className="space-y-1.5 max-h-[260px] overflow-y-auto">
                         {steps.map((step, i) => (
                           <div key={i} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
-                            <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[var(--bg-surface)] text-[10.5px] font-bold text-[var(--text-secondary)] border border-[var(--border-subtle)] tabular">
+                            <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[var(--bg-surface)] text-micro font-bold text-[var(--text-secondary)] border border-[var(--border-subtle)] tabular">
                               {i + 1}
                             </span>
                             {step.step_type === 'email' ? (
                               <>
                                 <Mail className="h-3.5 w-3.5 text-[var(--indigo)] flex-shrink-0" />
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-[12px] font-medium text-[var(--text-primary)] truncate">
+                                  <p className="text-body font-medium text-[var(--text-primary)] truncate">
                                     {step.subject || 'Untitled Email'}
                                   </p>
                                   {(step as any).subject_b && (
-                                    <p className="text-[10.5px] text-[var(--text-tertiary)] truncate">
+                                    <p className="text-micro text-[var(--text-tertiary)] truncate">
                                       A/B: "{(step as any).subject_b}"
                                     </p>
                                   )}
@@ -2105,14 +2105,14 @@ export function CampaignCreatePage() {
                             ) : step.step_type === 'delay' ? (
                               <>
                                 <Clock className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
-                                <p className="text-[12px] text-[var(--text-secondary)]">
+                                <p className="text-body text-[var(--text-secondary)]">
                                   Wait {step.delay_days || 0}d {step.delay_hours || 0}h {step.delay_minutes || 0}m
                                 </p>
                               </>
                             ) : (
                               <>
                                 <Settings className="h-3.5 w-3.5 text-[var(--text-tertiary)] flex-shrink-0" />
-                                <p className="text-[12px] text-[var(--text-secondary)] capitalize">{step.step_type}</p>
+                                <p className="text-body text-[var(--text-secondary)] capitalize">{step.step_type}</p>
                               </>
                             )}
                           </div>
@@ -2141,7 +2141,7 @@ export function CampaignCreatePage() {
 
                 {/* Settings summary */}
                 <SectionCard icon={Settings} title="Settings summary" description="Configured options for this campaign" accent="indigo">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-[12.5px]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-body">
                     {[
                       { label: 'Campaign name', value: campaignForm.name || '—' },
                       { label: 'Primary sender', value: smtpAccount ? `${smtpAccount.label} (${smtpAccount.email_address})` : '—' },
@@ -2155,7 +2155,7 @@ export function CampaignCreatePage() {
                       senderPoolIds.length > 0 ? { label: 'Sender rotation', value: `${senderPoolIds.length} accounts` } : null,
                     ].filter(Boolean).map(({ label, value }: any) => (
                       <div key={label}>
-                        <dt className="text-[10.5px] text-[var(--text-tertiary)] font-bold mb-0.5">{label}</dt>
+                        <dt className="text-micro text-[var(--text-tertiary)] font-bold mb-0.5">{label}</dt>
                         <dd className="font-medium text-[var(--text-primary)]">{value}</dd>
                       </div>
                     ))}
@@ -2177,8 +2177,8 @@ export function CampaignCreatePage() {
                         <Send className={cn('h-4 w-4', sendMode === 'now' ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} />
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-[13px] font-semibold text-[var(--text-primary)]">Send now</span>
-                        <span className="block text-[11.5px] text-[var(--text-tertiary)]">First email goes out on launch (throttled by your sending window & daily limit).</span>
+                        <span className="block text-strong font-semibold text-[var(--text-primary)]">Send now</span>
+                        <span className="block text-caption text-[var(--text-tertiary)]">First email goes out on launch (throttled by your sending window & daily limit).</span>
                       </span>
                     </button>
                     <button
@@ -2193,20 +2193,20 @@ export function CampaignCreatePage() {
                         <CalendarClock className={cn('h-4 w-4', sendMode === 'schedule' ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[13px] font-semibold text-[var(--text-primary)]">Schedule</span>
-                        <span className="block text-[11.5px] text-[var(--text-tertiary)]">Start automatically at a date & time you choose.</span>
+                        <span className="block text-strong font-semibold text-[var(--text-primary)]">Schedule</span>
+                        <span className="block text-caption text-[var(--text-tertiary)]">Start automatically at a date & time you choose.</span>
                       </span>
                     </button>
                   </div>
                   {sendMode === 'schedule' && (
                     <div className="mt-3">
-                      <label className="block text-[11.5px] font-medium text-[var(--text-secondary)] mb-1">Start date & time ({campaignForm.timezone || 'local'})</label>
+                      <label className="block text-caption font-medium text-[var(--text-secondary)] mb-1">Start date & time ({campaignForm.timezone || 'local'})</label>
                       <input
                         type="datetime-local"
                         value={scheduleAt}
                         min={toDatetimeLocalValue(new Date(Date.now() + 5 * 60000))}
                         onChange={(e) => setScheduleAt(e.target.value)}
-                        className="w-full sm:w-72 h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-[13px] text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)]"
+                        className="w-full sm:w-72 h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)]"
                       />
                     </div>
                   )}
@@ -2223,10 +2223,10 @@ export function CampaignCreatePage() {
                         {reviewReady ? <Rocket className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
                       </div>
                       <div>
-                        <h3 className="text-[14px] font-bold text-[var(--text-primary)]">
+                        <h3 className="text-heading font-bold text-[var(--text-primary)]">
                           {reviewReady ? (sendMode === 'schedule' ? 'Ready to schedule' : 'Ready to launch') : 'Almost there'}
                         </h3>
-                        <p className="text-[12px] text-[var(--text-secondary)] mt-0.5 leading-snug max-w-md">
+                        <p className="text-body text-[var(--text-secondary)] mt-0.5 leading-snug max-w-md">
                           {reviewReady
                             ? (sendMode === 'schedule'
                                 ? `${selectedContactIds.length.toLocaleString()} contacts will start receiving ${emailSteps.length} email${emailSteps.length === 1 ? '' : 's'} at your scheduled time.`
@@ -2248,7 +2248,7 @@ export function CampaignCreatePage() {
                         onClick={() => reviewReady ? setShowLaunchConfirm(true) : toast.error('Resolve all health checks before launching')}
                         disabled={launching || createCampaignMutation.isPending}
                         className={cn(
-                          'inline-flex items-center gap-2 px-5 py-2 rounded-md text-[13px] font-bold transition-all',
+                          'inline-flex items-center gap-2 px-5 py-2 rounded-md text-strong font-bold transition-all',
                           reviewReady
                             ? 'bg-[var(--indigo)] text-white hover:bg-[var(--indigo-hover)] shadow-[0_2px_8px_rgba(91,91,245,0.35)] hover:shadow-[0_4px_12px_rgba(91,91,245,0.45)]'
                             : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)] cursor-not-allowed'
@@ -2281,7 +2281,7 @@ export function CampaignCreatePage() {
                     <div className="flex items-center justify-between w-full gap-2">
                       <button
                         onClick={() => { setPendingAudit(null); setShowLaunchConfirm(false); setWizardStep(1); }}
-                        className="text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                        className="text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
                       >
                         Go back and edit the sequence
                       </button>
@@ -2301,7 +2301,7 @@ export function CampaignCreatePage() {
                   {pendingAudit && (
                     <div className="space-y-3">
                       {countGaps(pendingAudit.audit) > 0 && (
-                        <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed">
+                        <p className="text-body text-[var(--text-secondary)] leading-relaxed">
                           Give a tag a fallback — <code className="text-[var(--text-primary)]">{'{{first_name | there}}'}</code> —
                           and contacts without a value get the fallback instead of a blank.
                         </p>
@@ -2316,7 +2316,7 @@ export function CampaignCreatePage() {
 
                 <Modal isOpen={showLaunchConfirm} onClose={() => setShowLaunchConfirm(false)} title={sendMode === 'schedule' ? 'Schedule campaign' : 'Launch campaign'}>
                   <div className="space-y-4">
-                    <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
+                    <p className="text-strong text-[var(--text-secondary)] leading-relaxed">
                       {sendMode === 'schedule' ? "You're about to schedule " : "You're about to launch "}
                       <strong className="text-[var(--text-primary)]">{campaignForm.name}</strong>
                       {sendMode === 'schedule'
@@ -2326,7 +2326,7 @@ export function CampaignCreatePage() {
                       with{' '}
                       <strong className="text-[var(--text-primary)]">{emailSteps.length} email step{emailSteps.length !== 1 ? 's' : ''}</strong>.
                     </p>
-                    <div className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3.5 space-y-1.5 text-[12px] text-[var(--text-secondary)]">
+                    <div className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3.5 space-y-1.5 text-body text-[var(--text-secondary)]">
                       {sendMode === 'schedule' && <p className="text-[var(--text-primary)] font-medium">Starts: {scheduleAt ? new Date(scheduleAt).toLocaleString() : '—'}</p>}
                       <p>Sending window: {campaignForm.send_window_start} – {campaignForm.send_window_end} ({campaignForm.timezone})</p>
                       <p>Daily limit: {campaignForm.daily_limit || 'Unlimited'}</p>
@@ -2364,7 +2364,7 @@ export function CampaignCreatePage() {
                 key={key}
                 onClick={() => setContactModalTab(key as any)}
                 className={cn(
-                  'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-[12.5px] font-medium transition-colors',
+                  'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-body font-medium transition-colors',
                   contactModalTab === key
                     ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm'
                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -2385,7 +2385,7 @@ export function CampaignCreatePage() {
                   placeholder="Search by name, email, or company…"
                   value={contactSearch}
                   onChange={(e) => setContactSearch(e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] pl-9 pr-3 py-2 text-[12.5px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
+                  className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] pl-9 pr-3 py-2 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
                 />
               </div>
               <div className="max-h-[350px] overflow-y-auto rounded-lg border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">
@@ -2408,11 +2408,11 @@ export function CampaignCreatePage() {
                       />
                       <Avatar name={fullName || contact.email} email={contact.email} size="sm" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{fullName || contact.email}</p>
-                        <p className="text-[10.5px] text-[var(--text-tertiary)] truncate">{contact.email}</p>
+                        <p className="text-body font-medium text-[var(--text-primary)] truncate">{fullName || contact.email}</p>
+                        <p className="text-micro text-[var(--text-tertiary)] truncate">{contact.email}</p>
                       </div>
                       {contact.company && (
-                        <span className="flex items-center gap-1 text-[10.5px] text-[var(--text-tertiary)] flex-shrink-0">
+                        <span className="flex items-center gap-1 text-micro text-[var(--text-tertiary)] flex-shrink-0">
                           <Building2 className="h-3 w-3" />
                           {contact.company}
                         </span>
@@ -2421,14 +2421,14 @@ export function CampaignCreatePage() {
                   );
                 })}
                 {contacts.length === 0 && (
-                  <p className="p-6 text-center text-[12px] text-[var(--text-tertiary)]">No contacts found</p>
+                  <p className="p-6 text-center text-body text-[var(--text-tertiary)]">No contacts found</p>
                 )}
               </div>
             </>
           ) : (
             <div className="max-h-[400px] overflow-y-auto rounded-lg border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">
               {(allLists || []).length === 0 ? (
-                <p className="p-6 text-center text-[12px] text-[var(--text-tertiary)]">
+                <p className="p-6 text-center text-body text-[var(--text-tertiary)]">
                   No lists found. Create lists on the Contacts page first.
                 </p>
               ) : (
@@ -2438,8 +2438,8 @@ export function CampaignCreatePage() {
                       <FolderOpen className="h-4 w-4" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">{list.name}</p>
-                      <p className="text-[10.5px] text-[var(--text-tertiary)]">
+                      <p className="text-body font-semibold text-[var(--text-primary)]">{list.name}</p>
+                      <p className="text-micro text-[var(--text-tertiary)]">
                         {list.contact_count || 0} contact{(list.contact_count || 0) !== 1 ? 's' : ''}
                         {list.description && ` · ${list.description}`}
                       </p>
@@ -2447,7 +2447,7 @@ export function CampaignCreatePage() {
                     <button
                       onClick={() => addListContacts(list.id)}
                       disabled={addingListId === list.id || (list.contact_count || 0) === 0}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11.5px] font-medium border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 transition-all flex-shrink-0"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-caption font-medium border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 transition-all flex-shrink-0"
                     >
                       {addingListId === list.id ? <Spinner size="sm" /> : <Plus className="h-3 w-3" />}
                       {addingListId === list.id ? 'Adding…' : 'Add all'}
@@ -2459,7 +2459,7 @@ export function CampaignCreatePage() {
           )}
 
           <div className="flex items-center justify-between pt-1">
-            <p className="text-[12.5px] text-[var(--text-secondary)]">
+            <p className="text-body text-[var(--text-secondary)]">
               <span className="font-bold text-[var(--text-primary)] tabular">{selectedContactIds.length.toLocaleString()}</span> selected
             </p>
             <Button onClick={() => setShowContactModal(false)}>
@@ -2480,8 +2480,8 @@ export function CampaignCreatePage() {
                   <Wand2 className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
                 </span>
                 <div>
-                  <h2 className="text-[13.5px] font-semibold text-[var(--text-primary)]">Generate email with AI</h2>
-                  <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5">SARA will write the subject and body for you</p>
+                  <h2 className="text-strong font-semibold text-[var(--text-primary)]">Generate email with AI</h2>
+                  <p className="text-caption text-[var(--text-tertiary)] mt-0.5">SARA will write the subject and body for you</p>
                 </div>
               </div>
               <button onClick={() => setShowAiModal(false)} className="p-1.5 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
@@ -2520,12 +2520,12 @@ export function CampaignCreatePage() {
                           : 'border-[var(--border-subtle)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)]'
                       )}
                     >
-                      <div className="text-lg mb-1">{t.icon}</div>
+                      <div className="text-title mb-1">{t.icon}</div>
                       <p className={cn(
-                        'text-[12px] font-semibold',
+                        'text-body font-semibold',
                         aiTone === t.value ? 'text-violet-700 dark:text-violet-400' : 'text-[var(--text-primary)]'
                       )}>{t.label}</p>
-                      <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5 leading-tight">{t.description}</p>
+                      <p className="text-micro text-[var(--text-tertiary)] mt-0.5 leading-tight">{t.description}</p>
                     </button>
                   ))}
                 </div>
@@ -2536,7 +2536,7 @@ export function CampaignCreatePage() {
               <button
                 disabled={!aiGoal || aiGenerating}
                 onClick={handleGenerateEmail}
-                className="flex-1 inline-flex items-center justify-center gap-2 py-2 rounded-md bg-violet-600 text-white text-[12.5px] font-semibold hover:bg-violet-700 disabled:opacity-50 transition-all"
+                className="flex-1 inline-flex items-center justify-center gap-2 py-2 rounded-md bg-violet-600 text-white text-body font-semibold hover:bg-violet-700 disabled:opacity-50 transition-all"
               >
                 {aiGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                 {aiGenerating ? 'Generating…' : 'Generate email'}
@@ -2556,8 +2556,8 @@ export function CampaignCreatePage() {
                   <FolderOpen className="h-3.5 w-3.5 text-[var(--indigo)]" />
                 </span>
                 <div>
-                  <h2 className="text-[13.5px] font-semibold text-[var(--text-primary)]">Apply sequence template</h2>
-                  <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5">This will replace your current sequence steps.</p>
+                  <h2 className="text-strong font-semibold text-[var(--text-primary)]">Apply sequence template</h2>
+                  <p className="text-caption text-[var(--text-tertiary)] mt-0.5">This will replace your current sequence steps.</p>
                 </div>
               </div>
               <button onClick={() => setShowTemplatePicker(false)} className="p-1.5 rounded-md hover:bg-[var(--bg-hover)]">
@@ -2568,8 +2568,8 @@ export function CampaignCreatePage() {
               {sequenceTemplates.length === 0 ? (
                 <div className="text-center py-12">
                   <Layers className="h-10 w-10 mx-auto text-[var(--text-tertiary)] mb-2" strokeWidth={1.5} />
-                  <p className="text-[13px] text-[var(--text-secondary)] mb-1">No sequence templates yet</p>
-                  <Link to="/templates" className="text-[11.5px] text-[var(--indigo)] hover:underline font-semibold">
+                  <p className="text-strong text-[var(--text-secondary)] mb-1">No sequence templates yet</p>
+                  <Link to="/templates" className="text-caption text-[var(--indigo)] hover:underline font-semibold">
                     Create your first template →
                   </Link>
                 </div>
@@ -2582,17 +2582,17 @@ export function CampaignCreatePage() {
                       className="text-left p-4 rounded-lg border border-[var(--border-subtle)] hover:border-[var(--indigo-subtle)] hover:bg-[var(--indigo-subtle)] transition-all group"
                     >
                       <div className="flex items-start justify-between gap-2 mb-1">
-                        <h3 className="text-[13px] font-semibold text-[var(--text-primary)] group-hover:text-[var(--indigo)] transition-colors flex-1 min-w-0 truncate">
+                        <h3 className="text-strong font-semibold text-[var(--text-primary)] group-hover:text-[var(--indigo)] transition-colors flex-1 min-w-0 truncate">
                           {t.name}
                         </h3>
                         {t.is_preset && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[var(--indigo-subtle)] text-[var(--indigo)] flex-shrink-0">
+                          <span className="px-1.5 py-0.5 rounded text-micro font-bold bg-[var(--indigo-subtle)] text-[var(--indigo)] flex-shrink-0">
                             Preset
                           </span>
                         )}
                       </div>
-                      {t.description && <p className="text-[11px] text-[var(--text-secondary)] mt-1 line-clamp-2 leading-snug">{t.description}</p>}
-                      <div className="flex items-center gap-3 mt-2.5 text-[10.5px] text-[var(--text-tertiary)]">
+                      {t.description && <p className="text-caption text-[var(--text-secondary)] mt-1 line-clamp-2 leading-snug">{t.description}</p>}
+                      <div className="flex items-center gap-3 mt-2.5 text-micro text-[var(--text-tertiary)]">
                         <span className="flex items-center gap-1">
                           <Mail className="h-2.5 w-2.5" />
                           {(t.steps as any[])?.length || 0} steps
@@ -2636,7 +2636,7 @@ export function CampaignCreatePage() {
 
 function StatRow({ label, value, accent }: { label: string; value: string | number; accent?: 'indigo' }) {
   return (
-    <div className="flex items-center justify-between text-[11.5px]">
+    <div className="flex items-center justify-between text-caption">
       <span className="text-[var(--text-tertiary)]">{label}</span>
       <span className={cn(
         'tabular font-semibold',
@@ -2661,7 +2661,7 @@ function ABSection({
   return (
     <div className="rounded-lg border border-[var(--border-subtle)] p-3.5">
       <div className="flex items-center justify-between mb-2.5">
-        <p className="text-[11px] font-bold text-[var(--text-secondary)] flex items-center gap-1.5">
+        <p className="text-caption font-bold text-[var(--text-secondary)] flex items-center gap-1.5">
           <Brain className="h-3 w-3 text-violet-600 dark:text-violet-400" />
           {title}
         </p>
@@ -2669,7 +2669,7 @@ function ABSection({
           <button
             type="button"
             onClick={onClear}
-            className="text-[11px] text-[var(--text-tertiary)] hover:text-rose-500 transition-colors font-medium"
+            className="text-caption text-[var(--text-tertiary)] hover:text-rose-500 transition-colors font-medium"
           >
             Clear
           </button>
@@ -2677,15 +2677,15 @@ function ABSection({
       </div>
       <div className="space-y-2">
         <div>
-          <label className="block text-[10.5px] font-medium text-[var(--text-tertiary)] mb-1">
+          <label className="block text-micro font-medium text-[var(--text-tertiary)] mb-1">
             {variantALabel}
           </label>
-          <div className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 py-2 text-[11.5px] text-[var(--text-secondary)] line-clamp-2">
+          <div className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 py-2 text-caption text-[var(--text-secondary)] line-clamp-2">
             {variantA || 'Not yet set'}
           </div>
         </div>
         <div>
-          <label className="block text-[10.5px] font-medium text-[var(--text-tertiary)] mb-1">
+          <label className="block text-micro font-medium text-[var(--text-tertiary)] mb-1">
             Variant B
           </label>
           {isTextarea ? (
@@ -2694,7 +2694,7 @@ function ABSection({
               onChange={(e) => onChangeB(e.target.value)}
               rows={3}
               placeholder={variantBPlaceholder}
-              className="w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 py-2 text-[11.5px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo-subtle)] transition-all font-mono resize-y"
+              className="w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 py-2 text-caption text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo-subtle)] transition-all font-mono resize-y"
             />
           ) : (
             <input
@@ -2702,12 +2702,12 @@ function ABSection({
               value={variantB}
               onChange={(e) => onChangeB(e.target.value)}
               placeholder={variantBPlaceholder}
-              className="w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 py-2 text-[11.5px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo-subtle)] transition-all"
+              className="w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 py-2 text-caption text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo-subtle)] transition-all"
             />
           )}
         </div>
       </div>
-      <p className="text-[10.5px] text-[var(--text-tertiary)] mt-2 leading-snug">
+      <p className="text-micro text-[var(--text-tertiary)] mt-2 leading-snug">
         50/50 split — half your contacts receive Variant A, half receive Variant B.
       </p>
     </div>
@@ -2771,7 +2771,7 @@ function CapacityChart({ totalSends, dailyCapacity, sendDays, estDays }: {
                 />
               </div>
               <span className={cn(
-                'text-[10px] font-medium tabular',
+                'text-micro font-medium tabular',
                 d.active ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
               )}>
                 {d.label}
@@ -2780,7 +2780,7 @@ function CapacityChart({ totalSends, dailyCapacity, sendDays, estDays }: {
           );
         })}
       </div>
-      <div className="flex items-center justify-between text-[10.5px] text-[var(--text-tertiary)] pt-2 border-t border-[var(--border-subtle)]">
+      <div className="flex items-center justify-between text-micro text-[var(--text-tertiary)] pt-2 border-t border-[var(--border-subtle)]">
         <span className="flex items-center gap-3">
           <span className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-sm bg-[var(--indigo)]" />
@@ -2821,30 +2821,30 @@ function RecipientPreview({ subject, bodyHtml, fromName, fromEmail }: {
     <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)]">
         <Eye className="h-3 w-3 text-[var(--indigo)]" />
-        <span className="text-[10.5px] font-bold text-[var(--text-secondary)]">Inbox preview</span>
+        <span className="text-micro font-bold text-[var(--text-secondary)]">Inbox preview</span>
         {variants > 1 ? (
           <button
             onClick={() => setVariation((v) => v + 1)}
-            className="ml-auto text-[10px] text-[var(--indigo)] hover:underline"
+            className="ml-auto text-micro text-[var(--indigo)] hover:underline"
             title={`Spintax makes ${variants.toLocaleString()} wordings of this email`}
           >
             1 of {variants.toLocaleString()} wordings — show another
           </button>
         ) : (
-          <span className="ml-auto text-[10px] text-[var(--text-tertiary)]">sample data</span>
+          <span className="ml-auto text-micro text-[var(--text-tertiary)]">sample data</span>
         )}
       </div>
 
       <div className="bg-white text-gray-900 px-3.5 py-2.5 border-b border-gray-200">
-        <h3 className="text-[13px] font-semibold text-gray-900 mb-1.5 leading-snug">{previewSubject}</h3>
+        <h3 className="text-strong font-semibold text-gray-900 mb-1.5 leading-snug">{previewSubject}</h3>
         <div className="flex items-center gap-2">
           <Avatar name={fromName || fromEmail} email={fromEmail} size="sm" />
           <div className="flex-1 min-w-0">
-            <div className="text-[11.5px] text-gray-900 truncate">
+            <div className="text-caption text-gray-900 truncate">
               <span className="font-semibold">{fromName}</span>{' '}
               <span className="text-gray-500">&lt;{fromEmail}&gt;</span>
             </div>
-            <div className="text-[10px] text-gray-500">to {PLACEHOLDER.contactName} — now</div>
+            <div className="text-micro text-gray-500">to {PLACEHOLDER.contactName} — now</div>
           </div>
         </div>
       </div>

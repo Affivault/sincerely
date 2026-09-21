@@ -92,10 +92,10 @@ export function InlineError({ error, onRetry, className, compact }: {
         </span>
 
         <div className={cn('min-w-0', !compact && 'max-w-sm')}>
-          <p className={cn('font-semibold text-[var(--text-primary)]', compact ? 'text-[12.5px]' : 'text-[14px]')}>
+          <p className={cn('font-semibold text-[var(--text-primary)]', compact ? 'text-body' : 'text-heading')}>
             {d.title}
           </p>
-          <p className={cn('mt-0.5 leading-relaxed text-[var(--text-secondary)]', compact ? 'text-[11.5px]' : 'text-[12.5px]')}>
+          <p className={cn('mt-0.5 leading-relaxed text-[var(--text-secondary)]', compact ? 'text-caption' : 'text-body')}>
             {d.detail}
           </p>
 
@@ -111,7 +111,7 @@ export function InlineError({ error, onRetry, className, compact }: {
               onClick={onRetry}
               className={cn(
                 'mt-2.5 inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]',
-                compact ? 'h-7 px-2.5 text-[11.5px]' : 'h-8 px-3 text-[12.5px]',
+                compact ? 'h-7 px-2.5 text-caption' : 'h-8 px-3 text-body',
               )}
               data-retry
             >

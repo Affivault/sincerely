@@ -52,7 +52,7 @@ async function exportSuppressionCsv(search: string, reason: string) {
 }
 
 /* Shared select styling that matches the Input primitive */
-const SELECT_CLS = 'w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-[13px] text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-[border-color,box-shadow]';
+const SELECT_CLS = 'w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-[border-color,box-shadow]';
 
 const REASON_LABELS: Record<string, { label: string; color: string; dot: string }> = {
   unsubscribed: { label: 'Unsubscribed', color: 'text-amber-700 dark:text-amber-400 bg-amber-500/10',  dot: 'bg-amber-500'  },
@@ -198,7 +198,7 @@ export function SuppressionPage() {
             placeholder="Search emails…"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full h-8 pl-8 pr-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[12.5px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[rgba(91,91,245,0.4)] focus:bg-[var(--bg-surface)] focus:shadow-[0_0_0_3px_rgba(91,91,245,0.12)] outline-none transition"
+            className="w-full h-8 pl-8 pr-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[rgba(91,91,245,0.4)] focus:bg-[var(--bg-surface)] focus:shadow-[0_0_0_3px_rgba(91,91,245,0.12)] outline-none transition"
           />
           {searchInput && (
             <button onClick={() => setSearchInput('')} className="absolute right-2 top-1/2 -translate-y-1/2">
@@ -211,7 +211,7 @@ export function SuppressionPage() {
           <select
             value={reasonFilter}
             onChange={(e) => { setReasonFilter(e.target.value); setPage(1); }}
-            className="h-8 pl-8 pr-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[12.5px] text-[var(--text-primary)] focus:border-[rgba(91,91,245,0.4)] focus:shadow-[0_0_0_3px_rgba(91,91,245,0.12)] outline-none transition appearance-none cursor-pointer"
+            className="h-8 pl-8 pr-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-body text-[var(--text-primary)] focus:border-[rgba(91,91,245,0.4)] focus:shadow-[0_0_0_3px_rgba(91,91,245,0.12)] outline-none transition appearance-none cursor-pointer"
           >
             <option value="">All reasons</option>
             <option value="unsubscribed">Unsubscribed</option>
@@ -238,10 +238,10 @@ export function SuppressionPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60">
-                  <th className="text-left px-4 py-2.5 text-[10px] font-medium text-[var(--text-tertiary)]">Email</th>
-                  <th className="text-left px-4 py-2.5 text-[10px] font-medium text-[var(--text-tertiary)]">Reason</th>
-                  <th className="text-left px-4 py-2.5 text-[10px] font-medium text-[var(--text-tertiary)]">Notes</th>
-                  <th className="text-left px-4 py-2.5 text-[10px] font-medium text-[var(--text-tertiary)]">Added</th>
+                  <th className="text-left px-4 py-2.5 text-micro font-medium text-[var(--text-tertiary)]">Email</th>
+                  <th className="text-left px-4 py-2.5 text-micro font-medium text-[var(--text-tertiary)]">Reason</th>
+                  <th className="text-left px-4 py-2.5 text-micro font-medium text-[var(--text-tertiary)]">Notes</th>
+                  <th className="text-left px-4 py-2.5 text-micro font-medium text-[var(--text-tertiary)]">Added</th>
                   <th className="px-4 py-2.5" />
                 </tr>
               </thead>
@@ -250,15 +250,15 @@ export function SuppressionPage() {
                   const meta = REASON_LABELS[entry.reason] || REASON_LABELS.manual;
                   return (
                     <tr key={entry.id} className="hover:bg-[var(--bg-hover)] transition-colors group">
-                      <td className="px-4 py-2.5 text-[12.5px] font-medium text-[var(--text-primary)] tabular">{entry.email}</td>
+                      <td className="px-4 py-2.5 text-body font-medium text-[var(--text-primary)] tabular">{entry.email}</td>
                       <td className="px-4 py-2.5">
-                        <span className={cn('inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-medium', meta.color)}>
+                        <span className={cn('inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-medium', meta.color)}>
                           <span className={cn('w-1.5 h-1.5 rounded-full', meta.dot)} />
                           {meta.label}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 text-[12px] text-[var(--text-secondary)] truncate max-w-xs">{entry.notes || <span className="text-[var(--text-muted)]">—</span>}</td>
-                      <td className="px-4 py-2.5 text-[12px] text-[var(--text-secondary)] tabular">{formatDate(entry.created_at)}</td>
+                      <td className="px-4 py-2.5 text-body text-[var(--text-secondary)] truncate max-w-xs">{entry.notes || <span className="text-[var(--text-muted)]">—</span>}</td>
+                      <td className="px-4 py-2.5 text-body text-[var(--text-secondary)] tabular">{formatDate(entry.created_at)}</td>
                       <td className="px-4 py-2.5 text-right">
                         <button
                           onClick={() => confirm(
@@ -279,7 +279,7 @@ export function SuppressionPage() {
 
           {totalPages > 1 && (
             <div className="flex items-center justify-between pt-3">
-              <p className="text-[12px] text-[var(--text-secondary)] tabular">Page {page} of {totalPages}</p>
+              <p className="text-body text-[var(--text-secondary)] tabular">Page {page} of {totalPages}</p>
               <div className="flex gap-1.5">
                 <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
                 <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</Button>
@@ -309,7 +309,7 @@ export function SuppressionPage() {
           <form id="suppress-add-form" onSubmit={(e) => { e.preventDefault(); addMut.mutate(); }} className="space-y-4">
             <Input label="Email address" type="email" autoFocus value={addEmail} onChange={(e) => setAddEmail(e.target.value)} placeholder="user@example.com" />
             <div className="space-y-1">
-              <label className="block text-[12px] font-medium text-[var(--text-secondary)]">Reason</label>
+              <label className="block text-body font-medium text-[var(--text-secondary)]">Reason</label>
               <select value={addReason} onChange={(e) => setAddReason(e.target.value)} className={SELECT_CLS}>
                 <option value="manual">Manual</option>
                 <option value="unsubscribed">Unsubscribed</option>
@@ -341,18 +341,18 @@ export function SuppressionPage() {
         >
           <form id="suppress-bulk-form" onSubmit={(e) => { e.preventDefault(); suppressBulk(); }} className="space-y-4">
             <div className="space-y-1">
-              <label className="block text-[12px] font-medium text-[var(--text-secondary)]">Email addresses</label>
+              <label className="block text-body font-medium text-[var(--text-secondary)]">Email addresses</label>
               <textarea
                 value={bulkText}
                 onChange={(e) => setBulkText(e.target.value)}
                 rows={8}
                 autoFocus
                 placeholder={"user1@example.com\nuser2@example.com\nuser3@example.com"}
-                className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-3 py-2 text-[13px] text-[var(--text-primary)] font-data placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-[border-color,box-shadow] resize-none"
+                className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-3 py-2 text-strong text-[var(--text-primary)] font-data placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-[border-color,box-shadow] resize-none"
               />
             </div>
             <div className="space-y-1">
-              <label className="block text-[12px] font-medium text-[var(--text-secondary)]">Reason</label>
+              <label className="block text-body font-medium text-[var(--text-secondary)]">Reason</label>
               <select value={addReason} onChange={(e) => setAddReason(e.target.value)} className={SELECT_CLS}>
                 <option value="manual">Manual</option>
                 <option value="unsubscribed">Unsubscribed</option>

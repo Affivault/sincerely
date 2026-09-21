@@ -257,7 +257,7 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
             follows; leave them all blank and the plain figure below is
             used exactly as it always was. */}
         <div className="rounded-xl border border-[var(--border-subtle)] p-3">
-          <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          <p className="mb-2.5 text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)]">
             Commercial shape
           </p>
           <div className="grid grid-cols-3 gap-3">
@@ -300,7 +300,7 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
             />
             <div className="col-span-2 flex items-end pb-1">
               {shaped ? (
-                <p className="text-[12px] leading-relaxed text-[var(--text-secondary)]">
+                <p className="text-body leading-relaxed text-[var(--text-secondary)]">
                   Worth{' '}
                   <span className="font-semibold tabular-nums text-[var(--text-primary)]">
                     {fmtMoney(totalContractValue(shape))}
@@ -318,7 +318,7 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
                   )}
                 </p>
               ) : (
-                <p className="text-[12px] text-[var(--text-tertiary)]">
+                <p className="text-body text-[var(--text-tertiary)]">
                   Leave blank for a deal that is just one number.
                 </p>
               )}
@@ -346,12 +346,12 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
               onChange={e => set('probability', e.target.value)}
               placeholder={String(STAGE_PROBABILITY[form.stage])}
             />
-            <p className="mt-1 text-[11px] text-[var(--text-tertiary)]">
+            <p className="mt-1 text-caption text-[var(--text-tertiary)]">
               Leave blank for the stage default ({STAGE_PROBABILITY[form.stage]}%).
             </p>
           </div>
           <div className="col-span-2 flex items-end pb-[26px]">
-            <p className="text-[12px] text-[var(--text-secondary)]">
+            <p className="text-body text-[var(--text-secondary)]">
               Weighted at{' '}
               <span className="font-semibold tabular-nums text-[var(--text-primary)]">
                 {fmtMoney(
@@ -366,12 +366,12 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
           </div>
         </div>
         <div>
-          <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Notes</label>
-          <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Context, next steps…" className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]" />
+          <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Notes</label>
+          <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Context, next steps…" className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-strong text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]" />
         </div>
         <div className="flex items-center justify-between pt-2">
           {editing ? (
-            <button type="button" onClick={() => confirm({ title: `Delete "${form.title}"?`, body: 'The deal and its history go. Linked contacts and companies stay.', tone: 'danger' }, () => del.mutate())} className="flex items-center gap-1.5 text-[12px] font-medium text-rose-500 hover:text-rose-600 transition-colors">
+            <button type="button" onClick={() => confirm({ title: `Delete "${form.title}"?`, body: 'The deal and its history go. Linked contacts and companies stay.', tone: 'danger' }, () => del.mutate())} className="flex items-center gap-1.5 text-body font-medium text-rose-500 hover:text-rose-600 transition-colors">
               <Trash2 className="h-3.5 w-3.5" /> Delete
             </button>
           ) : <span />}
@@ -503,8 +503,8 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToSta
             <div className="flex-shrink-0 px-3 pt-2.5 pb-2">
               <div className="flex items-center gap-2">
                 <span className={cn('h-2 w-2 rounded-full', STAGE_DOT[stage.id])} />
-                <span className="text-[12.5px] font-semibold text-[var(--text-primary)]">{stage.label}</span>
-                <span className="text-[11px] font-medium text-[var(--text-tertiary)] tabular">{items.length}</span>
+                <span className="text-body font-semibold text-[var(--text-primary)]">{stage.label}</span>
+                <span className="text-caption font-medium text-[var(--text-tertiary)] tabular">{items.length}</span>
                 <span className="flex-1" />
                 {!closedStage && (
                   <button
@@ -518,12 +518,12 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToSta
                 )}
               </div>
               <div className="mt-1 flex items-baseline gap-1.5">
-                <span className="text-[12px] font-semibold text-[var(--text-primary)] tabular">{fmtMoney(total)}</span>
+                <span className="text-body font-semibold text-[var(--text-primary)] tabular">{fmtMoney(total)}</span>
                 {/* The number the forecast actually uses, next to the one
                     everybody quotes — a column total nobody discounts is how
                     a pipeline ends up promising twice what it delivers. */}
                 {!closedStage && weighted !== total && (
-                  <span className="text-[10.5px] text-[var(--text-muted)] tabular" title="Weighted by each deal's odds">
+                  <span className="text-micro text-[var(--text-muted)] tabular" title="Weighted by each deal's odds">
                     {fmtMoney(weighted)} wtd
                   </span>
                 )}
@@ -563,33 +563,33 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToSta
                     >
                       <div className="flex items-start gap-1.5">
                         <GripVertical className="h-3.5 w-3.5 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
-                        <span className="text-[12.5px] font-medium text-[var(--text-primary)] leading-snug line-clamp-2">{d.title}</span>
+                        <span className="text-body font-medium text-[var(--text-primary)] leading-snug line-clamp-2">{d.title}</span>
                         {/* Movement is the only real signal of health, and a
                             static card is the one place it never shows. */}
                         {rot.rotting && (
                           <span
                             title={`No movement for ${rot.days} days — ${stage.label.toLowerCase()} deals are expected to move within ${rot.limit}`}
-                            className="ml-auto inline-flex flex-shrink-0 items-center gap-0.5 rounded-full bg-rose-500/10 px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400"
+                            className="ml-auto inline-flex flex-shrink-0 items-center gap-0.5 rounded-full bg-rose-500/10 px-1.5 py-0.5 text-micro font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400"
                           >
                             <Clock className="h-2.5 w-2.5" />{rot.days}d
                           </span>
                         )}
                       </div>
                       <div className="mt-2 flex items-center gap-2 flex-wrap">
-                        <span className="text-[12px] font-semibold text-[var(--text-primary)] tabular">{fmtMoney(d.value, d.currency)}</span>
+                        <span className="text-body font-semibold text-[var(--text-primary)] tabular">{fmtMoney(d.value, d.currency)}</span>
                         {d.company && (
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); onOpenCompany(d); }}
                             title={`Open ${d.company}`}
-                            className="inline-flex items-center gap-1 text-[10.5px] text-[var(--text-tertiary)] truncate max-w-[110px] rounded transition-colors hover:text-[var(--indigo)] hover:underline"
+                            className="inline-flex items-center gap-1 text-micro text-[var(--text-tertiary)] truncate max-w-[110px] rounded transition-colors hover:text-[var(--indigo)] hover:underline"
                           >
                             <Building2 className="h-3 w-3 flex-shrink-0" />{d.company}
                           </button>
                         )}
                       </div>
                       {(lead || closeInfo || lc.tasks > 0 || lc.events > 0) && (
-                        <div className="mt-1.5 flex items-center gap-2 text-[10.5px] text-[var(--text-tertiary)]">
+                        <div className="mt-1.5 flex items-center gap-2 text-micro text-[var(--text-tertiary)]">
                           {lead && (leadId(d)
                             ? (
                               <button
@@ -628,12 +628,12 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToSta
               )}
               {items.length === 0 && !dropHere && (
                 closedStage ? (
-                  <p className="py-4 text-center text-[11px] text-[var(--text-muted)]">Nothing here yet</p>
+                  <p className="py-4 text-center text-caption text-[var(--text-muted)]">Nothing here yet</p>
                 ) : (
                   <button
                     type="button"
                     onClick={() => onAddToStage(stage.id)}
-                    className="w-full rounded-lg border border-dashed border-[var(--border-default)] py-4 text-[11px] text-[var(--text-muted)] transition-colors hover:border-[var(--indigo)] hover:text-[var(--indigo)]"
+                    className="w-full rounded-lg border border-dashed border-[var(--border-default)] py-4 text-caption text-[var(--text-muted)] transition-colors hover:border-[var(--indigo)] hover:text-[var(--indigo)]"
                   >
                     Drop a deal here, or add one
                   </button>
@@ -820,8 +820,8 @@ export function DealsPage() {
             <Handshake className="h-5 w-5 text-[var(--indigo)]" />
           </span>
           <div className="min-w-0">
-            <h1 className="text-[19px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">Deals</h1>
-            <p className="text-[12.5px] text-[var(--text-tertiary)]">
+            <h1 className="text-title font-semibold tracking-[-0.01em] text-[var(--text-primary)]">Deals</h1>
+            <p className="text-body text-[var(--text-tertiary)]">
               Your pipeline, synced with your leads. Activities and meetings have their own pages.
             </p>
           </div>
@@ -864,17 +864,17 @@ export function DealsPage() {
           height the rest of the time. */}
       {selected.size > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-3 py-2">
-          <span className="text-[12.5px] font-semibold text-[var(--text-primary)]">
+          <span className="text-body font-semibold text-[var(--text-primary)]">
             {selected.size} selected
           </span>
           <span className="h-4 w-px bg-[var(--border-default)]" />
-          <span className="text-[11.5px] text-[var(--text-secondary)]">Move to</span>
+          <span className="text-caption text-[var(--text-secondary)]">Move to</span>
           {DEAL_STAGES.map((s) => (
             <button
               key={s.id}
               type="button"
               onClick={() => bulkStage(s.id)}
-              className="rounded-lg bg-[var(--bg-surface)] px-2 py-1 text-[11.5px] font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+              className="rounded-lg bg-[var(--bg-surface)] px-2 py-1 text-caption font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
             >
               {s.label}
             </button>
@@ -883,14 +883,14 @@ export function DealsPage() {
           <button
             type="button"
             onClick={bulkDelete}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-medium text-rose-500 transition-colors hover:bg-rose-500/10"
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-caption font-medium text-rose-500 transition-colors hover:bg-rose-500/10"
           >
             <Trash2 className="h-3.5 w-3.5" /> Delete
           </button>
           <button
             type="button"
             onClick={() => setSelected(new Set())}
-            className="text-[11.5px] font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]"
+            className="text-caption font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]"
           >
             Clear
           </button>
@@ -904,10 +904,10 @@ export function DealsPage() {
         <EmptyBoard icon={Handshake} title="No deals yet" body="Add your first deal to start tracking your pipeline." action="New deal" onAction={() => setDealModal(null)} />
       ) : visibleDeals.length === 0 ? (
         <div className="panel py-4">
-          <p className="text-center text-[13px] font-medium text-[var(--text-primary)]">
+          <p className="text-center text-strong font-medium text-[var(--text-primary)]">
             {query ? `No deals match “${query}”` : 'Nothing here'}
           </p>
-          <p className="mt-1 text-center text-[12px] text-[var(--text-tertiary)]">
+          <p className="mt-1 text-center text-body text-[var(--text-tertiary)]">
             {filters.focus === 'stalled'
               ? 'Nothing has gone quiet — every open deal has moved recently.'
               : filters.focus === 'overdue'
@@ -916,7 +916,7 @@ export function DealsPage() {
           </p>
           <button
             onClick={() => { setQuery(''); setFilters(EMPTY_FILTERS); }}
-            className="mt-2 text-[12px] text-[var(--indigo)] hover:underline"
+            className="mt-2 text-body text-[var(--indigo)] hover:underline"
           >
             Reset filters
           </button>

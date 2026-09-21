@@ -79,7 +79,7 @@ function EmailPreview({ subject, bodyHtml, compact }: { subject: string; bodyHtm
             <div className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
           </div>
         </div>
-        <div className={`${compact ? 'text-[10px]' : 'text-xs'} text-[#6b7280] space-y-0.5`}>
+        <div className={`${compact ? 'text-micro' : 'text-body'} text-[#6b7280] space-y-0.5`}>
           <div className="flex items-center gap-2">
             <span className="font-medium text-[#374151] w-10">From:</span>
             <span>{sampleData.sender_name}@yourcompany.com</span>
@@ -96,7 +96,7 @@ function EmailPreview({ subject, bodyHtml, compact }: { subject: string; bodyHtm
       </div>
       {/* Email body */}
       <div
-        className={`${compact ? 'p-3 text-[11px] leading-relaxed max-h-[160px]' : 'p-5 text-sm leading-relaxed max-h-[400px]'} overflow-hidden text-[#374151]`}
+        className={`${compact ? 'p-3 text-caption leading-relaxed max-h-[160px]' : 'p-5 text-strong leading-relaxed max-h-[400px]'} overflow-hidden text-[#374151]`}
         dangerouslySetInnerHTML={{ __html: interpolate(bodyHtml) }}
       />
       {compact && (
@@ -124,7 +124,7 @@ function SequenceTimeline({ steps, compact }: { steps: SequenceTemplateStep[]; c
             {idx > 0 && delay && (
               <div className={`flex items-center gap-2 ${compact ? 'mb-1 ml-9' : 'mb-2 ml-11'}`}>
                 <Clock className={`${compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} text-amber-500`} />
-                <span className={`${compact ? 'text-[10px]' : 'text-xs'} text-amber-500 font-medium`}>
+                <span className={`${compact ? 'text-micro' : 'text-body'} text-amber-500 font-medium`}>
                   Wait {step.delay_days > 0 ? `${step.delay_days} day${step.delay_days > 1 ? 's' : ''}` : `${step.delay_hours} hour${step.delay_hours > 1 ? 's' : ''}`}
                 </span>
               </div>
@@ -132,16 +132,16 @@ function SequenceTimeline({ steps, compact }: { steps: SequenceTemplateStep[]; c
             {/* Step card */}
             <div className="flex items-start gap-3">
               <div className={`shrink-0 ${compact ? 'w-8 h-8' : 'w-9 h-9'} rounded-full bg-[var(--bg-elevated)] border-2 border-[var(--border-subtle)] flex items-center justify-center z-10`}>
-                <span className={`${compact ? 'text-[10px]' : 'text-xs'} font-bold text-[var(--text-primary)]`}>{idx + 1}</span>
+                <span className={`${compact ? 'text-micro' : 'text-body'} font-bold text-[var(--text-primary)]`}>{idx + 1}</span>
               </div>
               <div className={`flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] ${compact ? 'p-2.5' : 'p-3.5'} hover:bg-[var(--bg-hover)] transition-colors`}>
                 <div className="flex items-center gap-2 mb-1">
                   <Mail className={`${compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} text-[var(--text-secondary)]`} />
-                  <span className={`${compact ? 'text-[11px]' : 'text-sm'} font-medium text-[var(--text-primary)] truncate`}>
+                  <span className={`${compact ? 'text-caption' : 'text-strong'} font-medium text-[var(--text-primary)] truncate`}>
                     {step.subject || 'Untitled email'}
                   </span>
                 </div>
-                <p className={`${compact ? 'text-[10px] line-clamp-2' : 'text-xs line-clamp-3'} text-[var(--text-secondary)]`}>
+                <p className={`${compact ? 'text-micro line-clamp-2' : 'text-body line-clamp-3'} text-[var(--text-secondary)]`}>
                   {(() => {
                     const text = step.body_html.replace(/<[^>]*>/g, '');
                     const limit = compact ? 80 : 150;
@@ -172,7 +172,7 @@ const CATEGORY_COLORS: Record<TemplateCategory, string> = {
 function CategoryBadge({ category }: { category: TemplateCategory }) {
   const label = TEMPLATE_CATEGORIES.find(c => c.value === category)?.label || category;
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full ${CATEGORY_COLORS[category]}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 text-micro font-semibold rounded-full ${CATEGORY_COLORS[category]}`}>
       {label}
     </span>
   );
@@ -200,17 +200,17 @@ function TemplateListRow({ title, snippet, category, isPreset, meta, active, onC
       )}
     >
       <div className="flex items-center gap-2 min-w-0">
-        <span className={cn('text-[13px] font-semibold truncate', active ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]')}>
+        <span className={cn('text-strong font-semibold truncate', active ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]')}>
           {title}
         </span>
         {isPreset && (
           <Sparkles className="h-3 w-3 text-amber-500 flex-shrink-0" strokeWidth={2} />
         )}
       </div>
-      <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)] truncate">{snippet}</p>
+      <p className="mt-0.5 text-caption text-[var(--text-tertiary)] truncate">{snippet}</p>
       <div className="mt-1.5 flex items-center gap-2">
         <CategoryBadge category={category} />
-        <span className="text-[10.5px] text-[var(--text-muted)] tabular">{meta}</span>
+        <span className="text-micro text-[var(--text-muted)] tabular">{meta}</span>
       </div>
     </button>
   );
@@ -234,15 +234,15 @@ function DetailShell({ title, category, isPreset, meta, onUse, onEdit, onDuplica
       <div className="flex flex-wrap items-start justify-between gap-3 px-5 py-4 border-b border-[var(--border-subtle)]">
         <div className="min-w-0">
           <div className="flex items-center gap-2.5">
-            <h2 className="text-[16px] font-semibold text-[var(--text-primary)] tracking-[-0.015em] truncate">{title}</h2>
+            <h2 className="text-heading font-semibold text-[var(--text-primary)] tracking-[-0.015em] truncate">{title}</h2>
             <CategoryBadge category={category} />
             {isPreset && (
-              <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-amber-600 dark:text-amber-400">
+              <span className="inline-flex items-center gap-1 text-micro font-semibold text-amber-600 dark:text-amber-400">
                 <Sparkles className="h-3 w-3" /> Preset
               </span>
             )}
           </div>
-          <div className="mt-1 text-[12px] text-[var(--text-tertiary)]">{meta}</div>
+          <div className="mt-1 text-body text-[var(--text-tertiary)]">{meta}</div>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <button className="btn-primary" onClick={onUse}>
@@ -297,11 +297,11 @@ function EmailEditorModal({
           <div className="grid grid-cols-2 gap-3">
             <Input label="Template Name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Cold Intro v2" required />
             <div>
-              <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Category</label>
+              <label className="block text-strong font-medium text-[var(--text-primary)] mb-1">Category</label>
               <select
                 value={category}
                 onChange={e => setCategory(e.target.value as TemplateCategory)}
-                className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo)]"
+                className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-strong text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo)]"
               >
                 {TEMPLATE_CATEGORIES.map(c => (
                   <option key={c.value} value={c.value}>{c.label}</option>
@@ -314,7 +314,7 @@ function EmailEditorModal({
 
           <div>
             <div className="flex items-center justify-between mb-1.5 gap-2">
-              <label className="text-sm font-medium text-[var(--text-primary)]">Email Body</label>
+              <label className="text-strong font-medium text-[var(--text-primary)]">Email Body</label>
               <div className="flex items-center gap-1 flex-wrap justify-end">
                 {mergeTags.map(tag => (
                   <button
@@ -322,7 +322,7 @@ function EmailEditorModal({
                     type="button"
                     onClick={() => insertMergeTag(tag)}
                     title={`Insert {{${tag}}}`}
-                    className="px-1.5 py-0.5 text-[10px] font-data rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
+                    className="px-1.5 py-0.5 text-micro font-data rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
                   >
                     {`{{${tag}}}`}
                   </button>
@@ -335,7 +335,7 @@ function EmailEditorModal({
               placeholder="Hi {{first_name}}, I noticed that {{company}} is…"
               minHeight="300px"
             />
-            <p className="mt-1.5 text-[11px] text-[var(--text-tertiary)]">
+            <p className="mt-1.5 text-caption text-[var(--text-tertiary)]">
               Use the toolbar to format — no HTML needed. Insert merge tags above to personalise.
             </p>
             <SpamWordHint subject={subject} bodyHtml={bodyHtml} />
@@ -353,7 +353,7 @@ function EmailEditorModal({
         {showPreview && (
           <div className="w-[380px] shrink-0 sticky top-0 self-start space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-[var(--text-secondary)]">Live Preview</span>
+              <span className="text-body font-medium text-[var(--text-secondary)]">Live Preview</span>
               <button onClick={() => setShowPreview(false)} className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)]">
                 <X className="h-3 w-3" />
               </button>
@@ -368,7 +368,7 @@ function EmailEditorModal({
             className="shrink-0 w-10 flex flex-col items-center justify-center gap-1 border-l border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
           >
             <Eye className="h-4 w-4" />
-            <span className="text-[9px] font-medium [writing-mode:vertical-lr]">Preview</span>
+            <span className="text-micro font-medium [writing-mode:vertical-lr]">Preview</span>
           </button>
         )}
       </div>
@@ -423,11 +423,11 @@ function SequenceEditorModal({
         <div className="w-[200px] shrink-0 space-y-3">
           <Input label="Sequence Name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., 5-Step Outreach" required />
           <div>
-            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Category</label>
+            <label className="block text-strong font-medium text-[var(--text-primary)] mb-1">Category</label>
             <select
               value={category}
               onChange={e => setCategory(e.target.value as TemplateCategory)}
-              className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo)]"
+              className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-strong text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo)]"
             >
               {TEMPLATE_CATEGORIES.map(c => (
                 <option key={c.value} value={c.value}>{c.label}</option>
@@ -436,25 +436,25 @@ function SequenceEditorModal({
           </div>
 
           <div className="space-y-1.5 pt-2">
-            <span className="text-[11px] font-medium text-[var(--text-tertiary)]">Steps</span>
+            <span className="text-caption font-medium text-[var(--text-tertiary)]">Steps</span>
             {steps.map((step, idx) => (
               <div key={idx}>
                 {idx > 0 && (
-                  <div className="flex items-center gap-1 ml-3.5 text-[10px] text-amber-500 my-0.5">
+                  <div className="flex items-center gap-1 ml-3.5 text-micro text-amber-500 my-0.5">
                     <Clock className="h-2.5 w-2.5" />
                     {step.delay_days}d {step.delay_hours}h
                   </div>
                 )}
                 <button
                   onClick={() => setActiveStep(idx)}
-                  className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-xs transition-colors ${
+                  className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-body transition-colors ${
                     activeStep === idx
                       ? 'bg-[rgba(99,102,241,0.08)] text-[var(--indigo)] font-medium'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                   }`}
                 >
                   <div className="w-5 h-5 rounded-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center justify-center shrink-0">
-                    <span className="text-[9px] font-bold">{idx + 1}</span>
+                    <span className="text-micro font-bold">{idx + 1}</span>
                   </div>
                   <span className="truncate">{step.subject || `Email ${idx + 1}`}</span>
                 </button>
@@ -462,7 +462,7 @@ function SequenceEditorModal({
             ))}
             <button
               onClick={addStep}
-              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-body text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
               Add Step
@@ -474,11 +474,11 @@ function SequenceEditorModal({
         {current && (
           <div className="flex-1 space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+              <h4 className="text-strong font-semibold text-[var(--text-primary)]">
                 Step {activeStep + 1} of {steps.length}
               </h4>
               {steps.length > 1 && (
-                <button onClick={() => removeStep(activeStep)} className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1">
+                <button onClick={() => removeStep(activeStep)} className="text-body text-red-400 hover:text-red-300 flex items-center gap-1">
                   <Trash2 className="h-3 w-3" /> Remove step
                 </button>
               )}
@@ -487,23 +487,23 @@ function SequenceEditorModal({
             {activeStep > 0 && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Delay (days)</label>
+                  <label className="block text-strong font-medium text-[var(--text-primary)] mb-1">Delay (days)</label>
                   <input
                     type="number"
                     min={0}
                     value={current.delay_days}
                     onChange={e => updateStep(activeStep, { delay_days: parseInt(e.target.value) || 0 })}
-                    className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo)]"
+                    className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-strong text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo)]"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Delay (hours)</label>
+                  <label className="block text-strong font-medium text-[var(--text-primary)] mb-1">Delay (hours)</label>
                   <input
                     type="number"
                     min={0}
                     value={current.delay_hours}
                     onChange={e => updateStep(activeStep, { delay_hours: parseInt(e.target.value) || 0 })}
-                    className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo)]"
+                    className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-strong text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo)]"
                   />
                 </div>
               </div>
@@ -513,7 +513,7 @@ function SequenceEditorModal({
 
             <div>
               <div className="flex items-center justify-between mb-1.5 gap-2">
-                <label className="text-sm font-medium text-[var(--text-primary)]">Email Body</label>
+                <label className="text-strong font-medium text-[var(--text-primary)]">Email Body</label>
                 <div className="flex items-center gap-1 flex-wrap justify-end">
                   {['first_name', 'company', 'sender_name'].map(tag => (
                     <button
@@ -521,7 +521,7 @@ function SequenceEditorModal({
                       type="button"
                       onClick={() => window.dispatchEvent(new CustomEvent('rte-insert-text', { detail: { text: `{{${tag}}}` } }))}
                       title={`Insert {{${tag}}}`}
-                      className="px-1.5 py-0.5 text-[10px] font-data rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
+                      className="px-1.5 py-0.5 text-micro font-data rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
                     >
                       {`{{${tag}}}`}
                     </button>
@@ -540,7 +540,7 @@ function SequenceEditorModal({
 
             {/* Inline preview */}
             <div className="space-y-1">
-              <span className="text-xs font-medium text-[var(--text-secondary)]">Preview</span>
+              <span className="text-body font-medium text-[var(--text-secondary)]">Preview</span>
               <EmailPreview subject={current.subject || 'Subject'} bodyHtml={current.body_html || '<p>...</p>'} compact />
             </div>
           </div>
@@ -553,7 +553,7 @@ function SequenceEditorModal({
           onChange={e => setDescription(e.target.value)}
           placeholder="Brief description of this sequence..."
           rows={1}
-          className="flex-1 mr-4 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-1 focus:ring-[var(--text-primary)] resize-none"
+          className="flex-1 mr-4 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-1 focus:ring-[var(--text-primary)] resize-none"
         />
         <div className="flex gap-3">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -574,14 +574,14 @@ function EmailDetailBody({ template }: { template: EmailTemplate }) {
       {template.tags && template.tags.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
           {template.tags.map(tag => (
-            <span key={tag} className="inline-flex items-center gap-0.5 px-2 py-0.5 text-[10px] rounded-full bg-[var(--bg-elevated)] text-[var(--text-secondary)]">
+            <span key={tag} className="inline-flex items-center gap-0.5 px-2 py-0.5 text-micro rounded-full bg-[var(--bg-elevated)] text-[var(--text-secondary)]">
               <Tag className="h-2.5 w-2.5" /> {tag}
             </span>
           ))}
         </div>
       )}
       <EmailPreview subject={template.subject} bodyHtml={template.body_html} />
-      <p className="text-[11.5px] text-[var(--text-muted)] text-center">
+      <p className="text-caption text-[var(--text-muted)] text-center">
         Merge tags like {'{{first_name}}'} render with sample data in this preview.
       </p>
     </div>
@@ -592,7 +592,7 @@ function SequenceDetailBody({ template }: { template: SequenceTemplate }) {
   const [activeStep, setActiveStep] = useState(0);
   const steps = (template.steps || []) as SequenceTemplateStep[];
   if (steps.length === 0) {
-    return <p className="text-[13px] text-[var(--text-tertiary)] text-center py-12">This sequence has no steps yet — hit Edit to add some.</p>;
+    return <p className="text-strong text-[var(--text-tertiary)] text-center py-12">This sequence has no steps yet — hit Edit to add some.</p>;
   }
   const idx = Math.min(activeStep, steps.length - 1);
   const step = steps[idx];
@@ -603,16 +603,16 @@ function SequenceDetailBody({ template }: { template: SequenceTemplate }) {
       {/* Step rail */}
       <div className="w-[240px] shrink-0">
         {template.description && (
-          <p className="text-[12.5px] text-[var(--text-secondary)] mb-1.5">{template.description}</p>
+          <p className="text-body text-[var(--text-secondary)] mb-1.5">{template.description}</p>
         )}
-        <p className="text-[11px] text-[var(--text-tertiary)] mb-3 tabular">
+        <p className="text-caption text-[var(--text-tertiary)] mb-3 tabular">
           {steps.length} email{steps.length === 1 ? '' : 's'} · {totalDays} day{totalDays === 1 ? '' : 's'} total
         </p>
         <div className="space-y-1">
           {steps.map((st, i) => (
             <div key={i}>
               {i > 0 && st.delay_days > 0 && (
-                <div className="flex items-center gap-1 ml-4 text-[10px] text-amber-500 my-1">
+                <div className="flex items-center gap-1 ml-4 text-micro text-amber-500 my-1">
                   <Clock className="h-2.5 w-2.5" /> Wait {st.delay_days}d
                 </div>
               )}
@@ -626,12 +626,12 @@ function SequenceDetailBody({ template }: { template: SequenceTemplate }) {
                 )}
               >
                 <span className={cn(
-                  'w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold',
+                  'w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-micro font-bold',
                   idx === i ? 'bg-[var(--indigo)] text-white' : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
                 )}>
                   {i + 1}
                 </span>
-                <span className={cn('text-[12px] font-medium truncate', idx === i ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]')}>
+                <span className={cn('text-body font-medium truncate', idx === i ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]')}>
                   {st.subject || `Email ${i + 1}`}
                 </span>
               </button>
@@ -643,7 +643,7 @@ function SequenceDetailBody({ template }: { template: SequenceTemplate }) {
       {/* Step preview */}
       <div className="flex-1 min-w-0">
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-[12px] font-medium text-[var(--text-secondary)] tabular">Email {idx + 1} of {steps.length}</span>
+          <span className="text-body font-medium text-[var(--text-secondary)] tabular">Email {idx + 1} of {steps.length}</span>
           <div className="flex gap-1">
             <button
               onClick={() => setActiveStep(Math.max(0, idx - 1))}
@@ -840,14 +840,14 @@ export function TemplatesPage() {
                 key={t.key}
                 onClick={() => { setTab(t.key); setSelectedId(null); }}
                 className={cn(
-                  'flex-1 flex items-center justify-center gap-1.5 h-8 rounded-[7px] text-[12.5px] font-medium transition-all',
+                  'flex-1 flex items-center justify-center gap-1.5 h-8 rounded-[7px] text-body font-medium transition-all',
                   tab === t.key
                     ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
                     : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                 )}
               >
                 <t.icon className="h-3.5 w-3.5" /> {t.label}
-                <span className="text-[10.5px] tabular text-[var(--text-muted)]">{t.count}</span>
+                <span className="text-micro tabular text-[var(--text-muted)]">{t.count}</span>
               </button>
             ))}
           </div>
@@ -887,7 +887,7 @@ export function TemplatesPage() {
               ))
             ) : visibleRows.length === 0 ? (
               <div className="px-3 py-10 text-center">
-                <p className="text-[12.5px] text-[var(--text-tertiary)]">
+                <p className="text-body text-[var(--text-tertiary)]">
                   {isEmpty ? `No ${tab} yet.` : 'Nothing matches your filters.'}
                 </p>
                 {isEmpty && (
@@ -990,8 +990,8 @@ export function TemplatesPage() {
                   <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] mb-3">
                     <Sparkles className="h-5 w-5 text-[var(--indigo)]" />
                   </span>
-                  <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">Start from a proven {tab === 'emails' ? 'template' : 'sequence'}</h3>
-                  <p className="mt-1.5 text-[13px] text-[var(--text-secondary)] max-w-[380px]">
+                  <h3 className="text-heading font-semibold text-[var(--text-primary)]">Start from a proven {tab === 'emails' ? 'template' : 'sequence'}</h3>
+                  <p className="mt-1.5 text-strong text-[var(--text-secondary)] max-w-[380px]">
                     {(tab === 'emails' ? presets?.emails?.length : presets?.sequences?.length) ?? 0} preset {tab} ship with your library — pick one from the list, duplicate it, and make it yours.
                   </p>
                   <button className="btn-primary mt-4" onClick={openCreate}>
@@ -1003,8 +1003,8 @@ export function TemplatesPage() {
                   <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--bg-elevated)] mb-3">
                     <FileText className="h-5 w-5 text-[var(--text-tertiary)]" />
                   </span>
-                  <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">No {tab} yet</h3>
-                  <p className="mt-1.5 text-[13px] text-[var(--text-secondary)] max-w-[360px]">
+                  <h3 className="text-heading font-semibold text-[var(--text-primary)]">No {tab} yet</h3>
+                  <p className="mt-1.5 text-strong text-[var(--text-secondary)] max-w-[360px]">
                     Build reusable {tab === 'emails' ? 'emails' : 'multi-step sequences'} once and drop them into any campaign.
                   </p>
                   <button className="btn-primary mt-4" onClick={openCreate}>

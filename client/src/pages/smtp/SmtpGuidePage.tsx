@@ -258,12 +258,12 @@ function DnsCheckResult({ result }: { result: any }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-primary">{label}</span>
-          <span className={`text-xs px-1.5 py-0.5 rounded ${found ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
+          <span className="text-strong font-medium text-primary">{label}</span>
+          <span className={`text-body px-1.5 py-0.5 rounded ${found ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
             {found ? 'Found' : 'Missing'}
           </span>
         </div>
-        {detail && <p className="text-xs text-secondary mt-1 break-all">{detail}</p>}
+        {detail && <p className="text-body text-secondary mt-1 break-all">{detail}</p>}
       </div>
     </div>
   );
@@ -277,7 +277,7 @@ function DnsCheckResult({ result }: { result: any }) {
       {result.provider_hint && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-elevated border border-subtle">
           <Search className="h-4 w-4 text-secondary" />
-          <span className="text-sm text-secondary">Detected provider: <strong className="text-primary">{result.provider_hint}</strong></span>
+          <span className="text-strong text-secondary">Detected provider: <strong className="text-primary">{result.provider_hint}</strong></span>
         </div>
       )}
     </div>
@@ -298,35 +298,35 @@ export function SmtpGuidePage() {
     <div className="space-y-4">
       {/* Header */}
       <div>
-        <Link to="/email-accounts" className="inline-flex items-center gap-1.5 text-sm text-secondary hover:text-primary mb-4 transition-colors">
+        <Link to="/email-accounts" className="inline-flex items-center gap-1.5 text-strong text-secondary hover:text-primary mb-4 transition-colors">
           <ArrowLeft className="h-4 w-4" />
           Back to SMTP Accounts
         </Link>
-        <h1 className="text-2xl font-semibold text-primary">SMTP Connection Guide</h1>
-        <p className="text-sm text-secondary mt-1">Complete guide for connecting your email provider to Sincerely, including DNS setup for custom domains.</p>
+        <h1 className="text-display font-semibold text-primary">SMTP Connection Guide</h1>
+        <p className="text-strong text-secondary mt-1">Complete guide for connecting your email provider to Sincerely, including DNS setup for custom domains.</p>
       </div>
 
       {/* What You'll Need */}
       <div className="grid grid-cols-4 gap-4">
         <div className="rounded-lg border border-subtle bg-surface p-4">
           <Server className="h-5 w-5 text-primary mb-3" />
-          <h3 className="text-sm font-medium text-primary mb-1">SMTP Host</h3>
-          <p className="text-xs text-secondary">Server address for outgoing mail</p>
+          <h3 className="text-strong font-medium text-primary mb-1">SMTP Host</h3>
+          <p className="text-body text-secondary">Server address for outgoing mail</p>
         </div>
         <div className="rounded-lg border border-subtle bg-surface p-4">
           <Globe className="h-5 w-5 text-primary mb-3" />
-          <h3 className="text-sm font-medium text-primary mb-1">Port & Security</h3>
-          <p className="text-xs text-secondary">587 (TLS) or 465 (SSL)</p>
+          <h3 className="text-strong font-medium text-primary mb-1">Port & Security</h3>
+          <p className="text-body text-secondary">587 (TLS) or 465 (SSL)</p>
         </div>
         <div className="rounded-lg border border-subtle bg-surface p-4">
           <Key className="h-5 w-5 text-primary mb-3" />
-          <h3 className="text-sm font-medium text-primary mb-1">Credentials</h3>
-          <p className="text-xs text-secondary">Username + password/API key</p>
+          <h3 className="text-strong font-medium text-primary mb-1">Credentials</h3>
+          <p className="text-body text-secondary">Username + password/API key</p>
         </div>
         <div className="rounded-lg border border-subtle bg-surface p-4">
           <Shield className="h-5 w-5 text-primary mb-3" />
-          <h3 className="text-sm font-medium text-primary mb-1">DNS Records</h3>
-          <p className="text-xs text-secondary">SPF, DKIM, DMARC for deliverability</p>
+          <h3 className="text-strong font-medium text-primary mb-1">DNS Records</h3>
+          <p className="text-body text-secondary">SPF, DKIM, DMARC for deliverability</p>
         </div>
       </div>
 
@@ -341,8 +341,8 @@ export function SmtpGuidePage() {
               <Shield className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h2 className="text-sm font-medium text-primary">Domain DNS Checker</h2>
-              <p className="text-sm text-secondary">Verify SPF, DKIM, DMARC records for your sending domain</p>
+              <h2 className="text-strong font-medium text-primary">Domain DNS Checker</h2>
+              <p className="text-strong text-secondary">Verify SPF, DKIM, DMARC records for your sending domain</p>
             </div>
           </div>
           {showDns ? <ChevronDown className="h-5 w-5 text-tertiary" /> : <ChevronRight className="h-5 w-5 text-tertiary" />}
@@ -357,7 +357,7 @@ export function SmtpGuidePage() {
                 onChange={(e) => setDomainInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && domainInput && checkDomainMutation.mutate(domainInput)}
                 placeholder="yourdomain.com"
-                className="flex-1 rounded-md border border-default bg-surface px-3 py-2 text-sm text-primary placeholder:text-tertiary focus:outline-none focus:ring-1 focus:ring-[var(--text-primary)]"
+                className="flex-1 rounded-md border border-default bg-surface px-3 py-2 text-strong text-primary placeholder:text-tertiary focus:outline-none focus:ring-1 focus:ring-[var(--text-primary)]"
               />
               <Button
                 onClick={() => domainInput && checkDomainMutation.mutate(domainInput)}
@@ -371,16 +371,16 @@ export function SmtpGuidePage() {
             {checkDomainMutation.data && <DnsCheckResult result={checkDomainMutation.data} />}
 
             <div className="rounded-lg bg-elevated p-4 border border-subtle">
-              <h4 className="text-xs font-medium text-secondary mb-2">Why DNS records matter</h4>
-              <div className="space-y-2 text-sm text-secondary">
+              <h4 className="text-body font-medium text-secondary mb-2">Why DNS records matter</h4>
+              <div className="space-y-2 text-strong text-secondary">
                 <p><strong className="text-primary">SPF</strong> — Tells receiving servers which mail servers can send email for your domain. Without it, emails may land in spam.</p>
                 <p><strong className="text-primary">DKIM</strong> — Adds a digital signature proving emails haven't been tampered with. Set up through your email provider.</p>
-                <p><strong className="text-primary">DMARC</strong> — Tells receivers what to do with emails that fail SPF/DKIM. Start with <code className="px-1 py-0.5 bg-surface rounded text-xs">p=none</code> to monitor.</p>
+                <p><strong className="text-primary">DMARC</strong> — Tells receivers what to do with emails that fail SPF/DKIM. Start with <code className="px-1 py-0.5 bg-surface rounded text-body">p=none</code> to monitor.</p>
               </div>
               <div className="mt-3 pt-3 border-t border-subtle">
                 <Link
                   to="/domains"
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline underline-offset-2"
+                  className="inline-flex items-center gap-1.5 text-strong font-medium text-primary hover:underline underline-offset-2"
                 >
                   <Shield className="h-3.5 w-3.5" />
                   Set up and verify your domain records
@@ -393,13 +393,13 @@ export function SmtpGuidePage() {
 
       {/* Provider Selection */}
       <div>
-        <h2 className="text-sm font-medium text-secondary mb-3">Choose Your Provider</h2>
+        <h2 className="text-strong font-medium text-secondary mb-3">Choose Your Provider</h2>
         <div className="flex flex-wrap gap-2 mb-4">
           {providers.map((provider) => (
             <button
               key={provider.name}
               onClick={() => setSelectedProvider(provider)}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-md text-strong font-medium transition-colors ${
                 selectedProvider.name === provider.name
                   ? 'bg-[var(--text-primary)] text-[var(--bg-app)]'
                   : 'bg-surface border border-subtle text-secondary hover:text-primary hover:bg-hover'
@@ -416,10 +416,10 @@ export function SmtpGuidePage() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-medium text-primary">{selectedProvider.name}</h3>
-                <p className="text-sm text-secondary mt-1">{selectedProvider.notes}</p>
+                <p className="text-strong text-secondary mt-1">{selectedProvider.notes}</p>
               </div>
               {selectedProvider.requires_domain_setup && (
-                <span className="px-2 py-1 text-xs font-medium rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                <span className="px-2 py-1 text-body font-medium rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                   Domain Setup Required
                 </span>
               )}
@@ -429,49 +429,49 @@ export function SmtpGuidePage() {
           <div className="p-5 space-y-4">
             {/* Connection Details */}
             <div>
-              <h4 className="text-xs font-medium text-secondary mb-3">Connection Details</h4>
+              <h4 className="text-body font-medium text-secondary mb-3">Connection Details</h4>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <div className="rounded-md bg-elevated p-3 border border-subtle">
-                  <p className="text-xs text-tertiary mb-1">SMTP Host</p>
+                  <p className="text-body text-tertiary mb-1">SMTP Host</p>
                   <div className="flex items-center justify-between">
-                    <code className="text-sm text-primary">{selectedProvider.host}</code>
+                    <code className="text-strong text-primary">{selectedProvider.host}</code>
                     <CopyButton text={selectedProvider.host} />
                   </div>
                 </div>
                 <div className="rounded-md bg-elevated p-3 border border-subtle">
-                  <p className="text-xs text-tertiary mb-1">Port</p>
+                  <p className="text-body text-tertiary mb-1">Port</p>
                   <div className="flex items-center justify-between">
-                    <code className="text-sm text-primary">{selectedProvider.port}</code>
+                    <code className="text-strong text-primary">{selectedProvider.port}</code>
                     <CopyButton text={selectedProvider.port.split(' ')[0]} />
                   </div>
                 </div>
                 <div className="rounded-md bg-elevated p-3 border border-subtle">
-                  <p className="text-xs text-tertiary mb-1">Username</p>
-                  <p className="text-sm text-primary">{selectedProvider.username}</p>
+                  <p className="text-body text-tertiary mb-1">Username</p>
+                  <p className="text-strong text-primary">{selectedProvider.username}</p>
                 </div>
                 <div className="rounded-md bg-elevated p-3 border border-subtle">
-                  <p className="text-xs text-tertiary mb-1">Password</p>
-                  <p className="text-sm text-primary">{selectedProvider.password_type}</p>
+                  <p className="text-body text-tertiary mb-1">Password</p>
+                  <p className="text-strong text-primary">{selectedProvider.password_type}</p>
                 </div>
               </div>
               {selectedProvider.daily_limit && (
                 <div className="mt-3 rounded-md bg-elevated p-3 border border-subtle">
-                  <p className="text-xs text-tertiary">Recommended Daily Send Limit</p>
-                  <p className="text-sm text-primary font-medium">{selectedProvider.daily_limit}</p>
+                  <p className="text-body text-tertiary">Recommended Daily Send Limit</p>
+                  <p className="text-strong text-primary font-medium">{selectedProvider.daily_limit}</p>
                 </div>
               )}
             </div>
 
             {/* SMTP Setup Steps */}
             <div>
-              <h4 className="text-xs font-medium text-secondary mb-3">SMTP Setup Steps</h4>
+              <h4 className="text-body font-medium text-secondary mb-3">SMTP Setup Steps</h4>
               <div className="space-y-2">
                 {selectedProvider.steps.map((step, index) => (
                   <div key={index} className="flex items-start gap-3 p-3 rounded-md bg-elevated border border-subtle">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-surface border border-subtle text-primary flex items-center justify-center text-xs font-medium">
+                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-surface border border-subtle text-primary flex items-center justify-center text-body font-medium">
                       {index + 1}
                     </div>
-                    <p className="text-sm text-secondary pt-0.5">{step}</p>
+                    <p className="text-strong text-secondary pt-0.5">{step}</p>
                   </div>
                 ))}
               </div>
@@ -480,7 +480,7 @@ export function SmtpGuidePage() {
             {/* DNS Setup */}
             {selectedProvider.dns_steps && (
               <div>
-                <h4 className="text-xs font-medium text-secondary mb-3">
+                <h4 className="text-body font-medium text-secondary mb-3">
                   <span className="inline-flex items-center gap-1.5">
                     <Shield className="h-3.5 w-3.5" />
                     Domain DNS Setup
@@ -489,10 +489,10 @@ export function SmtpGuidePage() {
                 <div className="space-y-2">
                   {selectedProvider.dns_steps.map((step, index) => (
                     <div key={index} className="flex items-start gap-3 p-3 rounded-md bg-elevated border border-subtle">
-                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-surface border border-subtle text-primary flex items-center justify-center text-xs font-medium">
+                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-surface border border-subtle text-primary flex items-center justify-center text-body font-medium">
                         {index + 1}
                       </div>
-                      <p className="text-sm text-secondary pt-0.5 break-all">{step}</p>
+                      <p className="text-strong text-secondary pt-0.5 break-all">{step}</p>
                     </div>
                   ))}
                 </div>
@@ -502,7 +502,7 @@ export function SmtpGuidePage() {
             {/* Links */}
             {selectedProvider.links && selectedProvider.links.length > 0 && (
               <div>
-                <h4 className="text-xs font-medium text-secondary mb-3">Useful Links</h4>
+                <h4 className="text-body font-medium text-secondary mb-3">Useful Links</h4>
                 <div className="flex flex-wrap gap-2">
                   {selectedProvider.links.map((link, i) => (
                     <a
@@ -510,7 +510,7 @@ export function SmtpGuidePage() {
                       href={link.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-subtle bg-elevated text-sm text-secondary hover:text-primary hover:bg-hover transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-subtle bg-elevated text-strong text-secondary hover:text-primary hover:bg-hover transition-colors"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
                       {link.label}
@@ -528,8 +528,8 @@ export function SmtpGuidePage() {
         <div className="flex items-start gap-3">
           <AlertCircle className="h-5 w-5 text-primary flex-shrink-0" />
           <div>
-            <h3 className="text-sm font-medium text-primary mb-2">Deliverability Tips</h3>
-            <ul className="space-y-1.5 text-sm text-secondary">
+            <h3 className="text-strong font-medium text-primary mb-2">Deliverability Tips</h3>
+            <ul className="space-y-1.5 text-strong text-secondary">
               <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 flex-shrink-0 mt-0.5" />Always set up SPF, DKIM, and DMARC records for custom domains</li>
               <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 flex-shrink-0 mt-0.5" />Use app-specific passwords instead of your main account password</li>
               <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 flex-shrink-0 mt-0.5" />Test your connection before sending campaigns</li>
@@ -543,10 +543,10 @@ export function SmtpGuidePage() {
       {/* CTA */}
       <div className="rounded-lg border border-subtle bg-surface p-4 text-center">
         <h3 className="font-medium text-primary mb-2">Ready to connect?</h3>
-        <p className="text-sm text-secondary mb-4">Add your SMTP credentials to start sending campaigns.</p>
+        <p className="text-strong text-secondary mb-4">Add your SMTP credentials to start sending campaigns.</p>
         <Link
           to="/email-accounts"
-          className="btn-primary inline-flex items-center gap-2 px-4 py-2 bg-[var(--text-primary)] text-[var(--bg-app)] text-sm font-medium rounded-md hover:opacity-90 transition-opacity"
+          className="btn-primary inline-flex items-center gap-2 px-4 py-2 bg-[var(--text-primary)] text-[var(--bg-app)] text-strong font-medium rounded-md hover:opacity-90 transition-opacity"
         >
           <Mail className="h-4 w-4" />
           Add SMTP Account

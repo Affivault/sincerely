@@ -99,7 +99,7 @@ export function PersonalizationDropdown({ onInsert, variant = 'button' }: Person
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-hover)] hover:border-[var(--border-default)] transition-all duration-200"
+          className="inline-flex items-center gap-2 px-3 py-1.5 text-strong font-medium text-[var(--text-primary)] bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-hover)] hover:border-[var(--border-default)] transition-all duration-200"
         >
           <Sparkles className="h-4 w-4" />
           Personalize
@@ -125,7 +125,7 @@ export function PersonalizationDropdown({ onInsert, variant = 'button' }: Person
               placeholder="Search variables..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-9 px-3 text-sm rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] focus:border-[var(--border-default)] focus:bg-[var(--bg-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--text-primary)]/10 transition-all"
+              className="w-full h-9 px-3 text-strong rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] focus:border-[var(--border-default)] focus:bg-[var(--bg-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--text-primary)]/10 transition-all"
               autoFocus
             />
           </div>
@@ -134,7 +134,7 @@ export function PersonalizationDropdown({ onInsert, variant = 'button' }: Person
           <div className="max-h-64 overflow-y-auto py-2">
             {categories.map((category) => (
               <div key={category}>
-                <p className="px-4 py-1.5 text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">
+                <p className="px-4 py-1.5 text-body font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">
                   {category}
                 </p>
                 {filteredTags
@@ -150,10 +150,10 @@ export function PersonalizationDropdown({ onInsert, variant = 'button' }: Person
                         <tag.icon className="h-4 w-4" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[var(--text-primary)]">{tag.label}</p>
-                        <p className="text-xs text-[var(--text-tertiary)] truncate">{tag.description}</p>
+                        <p className="text-strong font-medium text-[var(--text-primary)]">{tag.label}</p>
+                        <p className="text-body text-[var(--text-tertiary)] truncate">{tag.description}</p>
                       </div>
-                      <code className="text-xs text-[var(--text-secondary)] bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded font-mono">
+                      <code className="text-body text-[var(--text-secondary)] bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded font-mono">
                         {tag.value}
                       </code>
                     </button>
@@ -169,8 +169,8 @@ export function PersonalizationDropdown({ onInsert, variant = 'button' }: Person
                       <tip.icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-[var(--text-primary)]">{tip.title}</p>
-                      <p className="text-xs text-[var(--text-tertiary)] leading-snug">{tip.body}</p>
+                      <p className="text-strong font-medium text-[var(--text-primary)]">{tip.title}</p>
+                      <p className="text-body text-[var(--text-tertiary)] leading-snug">{tip.body}</p>
                     </div>
                   </div>
                 ))}
@@ -178,7 +178,7 @@ export function PersonalizationDropdown({ onInsert, variant = 'button' }: Person
             )}
 
             {filteredTags.length === 0 && (
-              <p className="px-4 py-6 text-sm text-[var(--text-tertiary)] text-center">No variables found</p>
+              <p className="px-4 py-6 text-strong text-[var(--text-tertiary)] text-center">No variables found</p>
             )}
           </div>
         </div>

@@ -183,11 +183,11 @@ export function TimeGrid({
           return (
             <div key={day.toISOString()} className="flex-1 min-w-0 border-l border-[var(--border-subtle)]">
               <div className="px-2 py-1.5 text-center">
-                <p className="text-[10.5px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]">
+                <p className="text-micro font-medium uppercase tracking-wide text-[var(--text-tertiary)]">
                   {day.toLocaleDateString(undefined, { weekday: 'short' })}
                 </p>
                 <p className={cn(
-                  'mx-auto mt-0.5 flex h-6 w-6 items-center justify-center rounded-full text-[13px] font-semibold tabular',
+                  'mx-auto mt-0.5 flex h-6 w-6 items-center justify-center rounded-full text-strong font-semibold tabular',
                   isToday ? 'bg-[var(--indigo)] text-white' : 'text-[var(--text-primary)]',
                 )}>
                   {day.getDate()}
@@ -199,7 +199,7 @@ export function TimeGrid({
                     <button
                       key={e.id}
                       onClick={() => onOpen(e as GridEvent)}
-                      className="block w-full truncate rounded px-1.5 py-0.5 text-left text-[10.5px] font-medium text-white"
+                      className="block w-full truncate rounded px-1.5 py-0.5 text-left text-micro font-medium text-white"
                       style={{ background: colourOf(e as GridEvent) }}
                     >
                       {(e as GridEvent).title}
@@ -220,7 +220,7 @@ export function TimeGrid({
             {Array.from({ length: 24 }, (_, h) => (
               <div
                 key={h}
-                className="absolute right-2 -translate-y-1/2 text-[10.5px] tabular text-[var(--text-tertiary)]"
+                className="absolute right-2 -translate-y-1/2 text-micro tabular text-[var(--text-tertiary)]"
                 style={{ top: h * HOUR_HEIGHT }}
               >
                 {h === 0 ? '' : new Date(2026, 0, 1, h).toLocaleTimeString(undefined, { hour: 'numeric' })}
@@ -317,13 +317,13 @@ export function TimeGrid({
                       }}
                     >
                       <p className={cn(
-                        'truncate text-[11.5px] font-semibold leading-tight text-[var(--text-primary)]',
+                        'truncate text-caption font-semibold leading-tight text-[var(--text-primary)]',
                         cancelled && 'line-through',
                       )}>
                         {event.title}
                       </p>
                       {!short && (
-                        <p className="mt-0.5 flex items-center gap-1 truncate text-[10.5px] text-[var(--text-secondary)]">
+                        <p className="mt-0.5 flex items-center gap-1 truncate text-micro text-[var(--text-secondary)]">
                           <Icon className="h-2.5 w-2.5 flex-shrink-0" />
                           {clockLabel(start)} · {durationLabel(mins)}
                           {clashes > 0 && <span className="text-[var(--text-tertiary)]">· clashes</span>}

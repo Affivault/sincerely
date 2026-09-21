@@ -30,19 +30,19 @@ function UsageMeter({ icon: Icon, label, used, limit }: {
     <div className="panel p-4">
       <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
         <Icon className="h-4 w-4 flex-shrink-0" strokeWidth={1.75} style={{ color: 'var(--indigo)' }} />
-        <span className="text-[12.5px] font-medium truncate">{label}</span>
+        <span className="text-body font-medium truncate">{label}</span>
         {!unlimited && (
-          <span className="ml-auto text-[11.5px] font-medium tabular text-[var(--text-tertiary)] flex-shrink-0">
+          <span className="ml-auto text-caption font-medium tabular text-[var(--text-tertiary)] flex-shrink-0">
             {Math.round(pct)}%
           </span>
         )}
       </div>
 
       <div className="mt-3 flex items-baseline gap-1.5">
-        <span className="text-[28px] font-semibold text-[var(--text-primary)] tabular leading-none tracking-[-0.03em]">
+        <span className="text-hero font-semibold text-[var(--text-primary)] tabular leading-none tracking-[-0.03em]">
           {used.toLocaleString()}
         </span>
-        <span className="text-[13px] text-[var(--text-tertiary)]">/ {fmtLimit(limit)}</span>
+        <span className="text-strong text-[var(--text-tertiary)]">/ {fmtLimit(limit)}</span>
       </div>
 
       <div className="mt-3 h-1.5 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
@@ -50,7 +50,7 @@ function UsageMeter({ icon: Icon, label, used, limit }: {
           ? <div className="h-full w-full rounded-full bg-[var(--indigo)] opacity-25" />
           : <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: color }} />}
       </div>
-      <p className="mt-2 text-[11.5px] text-[var(--text-tertiary)] truncate">
+      <p className="mt-2 text-caption text-[var(--text-tertiary)] truncate">
         {unlimited ? 'Unlimited on your plan' : `${remaining!.toLocaleString()} remaining this month`}
       </p>
     </div>
@@ -140,7 +140,7 @@ export function BillingPage() {
             <button
               onClick={onManageBilling}
               disabled={busy === 'portal'}
-              className="flex items-center gap-1.5 h-9 px-3.5 rounded-lg text-[13px] font-medium border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-60 transition-colors"
+              className="flex items-center gap-1.5 h-9 px-3.5 rounded-lg text-strong font-medium border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-60 transition-colors"
             >
               <ExternalLink className="h-3.5 w-3.5" />
               {busy === 'portal' ? 'Opening…' : 'Manage billing'}
@@ -153,18 +153,18 @@ export function BillingPage() {
       <div className="panel p-5 mb-4">
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div className="min-w-0">
-            <p className="text-[12px] font-medium text-[var(--text-tertiary)]">Current plan</p>
+            <p className="text-body font-medium text-[var(--text-tertiary)]">Current plan</p>
             <div className="mt-1 flex items-center gap-2.5">
-              <h3 className="text-[24px] font-semibold text-[var(--text-primary)] tracking-[-0.02em] leading-none">
+              <h3 className="text-display font-semibold text-[var(--text-primary)] tracking-[-0.02em] leading-none">
                 {usage ? usage.planName : '—'}
               </h3>
               {isTrialing && (
-                <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                <span className="text-micro font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
                   Trial
                 </span>
               )}
             </div>
-            <p className="mt-2 text-[12.5px] text-[var(--text-tertiary)]">
+            <p className="mt-2 text-body text-[var(--text-tertiary)]">
               {isTrialing && usage?.trialEndsAt
                 ? `Trial ends ${new Date(usage.trialEndsAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
                 : renewLabel
@@ -188,8 +188,8 @@ export function BillingPage() {
       {/* Plans */}
       <div className="flex items-center justify-between mb-4 mt-8">
         <div>
-          <h3 className="text-[15px] font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Plans</h3>
-          <p className="text-[12.5px] text-[var(--text-tertiary)] mt-0.5">Upgrade any time — changes are prorated.</p>
+          <h3 className="text-heading font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Plans</h3>
+          <p className="text-body text-[var(--text-tertiary)] mt-0.5">Upgrade any time — changes are prorated.</p>
         </div>
         <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
           {(['monthly', 'annual'] as Interval[]).map((i) => (
@@ -197,7 +197,7 @@ export function BillingPage() {
               key={i}
               onClick={() => setInterval(i)}
               className={cn(
-                'h-7 px-3 rounded-md text-[12px] font-medium capitalize transition-colors',
+                'h-7 px-3 rounded-md text-body font-medium capitalize transition-colors',
                 interval === i ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
               )}
             >
@@ -225,7 +225,7 @@ export function BillingPage() {
               )}
             >
               {featured && !isCurrent && (
-                <span className="absolute -top-2.5 left-5 text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full bg-[var(--indigo)] text-white shadow-sm">
+                <span className="absolute -top-2.5 left-5 text-micro font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full bg-[var(--indigo)] text-white shadow-sm">
                   Most popular
                 </span>
               )}
@@ -238,27 +238,27 @@ export function BillingPage() {
                   <Icon className={cn('h-4 w-4', featured ? 'text-white' : 'text-[var(--indigo)]')} />
                 </span>
                 {isCurrent && (
-                  <span className="flex items-center gap-1 text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                  <span className="flex items-center gap-1 text-micro font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                     <Check className="h-3 w-3" /> Current
                   </span>
                 )}
               </div>
 
               <div>
-                <h4 className="text-[15px] font-semibold text-[var(--text-primary)]">{plan.name}</h4>
+                <h4 className="text-heading font-semibold text-[var(--text-primary)]">{plan.name}</h4>
                 <div className="mt-1.5 flex items-baseline gap-1">
                   {price === null ? (
-                    <span className="text-[26px] font-semibold text-[var(--text-primary)] tracking-[-0.02em]">Custom</span>
+                    <span className="text-hero font-semibold text-[var(--text-primary)] tracking-[-0.02em]">Custom</span>
                   ) : (
                     <>
-                      <span className="text-[26px] font-semibold text-[var(--text-primary)] tabular tracking-[-0.02em]">
+                      <span className="text-hero font-semibold text-[var(--text-primary)] tabular tracking-[-0.02em]">
                         ${interval === 'annual' ? Math.round(price / 12) : price}
                       </span>
-                      <span className="text-[13px] text-[var(--text-tertiary)]">/mo</span>
+                      <span className="text-strong text-[var(--text-tertiary)]">/mo</span>
                     </>
                   )}
                 </div>
-                <p className="text-[11.5px] text-[var(--text-tertiary)] mt-1 h-4">
+                <p className="text-caption text-[var(--text-tertiary)] mt-1 h-4">
                   {price === null
                     ? 'Tailored to your volume'
                     : interval === 'annual'
@@ -269,7 +269,7 @@ export function BillingPage() {
 
               <div className="h-px bg-[var(--border-subtle)]" />
 
-              <ul className="space-y-2 text-[12.5px] text-[var(--text-secondary)]">
+              <ul className="space-y-2 text-body text-[var(--text-secondary)]">
                 <PlanLine>{fmtLimit(plan.maxInboxes)} sending inbox{plan.maxInboxes === 1 ? '' : 'es'}</PlanLine>
                 <PlanLine>{fmtLimit(plan.emailsPerMonth)} emails / month</PlanLine>
                 <PlanLine muted={!plan.features.sara}>SARA autonomous replies</PlanLine>
@@ -280,7 +280,7 @@ export function BillingPage() {
                 disabled={isCurrent || busy === id}
                 onClick={() => onUpgrade(id)}
                 className={cn(
-                  'mt-auto h-10 rounded-lg text-[13px] font-semibold transition-colors',
+                  'mt-auto h-10 rounded-lg text-strong font-semibold transition-colors',
                   isCurrent
                     ? 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)] cursor-default'
                     : featured
@@ -295,7 +295,7 @@ export function BillingPage() {
         })}
       </div>
 
-      {isLoading && <p className="text-[12px] text-[var(--text-tertiary)] mt-4">Loading usage…</p>}
+      {isLoading && <p className="text-body text-[var(--text-tertiary)] mt-4">Loading usage…</p>}
     </div>
     </SettingsShell>
   );
@@ -304,7 +304,7 @@ export function BillingPage() {
 function FeatureChip({ label, on }: { label: string; on: boolean }) {
   return (
     <span className={cn(
-      'flex items-center gap-1.5 text-[11.5px] font-medium px-2.5 py-1 rounded-full border',
+      'flex items-center gap-1.5 text-caption font-medium px-2.5 py-1 rounded-full border',
       on
         ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
         : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)] border-[var(--border-subtle)]'

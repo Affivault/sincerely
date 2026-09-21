@@ -141,10 +141,10 @@ export function ToolkitPage() {
         <div className="mt-6 panel p-4">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Data quality score (DCS) distribution</h3>
-              <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5">Quality breakdown across all contacts in your workspace</p>
+              <h3 className="text-strong font-semibold text-[var(--text-primary)]">Data quality score (DCS) distribution</h3>
+              <p className="text-caption text-[var(--text-tertiary)] mt-0.5">Quality breakdown across all contacts in your workspace</p>
             </div>
-            <button onClick={() => navigate('/verification')} className="flex items-center gap-1 text-[11.5px] font-medium text-[var(--indigo)] hover:underline">
+            <button onClick={() => navigate('/verification')} className="flex items-center gap-1 text-caption font-medium text-[var(--indigo)] hover:underline">
               Verify contacts <ArrowRight className="h-3 w-3" />
             </button>
           </div>
@@ -155,10 +155,10 @@ export function ToolkitPage() {
               return (
                 <div key={d.label}>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[12px] text-[var(--text-secondary)]">{d.label}</span>
+                    <span className="text-body text-[var(--text-secondary)]">{d.label}</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-[12px] font-semibold text-[var(--text-primary)] tabular-nums">{d.value.toLocaleString()}</span>
-                      <span className="text-[11px] text-[var(--text-tertiary)] tabular-nums w-10 text-right">{pct.toFixed(1)}%</span>
+                      <span className="text-body font-semibold text-[var(--text-primary)] tabular-nums">{d.value.toLocaleString()}</span>
+                      <span className="text-caption text-[var(--text-tertiary)] tabular-nums w-10 text-right">{pct.toFixed(1)}%</span>
                     </div>
                   </div>
                   <div className="h-2 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
@@ -183,12 +183,12 @@ function HealthCard({ icon: Icon, label, value, color, desc, negative }: {
         <span className="flex h-6 w-6 items-center justify-center rounded-[6px]" style={{ background: `${color}18` }}>
           <Icon className="h-3.5 w-3.5" style={{ color }} />
         </span>
-        <span className="text-[10.5px] font-semibold text-[var(--text-tertiary)]">{label}</span>
+        <span className="text-micro font-semibold text-[var(--text-tertiary)]">{label}</span>
       </div>
-      <div className="text-[22px] font-bold tabular-nums tracking-[-0.02em]" style={{ color: negative && value > 0 ? color : value === 0 ? '#10B981' : color }}>
+      <div className="text-display font-bold tabular-nums tracking-[-0.02em]" style={{ color: negative && value > 0 ? color : value === 0 ? '#10B981' : color }}>
         {value.toLocaleString()}
       </div>
-      <p className="text-[10.5px] text-[var(--text-tertiary)] mt-0.5">{desc}</p>
+      <p className="text-micro text-[var(--text-tertiary)] mt-0.5">{desc}</p>
     </div>
   );
 }
@@ -218,17 +218,17 @@ function ToolCard({ icon: Icon, iconColor, iconBg, title, description, badge, on
           <Icon className="h-4.5 w-4.5" style={{ color: iconColor }} />
         </span>
         {badge && (
-          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">
+          <span className="text-micro font-semibold px-1.5 py-0.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">
             {badge}
           </span>
         )}
       </div>
       <div>
         <div className="flex items-center gap-1.5">
-          <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">{title}</h3>
+          <h3 className="text-strong font-semibold text-[var(--text-primary)]">{title}</h3>
           {!disabled && onClick && <ArrowRight className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />}
         </div>
-        <p className="text-[11.5px] text-[var(--text-secondary)] mt-1 leading-relaxed">{description}</p>
+        <p className="text-caption text-[var(--text-secondary)] mt-1 leading-relaxed">{description}</p>
       </div>
       {stats && stats.length > 0 && (
         <div className="space-y-1.5 pt-2 border-t border-[var(--border-subtle)]">
@@ -236,9 +236,9 @@ function ToolCard({ icon: Icon, iconColor, iconBg, title, description, badge, on
             <div key={s.label} className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: s.color }} />
-                <span className="text-[11px] text-[var(--text-tertiary)]">{s.label}</span>
+                <span className="text-caption text-[var(--text-tertiary)]">{s.label}</span>
               </div>
-              <span className="text-[11px] font-semibold text-[var(--text-primary)] tabular-nums">{s.value.toLocaleString()}</span>
+              <span className="text-caption font-semibold text-[var(--text-primary)] tabular-nums">{s.value.toLocaleString()}</span>
             </div>
           ))}
         </div>

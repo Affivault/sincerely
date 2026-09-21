@@ -12,11 +12,11 @@ interface AvatarProps {
 }
 
 const sizeMap = {
-  xs: 'h-4 w-4 text-[8px]',
-  sm: 'h-5 w-5 text-[9px]',
-  md: 'h-7 w-7 text-[10.5px]',
-  lg: 'h-9 w-9 text-[12px]',
-  xl: 'h-12 w-12 text-[14px]',
+  xs: 'h-4 w-4 text-micro',
+  sm: 'h-5 w-5 text-micro',
+  md: 'h-7 w-7 text-micro',
+  lg: 'h-9 w-9 text-body',
+  xl: 'h-12 w-12 text-heading',
 };
 
 /* Eight stable gradient pairings — chosen for the Sincerely palette */

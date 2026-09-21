@@ -89,10 +89,10 @@ export function Header() {
         className="group relative flex items-center h-7 w-64 rounded-md border border-[var(--border-default)] bg-[var(--bg-inset)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)] transition-colors text-left"
       >
         <Search className="h-3.5 w-3.5 text-[var(--text-tertiary)] ml-2.5 flex-shrink-0" />
-        <span className="flex-1 px-2 text-[12.5px] text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)] transition-colors">
+        <span className="flex-1 px-2 text-body text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)] transition-colors">
           Search or jump to…
         </span>
-        <span className="flex items-center gap-0.5 mr-2 px-1 py-0.5 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[10px] text-[var(--text-tertiary)] font-medium flex-shrink-0">
+        <span className="flex items-center gap-0.5 mr-2 px-1 py-0.5 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-micro text-[var(--text-tertiary)] font-medium flex-shrink-0">
           <Command className="h-2.5 w-2.5" />
           <span>K</span>
         </span>
@@ -104,7 +104,7 @@ export function Header() {
         <div className="relative mr-1.5">
           <button
             onClick={() => setCreateOpen(!createOpen)}
-            className="flex items-center gap-1 h-7 pl-2 pr-1.5 rounded-md bg-[var(--indigo)] text-white text-[12px] font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
+            className="flex items-center gap-1 h-7 pl-2 pr-1.5 rounded-md bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
           >
             <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
             Create
@@ -125,8 +125,8 @@ export function Header() {
                       <item.icon className="h-3.5 w-3.5 text-[var(--indigo)]" strokeWidth={2} />
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-[12.5px] font-medium text-[var(--text-primary)] leading-tight">{item.label}</span>
-                      <span className="block text-[11px] text-[var(--text-tertiary)] leading-tight mt-0.5">{item.desc}</span>
+                      <span className="block text-body font-medium text-[var(--text-primary)] leading-tight">{item.label}</span>
+                      <span className="block text-caption text-[var(--text-tertiary)] leading-tight mt-0.5">{item.desc}</span>
                     </span>
                   </button>
                 ))}
@@ -169,7 +169,7 @@ export function Header() {
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-1.5 h-8 pl-1 pr-1.5 rounded-lg hover:bg-[var(--bg-hover)] transition-colors"
           >
-            <div className="h-6 w-6 rounded-full bg-[var(--indigo)] flex items-center justify-center text-[10px] font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]">
+            <div className="h-6 w-6 rounded-full bg-[var(--indigo)] flex items-center justify-center text-micro font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]">
               {user?.email?.charAt(0)?.toUpperCase() || 'U'}
             </div>
             <ChevronDown className={cn(
@@ -184,10 +184,10 @@ export function Header() {
               <div className="absolute right-0 top-full mt-1.5 w-52 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] p-1 shadow-[var(--shadow-xl)] animate-slide-in z-50">
                 {/* Account info */}
                 <div className="px-2.5 py-2 mb-0.5 border-b border-[var(--border-subtle)]">
-                  <p className="text-[12.5px] font-semibold text-[var(--text-primary)] truncate">
+                  <p className="text-body font-semibold text-[var(--text-primary)] truncate">
                     {user?.email?.split('@')[0]}
                   </p>
-                  <p className="text-[11px] text-[var(--text-tertiary)] truncate">
+                  <p className="text-caption text-[var(--text-tertiary)] truncate">
                     {user?.email}
                   </p>
                 </div>
@@ -196,36 +196,36 @@ export function Header() {
                 {usage && (
                   <div className="px-2.5 py-2 mb-0.5 border-b border-[var(--border-subtle)] space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-[var(--text-tertiary)]">Plan</span>
-                      <span className="text-[11.5px] font-semibold text-[var(--text-primary)]">{usage.planName}</span>
+                      <span className="text-caption text-[var(--text-tertiary)]">Plan</span>
+                      <span className="text-caption font-semibold text-[var(--text-primary)]">{usage.planName}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-[var(--text-tertiary)]">Emails this month</span>
-                      <span className="text-[11.5px] text-[var(--text-secondary)] tabular-nums">
+                      <span className="text-caption text-[var(--text-tertiary)]">Emails this month</span>
+                      <span className="text-caption text-[var(--text-secondary)] tabular-nums">
                         {usage.emailsSent.toLocaleString()} / {isUnlimited(usage.emailsLimit) ? '∞' : usage.emailsLimit.toLocaleString()}
                       </span>
                     </div>
                     {usage.status === 'past_due' || usage.status === 'canceled' ? (
                       <button
                         onClick={() => { setMenuOpen(false); navigate('/billing'); }}
-                        className="w-full mt-0.5 h-7 rounded-md text-[11.5px] font-semibold text-white bg-[var(--error)]"
+                        className="w-full mt-0.5 h-7 rounded-md text-caption font-semibold text-white bg-[var(--error)]"
                       >
                         {usage.status === 'past_due' ? 'Payment failed — fix billing' : 'Subscription canceled — renew'}
                       </button>
                     ) : usage.status === 'trialing' && usage.trialEndsAt ? (
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-[var(--text-tertiary)]">Trial ends</span>
-                        <span className="text-[11.5px] text-[var(--text-secondary)]">in {daysUntil(usage.trialEndsAt)}d</span>
+                        <span className="text-caption text-[var(--text-tertiary)]">Trial ends</span>
+                        <span className="text-caption text-[var(--text-secondary)]">in {daysUntil(usage.trialEndsAt)}d</span>
                       </div>
                     ) : usage.currentPeriodEnd ? (
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-[var(--text-tertiary)]">Next payment</span>
-                        <span className="text-[11.5px] text-[var(--text-secondary)]">in {daysUntil(usage.currentPeriodEnd)}d</span>
+                        <span className="text-caption text-[var(--text-tertiary)]">Next payment</span>
+                        <span className="text-caption text-[var(--text-secondary)]">in {daysUntil(usage.currentPeriodEnd)}d</span>
                       </div>
                     ) : usage.plan === 'free' ? (
                       <button
                         onClick={() => { setMenuOpen(false); navigate('/billing'); }}
-                        className="w-full mt-0.5 h-7 rounded-md text-[11.5px] font-semibold text-white"
+                        className="w-full mt-0.5 h-7 rounded-md text-caption font-semibold text-white"
                         style={{ background: 'linear-gradient(100deg,#4F86F7,#8B5CF6)' }}
                       >
                         Upgrade plan
@@ -236,7 +236,7 @@ export function Header() {
 
                 <button
                   onClick={() => { setMenuOpen(false); navigate('/settings?tab=profile'); }}
-                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[12.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-body text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
                 >
                   <User className="h-3.5 w-3.5" />
                   Profile
@@ -244,7 +244,7 @@ export function Header() {
 
                 <button
                   onClick={() => { setMenuOpen(false); navigate('/settings?tab=account'); }}
-                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[12.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-body text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
                 >
                   <Settings className="h-3.5 w-3.5" />
                   Settings
@@ -253,7 +253,7 @@ export function Header() {
                 <div className="border-t border-[var(--border-subtle)] mt-0.5 pt-0.5">
                   <button
                     onClick={() => { setMenuOpen(false); signOut(); }}
-                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[12.5px] text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors"
+                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-body text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors"
                   >
                     <LogOut className="h-3.5 w-3.5" />
                     Sign out
