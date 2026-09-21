@@ -3,6 +3,7 @@ export * from './contact.types.js';
 export * from './campaign.types.js';
 export * from './smtp.types.js';
 export * from './mailbox-state.js';
+export * from './mailbox-setup.js';
 export * from './warmup-pool.js';
 export * from './draft-recovery.js';
 export * from './analytics.types.js';
