@@ -776,7 +776,7 @@
        * address that does not exist.
        */
       const walker = document.createTreeWalker(modal, NodeFilter.SHOW_TEXT);
-      for (let node = walker.nextNode(); node && found.size <= 5; node = walker.nextNode()) {
+      for (let node = walker.nextNode(); node && found.size < 5; node = walker.nextNode()) {
         for (const match of (node.nodeValue || '').match(EMAIL_PATTERN) || []) {
           const address = match.toLowerCase();
           if (isPlausibleEmail(address)) found.add(address);

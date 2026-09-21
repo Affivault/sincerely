@@ -47,11 +47,15 @@ export async function createKey(
  * List all API keys for a user (never exposes hashes).
  */
 export async function listKeys(userId: string): Promise<ApiKey[]> {
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('api_keys')
     .select('id, user_id, name, key_prefix, scopes, rate_limit, last_used_at, expires_at, is_active, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
+  // A failed lookup is not the same as "no keys" — surfacing it as an empty
+  // list would hide a real error behind a security-sensitive page saying
+  // there is nothing to revoke.
+  if (error) throw error;
   return data || [];
 }
 

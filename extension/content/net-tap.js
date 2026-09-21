@@ -60,7 +60,7 @@
       if (NOISE.test(email) || OWN.test(email)) continue;
       if (/\.(png|jpe?g|gif|svg|webp|css|js)$/i.test(email)) continue;
       found.add(email);
-      if (found.size > 8) break;
+      if (found.size >= 8) break;
     }
     return [...found];
   }

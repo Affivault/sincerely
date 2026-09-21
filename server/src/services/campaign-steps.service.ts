@@ -36,9 +36,24 @@ export const campaignStepsService = {
   },
 
   async add(campaignId: string, input: any) {
+    const patch = pickStep(input);
+    // Callers that build the whole sequence client-side always send
+    // step_order, but a caller that omits it (e.g. a headless API-key
+    // integration appending one step at a time) would otherwise fall through
+    // to the column's default of 0 on every insert, colliding with any
+    // existing step and corrupting send ordering.
+    if (patch.step_order === undefined) {
+      const { count, error: countError } = await supabaseAdmin
+        .from('campaign_steps')
+        .select('id', { count: 'exact', head: true })
+        .eq('campaign_id', campaignId);
+      if (countError) throw new AppError(countError.message, 500);
+      patch.step_order = count ?? 0;
+    }
+
     const { data, error } = await supabaseAdmin
       .from('campaign_steps')
-      .insert({ ...pickStep(input), campaign_id: campaignId })
+      .insert({ ...patch, campaign_id: campaignId })
       .select()
       .single();
 
