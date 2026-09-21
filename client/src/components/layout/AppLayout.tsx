@@ -4,15 +4,15 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { UpgradeNag } from '../UpgradeNag';
-import { CommandPalette } from '../CommandPalette';
-import { PeekDrawer } from '../peek/PeekDrawer';
-import { ShortcutsOverlay } from '../ShortcutsOverlay';
+import { CommandPalette, PeekDrawer, ShortcutsOverlay, warmOverlays } from './Overlays';
 import { ConfirmProvider } from '../ui/ConfirmDialog';
 import { UndoProvider } from '../ui/UndoBar';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { SidebarProvider, useSidebar } from '../../context/SidebarContext';
 import { CommandPaletteProvider, useCommandPalette } from '../../context/CommandPaletteContext';
 import { useUnreadCount } from '../../hooks/useUnreadCount';
+import { listenForRouteIntent } from '../../lib/prefetch';
+import { warmRichTextEditor } from '../ui/RichTextEditor';
 import { cn } from '../../lib/utils';
 
 /* Route → page name, used for document titles (wayfinding) */
@@ -77,6 +77,32 @@ function AppContent() {
   const goPending = useRef<number | null>(null);
   const prevUnreadRef = useRef<number>(0);
   const originalFaviconHrefRef = useRef<string | null>(null);
+
+  /*
+   * Two things that make the app feel quicker, both of which only make
+   * sense once somebody is signed in - which is exactly when this shell
+   * mounts, and why they live here rather than in main.tsx.
+   *
+   * The first watches for a pointer or a focus ring arriving on a link and
+   * starts that route's chunk downloading, so the click that follows has
+   * nothing left to wait for.
+   *
+   * The other two fetch, during the first idle frame, the things that used
+   * to be loaded before anything appeared: the rich text editor (366 kB)
+   * and the three overlays mounted over every page (105 kB). Taking weight
+   * off the critical path is only half the job - the other half is making
+   * sure it has arrived before anyone reaches for it, so that pressing
+   * Reply or Cmd+K still costs nothing.
+   *
+   * None of it runs on the landing page, the login page or a public
+   * booking link, none of which have an editor, a palette or a sidebar.
+   */
+  useEffect(() => {
+    const stop = listenForRouteIntent();
+    warmRichTextEditor();
+    warmOverlays();
+    return stop;
+  }, []);
 
   // Wayfinding — document title tracks the current page
   useEffect(() => {

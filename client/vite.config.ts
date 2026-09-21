@@ -25,7 +25,18 @@ export default defineConfig({
             '@tiptap/extension-underline',
           ],
           dnd:      ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
-          utils:    ['axios', 'date-fns', 'papaparse', 'clsx'],
+          utils:    ['axios', 'date-fns', 'clsx'],
+          /*
+           * CSV parsing, on its own.
+           *
+           * It was in `utils` beside axios and clsx, which the app shell
+           * needs on every page, so grouping them meant every first paint
+           * carried a CSV parser - for two screens, both of them behind a
+           * click. Splitting it out is 19 kB off the critical path and
+           * costs those two screens one extra request they were already
+           * making several of.
+           */
+          csv:      ['papaparse'],
         },
       },
     },
