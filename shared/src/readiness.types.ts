@@ -11,7 +11,19 @@
    One report, one verdict, and every check carries the link that fixes it.
    ═══════════════════════════════════════════════════════════════════════ */
 
-export type ReadinessStatus = 'pass' | 'warn' | 'fail';
+/**
+ * `unknown` is not a pass.
+ *
+ * "Nothing sent yet - no bounce history to judge" was a green tick, and so
+ * was a 100% health score on a mailbox that had never sent anything. Both
+ * are absences of evidence wearing the colour of evidence, which is the
+ * same mistake as a confident number computed from nothing: it looks like
+ * reassurance and is really a shrug.
+ *
+ * Kept out of the verdict maths entirely - something unmeasured cannot
+ * make a send safer or riskier, only less certain.
+ */
+export type ReadinessStatus = 'pass' | 'warn' | 'fail' | 'unknown';
 
 /**
  * `blocked` means a send cannot succeed or would do real damage.
@@ -66,6 +78,7 @@ export const READINESS_GROUP_LABELS: Record<ReadinessGroup, string> = {
 
 /** The worse of two statuses — how a report's verdict is rolled up. */
 export function worseStatus(a: ReadinessStatus, b: ReadinessStatus): ReadinessStatus {
-  const rank: Record<ReadinessStatus, number> = { pass: 0, warn: 1, fail: 2 };
+  // unknown ranks with pass: it cannot make a send riskier, only less certain.
+  const rank: Record<ReadinessStatus, number> = { unknown: 0, pass: 0, warn: 1, fail: 2 };
   return rank[a] >= rank[b] ? a : b;
 }

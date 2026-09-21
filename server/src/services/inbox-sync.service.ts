@@ -16,6 +16,8 @@ import {
 } from '../utils/imap-window.js';
 import { DEFAULT_SYNC_WINDOW_MONTHS, isSyncWindow } from '@lemlist/shared';
 import type { InboxSyncResult, SyncFolderRole, SyncWindowMonths } from '@lemlist/shared';
+import { repairImapHost } from './mailbox-repair.service.js';
+import { isSenderMismatch } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Reading a mailbox.
@@ -54,6 +56,11 @@ interface SyncAccount {
   email_address: string;
   smtp_host: string;
   smtp_user: string | null;
+  // The mailbox server this account was configured with. Read, not derived -
+  // see imapHostFor.
+  imap_host: string | null;
+  imap_port: number | null;
+  imap_secure: boolean | null;
   imap_user: string | null;
   smtp_pass_encrypted: string;
   last_inbox_sync_at: string | null;
@@ -74,7 +81,34 @@ interface FolderState {
 }
 
 /** IMAP host from the SMTP host, which is how every provider names them. */
-export function imapHostFor(account: { smtp_host?: string | null; email_address?: string | null }): string {
+export function imapHostFor(account: {
+  imap_host?: string | null;
+  smtp_host?: string | null;
+  email_address?: string | null;
+}): string {
+  /*
+   * What the account actually says, first.
+   *
+   * This used to start at smtp_host and derive a name from it, ignoring the
+   * imap_host column entirely - the column the form edits, the connection
+   * check tests, and the repair writes. So the field was decorative: you
+   * could set it, watch "Check connection" log into it successfully, save,
+   * and the unibox would still be dialling somewhere else.
+   *
+   * For a Spacemail mailbox that is exactly what happened. smtp.spacemail.com
+   * sends perfectly; the derivation turned it into imap.spacemail.com, which
+   * is not a name, and the sync reported "The IMAP host could not be found"
+   * against a value nobody had ever entered.
+   *
+   * The warm-up service has always honoured imap_host. Two functions of the
+   * same name in the same codebase, disagreeing about which server a mailbox
+   * lives on.
+   */
+  const explicit = (account.imap_host || '').trim();
+  if (explicit) return explicit;
+
+  // Nothing stored: derive, as before. A guess is still better than refusing
+  // to sync a mailbox that was connected before this field existed.
   const host = account.smtp_host || '';
   if (host.includes('smtp.gmail')) return 'imap.gmail.com';
   if (host.includes('smtp.outlook') || host.includes('office365')) return 'outlook.office365.com';
@@ -511,6 +545,12 @@ export const inboxSyncService = {
           : DEFAULT_SYNC_WINDOW_MONTHS,
         oldest_synced_at: oldest?.received_at ?? null,
         history_complete: rows.length > 0 && rows.every((r: any) => r.backfill_done),
+        /*
+         * An unresolved failure means nothing is in flight. A repair note
+         * is not a failure - it says something was already put right.
+         */
+        blocked: !!account.last_inbox_sync_error
+          && !String(account.last_inbox_sync_error).startsWith('Fixed automatically:'),
         stored: count || 0,
         last_synced_at: account.last_inbox_sync_at ?? null,
         last_error: account.last_inbox_sync_error ?? null,
@@ -529,7 +569,7 @@ export const inboxSyncService = {
   async syncInbox(userId: string): Promise<InboxSyncResult> {
     const { data: accounts, error: dbError } = await supabaseAdmin
       .from('smtp_accounts')
-      .select('id, user_id, smtp_host, smtp_user, imap_user, smtp_pass_encrypted, email_address, last_inbox_sync_at, inbox_sync_months')
+      .select('id, user_id, smtp_host, smtp_user, imap_host, imap_port, imap_secure, imap_user, smtp_pass_encrypted, email_address, last_inbox_sync_at, inbox_sync_months')
       .eq('user_id', userId)
       .eq('is_active', true);
 
@@ -565,13 +605,54 @@ export const inboxSyncService = {
       let budget = PER_RUN_LIMIT;
       try {
         const password = decrypt(raw.smtp_pass_encrypted);
+
+        /*
+         * Never read a mailbox that is not this one.
+         *
+         * A row whose IMAP login is a DIFFERENT address signs in
+         * successfully - the credentials are valid, they just belong to
+         * somebody else - and then files that account's mail under this
+         * one. Nothing downstream can tell: the sync reports success, the
+         * unibox fills up, and the only symptom is a mailbox whose own
+         * replies never arrive while a colleague's appear twice.
+         *
+         * Failing here is the better outcome by a distance. A mailbox that
+         * says why it is empty can be fixed; one quietly full of the wrong
+         * mail cannot even be noticed.
+         */
+        const login = raw.imap_user || raw.smtp_user || raw.email_address;
+        if (isSenderMismatch(login, raw.email_address)) {
+          /*
+           * Name the field, not just the value. There are two usernames on
+           * a mailbox - sending and receiving - and "set the username to X"
+           * sends somebody to correct the one they can see while the other
+           * goes on being wrong.
+           */
+          const which = raw.imap_user && isSenderMismatch(raw.imap_user, raw.email_address)
+            ? 'IMAP username (Server tab, under "receiving replies")'
+            : 'sign-in username';
+          const message = `This mailbox is set to sign in as ${login}, so syncing it `
+            + `would read ${login}'s inbox instead of its own. Set the ${which} to `
+            + `${raw.email_address} and enter that mailbox's password.`;
+          errors.push(`${raw.email_address}: ${message}`);
+          await supabaseAdmin
+            .from('smtp_accounts')
+            .update({ last_inbox_sync_error: message })
+            .eq('id', raw.id)
+            .then(() => {}, () => {});
+          continue;
+        }
+
         const host = imapHostFor(raw);
         const ip = await resolveHostIp(host).catch(() => null);
 
         client = new ImapFlow({
           host: ip || host,
-          port: 993,
-          secure: true,
+          // The account's own port and TLS setting, not a hardcoded pair.
+          // A provider on 143 with STARTTLS was unreachable purely because
+          // this said 993 regardless of what had been saved.
+          port: raw.imap_port || 993,
+          secure: raw.imap_secure !== false,
           servername: host,
           auth: { user: raw.imap_user || raw.smtp_user || raw.email_address, pass: password },
           logger: false,
@@ -631,32 +712,84 @@ export const inboxSyncService = {
           });
 
           /* ---- one slice of history ---- */
-          if (budget > 0) {
-            const slice = planBackfill(
-              forward.uidReset ? { backfill_cursor: null, backfill_done: false } : state,
-              months,
-            );
-            if (slice) {
-              const back = await ingestRange(
-                client,
-                { since: slice.since, before: slice.before },
-                {},
-                ctx,
-                Math.min(budget, BACKFILL_BATCH),
-              );
-              totalBackfilled += back.stored;
-              budget -= back.stored;
+          /* ---- history, as far back as the budget reaches ---- */
+          /*
+           * Slices, plural.
+           *
+           * This used to fetch exactly one fortnight per run and then stop,
+           * whatever budget was left. Six months is thirteen fortnights, so
+           * filling a mailbox took thirteen separate syncs - thirteen IMAP
+           * connections, and at the scheduler's five-minute cadence over an
+           * hour of staring at "still fetching older mail". Worse, a quiet
+           * fortnight cost a whole run to discover it was empty, and the
+           * quiet ones are exactly what you get walking back through
+           * history.
+           *
+           * The budget already bounds the work. Spending it is the point.
+           */
+          let cursorState = forward.uidReset
+            ? { backfill_cursor: null as string | null, backfill_done: false }
+            : { backfill_cursor: state.backfill_cursor, backfill_done: state.backfill_done };
 
-              const moved = advanceCursor(slice);
-              await saveFolderState(raw.id, target.path, {
-                backfill_cursor: moved.cursor,
-                backfill_done: moved.done,
-              });
-              if (!moved.done) more = true;
+          while (budget > 0) {
+            const slice = planBackfill(cursorState, months);
+            if (!slice) {
+              /*
+               * Nothing left to plan means the window is covered - either
+               * the cursor has reached its floor or the walk was already
+               * finished. Say so.
+               *
+               * This is the bug that made the panel spin forever. Breaking
+               * out without recording it left backfill_done false, so the
+               * run below reported `more`, the client obligingly synced
+               * again, planned nothing again, reported `more` again - and
+               * "still fetching older mail" was, quite literally, true and
+               * permanent. A loop that cannot make progress must not ask to
+               * be run again.
+               */
+              if (!cursorState.backfill_done) {
+                await saveFolderState(raw.id, target.path, { backfill_done: true });
+                cursorState = { ...cursorState, backfill_done: true };
+              }
+              break;
             }
-          } else {
-            more = true;
+
+            const back = await ingestRange(
+              client,
+              { since: slice.since, before: slice.before },
+              {},
+              ctx,
+              Math.min(budget, BACKFILL_BATCH),
+            );
+            totalBackfilled += back.stored;
+            budget -= back.stored;
+
+            const moved = advanceCursor(slice);
+            await saveFolderState(raw.id, target.path, {
+              backfill_cursor: moved.cursor,
+              backfill_done: moved.done,
+            });
+            cursorState = { backfill_cursor: moved.cursor, backfill_done: moved.done };
+
+            if (moved.done) break;
+
+            /*
+             * A slice that filled the batch had more mail in it than one
+             * batch holds. Stop the walk here and leave the rest of the
+             * budget alone: a fortnight that busy deserves a run to itself
+             * rather than being raced through behind eleven others.
+             *
+             * Known limit, stated rather than papered over: the cursor has
+             * already moved to this slice's floor, so anything in the
+             * fortnight beyond the first BACKFILL_BATCH messages is not
+             * collected. Fixing that needs a watermark inside a slice, not
+             * just between slices, and is a larger change than this one.
+             */
+            if (back.stored >= BACKFILL_BATCH) { more = true; break; }
           }
+
+          // Still history left, or the budget ran out mid-walk.
+          if (!cursorState.backfill_done) more = true;
         }
 
         await supabaseAdmin
@@ -670,12 +803,43 @@ export const inboxSyncService = {
       } catch (err: any) {
         const friendly = categoriseImapError(err.message || String(err));
         console.error(`[InboxSync] Failed for ${raw.email_address}:`, err.message);
-        errors.push(`${raw.email_address}: ${friendly}`);
+
+        /*
+         * A host that cannot be resolved may be one this app invented.
+         *
+         * Until recently the Add Mailbox form filled in `imap.<domain>` for
+         * any provider it had no preset for, which for a hosted mailbox is
+         * not a name at all. The account holder never typed it, so telling
+         * them to "check the server address" sends them to correct a
+         * mistake they did not make. Where the stored host demonstrably does
+         * not exist, find the real one and use it - see the safety argument
+         * in mailbox-repair.service.
+         */
+        let recorded = friendly;
+        if (/could not be found/.test(friendly)) {
+          try {
+            const repair = await repairImapHost(raw as any);
+            if (repair.repaired) {
+              console.log(`[InboxSync] Repaired ${raw.email_address}: ${repair.from} -> ${repair.to}`);
+              // The corrected host is picked up on the next pass rather than
+              // retried inside this one, so a repair loop cannot form.
+              more = true;
+              recorded = `Fixed automatically: ${repair.note}`;
+            } else {
+              recorded = repair.note;
+            }
+          } catch (repairErr: any) {
+            // A failed repair must never replace the real error with its own.
+            console.error(`[InboxSync] Repair failed for ${raw.email_address}:`, repairErr?.message);
+          }
+        }
+
+        errors.push(`${raw.email_address}: ${recorded}`);
         // Recorded so the mailbox can say why it is empty rather than just
         // being empty.
         await supabaseAdmin
           .from('smtp_accounts')
-          .update({ last_inbox_sync_error: friendly })
+          .update({ last_inbox_sync_error: recorded })
           .eq('id', raw.id)
           .then(() => {}, () => {});
         if (client) { try { await client.logout(); } catch { /* ignore */ } }

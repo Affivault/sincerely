@@ -14,6 +14,10 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CrmEvent, CrmTask } from '@lemlist/shared';
+import { durationMinutes, resolveEnd } from '@lemlist/shared';
+import { calendarApi } from '../../api/calendar.api';
+import { TimeGrid, type GridEvent } from '../../components/calendar/TimeGrid';
+import { EventTypeBar } from '../../components/calendar/EventTypeBar';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Calendar.
@@ -23,7 +27,7 @@ import type { CrmEvent, CrmTask } from '@lemlist/shared';
    drag-to-reschedule, and clicking empty space books at that time.
    ═══════════════════════════════════════════════════════════════════════ */
 
-type View = 'month' | 'week' | 'agenda';
+type View = 'day' | 'week' | 'month' | 'agenda';
 
 /** One thing on the calendar, from either source. */
 type Item =
@@ -109,7 +113,13 @@ function ItemChip({ item, onOpen, onDragStart, compact }: {
 
 export function CalendarPage() {
   const qc = useQueryClient();
-  const [view, setView] = useState<View>('month');
+  /*
+   * Week, not month. A month grid answers "what is the shape of my month";
+   * a week answers "what am I doing", which is why anybody opens this.
+   */
+  const [view, setView] = useState<View>('week');
+  /** Kinds of meeting hidden from the grid. Local, not stored. */
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [eventModal, setEventModal] = useState<{ event: Partial<CrmEvent> | null } | null>(null);
   const [taskModal, setTaskModal] = useState<Partial<CrmTask> | null>(null);
@@ -129,6 +139,15 @@ export function CalendarPage() {
     queryFn: () => crmApi.listEvents(range),
   });
   const { data: tasks = [] } = useQuery({ queryKey: ['crm', 'tasks'], queryFn: () => crmApi.listTasks() });
+  const { data: types = [] } = useQuery({ queryKey: ['calendar', 'types'], queryFn: calendarApi.listTypes });
+
+  /** What the time grid draws, after the colour filters. */
+  const gridEvents = useMemo<GridEvent[]>(
+    () => events
+      .filter((e) => !hidden.has(e.event_type_id || 'none'))
+      .map((e) => e as unknown as GridEvent),
+    [events, hidden],
+  );
 
   /** Everything on the calendar, keyed by local day. */
   const byDay = useMemo(() => {
@@ -177,6 +196,14 @@ export function CalendarPage() {
     onError: (e: any) => toast.error(e.response?.data?.error || 'Could not reschedule'),
   });
 
+  /** Drag on the time grid: a direct patch, optimistic in feel via invalidate. */
+  const moveEvent = useMutation({
+    mutationFn: ({ id, ...patch }: { id: string; starts_at?: string; ends_at?: string }) =>
+      crmApi.updateEvent(id, patch as any),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm', 'events'] }); },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Could not move that'),
+  });
+
   const openItem = (i: Item) => {
     if (i.kind === 'event') setEventModal({ event: i.event });
     else { setTaskModal(i.task); setTaskModalOpen(true); }
@@ -193,21 +220,24 @@ export function CalendarPage() {
       const d = new Date(a);
       if (view === 'month') d.setMonth(d.getMonth() + dir);
       else if (view === 'week') d.setDate(d.getDate() + 7 * dir);
+      else if (view === 'day') d.setDate(d.getDate() + dir);
       else d.setDate(d.getDate() + 14 * dir);
       return d;
     });
   };
 
   const today = startOfDay(new Date());
-  const days = view === 'week' ? weekDays(anchor) : monthMatrix(anchor);
+  const days = view === 'week' ? weekDays(anchor) : view === 'day' ? [startOfDay(anchor)] : monthMatrix(anchor);
 
-  const periodLabel = view === 'week'
+  const periodLabel = view === 'day'
+    ? anchor.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    : view === 'week'
     ? (() => {
         const w = weekDays(anchor);
         const a = w[0], b = w[6];
         const same = a.getMonth() === b.getMonth();
         return same
-          ? `${a.toLocaleDateString(undefined, { day: 'numeric' })}–${b.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}`
+          ? `${a.toLocaleDateString(undefined, { day: 'numeric' })}–${b.getDate()} ${b.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`
           : `${a.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – ${b.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`;
       })()
     : anchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
@@ -224,7 +254,7 @@ export function CalendarPage() {
   }, [byDay, anchor]);
 
   const upcomingCount = useMemo(
-    () => events.filter((e) => new Date(e.starts_at) >= today).length,
+    () => events.filter((e) => e.status !== 'cancelled' && new Date(e.starts_at) >= today).length,
     [events, today],
   );
 
@@ -270,7 +300,7 @@ export function CalendarPage() {
           </button>
 
           <div className="ml-auto flex items-center gap-1 p-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
-            {(['month', 'week', 'agenda'] as View[]).map((v) => (
+            {(['day', 'week', 'month', 'agenda'] as View[]).map((v) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
@@ -284,6 +314,18 @@ export function CalendarPage() {
             ))}
           </div>
         </div>
+
+        {(view === 'week' || view === 'day') && types.length > 0 && (
+          <EventTypeBar
+            types={types}
+            hidden={hidden}
+            onToggle={(id) => setHidden((prev) => {
+              const next = new Set(prev);
+              if (next.has(id)) next.delete(id); else next.add(id);
+              return next;
+            })}
+          />
+        )}
 
         {view === 'agenda' ? (
           <div className="panel overflow-hidden">
@@ -366,6 +408,33 @@ export function CalendarPage() {
               })
             )}
           </div>
+        ) : view === 'week' || view === 'day' ? (
+          /*
+             A real grid, against a clock. What used to be here was the month
+             renderer with taller cells: chips stacked in a column, so a 9am
+             standup and a two-hour workshop looked the same and a clash was
+             invisible. Everything that makes this a calendar rather than a
+             list lives in TimeGrid.
+          */
+          <TimeGrid
+            days={days}
+            events={gridEvents}
+            types={types}
+            now={new Date()}
+            onOpen={(e) => setEventModal({ event: e as unknown as CrmEvent })}
+            onBookAt={(at) => setEventModal({ event: { starts_at: at.toISOString() } as Partial<CrmEvent> })}
+            onMove={(e, start) => {
+              // Length is preserved: dragging a block moves it, it does not
+              // reshape it. Resizing is the handle on its bottom edge.
+              const mins = durationMinutes(e, types.find((t) => t.id === e.event_type_id)?.duration_minutes);
+              moveEvent.mutate({
+                id: e.id,
+                starts_at: start.toISOString(),
+                ends_at: new Date(start.getTime() + mins * 60000).toISOString(),
+              });
+            }}
+            onResize={(e, end) => moveEvent.mutate({ id: e.id, ends_at: end.toISOString() })}
+          />
         ) : (
           <div className="panel overflow-hidden">
             {/* Day-of-week header */}
@@ -378,7 +447,7 @@ export function CalendarPage() {
             <div className={cn('grid grid-cols-7', view === 'month' ? 'grid-rows-6' : 'grid-rows-1')}>
               {days.map((day) => {
                 const items = itemsFor(day);
-                const inMonth = view === 'week' || day.getMonth() === anchor.getMonth();
+                const inMonth = day.getMonth() === anchor.getMonth();
                 const isToday = sameDay(day, today);
                 const dayKey = day.toISOString();
                 const isDropTarget = dropDay === dayKey && !!dragging;
@@ -396,7 +465,7 @@ export function CalendarPage() {
                     onClick={() => bookAt(day)}
                     className={cn(
                       'group relative border-b border-r border-[var(--border-subtle)] p-1.5 cursor-pointer transition-colors',
-                      view === 'month' ? 'min-h-[104px]' : 'min-h-[420px]',
+                      'min-h-[104px]',
                       !inMonth && 'bg-[var(--bg-elevated)]/40',
                       isDropTarget ? 'bg-[var(--indigo-subtle)] ring-1 ring-inset ring-[var(--indigo)]/50' : 'hover:bg-[var(--bg-hover)]',
                     )}
@@ -418,16 +487,16 @@ export function CalendarPage() {
                     </div>
 
                     <div className="space-y-1">
-                      {items.slice(0, view === 'month' ? 3 : 12).map((item) => (
+                      {items.slice(0, 3).map((item) => (
                         <ItemChip
                           key={`${item.kind}-${item.kind === 'event' ? item.event.id : item.task.id}`}
                           item={item}
-                          compact={view === 'month'}
+                          compact
                           onOpen={() => openItem(item)}
                           onDragStart={() => setDragging(item)}
                         />
                       ))}
-                      {view === 'month' && items.length > 3 && (
+                      {items.length > 3 && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setAnchor(startOfDay(day)); setView('week'); }}
                           className="w-full text-left px-1.5 text-[10px] font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] transition-colors"
@@ -445,7 +514,9 @@ export function CalendarPage() {
 
         <p className="flex items-center gap-1.5 text-[11.5px] text-[var(--text-tertiary)]">
           <Clock className="h-3 w-3" />
-          Drag any meeting or activity onto another day to reschedule it — the time of day is kept.
+          {view === 'week' || view === 'day'
+            ? 'Click any empty space to book at that time. Drag a meeting to move it, or its bottom edge to change how long it runs.'
+            : 'Drag any meeting or activity onto another day to reschedule it — the time of day is kept.'}
         </p>
       </div>
 

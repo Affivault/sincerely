@@ -41,6 +41,7 @@ import {
   type CrmTask, type TaskPriority,
   type CrmEvent, type EventType,
   type ContactWithTags,
+  PLACEHOLDER,
 } from '@lemlist/shared';
 
 /* ─── Helpers ─────────────────────────────────────── */
@@ -231,7 +232,7 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
   return (
     <Modal isOpen onClose={onClose} title={editing ? 'Edit deal' : 'New deal'} size="md">
       <form onSubmit={(e) => { e.preventDefault(); if (form.title.trim()) save.mutate(); }} className="space-y-4">
-        <Input label="Deal name" value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Northbeam — annual plan" required autoFocus />
+        <Input label="Deal name" value={form.title} onChange={e => set('title', e.target.value)} placeholder={`e.g. ${PLACEHOLDER.company} — annual plan`} required autoFocus />
         <ContactPicker
           label="Lead"
           contactId={form.contact_id || null}
@@ -241,7 +242,7 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
           onLink={linkContact}
           onUnlink={() => setForm(f => ({ ...f, contact_id: null, contact_email: null, contact_name: '' }))}
         />
-        <Input label="Company" value={form.company || ''} onChange={e => set('company', e.target.value)} placeholder="Northbeam" />
+        <Input label="Company" value={form.company || ''} onChange={e => set('company', e.target.value)} placeholder={PLACEHOLDER.company} />
         <div className="grid grid-cols-2 gap-4">
           <Select label="Stage" options={DEAL_STAGES.map(s => ({ value: s.id, label: s.label }))} value={form.stage} onChange={e => set('stage', e.target.value)} />
           <Input label="Close date" type="date" value={form.expected_close_date || ''} onChange={e => set('expected_close_date', e.target.value)} />
@@ -667,6 +668,7 @@ export function DealsPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [outcome, setOutcome] = useState<{ deal: Deal; stage: 'won' | 'lost' } | null>(null);
+  const [bulkOutcome, setBulkOutcome] = useState<{ ids: string[]; stage: 'won' | 'lost' } | null>(null);
 
   const qc = useQueryClient();
   const { openPeek } = usePeek();
@@ -731,12 +733,22 @@ export function DealsPage() {
     }
   };
 
-  const bulkStage = async (stage: DealStage) => {
-    const ids = [...selected];
+  // Same gate as moveStage: a bulk move into won/lost asks for the reason
+  // once for the whole batch, rather than silently leaving it blank the way
+  // a bare updateDeal(stage) call would.
+  const bulkStage = async (stage: DealStage, idsOverride?: string[], reason?: string | null) => {
+    const ids = idsOverride ?? [...selected];
     if (ids.length === 0) return;
+    if ((stage === 'won' || stage === 'lost') && reason === undefined) {
+      setBulkOutcome({ ids, stage });
+      return;
+    }
     // allSettled, not all: one failing update shouldn't report the whole
     // batch as failed and strand the selection on deals that already moved.
-    const results = await Promise.allSettled(ids.map((id) => crmApi.updateDeal(id, { stage } as any)));
+    const results = await Promise.allSettled(ids.map((id) => crmApi.updateDeal(id, {
+      stage,
+      ...(reason !== undefined ? { outcome_reason: reason } : {}),
+    } as any)));
     const failedCount = results.filter((r) => r.status === 'rejected').length;
     setSelected(new Set());
     refresh();
@@ -955,6 +967,19 @@ export function DealsPage() {
             const { deal, stage } = outcome;
             setOutcome(null);
             moveStage(deal, stage, reason);
+          }}
+        />
+      )}
+
+      {bulkOutcome && (
+        <OutcomeDialog
+          deal={{ title: `${bulkOutcome.ids.length} deal${bulkOutcome.ids.length === 1 ? '' : 's'}` } as Deal}
+          stage={bulkOutcome.stage}
+          onCancel={() => setBulkOutcome(null)}
+          onConfirm={(reason) => {
+            const { ids, stage } = bulkOutcome;
+            setBulkOutcome(null);
+            bulkStage(stage, ids, reason);
           }}
         />
       )}

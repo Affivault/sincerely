@@ -4,7 +4,7 @@ import {
   ArrowRight, Check, Inbox, Sparkles, Table2, FlaskConical,
   BarChart3, ShieldCheck, Flame, CalendarCheck2,
 } from 'lucide-react';
-import { PLANS, type PlanId } from '@lemlist/shared';
+import { PLANS, type PlanId, PLACEHOLDER } from '@lemlist/shared';
 import './landing.css';
 
 /* Sincerely marketing site — the landing page speaks the product's design
@@ -245,7 +245,7 @@ export function LandingPage() {
             <div className="ld-sara">
               <div className="ld-sara__msg">
                 <div className="ld-sara__meta">
-                  <span className="ld-sara__who">Sarah Chen</span> · VP Marketing, Northbeam
+                  <span className="ld-sara__who">{PLACEHOLDER.contactName}</span> · {PLACEHOLDER.jobTitle}, {PLACEHOLDER.company}
                   <span className="ld-sara__intent" style={{ background: 'rgba(16,185,129,.12)', color: '#059669' }}><Flame size={10} style={{ marginRight: 3 }} /> INTERESTED</span>
                 </div>
                 <p>"This actually looks relevant to what we're rebuilding this quarter. How does pricing work for a team of five?"</p>

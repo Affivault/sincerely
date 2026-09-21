@@ -2,7 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { settingsService } from './settings.service.js';
 import { trackingDomainService } from './tracking-domain.service.js';
 import { MIN_SENDS_BEFORE_GUARD } from './bounce-guard.service.js';
-import { warmupAllowance, warmupDayNumber, emailDomain, isFreeMailDomain, worseStatus } from '@lemlist/shared';
+import { warmupAllowance, warmupDayNumber, emailDomain, isFreeMailDomain, worseStatus, isSendable } from '@lemlist/shared';
 import type {
   ReadinessCheck, ReadinessReport, ReadinessStatus, SmtpAccount,
 } from '@lemlist/shared';
@@ -96,13 +96,9 @@ async function gather(userId: string) {
   };
 }
 
-/** Is a mailbox usable for a real campaign send right now? */
-function sendable(a: SmtpAccount): boolean {
-  return a.is_active && a.is_verified;
-}
 
 function mailboxCheck(accounts: SmtpAccount[]): ReadinessCheck {
-  const usable = accounts.filter(sendable);
+  const usable = accounts.filter(isSendable);
   const fix = { label: 'Manage mailboxes', href: '/email-accounts?tab=mailboxes' };
 
   if (accounts.length === 0) {
@@ -147,7 +143,7 @@ function mailboxCheck(accounts: SmtpAccount[]): ReadinessCheck {
 
 function domainAuthCheck(accounts: SmtpAccount[], domains: any[]): ReadinessCheck {
   const fix = { label: 'Fix DNS', href: '/email-accounts?tab=domains' };
-  const usable = accounts.filter(sendable);
+  const usable = accounts.filter(isSendable);
 
   // Only the domains actually being sent from matter. A domain added and
   // then abandoned is not a reason to tell someone they are unsafe.
@@ -250,7 +246,7 @@ function trackingCheck(tracking: any): ReadinessCheck {
 }
 
 function healthCheck(accounts: SmtpAccount[]): ReadinessCheck {
-  const usable = accounts.filter(sendable);
+  const usable = accounts.filter(isSendable);
   const fix = { label: 'Review mailboxes', href: '/email-accounts?tab=mailboxes' };
   if (usable.length === 0) {
     return check({
@@ -292,9 +288,11 @@ function bounceRateCheck(sent: number, bounced: number, thresholdPercent: number
   const fix = { label: 'Verify your lists', href: '/verification' };
   if (sent < MIN_SENDS_BEFORE_GUARD) {
     return check({
-      id: 'bounce_rate', group: 'reputation', label: 'Bounce rate', status: 'pass',
+      // No sends is no evidence. A green tick over it claims a clean
+      // record that has never been tested.
+      id: 'bounce_rate', group: 'reputation', label: 'Bounce rate', status: 'unknown',
       headline: sent === 0
-        ? 'Nothing sent yet — no bounce history to judge.'
+        ? 'Nothing sent yet, so there is no bounce history to judge.'
         : `Only ${plural(sent, 'send')} so far, too few to read anything into.`,
     });
   }
@@ -328,7 +326,7 @@ function bounceRateCheck(sent: number, bounced: number, thresholdPercent: number
 }
 
 function warmupCheck(accounts: SmtpAccount[]): ReadinessCheck {
-  const usable = accounts.filter(sendable);
+  const usable = accounts.filter(isSendable);
   const fix = { label: 'Start warm-up', href: '/email-accounts?tab=warmup' };
   if (usable.length === 0) {
     return check({
@@ -380,7 +378,7 @@ function warmupCheck(accounts: SmtpAccount[]): ReadinessCheck {
 }
 
 function capacityCheck(accounts: SmtpAccount[]): { check: ReadinessCheck; remaining: number | null; ceiling: number | null } {
-  const usable = accounts.filter(sendable);
+  const usable = accounts.filter(isSendable);
   const fix = { label: 'Adjust limits', href: '/email-accounts?tab=mailboxes' };
 
   if (usable.length === 0) {
@@ -510,9 +508,17 @@ function summarise(verdict: string, failed: ReadinessCheck[], warned: ReadinessC
       : `Not safe to send yet — ${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} need fixing first.`;
   }
   if (verdict === 'risky') {
+    /*
+     * Written as a sentence rather than assembled from a label.
+     *
+     * Slotting a check's name straight in produced "You can send, but link
+     * tracking domain will cost you deliverability" - missing the article,
+     * and unmistakably a template rather than something anybody wrote. The
+     * article is cheap and it is the difference between the two.
+     */
     return warned.length === 1
-      ? `You can send, but ${warned[0].label.toLowerCase()} will cost you deliverability.`
-      : `You can send, but ${plural(warned.length, 'thing')} on this list will cost you deliverability.`;
+      ? `You can send, but your ${warned[0].label.toLowerCase()} will cost you deliverability.`
+      : `You can send, but ${plural(warned.length, 'thing')} below will cost you deliverability.`;
   }
   return 'Safe to send — domain, mailboxes and safeguards all check out.';
 }

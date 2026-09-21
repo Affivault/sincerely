@@ -16,6 +16,10 @@ export interface SendingDomain {
   last_checked_at: string | null;
   /** Provider detected from MX records */
   detected_provider: string | null;
+  /** The selector the check uses, if one is known. */
+  dkim_selector?: string | null;
+  /** 'manual' when a person said so, 'detected' when a guess found it. */
+  dkim_selector_source?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -30,7 +34,31 @@ export interface DnsCheckResult {
     /** More than one SPF record published — a permanent error per RFC 7208 */
     multiple?: boolean;
   };
-  dkim: { found: boolean; selector: string | null; note: string };
+  dkim: {
+    found: boolean;
+    selector: string | null;
+    note: string;
+    /**
+     * How many selectors were tried when nothing was found.
+     *
+     * Present only on a miss, and the reason it exists is that a miss is not
+     * an absence: DNS cannot be asked which selectors a domain has, so this
+     * is the difference between "your DKIM is missing" and "we guessed this
+     * many names and none of them was yours".
+     */
+    checked_selectors?: number;
+    /**
+     * Whether ANY DKIM key is published on the domain, whatever it is called.
+     *
+     * Guessing selectors can only ever say "we found one". This answers the
+     * question people actually have. Every key lives under `_domainkey`, and
+     * a name with children exists even when it holds no records of its own,
+     * so NXDOMAIN there means no keys and NOERROR means keys we have not
+     * named. 'unknown' when the zone answers NOERROR for names that do not
+     * exist, which makes the signal worthless and is not guessed around.
+     */
+    subtree?: 'present' | 'absent' | 'unknown';
+  };
   dmarc: { found: boolean; record: string | null; policy: string | null };
   verification_txt: { found: boolean };
   provider_hint: string | null;

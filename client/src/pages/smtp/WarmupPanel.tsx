@@ -195,6 +195,36 @@ export function WarmupPanel({ onAddMailbox }: { onAddMailbox?: () => void }) {
         {data.total_warming > 0 && <span className="ml-1 text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1.5 h-[18px] inline-flex items-center rounded-[4px]">{data.total_warming} warming</span>}
       </div>
 
+      {/*
+        * What this pool can actually achieve, said out loud.
+        *
+        * Reputation is held per sending domain BY EACH RECEIVING PROVIDER.
+        * Warming three mailboxes on one domain at one provider is internal
+        * delivery - Gmail, Outlook and Yahoo never see it, so it teaches
+        * the only audiences that matter nothing at all. The panel used to
+        * report a peer count, which let exactly that read as success.
+        */}
+      {data.total_warming > 0 && data.pool_quality !== 'mixed' && (
+        <div
+          className="mb-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3"
+          data-pool-quality={data.pool_quality}
+        >
+          <p className="text-[12.5px] font-medium text-[var(--text-primary)]">
+            {data.pool_quality === 'none'
+              ? 'Warm-up has nowhere to send'
+              : data.pool_quality === 'internal'
+                ? 'These mailboxes are only warming each other'
+                : 'These mailboxes are all at one provider'}
+          </p>
+          <p className="mt-1 text-[11.5px] leading-relaxed text-[var(--text-secondary)]">{data.pool_note}</p>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+            The daily ramp below works regardless, and it is the part with the most
+            evidence behind it — along with authenticating the domain, keeping bounces
+            low, and earning real replies.
+          </p>
+        </div>
+      )}
+
       {!ready && <SetupGuide summary={data} onAddMailbox={onAddMailbox} onEnable={(a) => setConfig(a)} />}
 
       {eligible.length > 0 && (

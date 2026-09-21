@@ -9,3 +9,5 @@ domainRoutes.post('/', domainController.create);
 domainRoutes.delete('/:id', domainController.delete);
 domainRoutes.post('/:id/verify', domainController.verify);
 domainRoutes.get('/:id/records', domainController.getRecords);
+// DNS cannot be asked which DKIM selectors exist, so the account may say.
+domainRoutes.put('/:id/dkim-selector', domainController.setDkimSelector);

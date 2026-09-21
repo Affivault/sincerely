@@ -244,7 +244,9 @@ export function classifyRcpt(code: number): RcptVerdict {
   // 550/551/553 no such mailbox, 552 over quota (mailbox exists, but the
   // address is unusable for outreach), 501/513 malformed.
   if (code === 550 || code === 551 || code === 553 || code === 501 || code === 513) return 'rejected';
-  if (code === 552 || code === 452) return 'accepted';
+  if (code === 552) return 'accepted';
+  // 452 is a transient 4xx (greylisting, temporary local problem) — the
+  // server declining to say, not an acceptance. See the docstring above.
   return 'inconclusive';
 }
 

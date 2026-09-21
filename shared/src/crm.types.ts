@@ -1,3 +1,4 @@
+import type { CalendarEventStatus } from './calendar.types.js';
 import type { RecurringPeriod } from './pipeline.types.js';
 
 export type DealStage = 'lead' | 'qualified' | 'proposal' | 'won' | 'lost';
@@ -250,6 +251,13 @@ export interface CrmEvent {
   notes: string | null;
   /** How it went, filled in afterwards. */
   outcome: string | null;
+  /* Migration 062 — what the grid needs to draw it. */
+  event_type_id: string | null;
+  /** A one-off colour for this event, overriding its kind. */
+  colour: string | null;
+  status: CalendarEventStatus;
+  conferencing_url: string | null;
+  timezone: string | null;
   deal_id: string | null;
   created_at: string;
   updated_at: string;

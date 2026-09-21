@@ -3,9 +3,11 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { textToHtml } from '../utils/html.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { decrypt } from '../utils/encryption.js';
+import { imapHostFor as syncImapHostFor } from './inbox-sync.service.js';
 import { sendViaSmtp, formatFromHeader } from './email-sender.service.js';
 import {
   warmupAllowance, warmupDayNumber, warmupIsComplete, warmupSendTarget,
+  rankPeers, poolQuality, POOL_QUALITY_NOTE,
   type WarmupSummary, type WarmupAccountStatus, type SetWarmupInput,
 } from '@lemlist/shared';
 
@@ -85,7 +87,24 @@ async function summary(userId: string): Promise<WarmupSummary> {
     .order('created_at', { ascending: true });
 
   const rows = (accounts || []) as any[];
-  const peerPool = rows.filter((a) => a.is_active && a.is_verified).length;
+  const usable = rows.filter((a) => a.is_active && a.is_verified);
+  const peerPool = usable.length;
+
+  /*
+   * How good this pool is, not just how big.
+   *
+   * A count let three mailboxes on one domain read as a working warm-up.
+   * Graded from the point of view of the mailboxes actually warming, and
+   * reported at its best: if any one of them can reach a different
+   * provider, the pool can do that much.
+   */
+  const warming = usable.filter((a) => a.warmup_mode);
+  const qualities = (warming.length > 0 ? warming : usable)
+    .map((a) => poolQuality(a, usable));
+  const order = ['none', 'internal', 'same-provider', 'mixed'] as const;
+  const best = qualities.length === 0
+    ? 'none'
+    : order[Math.max(...qualities.map((q) => order.indexOf(q as any)))];
   const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
 
   const { data: warmupRows } = await supabaseAdmin
@@ -121,6 +140,8 @@ async function summary(userId: string): Promise<WarmupSummary> {
   return {
     accounts: statuses,
     peer_pool: peerPool,
+    pool_quality: best,
+    pool_note: POOL_QUALITY_NOTE[best],
     total_warming: rows.filter((a) => a.warmup_mode).length,
     sent_7d: events.filter((e) => !e.is_reply).length,
     replied_7d: events.filter((e) => e.replied_at).length,
@@ -148,7 +169,7 @@ async function runWarmupTick(maxGlobalSends = 60): Promise<number> {
   const userIds = [...new Set(senders.map((s) => s.user_id))];
   const { data: pool } = await supabaseAdmin
     .from('smtp_accounts')
-    .select('id, user_id, email_address')
+    .select('id, user_id, email_address, smtp_host')
     .in('user_id', userIds)
     .eq('is_active', true)
     .eq('is_verified', true);
@@ -164,9 +185,25 @@ async function runWarmupTick(maxGlobalSends = 60): Promise<number> {
     // Skip if this mailbox already hit today's warm-up quota.
     if ((sender.warmup_sent_today || 0) >= warmupSendTarget(sender)) continue;
 
-    const peers = (peersByUser.get(sender.user_id) || []).filter((p) => p.id !== sender.id);
-    if (peers.length === 0) continue; // needs at least one other mailbox to warm with
-    const recipient = pick(peers);
+    /*
+     * The most external peer available, not a random one.
+     *
+     * Reputation is held per sending domain BY EACH RECEIVING PROVIDER, so
+     * a warm-up email only teaches anybody anything if it actually reaches
+     * a provider that judges your real mail. Picking at random from the
+     * account's own mailboxes meant scott@ mailing invest@ on the same
+     * domain at the same provider - internal delivery, seen by nobody, and
+     * reported on the dashboard as a working warm-up throughout.
+     *
+     * Ranked: a different provider first, then a different domain at the
+     * same provider, then same-domain as a last resort. The seed rotates
+     * within each band, because repetition is one of the things these
+     * networks are detected by.
+     */
+    const all = peersByUser.get(sender.user_id) || [];
+    const ranked = rankPeers(sender, all, sender.warmup_sent_today || 0);
+    if (ranked.length === 0) continue; // needs at least one other mailbox
+    const recipient = ranked[0];
 
     let password: string;
     try { password = decrypt(sender.smtp_pass_encrypted); } catch { continue; }
@@ -235,23 +272,27 @@ const WARMUP_REPLIES = [
   'Perfect, that works for me. Thanks for following up.',
 ];
 
-function imapHostFor(account: any): string | null {
-  const host = (account.imap_host || account.smtp_host || '') as string;
-  const email = (account.email_address || '') as string;
-  const isGmail = host.includes('gmail') || email.endsWith('@gmail.com');
-  const isOutlook = host.includes('outlook') || host.includes('office365');
-  if (account.imap_host) return account.imap_host;
-  if (isGmail) return 'imap.gmail.com';
-  if (isOutlook) return 'outlook.office365.com';
-  if (host.startsWith('smtp.')) return host.replace('smtp.', 'imap.');
-  const domain = email.split('@')[1];
-  return domain ? `imap.${domain}` : null;
+/*
+ * The sync's version, not a second one.
+ *
+ * There were two functions of this name. Warm-up's honoured the imap_host
+ * column all along; the sync's derived a name from smtp_host and ignored
+ * it - so the thing that tested a mailbox and the thing that read it
+ * disagreed about which server it was on, and three mailboxes reported
+ * "Verified" while none could read a reply. They agree now, which is
+ * exactly the state the last one was in before it broke.
+ */
+function warmupImapHost(account: any): string | null {
+  const host = syncImapHostFor(account);
+  // The shared one always returns a string; warm-up wants to skip a
+  // mailbox it cannot place rather than dial "imap.".
+  return host && host !== 'imap.' ? host : null;
 }
 
 async function connectImap(account: any): Promise<any | null> {
   let ImapFlow: any;
   try { ({ ImapFlow } = await import('imapflow')); } catch { return null; }
-  const host = imapHostFor(account);
+  const host = warmupImapHost(account);
   if (!host) return null;
   let password: string;
   try { password = decrypt(account.smtp_pass_encrypted); } catch { return null; }

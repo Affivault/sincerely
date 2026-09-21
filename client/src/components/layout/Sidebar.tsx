@@ -4,12 +4,13 @@ import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers, Blocks,
-  ChevronRight, Wrench, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck, Sparkles,
-  CalendarDays, ListTodo, Building2, Linkedin, Contact2, Banknote,
+  ChevronRight, Wrench, Clock, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck, Sparkles,
+  CalendarDays, ListTodo, Building2, Linkedin, Contact2, Banknote, Link2,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
 import { useSidebar } from '../../context/SidebarContext';
+import { SetupNudge } from '../setup/SetupNudge';
 import { useUnreadCount } from '../../hooks/useUnreadCount';
 import { billingApi } from '../../api/billing.api';
 import { isUnlimited, ADMIN_EMAILS } from '@lemlist/shared';
@@ -87,8 +88,10 @@ const primaryNav: NavItem[] = [
     kind: 'group', id: 'calendar',
     name: 'Calendar', href: '/calendar', icon: CalendarDays,
     children: [
-      { name: 'Calendar',   href: '/calendar', icon: CalendarDays },
-      { name: 'Activities', href: '/tasks',    icon: ListTodo },
+      { name: 'Calendar',     href: '/calendar', icon: CalendarDays, exact: true },
+      { name: 'Availability', href: '/calendar/availability', icon: Clock },
+      { name: 'Booking links', href: '/calendar/links', icon: Link2 },
+      { name: 'Activities',   href: '/tasks',    icon: ListTodo },
     ],
   },
 ];
@@ -445,6 +448,11 @@ export function Sidebar() {
           )}
         </div>
       </nav>
+
+      {/* The next setup step, carried onto every page. The checklist lives
+          on the dashboard, which is where nobody is when they get stuck.
+          Removes itself for good once setup is done. */}
+      <SetupNudge collapsed={collapsed} />
 
       {/* Plan usage — quiet until it matters, loud when the cap nears */}
       <UsageCard collapsed={collapsed} />

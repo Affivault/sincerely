@@ -9,6 +9,7 @@ import * as sse from './sse.service.js';
 import { checkAndAutoCompleteCampaign, htmlToText } from './sequence.service.js';
 import { warmupAllowance } from '@lemlist/shared';
 import { renderMergeTags, spin } from '@lemlist/shared';
+import { personaliseBookingLinks } from '../utils/booking-token.js';
 import { settingsService } from './settings.service.js';
 import { trackingBaseUrl } from './tracking-domain.service.js';
 import { isLinkedinStep } from '@lemlist/shared';
@@ -38,6 +39,17 @@ interface SmtpSendParams {
   /** Override SMTP handshake/socket timeouts (ms). Interactive test sends use
    *  a short budget so the API replies well before the client's 30s timeout. */
   timeoutMs?: number;
+  /**
+   * A calendar invitation carried in the message itself.
+   *
+   * Attaching the .ics as a file gets you a download. Sending it as a
+   * text/calendar alternative is what makes Gmail and Outlook render the
+   * invite inline with Yes/No buttons and put it straight in the diary,
+   * which is the whole difference between "an email about a meeting" and
+   * "a meeting". The relay path cannot carry it, so the caller must always
+   * include a link to the file as well.
+   */
+  icsEvent?: { method: 'REQUEST' | 'CANCEL'; content: string };
 }
 
 /**
@@ -60,6 +72,30 @@ export function describeSmtpError(err: any, opts?: { withRelayHint?: boolean }):
       : env.SMTP_RELAY_URL
         ? ' SMTP_RELAY_URL is set but SMTP_RELAY_SECRET is not, so the relay is inactive and sends are going direct. Set both to activate it.'
         : ' If this keeps happening on every port, your hosting provider is blocking outbound SMTP — set SMTP_RELAY_URL + SMTP_RELAY_SECRET to route sends through the bundled Vercel relay (/api/send-email).';
+  /*
+   * Signing in as one mailbox and sending as another.
+   *
+   * Checked before the auth rule below, which would otherwise swallow it -
+   * the text contains "rejected" and often "auth", and the advice it gives
+   * ("check the username/password") sends somebody to re-enter a password
+   * that was always correct. The password is fine. The USERNAME belongs to a
+   * different mailbox.
+   *
+   * The server helpfully names the account it is signed in as, so quote it
+   * back rather than making somebody parse an SMTP reply code.
+   */
+  const notOwned = String(err?.message || err || '')
+    .match(/sender address rejected[^]*?not owned by user\s+(\S+?)[\s"']*$/i);
+  if (notOwned || /\b553\b[^]*not owned by user/i.test(raw)) {
+    const owner = notOwned?.[1]?.replace(/[.,;]$/, '');
+    return owner
+      ? `The server refused the send because this mailbox is signed in as ${owner}, `
+        + 'which does not own the From address. Set the SMTP username to the mailbox\'s '
+        + 'own address - the password is not the problem.'
+      : 'The server refused the send because the signed-in account does not own the '
+        + 'From address. Set the SMTP username to the mailbox\'s own address.';
+  }
+
   if (raw.includes('invalid login') || raw.includes('auth') || raw.includes('535') || raw.includes('credentials') || raw.includes('username and password'))
     return 'Authentication failed — check the username/password. Gmail & Outlook need an app password, not your normal login.';
   if (raw.includes('etimedout') || raw.includes('timeout') || raw.includes('timed out'))
@@ -162,6 +198,24 @@ export async function postToRelay(url: string, body: string, signal?: AbortSigna
 async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
   console.log(`[SMTP Relay] Sending to ${params.to} via ${env.SMTP_RELAY_URL}`);
 
+  /*
+   * A budget on the HTTP call itself.
+   *
+   * postToRelay accepts an AbortSignal and was never given one, so the fetch
+   * had no deadline at all. The relay's own limit does not help here - that
+   * bounds the SMTP conversation INSIDE the function, and says nothing about
+   * a Vercel cold start, a queued invocation, or a hop that never answers.
+   * With nothing aborting it, the request outlived the browser's 30s HTTP
+   * timeout and the user got "Network error" - intermittently, because cold
+   * starts are intermittent.
+   *
+   * The ceiling is the relay's own 30s function limit plus a little, so a
+   * relay that is merely slow still gets to finish and report.
+   */
+  const controller = new AbortController();
+  const budget = Math.min((params.timeoutMs ?? 12_000) + 8_000, 25_000);
+  const deadline = setTimeout(() => controller.abort(), budget);
+
   let response: Response;
   try {
     const result = await postToRelay(env.SMTP_RELAY_URL!, JSON.stringify({
@@ -179,7 +233,7 @@ async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
       message_id: params.messageId,
       headers: params.headers,
       timeout_ms: params.timeoutMs,
-    }));
+    }), controller.signal);
     response = result.response;
     if (result.redirected) {
       console.warn(
@@ -188,10 +242,24 @@ async function sendViaRelay(params: SmtpSendParams): Promise<SmtpSendResult> {
       );
     }
   } catch (err: any) {
+    /*
+     * An abort means we gave up waiting, not that the relay failed - it may
+     * well be delivering the message right now. Falling back to a direct
+     * send here is how the same email arrives twice, and on the hosts this
+     * relay exists for that direct attempt cannot work anyway.
+     */
+    if (err?.name === 'AbortError') {
+      throw new Error(
+        `The SMTP relay did not answer within ${Math.round(budget / 1000)}s. `
+        + 'It may be cold-starting - try again, and check the relay is deployed.',
+      );
+    }
     // Relay host unreachable (DNS/network) — fall back to a direct SMTP attempt
     // rather than hard-failing the send.
     console.warn(`[SMTP Relay] Unreachable (${err.message}); falling back to direct SMTP`);
     return sendDirect(params);
+  } finally {
+    clearTimeout(deadline);
   }
 
   /* Whether to fall back turns on one question: did the relay run the send?
@@ -290,6 +358,11 @@ async function sendDirect(params: SmtpSendParams): Promise<SmtpSendResult> {
       text: params.text || undefined,
       messageId: params.messageId || undefined,
       headers: params.headers || undefined,
+      // nodemailer builds the multipart/alternative for us; the filename is
+      // what a client that cannot render it inline falls back to offering.
+      icalEvent: params.icsEvent
+        ? { method: params.icsEvent.method, filename: 'invite.ics', content: params.icsEvent.content }
+        : undefined,
     });
   } finally {
     transporter.close();
@@ -500,6 +573,22 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
   const spinFor = (part: string) => `${stepId}:${campaignContactId}:${part}`;
   const finalSubject = spin(fillSenderTags(subject), spinFor('subject'));
   finalHtml = spin(fillSenderTags(finalHtml), spinFor('body'));
+
+  /*
+   * Name the send on any booking link in the body.
+   *
+   * Placed here for two reasons, and both are ordering. It runs before the
+   * plaintext part is derived, so the text carries the personalised URL
+   * rather than a bare one - otherwise a prospect reading in plain text
+   * meets the page as a stranger. And it runs before click-wrapping, so the
+   * tracker's redirect target is the personalised URL; wrapping first would
+   * make the redirect land on the bare link and lose the identity entirely.
+   *
+   * The token is the one the pixel and the click tracker already carry, so
+   * the product has one notion of "which send was this" rather than two.
+   */
+  finalHtml = personaliseBookingLinks(finalHtml, trackingId);
+
   // Derived from the spun HTML rather than spun on its own: two independent
   // spins of the same copy can land on different branches, and a plaintext
   // part that contradicts the HTML part is worse than having no spintax.

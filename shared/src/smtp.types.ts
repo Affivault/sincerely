@@ -1,3 +1,5 @@
+import type { PoolQuality } from './warmup-pool.js';
+
 export interface SmtpAccount {
   id: string;
   user_id: string;
@@ -155,6 +157,15 @@ export interface WarmupAccountStatus {
 export interface WarmupSummary {
   accounts: WarmupAccountStatus[];
   peer_pool: number;
+  /**
+   * What this pool can actually achieve.
+   *
+   * A count on its own let three mailboxes on one domain read as a working
+   * warm-up, when mail between them never leaves the provider and the
+   * receivers whose opinion decides deliverability never see any of it.
+   */
+  pool_quality: PoolQuality;
+  pool_note: string;
   total_warming: number;
   sent_7d: number;
   replied_7d: number;
@@ -259,6 +270,59 @@ export interface SmtpDiagnostics {
   fix: string;
 }
 
+/**
+ * The same staged probe, pointed at the mailbox server.
+ *
+ * Diagnostics used to cover sending only, which meant the one mailbox
+ * failure people actually hit - sending works, receiving does not - ran a
+ * diagnosis of the leg that was already fine and reported everything green.
+ * Pressing "find out exactly why" and being told nothing is worse than
+ * having no button.
+ */
+export interface ImapDiagnostics {
+  host: string;
+  port: number;
+  stages: DiagStage[];
+  verdict: string;
+  fix: string;
+  /** True when the host itself is blocking outbound 993. */
+  portBlocked: boolean;
+}
+
+export interface MailboxDiagnostics {
+  smtp: SmtpDiagnostics;
+  /** null when the mailbox has no IMAP server configured to probe. */
+  imap: ImapDiagnostics | null;
+}
+
+/**
+ * Is this mailbox set to sign in as a different address than it sends from?
+ *
+ * Nearly every provider refuses that outright - "553 Sender address
+ * rejected: not owned by user ..." - and the ones that allow it need the
+ * sender explicitly authorised first.
+ *
+ * The receiving half is the quieter danger and the reason this is worth
+ * catching in the form rather than only in a send error: the other
+ * mailbox's credentials are perfectly valid, so IMAP connects happily and
+ * the account reads somebody else's inbox while reporting success.
+ *
+ * Lives in shared, and takes plain strings, so it can be asserted against
+ * real values rather than by grepping the component for a comparison.
+ */
+export function isSenderMismatch(
+  smtpUser: string | null | undefined,
+  emailAddress: string | null | undefined,
+): boolean {
+  const user = (smtpUser || '').trim().toLowerCase();
+  const from = (emailAddress || '').trim().toLowerCase();
+  // A username that is not an address is a provider's own login scheme
+  // (SendGrid's "apikey", Mailgun's postmaster form) and says nothing about
+  // who owns the From address.
+  if (!user || !from || !user.includes('@')) return false;
+  return user !== from;
+}
+
 export interface DiagnoseSmtpInput {
   smtp_host: string;
   smtp_port: number;
@@ -267,6 +331,10 @@ export interface DiagnoseSmtpInput {
   smtp_pass?: string;
   /** Diagnose a saved mailbox without retyping its password. */
   account_id?: string;
+  imap_host?: string | null;
+  imap_port?: number | null;
+  imap_secure?: boolean | null;
+  imap_user?: string | null;
 }
 
 export interface SmtpPreset {
@@ -435,6 +503,53 @@ export const SMTP_PRESETS: SmtpPreset[] = [
     username_hint: 'Your ProtonMail address',
     password_hint: 'Bridge-generated password',
     recommended_daily_limit: 150,
+  },
+  /*
+   * The registrar-bundled mailboxes. None of them is a household name and
+   * between them they are what a great many small domains run on, which is
+   * exactly the population this product sells to. Note that none of these
+   * uses `imap.<provider>` - Spacemail's IMAP is mail.spacemail.com, and
+   * imap.spacemail.com does not resolve at all. That is the whole reason
+   * `imap.<domain>` was never going to work as a guess.
+   */
+  {
+    name: 'Spacemail',
+    smtp_host: 'smtp.spacemail.com',
+    smtp_port: 465,
+    smtp_secure: true,
+    imap_host: 'mail.spacemail.com',
+    imap_port: 993,
+    imap_secure: true,
+    domains: [],
+    username_hint: 'Your full mailbox address',
+    password_hint: 'Your mailbox password',
+    recommended_daily_limit: 300,
+  },
+  {
+    name: 'Namecheap Private Email',
+    smtp_host: 'mail.privateemail.com',
+    smtp_port: 465,
+    smtp_secure: true,
+    imap_host: 'mail.privateemail.com',
+    imap_port: 993,
+    imap_secure: true,
+    domains: [],
+    username_hint: 'Your full mailbox address',
+    password_hint: 'Your mailbox password',
+    recommended_daily_limit: 300,
+  },
+  {
+    name: 'Titan',
+    smtp_host: 'smtp.titan.email',
+    smtp_port: 465,
+    smtp_secure: true,
+    imap_host: 'imap.titan.email',
+    imap_port: 993,
+    imap_secure: true,
+    domains: [],
+    username_hint: 'Your full mailbox address',
+    password_hint: 'Your mailbox password',
+    recommended_daily_limit: 300,
   },
 ];
 

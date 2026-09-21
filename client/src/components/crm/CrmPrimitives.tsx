@@ -5,7 +5,7 @@ import { contactsApi } from '../../api/contacts.api';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
-import { useConfirm } from '../ui/ConfirmDialog';
+import { usePendingRemoval } from '../ui/UndoBar';
 import { Avatar } from '../shared/Avatar';
 import { cn } from '../../lib/utils';
 import {
@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 import type {
   CrmTask, CrmEvent, TaskType, TaskPriority, EventType, ContactWithTags,
 } from '@lemlist/shared';
-import { TASK_TYPES } from '@lemlist/shared';
+import { TASK_TYPES, PLACEHOLDER } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Shared CRM building blocks.
@@ -225,7 +225,7 @@ export function ActivityModal({
   defaults?: Partial<CrmTask>;
   onClose: () => void;
 }) {
-  const confirm = useConfirm();
+  const gone = usePendingRemoval();
   const qc = useQueryClient();
   const editing = !!task?.id;
   const seed = { ...defaults, ...(task || {}) } as Partial<CrmTask>;
@@ -271,7 +271,9 @@ export function ActivityModal({
 
   const remove = useMutation({
     mutationFn: () => crmApi.deleteTask(task!.id!),
-    onSuccess: () => { invalidate(); toast.success('Activity deleted'); onClose(); },
+    // No toast: the undo bar said so six seconds ago, and the modal closed
+    // the moment the button was pressed rather than when the request landed.
+    onSuccess: () => { invalidate(); },
   });
 
   return (
@@ -285,10 +287,12 @@ export function ActivityModal({
         <div className="flex items-center justify-between w-full">
           {editing ? (
             <button
-              onClick={() => confirm(
-                { title: 'Delete this activity?', body: 'It disappears from the contact’s history and from your task list.', tone: 'danger' },
-                () => remove.mutate(),
-              )}
+              onClick={() => {
+                // Closed first, so the row leaving the list behind is the
+                // feedback rather than a dialog asking again.
+                onClose();
+                gone.remove(task!.id!, 'Activity deleted', () => remove.mutateAsync());
+              }}
               className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[var(--error)] hover:underline"
             >
               <Trash2 className="h-3.5 w-3.5" /> Delete
@@ -393,7 +397,7 @@ export function MeetingModal({
   defaults?: Partial<CrmEvent>;
   onClose: () => void;
 }) {
-  const confirm = useConfirm();
+  const gone = usePendingRemoval();
   const qc = useQueryClient();
   const editing = !!event?.id;
   const seed = { ...defaults, ...(event || {}) } as Partial<CrmEvent>;
@@ -446,7 +450,7 @@ export function MeetingModal({
 
   const remove = useMutation({
     mutationFn: () => crmApi.deleteEvent(event!.id!),
-    onSuccess: () => { invalidate(); toast.success('Meeting deleted'); onClose(); },
+    onSuccess: () => { invalidate(); },
   });
 
   const started = !!form.starts_at && new Date(form.starts_at).getTime() < Date.now();
@@ -462,10 +466,10 @@ export function MeetingModal({
         <div className="flex items-center justify-between w-full">
           {editing ? (
             <button
-              onClick={() => confirm(
-                { title: 'Delete this meeting?', body: 'It is removed from your calendar and from the contact’s history.', tone: 'danger' },
-                () => remove.mutate(),
-              )}
+              onClick={() => {
+                onClose();
+                gone.remove(event!.id!, 'Meeting deleted', () => remove.mutateAsync());
+              }}
               className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[var(--error)] hover:underline"
             >
               <Trash2 className="h-3.5 w-3.5" /> Delete
@@ -482,7 +486,7 @@ export function MeetingModal({
     >
       <form id="meeting-form" onSubmit={(e) => { e.preventDefault(); if (form.title.trim()) save.mutate(); }} className="space-y-3.5">
         <div className="grid grid-cols-[1fr_auto] gap-3 items-end">
-          <Input label="Title" value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Intro call — Yieldtrak" autoFocus />
+          <Input label="Title" value={form.title} onChange={(e) => set('title', e.target.value)} placeholder={`e.g. Intro call — ${PLACEHOLDER.company}`} autoFocus />
           <div className="flex gap-1.5 pb-0.5">
             {(['call', 'meeting'] as EventType[]).map((t) => (
               <button

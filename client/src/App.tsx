@@ -32,6 +32,10 @@ const CompaniesPage        = lazy(() => import('./pages/companies/CompaniesPage'
 const LinkedinPage         = lazy(() => import('./pages/linkedin/LinkedinPage').then(m => ({ default: m.LinkedinPage })));
 const CompanyDetailPage    = lazy(() => import('./pages/companies/CompanyDetailPage').then(m => ({ default: m.CompanyDetailPage })));
 const TasksPage            = lazy(() => import('./pages/crm/TasksPage').then(m => ({ default: m.TasksPage })));
+const AvailabilityPage     = lazy(() => import('./pages/crm/AvailabilityPage').then(m => ({ default: m.AvailabilityPage })));
+const BookingLinksPage     = lazy(() => import('./pages/crm/BookingLinksPage').then(m => ({ default: m.BookingLinksPage })));
+const BookPage             = lazy(() => import('./pages/public/BookPage').then(m => ({ default: m.BookPage })));
+const ManageBookingPage    = lazy(() => import('./pages/public/ManageBookingPage').then(m => ({ default: m.ManageBookingPage })));
 const CalendarPage         = lazy(() => import('./pages/crm/CalendarPage').then(m => ({ default: m.CalendarPage })));
 const ProspectorPage       = lazy(() => import('./pages/prospector/ProspectorPage').then(m => ({ default: m.ProspectorPage })));
 const AdminPage            = lazy(() => import('./pages/admin/AdminPage').then(m => ({ default: m.AdminPage })));
@@ -106,6 +110,15 @@ export default function App() {
         {/* Reset password must be public — user arrives via email link without a session */}
         <Route path="/reset-password"  element={<ResetPasswordPage />} />
 
+        {/*
+          Booking pages. Public on purpose, and deliberately NOT wrapped in
+          PublicRoute — that redirects anybody with a session to the app,
+          which would stop an account ever opening its own link to check it.
+          They sit outside AppLayout too: a stranger gets no sidebar.
+        */}
+        <Route path="/b/:slug"          element={<BookPage />} />
+        <Route path="/booking/:token"   element={<ManageBookingPage />} />
+
         {/* Protected app routes */}
         <Route
           element={
@@ -149,6 +162,8 @@ export default function App() {
           <Route path="/companies/:id"      element={<CompanyDetailPage />} />
           <Route path="/tasks"              element={<TasksPage />} />
           <Route path="/calendar"           element={<CalendarPage />} />
+          <Route path="/calendar/availability" element={<AvailabilityPage />} />
+          <Route path="/calendar/links"        element={<BookingLinksPage />} />
           {/* CRM used to be one tabbed page; keep old links working. */}
           <Route path="/crm"                element={<Navigate to="/deals" replace />} />
           <Route path="/prospector"         element={<ProspectorPage />} />

@@ -48,4 +48,12 @@ export const domainController = {
       res.json(result);
     } catch (err) { next(err); }
   },
+  /** Tell us the DKIM selector, and check it straight away. */
+  async setDkimSelector(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await domainService.setDkimSelector(
+        req.userId!, req.params.id, (req.body || {}).selector,
+      ));
+    } catch (err) { next(err); }
+  },
 };

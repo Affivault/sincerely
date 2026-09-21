@@ -957,6 +957,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       toast.success(editingList ? 'List updated' : 'List created');
       closeListModal();
     },
+    onError: (e: any) => toast.error(e.response?.data?.error || (editingList ? 'Failed to update list' : 'Failed to create list')),
   });
 
   const addToList = (listId: string, listName: string) => {
@@ -984,6 +985,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       setCsvHeaders([]);
       setColumnMapping({});
     },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Import failed'),
   });
 
   const closeCreateModal = () => {
@@ -1177,6 +1179,23 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   const widthOf = (id: string) =>
     colWidths[id] ?? (id === CONTACT_COL_ID ? CONTACT_COL_DEFAULT_W : DEFAULT_COL_W);
 
+  // Holds the active drag gesture's listeners so they can be torn down if the
+  // table unmounts mid-resize (route change, browser back/forward) — without
+  // this they stayed attached to window forever, since only pointerup ever
+  // removed them.
+  const activeResize = useRef<{ onMove: (ev: PointerEvent) => void; onUp: () => void } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (!activeResize.current) return;
+      window.removeEventListener('pointermove', activeResize.current.onMove);
+      window.removeEventListener('pointerup', activeResize.current.onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      activeResize.current = null;
+    };
+  }, []);
+
   const startResize = (id: string, e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1196,9 +1215,11 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       window.removeEventListener('pointerup', onUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      activeResize.current = null;
       setResizingCol(null);
       localStorage.setItem('contacts.colWidths', JSON.stringify(latest));
     };
+    activeResize.current = { onMove, onUp };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     document.body.style.cursor = 'col-resize';

@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { twoProportionPValue, wilsonLowerBound, wilsonUpperBound } from '../utils/stats.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { MIN_STEP_SENDS, revenueByCampaign, valuePerReply, outreachFunnel, dealValue } from '@lemlist/shared';
+import { readVariant } from '@lemlist/shared';
 import type { SequencePerformance, SequenceStepPerformance, StepVerdict } from '@lemlist/shared';
 
 function calcRate(value: number, total: number): number {
@@ -846,11 +847,31 @@ export const analyticsService = {
         .range(from, to)
     );
 
-    // Build variant lookup map from sent activities only (they're the only ones with ab_variant)
+    /*
+     * Which arm each send was in — and nothing at all for sends that were
+     * not in the experiment.
+     *
+     * This read `ab_variant === 'b' ? 'b' : 'a'`, which cannot return
+     * nothing, so every send without a variant was counted as A. Two
+     * groups land there: everything sent before the test was added to the
+     * step, and — until the sender was fixed alongside this — every send
+     * of a body-only test.
+     *
+     * Neither was randomised. Folding them into A does not merely add
+     * noise, it puts a non-randomised group into one arm, which is the
+     * failure that invalidates an experiment rather than weakening it. A
+     * body-only test came out as variant A with all the volume beside
+     * variant B with none, over sends that were half B.
+     */
     const variantByContactStep = new Map<string, 'a' | 'b'>();
+    const untrackedByStep = new Map<string, number>();
     for (const a of allActivities) {
       if (a.activity_type !== 'sent') continue;
-      const variant = (a.metadata as any)?.ab_variant === 'b' ? 'b' : 'a';
+      const variant = readVariant(a.metadata);
+      if (!variant) {
+        untrackedByStep.set(a.step_id, (untrackedByStep.get(a.step_id) || 0) + 1);
+        continue;
+      }
       variantByContactStep.set(`${a.contact_id}:${a.step_id}`, variant);
     }
 
@@ -907,6 +928,13 @@ export const analyticsService = {
         p_value: pValue,
         has_enough_data: hasEnoughData,
         min_sample: MIN_AB_SAMPLE,
+        /*
+         * Sends at this step that were never part of the test. Reported
+         * rather than dropped silently, because "400 sent" on the campaign
+         * beside "120 in the test" is a discrepancy somebody will notice
+         * and mistrust the whole panel over.
+         */
+        untracked_sent: untrackedByStep.get(step.id) || 0,
       };
     });
 

@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
-import { analyticsApi } from '../../api/analytics.api';
+import { analyticsApi, type AbTestStep } from '../../api/analytics.api';
+import { stepHasVariantB, abStatusLine, type AbStatus } from '@lemlist/shared';
 import { Spinner } from '../../components/ui/Spinner';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -84,6 +85,24 @@ export function CampaignDetailPage() {
     refetchInterval: isRunning ? 30_000 : false,
   });
 
+  /*
+   * A running split test was invisible outside the analytics tab. You set
+   * a variant, saved, and nothing ever said a test existed - so people
+   * either read it on day one over eleven sends, or never read it at all.
+   */
+  const { data: abTest } = useQuery({
+    queryKey: ['analytics', 'campaign-ab', id],
+    queryFn: () => analyticsApi.campaignAbTest(id!),
+    enabled: !!id,
+    refetchInterval: isRunning ? 60_000 : false,
+    meta: { silentError: true },
+  });
+  const abByStep = useMemo(() => {
+    const out = new Map<string, AbStatus>();
+    for (const step of abTest?.steps || []) out.set(step.step_id, abStatusLine(step as AbTestStep));
+    return out;
+  }, [abTest]);
+
   const { data: campaignContacts } = useQuery({
     queryKey: ['campaign-contacts', id],
     queryFn: async () => {
@@ -156,6 +175,7 @@ export function CampaignDetailPage() {
   const deleteMutation = useMutation({
     mutationFn: () => campaignsApi.delete(id!),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
       toast.success('Campaign deleted');
       navigate('/campaigns');
     },
@@ -415,7 +435,7 @@ export function CampaignDetailPage() {
           ) : (
             <>
               {campaign.steps.map((step: CampaignStep, index: number) => (
-                <SequenceStepCard key={step.id} step={step} index={index} />
+                <SequenceStepCard key={step.id} step={step} index={index} ab={abByStep.get(step.id) ?? null} />
               ))}
 
               {/* Which of those steps is actually earning. Here rather than
@@ -675,7 +695,9 @@ const STEP_CFG: Record<string, { accent: string; iconColor: string; iconBg: stri
   webhook_wait:{ accent: 'bg-emerald-500',  iconColor: 'text-emerald-500', iconBg: 'bg-emerald-500/10'          },
 };
 
-function SequenceStepCard({ step, index }: { step: CampaignStep; index: number }) {
+function SequenceStepCard({ step, index, ab }: {
+  step: CampaignStep; index: number; ab?: AbStatus | null;
+}) {
   const cfg = STEP_CFG[step.step_type] || STEP_CFG.email;
 
   return (
@@ -691,12 +713,45 @@ function SequenceStepCard({ step, index }: { step: CampaignStep; index: number }
             <div className="flex items-center gap-2">
               <Mail className={cn('h-3.5 w-3.5 shrink-0', cfg.iconColor)} />
               <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">{step.subject || 'Untitled Email'}</span>
-              {step.subject_b && (
-                <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold bg-[rgba(99,102,241,0.08)] text-[var(--indigo)]">A/B</span>
+              {/*
+                * Gated on the shared predicate. This was `step.subject_b`
+                * alone - the third place that decided for itself what an
+                * A/B test is, and the third to miss a body-only one.
+                */}
+              {stepHasVariantB(step) && (
+                <span
+                  title={ab?.detail}
+                  className={cn(
+                    'inline-flex shrink-0 items-center px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold',
+                    ab?.tone === 'ready'
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-[rgba(99,102,241,0.08)] text-[var(--indigo)]',
+                  )}
+                  data-ab-chip
+                >
+                  {ab ? ab.short : 'A/B'}
+                </span>
               )}
             </div>
             {step.body_text && (
               <p className="mt-0.5 line-clamp-2 text-[11px] text-[var(--text-secondary)]">{step.body_text}</p>
+            )}
+            {/*
+              * Said in words where the test lives, not only in a panel one
+              * tab away. The bar is the smaller arm against what it needs,
+              * because that is the half that gates a verdict - averaging
+              * the two would show progress that is not there.
+              */}
+            {ab && ab.percent !== null && ab.tone !== 'idle' && (
+              <div className="mt-1.5 flex items-center gap-2" data-ab-progress>
+                <div className="h-1 w-20 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
+                  <div
+                    className="h-full rounded-full bg-[var(--indigo)] transition-[width] duration-500"
+                    style={{ width: `${ab.percent}%` }}
+                  />
+                </div>
+                <span className="text-[11px] leading-snug text-[var(--text-tertiary)]">{ab.detail}</span>
+              </div>
             )}
           </div>
         )}

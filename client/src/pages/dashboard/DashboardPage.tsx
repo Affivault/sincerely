@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { TodayPanel } from '../../components/dashboard/TodayPanel';
 import { analyticsApi, type TrendDataPoint } from '../../api/analytics.api';
 import { inboxApi } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
@@ -9,6 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { SetupChecklist } from '../../components/setup/SetupChecklist';
+import { rateReadout, averageRateReadout, rateBarWidth, type RateReadout } from '@lemlist/shared';
 import { Avatar } from '../../components/shared/Avatar';
 import {
   Plus, Send, MailOpen, MousePointerClick, MessageSquare, Inbox,
@@ -184,9 +186,19 @@ function AttentionRow({ icon: Icon, count, label, sub, to, tone = 'default', onD
 }
 
 /* ─── Metric cell — one selectable column in the performance module ── */
-function MetricCell({ label, value, delta, active, onClick }: {
+/*
+ * A metric, and whether it has earned the right to be a percentage.
+ *
+ * `readout` carries that decision. Below the sample it can support, the
+ * cell says what it really is - "Too early" - and drops the change arrow,
+ * because a "+12%" swing computed off nine sends is the same fiction as
+ * the rate itself, in a shape that looks even more like news.
+ */
+function MetricCell({ label, value, delta, active, onClick, readout }: {
   label: string; value: string; delta?: number | null; active: boolean; onClick: () => void;
+  readout?: RateReadout;
 }) {
+  const unproven = !!readout && !readout.isRate;
   return (
     <button
       onClick={onClick}
@@ -194,6 +206,7 @@ function MetricCell({ label, value, delta, active, onClick }: {
         'relative flex-1 min-w-0 px-4 py-3 text-left transition-colors',
         active ? 'bg-[var(--bg-surface)]' : 'bg-[var(--bg-muted)] hover:bg-[var(--bg-surface)]'
       )}
+      title={readout?.hint}
     >
       {/* Active metric gets a hairline accent along the top edge */}
       <span className={cn(
@@ -203,10 +216,12 @@ function MetricCell({ label, value, delta, active, onClick }: {
       <span className="block text-[12px] font-medium text-[var(--text-tertiary)] truncate">{label}</span>
       <span className="mt-1 flex items-baseline gap-2">
         <span className={cn(
-          'text-[19px] font-semibold tabular leading-none tracking-[-0.02em]',
-          active ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-        )}>{value}</span>
-        <Delta value={delta} />
+          'font-semibold tabular leading-none tracking-[-0.02em]',
+          // Smaller and quieter, because it is not a measurement.
+          unproven ? 'text-[14px] text-[var(--text-tertiary)]' : 'text-[19px]',
+          !unproven && (active ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'),
+        )} data-metric-value>{readout ? readout.label : value}</span>
+        {!unproven && <Delta value={delta} />}
       </span>
     </button>
   );
@@ -396,7 +411,12 @@ export function DashboardPage() {
     return [7, 30, 90].includes(saved) ? saved : 30;
   });
   const [metric, setMetric] = useState<MetricKey>('sent');
-  const [smtpBannerDismissed, setSmtpBannerDismissed] = useState(false);
+  // Persisted by which accounts are unhealthy, not just a boolean — so
+  // dismissing today's warning doesn't also hide tomorrow's warning about
+  // a different account, and the dismissal survives navigating away and back.
+  const [dismissedSmtpSignature, setDismissedSmtpSignature] = useState<string | null>(() => {
+    try { return localStorage.getItem('dashboard.smtpBannerDismissed'); } catch { return null; }
+  });
 
   const setPeriodPersist = (p: number) => { setPeriod(p); try { localStorage.setItem('dashboard.period', String(p)); } catch { /* ignore */ } };
 
@@ -457,6 +477,14 @@ export function DashboardPage() {
 
   const unhealthySmtpAccounts = (smtpAccounts || [])
     .filter((a) => a.is_active && a.health_score < SMTP_HEALTH_THRESHOLD);
+  const smtpBannerSignature = unhealthySmtpAccounts.length
+    ? unhealthySmtpAccounts.map((a) => a.id).sort().join(',')
+    : null;
+  const smtpBannerDismissed = smtpBannerSignature !== null && smtpBannerSignature === dismissedSmtpSignature;
+  const dismissSmtpBanner = () => {
+    setDismissedSmtpSignature(smtpBannerSignature);
+    try { if (smtpBannerSignature) localStorage.setItem('dashboard.smtpBannerDismissed', smtpBannerSignature); } catch { /* ignore */ }
+  };
 
   const s = analytics || {
     total_campaigns: 0, active_campaigns: 0, total_contacts: 0,
@@ -474,6 +502,8 @@ export function DashboardPage() {
 
   const campaigns = Array.isArray(campaignList) ? campaignList : [];
   const topCampaigns = [...campaigns].sort((a, b) => b.sent - a.sent).slice(0, 5);
+  /* Whether the headline rate has enough behind it to be stated as one. */
+  const headlineReply = averageRateReadout(s.avg_reply_rate, s.total_sent, 'emails');
 
   const recentMessages = Array.isArray(inboxData?.data) ? inboxData.data : [];
   // Prefer the name the user set in Settings; fall back to the email prefix.
@@ -512,7 +542,12 @@ export function DashboardPage() {
             <span className="text-[var(--border-strong)]">·</span>
             <span>{fmtFull(totalContacts)} contacts</span>
             <span className="text-[var(--border-strong)]">·</span>
-            <span>{fmtPct(s.avg_reply_rate)} avg reply rate</span>
+            {/* The headline figure only claims to be one once it can be. */}
+            <span title={headlineReply.hint}>
+              {headlineReply.isRate
+                ? `${headlineReply.label} avg reply rate`
+                : `${fmtFull(s.total_sent)} sent — too early for a reply rate`}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -566,12 +601,17 @@ export function DashboardPage() {
                   sub={unhealthySmtpAccounts.map((a) => a.label || a.email_address).join(', ')}
                   to="/email-accounts"
                   tone="warn"
-                  onDismiss={() => setSmtpBannerDismissed(true)}
+                  onDismiss={dismissSmtpBanner}
                 />
               )}
             </div>
           )}
         </section>
+
+        {/* The right-hand column carries the two time-critical things: what
+            is happening today, and what has just come in. */}
+        <div className="flex flex-col gap-4">
+        <TodayPanel />
 
         <section className="panel overflow-hidden flex flex-col">
           <Head title="Latest replies" action={<MoreLink to="/inbox" label={unreadReplies > 0 ? `${unreadReplies} new` : 'Open'} />} />
@@ -610,6 +650,7 @@ export function DashboardPage() {
             </div>
           )}
         </section>
+        </div>
       </div>
 
       {/* ── Row 2: one performance module — metric strip drives the chart ── */}
@@ -618,10 +659,13 @@ export function DashboardPage() {
           <MetricCell label="Emails sent" value={fmtNum(s.total_sent)} delta={s.sent_change}
             active={metric === 'sent'} onClick={() => setMetric('sent')} />
           <MetricCell label="Open rate" value={fmtPct(s.avg_open_rate)} delta={s.opened_change}
+            readout={averageRateReadout(s.avg_open_rate, s.total_sent, 'emails')}
             active={metric === 'opened'} onClick={() => setMetric('opened')} />
           <MetricCell label="Click rate" value={fmtPct(s.avg_click_rate)} delta={s.clicked_change}
+            readout={averageRateReadout(s.avg_click_rate, s.total_sent, 'emails')}
             active={metric === 'clicked'} onClick={() => setMetric('clicked')} />
           <MetricCell label="Reply rate" value={fmtPct(s.avg_reply_rate)} delta={s.replied_change}
+            readout={averageRateReadout(s.avg_reply_rate, s.total_sent, 'emails')}
             active={metric === 'replied'} onClick={() => setMetric('replied')} />
         </div>
         <div className="flex items-center justify-between px-4 pt-3">
@@ -643,25 +687,39 @@ export function DashboardPage() {
           <Head title="Campaign leaderboard" desc="Ranked by volume" action={<MoreLink to="/analytics" />} />
           {topCampaigns.length > 0 ? (
             <div className="divide-y divide-[var(--border-subtle)]">
-              {topCampaigns.map((c, i) => (
+              {topCampaigns.map((c, i) => {
+                /* Real counts, not the rate reconstructed from itself. */
+                const open = rateReadout(c.opened, c.sent, 'opens');
+                const reply = rateReadout(c.replied, c.sent, 'replies');
+                const barWidth = rateBarWidth(reply);
+                return (
                 <button key={c.id} onClick={() => navigate(`/campaigns/${c.id}`)}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left group">
                   <span className="w-6 text-[12px] font-semibold tabular text-[var(--text-muted)] flex-shrink-0">{String(i + 1).padStart(2, '0')}</span>
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: STATUS_DOT[c.status] || 'var(--text-muted)' }} />
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">{c.name}</p>
-                    {/* Reply-rate bar: instant visual scan of what converts */}
-                    <div className="mt-1.5 h-1 rounded-full bg-[var(--bg-elevated)] overflow-hidden max-w-[220px]">
-                      <div className="h-full rounded-full" style={{ width: `${Math.min(100, (Number(c.reply_rate) || 0) * 4)}%`, background: ACCENT }} />
-                    </div>
+                    {/*
+                      * The bar is a claim about magnitude and cannot carry a
+                      * caveat, so below the sample there is no bar at all -
+                      * rather than a short one, which reads as "doing badly"
+                      * when it means "we do not know yet".
+                      */}
+                    {barWidth != null && (
+                      <div className="mt-1.5 h-1 rounded-full bg-[var(--bg-elevated)] overflow-hidden max-w-[220px]">
+                        <div className="h-full rounded-full" style={{ width: `${barWidth}%`, background: ACCENT }} />
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-5 text-right flex-shrink-0">
-                    <div className="hidden sm:block w-12">
-                      <div className="text-[13px] font-semibold tabular text-[var(--text-primary)]">{fmtPct(c.open_rate)}</div>
+                    <div className="hidden sm:block w-12" title={open.hint}>
+                      <div className={cn('text-[13px] font-semibold tabular',
+                        open.isRate ? 'text-[var(--text-primary)]' : 'text-[11.5px] text-[var(--text-tertiary)]')}>{open.label}</div>
                       <div className="text-[11px] text-[var(--text-tertiary)]">open</div>
                     </div>
-                    <div className="hidden sm:block w-12">
-                      <div className="text-[13px] font-semibold tabular text-[var(--text-primary)]">{fmtPct(c.reply_rate)}</div>
+                    <div className="hidden sm:block w-12" title={reply.hint}>
+                      <div className={cn('text-[13px] font-semibold tabular',
+                        reply.isRate ? 'text-[var(--text-primary)]' : 'text-[11.5px] text-[var(--text-tertiary)]')}>{reply.label}</div>
                       <div className="text-[11px] text-[var(--text-tertiary)]">reply</div>
                     </div>
                     <div className="w-12">
@@ -671,7 +729,8 @@ export function DashboardPage() {
                     <ChevronRight className="h-4 w-4 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </button>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="py-14 text-center">

@@ -3040,6 +3040,7 @@ export function InboxPage() {
                         <span className="h-3 w-px bg-[var(--border-subtle)]" />
                         <ReplyActions
                           target={{
+                            messageId: currentMsg.id,
                             contactId: currentMsg.contact_id || null,
                             contactName: threadContactName || currentMsg.contact_name || null,
                             contactEmail: threadContactEmail,

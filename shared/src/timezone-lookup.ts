@@ -268,7 +268,7 @@ export function inferTimezone(location?: string | null): string | null {
     if (new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(whole)) return zone;
   }
   for (const [name, zone] of Object.entries(COUNTRY_ZONES)) {
-    if (name.length < 5) continue; // skip "uk"/"uae" — too easy to hit by accident
+    if (name.length < 4) continue; // skip "uk"/"uae" — too easy to hit by accident
     if (new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(whole)) return zone;
   }
   for (const [name, zone] of Object.entries(CITY_ZONES)) {

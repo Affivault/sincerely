@@ -220,6 +220,23 @@ export function DomainDetailPanel({
   const passing = CHECKS.filter((c) => domain[c.key]).length;
   const records = recordsData?.records || [];
   const mx = recordsData?.dns?.mx;
+  const dkim = recordsData?.dns?.dkim;
+
+  const [selector, setSelector] = useState(domain.dkim_selector || '');
+  const saveSelector = useMutation({
+    mutationFn: () => domainApi.setDkimSelector(domain.id, selector.trim() || null),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['domains'] });
+      queryClient.invalidateQueries({ queryKey: ['domain-records', domain.id] });
+      // Show what was actually stored. A name that did not resolve is not
+      // stored, and leaving their text in the box is what lets them fix a
+      // typo rather than retype the whole thing.
+      if (result.domain.dkim_selector) setSelector(result.domain.dkim_selector);
+      if (result.dns.dkim.found) toast.success(result.dns.dkim.note);
+      else toast.error(result.dns.dkim.note);
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Could not check that selector'),
+  });
 
   const copyAll = async () => {
     const lines = records
@@ -232,6 +249,116 @@ export function DomainDetailPanel({
       toast.error('Failed to copy to clipboard');
     }
   };
+
+  /*
+   * The DKIM selector box.
+   *
+   * It exists because DNS has no way to list the selectors a domain has -
+   * a key lives at <selector>._domainkey and you can only look up a name
+   * you already know. So the check guesses, and for Amazon SES, HubSpot,
+   * Postmark and anything else with per-account names, guessing cannot
+   * work even in principle. Before this there was no way for somebody who
+   * KNEW the answer to tell us, and the screen simply insisted their
+   * working DKIM did not exist.
+   */
+  /*
+   * The verdict. Three genuinely different situations wear three different
+   * colours, because "we could not find it" and "you have not got one" are
+   * not the same news and must not look the same.
+   */
+  const subtree = dkim?.subtree;
+  const verdict = domain.dkim_ok
+    ? { tone: 'ok', title: 'DKIM is working' }
+    : subtree === 'present'
+      ? { tone: 'warn', title: 'Your DKIM is there — we just need its name' }
+      : subtree === 'absent'
+        ? { tone: 'bad', title: `No DKIM is published on ${domain.domain}` }
+        : { tone: 'warn', title: 'We could not find your DKIM' };
+
+  const TONE = {
+    ok: 'border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-700 dark:text-emerald-400',
+    warn: 'border-amber-500/30 bg-amber-500/[0.06] text-amber-700 dark:text-amber-400',
+    bad: 'border-rose-500/30 bg-rose-500/[0.06] text-rose-700 dark:text-rose-400',
+  } as const;
+
+  const dkimHelp = (
+    <div
+      className={cn('rounded-lg border p-3', TONE[verdict.tone as keyof typeof TONE])}
+      data-dkim-help
+      data-dkim-subtree={subtree || 'none'}
+    >
+      <p className="text-[12.5px] font-semibold" data-dkim-verdict>{verdict.title}</p>
+      <p className="mt-1 text-[11.5px] leading-relaxed text-[var(--text-secondary)]" data-dkim-note>
+        {dkim?.note
+          || 'DNS gives no way to list DKIM selectors, so we guess the common ones.'}
+      </p>
+
+      {/*
+        * When the keys are proven to exist, the only missing thing is the
+        * name - so ask for exactly that and skip the explaining. When the
+        * subtree is empty there is nothing to name, so say what to do
+        * instead of offering a box that cannot succeed.
+        */}
+      {!domain.dkim_ok && subtree !== 'absent' && (
+        <p className="mt-1.5 text-[11.5px] leading-relaxed text-[var(--text-tertiary)]">
+          Providers like Amazon SES, HubSpot and Postmark use selectors nobody
+          could guess. Find yours in your provider&rsquo;s DNS settings &mdash;
+          it is the part before <code>._domainkey</code> &mdash; and enter it here.
+        </p>
+      )}
+
+      {subtree !== 'absent' && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <input
+            value={selector}
+            onChange={(e) => setSelector(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') saveSelector.mutate(); }}
+            placeholder="e.g. selector1, google, hs1-4021"
+            className="input-field h-8 flex-1 text-[12px]"
+            data-dkim-selector
+          />
+          <button
+            onClick={() => saveSelector.mutate()}
+            disabled={saveSelector.isPending}
+            className="btn-secondary h-8"
+            data-dkim-check
+          >
+            {saveSelector.isPending ? 'Checking…' : 'Check it'}
+          </button>
+        </div>
+      )}
+
+      {domain.dkim_selector && (
+        <p className="mt-1.5 text-[11px] text-[var(--text-tertiary)]">
+          Using <code>{domain.dkim_selector}._domainkey.{domain.domain}</code>
+          {domain.dkim_selector_source === 'manual' ? ' (you set this)' : ' (we found this)'}
+        </p>
+      )}
+
+      {/* The evidence, for anyone who wants to check our working. */}
+      <details className="mt-2 group">
+        <summary className="cursor-pointer text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] select-none">
+          What we checked
+        </summary>
+        <div className="mt-1.5 space-y-1 text-[11px] text-[var(--text-tertiary)]">
+          <p>
+            Looked up <code>_domainkey.{domain.domain}</code> to see whether any
+            keys exist at all, then{' '}
+            {dkim?.checked_selectors
+              ? `tried ${dkim.checked_selectors} known selector names`
+              : 'tried the known selector names'}.
+          </p>
+          <p>
+            {subtree === 'present'
+              ? 'That name exists in your DNS, which means keys are published under it. DNS cannot list them, so we need the selector from your provider.'
+              : subtree === 'absent'
+                ? 'That name does not exist in your DNS, so there are no keys published under it.'
+                : 'Your DNS answers as though every name exists, so that check could not tell us anything either way.'}
+          </p>
+        </div>
+      </details>
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -332,6 +459,9 @@ export function DomainDetailPanel({
           ))}
         </div>
       ) : null}
+
+      {/* DKIM selector — the one check that cannot be finished by guessing */}
+      {!loadingRecords && dkimHelp}
 
       {/* Last checked */}
       {domain.last_checked_at && (

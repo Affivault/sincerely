@@ -10,12 +10,41 @@ import dns from 'dns';
 
 const resolver = new dns.promises.Resolver({ timeout: 4000, tries: 2 });
 
-const DNS_TYPE = { A: 1, AAAA: 28, TXT: 16, MX: 15, CNAME: 5 } as const;
-type DnsType = keyof typeof DNS_TYPE;
+const DNS_TYPE = { A: 1, AAAA: 28, TXT: 16, MX: 15, CNAME: 5, SRV: 33 } as const;
+export type DnsType = keyof typeof DNS_TYPE;
 
 const DOH_ENDPOINTS = ['https://cloudflare-dns.com/dns-query', 'https://dns.google/resolve'];
 
-async function dohQuery(endpoint: string, name: string, type: DnsType): Promise<string[] | null> {
+/* ═══════════════════════════════════════════════════════════════════════
+   One resolver, because two of them drifted.
+
+   There used to be a second copy of all of this inside domain.service, and
+   during the DKIM work it was taught something this one was not: that an
+   empty answer is three different facts, not one.
+
+     records     the name exists and has records of this type
+     nodata      the name EXISTS but has no records of this type (NOERROR)
+     nxdomain    the name does not exist at all, at any type
+     unreachable nobody would answer, so we know nothing
+
+   That distinction is load-bearing in two places. The DKIM presence probe
+   reads NXDOMAIN-vs-NODATA at `_domainkey` to tell "you have no DKIM" from
+   "we could not guess the selector". And the mailbox repair only replaces a
+   host it can prove does not exist - a rule that silently becomes "replace
+   anything we could not resolve" if the layer underneath flattens the two.
+
+   This copy flattened them, and everything built on it - the Add Mailbox
+   domain check, the tracking-domain CNAME check, every host lookup in the
+   send and sync paths - was reading the weaker answer. Two implementations
+   of the same thing is how one of them ends up wrong.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+export type DnsAnswer = {
+  status: 'records' | 'nodata' | 'nxdomain' | 'unreachable';
+  records: string[];
+};
+
+async function dohQuery(endpoint: string, name: string, type: DnsType): Promise<DnsAnswer | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 6000);
   try {
@@ -25,9 +54,14 @@ async function dohQuery(endpoint: string, name: string, type: DnsType): Promise<
     });
     if (!res.ok) return null;
     const json: any = await res.json();
-    if (json.Status !== 0 && json.Status !== 3) return null; // NOERROR or NXDOMAIN
+    // NXDOMAIN is a definitive "this name does not exist".
+    if (json.Status === 3) return { status: 'nxdomain', records: [] };
+    // Anything but NOERROR (SERVFAIL, REFUSED…) means the endpoint could not
+    // say, which is not the same as there being nothing to say.
+    if (json.Status !== 0) return null;
     const answers: any[] = Array.isArray(json.Answer) ? json.Answer : [];
-    return answers.filter((a) => a.type === DNS_TYPE[type]).map((a) => String(a.data));
+    const records = answers.filter((a) => a.type === DNS_TYPE[type]).map((a) => String(a.data));
+    return { status: records.length > 0 ? 'records' : 'nodata', records };
   } catch {
     return null;
   } finally {
@@ -35,22 +69,34 @@ async function dohQuery(endpoint: string, name: string, type: DnsType): Promise<
   }
 }
 
-/** Resolve records via Cloudflare → Google DoH → OS resolver. Missing → []. */
-export async function resolveDoh(name: string, type: DnsType): Promise<string[]> {
+/** Resolve via Cloudflare → Google DoH → OS resolver, keeping the reason. */
+export async function resolveDetailed(name: string, type: DnsType): Promise<DnsAnswer> {
   for (const endpoint of DOH_ENDPOINTS) {
-    const answers = await dohQuery(endpoint, name, type);
-    if (answers !== null) return answers;
+    const answer = await dohQuery(endpoint, name, type);
+    if (answer !== null) return answer;
   }
   try {
-    if (type === 'A') return await resolver.resolve4(name);
-    if (type === 'AAAA') return await resolver.resolve6(name);
-    if (type === 'TXT') return (await resolver.resolveTxt(name)).map((c) => c.join(''));
-    if (type === 'MX') return (await resolver.resolveMx(name)).map((r) => `${r.priority} ${r.exchange}`);
-    return await resolver.resolveCname(name);
-  } catch {
-    return [];
+    const records = type === 'A' ? await resolver.resolve4(name)
+      : type === 'AAAA' ? await resolver.resolve6(name)
+      : type === 'TXT' ? (await resolver.resolveTxt(name)).map((chunks) => `"${chunks.join('" "')}"`)
+      : type === 'MX' ? (await resolver.resolveMx(name)).map((r) => `${r.priority} ${r.exchange}`)
+      // Presentation format, so the DoH and OS paths parse identically.
+      : type === 'SRV' ? (await resolver.resolveSrv(name)).map((r) => `${r.priority} ${r.weight} ${r.port} ${r.name}`)
+      : await resolver.resolveCname(name);
+    return { status: records.length > 0 ? 'records' : 'nodata', records };
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (code === 'ENOTFOUND' || code === 'NXDOMAIN') return { status: 'nxdomain', records: [] };
+    if (code === 'ENODATA') return { status: 'nodata', records: [] };
+    return { status: 'unreachable', records: [] };
   }
 }
+
+/** Resolve records via Cloudflare → Google DoH → OS resolver. Missing → []. */
+export async function resolveDoh(name: string, type: DnsType): Promise<string[]> {
+  return (await resolveDetailed(name, type)).records;
+}
+
 
 /**
  * Resolve a mail server hostname to an IPv4 address via DoH. Returns null if

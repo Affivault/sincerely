@@ -44,6 +44,7 @@ function sortValue(c: any, key: SortKey): number | string {
 }
 import toast from 'react-hot-toast';
 import type { CampaignWithStats } from '@lemlist/shared';
+import { rateReadout, rateBarWidth } from '@lemlist/shared';
 
 const STATUS_TABS = [
   { label: 'All',       value: '' },
@@ -199,10 +200,12 @@ export function CampaignsListPage() {
   const uncategorisedCount = allStatusesCampaigns.filter((c: any) => !c.folder_id).length;
 
   const sentTotal = aggregateStats.sent || 0;
-  const openPctAgg   = sentTotal ? (aggregateStats.opened  / sentTotal) * 100 : 0;
-  const clickPctAgg  = sentTotal ? (aggregateStats.clicked / sentTotal) * 100 : 0;
-  const replyPctAgg  = sentTotal ? (aggregateStats.replied / sentTotal) * 100 : 0;
-  const bouncePctAgg = sentTotal ? (aggregateStats.bounced / sentTotal) * 100 : 0;
+  // Same rule across the whole account: a rate only gets to be a rate once
+  // it has enough behind it to be one.
+  const openAgg   = rateReadout(aggregateStats.opened,  sentTotal, 'opens');
+  const clickAgg  = rateReadout(aggregateStats.clicked, sentTotal, 'clicks');
+  const replyAgg  = rateReadout(aggregateStats.replied, sentTotal, 'replies');
+  const bounceAgg = rateReadout(aggregateStats.bounced, sentTotal, 'bounces');
 
   const statusTabs = STATUS_TABS.map((t) => ({
     value: t.value,
@@ -250,7 +253,9 @@ export function CampaignsListPage() {
               <span className="text-[var(--text-muted)]">·</span>
               <span className="tabular">{aggregateStats.replied.toLocaleString()} replies</span>
               <span className="text-[var(--text-muted)]">·</span>
-              <span className="tabular">{replyPctAgg.toFixed(1)}% reply rate</span>
+              <span className="tabular" title={replyAgg.hint}>
+                {replyAgg.isRate ? `${replyAgg.label} reply rate` : 'too early for a reply rate'}
+              </span>
             </>
           ) : (
             <span>{visibleCampaigns.length} campaign{visibleCampaigns.length === 1 ? '' : 's'}</span>
@@ -274,10 +279,10 @@ export function CampaignsListPage() {
       {sentTotal > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
           <MetricChip icon={Send}              label="Sent"    value={aggregateStats.sent}    tone="indigo" />
-          <MetricChip icon={Mail}              label="Opens"   value={aggregateStats.opened}  tone="violet"  rate={openPctAgg} />
-          <MetricChip icon={MousePointerClick} label="Clicks"  value={aggregateStats.clicked} tone="cyan"    rate={clickPctAgg} />
-          <MetricChip icon={MessageSquare}     label="Replies" value={aggregateStats.replied} tone="emerald" rate={replyPctAgg} />
-          <MetricChip icon={Ban}               label="Bounces" value={aggregateStats.bounced} tone="rose"    rate={bouncePctAgg} />
+          <MetricChip icon={Mail}              label="Opens"   value={aggregateStats.opened}  tone="violet"  readout={openAgg} />
+          <MetricChip icon={MousePointerClick} label="Clicks"  value={aggregateStats.clicked} tone="cyan"    readout={clickAgg} />
+          <MetricChip icon={MessageSquare}     label="Replies" value={aggregateStats.replied} tone="emerald" readout={replyAgg} />
+          <MetricChip icon={Ban}               label="Bounces" value={aggregateStats.bounced} tone="rose"    readout={bounceAgg} />
         </div>
       )}
 
@@ -626,16 +631,18 @@ function FolderRow({ label, icon: Icon, count, active, onClick, onEdit, onAnalyt
   );
 }
 
-function MetricChip({ icon: Icon, label, value, rate }: {
-  icon: any; label: string; value: number; rate?: number; tone?: string;
+function MetricChip({ icon: Icon, label, value, readout }: {
+  icon: any; label: string; value: number; readout?: ReturnType<typeof rateReadout>; tone?: string;
 }) {
   return (
-    <div className="panel p-4">
+    <div className="panel p-4" title={readout?.hint}>
       <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
         <Icon className="h-4 w-4 flex-shrink-0" strokeWidth={1.75} />
         <span className="text-[12.5px] font-medium">{label}</span>
-        {rate !== undefined && (
-          <span className="ml-auto text-[12px] tabular font-semibold text-[var(--text-secondary)]">{rate.toFixed(1)}%</span>
+        {/* The count below is always true. The rate beside it only appears
+            once it is, and the chip is not empty without it. */}
+        {readout?.isRate && (
+          <span className="ml-auto text-[12px] tabular font-semibold text-[var(--text-secondary)]">{readout.label}</span>
         )}
       </div>
       <div className="mt-2.5 text-[26px] font-semibold text-[var(--text-primary)] tabular tracking-[-0.03em] leading-none">
@@ -656,13 +663,20 @@ const STATUS_DOT: Record<string, string> = {
 
 function CampaignRow({ campaign, expanded, onToggleSnapshot, onOpen, onLaunch, onPause, onResume, onEdit, onContextMenu, dragging, onDragStart, onDragEnd, launchBusy, pauseBusy, resumeBusy }: any) {
   const total = campaign.sent_count || 0;
-  const openPct   = total ? (campaign.opened_count  / total) * 100 : 0;
-  const clickPct  = total ? (campaign.clicked_count / total) * 100 : 0;
-  const replyPct  = total ? (campaign.replied_count / total) * 100 : 0;
   const totalContacts = campaign.contacts_count || campaign.total_contacts || 0;
   const pipelinePct = totalContacts ? Math.min((total / totalContacts) * 100, 100) : 0;
   const bounced   = campaign.bounced_count || 0;
-  const bouncePct = total ? (bounced / total) * 100 : 0;
+  /*
+   * Each rate carries what it was computed from. "16.7%" off twelve sends
+   * is two replies, and in this table it sat in the same weight and the
+   * same tabular figures as 16.7% off twelve thousand - and got sorted
+   * against it. Below the sample it can carry, the cell shows the counts
+   * instead, which are the same width and cannot be read as a trend.
+   */
+  const openR   = rateReadout(campaign.opened_count,  total, 'opens');
+  const clickR  = rateReadout(campaign.clicked_count, total, 'clicks');
+  const replyR  = rateReadout(campaign.replied_count, total, 'replies');
+  const bounceR = rateReadout(bounced, total, 'bounces');
 
   const metric = (v: string, strong = false, warn = false) => (
     <span className={cn(
@@ -673,24 +687,35 @@ function CampaignRow({ campaign, expanded, onToggleSnapshot, onOpen, onLaunch, o
 
   /* Rate cell with a micro-bar — length makes the table scannable at a glance.
      `cap` is the rate treated as a "full" bar (60% open ≈ great, 15% reply ≈ great). */
-  const rateCell = (pct: number, cap: number, strong = false, warn = false) => (
-    <div className="text-right min-w-0">
-      <span className={cn(
-        'text-[13.5px] tabular',
-        warn ? 'font-semibold text-rose-500' : strong ? 'font-semibold text-[var(--text-primary)]' : 'font-medium text-[var(--text-secondary)]'
-      )}>{total ? `${pct.toFixed(1)}%` : '—'}</span>
-      <div className="mt-1 h-[3px] rounded-full bg-[var(--bg-elevated)] overflow-hidden ml-auto">
-        <div
-          className="h-full rounded-full transition-all duration-500 ml-auto"
-          style={{
-            width: `${total ? Math.min(100, (pct / cap) * 100) : 0}%`,
-            background: warn ? '#F43F5E' : 'var(--indigo)',
-            opacity: strong ? 1 : 0.55,
-          }}
-        />
+  const rateCell = (r: ReturnType<typeof rateReadout>, cap: number, strong = false, warnAbove?: number) => {
+    // A warning is a judgement, and one cannot be made on a sample too
+    // small to support the rate it would be made from.
+    const warn = r.isRate && warnAbove != null && (r.rate ?? 0) * 100 > warnAbove;
+    const width = rateBarWidth(r, cap / 100);
+    return (
+      <div className="text-right min-w-0" title={r.hint}>
+        <span className={cn(
+          'tabular',
+          r.isRate ? 'text-[13.5px]' : 'text-[12px] text-[var(--text-tertiary)]',
+          r.isRate && (warn ? 'font-semibold text-rose-500' : strong ? 'font-semibold text-[var(--text-primary)]' : 'font-medium text-[var(--text-secondary)]'),
+        )} data-rate-cell>{r.label}</span>
+        {/* No bar below the sample: a short bar reads as "doing badly"
+            where the truth is "we do not know yet". */}
+        {width != null && (
+          <div className="mt-1 h-[3px] rounded-full bg-[var(--bg-elevated)] overflow-hidden ml-auto">
+            <div
+              className="h-full rounded-full transition-all duration-500 ml-auto"
+              style={{
+                width: `${width}%`,
+                background: warn ? '#F43F5E' : 'var(--indigo)',
+                opacity: strong ? 1 : 0.55,
+              }}
+            />
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div
@@ -723,10 +748,10 @@ function CampaignRow({ campaign, expanded, onToggleSnapshot, onOpen, onLaunch, o
 
       {/* Metrics — rates carry micro-bars so the column scans like a chart */}
       {metric(total ? total.toLocaleString() : '—', true)}
-      {rateCell(openPct, 60)}
-      {rateCell(clickPct, 15)}
-      {rateCell(replyPct, 15, true)}
-      {rateCell(bouncePct, 10, false, bouncePct > 3)}
+      {rateCell(openR, 60)}
+      {rateCell(clickR, 15)}
+      {rateCell(replyR, 15, true)}
+      {rateCell(bounceR, 10, false, 3)}
 
       {/* Pipeline */}
       <div className="min-w-0">
@@ -1040,9 +1065,9 @@ function FolderAnalyticsModal({ folderId, onClose }: { folderId: string; onClose
         <>
           <div className="grid grid-cols-4 gap-3 mb-5">
             <MetricChip icon={Send}              label="Sent"    value={data.totals.sent}    tone="indigo" />
-            <MetricChip icon={Mail}              label="Opened"  value={data.totals.opened}  tone="violet"  rate={data.totals.sent ? (data.totals.opened/data.totals.sent*100) : 0} />
-            <MetricChip icon={MousePointerClick} label="Clicked" value={data.totals.clicked} tone="cyan"    rate={data.totals.sent ? (data.totals.clicked/data.totals.sent*100) : 0} />
-            <MetricChip icon={MessageSquare}     label="Replied" value={data.totals.replied} tone="emerald" rate={data.totals.sent ? (data.totals.replied/data.totals.sent*100) : 0} />
+            <MetricChip icon={Mail}              label="Opened"  value={data.totals.opened}  tone="violet"  readout={rateReadout(data.totals.opened, data.totals.sent, 'opens')} />
+            <MetricChip icon={MousePointerClick} label="Clicked" value={data.totals.clicked} tone="cyan"    readout={rateReadout(data.totals.clicked, data.totals.sent, 'clicks')} />
+            <MetricChip icon={MessageSquare}     label="Replied" value={data.totals.replied} tone="emerald" readout={rateReadout(data.totals.replied, data.totals.sent, 'replies')} />
           </div>
 
           <div className="text-[10px] text-[var(--text-tertiary)] mb-2">By campaign</div>

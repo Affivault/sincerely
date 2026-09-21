@@ -59,6 +59,16 @@ export interface InboxSyncProgress {
   stored: number;
   last_synced_at: string | null;
   last_error: string | null;
+  /**
+   * This mailbox is not fetching anything and will not start on its own.
+   *
+   * Progress used to be two states - complete or not - so a mailbox that
+   * could never sync (no server set, a login pointing at another account)
+   * sat on "still fetching older mail" with a spinner, permanently. It was
+   * not fetching. It was stopped, and the spinner said the opposite of the
+   * truth while hiding the one thing worth reading.
+   */
+  blocked: boolean;
 }
 
 export interface InboxSyncResult {

@@ -10,6 +10,9 @@ import { previewWithSampleData } from '../services/sequence.service.js';
 import { resolveDoh } from '../utils/dns-doh.js';
 import { smtpDiagnosticsService } from '../services/smtp-diagnostics.service.js';
 import { billingService } from '../services/billing.service.js';
+import { detectProvider } from '../services/domain.service.js';
+import { discoverMailHosts, type MailHostDiscovery } from '../services/mail-discovery.service.js';
+import { repairMailboxes } from '../services/mailbox-repair.service.js';
 import { warmupService } from '../services/warmup.service.js';
 
 const resolveTxt = promisify(dns.resolveTxt);
@@ -194,26 +197,54 @@ export const smtpController = {
 
       // Diagnosing a saved account shouldn't require retyping its password.
       let password: string | undefined = req.body?.smtp_pass || undefined;
-      if (!password && account_id) {
+      let saved: any = null;
+      if (account_id) {
         const { data: account } = await supabaseAdmin
           .from('smtp_accounts')
-          .select('smtp_pass_encrypted')
+          .select('smtp_pass_encrypted, imap_host, imap_port, imap_secure, imap_user')
           .eq('id', account_id)
           .eq('user_id', req.userId!)
           .maybeSingle();
-        if (account) {
+        saved = account || null;
+        if (account && !password) {
           try { password = decrypt(account.smtp_pass_encrypted); } catch { /* probe without auth */ }
         }
       }
 
-      const result = await smtpDiagnosticsService.diagnose({
+      /*
+       * Both legs. Diagnostics used to cover sending only - the half that
+       * is already proven every time a campaign goes out - so the failure
+       * people actually press the button for (sends fine, replies never
+       * arrive) ran a probe of the healthy leg and came back green.
+       *
+       * The IMAP settings come from the saved row when the caller did not
+       * supply them, so diagnosing an existing mailbox needs nothing typed.
+       */
+      const result = await smtpDiagnosticsService.diagnoseMailbox({
         smtp_host,
         smtp_port: Number(smtp_port) || 587,
         smtp_secure: req.body?.smtp_secure,
         smtp_user: req.body?.smtp_user,
         smtp_pass: password,
+        imap_host: req.body?.imap_host ?? saved?.imap_host ?? null,
+        imap_port: req.body?.imap_port ?? saved?.imap_port ?? null,
+        imap_secure: req.body?.imap_secure ?? saved?.imap_secure ?? null,
+        imap_user: req.body?.imap_user ?? saved?.imap_user ?? req.body?.smtp_user ?? null,
       });
       res.json(result);
+    } catch (err) { next(err); }
+  },
+
+  /**
+   * POST /smtp-accounts/repair-hosts
+   *
+   * Replace IMAP server addresses that do not exist in DNS with ones that
+   * do. Only names that are definitively absent are touched - see the
+   * safety argument in mailbox-repair.service.
+   */
+  async repairHosts(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await repairMailboxes(req.userId!));
     } catch (err) { next(err); }
   },
 
@@ -234,6 +265,7 @@ export const smtpController = {
         dkim: { found: boolean; note: string };
         dmarc: { found: boolean; record: string | null; policy: string | null };
         provider_hint: string | null;
+        hosts?: MailHostDiscovery;
       } = {
         domain: cleanDomain,
         mx: { found: false, records: [] },
@@ -260,13 +292,24 @@ export const smtpController = {
         .sort((a, b) => a.priority - b.priority);
       results.mx.found = mxRecords.length > 0;
       results.mx.records = mxRecords;
-      const mxStr = mxRecords.map((r) => r.exchange.toLowerCase()).join(' ');
-      if (mxStr.includes('google') || mxStr.includes('gmail')) results.provider_hint = 'Google Workspace';
-      else if (mxStr.includes('outlook') || mxStr.includes('microsoft')) results.provider_hint = 'Microsoft 365';
-      else if (mxStr.includes('zoho')) results.provider_hint = 'Zoho Mail';
-      else if (mxStr.includes('fastmail') || mxStr.includes('messagingengine')) results.provider_hint = 'Fastmail';
-      else if (mxStr.includes('protonmail') || mxStr.includes('proton')) results.provider_hint = 'ProtonMail';
-      else if (mxStr.includes('yahoo')) results.provider_hint = 'Yahoo Mail';
+      /*
+       * Detection used to be a second, shorter copy of the list in
+       * domain.service, and it had drifted: the Domains page could
+       * recognise a provider that this form could not, for the same domain,
+       * in the same session. One list.
+       */
+      results.provider_hint = detectProvider(mxRecords.map((r) => r.exchange));
+
+      /*
+       * Where the mailboxes actually live.
+       *
+       * This form used to fall back to `imap.<domain>`, which for a hosted
+       * mailbox is a name that does not exist - the mailboxes are on the
+       * PROVIDER'S hostname. Saving that produced "The IMAP host could not
+       * be found" against a value the app had invented. This only ever
+       * returns hosts that resolve.
+       */
+      results.hosts = await discoverMailHosts(cleanDomain);
 
       // SPF record
       for (const raw of await resolveDoh(cleanDomain, 'TXT')) {

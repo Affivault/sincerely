@@ -7,7 +7,7 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { Card } from '../../components/shared/Card';
 import { Button } from '../../components/ui/Button';
 import { SkeletonList } from '../../components/ui/Skeleton';
-import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { cn } from '../../lib/utils';
 
 const DAYS = [
@@ -51,26 +51,25 @@ function isSendingNow(schedule: SendingSchedule, now: Date): boolean {
     : (parts.hhmm >= start && parts.hhmm <= end);
 }
 
-/** What actually happens on delete — matches the server, which promotes the
- *  oldest remaining schedule to default rather than leaving the account with
- *  none (deleting a non-default schedule never changes the default). The old
- *  copy here claimed every deletion "falls back to your default sending
- *  hours," which was backwards for the one case that matters most: deleting
- *  the default itself. */
-function deleteWarning(target: SendingSchedule, all: SendingSchedule[]): string {
-  if (!target.is_default) {
-    return 'Campaigns using this schedule fall back to your default sending hours.';
-  }
+/** The undo-bar label for a deletion — matches what the server actually does:
+ *  deleting the default schedule promotes the oldest remaining one rather
+ *  than leaving the account with none. A plain "X deleted" said nothing
+ *  about that swap, which is exactly the moment a user would want to know
+ *  what just became their new default (or that nothing did). */
+function deleteLabel(target: SendingSchedule, all: SendingSchedule[]): string {
+  if (!target.is_default) return `"${target.name}" deleted`;
   const next = all
     .filter((s) => s.id !== target.id)
     .sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
   return next
-    ? `This is your default schedule. Deleting it will make "${next.name}" the new default.`
-    : 'This is your only schedule. Deleting it leaves campaigns on the hard-coded default window (09:00-17:00 UTC) until you create a new one.';
+    ? `"${target.name}" deleted — "${next.name}" is now default`
+    : `"${target.name}" deleted — no default schedule set`;
 }
 
 export function SchedulesPage() {
-  const confirm = useConfirm();
+  /* The row goes now and the request follows in six seconds, so deleting a
+     schedule you did not mean to is one click back rather than gone. */
+  const gone = usePendingRemoval();
   const qc = useQueryClient();
   const { data: schedules = [], isLoading } = useQuery({
     queryKey: ['sending-schedules'],
@@ -145,7 +144,7 @@ export function SchedulesPage() {
               loading={createMut.isPending}
             />
           )}
-          {schedules.map((s) => (
+          {schedules.filter((s) => !gone.hidden(s.id)).map((s) => (
             editing?.id === s.id ? (
               <ScheduleEditor
                 key={s.id}
@@ -160,9 +159,8 @@ export function SchedulesPage() {
                 schedule={s}
                 now={now}
                 onEdit={() => setEditing(s)}
-                onDelete={() => confirm(
-                  { title: `Delete "${s.name}"?`, body: deleteWarning(s, schedules), tone: 'danger' },
-                  () => deleteMut.mutate(s.id),
+                onDelete={() => gone.remove(
+                  s.id, deleteLabel(s, schedules), () => deleteMut.mutateAsync(s.id),
                 )}
                 onMakeDefault={() => updateMut.mutate({ id: s.id, input: { is_default: true } })}
               />

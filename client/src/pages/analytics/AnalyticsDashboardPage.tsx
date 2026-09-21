@@ -1481,6 +1481,22 @@ export function AnalyticsDashboardPage() {
                               </span>
                             )}
                           </div>
+                          {/*
+                            * Sends at this step that were never in the test.
+                            *
+                            * Said out loud because the alternative is a panel
+                            * whose totals do not add up to the campaign's -
+                            * an unexplained discrepancy costs more trust than
+                            * the number it saves. These were counted as
+                            * variant A until recently, which quietly inflated
+                            * one arm with a group that was never randomised.
+                            */}
+                          {step.untracked_sent > 0 && (
+                            <p className="px-5 pt-3 text-[11.5px] leading-snug text-[var(--text-tertiary)]" data-untracked-sends>
+                              {step.untracked_sent.toLocaleString()} send{step.untracked_sent === 1 ? '' : 's'} at this
+                              step went out before the test started and are not counted in either variant.
+                            </p>
+                          )}
                           <div className="p-5 grid grid-cols-2 gap-4">
                             <VariantCard
                               variant="a"

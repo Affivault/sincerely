@@ -6,7 +6,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
-import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { Card } from '../../components/shared/Card';
@@ -670,7 +670,9 @@ function SequenceDetailBody({ template }: { template: SequenceTemplate }) {
 // ─── Main Templates Page — library rail + persistent detail pane ────
 
 export function TemplatesPage() {
-  const confirm = useConfirm();
+  /* Deleting a template is reversible for six seconds instead of behind a
+     dialog. The row goes now; the request is sent when the offer expires. */
+  const gone = usePendingRemoval();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [tab, setTab] = useState<'emails' | 'sequences'>('emails');
@@ -729,8 +731,8 @@ export function TemplatesPage() {
 
   const deleteEmailMut = useMutation({
     mutationFn: templateApi.deleteEmail,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['email-templates'] }); toast.success('Deleted'); setSelectedId(null); },
-    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to delete'),
+    // No success toast: the undo bar already said so, six seconds earlier.
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['email-templates'] }); setSelectedId(null); },
   });
   const duplicateEmailMut = useMutation({
     mutationFn: templateApi.duplicateEmail,
@@ -739,8 +741,7 @@ export function TemplatesPage() {
   });
   const deleteSequenceMut = useMutation({
     mutationFn: templateApi.deleteSequence,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['sequence-templates'] }); toast.success('Deleted'); setSelectedId(null); },
-    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to delete'),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['sequence-templates'] }); setSelectedId(null); },
   });
   const duplicateSequenceMut = useMutation({
     mutationFn: templateApi.duplicateSequence,
@@ -752,20 +753,22 @@ export function TemplatesPage() {
   const filteredEmails = useMemo(() => {
     if (!emailTemplates) return [];
     return emailTemplates.filter(t => {
+      if (gone.hidden(t.id)) return false;
       if (activeCategory !== 'all' && t.category !== activeCategory) return false;
       if (search && !t.name.toLowerCase().includes(search.toLowerCase()) && !t.subject.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [emailTemplates, activeCategory, search]);
+  }, [emailTemplates, activeCategory, search, gone]);
 
   const filteredSequences = useMemo(() => {
     if (!sequenceTemplates) return [];
     return sequenceTemplates.filter(t => {
+      if (gone.hidden(t.id)) return false;
       if (activeCategory !== 'all' && t.category !== activeCategory) return false;
       if (search && !t.name.toLowerCase().includes(search.toLowerCase()) && !(t.description || '').toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [sequenceTemplates, activeCategory, search]);
+  }, [sequenceTemplates, activeCategory, search, gone]);
 
   // Keep a valid selection: fall back to the first visible row of the tab.
   const visibleRows = tab === 'emails' ? filteredEmails : filteredSequences;
@@ -946,9 +949,8 @@ export function TemplatesPage() {
                   onUse={() => handleUseEmail(t)}
                   onEdit={() => { setEditEmailData({ id: t.id, initial: t }); setShowEmailEditor(true); }}
                   onDuplicate={() => duplicateEmailMut.mutate(t.id)}
-                  onDelete={t.is_preset ? undefined : () => confirm(
-                    { title: `Delete "${t.name}"?`, body: 'Campaigns already built from this template keep their copy.', tone: 'danger' },
-                    () => deleteEmailMut.mutate(t.id),
+                  onDelete={t.is_preset ? undefined : () => gone.remove(
+                    t.id, `"${t.name}" deleted`, () => deleteEmailMut.mutateAsync(t.id),
                   )}
                 >
                   <EmailDetailBody key={t.id} template={t} />
@@ -973,9 +975,8 @@ export function TemplatesPage() {
                     setShowSequenceEditor(true);
                   }}
                   onDuplicate={() => duplicateSequenceMut.mutate(t.id)}
-                  onDelete={t.is_preset ? undefined : () => confirm(
-                    { title: `Delete "${t.name}"?`, body: 'Campaigns already built from this sequence keep their copy.', tone: 'danger' },
-                    () => deleteSequenceMut.mutate(t.id),
+                  onDelete={t.is_preset ? undefined : () => gone.remove(
+                    t.id, `"${t.name}" deleted`, () => deleteSequenceMut.mutateAsync(t.id),
                   )}
                 >
                   <SequenceDetailBody key={t.id} template={t} />

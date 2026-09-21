@@ -8,6 +8,7 @@ import { CommandPalette } from '../CommandPalette';
 import { PeekDrawer } from '../peek/PeekDrawer';
 import { ShortcutsOverlay } from '../ShortcutsOverlay';
 import { ConfirmProvider } from '../ui/ConfirmDialog';
+import { UndoProvider } from '../ui/UndoBar';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { SidebarProvider, useSidebar } from '../../context/SidebarContext';
 import { CommandPaletteProvider, useCommandPalette } from '../../context/CommandPaletteContext';
@@ -187,7 +188,13 @@ function AppContent() {
       if (e.key === 'n' || e.key === 'N') { e.preventDefault(); navigate('/campaigns/new'); }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      if (goPending.current !== null) {
+        window.clearTimeout(goPending.current);
+        goPending.current = null;
+      }
+    };
   }, [navigate]);
 
   return (
@@ -234,7 +241,11 @@ export function AppLayout() {
       <SidebarProvider>
         <CommandPaletteProvider>
           <ConfirmProvider>
-            <AppContent />
+            {/* Outside the router's own content so a pending delete is not
+                cancelled by the route that started it unmounting. */}
+            <UndoProvider>
+              <AppContent />
+            </UndoProvider>
           </ConfirmProvider>
         </CommandPaletteProvider>
       </SidebarProvider>
