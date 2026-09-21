@@ -1,13 +1,8 @@
 import crypto from 'crypto';
-import dns from 'dns';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import type { DnsCheckResult, DnsRecordInstruction } from '@lemlist/shared';
-
-// A dedicated resolver so slow/unresponsive nameservers can't hang a verify
-// request: 4s per attempt, 2 attempts max per lookup. Used as the LAST
-// fallback only — see the DoH layer below for why.
-const resolver = new dns.promises.Resolver({ timeout: 4000, tries: 2 });
+import { resolveDetailed, type DnsType } from '../utils/dns-doh.js';
 
 /* ─────────────────────────── DNS lookup layer ───────────────────────────
  * Container hosts routinely break classic UDP DNS for exactly the queries
@@ -21,9 +16,6 @@ const resolver = new dns.promises.Resolver({ timeout: 4000, tries: 2 });
  * back to the OS resolver when both DoH endpoints are unreachable.
  * ──────────────────────────────────────────────────────────────────────── */
 
-const DNS_TYPE = { TXT: 16, MX: 15, CNAME: 5, A: 1, SRV: 33 } as const;
-type DnsType = keyof typeof DNS_TYPE;
-
 /** Unwrap presentation-format TXT data: `"chunk1" "chunk2"` → `chunk1chunk2`. */
 function unquoteTxt(data: string): string {
   const chunks = Array.from(data.matchAll(/"((?:[^"\\]|\\.)*)"/g), (m) => m[1].replace(/\\(.)/g, '$1'));
@@ -32,80 +24,19 @@ function unquoteTxt(data: string): string {
 
 const stripDot = (s: string) => s.replace(/\.$/, '');
 
-/*
- * An empty answer is not one fact, it is three, and the difference between
- * them is the whole of the DKIM diagnosis below.
- *
- *   records    the name exists and has records of this type
- *   nodata     the name EXISTS but has no records of this type (NOERROR)
- *   nxdomain   the name does not exist at all, at any type
- *   unreachable  nobody would answer, so we know nothing
- *
- * Everything outside the DKIM presence probe only wants the records, and
- * `resolveRecords` below keeps handing those over unchanged.
- */
-export type DnsAnswer = {
-  status: 'records' | 'nodata' | 'nxdomain' | 'unreachable';
-  records: string[];
-};
-
-/** One DoH endpoint query, or null when the endpoint itself could not answer. */
-async function dohQuery(endpoint: string, name: string, type: DnsType): Promise<DnsAnswer | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6000);
-  try {
-    const res = await fetch(`${endpoint}?name=${encodeURIComponent(name)}&type=${type}`, {
-      headers: { accept: 'application/dns-json' },
-      signal: controller.signal,
-    });
-    if (!res.ok) return null;
-    const json: any = await res.json();
-    // Status 3 = NXDOMAIN: a definitive "this name does not exist".
-    if (json.Status === 3) return { status: 'nxdomain', records: [] };
-    // Anything but NOERROR from here (SERVFAIL, REFUSED…) means the endpoint
-    // could not say, which is not the same as there being nothing to say.
-    if (json.Status !== 0) return null;
-    const answers: any[] = Array.isArray(json.Answer) ? json.Answer : [];
-    const records = answers.filter((a) => a.type === DNS_TYPE[type]).map((a) => String(a.data));
-    return { status: records.length > 0 ? 'records' : 'nodata', records };
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/** Resolve via Cloudflare DoH → Google DoH → OS resolver, keeping the reason. */
-export async function resolveDetailed(name: string, type: DnsType): Promise<DnsAnswer> {
-  for (const endpoint of ['https://cloudflare-dns.com/dns-query', 'https://dns.google/resolve']) {
-    const answer = await dohQuery(endpoint, name, type);
-    if (answer !== null) return answer;
-  }
-  // Both DoH endpoints unreachable — classic resolver as a last resort.
-  try {
-    const records = type === 'TXT'
-      ? (await resolver.resolveTxt(name)).map((chunks) => `"${chunks.join('" "')}"`)
-      : type === 'MX'
-        ? (await resolver.resolveMx(name)).map((r) => `${r.priority} ${r.exchange}`)
-        : type === 'A'
-          ? await resolver.resolve4(name)
-          : type === 'SRV'
-            // Presentation format, so the DoH and OS paths parse identically.
-            ? (await resolver.resolveSrv(name)).map((r) => `${r.priority} ${r.weight} ${r.port} ${r.name}`)
-            : await resolver.resolveCname(name);
-    return { status: records.length > 0 ? 'records' : 'nodata', records };
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException)?.code;
-    if (code === 'ENOTFOUND' || code === 'NXDOMAIN') return { status: 'nxdomain', records: [] };
-    if (code === 'ENODATA') return { status: 'nodata', records: [] };
-    return { status: 'unreachable', records: [] };
-  }
-}
-
 /** Resolve via Cloudflare DoH → Google DoH → OS resolver. Missing records → []. */
 async function resolveRecords(name: string, type: DnsType): Promise<string[]> {
   return (await resolveDetailed(name, type)).records;
 }
+
+/*
+ * Re-exported so the DKIM probe and the mailbox repair keep importing it
+ * from here, while there is only one implementation of it in the codebase.
+ * This file used to carry a second copy, and during the DKIM work that copy
+ * learned the nxdomain/nodata distinction while utils/dns-doh did not - so
+ * every caller of the other one was quietly reading the weaker answer.
+ */
+export { resolveDetailed };
 
 /** All TXT record strings at a name (chunks joined, quotes stripped). */
 async function lookupTxt(name: string): Promise<string[]> {

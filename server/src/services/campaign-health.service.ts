@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
-import { warmupAllowance, emailDomain } from '@lemlist/shared';
+import { warmupAllowance, emailDomain, isSendable } from '@lemlist/shared';
 import type { CampaignHealth, CampaignIssue, CampaignReach, SmtpAccount } from '@lemlist/shared';
 import * as bounceGuard from './bounce-guard.service.js';
 
@@ -23,10 +23,6 @@ import * as bounceGuard from './bounce-guard.service.js';
  * strictly worse than a health panel that says less.
  */
 
-/** Sendable means it can actually carry a real campaign send right now. */
-function sendable(a: SmtpAccount): boolean {
-  return a.is_active && a.is_verified;
-}
 
 /**
  * Sends left in this mailbox today. Null when it is uncapped.
@@ -135,7 +131,7 @@ export const campaignHealthService = {
     const errored = erroredRes.count || 0;
     const stillGoing = activeRes.count || 0;
     const sent24h = sentRes.count || 0;
-    const usable = senders.filter(sendable);
+    const usable = senders.filter(isSendable);
 
     const issues: CampaignIssue[] = [];
 
@@ -319,7 +315,7 @@ export const campaignHealthService = {
         .eq('campaign_id', campaignId).in('status', ['pending', 'active']),
     ]);
 
-    const usable = senders.filter(sendable);
+    const usable = senders.filter(isSendable);
     const uncapped = usable.some((a) => dailyAllowance(a) === null);
     const pending = activeRes.count || 0;
 

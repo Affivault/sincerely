@@ -2,7 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { settingsService } from './settings.service.js';
 import { trackingDomainService } from './tracking-domain.service.js';
 import { MIN_SENDS_BEFORE_GUARD } from './bounce-guard.service.js';
-import { warmupAllowance, warmupDayNumber, emailDomain, isFreeMailDomain, worseStatus } from '@lemlist/shared';
+import { warmupAllowance, warmupDayNumber, emailDomain, isFreeMailDomain, worseStatus, isSendable } from '@lemlist/shared';
 import type {
   ReadinessCheck, ReadinessReport, ReadinessStatus, SmtpAccount,
 } from '@lemlist/shared';
@@ -96,13 +96,9 @@ async function gather(userId: string) {
   };
 }
 
-/** Is a mailbox usable for a real campaign send right now? */
-function sendable(a: SmtpAccount): boolean {
-  return a.is_active && a.is_verified;
-}
 
 function mailboxCheck(accounts: SmtpAccount[]): ReadinessCheck {
-  const usable = accounts.filter(sendable);
+  const usable = accounts.filter(isSendable);
   const fix = { label: 'Manage mailboxes', href: '/email-accounts?tab=mailboxes' };
 
   if (accounts.length === 0) {
@@ -147,7 +143,7 @@ function mailboxCheck(accounts: SmtpAccount[]): ReadinessCheck {
 
 function domainAuthCheck(accounts: SmtpAccount[], domains: any[]): ReadinessCheck {
   const fix = { label: 'Fix DNS', href: '/email-accounts?tab=domains' };
-  const usable = accounts.filter(sendable);
+  const usable = accounts.filter(isSendable);
 
   // Only the domains actually being sent from matter. A domain added and
   // then abandoned is not a reason to tell someone they are unsafe.
@@ -250,7 +246,7 @@ function trackingCheck(tracking: any): ReadinessCheck {
 }
 
 function healthCheck(accounts: SmtpAccount[]): ReadinessCheck {
-  const usable = accounts.filter(sendable);
+  const usable = accounts.filter(isSendable);
   const fix = { label: 'Review mailboxes', href: '/email-accounts?tab=mailboxes' };
   if (usable.length === 0) {
     return check({
@@ -330,7 +326,7 @@ function bounceRateCheck(sent: number, bounced: number, thresholdPercent: number
 }
 
 function warmupCheck(accounts: SmtpAccount[]): ReadinessCheck {
-  const usable = accounts.filter(sendable);
+  const usable = accounts.filter(isSendable);
   const fix = { label: 'Start warm-up', href: '/email-accounts?tab=warmup' };
   if (usable.length === 0) {
     return check({
@@ -382,7 +378,7 @@ function warmupCheck(accounts: SmtpAccount[]): ReadinessCheck {
 }
 
 function capacityCheck(accounts: SmtpAccount[]): { check: ReadinessCheck; remaining: number | null; ceiling: number | null } {
-  const usable = accounts.filter(sendable);
+  const usable = accounts.filter(isSendable);
   const fix = { label: 'Adjust limits', href: '/email-accounts?tab=mailboxes' };
 
   if (usable.length === 0) {
