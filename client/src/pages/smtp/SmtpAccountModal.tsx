@@ -11,11 +11,14 @@ import { cn } from '../../lib/utils';
 import {
   CheckCircle2, XCircle, HelpCircle, Globe, Server, Loader2, Plug, Inbox,
   Send, ShieldCheck, Signature, Gauge, Sparkles, Mail, MinusCircle,
-  Stethoscope, AlertTriangle, Circle, Eye, EyeOff,
+  Stethoscope, AlertTriangle, Circle, Eye, EyeOff, ChevronDown,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import type { SmtpAccount, CreateSmtpAccountInput, SmtpPreset, VerifyLegResult, MailboxDiagnostics, DiagStage } from '@lemlist/shared';
-import { SMTP_PRESETS, detectPresetFromEmail, PLACEHOLDER, isSenderMismatch } from '@lemlist/shared';
+import type { SmtpAccount, CreateSmtpAccountInput, SmtpPreset, VerifyLegResult, MailboxDiagnostics, DiagStage, SetupSectionId, SetupField, SetupSummary } from '@lemlist/shared';
+import {
+  SMTP_PRESETS, detectPresetFromEmail, PLACEHOLDER, isSenderMismatch,
+  missingFields, mailboxLabel, serverSummary, sendingSummary, limitAdvice, sectionsToOpen,
+} from '@lemlist/shared';
 
 /** Map the MX check's provider hint onto our connection presets. */
 const HINT_TO_PRESET: Record<string, string> = {
@@ -70,23 +73,12 @@ export function presetToForm(preset: SmtpPreset): Form {
   };
 }
 
-type TabId = 'account' | 'server' | 'options';
-
-const TABS: Array<{ id: TabId; label: string; icon: typeof Server }> = [
-  { id: 'account', label: 'Account', icon: Mail },
-  { id: 'server', label: 'Server', icon: Server },
-  { id: 'options', label: 'Options', icon: Gauge },
-];
-
 type VerifyState = {
   status: 'idle' | 'checking' | 'done';
   smtp?: VerifyLegResult;
   imap?: VerifyLegResult;
   message?: string;
 };
-
-/** A required field that isn't filled in yet, and where to find it. */
-type MissingField = { key: string; label: string; tab: TabId };
 
 /** Encryption is derived from port + a secure flag. SSL=implicit TLS (465),
  *  STARTTLS/None = upgrade-or-plain (587/25). Kept simple: SSL vs STARTTLS. */
@@ -104,19 +96,84 @@ function EncryptionRadios({ secure, onChange }: { secure: boolean; onChange: (v:
   );
 }
 
-function Section({ icon: Icon, title, subtitle, children }: {
+/**
+ * One section of the form, open or shut.
+ *
+ * The summary line is the whole reason collapsing is allowed: a closed
+ * section still says what is in it, and says so in words rather than with a
+ * coloured dot. `shouldOpen` in shared guarantees nothing broken is ever
+ * behind a closed header, and the tone here makes the same fact visible.
+ */
+function Disclosure({
+  icon: Icon, title, summary, open, onToggle, gap, children,
+}: {
+  icon: typeof Server;
+  title: string;
+  summary: SetupSummary | null;
+  open: boolean;
+  onToggle: () => void;
+  gap: boolean;
+  children: React.ReactNode;
+}) {
+  const tone = summary?.tone ?? 'ok';
+  return (
+    <section className={cn(
+      'rounded-xl border transition-colors',
+      gap ? 'border-amber-500/40 bg-amber-500/[0.04]'
+        : open ? 'border-[var(--border-default)] bg-[var(--bg-surface)]'
+        : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50',
+    )}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-start gap-2.5 px-3.5 py-2.5 text-left"
+        data-section-toggle
+      >
+        <span className={cn(
+          'mt-px flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md',
+          tone === 'ok'
+            ? 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
+            : 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
+        )}>
+          <Icon className="h-3.5 w-3.5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[12.5px] font-semibold leading-tight text-[var(--text-primary)]">{title}</span>
+          {/*
+            * Shown only while shut. With the section open the fields
+            * themselves are the summary, and repeating it turns a helpful
+            * line into furniture.
+            */}
+          {!open && summary && (
+            <span className={cn(
+              'mt-0.5 block text-[11.5px] leading-snug',
+              tone === 'ok' ? 'text-[var(--text-tertiary)]' : 'text-amber-700 dark:text-amber-400',
+            )} data-section-summary>
+              {summary.text}
+            </span>
+          )}
+        </span>
+        <ChevronDown className={cn(
+          'mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--text-tertiary)] transition-transform',
+          open && 'rotate-180',
+        )} />
+      </button>
+      {open && <div className="border-t border-[var(--border-subtle)] px-3.5 py-3">{children}</div>}
+    </section>
+  );
+}
+
+/** A labelled group inside an open section. */
+function Group({ icon: Icon, title, subtitle, children }: {
   icon: typeof Server; title: string; subtitle?: string; children: React.ReactNode;
 }) {
   return (
     <div>
-      <div className="flex items-start gap-2 mb-2.5">
-        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--bg-elevated)] text-[var(--text-secondary)] flex-shrink-0">
-          <Icon className="h-3.5 w-3.5" />
-        </span>
-        <div className="min-w-0">
-          <h4 className="text-[12.5px] font-semibold text-[var(--text-primary)] leading-tight">{title}</h4>
-          {subtitle && <p className="text-[11.5px] text-[var(--text-tertiary)] leading-tight mt-0.5">{subtitle}</p>}
-        </div>
+      <div className="mb-2 flex items-baseline gap-1.5">
+        <Icon className="h-3 w-3 translate-y-px text-[var(--text-tertiary)]" />
+        <h4 className="text-[11.5px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{title}</h4>
+        {subtitle && <span className="text-[11.5px] text-[var(--text-tertiary)]">{subtitle}</span>}
       </div>
       {children}
     </div>
@@ -202,9 +259,16 @@ function DiagLeg({ title, diag, relayHealthy }: {
 /**
  * Connect / edit a sending mailbox.
  *
- * Laid out as three short tabs (Account → Server → Options) rather than one
- * long scroll, with a persistent connection panel and a fixed action bar, so
- * "Check connection" is always in view and always does something visible.
+ * One scroll of three collapsible sections rather than three tabs. The tabs
+ * split the two things you need in order to connect - the password and the
+ * host - across two panels, so a check could fail for a reason sitting on a
+ * panel you were not looking at, signalled by a small amber dot.
+ *
+ * What starts open is decided from the values by `sectionsToOpen`, under one
+ * rule: nothing missing or broken is ever behind a closed header. A detected
+ * Gmail account therefore opens as one short panel - address and password -
+ * and a custom domain whose MX lookup found nothing opens with the server
+ * fields already in front of you.
  */
 export function SmtpAccountModal({
   open, onClose, editAccount, initialPreset,
@@ -220,7 +284,7 @@ export function SmtpAccountModal({
   const [autoDetected, setAutoDetected] = useState(false);
   const [verify, setVerify] = useState<VerifyState>({ status: 'idle' });
   const [replyToOn, setReplyToOn] = useState(false);
-  const [tab, setTab] = useState<TabId>('account');
+  const [openSections, setOpenSections] = useState<SetupSectionId[]>(['mailbox']);
   const [showPass, setShowPass] = useState(false);
   /*
    * Has the sign-in username been typed deliberately?
@@ -247,13 +311,20 @@ export function SmtpAccountModal({
 
   const editId = editAccount?.id || null;
 
+  /** Open a section. Never closes one — nothing may vanish under the cursor. */
+  const reveal = useCallback((id: SetupSectionId) => {
+    setOpenSections((prev) => (prev.includes(id) ? prev : [...prev, id]));
+  }, []);
+
+  const toggleSection = (id: SetupSectionId) =>
+    setOpenSections((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
+
   // Re-seed the form whenever the modal opens for a different target.
   useEffect(() => {
     if (!open) return;
     setVerify({ status: 'idle' });
     setDiagnostics(null);
     setFlagged([]);
-    setTab('account');
     setReplyToOn(!!editAccount?.reply_to);
     /*
      * A saved username that differs from the address is treated as
@@ -265,7 +336,7 @@ export function SmtpAccountModal({
     if (editAccount) {
       setActivePreset(null);
       setAutoDetected(false);
-      setForm({
+      const seeded: Form = {
         label: editAccount.label,
         from_name: editAccount.from_name || '',
         reply_to: editAccount.reply_to || '',
@@ -282,15 +353,32 @@ export function SmtpAccountModal({
         daily_send_limit: editAccount.daily_send_limit,
         signature_html: editAccount.signature_html || '',
         signature_auto: editAccount.signature_auto || false,
-      });
+      };
+      setForm(seeded);
+      /*
+       * A saved mailbox is judged on what it actually holds. One with no
+       * IMAP server opens straight onto the empty field, because that is
+       * the reason its replies never arrive and it is the only thing worth
+       * opening this dialog for.
+       */
+      setOpenSections(sectionsToOpen({ ...seeded, saved: true }));
     } else if (initialPreset) {
       setActivePreset(initialPreset);
       setAutoDetected(false);
-      setForm(presetToForm(initialPreset));
+      const seeded = presetToForm(initialPreset);
+      setForm(seeded);
+      setOpenSections(sectionsToOpen({ ...seeded, saved: false }));
     } else {
       setActivePreset(null);
       setAutoDetected(false);
       setForm({ ...emptyForm });
+      /*
+       * A blank form is not "missing" its servers - it has not been told
+       * which mailbox it is yet, and detection fills them in a second later.
+       * Opening every section on an empty form would show three panels of
+       * fields that are about to fill themselves in.
+       */
+      setOpenSections(['mailbox']);
     }
   }, [open, editAccount, initialPreset]);
 
@@ -397,14 +485,21 @@ export function SmtpAccountModal({
               // about servers rather than inventing them again.
               || `${domain} runs its own mail. Enter the IMAP and SMTP servers from your provider.`,
           });
+          /*
+           * Nothing was found for this domain, so the fields it would have
+           * filled are the user's to fill. Open them rather than leaving a
+           * sentence that points at a shut panel.
+           */
+          if (!hosts?.smtp?.host || !hosts?.imap?.host) reveal('servers');
         } else {
           setMxState({ status: 'done', note: `${domain} has no mail (MX) records — double-check the address.` });
+          reveal('servers');
         }
       } catch {
         setMxState({ status: 'idle', note: '' });
       }
     }, 650);
-  }, [applyDetectedPreset]);
+  }, [applyDetectedPreset, reveal]);
 
   /** Auto-detect provider from the email domain as the user types. */
   const handleEmailChange = useCallback((email: string) => {
@@ -504,48 +599,64 @@ export function SmtpAccountModal({
     onError: (err: any) => toast.error(err.response?.data?.error || 'Could not run diagnostics'),
   });
 
-  /** What's still needed to run a connection test. On a saved account the
-   *  password lives server-side, so it isn't part of this list. */
-  const missingForCheck = useMemo<MissingField[]>(() => {
-    const out: MissingField[] = [];
-    if (!form.email_address) out.push({ key: 'email_address', label: 'From email', tab: 'account' });
-    if (!form.smtp_pass && !editId) out.push({ key: 'smtp_pass', label: 'Password', tab: 'account' });
-    if (!form.smtp_host) out.push({ key: 'smtp_host', label: 'SMTP host', tab: 'server' });
-    if (!form.smtp_port) out.push({ key: 'smtp_port', label: 'SMTP port', tab: 'server' });
-    return out;
-  }, [form.email_address, form.smtp_pass, form.smtp_host, form.smtp_port, editId]);
+  /*
+   * What is still needed, in one list.
+   *
+   * There were two - `missingForCheck` and `missingForSave`, the second
+   * being the first plus a label - which is the same shape as the
+   * imapHostFor bug: two definitions that agree right up until one of them
+   * is edited. The label is no longer required at all; a mailbox nobody
+   * named is called by its address.
+   */
+  const missing = useMemo<SetupField[]>(() => missingFields({
+    email_address: form.email_address,
+    smtp_pass: form.smtp_pass,
+    smtp_host: form.smtp_host,
+    smtp_port: form.smtp_port,
+    saved: !!editId,
+  }), [form.email_address, form.smtp_pass, form.smtp_host, form.smtp_port, editId]);
 
-  const missingForSave = useMemo<MissingField[]>(() => {
-    const out = [...missingForCheck];
-    if (!form.label) out.push({ key: 'label', label: 'Label', tab: 'account' });
-    return out;
-  }, [missingForCheck, form.label]);
+  const servers = useMemo(() => serverSummary({
+    smtp_host: form.smtp_host, smtp_port: form.smtp_port,
+    imap_host: form.imap_host, imap_port: form.imap_port,
+  }), [form.smtp_host, form.smtp_port, form.imap_host, form.imap_port]);
+
+  const sending = useMemo(() => sendingSummary({
+    daily_send_limit: form.daily_send_limit,
+    signature_html: form.signature_html,
+    signature_auto: form.signature_auto,
+  }), [form.daily_send_limit, form.signature_html, form.signature_auto]);
+
+  const limit = limitAdvice(Number(form.daily_send_limit) || 0);
 
   /** Send the user straight to the first gap instead of failing silently. */
-  const jumpTo = (fields: MissingField[]) => {
+  const jumpTo = (fields: SetupField[]) => {
     setFlagged(fields.map((f) => f.key));
-    setTab(fields[0].tab);
+    // Every section holding a gap is opened, not just the first — a flagged
+    // field behind a shut header is exactly what the tabs got wrong.
+    for (const f of fields) reveal(f.section);
     toast.error(
       fields.length === 1
-        ? `Add your ${fields[0].label.toLowerCase()} first`
-        : `Still needed: ${fields.map((f) => f.label.toLowerCase()).join(', ')}`
+        ? `Add your ${fields[0].label} first`
+        : `Still needed: ${fields.map((f) => f.label).join(', ')}`
     );
   };
 
   const handleCheck = () => {
     if (verifyMutation.isPending) return;
-    if (missingForCheck.length) { jumpTo(missingForCheck); return; }
+    if (missing.length) { jumpTo(missing); return; }
     setFlagged([]);
     verifyMutation.mutate();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (missingForSave.length) { jumpTo(missingForSave); return; }
+    if (missing.length) { jumpTo(missing); return; }
     setFlagged([]);
     const sig = (form.signature_html || '').replace(/<[^>]*>/g, '').trim();
     saveMutation.mutate({
       ...form,
+      label: mailboxLabel(form.label, form.email_address),
       from_name: (form.from_name || '').trim() || null,
       reply_to: (form.reply_to || '').trim() || null,
       smtp_user: form.smtp_user || form.email_address,
@@ -555,7 +666,9 @@ export function SmtpAccountModal({
   };
 
   const err = (key: string, msg = 'Required') => (flagged.includes(key) ? msg : undefined);
-  const tabHasGap = (id: TabId) => missingForSave.some((m) => m.tab === id && flagged.includes(m.key));
+  const sectionHasGap = (id: SetupSectionId) =>
+    missing.some((m) => m.section === id && flagged.includes(m.key));
+  const isOpen = (id: SetupSectionId) => openSections.includes(id);
 
   const isQuickMode = !!activePreset && !editId;
   const passwordLabel = activePreset?.password_hint || 'Password';
@@ -583,7 +696,7 @@ export function SmtpAccountModal({
       isOpen={open}
       onClose={onClose}
       title={editId ? 'Email account settings' : isQuickMode ? `Connect ${activePreset!.name}` : 'Connect an email account'}
-      description={isQuickMode ? `${activePreset!.name} is pre-filled — just add your email and password.` : 'Set up sending (SMTP) and receiving (IMAP), then test before you save.'}
+      description={isQuickMode ? `${activePreset!.name} is pre-filled — just add your email and password.` : 'Add the address and its password. Everything else is filled in from your domain where we can.'}
       size="xl"
       footer={
         <>
@@ -625,244 +738,281 @@ export function SmtpAccountModal({
       <form
         id={FORM_ID}
         onSubmit={handleSubmit}
-        className="space-y-3.5"
+        className="space-y-2.5"
         autoComplete="off"
         data-1p-ignore
         data-lpignore="true"
       >
-        {/* Tabs — three short panels instead of one long scroll */}
-        <div className="flex items-center gap-1 p-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={cn(
-                'flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-md text-[12.5px] font-medium transition-colors',
-                tab === t.id
-                  ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.06)]'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              )}
-            >
-              <t.icon className="h-3.5 w-3.5" />
-              {t.label}
-              {tabHasGap(t.id) && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
-            </button>
-          ))}
-        </div>
+        {isQuickMode && activePreset!.password_hint && (
+          <div className="flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-[11.5px] text-[var(--text-tertiary)]">
+            <HelpCircle className="h-3.5 w-3.5 shrink-0" /> Password tip: {activePreset!.password_hint}
+          </div>
+        )}
+        {autoDetected && activePreset && !editId && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/8 border border-emerald-500/20 text-[12px] text-emerald-700 dark:text-emerald-400">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+            Auto-detected <span className="font-medium">{activePreset.name}</span> — server settings pre-filled.
+          </div>
+        )}
 
-        {/* ── Account ── */}
-        {tab === 'account' && (
-          <div className="space-y-3.5">
-            {isQuickMode && activePreset!.password_hint && (
-              <div className="flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-[11.5px] text-[var(--text-tertiary)]">
-                <HelpCircle className="h-3.5 w-3.5 shrink-0" /> Password tip: {activePreset!.password_hint}
-              </div>
-            )}
-            {autoDetected && activePreset && !editId && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/8 border border-emerald-500/20 text-[12px] text-emerald-700 dark:text-emerald-400">
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                Auto-detected <span className="font-medium">{activePreset.name}</span> — server settings pre-filled.
-              </div>
-            )}
-
-            <Section icon={Mail} title="Sender" subtitle="How your emails appear to recipients.">
-              <div className="grid grid-cols-2 gap-3">
-                <Input label="From name" value={form.from_name || ''} onChange={(e) => updateField('from_name', e.target.value)} placeholder={`e.g. ${PLACEHOLDER.senderName}`} hint="Shown in the From field" />
-                <Input label="Label (internal)" value={form.label} onChange={(e) => updateField('label', e.target.value)} placeholder={`e.g. Outreach, ${PLACEHOLDER.senderCompany}`} error={err('label')} />
-              </div>
-              <div className="grid grid-cols-2 gap-3 mt-3">
-                <Input label="From email" type="email" value={form.email_address} onChange={(e) => handleEmailChange(e.target.value)} placeholder={activePreset?.username_hint || 'you@company.com'} error={err('email_address')} autoComplete="off" data-1p-ignore data-lpignore="true" name="sincerely-from-email" />
-                <div className="relative">
-                  <Input
-                    label={passwordLabel}
-                    type={showPass ? 'text' : 'password'}
-                    value={form.smtp_pass}
-                    onChange={(e) => updateField('smtp_pass', e.target.value)}
-                    placeholder={passwordPlaceholder}
-                    autoComplete="new-password"
-                    error={err('smtp_pass')}
-                    hint={editId ? 'Saved password is used for tests and sends unless you type a new one' : undefined}
-                    className="pr-8"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPass((v) => !v)}
-                    tabIndex={-1}
-                    aria-label={showPass ? 'Hide password' : 'Show password'}
-                    className="absolute right-2.5 top-[27px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
-                  >
-                    {showPass ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* MX-based auto-assignment for custom domains */}
-              {mxState.status === 'checking' && (
-                <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-[var(--text-tertiary)]">
-                  <Loader2 className="h-3 w-3 animate-spin" /> Looking up your domain's mail service to assign settings…
-                </p>
-              )}
-              {mxState.status === 'done' && mxState.note && (
-                <p className="mt-2 flex items-start gap-1.5 text-[11.5px] text-[var(--text-secondary)]">
-                  <Sparkles className="h-3 w-3 text-[var(--indigo)] mt-px shrink-0" /> {mxState.note}
-                </p>
-              )}
-
+        {/* ── 1. The mailbox ── */}
+        <Disclosure
+          icon={Mail}
+          title="The mailbox"
+          summary={{
+            text: form.email_address
+              ? `${form.email_address}${form.from_name ? ` — from "${form.from_name}"` : ''}`
+              : 'No address yet.',
+            tone: form.email_address ? 'ok' : 'empty',
+          }}
+          open={isOpen('mailbox')}
+          onToggle={() => toggleSection('mailbox')}
+          gap={sectionHasGap('mailbox')}
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Email address" type="email" value={form.email_address} onChange={(e) => handleEmailChange(e.target.value)} placeholder={activePreset?.username_hint || 'you@company.com'} error={err('email_address')} autoComplete="off" data-1p-ignore data-lpignore="true" name="sincerely-from-email" />
+            <div className="relative">
+              <Input
+                label={passwordLabel}
+                type={showPass ? 'text' : 'password'}
+                value={form.smtp_pass}
+                onChange={(e) => updateField('smtp_pass', e.target.value)}
+                placeholder={passwordPlaceholder}
+                autoComplete="new-password"
+                error={err('smtp_pass')}
+                hint={editId ? 'Saved password is used for tests and sends unless you type a new one' : undefined}
+                className="pr-8"
+              />
               <button
                 type="button"
-                onClick={() => { setReplyToOn((v) => { if (v) updateField('reply_to', ''); return !v; }); }}
-                className="mt-2.5 inline-flex items-center gap-1.5 text-[11.5px] font-medium text-[var(--indigo)] hover:underline"
+                onClick={() => setShowPass((v) => !v)}
+                tabIndex={-1}
+                aria-label={showPass ? 'Hide password' : 'Show password'}
+                className="absolute right-2.5 top-[27px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
               >
-                <span className={cn('relative inline-flex h-[16px] w-7 items-center rounded-full transition-colors', replyToOn ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]')}>
-                  <span className={cn('inline-block h-3 w-3 rounded-full bg-white shadow transition-transform', replyToOn ? 'translate-x-[13px]' : 'translate-x-[2px]')} />
-                </span>
-                Set a different reply-to address
+                {showPass ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
               </button>
-              {replyToOn && (
-                <Input className="mt-2" type="email" value={form.reply_to || ''} onChange={(e) => updateField('reply_to', e.target.value)} placeholder="replies@company.com" hint="Replies are directed here instead of your From address" />
-              )}
-
-              {!editId && (
-                <div className="mt-3">
-                  <Select
-                    label="Provider preset"
-                    options={[{ value: '', label: 'Custom configuration' }, ...SMTP_PRESETS.map((p) => ({ value: p.name, label: p.name }))]}
-                    value={activePreset?.name || ''}
-                    onChange={(e) => applyPreset(e.target.value)}
-                  />
-                </div>
-              )}
-            </Section>
+            </div>
           </div>
-        )}
 
-        {/* ── Server ── */}
-        {tab === 'server' && (
-          <div className="space-y-4">
-            <Section icon={Send} title="SMTP — sending" subtitle="The server Sincerely sends your campaigns through.">
-              <div className="grid grid-cols-[2fr_1fr] gap-3">
-                <Input label="Host" value={form.smtp_host} onChange={(e) => updateField('smtp_host', e.target.value)} placeholder="smtp.example.com" error={err('smtp_host')} />
-                <Input label="Port" type="number" value={String(form.smtp_port)} onChange={(e) => updateField('smtp_port', parseInt(e.target.value) || 0)} error={err('smtp_port')} />
-              </div>
+          {/* MX-based auto-assignment for custom domains */}
+          {mxState.status === 'checking' && (
+            <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-[var(--text-tertiary)]">
+              <Loader2 className="h-3 w-3 animate-spin" /> Looking up your domain's mail service to assign settings…
+            </p>
+          )}
+          {mxState.status === 'done' && mxState.note && (
+            <p className="mt-2 flex items-start gap-1.5 text-[11.5px] text-[var(--text-secondary)]">
+              <Sparkles className="h-3 w-3 text-[var(--indigo)] mt-px shrink-0" /> {mxState.note}
+            </p>
+          )}
+
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            <Input label="From name" value={form.from_name || ''} onChange={(e) => updateField('from_name', e.target.value)} placeholder={`e.g. ${PLACEHOLDER.senderName}`} hint="What recipients see in the From field" />
+            {/*
+              * Optional, and says so. It used to be required, which meant a
+              * custom domain - where no preset fills it in - could not be
+              * saved until somebody invented a name for a mailbox that
+              * already had a perfectly good one.
+              */}
+            <Input label="Internal name" value={form.label} onChange={(e) => updateField('label', e.target.value)} placeholder={form.email_address || `e.g. ${PLACEHOLDER.senderCompany} outreach`} hint="Only you see this. Defaults to the address." />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => { setReplyToOn((v) => { if (v) updateField('reply_to', ''); return !v; }); }}
+            className="mt-2.5 inline-flex items-center gap-1.5 text-[11.5px] font-medium text-[var(--indigo)] hover:underline"
+          >
+            <span className={cn('relative inline-flex h-[16px] w-7 items-center rounded-full transition-colors', replyToOn ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]')}>
+              <span className={cn('inline-block h-3 w-3 rounded-full bg-white shadow transition-transform', replyToOn ? 'translate-x-[13px]' : 'translate-x-[2px]')} />
+            </span>
+            Set a different reply-to address
+          </button>
+          {replyToOn && (
+            <Input className="mt-2" type="email" value={form.reply_to || ''} onChange={(e) => updateField('reply_to', e.target.value)} placeholder="replies@company.com" hint="Replies are directed here instead of your From address" />
+          )}
+        </Disclosure>
+
+        {/* ── 2. Servers ── */}
+        <Disclosure
+          icon={Server}
+          title="Servers"
+          summary={servers}
+          open={isOpen('servers')}
+          onToggle={() => toggleSection('servers')}
+          gap={sectionHasGap('servers')}
+        >
+          {!editId && (
+            <div className="mb-3">
               {/*
-                * The sign-in is shown, not typed.
-                *
-                * A bare text field called "Username" sitting beside a
-                * password field, on a tab nobody revisits, is the ideal
-                * shape for a password manager to fill - and it filled it
-                * with a DIFFERENT mailbox on the same domain. The account
-                * holder typed one address into "From email" and never saw
-                * the other one get written here.
-                *
-                * For nearly every provider this value is the address, so
-                * showing it removes a field that can only go wrong. The
-                * override stays for the handful that use something else -
-                * SendGrid signs in as "apikey", Mailgun as a postmaster
-                * handle - but it has to be asked for.
+                * The preset select lives here, with the fields it writes. It
+                * used to sit under the sender fields, which it does not
+                * touch, on a different tab from the ones it does.
                 */}
-              <div className="mt-3">
-                {userEdited ? (
-                  <Input
-                    label="Sign-in username"
-                    value={form.smtp_user}
-                    onChange={(e) => updateField('smtp_user', e.target.value)}
-                    placeholder={activePreset?.username_hint || 'Usually your email address'}
-                    hint="Only change this if your provider signs in with something other than the address"
-                    autoComplete="off"
-                    data-1p-ignore
-                    data-lpignore="true"
-                    name="sincerely-smtp-login"
-                  />
-                ) : (
-                  <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2">
-                    <p className="text-[11.5px] text-[var(--text-tertiary)]">Signs in as</p>
-                    <p className="text-[12.5px] font-medium text-[var(--text-primary)]" data-signs-in-as>
-                      {form.email_address || 'your From email'}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setUserEdited(true)}
-                      className="mt-1 text-[11.5px] font-semibold text-[var(--indigo)] hover:underline"
-                      data-override-login
-                    >
-                      Use a different username
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div className="mt-3">
-                <EncryptionRadios secure={!!form.smtp_secure} onChange={(v) => updateField('smtp_secure', v)} />
-              </div>
-            </Section>
-
-            <div className="h-px bg-[var(--border-subtle)]" />
-
-            <Section icon={Inbox} title="IMAP — receiving replies" subtitle="Lets replies sync into your unibox. Recommended, but optional.">
-              <div className="grid grid-cols-[2fr_1fr] gap-3">
-                <Input label="Host" value={form.imap_host || ''} onChange={(e) => updateField('imap_host', e.target.value || undefined)} placeholder="imap.example.com" />
-                <Input label="Port" type="number" value={String(form.imap_port || '')} onChange={(e) => updateField('imap_port', parseInt(e.target.value) || undefined)} placeholder="993" />
-              </div>
-              <div className="grid grid-cols-2 gap-3 mt-3 items-end">
-                <Input label="Username (if different)" value={form.imap_user || ''} onChange={(e) => updateField('imap_user', e.target.value)} placeholder="Defaults to SMTP username" />
-                <div className="pb-1.5">
-                  <EncryptionRadios secure={form.imap_secure !== false} onChange={(v) => updateField('imap_secure', v)} />
-                </div>
-              </div>
-            </Section>
-          </div>
-        )}
-
-        {/* ── Options ── */}
-        {tab === 'options' && (
-          <div className="space-y-4">
-            <Section icon={Gauge} title="Sending limit" subtitle="Cap on real campaign sends per day from this mailbox.">
-              <div className="grid grid-cols-2 gap-3">
-                <Input type="number" value={String(form.daily_send_limit || 200)} onChange={(e) => updateField('daily_send_limit', parseInt(e.target.value) || 0)} hint="Warm-up ramps up to this over time" />
-              </div>
-            </Section>
-
-            <div className="h-px bg-[var(--border-subtle)]" />
-
-            <Section icon={Signature} title="Email signature" subtitle="Appended in the composer for this inbox.">
-              <div className="flex items-center justify-end mb-1.5">
-                <button type="button" role="switch" aria-checked={!!form.signature_auto} onClick={() => updateField('signature_auto', !form.signature_auto)} className="flex items-center gap-2 text-[11.5px] font-medium text-[var(--text-secondary)]">
-                  Always add to new emails
-                  <span className={cn('relative inline-flex h-[18px] w-8 items-center rounded-full transition-colors', form.signature_auto ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]')}>
-                    <span className={cn('inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform', form.signature_auto ? 'translate-x-[15px]' : 'translate-x-[2px]')} />
-                  </span>
-                </button>
-              </div>
-              <RichTextEditor
-                key={`sig-${editId || 'new'}`}
-                initialContent={form.signature_html || ''}
-                onChange={(html, text) => updateField('signature_html', text.trim() ? html : '')}
-                minHeight="100px"
-                placeholder={`e.g. ${PLACEHOLDER.senderName} — Growth, ${PLACEHOLDER.senderCompany} · ${PLACEHOLDER.senderEmail}`}
+              <Select
+                label="Provider"
+                options={[{ value: '', label: 'Custom / enter servers manually' }, ...SMTP_PRESETS.map((p) => ({ value: p.name, label: p.name }))]}
+                value={activePreset?.name || ''}
+                onChange={(e) => applyPreset(e.target.value)}
               />
-            </Section>
-          </div>
-        )}
+            </div>
+          )}
+
+          <Group icon={Send} title="Outgoing" subtitle="— SMTP, used to send your campaigns">
+            <div className="grid grid-cols-[2fr_1fr] gap-3">
+              <Input label="Host" value={form.smtp_host} onChange={(e) => updateField('smtp_host', e.target.value)} placeholder="smtp.example.com" error={err('smtp_host')} />
+              <Input label="Port" type="number" value={String(form.smtp_port)} onChange={(e) => updateField('smtp_port', parseInt(e.target.value) || 0)} error={err('smtp_port')} />
+            </div>
+            {/*
+              * The sign-in is shown, not typed.
+              *
+              * A bare text field called "Username" sitting beside a
+              * password field, on a tab nobody revisits, is the ideal
+              * shape for a password manager to fill - and it filled it
+              * with a DIFFERENT mailbox on the same domain. The account
+              * holder typed one address into "From email" and never saw
+              * the other one get written here.
+              *
+              * For nearly every provider this value is the address, so
+              * showing it removes a field that can only go wrong. The
+              * override stays for the handful that use something else -
+              * SendGrid signs in as "apikey", Mailgun as a postmaster
+              * handle - but it has to be asked for.
+              */}
+            <div className="mt-3">
+              {userEdited ? (
+                <Input
+                  label="Sign-in username"
+                  value={form.smtp_user}
+                  onChange={(e) => updateField('smtp_user', e.target.value)}
+                  placeholder={activePreset?.username_hint || 'Usually your email address'}
+                  hint="Only change this if your provider signs in with something other than the address"
+                  autoComplete="off"
+                  data-1p-ignore
+                  data-lpignore="true"
+                  name="sincerely-smtp-login"
+                />
+              ) : (
+                <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2">
+                  <p className="text-[11.5px] text-[var(--text-tertiary)]">Signs in as</p>
+                  <p className="text-[12.5px] font-medium text-[var(--text-primary)]" data-signs-in-as>
+                    {form.email_address || 'your email address'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setUserEdited(true)}
+                    className="mt-1 text-[11.5px] font-semibold text-[var(--indigo)] hover:underline"
+                    data-override-login
+                  >
+                    Use a different username
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="mt-3">
+              <EncryptionRadios secure={!!form.smtp_secure} onChange={(v) => updateField('smtp_secure', v)} />
+            </div>
+          </Group>
+
+          <div className="my-3.5 h-px bg-[var(--border-subtle)]" />
+
+          <Group icon={Inbox} title="Incoming" subtitle="— IMAP, so replies reach your inbox">
+            <div className="grid grid-cols-[2fr_1fr] gap-3">
+              <Input label="Host" value={form.imap_host || ''} onChange={(e) => updateField('imap_host', e.target.value || undefined)} placeholder="imap.example.com" />
+              <Input label="Port" type="number" value={String(form.imap_port || '')} onChange={(e) => updateField('imap_port', parseInt(e.target.value) || undefined)} placeholder="993" />
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3 items-end">
+              <Input label="Username (if different)" value={form.imap_user || ''} onChange={(e) => updateField('imap_user', e.target.value)} placeholder="Defaults to the sign-in above" />
+              <div className="pb-1.5">
+                <EncryptionRadios secure={form.imap_secure !== false} onChange={(v) => updateField('imap_secure', v)} />
+              </div>
+            </div>
+            {/*
+              * Said where the empty field is, not only in the collapsed
+              * summary. A mailbox with no incoming server is the single
+              * commonest reason somebody opens this dialog a second time,
+              * having never seen a reply.
+              */}
+            {!(form.imap_host || '').trim() && (
+              <p className="mt-2.5 flex items-start gap-1.5 text-[11.5px] leading-snug text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
+                Without this, Sincerely can send from this address but will never see the replies — they stay in your provider's inbox only.
+              </p>
+            )}
+          </Group>
+        </Disclosure>
+
+        {/* ── 3. Sending & signature ── */}
+        <Disclosure
+          icon={Gauge}
+          title="Sending &amp; signature"
+          summary={sending}
+          open={isOpen('sending')}
+          onToggle={() => toggleSection('sending')}
+          gap={false}
+        >
+          <Group icon={Gauge} title="Daily limit" subtitle="— real campaign sends from this mailbox">
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                type="number"
+                value={String(form.daily_send_limit ?? '')}
+                onChange={(e) => updateField('daily_send_limit', parseInt(e.target.value) || 0)}
+                error={limit.tone === 'danger' ? limit.note : undefined}
+                hint={limit.tone === 'ok' ? 'Warm-up ramps up to this over time' : undefined}
+              />
+            </div>
+            {/*
+              * Guidance where the number is typed. The field was a bare
+              * input with nothing to say what a survivable figure looks
+              * like, which is how a new domain ends up set to 2,000 a day.
+              */}
+            {limit.tone === 'warning' && (
+              <p className="mt-2 flex items-start gap-1.5 text-[11.5px] leading-snug text-amber-700 dark:text-amber-400" data-limit-warning>
+                <AlertTriangle className="mt-px h-3 w-3 shrink-0" /> {limit.note}
+              </p>
+            )}
+          </Group>
+
+          <div className="my-3.5 h-px bg-[var(--border-subtle)]" />
+
+          <Group icon={Signature} title="Signature" subtitle="— offered in the composer for this inbox">
+            <div className="flex items-center justify-end mb-1.5">
+              <button type="button" role="switch" aria-checked={!!form.signature_auto} onClick={() => updateField('signature_auto', !form.signature_auto)} className="flex items-center gap-2 text-[11.5px] font-medium text-[var(--text-secondary)]">
+                Always add to new emails
+                <span className={cn('relative inline-flex h-[18px] w-8 items-center rounded-full transition-colors', form.signature_auto ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]')}>
+                  <span className={cn('inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform', form.signature_auto ? 'translate-x-[15px]' : 'translate-x-[2px]')} />
+                </span>
+              </button>
+            </div>
+            <RichTextEditor
+              key={`sig-${editId || 'new'}`}
+              initialContent={form.signature_html || ''}
+              onChange={(html, text) => updateField('signature_html', text.trim() ? html : '')}
+              minHeight="100px"
+              placeholder={`e.g. ${PLACEHOLDER.senderName} — Growth, ${PLACEHOLDER.senderCompany} · ${PLACEHOLDER.senderEmail}`}
+            />
+          </Group>
+        </Disclosure>
 
         {/* ── Connection panel — always present, so the check is never a no-op ── */}
         <div className={cn(
-          'rounded-xl border px-3.5 py-3',
+          'rounded-xl border px-3.5 py-3 space-y-2',
           verify.status === 'idle' && 'border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60',
           verify.status === 'checking' && 'border-[var(--border-subtle)] bg-[var(--bg-elevated)]',
           verifyOk && 'border-emerald-500/30 bg-emerald-500/8',
           verifyFailed && 'border-rose-500/30 bg-rose-500/8',
         )}>
           {verify.status === 'idle' && (
-            missingForCheck.length ? (
+            missing.length ? (
               <div className="flex items-start gap-2 text-[12px] text-[var(--text-secondary)]">
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-px" />
                 <span>
                   Still needed before testing:{' '}
-                  {missingForCheck.map((m, i) => (
+                  {missing.map((m, i) => (
                     <span key={m.key}>
                       {i > 0 && ', '}
-                      <button type="button" onClick={() => { setTab(m.tab); setFlagged([m.key]); }} className="font-medium text-[var(--indigo)] hover:underline">
-                        {m.label.toLowerCase()}
+                      <button type="button" onClick={() => { reveal(m.section); setFlagged([m.key]); }} className="font-medium text-[var(--indigo)] hover:underline">
+                        {m.label}
                       </button>
                     </span>
                   ))}
@@ -970,7 +1120,9 @@ export function SmtpAccountModal({
                   <p className="text-[12px] font-medium text-[var(--text-primary)]">Receiving (IMAP) — nothing to test</p>
                   <p className="text-[11.5px] text-[var(--text-secondary)] mt-1 leading-relaxed">
                     No IMAP server is set on this mailbox, so replies cannot sync into the unibox.
-                    Add one on the Server tab.
+                    <button type="button" onClick={() => reveal('servers')} className="ml-1 font-medium text-[var(--indigo)] hover:underline">
+                      Add one under Servers.
+                    </button>
                   </p>
                 </div>
               )}

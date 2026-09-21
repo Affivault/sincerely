@@ -11,7 +11,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Spinner } from '../../components/ui/Spinner';
-import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { Avatar } from '../../components/shared/Avatar';
 import { SearchInput } from '../../components/shared/SearchInput';
 import { usePeek } from '../../components/peek/usePeek';
@@ -190,7 +190,10 @@ const TABS: { id: LeadStatus | 'all'; label: string }[] = [
 
 export function LeadsPage() {
   const qc = useQueryClient();
-  const confirm = useConfirm();
+  /* Deleting a lead is offered back for six seconds rather than guarded by
+     a dialog - the mistake worth catching is the misclick, and a prompt you
+     have dismissed forty times does not catch it. */
+  const gone = usePendingRemoval();
   const navigate = useNavigate();
   const { openPeek } = usePeek();
   const [tab, setTab] = useState<LeadStatus | 'all'>('open');
@@ -231,12 +234,13 @@ export function LeadsPage() {
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return leads || [];
-    return (leads || []).filter((l) =>
+    const here = (leads || []).filter((l) => !gone.hidden(l.id));
+    if (!q) return here;
+    return here.filter((l) =>
       [l.title, l.company, l.source, l.contact?.email, personName(l)]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q)));
-  }, [leads, query]);
+  }, [leads, query, gone]);
 
   const staleCount = useMemo(
     () => (allLeads || []).filter((l) => leadIsStale(l)).length,
@@ -450,13 +454,8 @@ export function LeadsPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => confirm(
-                        {
-                          title: 'Delete this lead?',
-                          body: 'It goes for good, and stops counting towards your conversion rate. Dropping it instead keeps the record.',
-                          tone: 'danger',
-                        },
-                        () => remove.mutate(lead.id),
+                      onClick={() => gone.remove(
+                        lead.id, 'Lead deleted', () => remove.mutateAsync(lead.id),
                       )}
                       title="Delete permanently"
                       className="icon-btn h-7 w-7 hover:text-rose-500"
