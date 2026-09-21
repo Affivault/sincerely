@@ -11,6 +11,8 @@ export * from './rate-readout.js';
 export * from './ab-test.js';
 export * from './placement.js';
 export * from './reply-queue.js';
+export * from './stats.js';
+export * from './segment-revenue.js';
 export * from './analytics.types.js';
 export * from './inbox.types.js';
 export * from './inbox-sync.types.js';

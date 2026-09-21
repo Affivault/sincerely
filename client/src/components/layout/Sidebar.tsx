@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
+  Crosshair,
   MessageSquare,
   Target,
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
@@ -66,6 +67,10 @@ const primaryNav: NavItem[] = [
       { name: 'Analytics',      href: '/analytics',      icon: BarChart3, exact: true },
       // The join between outreach and revenue, and the reason for owning both.
       { name: 'Revenue',        href: '/analytics/revenue', icon: Banknote },
+      /* The other half of the loop: not which campaign earned, but what
+         the people who bought had in common. It is what decides the next
+         list, and it needs both halves of the product to answer. */
+      { name: 'What closes',    href: '/analytics/segments', icon: Crosshair },
     ],
   },
   /* Everything to do with people you are pitching.

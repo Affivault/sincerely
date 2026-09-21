@@ -26,10 +26,27 @@ import {
 } from 'lucide-react';
 
 /* Shared column template so the header and every row stay perfectly aligned */
-const ROW_GRID = 'grid grid-cols-[minmax(220px,1fr)_72px_72px_72px_72px_72px_170px_96px] items-center gap-x-3';
+/*
+ * The "Earned" column is why this grid grew.
+ *
+ * Ranked by volume and reply rate, a sequence replying at 12% that has
+ * closed nothing looks better than one replying at 4% that closed 47k -
+ * and this list is where somebody decides what to send more of. The
+ * revenue report knew the answer all along and lived two navigations
+ * away, which made it a thing to look at rather than a thing that
+ * changed a decision.
+ */
+const ROW_GRID = 'grid grid-cols-[minmax(200px,1fr)_72px_72px_72px_72px_72px_84px_170px_96px] items-center gap-x-3';
 
 /* Sortable columns for the campaigns table */
-type SortKey = 'name' | 'sent' | 'open' | 'click' | 'reply' | 'bounce' | 'created';
+type SortKey = 'name' | 'sent' | 'open' | 'click' | 'reply' | 'bounce' | 'earned' | 'created';
+/** Compact money, for a 84px column. */
+export function fmtMoney(n: number): string {
+  if (n >= 1_000_000) return `£${(n / 1_000_000).toFixed(1)}m`;
+  if (n >= 1000) return `£${Math.round(n / 1000)}k`;
+  return `£${Math.round(n)}`;
+}
+
 function sortValue(c: any, key: SortKey): number | string {
   const sent = c.sent_count || 0;
   switch (key) {
@@ -39,12 +56,19 @@ function sortValue(c: any, key: SortKey): number | string {
     case 'click':  return sent ? (c.clicked_count || 0) / sent : -1;
     case 'reply':  return sent ? (c.replied_count || 0) / sent : -1;
     case 'bounce': return sent ? (c.bounced_count || 0) / sent : -1;
+    /*
+     * -1 for a campaign with nothing credited, so "no deals yet" sorts
+     * below a genuine zero rather than tying with it. They are different
+     * facts and sorting them together hides the one worth seeing.
+     */
+    case 'earned': return c.__revenue ? c.__revenue.won_value : -1;
     default:       return new Date(c.created_at || 0).getTime();
   }
 }
 import toast from 'react-hot-toast';
 import type { CampaignWithStats } from '@lemlist/shared';
 import { rateReadout, rateBarWidth } from '@lemlist/shared';
+import { analyticsApi } from '../../api/analytics.api';
 
 const STATUS_TABS = [
   { label: 'All',       value: '' },
@@ -121,6 +145,26 @@ export function CampaignsListPage() {
     onError: () => toast.error('Failed to move'),
   });
 
+  /*
+   * What each campaign actually earned.
+   *
+   * Its own query rather than a field on the campaign list, because it is
+   * a join across deals and attribution that the list endpoint has no
+   * business doing - and because a failure here must leave the table
+   * working. A missing revenue column is a gap; a table that will not
+   * render is an outage.
+   */
+  const { data: revenueRows } = useQuery({
+    queryKey: ['analytics', 'revenue'],
+    queryFn: analyticsApi.revenue,
+    staleTime: 5 * 60_000,
+    meta: { silentError: true },
+  });
+  const revenueById = useMemo(
+    () => new Map((revenueRows || []).map((r) => [r.id, r])),
+    [revenueRows],
+  );
+
   const allCampaigns: CampaignWithStats[] = (campaignsResp?.data || []) as any;
   const allStatusesCampaigns: CampaignWithStats[] = (allStatusesResp?.data || []) as any;
 
@@ -144,6 +188,12 @@ export function CampaignsListPage() {
       const q = searchQuery.toLowerCase();
       result = result.filter((c: any) => c.name?.toLowerCase().includes(q));
     }
+    /*
+     * Attached rather than looked up per row, so the sort can see it and
+     * so the table is not doing a find() per campaign per render.
+     */
+    result = result.map((c: any) => ({ ...c, __revenue: revenueById.get(c.id) ?? null }));
+
     const dir = sortDir === 'desc' ? -1 : 1;
     return [...result].sort((a: any, b: any) => {
       const av = sortValue(a, sortKey);
@@ -151,7 +201,7 @@ export function CampaignsListPage() {
       if (typeof av === 'string' && typeof bv === 'string') return av.localeCompare(bv) * dir;
       return ((av as number) - (bv as number)) * dir;
     });
-  }, [allCampaigns, activeFolderId, searchQuery, sortKey, sortDir]);
+  }, [allCampaigns, activeFolderId, searchQuery, sortKey, sortDir, revenueById]);
 
   const activeFolder = folders.find((f) => f.id === activeFolderId);
 
@@ -416,7 +466,11 @@ export function CampaignsListPage() {
           ) : (
             <div className="panel overflow-hidden">
               <div className="overflow-x-auto">
-                <div className="min-w-[760px]">
+                {/* The grid's own minimum is 200 + 5x72 + 84 + 170 + 96 plus eight
+                      12px gaps = 1006px. Anything smaller here and the columns
+                      overlap instead of scrolling, which is how a table loses a
+                      column silently on a laptop. */}
+                <div className="min-w-[1010px]">
                   {/* Column header — click to sort */}
                   <div className={cn(ROW_GRID, 'px-4 h-10 border-b border-[var(--border-subtle)] bg-[var(--bg-muted)]/40')}>
                     {([
@@ -426,6 +480,7 @@ export function CampaignsListPage() {
                       { key: 'click' as SortKey,  label: 'Click',    right: true },
                       { key: 'reply' as SortKey,  label: 'Reply',    right: true },
                       { key: 'bounce' as SortKey, label: 'Bounce',   right: true },
+                      { key: 'earned' as SortKey, label: 'Earned',   right: true },
                     ]).map((col) => (
                       <button
                         key={col.key}
@@ -450,6 +505,7 @@ export function CampaignsListPage() {
                       <div key={campaign.id}>
                         <CampaignRow
                           campaign={campaign}
+                          revenue={campaign.__revenue}
                           expanded={expandedId === campaign.id}
                           onToggleSnapshot={() => setExpandedId((id) => (id === campaign.id ? null : campaign.id))}
                           onOpen={() => navigate(`/campaigns/${campaign.id}`)}
@@ -661,7 +717,7 @@ const STATUS_DOT: Record<string, string> = {
   scheduled: 'bg-blue-500',
 };
 
-function CampaignRow({ campaign, expanded, onToggleSnapshot, onOpen, onLaunch, onPause, onResume, onEdit, onContextMenu, dragging, onDragStart, onDragEnd, launchBusy, pauseBusy, resumeBusy }: any) {
+function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, onLaunch, onPause, onResume, onEdit, onContextMenu, dragging, onDragStart, onDragEnd, launchBusy, pauseBusy, resumeBusy }: any) {
   const total = campaign.sent_count || 0;
   const totalContacts = campaign.contacts_count || campaign.total_contacts || 0;
   const pipelinePct = totalContacts ? Math.min((total / totalContacts) * 100, 100) : 0;
@@ -752,6 +808,19 @@ function CampaignRow({ campaign, expanded, onToggleSnapshot, onOpen, onLaunch, o
       {rateCell(clickR, 15)}
       {rateCell(replyR, 15, true)}
       {rateCell(bounceR, 10, false, 3)}
+      {/*
+        * What it actually earned. A dash rather than a zero when nothing
+        * is attributed: "no deals credited yet" and "this campaign earns
+        * nothing" are different claims, and a bare 0 makes the first read
+        * as the second.
+        */}
+      <div className="text-right min-w-0" title={revenue ? `${revenue.won} won, ${revenue.open} still open` : 'No deals credited to this campaign yet'}>
+        <span className={cn('text-[13.5px] tabular', revenue && revenue.won_value > 0
+          ? 'font-semibold text-emerald-600 dark:text-emerald-400'
+          : 'text-[11.5px] text-[var(--text-tertiary)]')} data-earned-cell>
+          {revenue && revenue.won_value > 0 ? fmtMoney(revenue.won_value) : '\u2014'}
+        </span>
+      </div>
 
       {/* Pipeline */}
       <div className="min-w-0">
