@@ -40,3 +40,19 @@ export function addRecentItem(item: RecentItem): void {
     // Same as above — nothing to recover from, and nothing worth surfacing.
   }
 }
+
+/**
+ * Wipe the recents list. Unlike the query cache (cleared on sign-out so the
+ * next account never flashes the previous one's cached data), this lives in
+ * localStorage and survives a sign-out on its own — so on a shared or
+ * handed-off machine, the next person to sign in and open the command
+ * palette saw a stranger's real contact and deal names in "Recent" before
+ * this existed. Call this alongside the query-cache clear, on sign-out.
+ */
+export function clearRecentItems(): void {
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    // Same as above — nothing to recover from, and nothing worth surfacing.
+  }
+}

@@ -51,6 +51,21 @@ function isSendingNow(schedule: SendingSchedule, now: Date): boolean {
     : (parts.hhmm >= start && parts.hhmm <= end);
 }
 
+/** The undo-bar label for a deletion — matches what the server actually does:
+ *  deleting the default schedule promotes the oldest remaining one rather
+ *  than leaving the account with none. A plain "X deleted" said nothing
+ *  about that swap, which is exactly the moment a user would want to know
+ *  what just became their new default (or that nothing did). */
+function deleteLabel(target: SendingSchedule, all: SendingSchedule[]): string {
+  if (!target.is_default) return `"${target.name}" deleted`;
+  const next = all
+    .filter((s) => s.id !== target.id)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
+  return next
+    ? `"${target.name}" deleted — "${next.name}" is now default`
+    : `"${target.name}" deleted — no default schedule set`;
+}
+
 export function SchedulesPage() {
   /* The row goes now and the request follows in six seconds, so deleting a
      schedule you did not mean to is one click back rather than gone. */
@@ -145,7 +160,7 @@ export function SchedulesPage() {
                 now={now}
                 onEdit={() => setEditing(s)}
                 onDelete={() => gone.remove(
-                  s.id, `"${s.name}" deleted`, () => deleteMut.mutateAsync(s.id),
+                  s.id, deleteLabel(s, schedules), () => deleteMut.mutateAsync(s.id),
                 )}
                 onMakeDefault={() => updateMut.mutate({ id: s.id, input: { is_default: true } })}
               />

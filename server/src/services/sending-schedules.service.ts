@@ -115,8 +115,41 @@ export const sendingSchedulesService = {
   },
 
   async delete(userId: string, id: string) {
+    // Deleting the default left the account with zero default schedules —
+    // nothing here or in the database (migration 014's partial unique index
+    // only enforces "at most one", not "at least one") ever promoted another
+    // schedule to take its place. getDefault() then silently returns null,
+    // which is indistinguishable from "this account has never set one up".
+    const { data: existing } = await supabaseAdmin
+      .from('sending_schedules')
+      .select('is_default')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .maybeSingle();
+
     const { error } = await supabaseAdmin
       .from('sending_schedules').delete().eq('id', id).eq('user_id', userId);
     if (error) throw new AppError(error.message, 500);
+
+    if (existing?.is_default) {
+      const { data: next } = await supabaseAdmin
+        .from('sending_schedules')
+        .select('id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (next) {
+        // Same atomic RPC create()/update() use to swap the default — with
+        // the old default already gone, this is just a plain set.
+        const { error: promoteError } = await supabaseAdmin.rpc('set_default_sending_schedule', {
+          p_user_id: userId,
+          p_schedule_id: next.id,
+        });
+        if (promoteError) {
+          console.error(`[SendingSchedules] Failed to promote a new default for ${userId} after deleting ${id}:`, promoteError.message);
+        }
+      }
+    }
   },
 };

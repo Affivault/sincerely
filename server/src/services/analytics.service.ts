@@ -420,7 +420,13 @@ export const analyticsService = {
     lines.push('Campaigns');
     lines.push('Name,Status,Created');
     for (const c of campaigns || []) {
-      lines.push(`"${c.name}",${c.status},${c.created_at}`);
+      // Double up embedded quotes (RFC 4180) — a campaign name containing a
+      // literal `"` was written straight into a quoted field unescaped,
+      // closing the field early and misaligning every column after it for
+      // that row (and, with an odd number of quotes in the name, for every
+      // row after it too) when the CSV is opened in Excel/Sheets.
+      const csvName = `"${String(c.name ?? '').replace(/"/g, '""')}"`;
+      lines.push(`${csvName},${c.status},${c.created_at}`);
     }
 
     return lines.join('\n');

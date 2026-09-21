@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { type Session, type User, type Provider } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { queryClient } from '../lib/queryClient';
+import { clearRecentItems } from '../lib/recentItems';
 
 interface AuthContextType {
   user: User | null;
@@ -91,6 +92,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Query keys aren't scoped by user id, so a stale cache would otherwise let the
       // next account signed into this tab briefly see the previous user's cached data.
       queryClient.clear();
+      // The command palette's "Recent" list lives in localStorage, not the query
+      // cache, so clearing queries alone leaves it behind — the next person to
+      // sign in on this device would open ⌘K and see the previous account's
+      // actual contact and deal names.
+      clearRecentItems();
     }
   };
 

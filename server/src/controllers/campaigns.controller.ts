@@ -292,7 +292,11 @@ export const campaignsController = {
   async setSenderPool(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       await campaignsService.assertOwnership(req.userId!, req.params.id);
-      const accountIds: string[] = req.body.smtp_account_ids || [];
+      // De-duplicated before the ownership count check — see sse.controller.ts's
+      // setCampaignPool for why: `.in()` matches each distinct id once, so a
+      // body listing the same account twice made `count` come back lower than
+      // `accountIds.length` and rejected a valid, fully-owned pool as 404.
+      const accountIds: string[] = [...new Set<string>(req.body.smtp_account_ids || [])];
       if (accountIds.length > 0) {
         const { count, error } = await supabaseAdmin
           .from('smtp_accounts')

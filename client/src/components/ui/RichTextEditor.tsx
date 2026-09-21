@@ -40,6 +40,17 @@ interface RichTextEditorProps {
   /** Seamless variant: no outer border/background, transparent toolbar — lets a
       parent card own the framing (used by the Unibox reply composer). */
   bare?: boolean;
+  /**
+   * Listen for the app-wide `ai-reply-insert` / `rte-insert-text` events
+   * (used by the Unibox's AI reply assist and the campaign/template
+   * personalization-tag pickers). Defaults to on, but any editor that can be
+   * mounted *alongside* one of those senders — e.g. a QuickCompose panel
+   * opened from a Peek drawer while an Inbox reply is also open — must opt
+   * out, or inserting into the intended editor silently overwrites every
+   * other editor on screen too, since these are plain `window` events with
+   * no notion of which editor they were meant for.
+   */
+  globalInserts?: boolean;
 }
 
 /* ─── Toolbar Button ──────────────────────────── */
@@ -209,6 +220,7 @@ export function RichTextEditor({
   minHeight = '200px',
   autoFocus = false,
   bare = false,
+  globalInserts = true,
 }: RichTextEditorProps) {
   const [showLink, setShowLink] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
@@ -257,6 +269,7 @@ export function RichTextEditor({
 
   // Listen for AI reply insertion events
   useEffect(() => {
+    if (!globalInserts) return;
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail?.html && editor) {
@@ -266,10 +279,11 @@ export function RichTextEditor({
     };
     window.addEventListener('ai-reply-insert', handler);
     return () => window.removeEventListener('ai-reply-insert', handler);
-  }, [editor, onChange]);
+  }, [editor, onChange, globalInserts]);
 
   // Insert text (e.g. personalization tokens) at the cursor
   useEffect(() => {
+    if (!globalInserts) return;
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail?.text && editor) {
@@ -279,7 +293,7 @@ export function RichTextEditor({
     };
     window.addEventListener('rte-insert-text', handler);
     return () => window.removeEventListener('rte-insert-text', handler);
-  }, [editor, onChange]);
+  }, [editor, onChange, globalInserts]);
 
   if (!editor) return null;
 
