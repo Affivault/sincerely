@@ -71,6 +71,8 @@ const SINGLE: Array<{ name: string; why: string }> = [
   { name: 'classifyFolder', why: 'inbox-versus-spam decided twice is a report that disagrees with itself' },
   { name: 'needsHuman', why: 'one gate on the reply queue; a second copy lets robots back in' },
   { name: 'replyPriority', why: 'two orderings would put different replies at the top of the same queue' },
+  { name: 'segmentRevenue', why: 'one set of rules about when a segment has earned a win rate' },
+  { name: 'wilsonLowerBound', why: 'two confidence bounds agree until one is tuned; it moved to shared for that' },
 ];
 
 console.log('\nnothing load-bearing is defined twice');
