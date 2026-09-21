@@ -76,13 +76,22 @@ export function baseDomain(host: string): string {
   return parts.slice(-take).join('.');
 }
 
-/** RFC 6186: a provider may simply publish where its clients should connect. */
+/**
+ * RFC 6186: a provider may simply publish where its clients should connect.
+ *
+ * `services` is ordered implicit-TLS variant first (`_imaps._tcp` before
+ * `_imap._tcp`, `_submissions._tcp` before `_submission._tcp`), so a match
+ * against `services[0]` is secure by definition. Beyond that, the only
+ * ports that mean implicit TLS are 465 (SMTPS) and 993 (IMAPS) - checking
+ * "not port 587" is meaningless here since 587 is an SMTP-submission port
+ * that never appears in an IMAP SRV answer, and would mark a plaintext
+ * port-143 IMAP host as secure.
+ */
 async function fromSrv(
   domain: string,
   services: string[],
-  secureFirst: boolean,
 ): Promise<DiscoveredHost | null> {
-  for (const service of services) {
+  for (const [index, service] of services.entries()) {
     const answer = await resolveDetailed(`${service}.${domain}`, 'SRV');
     if (answer.status !== 'records') continue;
 
@@ -101,7 +110,7 @@ async function fromSrv(
       return {
         host: best.host,
         port: best.port,
-        secure: secureFirst ? best.port !== 587 : best.port === 465 || best.port === 993,
+        secure: index === 0 || best.port === 465 || best.port === 993,
         via: 'srv',
       };
     }
@@ -147,8 +156,8 @@ export async function discoverMailHosts(domain: string): Promise<MailHostDiscove
   }
 
   const [srvImap, srvSmtp, mx] = await Promise.all([
-    fromSrv(clean, ['_imaps._tcp', '_imap._tcp'], true),
-    fromSrv(clean, ['_submissions._tcp', '_submission._tcp'], false),
+    fromSrv(clean, ['_imaps._tcp', '_imap._tcp']),
+    fromSrv(clean, ['_submissions._tcp', '_submission._tcp']),
     lookupMx(clean),
   ]);
 
@@ -177,6 +186,13 @@ export async function discoverMailHosts(domain: string): Promise<MailHostDiscove
     out.note = out.mail_provider
       ? `${clean} keeps its mail with ${out.mail_provider} - filled in that provider's servers.`
       : `Found ${out.imap.host} and ${out.smtp.host} for ${clean}.`;
+    // A discovered IMAP host without TLS is unusual enough to be worth a
+    // second look before credentials are saved against it - most providers
+    // expect an encrypted connection even where DNS makes a plaintext one
+    // technically discoverable.
+    if (out.imap.secure === false) {
+      out.note += ` Note: ${out.imap.host} was found without encryption (port ${out.imap.port}) - confirm that with your provider before saving.`;
+    }
   } else if (out.smtp && !out.imap) {
     out.note = `Found a sending server for ${clean} but no mailbox server. `
       + 'Enter the IMAP host from your provider, or replies will not be read.';
