@@ -26,6 +26,7 @@ import { StatusBadge, DomainDetailPanel } from '../domains/DomainsPage';
 import { TrackingDomainPanel } from '../../components/domains/TrackingDomainPanel';
 import { ReadinessPanel } from '../../components/delivery/ReadinessPanel';
 import { MailboxList } from '../../components/delivery/MailboxList';
+import { EmptyState } from '../../components/shared/EmptyState';
 
 /* ─── Quick-connect providers ─────────────────────── */
 interface QuickConnectProvider { preset: SmtpPreset; icon: React.ReactNode; description: string; }
@@ -573,12 +574,13 @@ export function EmailAccountsPage() {
       {/* ── Warm-up tab ── */}
       {tab === 'warmup' && (
         list.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-[var(--border-default)] bg-[var(--bg-surface)] py-14 text-center">
-            <Flame className="h-8 w-8 text-[var(--text-muted)] mx-auto mb-3" />
-            <p className="text-[14px] font-semibold text-[var(--text-primary)]">Connect a mailbox first</p>
-            <p className="text-[12.5px] text-[var(--text-tertiary)] mt-1 mb-4">Warm-up builds sending reputation on your connected mailboxes.</p>
-            <Button onClick={() => setTab('mailboxes')}><Mail className="h-3.5 w-3.5" /> Go to mailboxes</Button>
-          </div>
+          <EmptyState
+            icon={Flame}
+            title="Connect a mailbox first"
+            description="Warm-up builds sending reputation on your connected mailboxes."
+            actionLabel="Go to mailboxes"
+            onAction={() => setTab('mailboxes')}
+          />
         ) : (
           <WarmupPanel onAddMailbox={openAdd} />
         )

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Target, Info, Banknote, Users, TrendingUp, AlertTriangle } from 'lucide-react';
 import { PageHeader } from '../../components/shared/PageHeader';
+import { AsyncPanel } from '../../components/ui/AsyncPanel';
 import { segmentsApi } from '../../api/segments.api';
 import { cn } from '../../lib/utils';
 import {
@@ -137,11 +138,12 @@ function Verdict({ report }: { report: SegmentReport }) {
 export function SegmentsPage() {
   const [dimension, setDimension] = useState<SegmentDimension>('industry');
 
-  const { data: report, isLoading } = useQuery({
+  const reportQuery = useQuery({
     queryKey: ['segments', dimension],
     queryFn: () => segmentsApi.report(dimension),
     staleTime: 5 * 60_000,
   });
+  const report = reportQuery.data;
 
   return (
     <div className="stagger space-y-5 pb-8">
@@ -180,23 +182,24 @@ export function SegmentsPage() {
         ))}
       </div>
 
-      {isLoading ? (
-        <div className="h-64 animate-pulse rounded-xl bg-[var(--bg-elevated)]" />
-      ) : !report ? null : (
+      <AsyncPanel
+        query={reportQuery}
+        skeleton="list"
+        skeletonRows={5}
+        isEmpty={(r) => r.rows.length === 0}
+        empty={{
+          icon: Users,
+          title: 'Nothing recorded to group by',
+          description: (report?.unknown ?? 0) > 0
+            ? `None of the ${(report?.unknown ?? 0).toLocaleString()} contacts you reached has a ${DIMENSION_LABELS[dimension].toLowerCase()} recorded. Fill it in on the companies you care about, or import it, and this fills in by itself.`
+            : 'Reach some contacts and close some deals, and this will tell you what the buyers had in common.',
+        }}
+      >
+        {(report) => (
         <>
           <Verdict report={report} />
 
-          {report.rows.length === 0 ? (
-            <section className="panel px-6 py-12 text-center">
-              <Users className="mx-auto mb-3 h-6 w-6 text-[var(--text-muted)]" strokeWidth={1.5} />
-              <p className="text-[13.5px] font-semibold text-[var(--text-primary)]">Nothing recorded to group by</p>
-              <p className="mx-auto mt-1.5 max-w-md text-[12px] leading-relaxed text-[var(--text-secondary)]">
-                {report.unknown > 0
-                  ? <>None of the {report.unknown.toLocaleString()} contacts you reached has a {DIMENSION_LABELS[dimension].toLowerCase()} recorded. Fill it in on the companies you care about, or import it, and this fills in by itself.</>
-                  : <>Reach some contacts and close some deals, and this will tell you what the buyers had in common.</>}
-              </p>
-            </section>
-          ) : (
+          {(
             <section className="panel overflow-hidden">
               <div className="flex items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-3">
                 <div className="min-w-0 flex-1">
@@ -243,7 +246,8 @@ export function SegmentsPage() {
             </div>
           )}
         </>
-      )}
+        )}
+      </AsyncPanel>
     </div>
   );
 }

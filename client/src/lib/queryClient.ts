@@ -1,5 +1,6 @@
 import { QueryClient, MutationCache, QueryCache } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { failureToast, shouldAutoRetry } from '@lemlist/shared';
 
 // A failed query silently resolves to `data: undefined` with no error surface of its
 // own (unlike mutations, queries have no per-call onError in v5) — several pages ended
@@ -16,7 +17,16 @@ export const queryClient = new QueryClient({
       if (query.meta?.silentError) return;
       if (toastedQueryHashes.has(query.queryHash)) return;
       toastedQueryHashes.add(query.queryHash);
-      toast.error(error?.response?.data?.error || error?.message || 'Failed to load data');
+      /*
+       * One description of a failure, wherever it appears.
+       *
+       * This used to reach past the error for a server message and fall
+       * back to error.message - which is how somebody offline got
+       * "Network Error" in a toast and "Could not reach the server" in a
+       * panel, for one event. describeFailure decides once; the toast is
+       * the short form of the same answer.
+       */
+      toast.error(failureToast(error, 'Failed to load data'));
     },
     onSuccess: (_data, query) => {
       toastedQueryHashes.delete(query.queryHash);
@@ -28,13 +38,21 @@ export const queryClient = new QueryClient({
   mutationCache: new MutationCache({
     onError: (error: any, _variables, _context, mutation) => {
       if (mutation.options.onError) return;
-      toast.error(error?.response?.data?.error || error?.message || 'Something went wrong');
+      toast.error(failureToast(error, 'Something went wrong'));
     },
   }),
   defaultOptions: {
     queries: {
       staleTime: 30_000,
-      retry: 1,
+      /*
+       * Retry only what could plausibly succeed.
+       *
+       * A flat `retry: 1` retries a 404 and a 403 exactly as eagerly as a
+       * dropped connection - two round trips to be told the same thing,
+       * and the person finds out later than they needed to. shouldAutoRetry
+       * reads the status.
+       */
+      retry: (failureCount, error) => shouldAutoRetry(failureCount, error, 2),
     },
   },
 });

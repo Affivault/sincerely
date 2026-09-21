@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Skeleton, SkeletonList } from './components/ui/Skeleton';
 import { useAuth } from './context/AuthContext';
 import { AppLayout } from './components/layout/AppLayout';
 
@@ -60,10 +61,20 @@ const TermsPage            = lazy(() => import('./pages/legal/TermsPage').then(m
 const PrivacyPage          = lazy(() => import('./pages/legal/PrivacyPage').then(m => ({ default: m.PrivacyPage })));
 const StatusPage           = lazy(() => import('./pages/status/StatusPage').then(m => ({ default: m.StatusPage })));
 
+/**
+ * What a route looks like while its chunk downloads.
+ *
+ * This was a bare div spinning in `border-primary-600` - a colour with no
+ * definition anywhere in the theme, so it rendered as the browser default
+ * and was the sixth loading idiom in an app that only needed one. It
+ * holds the shape of a page now rather than spinning in the middle of an
+ * empty screen, which stops the layout jumping when the chunk lands.
+ */
 function PageSpinner() {
   return (
-    <div className="flex h-screen items-center justify-center">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-600 border-t-transparent" />
+    <div className="mx-auto w-full max-w-6xl space-y-5 p-6" aria-busy data-route-loading>
+      <Skeleton className="h-16 rounded-xl" />
+      <SkeletonList rows={6} />
     </div>
   );
 }

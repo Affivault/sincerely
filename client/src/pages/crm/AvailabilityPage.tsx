@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { SkeletonList } from '../../components/ui/Skeleton';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -413,11 +414,9 @@ export function AvailabilityPage() {
           </div>
 
           {isLoading ? (
-            <div className="p-4 space-y-2">
-              {Array.from({ length: 7 }).map((_, i) => (
-                <div key={i} className="h-10 rounded-lg bg-[var(--bg-elevated)] animate-pulse" />
-              ))}
-            </div>
+            /* The shared placeholder, so this screen resolves the same way
+               as every other list in the app. */
+            <div className="p-4"><SkeletonList rows={7} /></div>
           ) : (
             <div className="divide-y divide-[var(--border-subtle)]">
               {Array.from({ length: 7 }, (_, i) => (i + 1) % 7).map((weekday) => {

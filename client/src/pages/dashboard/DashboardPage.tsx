@@ -10,6 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { SetupChecklist } from '../../components/setup/SetupChecklist';
+import { EmptyState, InlineEmpty } from '../../components/shared/EmptyState';
 import { rateReadout, averageRateReadout, rateBarWidth, type RateReadout } from '@lemlist/shared';
 import { Avatar } from '../../components/shared/Avatar';
 import {
@@ -646,7 +647,7 @@ export function DashboardPage() {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center py-12 text-center">
               <Inbox className="h-5 w-5 text-[var(--text-muted)] mb-2" strokeWidth={1.5} />
-              <p className="text-[12px] text-[var(--text-tertiary)]">No replies yet</p>
+              <InlineEmpty>No replies yet</InlineEmpty>
             </div>
           )}
         </section>
@@ -733,12 +734,13 @@ export function DashboardPage() {
               })}
             </div>
           ) : (
-            <div className="py-14 text-center">
-              <Megaphone className="h-6 w-6 text-[var(--text-muted)] mx-auto mb-2.5" strokeWidth={1.5} />
-              <p className="text-[13px] font-semibold text-[var(--text-primary)] mb-1">No campaigns yet</p>
-              <p className="text-[12px] text-[var(--text-tertiary)] mb-3.5">Launch your first sequence to see rankings.</p>
-              <button className="btn-primary mx-auto" onClick={() => navigate('/campaigns/new')}><Plus className="h-3.5 w-3.5" /> Create campaign</button>
-            </div>
+            <EmptyState
+              icon={Megaphone}
+              title="No campaigns yet"
+              description="Launch your first sequence to see rankings."
+              actionLabel="Create campaign"
+              onAction={() => navigate('/campaigns/new')}
+            />
           )}
         </section>
 

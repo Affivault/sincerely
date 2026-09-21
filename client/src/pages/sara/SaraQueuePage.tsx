@@ -26,6 +26,7 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { StatCard } from '../../components/shared/StatCard';
 import { Avatar } from '../../components/shared/Avatar';
 import toast from 'react-hot-toast';
+import { Spinner } from '../../components/ui/Spinner';
 
 function relTime(iso?: string): string {
   if (!iso) return '';
@@ -287,7 +288,7 @@ export function SaraQueuePage() {
       {/* Queue — two-pane triage */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--indigo)] border-t-transparent" />
+          <Spinner size="lg" />
         </div>
       ) : isError ? (
         <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-20 px-8 flex flex-col items-center justify-center text-center">

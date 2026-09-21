@@ -3693,7 +3693,9 @@ export function InboxPage() {
                   disabled={isFetching}
                   className="text-[12px] font-medium text-[var(--indigo)] hover:underline disabled:opacity-50 disabled:no-underline"
                 >
-                  {isFetching ? 'Loading…' : `Load more (${messagesData?.total! - messages.length} remaining)`}
+                  {isFetching
+                    ? <span className="inline-flex items-center gap-1.5"><Spinner size="sm" /> Loading more</span>
+                    : `Load more (${messagesData?.total! - messages.length} remaining)`}
                 </button>
               </div>
             )}

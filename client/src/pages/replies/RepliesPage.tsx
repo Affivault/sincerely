@@ -7,6 +7,7 @@ import {
   CalendarClock, Banknote, ChevronRight, Info, Undo2,
 } from 'lucide-react';
 import { PageHeader } from '../../components/shared/PageHeader';
+import { AsyncPanel } from '../../components/ui/AsyncPanel';
 import { replyQueueApi, type QueuedReply, type QueueFilter } from '../../api/replyQueue.api';
 import { cn } from '../../lib/utils';
 import { replyStateLabel, waitLabel, type ReplyUrgency } from '@lemlist/shared';
@@ -193,7 +194,7 @@ export function RepliesPage() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<QueueFilter>('all');
 
-  const { data, isLoading } = useQuery({
+  const queueQuery = useQuery({
     queryKey: ['reply-queue', filter],
     queryFn: () => replyQueueApi.queue(filter),
     // The clock moves whether or not anybody reloads, and a queue showing
@@ -220,8 +221,8 @@ export function RepliesPage() {
     onError: (err: any) => toast.error(err.response?.data?.error || 'Could not park that reply'),
   });
 
+  const { data } = queueQuery;
   const counts = data?.counts;
-  const items = data?.items || [];
 
   const tabs = useMemo(() => ([
     { id: 'all' as const, label: 'Open', count: counts?.open },
@@ -292,39 +293,45 @@ export function RepliesPage() {
         ))}
       </div>
 
-      {isLoading ? (
-        <div className="h-64 animate-pulse rounded-xl bg-[var(--bg-elevated)]" />
-      ) : items.length === 0 ? (
-        <section className="panel px-6 py-14 text-center">
-          <CheckCircle2 className="mx-auto mb-3 h-6 w-6 text-emerald-500" strokeWidth={1.5} />
-          <p className="text-[13.5px] font-semibold text-[var(--text-primary)]">
-            {filter === 'overdue' ? 'Nothing is late'
-              : filter === 'parked' ? 'Nothing parked'
-              : filter === 'mine' ? 'Nothing claimed'
-              : 'Nobody is waiting on you'}
-          </p>
-          <p className="mx-auto mt-1.5 max-w-md text-[12px] leading-relaxed text-[var(--text-secondary)]">
-            {filter === 'all'
-              ? 'Every reply that needs a human has had one. Out-of-office messages and unsubscribes never appear here — they are not people waiting.'
-              : 'Nothing in this view right now.'}
-          </p>
-        </section>
-      ) : (
-        <section className="panel overflow-hidden">
-          <div className="divide-y divide-[var(--border-subtle)]">
-            {items.map((reply) => (
-              <ReplyRow
-                key={reply.id}
-                reply={reply}
-                busy={claim.isPending || park.isPending}
-                onOpen={() => navigate(`/inbox?message=${reply.id}`)}
-                onClaim={() => claim.mutate({ id: reply.id, assigned: !reply.assigned_to })}
-                onPark={(ms) => park.mutate({ id: reply.id, ms })}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+      {/*
+        * Loading, empty and failed all come from one place, so this screen
+        * resolves exactly like every other one. It used to hand-roll all
+        * three - a pulsing block, a bespoke panel, and nothing at all for a
+        * failure, which left a blank area and a toast that had already gone.
+        */}
+      <AsyncPanel
+        query={queueQuery}
+        skeleton="list"
+        skeletonRows={6}
+        isEmpty={(d) => d.items.length === 0}
+        empty={{
+          icon: CheckCircle2,
+          title: filter === 'overdue' ? 'Nothing is late'
+            : filter === 'parked' ? 'Nothing parked'
+            : filter === 'mine' ? 'Nothing claimed'
+            : 'Nobody is waiting on you',
+          description: filter === 'all'
+            ? 'Every reply that needs a human has had one. Out-of-office messages and unsubscribes never appear here \u2014 they are not people waiting.'
+            : 'Nothing in this view right now.',
+        }}
+      >
+        {(d) => (
+          <section className="panel overflow-hidden">
+            <div className="divide-y divide-[var(--border-subtle)]">
+              {d.items.map((reply) => (
+                <ReplyRow
+                  key={reply.id}
+                  reply={reply}
+                  busy={claim.isPending || park.isPending}
+                  onOpen={() => navigate(`/inbox?message=${reply.id}`)}
+                  onClaim={() => claim.mutate({ id: reply.id, assigned: !reply.assigned_to })}
+                  onPark={(ms) => park.mutate({ id: reply.id, ms })}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+      </AsyncPanel>
 
       {/*
         * What is not in here, said plainly. A queue whose headline number
