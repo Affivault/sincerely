@@ -115,3 +115,108 @@ export function readVariant(metadata: unknown): AbVariant | null {
   if (raw === 'a' || raw === 'b') return raw;
   return null;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Where a split test has got to, in one line.
+
+   A test was invisible once you set it up. You added a variant subject in
+   the builder, saved, and nothing anywhere said a test was running - no
+   progress, no "not yet callable", no result. To learn any of it you had
+   to know the A/B panel existed, find it under Analytics, and read a table.
+
+   So people check on day one, see variant B four points ahead over
+   eleven sends, and rewrite the sequence around noise. Or they never
+   check at all, and the test runs for three months without ever being
+   read.
+
+   One line, resolved in one place, so the campaign page and the analytics
+   panel cannot describe the same test differently.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+export interface AbArm {
+  sent: number;
+  opened: number;
+}
+
+export interface AbStepOutcome {
+  variant_a: AbArm;
+  variant_b: AbArm;
+  /** Set only when the gap is unlikely to be chance. */
+  winner: AbVariant | null;
+  /** Whichever is ahead, significant or not. */
+  leading: AbVariant | null;
+  has_enough_data: boolean;
+  min_sample: number;
+}
+
+export type AbStatusTone = 'idle' | 'running' | 'ready';
+
+export interface AbStatus {
+  tone: AbStatusTone;
+  /** Two or three words, for a chip beside the step. */
+  short: string;
+  /** One sentence, for a tooltip or a line under it. */
+  detail: string;
+  /** Sends in the smaller arm against what it needs. 0-100, or null when called. */
+  percent: number | null;
+}
+
+/**
+ * Resolve a step's test to the one thing worth saying about it.
+ *
+ * The smaller arm is what gates a verdict, so it is the one reported. An
+ * average of the two would read as progress that is not there: 50 and 2 is
+ * not "26 per variant", it is a test that cannot be called.
+ */
+export function abStatusLine(s: AbStepOutcome): AbStatus {
+  const a = Math.max(0, s.variant_a?.sent || 0);
+  const b = Math.max(0, s.variant_b?.sent || 0);
+  const smaller = Math.min(a, b);
+  const need = s.min_sample > 0 ? s.min_sample : 30;
+
+  if (a + b === 0) {
+    return {
+      tone: 'idle',
+      short: 'A/B ready',
+      detail: 'Both versions are set. Nothing has gone out on this test yet.',
+      percent: 0,
+    };
+  }
+
+  /*
+   * A winner is the only state worth acting on, so it is the only one
+   * that reads as finished. `leading` deliberately does not.
+   */
+  if (s.winner) {
+    return {
+      tone: 'ready',
+      short: `${s.winner.toUpperCase()} wins`,
+      detail: `Variant ${s.winner.toUpperCase()} is ahead by more than chance explains. Worth rewriting the step around.`,
+      percent: null,
+    };
+  }
+
+  if (!s.has_enough_data || smaller < need) {
+    /*
+     * The number that stops you, and how far off it is. "Needs 30+" alone
+     * gives no sense of whether that is tomorrow or next quarter.
+     */
+    return {
+      tone: 'running',
+      short: `A/B ${smaller}/${need}`,
+      detail: smaller === 0
+        ? `Only one version has gone out so far. Both need ${need} sends before this can be called.`
+        : `${a} and ${b} sends so far. The smaller half needs ${need} before this can be called - anything read now is noise.`,
+      percent: Math.min(100, Math.round((smaller / need) * 100)),
+    };
+  }
+
+  return {
+    tone: 'running',
+    short: s.leading ? `${s.leading.toUpperCase()} ahead` : 'A/B level',
+    detail: s.leading
+      ? `Variant ${s.leading.toUpperCase()} is ahead, but the gap is still within chance. Leave it running.`
+      : 'Both versions are performing identically so far.',
+    percent: 100,
+  };
+}

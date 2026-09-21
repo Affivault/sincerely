@@ -46,7 +46,7 @@ const is = (label: string, cond: boolean, detail = '') => {
 const here = dirname(fileURLToPath(import.meta.url));
 const src = (p: string) => readFileSync(join(here, '../src', p), 'utf8');
 
-const { stepHasVariantB, assignVariant, readVariant } = await import('@lemlist/shared');
+const { stepHasVariantB, assignVariant, readVariant, abStatusLine } = await import('@lemlist/shared');
 
 console.log('\na step is a test if either half varies');
 {
@@ -172,6 +172,18 @@ console.log('\nand the report refuses to count what was never in the test');
   is('and how many were set aside is reported',
      /untracked_sent: untrackedByStep\.get\(step\.id\) \|\| 0/.test(analytics),
      'the missing sends would vanish with no explanation');
+
+  /*
+   * Reported all the way to the screen. A field computed and never
+   * rendered is the dkimHelp mistake: typecheck passes, build passes, and
+   * the thing it was added for never happens.
+   */
+  const panel = readFileSync(join(here, '../../client/src/pages/analytics/AnalyticsDashboardPage.tsx'), 'utf8');
+  is('and the panel actually says so',
+     /data-untracked-sends/.test(panel) && /step\.untracked_sent > 0 && \(/.test(panel),
+     'the count is computed and never shown');
+  is('in words, not as a bare number',
+     /went out before the test started and are not counted in either variant/.test(panel));
 }
 
 console.log('\nthe suppression check refuses to guess');
@@ -237,6 +249,99 @@ console.log('\nthe suppression check refuses to guess');
      /allowing send/.test(throttle)
      && /failing[\s*]+\*closed\*[\s*]+is a campaign that silently stops/.test(throttle),
      'the throttle and the suppression list should not fail the same way');
+}
+
+console.log('\na running test says where it has got to');
+{
+  /*
+   * A test was invisible once set up: you added a variant, saved, and
+   * nothing outside the analytics tab ever mentioned it again. So it gets
+   * read on day one over eleven sends and the sequence is rewritten
+   * around noise, or it is never read at all.
+   */
+  const step = (over: Record<string, unknown> = {}) => ({
+    variant_a: { sent: 0, opened: 0 },
+    variant_b: { sent: 0, opened: 0 },
+    winner: null, leading: null, has_enough_data: false, min_sample: 30,
+    ...over,
+  }) as any;
+
+  const idle = abStatusLine(step());
+  is('a test with no sends yet says so', idle.tone === 'idle', JSON.stringify(idle));
+  is('and does not pretend to be running', /Nothing has gone out/.test(idle.detail), idle.detail);
+
+  /*
+   * The smaller arm is what gates a verdict, so it is the one reported.
+   * Averaging would read as progress that is not there: 50 and 2 is not
+   * "26 per variant", it is a test that cannot be called.
+   */
+  const lopsided = abStatusLine(step({ variant_a: { sent: 50, opened: 9 }, variant_b: { sent: 2, opened: 1 } }));
+  is('a lopsided test counts the smaller half', lopsided.short === 'A/B 2/30', lopsided.short);
+  is('and shows both numbers', /50 and 2 sends/.test(lopsided.detail), lopsided.detail);
+  is('with the progress of the half that gates it', lopsided.percent === 7, String(lopsided.percent));
+
+  const early = abStatusLine(step({ variant_a: { sent: 18, opened: 4 }, variant_b: { sent: 21, opened: 7 } }));
+  is('a young test says how far off it is', early.short === 'A/B 18/30', early.short);
+  is('and that reading it now is pointless',
+     /anything read now is noise/.test(early.detail), early.detail);
+  is('it is not called ready', early.tone === 'running');
+
+  // One arm at zero is a different problem from both arms being small.
+  const oneSided = abStatusLine(step({ variant_a: { sent: 40, opened: 9 }, variant_b: { sent: 0, opened: 0 } }));
+  is('one version never sending is called out',
+     /Only one version has gone out/.test(oneSided.detail), oneSided.detail);
+
+  /*
+   * `leading` is not a result. Saying "B is winning" over a gap that is
+   * within chance is how somebody rewrites a sequence around noise - the
+   * distinction the analytics panel already draws, kept here too.
+   */
+  const close = abStatusLine(step({
+    variant_a: { sent: 400, opened: 120 }, variant_b: { sent: 410, opened: 132 },
+    leading: 'b', has_enough_data: true,
+  }));
+  is('a leader with no significance is not a winner', close.tone === 'running', JSON.stringify(close));
+  is('and it says to leave it running', /still within chance/.test(close.detail), close.detail);
+  is('the chip does not say "wins"', !/wins/.test(close.short), close.short);
+
+  const won = abStatusLine(step({
+    variant_a: { sent: 400, opened: 120 }, variant_b: { sent: 410, opened: 190 },
+    leading: 'b', winner: 'b', has_enough_data: true,
+  }));
+  is('a real winner reads as finished', won.tone === 'ready' && won.short === 'B wins', JSON.stringify(won));
+  is('and says it is worth acting on', /Worth rewriting/.test(won.detail), won.detail);
+  is('with no progress bar left to fill', won.percent === null);
+
+  is('a dead level test is not given a leader',
+     abStatusLine(step({ variant_a: { sent: 400, opened: 120 }, variant_b: { sent: 400, opened: 120 }, has_enough_data: true })).short === 'A/B level');
+
+  // A malformed payload must not produce "A/B NaN/30" on a campaign page.
+  const junk = abStatusLine(step({ variant_a: null, variant_b: undefined, min_sample: 0 }));
+  is('a malformed payload does not throw', junk.tone === 'idle', JSON.stringify(junk));
+}
+
+console.log('\nand the campaign page shows it where the test lives');
+{
+  const detail = readFileSync(join(here, '../../client/src/pages/campaigns/CampaignDetailPage.tsx'), 'utf8');
+
+  is('the chip is gated on the shared predicate',
+     /\{stepHasVariantB\(step\) && \(/.test(detail),
+     'the third place deciding for itself what an A/B test is');
+  is('and the old subject-only gate is gone',
+     !/\{step\.subject_b && \(/.test(detail));
+
+  is('the chip carries the status rather than the word A/B',
+     /\{ab \? ab\.short : 'A\/B'\}/.test(detail) && /data-ab-chip/.test(detail),
+     'the status is fetched and never shown');
+  is('with the sentence behind it', /title=\{ab\?\.detail\}/.test(detail));
+  is('and progress under it while it is still gathering',
+     /data-ab-progress/.test(detail) && /ab\.percent !== null && ab\.tone !== 'idle'/.test(detail));
+
+  is('the status comes from the shared resolver',
+     /abStatusLine\(step as AbTestStep\)/.test(detail),
+     'the campaign page and the analytics panel could describe one test differently');
+  is('and a failed lookup is silent rather than a toast on the page',
+     /queryKey: \['analytics', 'campaign-ab', id\][\s\S]{0,300}silentError: true/.test(detail));
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

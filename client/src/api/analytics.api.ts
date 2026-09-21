@@ -92,6 +92,13 @@ export interface AbTestStep {
   p_value: number | null;
   has_enough_data: boolean;
   min_sample: number;
+  /**
+   * Sends at this step that were not part of the test — everything that
+   * went out before the variant was added, and (before the sender was
+   * fixed) every send of a body-only test. They were never randomised, so
+   * they are excluded rather than folded into A.
+   */
+  untracked_sent: number;
 }
 
 export interface CampaignAbTestResult {

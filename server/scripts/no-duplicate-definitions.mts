@@ -66,6 +66,7 @@ const SINGLE: Array<{ name: string; why: string }> = [
   { name: 'setupNudge', why: 'the sidebar and the dashboard must agree about the same account' },
   { name: 'stepHasVariantB', why: 'the sender and the report disagreed about what an A/B test is' },
   { name: 'assignVariant', why: 'two ways of picking an arm would split the same contact both ways' },
+  { name: 'abStatusLine', why: 'the campaign page and the panel must describe one test the same way' },
 ];
 
 console.log('\nnothing load-bearing is defined twice');
