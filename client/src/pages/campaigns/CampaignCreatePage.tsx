@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useDraftRecovery, useUnsavedChangesWarning } from '../../hooks/useDraftRecovery';
+import { draftAgeLabel } from '@lemlist/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
 import { PersonalizationPanel, TimezoneCoverageNote, countGaps, shouldPauseLaunch } from '../../components/campaigns/PersonalizationPanel';
@@ -32,6 +34,7 @@ import {
   Zap, FileText, TrendingUp, ShieldCheck, Brain, Wand2, CalendarClock,
   Trophy,
   Globe,
+  History,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { StepType, formatDailyLimit } from '@lemlist/shared';
@@ -230,6 +233,65 @@ export function CampaignCreatePage() {
     queryFn: () => campaignsApi.get(id!),
     enabled: isEdit,
   });
+
+  /* ═══════════════════════════════════════════════════════════════════
+     Not losing the work.
+
+     This page had a "Save draft" button and nothing else - no autosave, no
+     warning on the way out, no local copy. Twenty minutes of sequence
+     writing went silently when a tab closed or the laptop slept.
+
+     Everything that survives a reload is here: the sequence, the settings,
+     the audience and the sending mailboxes. Deliberately NOT here are the
+     interface's own bits of state - which modal is open, which step is
+     being edited, what is typed in the AI prompt box. Restoring those puts
+     somebody back inside a half-open dialog they have no memory of.
+
+     The router is a plain BrowserRouter, so useBlocker does not exist and
+     an in-app route change cannot be intercepted. That is precisely why
+     the local draft matters more than the prompt: leave the page and come
+     back, and the work is offered again. beforeunload covers the exits it
+     can - closing the tab, reloading, following a link out.
+     ═══════════════════════════════════════════════════════════════════ */
+  const draftData = useMemo(() => ({
+    campaignForm, steps, selectedContactIds, senderPoolIds, wizardStep,
+  }), [campaignForm, steps, selectedContactIds, senderPoolIds, wizardStep]);
+
+  const draft = useDraftRecovery({
+    form: 'campaign',
+    recordId: id ?? null,
+    // Bump when the shape above changes incompatibly, so a draft written by
+    // an older build is never poured into a form that cannot hold it.
+    version: 1,
+    data: draftData,
+    // Only once the existing campaign has loaded; saving before that would
+    // write the empty initial form over a real draft.
+    enabled: !isEdit || !!existingCampaign,
+    isEmpty: (d) => !d.campaignForm.name?.trim()
+      && d.steps.length === 0
+      && d.selectedContactIds.length === 0,
+    serverUpdatedAt: (existingCampaign as any)?.updated_at ?? null,
+  });
+
+  /*
+   * Dirty means there is something a reload would cost. A pristine new
+   * campaign is not worth warning about, and neither is one that has just
+   * been saved - `clear()` drops the draft, so savedAt goes with it.
+   */
+  const isDirty = !draft.decision.restore
+    && (!!campaignForm.name?.trim() || steps.length > 0 || selectedContactIds.length > 0);
+  useUnsavedChangesWarning(isDirty);
+
+  const restoreDraft = () => {
+    const taken = draft.accept();
+    if (!taken) return;
+    setCampaignForm(taken.campaignForm);
+    setSteps(taken.steps);
+    setSelectedContactIds(taken.selectedContactIds);
+    setSenderPoolIds(taken.senderPoolIds);
+    setWizardStep(taken.wizardStep);
+    toast.success('Draft restored');
+  };
 
   // A campaign's sequence can only be edited while it's still a draft — once
   // it's running, contacts are mid-sequence and track their position by step
@@ -617,6 +679,10 @@ export function CampaignCreatePage() {
         }
 
         queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+        // Saved on the server, so the local copy is no longer a safety net -
+        // it is a stale duplicate waiting to be offered back over the real
+        // thing. Cleared before navigating, not after.
+        draft.clear();
         toast.success(isEdit ? 'Campaign updated' : 'Campaign created');
         navigate(`/campaigns/${campaignId}`);
       } catch (err: any) {
@@ -865,6 +931,45 @@ export function CampaignCreatePage() {
 
   return (
     <div className="-mx-8 -my-6 flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
+      {/*
+        * Offered, never restored silently.
+        *
+        * A draft that reappears on its own is indistinguishable from the
+        * app having lost the newer version - the person cannot tell which
+        * of the two they are looking at. Saying what it is and how old it
+        * is makes declining an informed click rather than a guess.
+        */}
+      {draft.offer && (
+        <div
+          className="flex-shrink-0 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-amber-500/25 bg-amber-500/[0.07] px-5 py-2.5"
+          data-draft-offer
+        >
+          <History className="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+          <p className="flex-1 min-w-0 text-[12.5px] text-[var(--text-secondary)]">
+            <span className="font-medium text-[var(--text-primary)]">
+              Unsaved work from {draftAgeLabel(draft.offer.ageMs)}.
+            </span>{' '}
+            This was never saved — restoring replaces what is on screen now.
+          </p>
+          <button
+            type="button"
+            onClick={restoreDraft}
+            className="h-7 flex-shrink-0 rounded-md bg-[var(--indigo)] px-2.5 text-[11.5px] font-semibold text-white hover:opacity-90"
+            data-draft-restore
+          >
+            Restore it
+          </button>
+          <button
+            type="button"
+            onClick={draft.dismiss}
+            className="h-7 flex-shrink-0 rounded-md px-2.5 text-[11.5px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+            data-draft-dismiss
+          >
+            Discard
+          </button>
+        </div>
+      )}
+
       {/* ── Top bar ──────────────────────────────────────────── */}
       <header className="flex-shrink-0 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-5 py-2.5 flex items-center gap-3">
         <button
