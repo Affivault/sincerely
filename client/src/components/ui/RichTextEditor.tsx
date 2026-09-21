@@ -1,431 +1,141 @@
-import { useEditor, EditorContent, Editor } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
-import Link from '@tiptap/extension-link';
-import Placeholder from '@tiptap/extension-placeholder';
-import { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  Bold,
-  Italic,
-  Underline as UnderlineIcon,
-  Strikethrough,
-  List,
-  ListOrdered,
-  Link as LinkIcon,
-  Quote,
-  Minus,
-  Undo2,
-  Redo2,
-  FileText,
-  ChevronDown,
-  X,
-} from 'lucide-react';
+import { lazy, Suspense, useCallback, useState } from 'react';
+import type { RichTextEditorProps } from './RichTextEditor.types';
 
-/* ─── Types ───────────────────────────────────── */
-interface Template {
-  id: string;
-  name: string;
-  subject: string;
-  body_html: string;
+export type { RichTextEditorProps, Template } from './RichTextEditor.types';
+
+/* ═══════════════════════════════════════════════════════════════════════
+   The door to the editor.
+
+   MEASURED BEFORE THIS LANDED: 1,113 kB of JavaScript was fetched and
+   parsed before the first screen of this app appeared, and 366 kB of it -
+   one third - was ProseMirror. It was on the critical path of the LOGIN
+   page, the landing page and the booking pages, none of which contain an
+   editor, because index.html carried a modulepreload for it.
+
+   The route that put it there was five ordinary imports long and every
+   link in it was correct: AppLayout mounts the peek drawer, the drawer
+   shows contact history, history offers a quick reply, a reply needs an
+   editor. Nobody imported a word processor into the login page. It just
+   turned out that they had.
+
+   So the implementation moved behind a dynamic import and this stayed
+   behind - a file with no ProseMirror in it, which every existing call
+   site keeps importing exactly as before.
+
+   THE PART THAT MATTERS AS MUCH AS THE SPLIT
+   ------------------------------------------
+   Deferring something until it is needed makes the first paint faster and
+   the first CLICK slower, and that trade is usually a bad one: waiting for
+   a text box after you have already decided to write is worse than waiting
+   once at the start. So it is not deferred until needed - it is fetched
+   during the first idle moment after the app shell mounts (see
+   warmRichTextEditor, called from AppLayout). By the time anyone opens a
+   composer the chunk is in the module cache and it mounts synchronously.
+
+   The result is that the editor costs nothing on the way in and nothing on
+   the way to using it. The fallback below exists for the narrow case of
+   clicking Reply within the first second on a slow connection, and it is
+   drawn at the exact size of the editor so that nothing moves when the
+   real one arrives.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const load = () => import('./RichTextEditorImpl');
+const Impl = lazy(load);
+
+/** Whether the chunk has been asked for yet. Idempotent by design. */
+let warming: Promise<unknown> | null = null;
+
+/**
+ * Fetch the editor during idle time, off the critical path.
+ *
+ * Called once from the app shell, which only mounts for a signed-in
+ * session - so the login and landing pages, which have no editor on them,
+ * never fetch one. Safe to call repeatedly; the import is cached and the
+ * promise is kept so concurrent callers share it.
+ *
+ * Failure is swallowed on purpose. This is a head start, not a load: if
+ * the network drops the request, the Suspense boundary below will ask for
+ * it again when somebody actually opens a composer, and THAT failure is
+ * the one worth surfacing.
+ */
+export function warmRichTextEditor(): void {
+  if (warming) return;
+  if (typeof window === 'undefined') return;
+  const go = () => { warming = load().catch(() => { warming = null; }); };
+  const idle = (window as any).requestIdleCallback as
+    | ((cb: () => void, opts?: { timeout: number }) => void)
+    | undefined;
+  // Safari has no requestIdleCallback. A timeout is a poor substitute for
+  // "when the main thread is free", but it is still after first paint,
+  // which is the only property this actually depends on.
+  if (idle) idle(go, { timeout: 4000 });
+  else window.setTimeout(go, 1200);
 }
 
-interface RichTextEditorProps {
-  initialContent?: string;
-  placeholder?: string;
-  onChange?: (html: string, text: string) => void;
-  onTemplateSelect?: (template: Template) => void;
-  templates?: Template[];
-  minHeight?: string;
-  autoFocus?: boolean;
-  /** Seamless variant: no outer border/background, transparent toolbar — lets a
-      parent card own the framing (used by the Unibox reply composer). */
-  bare?: boolean;
-}
-
-/* ─── Toolbar Button ──────────────────────────── */
-function ToolbarBtn({
-  active,
-  onClick,
-  title,
-  children,
-  disabled,
-}: {
-  active?: boolean;
-  onClick: () => void;
-  title: string;
-  children: React.ReactNode;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onMouseDown={e => e.preventDefault()}
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      className={`p-1.5 rounded-md transition-colors ${
-        active
-          ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-sm'
-          : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-      } disabled:opacity-30 disabled:pointer-events-none`}
-    >
-      {children}
-    </button>
-  );
-}
-
-/* ─── Toolbar Separator ───────────────────────── */
-function Sep() {
-  return <div className="w-px h-5 bg-[var(--border-subtle)] mx-0.5" />;
-}
-
-/* ─── Link Input Popover ──────────────────────── */
-function LinkPopover({
-  editor,
-  onClose,
-}: {
-  editor: Editor;
-  onClose: () => void;
-}) {
-  const [url, setUrl] = useState(editor.getAttributes('link').href || '');
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const setLink = () => {
-    if (!url.trim()) {
-      (editor.chain().focus().extendMarkRange('link') as any).unsetLink().run();
-    } else {
-      const href = url.startsWith('http') ? url : `https://${url}`;
-      (editor.chain().focus().extendMarkRange('link') as any).setLink({ href }).run();
-    }
-    onClose();
-  };
-
-  return (
-    <div className="absolute top-full left-0 mt-1 z-50 flex items-center gap-1.5 p-2 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-lg shadow-lg">
-      <input
-        ref={inputRef}
-        value={url}
-        onChange={e => setUrl(e.target.value)}
-        onKeyDown={e => {
-          if (e.key === 'Enter') setLink();
-          if (e.key === 'Escape') onClose();
-        }}
-        placeholder="https://example.com"
-        className="text-body bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-primary)] outline-none w-52"
-      />
-      <button
-        onClick={setLink}
-        className="px-2 py-1.5 rounded bg-[var(--text-primary)] text-[var(--bg-app)] text-body font-medium hover:opacity-90"
-      >
-        Apply
-      </button>
-      {editor.isActive('link') && (
-        <button
-          onClick={() => {
-            (editor.chain().focus().extendMarkRange('link') as any).unsetLink().run();
-            onClose();
-          }}
-          className="p-1.5 rounded hover:bg-[var(--bg-hover)]"
-          title="Remove link"
-        >
-          <X className="h-3 w-3 text-[var(--text-tertiary)]" />
-        </button>
-      )}
-    </div>
-  );
-}
-
-/* ─── Template Picker ─────────────────────────── */
-function TemplatePicker({
-  templates,
-  onSelect,
-  onClose,
-}: {
-  templates: Template[];
-  onSelect: (template: Template) => void;
-  onClose: () => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
-
-  if (templates.length === 0) {
-    return (
-      <div
-        ref={ref}
-        className="absolute top-full right-0 mt-1 z-50 p-4 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl shadow-xl w-64"
-      >
-        <p className="text-body text-[var(--text-tertiary)] text-center">
-          No templates yet. Create one in the Templates page.
-        </p>
-      </div>
-    );
-  }
-
+/**
+ * The editor's shape with nothing in it.
+ *
+ * A spinner here would be the wrong answer twice over: it says "wait" when
+ * the wait is a few hundred milliseconds at worst, and it occupies no
+ * space, so the page jumps when the editor lands. This holds the toolbar
+ * strip and the body at their real heights instead.
+ */
+function EditorPlaceholder({ minHeight = '200px', bare = false }: { minHeight?: string; bare?: boolean }) {
   return (
     <div
-      ref={ref}
-      className="absolute top-full right-0 mt-1 z-50 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl shadow-xl w-72 max-h-64 overflow-y-auto"
+      className={bare
+        ? 'overflow-hidden'
+        : 'overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]'}
+      aria-busy
+      data-editor-loading
     >
-      <div className="px-3 py-2 border-b border-[var(--border-subtle)]">
-        <p className="text-caption font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">
-          Insert Template
-        </p>
-      </div>
-      {templates.map(t => (
-        <button
-          key={t.id}
-          onClick={() => {
-            onSelect(t);
-            onClose();
-          }}
-          className="w-full text-left px-3 py-2.5 hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-subtle)] last:border-0"
-        >
-          <p className="text-strong font-medium text-[var(--text-primary)] truncate">{t.name}</p>
-          <p className="text-caption text-[var(--text-tertiary)] truncate mt-0.5">{t.subject}</p>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/* ─── Main Editor ─────────────────────────────── */
-export function RichTextEditor({
-  initialContent = '',
-  placeholder = 'Write your message...',
-  onChange,
-  onTemplateSelect,
-  templates,
-  minHeight = '200px',
-  autoFocus = false,
-  bare = false,
-}: RichTextEditorProps) {
-  const [showLink, setShowLink] = useState(false);
-  const [showTemplates, setShowTemplates] = useState(false);
-
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
-      }),
-      Underline as any,
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: { class: 'text-blue-600 dark:text-blue-400 underline cursor-pointer' },
-      }) as any,
-      Placeholder.configure({ placeholder }),
-    ],
-    content: initialContent,
-    autofocus: autoFocus,
-    onUpdate: ({ editor: ed }) => {
-      onChange?.(ed.getHTML(), ed.getText());
-    },
-    editorProps: {
-      attributes: {
-        class: 'outline-none prose prose-sm max-w-none text-[var(--text-primary)] px-4 py-3',
-        style: `min-height: ${minHeight}`,
-      },
-    },
-  });
-
-  // Sync external content changes (e.g. template insertion clears & sets)
-  const setContent = useCallback(
-    (html: string) => {
-      if (!editor) return;
-      editor.commands.setContent(html);
-      onChange?.(editor.getHTML(), editor.getText());
-    },
-    [editor, onChange],
-  );
-
-  // Update content when initialContent changes from outside
-  useEffect(() => {
-    if (editor && initialContent && !editor.getText().trim()) {
-      editor.commands.setContent(initialContent);
-    }
-  }, [editor, initialContent]);
-
-  // Listen for AI reply insertion events
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.html && editor) {
-        editor.commands.setContent(detail.html);
-        onChange?.(editor.getHTML(), editor.getText());
-      }
-    };
-    window.addEventListener('ai-reply-insert', handler);
-    return () => window.removeEventListener('ai-reply-insert', handler);
-  }, [editor, onChange]);
-
-  // Insert text (e.g. personalization tokens) at the cursor
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.text && editor) {
-        editor.chain().focus().insertContent(detail.text).run();
-        onChange?.(editor.getHTML(), editor.getText());
-      }
-    };
-    window.addEventListener('rte-insert-text', handler);
-    return () => window.removeEventListener('rte-insert-text', handler);
-  }, [editor, onChange]);
-
-  if (!editor) return null;
-
-  const insertTemplate = (template: Template) => {
-    setContent(template.body_html);
-    onTemplateSelect?.(template);
-  };
-
-  return (
-    <div className={bare
-      ? 'overflow-hidden'
-      : 'border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-surface)] overflow-hidden focus-within:border-[var(--text-primary)] transition-colors'}>
-      {/* Toolbar */}
-      <div className={`flex items-center gap-0.5 px-2 py-1.5 flex-wrap relative ${
+      <div className={`flex items-center gap-1.5 px-2 py-1.5 ${
         bare
           ? 'border-b border-[var(--border-subtle)]/60'
           : 'border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]'
       }`}>
-        <ToolbarBtn
-          active={editor.isActive('bold')}
-          onClick={() => editor.chain().focus().toggleBold().run()}
-          title="Bold (Ctrl+B)"
-        >
-          <Bold className="h-3.5 w-3.5" />
-        </ToolbarBtn>
-        <ToolbarBtn
-          active={editor.isActive('italic')}
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-          title="Italic (Ctrl+I)"
-        >
-          <Italic className="h-3.5 w-3.5" />
-        </ToolbarBtn>
-        <ToolbarBtn
-          active={editor.isActive('underline')}
-          onClick={() => (editor.chain().focus() as any).toggleUnderline().run()}
-          title="Underline (Ctrl+U)"
-        >
-          <UnderlineIcon className="h-3.5 w-3.5" />
-        </ToolbarBtn>
-        <ToolbarBtn
-          active={editor.isActive('strike')}
-          onClick={() => editor.chain().focus().toggleStrike().run()}
-          title="Strikethrough"
-        >
-          <Strikethrough className="h-3.5 w-3.5" />
-        </ToolbarBtn>
-
-        <Sep />
-
-        <ToolbarBtn
-          active={editor.isActive('bulletList')}
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-          title="Bullet List"
-        >
-          <List className="h-3.5 w-3.5" />
-        </ToolbarBtn>
-        <ToolbarBtn
-          active={editor.isActive('orderedList')}
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          title="Numbered List"
-        >
-          <ListOrdered className="h-3.5 w-3.5" />
-        </ToolbarBtn>
-
-        <Sep />
-
-        <div className="relative">
-          <ToolbarBtn
-            active={editor.isActive('link') || showLink}
-            onClick={() => setShowLink(!showLink)}
-            title="Insert Link"
-          >
-            <LinkIcon className="h-3.5 w-3.5" />
-          </ToolbarBtn>
-          {showLink && (
-            <LinkPopover editor={editor} onClose={() => setShowLink(false)} />
-          )}
-        </div>
-        <ToolbarBtn
-          active={editor.isActive('blockquote')}
-          onClick={() => editor.chain().focus().toggleBlockquote().run()}
-          title="Blockquote"
-        >
-          <Quote className="h-3.5 w-3.5" />
-        </ToolbarBtn>
-        <ToolbarBtn
-          onClick={() => editor.chain().focus().setHorizontalRule().run()}
-          title="Horizontal Rule"
-        >
-          <Minus className="h-3.5 w-3.5" />
-        </ToolbarBtn>
-
-        <Sep />
-
-        <ToolbarBtn
-          onClick={() => editor.chain().focus().undo().run()}
-          disabled={!editor.can().undo()}
-          title="Undo"
-        >
-          <Undo2 className="h-3.5 w-3.5" />
-        </ToolbarBtn>
-        <ToolbarBtn
-          onClick={() => editor.chain().focus().redo().run()}
-          disabled={!editor.can().redo()}
-          title="Redo"
-        >
-          <Redo2 className="h-3.5 w-3.5" />
-        </ToolbarBtn>
-
-        {/* Template picker */}
-        {templates && (
-          <>
-            <div className="flex-1" />
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowTemplates(!showTemplates)}
-                className={`flex items-center gap-1 px-2 py-1 rounded-md text-caption font-medium transition-colors ${
-                  showTemplates
-                    ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm'
-                    : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-                }`}
-              >
-                <FileText className="h-3 w-3" />
-                Templates
-                <ChevronDown className="h-2.5 w-2.5" />
-              </button>
-              {showTemplates && (
-                <TemplatePicker
-                  templates={templates}
-                  onSelect={insertTemplate}
-                  onClose={() => setShowTemplates(false)}
-                />
-              )}
-            </div>
-          </>
-        )}
+        {/* Eleven stubs, the eleven toolbar buttons. The strip is the same
+            height either way; matching the count keeps it from reflowing. */}
+        {Array.from({ length: 11 }).map((_, i) => (
+          <span
+            key={i}
+            className="h-6 w-6 flex-shrink-0 animate-pulse rounded-md bg-[var(--bg-hover)]"
+            style={{ animationDelay: `${i * 40}ms` }}
+          />
+        ))}
       </div>
-
-      {/* Editor area */}
-      <EditorContent editor={editor} />
+      <div style={{ minHeight }} className="px-4 py-3">
+        <span className="block h-3 w-2/5 animate-pulse rounded bg-[var(--bg-hover)]" />
+      </div>
     </div>
   );
 }
 
-/** Hook to get HTML + plain text from editor */
+/**
+ * Unchanged from every call site's point of view.
+ *
+ * The Suspense boundary is HERE rather than left to an ancestor on
+ * purpose. Without it the first render of an editor suspends up to the
+ * route boundary in App.tsx and replaces the whole page with a skeleton -
+ * you press Reply and the mail you were replying to disappears.
+ */
+export function RichTextEditor(props: RichTextEditorProps) {
+  return (
+    <Suspense fallback={<EditorPlaceholder minHeight={props.minHeight} bare={props.bare} />}>
+      <Impl {...props} />
+    </Suspense>
+  );
+}
+
+/**
+ * HTML + plain text from the editor, tracked by the parent.
+ *
+ * Deliberately on this side of the split: it is four lines of React state
+ * and touches no ProseMirror, and several screens call it at the top level
+ * while their editor is closed. A hook cannot be lazy - if this lived in
+ * the implementation, importing it would have dragged the whole chunk back
+ * onto the critical path and quietly undone the split.
+ */
 export function useRichTextEditorRef() {
   const [html, setHtml] = useState('');
   const [text, setText] = useState('');

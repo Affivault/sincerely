@@ -1,6 +1,7 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Skeleton, SkeletonList } from './components/ui/Skeleton';
+import { lazyRoute } from './lib/prefetch';
 import { useAuth } from './context/AuthContext';
 import { AppLayout } from './components/layout/AppLayout';
 
@@ -11,55 +12,63 @@ import { SignupPage } from './pages/auth/SignupPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 
-// Lazy-loaded — each becomes its own JS chunk
-const DashboardPage        = lazy(() => import('./pages/dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
-const CampaignRevenuePage  = lazy(() => import('./pages/analytics/CampaignRevenuePage').then(m => ({ default: m.CampaignRevenuePage })));
-const PlacementPage        = lazy(() => import('./pages/placement/PlacementPage').then(m => ({ default: m.PlacementPage })));
-const RepliesPage          = lazy(() => import('./pages/replies/RepliesPage').then(m => ({ default: m.RepliesPage })));
-const SegmentsPage         = lazy(() => import('./pages/analytics/SegmentsPage').then(m => ({ default: m.SegmentsPage })));
-const RevenuePage          = lazy(() => import('./pages/analytics/RevenuePage').then(m => ({ default: m.RevenuePage })));
-const ContactsListPage     = lazy(() => import('./pages/contacts/ContactsListPage').then(m => ({ default: m.ContactsListPage })));
-const ContactDetailPage    = lazy(() => import('./pages/contacts/ContactDetailPage').then(m => ({ default: m.ContactDetailPage })));
-const BulkImportPage       = lazy(() => import('./pages/contacts/BulkImportPage').then(m => ({ default: m.BulkImportPage })));
-const CampaignsListPage    = lazy(() => import('./pages/campaigns/CampaignsListPage').then(m => ({ default: m.CampaignsListPage })));
-const CampaignCreatePage   = lazy(() => import('./pages/campaigns/CampaignCreatePage').then(m => ({ default: m.CampaignCreatePage })));
-const CampaignDetailPage   = lazy(() => import('./pages/campaigns/CampaignDetailPage').then(m => ({ default: m.CampaignDetailPage })));
-const EmailAccountsPage    = lazy(() => import('./pages/smtp/EmailAccountsPage').then(m => ({ default: m.EmailAccountsPage })));
-const SmtpGuidePage        = lazy(() => import('./pages/smtp/SmtpGuidePage').then(m => ({ default: m.SmtpGuidePage })));
-const AnalyticsDashboardPage = lazy(() => import('./pages/analytics/AnalyticsDashboardPage').then(m => ({ default: m.AnalyticsDashboardPage })));
-const InboxPage            = lazy(() => import('./pages/inbox/InboxPage').then(m => ({ default: m.InboxPage })));
-const DealsPage            = lazy(() => import('./pages/crm/DealsPage').then(m => ({ default: m.DealsPage })));
-const LeadsPage            = lazy(() => import('./pages/leads/LeadsPage').then(m => ({ default: m.LeadsPage })));
-const DealDetailPage       = lazy(() => import('./pages/crm/DealDetailPage').then(m => ({ default: m.DealDetailPage })));
-const DealInsightsPage     = lazy(() => import('./pages/crm/DealInsightsPage').then(m => ({ default: m.DealInsightsPage })));
-const CompaniesPage        = lazy(() => import('./pages/companies/CompaniesPage').then(m => ({ default: m.CompaniesPage })));
-const LinkedinPage         = lazy(() => import('./pages/linkedin/LinkedinPage').then(m => ({ default: m.LinkedinPage })));
-const CompanyDetailPage    = lazy(() => import('./pages/companies/CompanyDetailPage').then(m => ({ default: m.CompanyDetailPage })));
-const TasksPage            = lazy(() => import('./pages/crm/TasksPage').then(m => ({ default: m.TasksPage })));
-const AvailabilityPage     = lazy(() => import('./pages/crm/AvailabilityPage').then(m => ({ default: m.AvailabilityPage })));
-const BookingLinksPage     = lazy(() => import('./pages/crm/BookingLinksPage').then(m => ({ default: m.BookingLinksPage })));
-const BookPage             = lazy(() => import('./pages/public/BookPage').then(m => ({ default: m.BookPage })));
-const ManageBookingPage    = lazy(() => import('./pages/public/ManageBookingPage').then(m => ({ default: m.ManageBookingPage })));
-const CalendarPage         = lazy(() => import('./pages/crm/CalendarPage').then(m => ({ default: m.CalendarPage })));
-const ProspectorPage       = lazy(() => import('./pages/prospector/ProspectorPage').then(m => ({ default: m.ProspectorPage })));
-const AdminPage            = lazy(() => import('./pages/admin/AdminPage').then(m => ({ default: m.AdminPage })));
-const SettingsPage         = lazy(() => import('./pages/settings/SettingsPage').then(m => ({ default: m.SettingsPage })));
-const SseDashboardPage     = lazy(() => import('./pages/sse/SseDashboardPage').then(m => ({ default: m.SseDashboardPage })));
-const AssetBuilderPage     = lazy(() => import('./pages/assets/AssetBuilderPage').then(m => ({ default: m.AssetBuilderPage })));
-const TemplatesPage        = lazy(() => import('./pages/templates/TemplatesPage').then(m => ({ default: m.TemplatesPage })));
-const DeveloperPage        = lazy(() => import('./pages/developer/DeveloperPage').then(m => ({ default: m.DeveloperPage })));
-const IntegrationsPage     = lazy(() => import('./pages/integrations/IntegrationsPage').then(m => ({ default: m.IntegrationsPage })));
-const SuppressionPage      = lazy(() => import('./pages/suppression/SuppressionPage').then(m => ({ default: m.SuppressionPage })));
-const VerificationPage     = lazy(() => import('./pages/verification/VerificationPage').then(m => ({ default: m.VerificationPage })));
-const TeamPage             = lazy(() => import('./pages/team/TeamPage').then(m => ({ default: m.TeamPage })));
-const SchedulesPage        = lazy(() => import('./pages/schedules/SchedulesPage').then(m => ({ default: m.SchedulesPage })));
-const InviteAcceptPage     = lazy(() => import('./pages/team/InviteAcceptPage').then(m => ({ default: m.InviteAcceptPage })));
-const LandingPageV2        = lazy(() => import('./pages/LandingPageV2').then(m => ({ default: m.LandingPageV2 })));
-const ToolkitPage          = lazy(() => import('./pages/toolkit/ToolkitPage').then(m => ({ default: m.ToolkitPage })));
-const BillingPage          = lazy(() => import('./pages/billing/BillingPage').then(m => ({ default: m.BillingPage })));
-const TermsPage            = lazy(() => import('./pages/legal/TermsPage').then(m => ({ default: m.TermsPage })));
-const PrivacyPage          = lazy(() => import('./pages/legal/PrivacyPage').then(m => ({ default: m.PrivacyPage })));
-const StatusPage           = lazy(() => import('./pages/status/StatusPage').then(m => ({ default: m.StatusPage })));
+/*
+ * Lazy-loaded — each becomes its own JS chunk.
+ *
+ * The path is declared here as well as on the <Route> below, and that is
+ * deliberate: it registers the chunk against the path so that hovering a
+ * link to it starts the download (see lib/prefetch). The two have to agree
+ * or the wrong screen gets warmed, so first-paint-check.mts compares them
+ * and fails if any pair has drifted.
+ */
+const DashboardPage       = lazyRoute('/dashboard', () => import('./pages/dashboard/DashboardPage'), m => m.DashboardPage);
+const CampaignRevenuePage  = lazyRoute('/analytics/revenue/:id', () => import('./pages/analytics/CampaignRevenuePage'), m => m.CampaignRevenuePage);
+const PlacementPage        = lazyRoute('/placement', () => import('./pages/placement/PlacementPage'), m => m.PlacementPage);
+const RepliesPage          = lazyRoute('/replies', () => import('./pages/replies/RepliesPage'), m => m.RepliesPage);
+const SegmentsPage         = lazyRoute('/analytics/segments', () => import('./pages/analytics/SegmentsPage'), m => m.SegmentsPage);
+const RevenuePage          = lazyRoute('/analytics/revenue', () => import('./pages/analytics/RevenuePage'), m => m.RevenuePage);
+const ContactsListPage     = lazyRoute(['/leads', '/contacts'], () => import('./pages/contacts/ContactsListPage'), m => m.ContactsListPage);
+const ContactDetailPage    = lazyRoute('/contacts/:id', () => import('./pages/contacts/ContactDetailPage'), m => m.ContactDetailPage);
+const BulkImportPage       = lazyRoute('/contacts/import', () => import('./pages/contacts/BulkImportPage'), m => m.BulkImportPage);
+const CampaignsListPage    = lazyRoute('/campaigns', () => import('./pages/campaigns/CampaignsListPage'), m => m.CampaignsListPage);
+const CampaignCreatePage   = lazyRoute(['/campaigns/new', '/campaigns/:id/edit'], () => import('./pages/campaigns/CampaignCreatePage'), m => m.CampaignCreatePage);
+const CampaignDetailPage   = lazyRoute('/campaigns/:id', () => import('./pages/campaigns/CampaignDetailPage'), m => m.CampaignDetailPage);
+const EmailAccountsPage    = lazyRoute('/email-accounts', () => import('./pages/smtp/EmailAccountsPage'), m => m.EmailAccountsPage);
+const SmtpGuidePage        = lazyRoute('/smtp-accounts/guide', () => import('./pages/smtp/SmtpGuidePage'), m => m.SmtpGuidePage);
+const AnalyticsDashboardPage = lazyRoute('/analytics', () => import('./pages/analytics/AnalyticsDashboardPage'), m => m.AnalyticsDashboardPage);
+const InboxPage            = lazyRoute('/inbox', () => import('./pages/inbox/InboxPage'), m => m.InboxPage);
+const DealsPage            = lazyRoute('/deals', () => import('./pages/crm/DealsPage'), m => m.DealsPage);
+const LeadsPage            = lazyRoute('/leads/inbox', () => import('./pages/leads/LeadsPage'), m => m.LeadsPage);
+const DealDetailPage       = lazyRoute('/deals/:id', () => import('./pages/crm/DealDetailPage'), m => m.DealDetailPage);
+const DealInsightsPage     = lazyRoute('/deals/insights', () => import('./pages/crm/DealInsightsPage'), m => m.DealInsightsPage);
+const CompaniesPage        = lazyRoute('/companies', () => import('./pages/companies/CompaniesPage'), m => m.CompaniesPage);
+const LinkedinPage         = lazyRoute('/linkedin', () => import('./pages/linkedin/LinkedinPage'), m => m.LinkedinPage);
+const CompanyDetailPage    = lazyRoute('/companies/:id', () => import('./pages/companies/CompanyDetailPage'), m => m.CompanyDetailPage);
+const TasksPage            = lazyRoute('/tasks', () => import('./pages/crm/TasksPage'), m => m.TasksPage);
+const AvailabilityPage     = lazyRoute('/calendar/availability', () => import('./pages/crm/AvailabilityPage'), m => m.AvailabilityPage);
+const BookingLinksPage     = lazyRoute('/calendar/links', () => import('./pages/crm/BookingLinksPage'), m => m.BookingLinksPage);
+const BookPage             = lazyRoute('/b/:slug', () => import('./pages/public/BookPage'), m => m.BookPage);
+const ManageBookingPage    = lazyRoute('/booking/:token', () => import('./pages/public/ManageBookingPage'), m => m.ManageBookingPage);
+const CalendarPage         = lazyRoute('/calendar', () => import('./pages/crm/CalendarPage'), m => m.CalendarPage);
+const ProspectorPage       = lazyRoute('/prospector', () => import('./pages/prospector/ProspectorPage'), m => m.ProspectorPage);
+const AdminPage            = lazyRoute('/admin', () => import('./pages/admin/AdminPage'), m => m.AdminPage);
+const SettingsPage         = lazyRoute('/settings', () => import('./pages/settings/SettingsPage'), m => m.SettingsPage);
+const SseDashboardPage     = lazyRoute('/sse', () => import('./pages/sse/SseDashboardPage'), m => m.SseDashboardPage);
+const AssetBuilderPage     = lazyRoute('/assets', () => import('./pages/assets/AssetBuilderPage'), m => m.AssetBuilderPage);
+const TemplatesPage        = lazyRoute('/templates', () => import('./pages/templates/TemplatesPage'), m => m.TemplatesPage);
+const DeveloperPage        = lazyRoute('/developer', () => import('./pages/developer/DeveloperPage'), m => m.DeveloperPage);
+const IntegrationsPage     = lazyRoute('/integrations', () => import('./pages/integrations/IntegrationsPage'), m => m.IntegrationsPage);
+const SuppressionPage      = lazyRoute('/suppression', () => import('./pages/suppression/SuppressionPage'), m => m.SuppressionPage);
+const VerificationPage     = lazyRoute('/verification', () => import('./pages/verification/VerificationPage'), m => m.VerificationPage);
+const TeamPage             = lazyRoute('/team', () => import('./pages/team/TeamPage'), m => m.TeamPage);
+const SchedulesPage        = lazyRoute('/schedules', () => import('./pages/schedules/SchedulesPage'), m => m.SchedulesPage);
+const InviteAcceptPage     = lazyRoute('/invite', () => import('./pages/team/InviteAcceptPage'), m => m.InviteAcceptPage);
+const LandingPageV2        = lazyRoute('/lp2', () => import('./pages/LandingPageV2'), m => m.LandingPageV2);
+const ToolkitPage          = lazyRoute('/toolkit', () => import('./pages/toolkit/ToolkitPage'), m => m.ToolkitPage);
+const BillingPage          = lazyRoute('/billing', () => import('./pages/billing/BillingPage'), m => m.BillingPage);
+const TermsPage            = lazyRoute('/terms', () => import('./pages/legal/TermsPage'), m => m.TermsPage);
+const PrivacyPage          = lazyRoute('/privacy', () => import('./pages/legal/PrivacyPage'), m => m.PrivacyPage);
+const StatusPage           = lazyRoute('/status', () => import('./pages/status/StatusPage'), m => m.StatusPage);
 
 /**
  * What a route looks like while its chunk downloads.
