@@ -114,7 +114,7 @@ export function QuickCompose({
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--bg-elevated)] flex-shrink-0">
           <Mail className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
         </span>
-        <span className="text-[12.5px] text-[var(--text-tertiary)]">
+        <span className="text-body text-[var(--text-tertiary)]">
           Write to <span className="text-[var(--text-secondary)] font-medium">{toName || to}</span>…
         </span>
       </button>
@@ -127,7 +127,7 @@ export function QuickCompose({
     <div className={cn('rounded-xl border border-[var(--indigo)]/40 bg-[var(--bg-surface)] overflow-hidden', className)}>
       <div className="flex items-center gap-2 px-3 h-9 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50">
         <Mail className="h-3.5 w-3.5 text-[var(--indigo)] flex-shrink-0" />
-        <span className="text-[11.5px] font-semibold text-[var(--text-primary)]">
+        <span className="text-caption font-semibold text-[var(--text-primary)]">
           To {toName || to}
         </span>
         <button onClick={cancel} className="ml-auto icon-btn h-6 w-6" title={alwaysOpen ? 'Clear' : 'Discard'}>
@@ -138,12 +138,12 @@ export function QuickCompose({
       <div className="px-3 py-2 space-y-2">
         {senders.length > 1 && (
           <label className="flex items-center gap-2">
-            <span className="text-[10.5px] font-medium text-[var(--text-tertiary)] w-10 flex-shrink-0">From</span>
+            <span className="text-micro font-medium text-[var(--text-tertiary)] w-10 flex-shrink-0">From</span>
             <span className="relative flex-1 min-w-0">
               <select
                 value={sender?.id || ''}
                 onChange={(e) => setSenderId(e.target.value)}
-                className="w-full h-7 appearance-none rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] pl-2 pr-6 text-[11.5px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+                className="w-full h-7 appearance-none rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] pl-2 pr-6 text-caption text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
               >
                 {senders.map((a) => (
                   <option key={a.id} value={a.id}>{a.email_address}</option>
@@ -155,13 +155,13 @@ export function QuickCompose({
         )}
 
         <label className="flex items-center gap-2">
-          <span className="text-[10.5px] font-medium text-[var(--text-tertiary)] w-10 flex-shrink-0">Subject</span>
+          <span className="text-micro font-medium text-[var(--text-tertiary)] w-10 flex-shrink-0">Subject</span>
           <input
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             autoFocus
             placeholder="What's this about?"
-            className="flex-1 min-w-0 h-7 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-[11.5px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+            className="flex-1 min-w-0 h-7 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-caption text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
           />
         </label>
       </div>
@@ -178,14 +178,14 @@ export function QuickCompose({
 
       <div className="flex items-center gap-2 px-3 py-2 border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50">
         {!sender && (
-          <span className="text-[11px] text-[var(--warning,#B45309)]">
+          <span className="text-caption text-[var(--warning,#B45309)]">
             Connect a mailbox before sending.
           </span>
         )}
         <button
           onClick={() => canSend && send.mutate()}
           disabled={!canSend}
-          className="ml-auto inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-[11.5px] font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+          className="ml-auto inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-caption font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
         >
           {send.isPending
             ? <><Loader2 className="h-3 w-3 animate-spin" /> Sending…</>

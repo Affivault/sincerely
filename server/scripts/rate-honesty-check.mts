@@ -177,7 +177,8 @@ console.log('\nthe dashboard uses it, including for the arrow');
      /\{!unproven && <Delta value=\{delta\} \/>\}/.test(dash),
      'a "+12%" swing would still be shown over nine sends');
   is('and the figure is set quieter, because it is not a measurement',
-     /unproven \? 'text-\[14px\] text-\[var\(--text-tertiary\)\]' : 'text-\[19px\]'/.test(dash));
+     /unproven \? 'text-heading text-\[var\(--text-tertiary\)\]' : 'text-title'/.test(dash),
+     'the unproven figure would be set at the same weight as a measurement');
 
   /*
    * The leaderboard rows had a bar four times the reply rate, drawn at any

@@ -107,13 +107,13 @@ function QuickActivity({ contactId, contactName, onDone, onDetail }: {
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter' && title.trim()) create.mutate(); }}
         placeholder={`What needs doing with ${contactName}?`}
-        className="w-full h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
+        className="w-full h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
       />
       <div className="flex items-center gap-2 flex-wrap">
         <select
           value={type}
           onChange={(e) => setType(e.target.value as CrmTask['type'])}
-          className="h-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+          className="h-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
         >
           <option value="follow_up">Follow-up</option>
           <option value="call">Call</option>
@@ -125,11 +125,11 @@ function QuickActivity({ contactId, contactName, onDone, onDetail }: {
           type="datetime-local"
           value={due}
           onChange={(e) => setDue(e.target.value)}
-          className="h-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+          className="h-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
         />
         <button
           onClick={onDetail}
-          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[11.5px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
         >
           <Settings2 className="h-3 w-3" /> More options
         </button>
@@ -137,7 +137,7 @@ function QuickActivity({ contactId, contactName, onDone, onDetail }: {
         <button
           onClick={() => title.trim() && create.mutate()}
           disabled={!title.trim() || create.isPending}
-          className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-white text-[12px] font-semibold disabled:opacity-40 hover:bg-[#4F46E5] transition-colors"
+          className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold disabled:opacity-40 hover:bg-[#4F46E5] transition-colors"
         >
           <CheckSquare className="h-3.5 w-3.5" /> {create.isPending ? 'Saving…' : 'Schedule'}
         </button>
@@ -183,7 +183,7 @@ function QuickMeeting({ contactId, contactName, contactEmail, onDone, onDetail }
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') create.mutate(); }}
         placeholder={`${type === 'call' ? 'Call' : 'Meeting'} — ${contactName}`}
-        className="w-full h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
+        className="w-full h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
       />
       <div className="flex items-center gap-2 flex-wrap">
         <div className="inline-flex rounded-lg border border-[var(--border-subtle)] overflow-hidden">
@@ -192,7 +192,7 @@ function QuickMeeting({ contactId, contactName, contactEmail, onDone, onDetail }
               key={t}
               onClick={() => setType(t)}
               className={cn(
-                'h-7 px-2.5 text-[12px] font-medium transition-colors',
+                'h-7 px-2.5 text-body font-medium transition-colors',
                 type === t ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)]',
               )}
             >
@@ -204,11 +204,11 @@ function QuickMeeting({ contactId, contactName, contactEmail, onDone, onDetail }
           type="datetime-local"
           value={starts}
           onChange={(e) => setStarts(e.target.value)}
-          className="h-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+          className="h-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
         />
         <button
           onClick={onDetail}
-          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[11.5px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+          className="inline-flex items-center gap-1 h-7 px-2 rounded-lg text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
         >
           <Settings2 className="h-3 w-3" /> More options
         </button>
@@ -216,7 +216,7 @@ function QuickMeeting({ contactId, contactName, contactEmail, onDone, onDetail }
         <button
           onClick={() => create.mutate()}
           disabled={create.isPending}
-          className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-white text-[12px] font-semibold disabled:opacity-40 hover:bg-[#4F46E5] transition-colors"
+          className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold disabled:opacity-40 hover:bg-[#4F46E5] transition-colors"
         >
           <CalendarPlus className="h-3.5 w-3.5" /> {create.isPending ? 'Saving…' : 'Book'}
         </button>
@@ -441,7 +441,7 @@ export function ContactHistory({
                 key={t.id}
                 onClick={() => setCompose(t.id)}
                 className={cn(
-                  'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors',
+                  'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-body font-medium transition-colors',
                   compose === t.id
                     ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
                     : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]',
@@ -464,14 +464,14 @@ export function ContactHistory({
                 }}
                 rows={2}
                 placeholder={`Log a note about ${contactName || contactEmail}… (⌘↵ to save)`}
-                className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 py-2 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-all"
+                className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-all"
               />
               <div className="flex items-center mt-2">
                 <span className="flex-1" />
                 <button
                   onClick={() => noteDraft.trim() && addNote.mutate(noteDraft.trim())}
                   disabled={!noteDraft.trim() || addNote.isPending}
-                  className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-white text-[12px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#4F46E5] transition-colors"
+                  className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#4F46E5] transition-colors"
                 >
                   <StickyNote className="h-3.5 w-3.5" /> {addNote.isPending ? 'Saving…' : 'Save note'}
                 </button>
@@ -486,7 +486,7 @@ export function ContactHistory({
                 defaultSubject={lastSubject}
               />
             ) : (
-              <p className="text-[12px] text-[var(--text-tertiary)] py-2">
+              <p className="text-body text-[var(--text-tertiary)] py-2">
                 This lead has no email address yet — add one and you can write to them from here.
               </p>
             )
@@ -520,7 +520,7 @@ export function ContactHistory({
           {pinned.map((n) => (
             <div key={n.id} className="flex items-start gap-2">
               <Pin className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-              <p className="flex-1 min-w-0 text-[12.5px] text-[var(--text-primary)] whitespace-pre-wrap">{n.body}</p>
+              <p className="flex-1 min-w-0 text-body text-[var(--text-primary)] whitespace-pre-wrap">{n.body}</p>
               <button onClick={() => pinNote.mutate(n)} className="icon-btn h-6 w-6 flex-shrink-0" title="Unpin">
                 <Pin className="h-3 w-3" />
               </button>
@@ -534,8 +534,8 @@ export function ContactHistory({
         <div className="card p-0 overflow-hidden">
           <div className="flex items-center gap-2 px-3.5 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50">
             <Clock className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-            <h3 className="text-[11.5px] font-semibold text-[var(--text-secondary)]">Coming up</h3>
-            <span className="text-[11px] tabular text-[var(--text-tertiary)]">{openTasks.length + upcomingEvents.length}</span>
+            <h3 className="text-caption font-semibold text-[var(--text-secondary)]">Coming up</h3>
+            <span className="text-caption tabular text-[var(--text-tertiary)]">{openTasks.length + upcomingEvents.length}</span>
           </div>
           <div className="divide-y divide-[var(--border-subtle)]">
             {openTasks.map((t) => {
@@ -551,8 +551,8 @@ export function ContactHistory({
                     onClick={() => { setActivityModal(t); setActivityOpen(true); }}
                     className="flex-1 min-w-0 text-left"
                   >
-                    <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{t.title}</p>
-                    <p className={cn('text-[11px]', DUE_TONE[due.tone])}>{due.text}</p>
+                    <p className="text-body font-medium text-[var(--text-primary)] truncate">{t.title}</p>
+                    <p className={cn('text-caption', DUE_TONE[due.tone])}>{due.text}</p>
                   </button>
                 </div>
               );
@@ -567,8 +567,8 @@ export function ContactHistory({
                   {e.type === 'call' ? <Phone className="h-3 w-3" /> : <Users className="h-3 w-3" />}
                 </span>
                 <span className="flex-1 min-w-0">
-                  <span className="block text-[12.5px] font-medium text-[var(--text-primary)] truncate">{e.title}</span>
-                  <span className="block text-[11px] text-[var(--text-tertiary)] truncate">
+                  <span className="block text-body font-medium text-[var(--text-primary)] truncate">{e.title}</span>
+                  <span className="block text-caption text-[var(--text-tertiary)] truncate">
                     {new Date(e.starts_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, {timeOf(new Date(e.starts_at))}
                     {e.location ? ` · ${e.location}` : ''}
                   </span>
@@ -584,18 +584,18 @@ export function ContactHistory({
         <div className="card p-0 overflow-hidden">
           <div className="flex items-center gap-2 px-3.5 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50">
             <Handshake className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-            <h3 className="text-[11.5px] font-semibold text-[var(--text-secondary)]">Deals</h3>
-            <span className="text-[11px] tabular text-[var(--text-tertiary)]">{deals.length}</span>
-            <Link to="/deals" className="ml-auto text-[11px] font-medium text-[var(--indigo)] hover:underline">Open pipeline</Link>
+            <h3 className="text-caption font-semibold text-[var(--text-secondary)]">Deals</h3>
+            <span className="text-caption tabular text-[var(--text-tertiary)]">{deals.length}</span>
+            <Link to="/deals" className="ml-auto text-caption font-medium text-[var(--indigo)] hover:underline">Open pipeline</Link>
           </div>
           <div className="divide-y divide-[var(--border-subtle)]">
             {deals.map((d) => (
               <div key={d.id} className="flex items-center gap-2.5 px-3.5 py-2">
                 <span className="flex-1 min-w-0">
-                  <span className="block text-[12.5px] font-medium text-[var(--text-primary)] truncate">{d.title}</span>
-                  <span className="block text-[11px] text-[var(--text-tertiary)] capitalize">{d.stage}</span>
+                  <span className="block text-body font-medium text-[var(--text-primary)] truncate">{d.title}</span>
+                  <span className="block text-caption text-[var(--text-tertiary)] capitalize">{d.stage}</span>
                 </span>
-                <span className="text-[12px] font-semibold tabular text-[var(--text-primary)] flex-shrink-0">
+                <span className="text-body font-semibold tabular text-[var(--text-primary)] flex-shrink-0">
                   {(d.value || 0).toLocaleString(undefined, { style: 'currency', currency: d.currency || 'USD', maximumFractionDigits: 0 })}
                 </span>
               </div>
@@ -618,14 +618,14 @@ export function ContactHistory({
               key={f.id}
               onClick={() => setFilter(f.id)}
               className={cn(
-                'h-7 px-2.5 rounded-md text-[12px] font-medium transition-colors',
+                'h-7 px-2.5 rounded-md text-body font-medium transition-colors',
                 filter === f.id
                   ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
                   : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]',
               )}
             >
               {f.label}
-              {f.n > 0 && <span className="ml-1 text-[10.5px] tabular opacity-70">{f.n}</span>}
+              {f.n > 0 && <span className="ml-1 text-micro tabular opacity-70">{f.n}</span>}
             </button>
           ))}
         </div>
@@ -635,10 +635,10 @@ export function ContactHistory({
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elevated)] mb-2">
               <Clock className="h-4 w-4 text-[var(--text-tertiary)]" />
             </span>
-            <p className="text-[12.5px] font-medium text-[var(--text-primary)]">
+            <p className="text-body font-medium text-[var(--text-primary)]">
               {filter === 'all' ? 'Nothing has happened yet' : 'Nothing of this kind yet'}
             </p>
-            <p className="text-[11.5px] text-[var(--text-tertiary)] mt-0.5 max-w-xs">
+            <p className="text-caption text-[var(--text-tertiary)] mt-0.5 max-w-xs">
               Emails, notes, calls and meetings with this person all collect here as a single history.
             </p>
           </div>
@@ -652,7 +652,7 @@ export function ContactHistory({
                 <div key={e.id}>
                   {newDay && (
                     <div className="flex items-center gap-2 pt-3 first:pt-0 pb-1.5">
-                      <span className="text-[11px] font-semibold text-[var(--text-tertiary)]">{dayHeading(e.at)}</span>
+                      <span className="text-caption font-semibold text-[var(--text-tertiary)]">{dayHeading(e.at)}</span>
                       <span className="flex-1 h-px bg-[var(--border-subtle)]" />
                     </div>
                   )}
@@ -668,17 +668,17 @@ export function ContactHistory({
                     <div className="flex-1 min-w-0 -mt-0.5">
                       <div className="flex items-baseline gap-2">
                         <p className={cn(
-                          'text-[12.5px] font-medium text-[var(--text-primary)] min-w-0',
+                          'text-body font-medium text-[var(--text-primary)] min-w-0',
                           e.kind === 'note' ? 'truncate' : 'truncate',
                         )}>
                           {e.title}
                         </p>
-                        <span className="text-[10.5px] tabular text-[var(--text-muted)] flex-shrink-0 ml-auto">{timeOf(e.at)}</span>
+                        <span className="text-micro tabular text-[var(--text-muted)] flex-shrink-0 ml-auto">{timeOf(e.at)}</span>
                       </div>
-                      {e.meta && <p className="text-[11px] text-[var(--text-tertiary)]">{e.meta}</p>}
+                      {e.meta && <p className="text-caption text-[var(--text-tertiary)]">{e.meta}</p>}
                       {e.detail && !(e.email && openEmail === e.id) && (
                         <p className={cn(
-                          'text-[12px] text-[var(--text-secondary)] mt-1',
+                          'text-body text-[var(--text-secondary)] mt-1',
                           e.kind === 'note' ? 'whitespace-pre-wrap' : 'line-clamp-2',
                         )}>
                           {e.kind === 'note' ? e.detail : preview(e.detail)}
@@ -688,7 +688,7 @@ export function ContactHistory({
                         <>
                           <button
                             onClick={() => setOpenEmail(openEmail === e.id ? null : e.id)}
-                            className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] transition-colors"
+                            className="mt-1 inline-flex items-center gap-1 text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] transition-colors"
                           >
                             <ChevronDown className={cn('h-3 w-3 transition-transform', openEmail === e.id && 'rotate-180')} />
                             {openEmail === e.id ? 'Hide message' : 'Read message'}
@@ -704,7 +704,7 @@ export function ContactHistory({
                         <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                           <button
                             onClick={() => pinNote.mutate(e.note!)}
-                            className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)]"
+                            className="inline-flex items-center gap-1 text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)]"
                           >
                             <Pin className="h-3 w-3" /> {e.note.pinned ? 'Unpin' : 'Pin'}
                           </button>
@@ -712,14 +712,14 @@ export function ContactHistory({
                             onClick={() => gone.remove(
                               e.note!.id, 'Note deleted', () => removeNote.mutateAsync(e.note!.id),
                             )}
-                            className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--error)]"
+                            className="inline-flex items-center gap-1 text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--error)]"
                           >
                             <Trash2 className="h-3 w-3" /> Delete
                           </button>
                         </div>
                       )}
                       {e.event?.location && (
-                        <p className="inline-flex items-center gap-1 text-[11px] text-[var(--text-tertiary)] mt-1">
+                        <p className="inline-flex items-center gap-1 text-caption text-[var(--text-tertiary)] mt-1">
                           <MapPin className="h-3 w-3" />{e.event.location}
                         </p>
                       )}
@@ -759,10 +759,10 @@ export function ContactOrigin({ source, importSource, importedAt, createdAt }: {
       <div className="flex items-start gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 px-2.5 py-2">
         <Plus className="h-3.5 w-3.5 text-[var(--text-tertiary)] flex-shrink-0 mt-px rotate-45" />
         <div className="min-w-0">
-          <p className="text-[11.5px] text-[var(--text-secondary)]">
+          <p className="text-caption text-[var(--text-secondary)]">
             Imported from <span className="font-medium text-[var(--text-primary)] break-all">{importSource}</span>
           </p>
-          {whenText && <p className="text-[11px] text-[var(--text-tertiary)]">{whenText}</p>}
+          {whenText && <p className="text-caption text-[var(--text-tertiary)]">{whenText}</p>}
         </div>
       </div>
     );
@@ -774,7 +774,7 @@ export function ContactOrigin({ source, importSource, importedAt, createdAt }: {
     : source || 'Unknown';
 
   return (
-    <p className="text-[11px] text-[var(--text-tertiary)]">
+    <p className="text-caption text-[var(--text-tertiary)]">
       Source: {label}{whenText ? ` · ${whenText}` : ''}
     </p>
   );

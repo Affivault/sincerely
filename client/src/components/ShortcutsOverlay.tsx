@@ -97,7 +97,7 @@ export function ShortcutsOverlay({ open, onClose }: ShortcutsOverlayProps) {
         {/* Header */}
         <div className="flex items-center gap-2.5 px-5 h-[52px] border-b border-[var(--border-subtle)]">
           <Keyboard className="h-4 w-4 text-[var(--text-tertiary)]" strokeWidth={2} />
-          <h2 className="flex-1 text-[13.5px] font-semibold text-[var(--text-primary)] tracking-[-0.01em]">
+          <h2 className="flex-1 text-strong font-semibold text-[var(--text-primary)] tracking-[-0.01em]">
             Keyboard shortcuts
           </h2>
           <button
@@ -116,14 +116,14 @@ export function ShortcutsOverlay({ open, onClose }: ShortcutsOverlayProps) {
               <div className="space-y-1">
                 {group.items.map((item) => (
                   <div key={item.label} className="flex items-center justify-between h-8 px-2 -mx-2 rounded-md hover:bg-[var(--bg-hover)]/60 transition-colors">
-                    <span className="text-[13px] text-[var(--text-secondary)]">{item.label}</span>
+                    <span className="text-strong text-[var(--text-secondary)]">{item.label}</span>
                     <span className="flex items-center gap-1">
                       {item.keys.map((k, i) => (
                         <span key={i} className="flex items-center gap-1">
                           {i > 0 && item.keys[0] === 'G' && (
-                            <span className="text-[10px] text-[var(--text-muted)] font-data">then</span>
+                            <span className="text-micro text-[var(--text-muted)] font-data">then</span>
                           )}
-                          <kbd className="kbd !h-[20px] !min-w-[20px] !text-[10.5px]">{k}</kbd>
+                          <kbd className="kbd !h-[20px] !min-w-[20px] !text-micro">{k}</kbd>
                         </span>
                       ))}
                     </span>
@@ -136,7 +136,7 @@ export function ShortcutsOverlay({ open, onClose }: ShortcutsOverlayProps) {
 
         {/* Footer */}
         <div className="px-5 h-9 flex items-center border-t border-[var(--border-subtle)] bg-[var(--bg-muted)]/40">
-          <span className="text-[11px] text-[var(--text-tertiary)]">
+          <span className="text-caption text-[var(--text-tertiary)]">
             Shortcuts are disabled while typing in a field.
           </span>
         </div>

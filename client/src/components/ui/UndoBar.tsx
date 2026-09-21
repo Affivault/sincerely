@@ -59,11 +59,11 @@ export function UndoBarShell({ label, onUndo, secondsLeft, action = 'Undo' }: {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] py-2 pl-3.5 pr-2 shadow-[var(--shadow-xl)]">
       <Trash2 className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)]" />
-      <span className="text-[12.5px] font-medium text-[var(--text-primary)]">{label}</span>
+      <span className="text-body font-medium text-[var(--text-primary)]">{label}</span>
       <button
         type="button"
         onClick={onUndo}
-        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12.5px] font-semibold text-[var(--indigo)] transition-colors hover:bg-[var(--bg-hover)]"
+        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-body font-semibold text-[var(--indigo)] transition-colors hover:bg-[var(--bg-hover)]"
         data-undo-action
       >
         <Undo2 className="h-3.5 w-3.5" />

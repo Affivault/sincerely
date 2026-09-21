@@ -37,7 +37,7 @@ function RoleBadge({ role }: { role: string }) {
   const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.member;
   const Icon = cfg.icon;
   return (
-    <span className={cn('inline-flex items-center gap-1 px-2 h-[22px] rounded-full border text-[11px] font-medium', cfg.color)}>
+    <span className={cn('inline-flex items-center gap-1 px-2 h-[22px] rounded-full border text-caption font-medium', cfg.color)}>
       <Icon className="h-3 w-3" />
       {cfg.label}
     </span>
@@ -143,11 +143,11 @@ export function TeamPage() {
             <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 mb-5">
               <XCircle className="h-7 w-7 text-red-600 dark:text-red-400" strokeWidth={1.5} />
             </span>
-            <h3 className="text-[15px] font-semibold text-[var(--text-primary)] mb-1.5">Couldn't load your team</h3>
-            <p className="text-[12.5px] text-[var(--text-secondary)] max-w-sm mb-4">Something went wrong fetching your organisation. Try again.</p>
+            <h3 className="text-heading font-semibold text-[var(--text-primary)] mb-1.5">Couldn't load your team</h3>
+            <p className="text-body text-[var(--text-secondary)] max-w-sm mb-4">Something went wrong fetching your organisation. Try again.</p>
             <button
               onClick={() => queryClient.invalidateQueries({ queryKey: ['team-org'] })}
-              className="h-8 px-3.5 rounded-lg bg-[var(--indigo)] text-white text-[12.5px] font-semibold hover:brightness-110 transition-all"
+              className="h-8 px-3.5 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:brightness-110 transition-all"
             >
               Retry
             </button>
@@ -191,18 +191,18 @@ export function TeamPage() {
 
       {/* Organisation identity */}
       <div className="panel p-4 mb-4 flex items-center gap-4">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--indigo)] to-[#7A5BF5] text-white text-[16px] font-semibold flex-shrink-0">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--indigo)] to-[#7A5BF5] text-white text-heading font-semibold flex-shrink-0">
           {(org?.name || 'W').trim().charAt(0).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[11.5px] font-medium text-[var(--text-tertiary)]">Organisation</p>
+          <p className="text-caption font-medium text-[var(--text-tertiary)]">Organisation</p>
           {editingOrgName ? (
             <div className="mt-1 flex items-center gap-2">
               <input
                 type="text"
                 value={editOrgName}
                 onChange={(e) => setEditOrgName(e.target.value)}
-                className="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-[14px] focus:border-[rgba(91,91,245,0.4)] focus:shadow-[0_0_0_3px_rgba(91,91,245,0.12)] outline-none"
+                className="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-heading focus:border-[rgba(91,91,245,0.4)] focus:shadow-[0_0_0_3px_rgba(91,91,245,0.12)] outline-none"
                 autoFocus
               />
               <button
@@ -217,7 +217,7 @@ export function TeamPage() {
               </button>
             </div>
           ) : (
-            <p className="text-[17px] font-semibold text-[var(--text-primary)] tracking-[-0.01em] truncate">{org?.name || 'My Workspace'}</p>
+            <p className="text-title font-semibold text-[var(--text-primary)] tracking-[-0.01em] truncate">{org?.name || 'My Workspace'}</p>
           )}
         </div>
         {isOwner && !editingOrgName && (
@@ -235,8 +235,8 @@ export function TeamPage() {
       <div className="panel overflow-hidden mb-4">
         <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center gap-2">
           <Users className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-          <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">Members</h2>
-          <span className="ml-auto text-[11px] font-medium tabular px-1.5 py-0.5 rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">{members.length}</span>
+          <h2 className="text-strong font-semibold text-[var(--text-primary)]">Members</h2>
+          <span className="ml-auto text-caption font-medium tabular px-1.5 py-0.5 rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">{members.length}</span>
         </div>
         {membersLoading ? (
           <div className="flex justify-center py-10"><Spinner /></div>
@@ -249,17 +249,17 @@ export function TeamPage() {
                   <Avatar email={member.email} size="lg" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">{member.email}</p>
-                      {isSelf && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">You</span>}
+                      <p className="text-strong font-medium text-[var(--text-primary)] truncate">{member.email}</p>
+                      {isSelf && <span className="text-micro font-medium px-1.5 py-0.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">You</span>}
                     </div>
-                    <p className="text-[11.5px] text-[var(--text-tertiary)] mt-0.5">Joined {formatDate(member.created_at)}</p>
+                    <p className="text-caption text-[var(--text-tertiary)] mt-0.5">Joined {formatDate(member.created_at)}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     {isOwner && member.role !== 'owner' ? (
                       <select
                         value={member.role}
                         onChange={(e) => updateRoleMut.mutate({ memberId: member.id, role: e.target.value })}
-                        className="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-[12px] font-medium text-[var(--text-secondary)] focus:border-[rgba(91,91,245,0.4)] outline-none cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
+                        className="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-body font-medium text-[var(--text-secondary)] focus:border-[rgba(91,91,245,0.4)] outline-none cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
                       >
                         <option value="member">Member</option>
                         <option value="admin">Admin</option>
@@ -292,8 +292,8 @@ export function TeamPage() {
         <div className="panel overflow-hidden">
           <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center gap-2">
             <Mail className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-            <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">Pending invites</h2>
-            <span className="ml-auto text-[11px] font-medium tabular px-1.5 py-0.5 rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">{invites.length}</span>
+            <h2 className="text-strong font-semibold text-[var(--text-primary)]">Pending invites</h2>
+            <span className="ml-auto text-caption font-medium tabular px-1.5 py-0.5 rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">{invites.length}</span>
           </div>
           {invitesLoading ? (
             <div className="flex justify-center py-10"><Spinner /></div>
@@ -302,9 +302,9 @@ export function TeamPage() {
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--bg-elevated)]">
                 <Mail className="h-4 w-4 text-[var(--text-tertiary)]" />
               </span>
-              <p className="text-[12.5px] text-[var(--text-secondary)]">No pending invites</p>
+              <p className="text-body text-[var(--text-secondary)]">No pending invites</p>
               {isOwner && (
-                <button onClick={() => setShowInviteModal(true)} className="text-[12px] font-medium text-[var(--indigo)] hover:underline">
+                <button onClick={() => setShowInviteModal(true)} className="text-body font-medium text-[var(--indigo)] hover:underline">
                   Invite a teammate
                 </button>
               )}
@@ -317,8 +317,8 @@ export function TeamPage() {
                     <Mail className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">{invite.email}</p>
-                    <p className="text-[11.5px] text-[var(--text-tertiary)] mt-0.5">Expires {formatDate(invite.expires_at)}</p>
+                    <p className="text-strong font-medium text-[var(--text-primary)] truncate">{invite.email}</p>
+                    <p className="text-caption text-[var(--text-tertiary)] mt-0.5">Expires {formatDate(invite.expires_at)}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <RoleBadge role={invite.role} />
@@ -373,11 +373,11 @@ export function TeamPage() {
               placeholder="colleague@example.com"
             />
             <div className="space-y-1">
-              <label className="block text-[12px] font-medium text-[var(--text-secondary)]">Role</label>
+              <label className="block text-body font-medium text-[var(--text-secondary)]">Role</label>
               <select
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value)}
-                className="w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-[13px] text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-[border-color,box-shadow]"
+                className="w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-[border-color,box-shadow]"
               >
                 <option value="member">Member — can view and run campaigns</option>
                 <option value="admin">Admin — full access except billing</option>

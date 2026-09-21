@@ -83,25 +83,25 @@ function ReplyRow({ reply, onOpen, onClaim, onPark, busy }: {
 
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className="truncate text-[13px] font-semibold text-[var(--text-primary)]">
+          <span className="truncate text-strong font-semibold text-[var(--text-primary)]">
             {reply.from_email}
           </span>
-          <span className="text-[11px] font-medium text-[var(--text-tertiary)]">{intent}</span>
+          <span className="text-caption font-medium text-[var(--text-tertiary)]">{intent}</span>
 
           {/* What is on the table. A reply against an open deal is a
               different conversation from one that is not. */}
           {reply.deal_value ? (
-            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-secondary)]">
+            <span className="inline-flex items-center gap-1 text-caption font-medium text-[var(--text-secondary)]">
               <Banknote className="h-3 w-3" /> {money(reply.deal_value)} open
             </span>
           ) : null}
         </div>
 
         {reply.subject && (
-          <p className="mt-0.5 truncate text-[12px] text-[var(--text-secondary)]">{reply.subject}</p>
+          <p className="mt-0.5 truncate text-body text-[var(--text-secondary)]">{reply.subject}</p>
         )}
         {snippet && (
-          <p className="mt-0.5 line-clamp-1 text-[11.5px] leading-snug text-[var(--text-tertiary)]">{snippet}</p>
+          <p className="mt-0.5 line-clamp-1 text-caption leading-snug text-[var(--text-tertiary)]">{snippet}</p>
         )}
 
         {/*
@@ -109,7 +109,7 @@ function ReplyRow({ reply, onOpen, onClaim, onPark, busy }: {
           * 6h, past the 2h this kind gets" is a claim somebody can
           * disagree with, which is what makes it worth reading.
           */}
-        <p className={cn('mt-1 text-[11px] font-medium', u.text)} data-reply-state>
+        <p className={cn('mt-1 text-caption font-medium', u.text)} data-reply-state>
           {replyStateLabel(reply.state)}
           {reply.snooze_note && reply.state.urgency === 'parked' && (
             <span className="font-normal text-[var(--text-tertiary)]"> — {reply.snooze_note}</span>
@@ -129,7 +129,7 @@ function ReplyRow({ reply, onOpen, onClaim, onPark, busy }: {
           disabled={busy}
           title={reply.assigned_to ? 'You have this. Click to hand it back.' : 'Nobody has picked this up'}
           className={cn(
-            'inline-flex h-7 items-center gap-1 rounded-lg px-2 text-[11.5px] font-medium transition-colors disabled:opacity-60',
+            'inline-flex h-7 items-center gap-1 rounded-lg px-2 text-caption font-medium transition-colors disabled:opacity-60',
             reply.assigned_to
               ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
               : 'border border-dashed border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
@@ -146,7 +146,7 @@ function ReplyRow({ reply, onOpen, onClaim, onPark, busy }: {
             onClick={() => setParkOpen((v) => !v)}
             disabled={busy}
             title={reply.state.urgency === 'parked' ? 'Bring it back now' : 'Park this until later'}
-            className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-[11.5px] font-medium text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] disabled:opacity-60"
+            className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-caption font-medium text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] disabled:opacity-60"
             data-reply-park
           >
             {reply.state.urgency === 'parked'
@@ -162,7 +162,7 @@ function ReplyRow({ reply, onOpen, onClaim, onPark, busy }: {
                   <button
                     type="button"
                     onClick={() => { onPark(null); setParkOpen(false); }}
-                    className="block w-full px-3 py-1.5 text-left text-[12px] text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+                    className="block w-full px-3 py-1.5 text-left text-body text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
                   >
                     Bring it back now
                   </button>
@@ -171,7 +171,7 @@ function ReplyRow({ reply, onOpen, onClaim, onPark, busy }: {
                     key={opt.label}
                     type="button"
                     onClick={() => { onPark(opt.ms); setParkOpen(false); }}
-                    className="block w-full px-3 py-1.5 text-left text-[12px] text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+                    className="block w-full px-3 py-1.5 text-left text-body text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
                   >
                     {opt.label}
                   </button>
@@ -274,7 +274,7 @@ export function RepliesPage() {
             type="button"
             onClick={() => setFilter(t.id)}
             className={cn(
-              'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-[12.5px] font-medium transition-colors',
+              'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-body font-medium transition-colors',
               filter === t.id
                 ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.06)]'
                 : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
@@ -283,7 +283,7 @@ export function RepliesPage() {
             {t.label}
             {t.count != null && (
               <span className={cn(
-                'tabular text-[11px]',
+                'tabular text-caption',
                 t.id === 'overdue' && t.count > 0 ? 'font-semibold text-rose-500' : 'text-[var(--text-tertiary)]',
               )}>
                 {t.count}
@@ -340,7 +340,7 @@ export function RepliesPage() {
         */}
       <div className="flex items-start gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 px-4 py-3">
         <Info className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]" />
-        <p className="text-[11.5px] leading-relaxed text-[var(--text-secondary)]" data-queue-caveat>
+        <p className="text-caption leading-relaxed text-[var(--text-secondary)]" data-queue-caveat>
           Out-of-office replies, bounces and unsubscribes never enter this queue — nobody is waiting on
           an answer to those. The clock stops when you actually reply, not when you triage: deciding a
           reply is &ldquo;interested&rdquo; is a note to yourself. How long each kind gets before it is

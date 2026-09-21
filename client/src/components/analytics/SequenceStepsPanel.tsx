@@ -52,16 +52,16 @@ function StepRow({ step, widest }: { step: SequenceStepPerformance; widest: numb
   return (
     <li className="px-4 py-3 border-b border-[var(--border-subtle)] last:border-0">
       <div className="flex items-start gap-3">
-        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-[var(--bg-elevated)] text-[11px] font-bold tabular text-[var(--text-secondary)]">
+        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-[var(--bg-elevated)] text-caption font-bold tabular text-[var(--text-secondary)]">
           {step.step_number}
         </span>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[var(--text-primary)]">
+            <p className="min-w-0 flex-1 truncate text-body font-medium text-[var(--text-primary)]">
               {step.subject}
             </p>
-            <span className={cn('flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider', style.chip)}>
+            <span className={cn('flex-shrink-0 rounded-full px-2 py-0.5 text-micro font-bold uppercase tracking-wider', style.chip)}>
               {STEP_VERDICT_LABELS[step.verdict]}
             </span>
           </div>
@@ -72,15 +72,15 @@ function StepRow({ step, widest }: { step: SequenceStepPerformance; widest: numb
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
               <div className={cn('h-full rounded-full transition-all', style.bar)} style={{ width: `${width}%` }} />
             </div>
-            <span className="w-[86px] flex-shrink-0 text-right text-[11.5px] tabular text-[var(--text-secondary)]">
+            <span className="w-[86px] flex-shrink-0 text-right text-caption tabular text-[var(--text-secondary)]">
               <span className="font-semibold text-[var(--text-primary)]">{(step.share_of_replies * 100).toFixed(0)}%</span>
               <span className="text-[var(--text-tertiary)]"> of replies</span>
             </span>
           </div>
 
-          <p className="mt-1.5 text-[11.5px] leading-relaxed text-[var(--text-tertiary)]">{step.note}</p>
+          <p className="mt-1.5 text-caption leading-relaxed text-[var(--text-tertiary)]">{step.note}</p>
 
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[var(--text-tertiary)]">
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-[var(--text-tertiary)]">
             <span>Sent <span className="font-semibold tabular text-[var(--text-secondary)]">{step.sent.toLocaleString()}</span></span>
             <span>Replies <span className="font-semibold tabular text-[var(--text-secondary)]">{step.replied.toLocaleString()}</span></span>
             <span>Per 100 <span className="font-semibold tabular text-[var(--text-secondary)]">{step.replies_per_100.toFixed(1)}</span></span>
@@ -109,7 +109,7 @@ export function SequenceStepsPanel({ campaignId }: { campaignId: string }) {
   if (data.steps.length === 0) {
     return (
       <div className="panel p-5">
-        <p className="text-[12.5px] text-[var(--text-secondary)]">{data.headline}</p>
+        <p className="text-body text-[var(--text-secondary)]">{data.headline}</p>
       </div>
     );
   }
@@ -121,8 +121,8 @@ export function SequenceStepsPanel({ campaignId }: { campaignId: string }) {
   return (
     <div className="panel overflow-hidden">
       <div className="border-b border-[var(--border-subtle)] p-4">
-        <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Which step earns the replies</h3>
-        <p className="mt-0.5 text-[11.5px] text-[var(--text-secondary)]">
+        <h3 className="text-strong font-semibold text-[var(--text-primary)]">Which step earns the replies</h3>
+        <p className="mt-0.5 text-caption text-[var(--text-secondary)]">
           Share of every reply this campaign has earned. Reply <em>rate</em> rises through a sequence
           simply because the pool shrinks — share does not.
         </p>
@@ -137,8 +137,8 @@ export function SequenceStepsPanel({ campaignId }: { campaignId: string }) {
         >
           <Icon className={cn('mt-px h-4 w-4 flex-shrink-0', trimming ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--indigo)]')} />
           <div className="min-w-0">
-            <p className="text-[12.5px] font-medium leading-snug text-[var(--text-primary)]">{data.headline}</p>
-            <p className="mt-1 text-[11px] tabular text-[var(--text-tertiary)]">
+            <p className="text-body font-medium leading-snug text-[var(--text-primary)]">{data.headline}</p>
+            <p className="mt-1 text-caption tabular text-[var(--text-tertiary)]">
               {data.total_replied.toLocaleString()} {data.total_replied === 1 ? 'reply' : 'replies'} from{' '}
               {data.total_sent.toLocaleString()} emails across {data.steps.length}{' '}
               {data.steps.length === 1 ? 'step' : 'steps'}.

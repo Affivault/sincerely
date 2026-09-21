@@ -12,7 +12,7 @@ export function SpamWordHint({ subject, bodyHtml }: { subject: string; bodyHtml:
   return (
     <div className="flex items-start gap-1.5 mt-1 px-0.5">
       <AlertTriangle className="h-3 w-3 text-amber-500 flex-shrink-0 mt-px" />
-      <p className="text-[10.5px] text-amber-600 dark:text-amber-400 leading-snug">
+      <p className="text-micro text-amber-600 dark:text-amber-400 leading-snug">
         May trigger spam filters
         {result.matches.length > 0 && (
           <>: <span className="font-medium">{result.matches.join(', ')}</span></>

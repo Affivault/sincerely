@@ -114,7 +114,7 @@ function ChangeChip({ change }: { change: number | null }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-full',
+        'inline-flex items-center gap-0.5 text-caption font-semibold px-1.5 py-0.5 rounded-full',
         up ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'
       )}
     >
@@ -146,8 +146,8 @@ function EmptyDeepDive({ icon: Icon, title, description }: { icon: React.Element
       <div className="w-12 h-12 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex items-center justify-center">
         <Icon className="h-5 w-5 text-[var(--text-tertiary)]" strokeWidth={1.5} />
       </div>
-      <p className="text-[13px] font-semibold text-[var(--text-primary)]">{title}</p>
-      <p className="text-[12px] text-[var(--text-tertiary)] max-w-sm text-center">{description}</p>
+      <p className="text-strong font-semibold text-[var(--text-primary)]">{title}</p>
+      <p className="text-body text-[var(--text-tertiary)] max-w-sm text-center">{description}</p>
     </div>
   );
 }
@@ -179,13 +179,13 @@ function FunnelViz({ sent, opened, clicked, replied, bounced }: {
             {dropped !== null && dropped > 0 && (
               <div className="flex items-center gap-2 pl-[80px] mb-1">
                 <div className="w-px h-3 bg-[var(--border-subtle)] ml-3" />
-                <span className="text-[10.5px] text-[var(--text-tertiary)]">
+                <span className="text-micro text-[var(--text-tertiary)]">
                   ↓ {fmtNum(dropped)} dropped ({dropPct}%)
                 </span>
               </div>
             )}
             <div className="flex items-center gap-3">
-              <span className="w-[72px] text-right text-[11.5px] font-medium text-[var(--text-secondary)] flex-shrink-0">
+              <span className="w-[72px] text-right text-caption font-medium text-[var(--text-secondary)] flex-shrink-0">
                 {bar.label}
               </span>
               <div className="flex-1 h-9 bg-[var(--bg-elevated)] rounded-lg overflow-hidden border border-[var(--border-subtle)]">
@@ -195,8 +195,8 @@ function FunnelViz({ sent, opened, clicked, replied, bounced }: {
                 />
               </div>
               <div className="w-36 flex-shrink-0">
-                <span className="text-[13px] font-bold tabular-nums text-[var(--text-primary)]">{fmtNum(bar.count)}</span>
-                <span className="ml-1.5 text-[11px] text-[var(--text-tertiary)] tabular-nums">
+                <span className="text-strong font-bold tabular-nums text-[var(--text-primary)]">{fmtNum(bar.count)}</span>
+                <span className="ml-1.5 text-caption text-[var(--text-tertiary)] tabular-nums">
                   {sent > 0 ? `(${pct.toFixed(1)}%)` : ''}
                 </span>
               </div>
@@ -217,7 +217,7 @@ function HeatmapGrid({ grid, maxValue }: { grid: HeatmapDay[]; maxValue: number 
       <div className="min-w-[640px]">
         <div className="flex gap-px mb-1 pl-[52px]">
           {hours.map((h) => (
-            <div key={h} className="w-[22px] text-[8.5px] text-center text-[var(--text-tertiary)] flex-shrink-0">
+            <div key={h} className="w-[22px] text-micro text-center text-[var(--text-tertiary)] flex-shrink-0">
               {Number(h) % 3 === 0 ? h : ''}
             </div>
           ))}
@@ -225,7 +225,7 @@ function HeatmapGrid({ grid, maxValue }: { grid: HeatmapDay[]; maxValue: number 
         <div className="space-y-px">
           {grid.map((row) => (
             <div key={row.day} className="flex items-center gap-px">
-              <span className="w-[48px] text-[10px] text-right pr-2 flex-shrink-0 text-[var(--text-tertiary)] font-medium">
+              <span className="w-[48px] text-micro text-right pr-2 flex-shrink-0 text-[var(--text-tertiary)] font-medium">
                 {row.day}
               </span>
               {row.hours.map((val, h) => {
@@ -247,13 +247,13 @@ function HeatmapGrid({ grid, maxValue }: { grid: HeatmapDay[]; maxValue: number 
           ))}
         </div>
         <div className="flex items-center gap-3 mt-3 pl-[52px]">
-          <span className="text-[10px] text-[var(--text-tertiary)]">Low</span>
+          <span className="text-micro text-[var(--text-tertiary)]">Low</span>
           <div className="flex gap-0.5">
             {[0.1, 0.25, 0.45, 0.65, 0.85, 1].map((o) => (
               <div key={o} className="w-4 h-4 rounded-sm" style={{ backgroundColor: `rgba(99,102,241,${o})` }} />
             ))}
           </div>
-          <span className="text-[10px] text-[var(--text-tertiary)]">High</span>
+          <span className="text-micro text-[var(--text-tertiary)]">High</span>
         </div>
       </div>
     </div>
@@ -278,19 +278,19 @@ function VariantCard({ variant, label, subject, stats, isWinner }: {
         : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)]'
     )}>
       {isWinner && (
-        <div className="absolute top-3 right-3 flex items-center gap-1 text-[10.5px] font-semibold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+        <div className="absolute top-3 right-3 flex items-center gap-1 text-micro font-semibold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">
           <Trophy className="h-3 w-3" /> Winner
         </div>
       )}
       <div className="flex items-center gap-2 mb-2">
         <span className={cn(
-          'text-[11px] font-bold px-2 py-0.5 rounded',
+          'text-caption font-bold px-2 py-0.5 rounded',
           variant === 'a' ? 'bg-indigo-500/15 text-indigo-400' : 'bg-violet-500/15 text-violet-400'
         )}>
           Variant {variant.toUpperCase()}
         </span>
       </div>
-      <p className="text-[12px] text-[var(--text-secondary)] mb-4 line-clamp-2 italic">"{subject}"</p>
+      <p className="text-body text-[var(--text-secondary)] mb-4 line-clamp-2 italic">"{subject}"</p>
 
       <div className="space-y-3">
         {[
@@ -299,7 +299,7 @@ function VariantCard({ variant, label, subject, stats, isWinner }: {
           { label: 'Reply rate', value: stats.reply_rate, color: CHART_COLORS.replied },
         ].map(({ label, value, color }) => (
           <div key={label}>
-            <div className="flex justify-between text-[11.5px] mb-1">
+            <div className="flex justify-between text-caption mb-1">
               <span className="text-[var(--text-secondary)]">{label}</span>
               <span className="font-bold text-[var(--text-primary)]">{fmtPct(value)}</span>
             </div>
@@ -309,7 +309,7 @@ function VariantCard({ variant, label, subject, stats, isWinner }: {
       </div>
 
       <div className="mt-4 pt-3 border-t border-[var(--border-subtle)]">
-        <span className="text-[11px] text-[var(--text-tertiary)]">{fmtNum(stats.sent)} emails sent</span>
+        <span className="text-caption text-[var(--text-tertiary)]">{fmtNum(stats.sent)} emails sent</span>
       </div>
     </div>
   );
@@ -349,16 +349,16 @@ function CampaignLeaderboard({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full text-strong">
         <thead>
           <tr className="border-b border-[var(--border-subtle)]">
-            <th className="text-left py-2.5 px-4 text-[10px] text-[var(--text-tertiary)] font-medium">
+            <th className="text-left py-2.5 px-4 text-micro text-[var(--text-tertiary)] font-medium">
               Campaign
             </th>
             {cols.map((c) => (
               <th
                 key={c.key}
-                className="text-right py-2.5 px-3 text-[10px] text-[var(--text-tertiary)] font-medium cursor-pointer hover:text-[var(--text-primary)] select-none"
+                className="text-right py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium cursor-pointer hover:text-[var(--text-primary)] select-none"
                 onClick={() => toggleSort(c.key)}
               >
                 <span className="inline-flex items-center gap-1 justify-end">
@@ -367,7 +367,7 @@ function CampaignLeaderboard({
                 </span>
               </th>
             ))}
-            <th className="text-left py-2.5 px-3 text-[10px] text-[var(--text-tertiary)] font-medium w-32">
+            <th className="text-left py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium w-32">
               Volume
             </th>
             <th className="w-10" />
@@ -390,30 +390,30 @@ function CampaignLeaderboard({
                       c.status === 'completed' ? 'bg-[var(--text-tertiary)]' : 'bg-[var(--border-subtle)]'
                     )}
                   />
-                  <span className="font-medium text-[13.5px] text-[var(--text-primary)] max-w-[280px] truncate">
+                  <span className="font-medium text-strong text-[var(--text-primary)] max-w-[280px] truncate">
                     {c.name}
                   </span>
                 </div>
               </td>
-              <td className="py-3.5 px-3 text-right tabular-nums text-[13.5px] font-medium text-[var(--text-secondary)]">
+              <td className="py-3.5 px-3 text-right tabular-nums text-strong font-medium text-[var(--text-secondary)]">
                 {fmtNum(c.sent)}
               </td>
               <td className="py-3.5 px-3 text-right">
                 <span className={cn(
-                  'tabular-nums text-[13.5px] font-semibold',
+                  'tabular-nums text-strong font-semibold',
                   c.open_rate >= 30 ? 'text-emerald-500' : c.open_rate >= 15 ? 'text-amber-500' : 'text-[var(--text-secondary)]'
                 )}>
                   {fmtPct(c.open_rate)}
                 </span>
               </td>
               <td className="py-3.5 px-3 text-right">
-                <span className="tabular-nums text-[13.5px] font-medium text-[var(--text-secondary)]">
+                <span className="tabular-nums text-strong font-medium text-[var(--text-secondary)]">
                   {fmtPct(c.click_rate)}
                 </span>
               </td>
               <td className="py-3.5 px-3 text-right">
                 <span className={cn(
-                  'tabular-nums text-[13.5px] font-semibold',
+                  'tabular-nums text-strong font-semibold',
                   c.reply_rate >= 5 ? 'text-emerald-500' : 'text-[var(--text-secondary)]'
                 )}>
                   {fmtPct(c.reply_rate)}
@@ -421,7 +421,7 @@ function CampaignLeaderboard({
               </td>
               <td className="py-3.5 px-3 text-right">
                 <span className={cn(
-                  'tabular-nums text-[13.5px]',
+                  'tabular-nums text-strong',
                   c.bounce_rate >= 5 ? 'text-rose-500 font-semibold' : 'text-[var(--text-tertiary)]'
                 )}>
                   {fmtPct(c.bounce_rate)}
@@ -482,8 +482,8 @@ function DeliverabilitySection({
           </text>
         </svg>
         <div className="text-center">
-          <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">Avg. DCS Score</p>
-          <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5">
+          <p className="text-body font-semibold text-[var(--text-primary)]">Avg. DCS Score</p>
+          <p className="text-caption text-[var(--text-tertiary)] mt-0.5">
             {fmtNum(overview?.verified_contacts)} of {fmtNum(totalContacts)} verified ({verifiedPct}%)
           </p>
         </div>
@@ -492,7 +492,7 @@ function DeliverabilitySection({
             { label: 'Verified (DCS≥60)', value: safeNum(overview?.verified_contacts), color: '#10B981' },
             { label: 'Bounced contacts', value: safeNum(overview?.bounced_contacts), color: '#EF4444' },
           ].map((row) => (
-            <div key={row.label} className="flex items-center justify-between text-[11px]">
+            <div key={row.label} className="flex items-center justify-between text-caption">
               <div className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: row.color }} />
                 <span className="text-[var(--text-secondary)]">{row.label}</span>
@@ -502,20 +502,20 @@ function DeliverabilitySection({
           ))}
         </div>
         <div className="flex gap-2 w-full">
-          <Link to="/verification" className="icon-btn flex-1 h-7 text-[11px] justify-center text-center">Verify</Link>
-          <Link to="/suppression" className="icon-btn flex-1 h-7 text-[11px] justify-center text-center">Suppressed</Link>
+          <Link to="/verification" className="icon-btn flex-1 h-7 text-caption justify-center text-center">Verify</Link>
+          <Link to="/suppression" className="icon-btn flex-1 h-7 text-caption justify-center text-center">Suppressed</Link>
         </div>
       </div>
 
       {/* DCS Distribution */}
       <div className="p-5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
-        <h4 className="text-[12.5px] font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-1.5">
+        <h4 className="text-body font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-1.5">
           <TrendingUp className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
           DCS Distribution
         </h4>
         {(deliverability?.dcs_distribution || []).filter((d) => d.value > 0).length > 0 ? (
           <div className="h-44">
-            <ErrorBoundary fallback={<p className="text-xs text-center text-[var(--text-tertiary)]">Chart unavailable</p>}>
+            <ErrorBoundary fallback={<p className="text-body text-center text-[var(--text-tertiary)]">Chart unavailable</p>}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={(deliverability?.dcs_distribution || []).filter((d) => d.value > 0)} barSize={32}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
@@ -538,7 +538,7 @@ function DeliverabilitySection({
 
       {/* Suppression breakdown */}
       <div className="p-5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
-        <h4 className="text-[12.5px] font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-1.5">
+        <h4 className="text-body font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-1.5">
           <ShieldOff className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
           Suppression Breakdown
         </h4>
@@ -548,7 +548,7 @@ function DeliverabilitySection({
               const pct = suppressionTotal > 0 ? Math.round((item.value / suppressionTotal) * 100) : 0;
               return (
                 <div key={item.label}>
-                  <div className="flex justify-between text-[11.5px] mb-1">
+                  <div className="flex justify-between text-caption mb-1">
                     <div className="flex items-center gap-1.5">
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
                       <span className="text-[var(--text-secondary)]">{item.label}</span>
@@ -560,7 +560,7 @@ function DeliverabilitySection({
               );
             })}
             <div className="pt-2 border-t border-[var(--border-subtle)]">
-              <div className="flex justify-between text-[11px]">
+              <div className="flex justify-between text-caption">
                 <span className="text-[var(--text-tertiary)]">Total suppressed</span>
                 <span className="font-bold text-[var(--text-primary)]">{fmtNum(suppressionTotal)}</span>
               </div>
@@ -617,7 +617,7 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
             key={f}
             onClick={() => setFilter(f)}
             className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-[11.5px] font-medium border transition-all',
+              'inline-flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-caption font-medium border transition-all',
               filter === f
                 ? 'bg-[var(--indigo)] border-[var(--indigo)] text-white'
                 : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
@@ -625,7 +625,7 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
           >
             {f.charAt(0).toUpperCase() + f.slice(1)}
             <span className={cn(
-              'text-[10px] px-1 py-px rounded font-bold',
+              'text-micro px-1 py-px rounded font-bold',
               filter === f ? 'bg-white/20 text-white' : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)]'
             )}>
               {filterCounts[f]}
@@ -638,19 +638,19 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search contacts…"
-            className="bg-transparent text-[11.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] w-32"
+            className="bg-transparent text-caption text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] w-32"
           />
         </div>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
-        <table className="w-full text-sm">
+        <table className="w-full text-strong">
           <thead>
             <tr className="bg-[var(--bg-elevated)] border-b border-[var(--border-subtle)]">
-              <th className="text-left py-2.5 px-4 text-[10px] text-[var(--text-tertiary)] font-medium">Contact</th>
-              <th className="text-left py-2.5 px-3 text-[10px] text-[var(--text-tertiary)] font-medium">Status</th>
+              <th className="text-left py-2.5 px-4 text-micro text-[var(--text-tertiary)] font-medium">Contact</th>
+              <th className="text-left py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium">Status</th>
               <th
-                className="text-right py-2.5 px-3 text-[10px] text-[var(--text-tertiary)] font-medium cursor-pointer hover:text-[var(--text-primary)] select-none"
+                className="text-right py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium cursor-pointer hover:text-[var(--text-primary)] select-none"
                 onClick={() => { setSortKey('score'); setSortDir(sortKey === 'score' && sortDir === 'desc' ? 'asc' : 'desc'); }}
               >
                 <span className="inline-flex items-center gap-1 justify-end">
@@ -658,7 +658,7 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
                 </span>
               </th>
               <th
-                className="text-right py-2.5 px-3 text-[10px] text-[var(--text-tertiary)] font-medium cursor-pointer hover:text-[var(--text-primary)] select-none"
+                className="text-right py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium cursor-pointer hover:text-[var(--text-primary)] select-none"
                 onClick={() => { setSortKey('sent'); setSortDir(sortKey === 'sent' && sortDir === 'desc' ? 'asc' : 'desc'); }}
               >
                 <span className="inline-flex items-center gap-1 justify-end">
@@ -666,7 +666,7 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
                 </span>
               </th>
               <th
-                className="text-right py-2.5 px-3 text-[10px] text-[var(--text-tertiary)] font-medium cursor-pointer hover:text-[var(--text-primary)] select-none"
+                className="text-right py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium cursor-pointer hover:text-[var(--text-primary)] select-none"
                 onClick={() => { setSortKey('opened'); setSortDir(sortKey === 'opened' && sortDir === 'desc' ? 'asc' : 'desc'); }}
               >
                 <span className="inline-flex items-center gap-1 justify-end">
@@ -674,15 +674,15 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
                 </span>
               </th>
               <th
-                className="text-right py-2.5 px-3 text-[10px] text-[var(--text-tertiary)] font-medium cursor-pointer hover:text-[var(--text-primary)] select-none"
+                className="text-right py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium cursor-pointer hover:text-[var(--text-primary)] select-none"
                 onClick={() => { setSortKey('clicked'); setSortDir(sortKey === 'clicked' && sortDir === 'desc' ? 'asc' : 'desc'); }}
               >
                 <span className="inline-flex items-center gap-1 justify-end">
                   Clicks <SortIcon col="clicked" sortKey={sortKey} sortDir={sortDir} />
                 </span>
               </th>
-              <th className="text-center py-2.5 px-3 text-[10px] text-[var(--text-tertiary)] font-medium">Reply</th>
-              <th className="text-right py-2.5 px-3 text-[10px] text-[var(--text-tertiary)] font-medium">DCS</th>
+              <th className="text-center py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium">Reply</th>
+              <th className="text-right py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium">DCS</th>
             </tr>
           </thead>
           <tbody>
@@ -695,8 +695,8 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
                     <div className="flex items-center gap-2.5">
                       <Avatar name={name || undefined} email={c.email} size="md" />
                       <div className="min-w-0">
-                        <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{name || c.email}</p>
-                        {name && <p className="text-[11px] text-[var(--text-tertiary)] truncate">{c.email}</p>}
+                        <p className="text-body font-medium text-[var(--text-primary)] truncate">{name || c.email}</p>
+                        {name && <p className="text-caption text-[var(--text-tertiary)] truncate">{c.email}</p>}
                       </div>
                     </div>
                   </td>
@@ -716,19 +716,19 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
                         <MetricBar value={score} max={100} color={score >= 70 ? '#10B981' : score >= 40 ? '#F59E0B' : '#94A3B8'} />
                       </div>
                       <span className={cn(
-                        'text-[11.5px] font-bold tabular-nums w-7 text-right',
+                        'text-caption font-bold tabular-nums w-7 text-right',
                         score >= 70 ? 'text-emerald-500' : score >= 40 ? 'text-amber-500' : 'text-[var(--text-tertiary)]'
                       )}>
                         {score}
                       </span>
                     </div>
                   </td>
-                  <td className="py-2.5 px-3 text-right tabular-nums text-[12px] text-[var(--text-secondary)]">{c.sent}</td>
-                  <td className="py-2.5 px-3 text-right tabular-nums text-[12px] text-[var(--text-secondary)]">{c.opened}</td>
-                  <td className="py-2.5 px-3 text-right tabular-nums text-[12px] text-[var(--text-secondary)]">{c.clicked}</td>
+                  <td className="py-2.5 px-3 text-right tabular-nums text-body text-[var(--text-secondary)]">{c.sent}</td>
+                  <td className="py-2.5 px-3 text-right tabular-nums text-body text-[var(--text-secondary)]">{c.opened}</td>
+                  <td className="py-2.5 px-3 text-right tabular-nums text-body text-[var(--text-secondary)]">{c.clicked}</td>
                   <td className="py-2.5 px-3 text-center">
                     {c.replied ? (
-                      <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
+                      <span className="inline-flex items-center gap-1 text-micro font-semibold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
                         <MessageSquare className="h-2.5 w-2.5" /> Yes
                       </span>
                     ) : (
@@ -738,7 +738,7 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
                   <td className="py-2.5 px-3 text-right">
                     {c.dcs_score != null ? (
                       <span className={cn(
-                        'text-[11.5px] font-semibold tabular-nums',
+                        'text-caption font-semibold tabular-nums',
                         c.dcs_score >= 80 ? 'text-emerald-500' : c.dcs_score >= 50 ? 'text-amber-500' : 'text-rose-500'
                       )}>
                         {c.dcs_score}
@@ -754,11 +754,11 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
         </table>
         {filtered.length > 50 && (
           <div className="py-2 px-4 text-center bg-[var(--bg-elevated)] border-t border-[var(--border-subtle)]">
-            <p className="text-[11px] text-[var(--text-tertiary)]">Showing 50 of {filtered.length} contacts</p>
+            <p className="text-caption text-[var(--text-tertiary)]">Showing 50 of {filtered.length} contacts</p>
           </div>
         )}
         {filtered.length === 0 && (
-          <div className="py-8 text-center text-[var(--text-tertiary)] text-[12.5px]">
+          <div className="py-8 text-center text-[var(--text-tertiary)] text-body">
             No contacts match the current filter.
           </div>
         )}
@@ -975,7 +975,7 @@ export function AnalyticsDashboardPage() {
                   key={opt.value}
                   onClick={() => setDateRange(opt.value)}
                   className={cn(
-                    'px-2.5 h-7 text-[12px] font-medium rounded-md transition-all',
+                    'px-2.5 h-7 text-body font-medium rounded-md transition-all',
                     dateRange === opt.value
                       ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
                       : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
@@ -1001,7 +1001,7 @@ export function AnalyticsDashboardPage() {
         <button
           onClick={() => setMode('overview')}
           className={cn(
-            'inline-flex items-center gap-2 px-4 h-8 rounded-lg text-[12.5px] font-medium transition-all',
+            'inline-flex items-center gap-2 px-4 h-8 rounded-lg text-body font-medium transition-all',
             mode === 'overview'
               ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
               : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
@@ -1013,7 +1013,7 @@ export function AnalyticsDashboardPage() {
         <button
           onClick={() => setMode('campaign')}
           className={cn(
-            'inline-flex items-center gap-2 px-4 h-8 rounded-lg text-[12.5px] font-medium transition-all',
+            'inline-flex items-center gap-2 px-4 h-8 rounded-lg text-body font-medium transition-all',
             mode === 'campaign'
               ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
               : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
@@ -1022,7 +1022,7 @@ export function AnalyticsDashboardPage() {
           <Eye className="h-3.5 w-3.5" />
           Campaign Deep Dive
           {selectedCampaign && (
-            <span className="text-[10.5px] font-semibold bg-[var(--indigo-subtle)] text-[var(--indigo)] px-1.5 py-0.5 rounded-full">
+            <span className="text-micro font-semibold bg-[var(--indigo-subtle)] text-[var(--indigo)] px-1.5 py-0.5 rounded-full">
               {selectedCampaign.name.slice(0, 14)}{selectedCampaign.name.length > 14 ? '…' : ''}
             </span>
           )}
@@ -1054,7 +1054,7 @@ export function AnalyticsDashboardPage() {
               <div className="relative px-6 py-6">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="eyebrow">Emails sent</span>
-                  <span className="text-[10px] text-[var(--text-muted)]">last {days} days</span>
+                  <span className="text-micro text-[var(--text-muted)]">last {days} days</span>
                 </div>
                 <div className="flex items-end gap-3 flex-wrap">
                   <span className="text-[clamp(40px,6vw,60px)] font-semibold text-[var(--text-primary)] tabular-nums leading-[0.95] tracking-[-0.04em]">
@@ -1062,7 +1062,7 @@ export function AnalyticsDashboardPage() {
                   </span>
                   <div className="mb-2.5"><ChangeChip change={overview.sent_change} /></div>
                 </div>
-                <p className="mt-2.5 text-[13px] text-[var(--text-secondary)]">
+                <p className="mt-2.5 text-strong text-[var(--text-secondary)]">
                   <span className="font-semibold text-[var(--text-primary)]">{fmtNum(overview.total_opened)}</span> opens
                   <span className="mx-2 text-[var(--border-strong)]">·</span>
                   <span className="font-semibold text-[var(--text-primary)]">{fmtNum(overview.total_clicked)}</span> clicks
@@ -1092,12 +1092,12 @@ export function AnalyticsDashboardPage() {
             <div className="col-span-2 p-5 panel">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Performance Trend</h3>
-                  <p className="text-[11.5px] text-[var(--text-secondary)] mt-0.5">All metrics over the last {days} days</p>
+                  <h3 className="text-strong font-semibold text-[var(--text-primary)]">Performance Trend</h3>
+                  <p className="text-caption text-[var(--text-secondary)] mt-0.5">All metrics over the last {days} days</p>
                 </div>
                 <div className="flex items-center gap-3">
                   {Object.entries(CHART_COLORS).slice(0, 4).map(([key, color]) => (
-                    <span key={key} className="flex items-center gap-1 text-[10.5px] text-[var(--text-tertiary)]">
+                    <span key={key} className="flex items-center gap-1 text-micro text-[var(--text-tertiary)]">
                       <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
                       {key.charAt(0).toUpperCase() + key.slice(1)}
                     </span>
@@ -1106,7 +1106,7 @@ export function AnalyticsDashboardPage() {
               </div>
               <div className="h-56">
                 {formattedTrend.length > 0 ? (
-                  <ErrorBoundary fallback={<div className="flex items-center justify-center h-full text-sm text-[var(--text-tertiary)]">Chart unavailable</div>}>
+                  <ErrorBoundary fallback={<div className="flex items-center justify-center h-full text-strong text-[var(--text-tertiary)]">Chart unavailable</div>}>
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={formattedTrend}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
@@ -1120,18 +1120,18 @@ export function AnalyticsDashboardPage() {
                     </ResponsiveContainer>
                   </ErrorBoundary>
                 ) : (
-                  <div className="flex items-center justify-center h-full text-sm text-[var(--text-tertiary)]">No activity data yet</div>
+                  <div className="flex items-center justify-center h-full text-strong text-[var(--text-tertiary)]">No activity data yet</div>
                 )}
               </div>
             </div>
 
             <div className="p-5 panel">
-              <h3 className="text-[13px] font-semibold text-[var(--text-primary)] mb-1">Engagement Mix</h3>
-              <p className="text-[11.5px] text-[var(--text-secondary)] mb-3">Distribution across activities</p>
+              <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-1">Engagement Mix</h3>
+              <p className="text-caption text-[var(--text-secondary)] mb-3">Distribution across activities</p>
               {pieData.length > 0 ? (
                 <>
                   <div className="h-36">
-                    <ErrorBoundary fallback={<div className="h-full flex items-center justify-center text-xs text-[var(--text-tertiary)]">Chart unavailable</div>}>
+                    <ErrorBoundary fallback={<div className="h-full flex items-center justify-center text-body text-[var(--text-tertiary)]">Chart unavailable</div>}>
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie data={pieData} cx="50%" cy="50%" innerRadius={42} outerRadius={60} paddingAngle={3} dataKey="value" strokeWidth={0}>
@@ -1148,7 +1148,7 @@ export function AnalyticsDashboardPage() {
                     {pieData.map((item, i) => {
                       const total = pieData.reduce((s, d) => s + d.value, 0);
                       return (
-                        <div key={item.name} className="flex items-center justify-between text-[11.5px]">
+                        <div key={item.name} className="flex items-center justify-between text-caption">
                           <div className="flex items-center gap-1.5">
                             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
                             <span className="text-[var(--text-secondary)]">{item.name}</span>
@@ -1162,7 +1162,7 @@ export function AnalyticsDashboardPage() {
                   </div>
                 </>
               ) : (
-                <div className="flex items-center justify-center h-40 text-[12px] text-[var(--text-tertiary)]">No data yet</div>
+                <div className="flex items-center justify-center h-40 text-body text-[var(--text-tertiary)]">No data yet</div>
               )}
             </div>
           </div>
@@ -1172,10 +1172,10 @@ export function AnalyticsDashboardPage() {
             <div className="panel overflow-hidden">
               <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
                 <div>
-                  <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Campaign Leaderboard</h3>
-                  <p className="text-[11.5px] text-[var(--text-secondary)] mt-0.5">Click any row to deep-dive into that campaign</p>
+                  <h3 className="text-strong font-semibold text-[var(--text-primary)]">Campaign Leaderboard</h3>
+                  <p className="text-caption text-[var(--text-secondary)] mt-0.5">Click any row to deep-dive into that campaign</p>
                 </div>
-                <span className="text-[11px] text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-2 py-0.5 rounded-full">
+                <span className="text-caption text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-2 py-0.5 rounded-full">
                   {campaignList!.length} campaigns
                 </span>
               </div>
@@ -1187,13 +1187,13 @@ export function AnalyticsDashboardPage() {
           <div className="panel overflow-hidden">
             <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
               <div>
-                <h3 className="text-[13px] font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                <h3 className="text-strong font-semibold text-[var(--text-primary)] flex items-center gap-2">
                   <span className="flex h-5 w-5 items-center justify-center rounded-[5px] bg-[var(--indigo-subtle)]">
                     <Activity className="h-3 w-3 text-[var(--indigo)]" />
                   </span>
                   Deliverability Health
                 </h3>
-                <p className="text-[11.5px] text-[var(--text-secondary)] mt-0.5">DCS scores, contact quality and suppression breakdown</p>
+                <p className="text-caption text-[var(--text-secondary)] mt-0.5">DCS scores, contact quality and suppression breakdown</p>
               </div>
             </div>
             <div className="p-5">
@@ -1214,15 +1214,15 @@ export function AnalyticsDashboardPage() {
                 value={campaignSearch}
                 onChange={(e) => setCampaignSearch(e.target.value)}
                 placeholder="Search campaigns…"
-                className="flex-1 bg-transparent text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
+                className="flex-1 bg-transparent text-strong text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
               />
-              <span className="text-[11px] text-[var(--text-tertiary)] flex-shrink-0">
+              <span className="text-caption text-[var(--text-tertiary)] flex-shrink-0">
                 {filteredCampaigns.length} campaign{filteredCampaigns.length !== 1 ? 's' : ''}
               </span>
             </div>
             <div className="max-h-48 overflow-y-auto">
               {filteredCampaigns.length === 0 ? (
-                <p className="py-6 text-center text-[12.5px] text-[var(--text-tertiary)]">No campaigns found</p>
+                <p className="py-6 text-center text-body text-[var(--text-tertiary)]">No campaigns found</p>
               ) : (
                 filteredCampaigns.map((c) => (
                   <button
@@ -1238,15 +1238,15 @@ export function AnalyticsDashboardPage() {
                       c.status === 'running' ? 'bg-emerald-500' :
                       c.status === 'paused' ? 'bg-amber-500' : 'bg-[var(--text-tertiary)]'
                     )} />
-                    <span className={cn('flex-1 text-[12.5px] font-medium truncate', selectedId === c.id ? 'text-[var(--indigo)]' : 'text-[var(--text-primary)]')}>
+                    <span className={cn('flex-1 text-body font-medium truncate', selectedId === c.id ? 'text-[var(--indigo)]' : 'text-[var(--text-primary)]')}>
                       {c.name}
                     </span>
-                    <div className="flex items-center gap-4 flex-shrink-0 text-[11.5px] text-[var(--text-tertiary)]">
+                    <div className="flex items-center gap-4 flex-shrink-0 text-caption text-[var(--text-tertiary)]">
                       <span>{fmtNum(c.sent)} sent</span>
                       <span className={c.open_rate >= 30 ? 'text-emerald-500 font-semibold' : ''}>{fmtPct(c.open_rate)} open</span>
                       <span className={c.reply_rate >= 5 ? 'text-emerald-500 font-semibold' : ''}>{fmtPct(c.reply_rate)} reply</span>
                     </div>
-                    {selectedId === c.id && <span className="text-[var(--indigo)] text-[11px] font-semibold">Selected</span>}
+                    {selectedId === c.id && <span className="text-[var(--indigo)] text-caption font-semibold">Selected</span>}
                   </button>
                 ))
               )}
@@ -1269,14 +1269,14 @@ export function AnalyticsDashboardPage() {
                       <Target className="h-5 w-5 text-[var(--indigo)]" strokeWidth={1.5} />
                     </div>
                     <div>
-                      <h2 className="text-[14px] font-bold text-[var(--text-primary)]">{selectedCampaign.name}</h2>
+                      <h2 className="text-heading font-bold text-[var(--text-primary)]">{selectedCampaign.name}</h2>
                       <div className="flex items-center gap-2 mt-0.5">
                         <Badge variant={selectedCampaign.status === 'running' ? 'success' : selectedCampaign.status === 'paused' ? 'warning' : 'default'}>
                           {selectedCampaign.status}
                         </Badge>
-                        <span className="text-[11px] text-[var(--text-tertiary)]">{fmtNum(selectedCampaign.sent)} total emails sent</span>
+                        <span className="text-caption text-[var(--text-tertiary)]">{fmtNum(selectedCampaign.sent)} total emails sent</span>
                         <span className="sep-dot text-[var(--text-tertiary)]" />
-                        <span className="text-[11px] text-[var(--text-tertiary)]">Created {new Date(selectedCampaign.created_at).toLocaleDateString()}</span>
+                        <span className="text-caption text-[var(--text-tertiary)]">Created {new Date(selectedCampaign.created_at).toLocaleDateString()}</span>
                       </div>
                     </div>
                   </div>
@@ -1305,7 +1305,7 @@ export function AnalyticsDashboardPage() {
                     key={id}
                     onClick={() => setCampaignTab(id as CampaignTab)}
                     className={cn(
-                      'inline-flex items-center gap-1.5 px-3 py-2.5 text-[12.5px] font-medium border-b-2 transition-all -mb-px',
+                      'inline-flex items-center gap-1.5 px-3 py-2.5 text-body font-medium border-b-2 transition-all -mb-px',
                       campaignTab === id
                         ? 'border-[var(--indigo)] text-[var(--indigo)]'
                         : 'border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
@@ -1332,20 +1332,20 @@ export function AnalyticsDashboardPage() {
                         <div className="flex items-center justify-center h-7 w-7 rounded-lg mb-3" style={{ backgroundColor: `${color}18` }}>
                           <Icon className="h-3.5 w-3.5" style={{ color }} strokeWidth={1.75} />
                         </div>
-                        <p className="text-xl font-bold text-[var(--text-primary)] tabular-nums leading-tight">
+                        <p className="text-title font-bold text-[var(--text-primary)] tabular-nums leading-tight">
                           {typeof value === 'number' ? fmtNum(value) : value}
                         </p>
-                        <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5">{label}</p>
-                        {sub && <p className="text-[10.5px] text-[var(--text-tertiary)]">{sub}</p>}
+                        <p className="text-caption text-[var(--text-tertiary)] mt-0.5">{label}</p>
+                        {sub && <p className="text-micro text-[var(--text-tertiary)]">{sub}</p>}
                       </div>
                     ))}
                   </div>
 
                   <div className="p-5 panel">
-                    <h3 className="text-[13px] font-semibold text-[var(--text-primary)] mb-4">Daily Activity — Last {days} days</h3>
+                    <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-4">Daily Activity — Last {days} days</h3>
                     <div className="h-56">
                       {formattedCampaignTrend.length > 0 ? (
-                        <ErrorBoundary fallback={<div className="flex items-center justify-center h-full text-sm text-[var(--text-tertiary)]">Chart unavailable</div>}>
+                        <ErrorBoundary fallback={<div className="flex items-center justify-center h-full text-strong text-[var(--text-tertiary)]">Chart unavailable</div>}>
                           <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={formattedCampaignTrend}>
                               <defs>
@@ -1367,7 +1367,7 @@ export function AnalyticsDashboardPage() {
                           </ResponsiveContainer>
                         </ErrorBoundary>
                       ) : (
-                        <div className="flex items-center justify-center h-full text-sm text-[var(--text-tertiary)]">No activity data for this campaign yet</div>
+                        <div className="flex items-center justify-center h-full text-strong text-[var(--text-tertiary)]">No activity data for this campaign yet</div>
                       )}
                     </div>
                   </div>
@@ -1379,8 +1379,8 @@ export function AnalyticsDashboardPage() {
                 <div className="space-y-4">
                   {campaignStats && (
                     <div className="p-6 panel">
-                      <h3 className="text-[13px] font-semibold text-[var(--text-primary)] mb-1">Overall Engagement Funnel</h3>
-                      <p className="text-[11.5px] text-[var(--text-secondary)] mb-5">Contact journey from send to reply across all steps</p>
+                      <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-1">Overall Engagement Funnel</h3>
+                      <p className="text-caption text-[var(--text-secondary)] mb-5">Contact journey from send to reply across all steps</p>
                       <FunnelViz
                         sent={campaignStats.sent}
                         opened={campaignStats.opened}
@@ -1398,14 +1398,14 @@ export function AnalyticsDashboardPage() {
 
                   {funnelData && funnelData.length > 0 && (
                     <div className="p-5 panel">
-                      <h3 className="text-[13px] font-semibold text-[var(--text-primary)] mb-4">Step-by-Step Breakdown</h3>
+                      <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-4">Step-by-Step Breakdown</h3>
                       <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-strong">
                           <thead>
                             <tr className="border-b border-[var(--border-subtle)]">
                               {['Step', 'Subject', 'Delay', 'Sent', 'Opened', 'Open %', 'Clicked', 'Click %', 'Replied', 'Reply %', 'Bounced'].map((h) => (
                                 <th key={h} className={cn(
-                                  'py-2 text-[10px] text-[var(--text-tertiary)] font-medium',
+                                  'py-2 text-micro text-[var(--text-tertiary)] font-medium',
                                   h === 'Subject' ? 'text-left px-3' : 'text-right px-2'
                                 )}>{h}</th>
                               ))}
@@ -1414,23 +1414,23 @@ export function AnalyticsDashboardPage() {
                           <tbody>
                             {funnelData.map((step: FunnelStep) => (
                               <tr key={step.step_id} className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-hover)] transition-colors">
-                                <td className="py-2.5 px-2 text-right text-[12px] font-bold text-[var(--text-primary)]">
+                                <td className="py-2.5 px-2 text-right text-body font-bold text-[var(--text-primary)]">
                                   {step.step_number}
                                 </td>
                                 <td className="py-2.5 px-3 max-w-[200px]">
-                                  <p className="text-[12px] text-[var(--text-primary)] truncate">{step.subject}</p>
+                                  <p className="text-body text-[var(--text-primary)] truncate">{step.subject}</p>
                                 </td>
-                                <td className="py-2.5 px-2 text-right text-[11.5px] text-[var(--text-tertiary)]">
+                                <td className="py-2.5 px-2 text-right text-caption text-[var(--text-tertiary)]">
                                   {step.delay_days > 0 ? `+${step.delay_days}d` : '—'}
                                 </td>
-                                <td className="py-2.5 px-2 text-right tabular-nums text-[12px] text-[var(--text-secondary)]">{fmtNum(step.sent)}</td>
-                                <td className="py-2.5 px-2 text-right tabular-nums text-[12px] text-[var(--text-secondary)]">{fmtNum(step.opened)}</td>
-                                <td className="py-2.5 px-2 text-right tabular-nums text-[12px] font-semibold" style={{ color: CHART_COLORS.opened }}>{fmtPct(step.open_rate)}</td>
-                                <td className="py-2.5 px-2 text-right tabular-nums text-[12px] text-[var(--text-secondary)]">{fmtNum(step.clicked)}</td>
-                                <td className="py-2.5 px-2 text-right tabular-nums text-[12px] font-semibold" style={{ color: CHART_COLORS.clicked }}>{fmtPct(step.click_rate)}</td>
-                                <td className="py-2.5 px-2 text-right tabular-nums text-[12px] text-[var(--text-secondary)]">{fmtNum(step.replied)}</td>
-                                <td className="py-2.5 px-2 text-right tabular-nums text-[12px] font-semibold" style={{ color: CHART_COLORS.replied }}>{fmtPct(step.reply_rate)}</td>
-                                <td className="py-2.5 px-2 text-right tabular-nums text-[12px]" style={{ color: step.bounced > 0 ? CHART_COLORS.bounced : 'var(--text-tertiary)' }}>{fmtNum(step.bounced)}</td>
+                                <td className="py-2.5 px-2 text-right tabular-nums text-body text-[var(--text-secondary)]">{fmtNum(step.sent)}</td>
+                                <td className="py-2.5 px-2 text-right tabular-nums text-body text-[var(--text-secondary)]">{fmtNum(step.opened)}</td>
+                                <td className="py-2.5 px-2 text-right tabular-nums text-body font-semibold" style={{ color: CHART_COLORS.opened }}>{fmtPct(step.open_rate)}</td>
+                                <td className="py-2.5 px-2 text-right tabular-nums text-body text-[var(--text-secondary)]">{fmtNum(step.clicked)}</td>
+                                <td className="py-2.5 px-2 text-right tabular-nums text-body font-semibold" style={{ color: CHART_COLORS.clicked }}>{fmtPct(step.click_rate)}</td>
+                                <td className="py-2.5 px-2 text-right tabular-nums text-body text-[var(--text-secondary)]">{fmtNum(step.replied)}</td>
+                                <td className="py-2.5 px-2 text-right tabular-nums text-body font-semibold" style={{ color: CHART_COLORS.replied }}>{fmtPct(step.reply_rate)}</td>
+                                <td className="py-2.5 px-2 text-right tabular-nums text-body" style={{ color: step.bounced > 0 ? CHART_COLORS.bounced : 'var(--text-tertiary)' }}>{fmtNum(step.bounced)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -1461,20 +1461,20 @@ export function AnalyticsDashboardPage() {
                       {abTestData.steps.map((step: AbTestStep) => (
                         <div key={step.step_id} className="panel overflow-hidden">
                           <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center gap-3">
-                            <span className="flex items-center justify-center h-6 w-6 rounded-full bg-[var(--indigo-subtle)] text-[11px] font-bold text-[var(--indigo)]">
+                            <span className="flex items-center justify-center h-6 w-6 rounded-full bg-[var(--indigo-subtle)] text-caption font-bold text-[var(--indigo)]">
                               {step.step_number}
                             </span>
-                            <h4 className="text-[13px] font-semibold text-[var(--text-primary)]">Step {step.step_number} — A/B Test</h4>
+                            <h4 className="text-strong font-semibold text-[var(--text-primary)]">Step {step.step_number} — A/B Test</h4>
                             {step.winner ? (
-                              <span className="ml-auto text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-500">
+                              <span className="ml-auto text-caption font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-500">
                                 Variant {step.winner.toUpperCase()} wins
                               </span>
                             ) : !step.has_enough_data ? (
-                              <span className="ml-auto text-[11px] text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded-full">
+                              <span className="ml-auto text-caption text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded-full">
                                 Needs {step.min_sample}+ sends per variant before this can be called
                               </span>
                             ) : (
-                              <span className="ml-auto text-[11px] text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-2.5 py-1 rounded-full">
+                              <span className="ml-auto text-caption text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-2.5 py-1 rounded-full">
                                 {step.leading
                                   ? `Variant ${step.leading.toUpperCase()} ahead — still within chance`
                                   : 'Dead level'}
@@ -1492,7 +1492,7 @@ export function AnalyticsDashboardPage() {
                             * one arm with a group that was never randomised.
                             */}
                           {step.untracked_sent > 0 && (
-                            <p className="px-5 pt-3 text-[11.5px] leading-snug text-[var(--text-tertiary)]" data-untracked-sends>
+                            <p className="px-5 pt-3 text-caption leading-snug text-[var(--text-tertiary)]" data-untracked-sends>
                               {step.untracked_sent.toLocaleString()} send{step.untracked_sent === 1 ? '' : 's'} at this
                               step went out before the test started and are not counted in either variant.
                             </p>
@@ -1515,7 +1515,7 @@ export function AnalyticsDashboardPage() {
                           </div>
                           {step.winner ? (
                             <div className="px-5 pb-4">
-                              <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-emerald-500/8 border border-emerald-500/20 text-[12px] text-emerald-600 dark:text-emerald-400">
+                              <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-emerald-500/8 border border-emerald-500/20 text-body text-emerald-600 dark:text-emerald-400">
                                 <Trophy className="h-4 w-4 flex-shrink-0" />
                                 <span className="flex-1 min-w-[240px]">
                                   Variant {step.winner.toUpperCase()} is ahead by{' '}
@@ -1540,7 +1540,7 @@ export function AnalyticsDashboardPage() {
                             </div>
                           ) : step.leading && step.has_enough_data ? (
                             <div className="px-5 pb-4">
-                              <p className="text-[11.5px] text-[var(--text-tertiary)] leading-relaxed">
+                              <p className="text-caption text-[var(--text-tertiary)] leading-relaxed">
                                 Variant {step.leading.toUpperCase()} is ahead by{' '}
                                 {Math.abs(step.variant_a.open_rate - step.variant_b.open_rate).toFixed(1)}pp, but at these
                                 volumes a gap that size turns up by chance often enough
@@ -1566,8 +1566,8 @@ export function AnalyticsDashboardPage() {
                   ) : (
                     <div className="panel overflow-hidden">
                       <div className="px-5 py-3.5 border-b border-[var(--border-subtle)]">
-                        <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Contact Performance</h3>
-                        <p className="text-[11.5px] text-[var(--text-secondary)] mt-0.5">
+                        <h3 className="text-strong font-semibold text-[var(--text-primary)]">Contact Performance</h3>
+                        <p className="text-caption text-[var(--text-secondary)] mt-0.5">
                           Engagement scores, activity counts and deliverability for each contact
                         </p>
                       </div>
@@ -1593,8 +1593,8 @@ export function AnalyticsDashboardPage() {
                   ) : (
                     <div className="p-5 panel">
                       <div className="mb-4">
-                        <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Engagement Heatmap</h3>
-                        <p className="text-[11.5px] text-[var(--text-secondary)] mt-0.5">
+                        <h3 className="text-strong font-semibold text-[var(--text-primary)]">Engagement Heatmap</h3>
+                        <p className="text-caption text-[var(--text-secondary)] mt-0.5">
                           Combined opens, clicks and replies by day of week and hour of day (contact's local time)
                         </p>
                       </div>

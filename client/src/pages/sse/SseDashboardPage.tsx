@@ -90,8 +90,8 @@ export function SseDashboardPage() {
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--bg-elevated)] mb-4">
             <AlertTriangle className="h-8 w-8 text-red-400" />
           </div>
-          <h3 className="text-lg font-medium text-[var(--text-primary)] mb-1">Couldn't load senders</h3>
-          <p className="text-sm text-[var(--text-secondary)] mb-4">Something went wrong fetching the smart-sharding dashboard.</p>
+          <h3 className="text-title font-medium text-[var(--text-primary)] mb-1">Couldn't load senders</h3>
+          <p className="text-strong text-[var(--text-secondary)] mb-4">Something went wrong fetching the smart-sharding dashboard.</p>
           <button onClick={() => refetch()} className="btn-secondary">
             <RefreshCw className="h-3.5 w-3.5" /> Retry
           </button>
@@ -101,8 +101,8 @@ export function SseDashboardPage() {
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--bg-elevated)] mb-4">
             <Mail className="h-8 w-8 text-[var(--text-tertiary)]" />
           </div>
-          <h3 className="text-lg font-medium text-[var(--text-primary)] mb-1">No SMTP accounts</h3>
-          <p className="text-sm text-[var(--text-secondary)]">Add SMTP accounts to start using smart sender rotation.</p>
+          <h3 className="text-title font-medium text-[var(--text-primary)] mb-1">No SMTP accounts</h3>
+          <p className="text-strong text-[var(--text-secondary)]">Add SMTP accounts to start using smart sender rotation.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -124,17 +124,17 @@ export function SseDashboardPage() {
                   <Mail className={cn('h-5 w-5', account.is_available ? 'text-emerald-400' : 'text-red-400')} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-semibold text-[var(--text-primary)] truncate">{account.label}</h3>
-                  <p className="text-xs text-[var(--text-secondary)] truncate">{account.email_address}</p>
+                  <h3 className="text-strong font-semibold text-[var(--text-primary)] truncate">{account.label}</h3>
+                  <p className="text-body text-[var(--text-secondary)] truncate">{account.email_address}</p>
                 </div>
                 {account.warmup_mode && (
-                  <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400">
                     <Flame className="h-3 w-3" />
                     Warmup
                   </span>
                 )}
                 <span className={cn(
-                  'inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-[10.5px] font-semibold',
+                  'inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-semibold',
                   account.is_available
                     ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
                     : 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
@@ -151,7 +151,7 @@ export function SseDashboardPage() {
               <div className="p-4 space-y-3">
                 {/* Health Score */}
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-[var(--text-secondary)]">Health Score</span>
+                  <span className="text-body text-[var(--text-secondary)]">Health Score</span>
                   <div className="flex items-center gap-2">
                     <div className="w-32 h-2 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
                       <div
@@ -162,7 +162,7 @@ export function SseDashboardPage() {
                         style={{ width: `${account.health_score}%` }}
                       />
                     </div>
-                    <span className={cn('text-sm font-bold', getHealthColor(account.health_score))}>
+                    <span className={cn('text-strong font-bold', getHealthColor(account.health_score))}>
                       {account.health_score}
                     </span>
                   </div>
@@ -170,7 +170,7 @@ export function SseDashboardPage() {
 
                 {/* Send Utilization */}
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-[var(--text-secondary)]">Daily Utilization</span>
+                  <span className="text-body text-[var(--text-secondary)]">Daily Utilization</span>
                   <div className="flex items-center gap-2">
                     <div className="w-32 h-2 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
                       <div
@@ -178,7 +178,7 @@ export function SseDashboardPage() {
                         style={{ width: `${Math.min(account.utilization_pct, 100)}%` }}
                       />
                     </div>
-                    <span className="text-sm text-[var(--text-secondary)]">
+                    <span className="text-strong text-[var(--text-secondary)]">
                       {account.sends_today}/{formatDailyLimit(account.daily_send_limit)}
                     </span>
                   </div>
@@ -186,7 +186,7 @@ export function SseDashboardPage() {
 
                 {/* Bounce Rate */}
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-[var(--text-secondary)]">Bounce Rate (7d)</span>
+                  <span className="text-body text-[var(--text-secondary)]">Bounce Rate (7d)</span>
                   <div className="flex items-center gap-1">
                     {account.bounce_rate_7d > 5 ? (
                       <TrendingUp className="h-3.5 w-3.5 text-red-400" />
@@ -194,7 +194,7 @@ export function SseDashboardPage() {
                       <TrendingDown className="h-3.5 w-3.5 text-emerald-400" />
                     )}
                     <span className={cn(
-                      'text-sm font-medium',
+                      'text-strong font-medium',
                       account.bounce_rate_7d > 5 ? 'text-red-400' :
                       account.bounce_rate_7d > 2 ? 'text-amber-400' : 'text-emerald-400'
                     )}>
@@ -210,11 +210,11 @@ export function SseDashboardPage() {
 
       {/* How SSE Works */}
       <div className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-4">
-        <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
+        <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
           <Zap className="h-4 w-4 text-[var(--text-secondary)]" />
           How Smart-Sharding Works
         </h3>
-        <div className="grid grid-cols-3 gap-4 text-sm text-[var(--text-secondary)]">
+        <div className="grid grid-cols-3 gap-4 text-strong text-[var(--text-secondary)]">
           <div>
             <p className="font-medium text-[var(--text-secondary)] mb-1">1. Score Calculation</p>
             <p>Each sender is scored using a weighted formula: (health x 0.6) + (remaining capacity x 0.4).</p>

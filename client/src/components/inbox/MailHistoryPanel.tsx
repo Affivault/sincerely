@@ -58,7 +58,7 @@ function MailboxRow({
   return (
     <li className="px-4 py-3 border-b border-[var(--border-subtle)] last:border-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[var(--text-primary)]">
+        <span className="min-w-0 flex-1 truncate text-body font-medium text-[var(--text-primary)]">
           {account.email_address}
         </span>
 
@@ -72,7 +72,7 @@ function MailboxRow({
                 disabled={saving}
                 onClick={() => !active && onChoose(months)}
                 className={cn(
-                  'h-7 rounded-md px-2.5 text-[11.5px] font-semibold transition-colors disabled:opacity-50',
+                  'h-7 rounded-md px-2.5 text-caption font-semibold transition-colors disabled:opacity-50',
                   active
                     ? 'bg-[var(--indigo)] text-white'
                     : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
@@ -86,7 +86,7 @@ function MailboxRow({
         </div>
       </div>
 
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-tertiary)]">
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-[var(--text-tertiary)]">
         <span>
           {account.stored.toLocaleString()} message{account.stored === 1 ? '' : 's'}
         </span>
@@ -125,13 +125,13 @@ function MailboxRow({
          * fresh problem and send somebody looking for one.
          */
         fixed ? (
-          <p className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-emerald-600 dark:text-emerald-400">
+          <p className="mt-1.5 flex items-start gap-1.5 text-caption leading-relaxed text-emerald-600 dark:text-emerald-400">
             <Check className="mt-px h-3 w-3 flex-shrink-0" strokeWidth={3} />
             {account.last_error.replace(/^Fixed automatically:\s*/, '')}
           </p>
         ) : (
           <div className="mt-1.5 flex flex-wrap items-start gap-x-2 gap-y-1">
-            <p className="flex min-w-0 flex-1 items-start gap-1.5 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400">
+            <p className="flex min-w-0 flex-1 items-start gap-1.5 text-caption leading-relaxed text-amber-600 dark:text-amber-400">
               <AlertTriangle className="mt-px h-3 w-3 flex-shrink-0" />
               {account.last_error}
             </p>
@@ -146,7 +146,7 @@ function MailboxRow({
                 type="button"
                 onClick={onRepair}
                 disabled={repairing}
-                className="h-6 flex-shrink-0 rounded-md bg-[var(--indigo)] px-2 text-[10.5px] font-semibold text-white disabled:opacity-50"
+                className="h-6 flex-shrink-0 rounded-md bg-[var(--indigo)] px-2 text-micro font-semibold text-white disabled:opacity-50"
                 data-repair-hosts
               >
                 {repairing ? 'Checking…' : 'Fix this for me'}
@@ -271,14 +271,14 @@ export function MailHistoryPanel({ onSynced }: { onSynced?: () => void }) {
           <History className="h-3.5 w-3.5 text-[var(--indigo)]" />
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Mail history</h3>
-          <p className="mt-0.5 text-[11.5px] leading-snug text-[var(--text-secondary)]">
+          <h3 className="text-strong font-semibold text-[var(--text-primary)]">Mail history</h3>
+          <p className="mt-0.5 text-caption leading-snug text-[var(--text-secondary)]">
             How far back each mailbox is kept. Older mail is fetched in the background, a little at
             a time, so a wide window never holds up today&rsquo;s replies.
           </p>
         </div>
         {loading && (
-          <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-[var(--indigo-subtle)] px-2 py-0.5 text-[10.5px] font-semibold text-[var(--indigo)]">
+          <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-[var(--indigo-subtle)] px-2 py-0.5 text-micro font-semibold text-[var(--indigo)]">
             <Loader2 className="h-3 w-3 animate-spin" /> Loading
           </span>
         )}

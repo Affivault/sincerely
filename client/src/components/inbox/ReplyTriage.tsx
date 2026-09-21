@@ -144,12 +144,12 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
         <div className="flex items-start gap-2">
           <Check className="mt-[3px] h-3.5 w-3.5 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
           <div className="min-w-0 flex-1">
-            <p className="text-[12.5px] font-semibold leading-tight text-[var(--text-primary)]">
+            <p className="text-body font-semibold leading-tight text-[var(--text-primary)]">
               {settled.message}
             </p>
             {/* Wraps rather than truncates: what a decision did is the whole
                 reason for showing that one was made. */}
-            <p className="mt-0.5 text-[11px] leading-snug text-[var(--text-tertiary)]">
+            <p className="mt-0.5 text-caption leading-snug text-[var(--text-tertiary)]">
               {copy.detail}
             </p>
           </div>
@@ -158,14 +158,14 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
           <button
             onClick={() => undo.mutate()}
             disabled={undo.isPending}
-            className="text-[11.5px] font-medium text-[var(--text-tertiary)] underline decoration-dotted underline-offset-2 hover:text-[var(--text-primary)] disabled:opacity-50"
+            className="text-caption font-medium text-[var(--text-tertiary)] underline decoration-dotted underline-offset-2 hover:text-[var(--text-primary)] disabled:opacity-50"
           >
             {undo.isPending ? 'Undoing…' : 'Undo'}
           </button>
           {settled.lead_id && (
             <Link
               to="/leads/inbox"
-              className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-[var(--indigo)] hover:underline"
+              className="inline-flex items-center gap-1 text-caption font-semibold text-[var(--indigo)] hover:underline"
             >
               Open in Leads <ArrowRight className="h-3 w-3" />
             </Link>
@@ -188,7 +188,7 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2.5">
-      <span className="text-[11.5px] font-medium text-[var(--text-tertiary)]">What is this?</span>
+      <span className="text-caption font-medium text-[var(--text-tertiary)]">What is this?</span>
       {TRIAGE_DECISIONS.map((d) => {
         const Icon = ICON[d.id];
         // Making a lead needs somebody to make it about; the server refuses
@@ -203,7 +203,7 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
               ? 'This thread is not linked to a contact yet, so there is nobody to make a lead about.'
               : d.effect}
             className={cn(
-              'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[12px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
+              'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-body font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
               d.id === 'interested'
                 ? 'bg-[var(--indigo)] text-white hover:opacity-90'
                 : 'border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
@@ -212,7 +212,7 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
             {triage.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}
             {d.label}
             <kbd className={cn(
-              'ml-0.5 rounded px-1 text-[10px] font-semibold leading-[15px]',
+              'ml-0.5 rounded px-1 text-micro font-semibold leading-[15px]',
               d.id === 'interested' ? 'bg-white/20 text-white' : 'bg-[var(--bg-surface)] text-[var(--text-muted)]',
             )}>
               {d.key.toUpperCase()}

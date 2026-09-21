@@ -113,7 +113,7 @@ function ConvertDialog({ lead, onClose }: { lead: Lead; onClose: () => void }) {
   return (
     <Modal isOpen onClose={onClose} title="Qualify into a deal" size="sm">
       <form onSubmit={(e) => { e.preventDefault(); convert.mutate(); }} className="space-y-4">
-        <p className="text-[12.5px] leading-relaxed text-[var(--text-secondary)]">
+        <p className="text-body leading-relaxed text-[var(--text-secondary)]">
           {personName(lead)}
           {lead.company ? ` at ${lead.company}` : ''} moves into the pipeline. The note, label and source
           come with them, and the lead stays here marked converted so the lead-to-deal rate still adds up.
@@ -127,7 +127,7 @@ function ConvertDialog({ lead, onClose }: { lead: Lead; onClose: () => void }) {
           onChange={(e) => setValue(e.target.value)}
           placeholder="0"
         />
-        <p className="-mt-2 text-[11px] text-[var(--text-tertiary)]">
+        <p className="-mt-2 text-caption text-[var(--text-tertiary)]">
           A rough figure is fine. The commercial shape — recurring, term, one-off — is set on the deal itself.
         </p>
         <div className="flex justify-end gap-2 pt-1">
@@ -158,7 +158,7 @@ function ArchiveDialog({ lead, onClose }: { lead: Lead; onClose: () => void }) {
   return (
     <Modal isOpen onClose={onClose} title="Drop this lead" size="sm">
       <form onSubmit={(e) => { e.preventDefault(); archive.mutate(); }} className="space-y-4">
-        <p className="text-[12.5px] leading-relaxed text-[var(--text-secondary)]">
+        <p className="text-body leading-relaxed text-[var(--text-secondary)]">
           It leaves the inbox but is kept. &ldquo;How many leads do we throw away, and why&rdquo; is the
           question that tells you whether the targeting is working, and it cannot be answered from
           rows that were deleted.
@@ -256,8 +256,8 @@ export function LeadsPage() {
             <Inbox className="h-5 w-5 text-[var(--indigo)]" />
           </span>
           <div className="min-w-0">
-            <h1 className="text-[19px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">Leads</h1>
-            <p className="text-[12.5px] text-[var(--text-tertiary)]">
+            <h1 className="text-title font-semibold tracking-[-0.01em] text-[var(--text-primary)]">Leads</h1>
+            <p className="text-body text-[var(--text-tertiary)]">
               People worth a look, held out of the pipeline until you decide they are real.
             </p>
           </div>
@@ -282,32 +282,32 @@ export function LeadsPage() {
       {(allLeads?.length || 0) > 0 && (
         <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-2.5">
           <span className="inline-flex items-baseline gap-1.5">
-            <span className="text-[11px] text-[var(--text-tertiary)]">In the inbox</span>
-            <span className="text-[13px] font-semibold tabular-nums text-[var(--text-primary)]">{funnel.open}</span>
+            <span className="text-caption text-[var(--text-tertiary)]">In the inbox</span>
+            <span className="text-strong font-semibold tabular-nums text-[var(--text-primary)]">{funnel.open}</span>
           </span>
           {funnel.openValue > 0 && (
             <span className="inline-flex items-baseline gap-1.5">
-              <span className="text-[11px] text-[var(--text-tertiary)]">Estimated</span>
-              <span className="text-[13px] font-semibold tabular-nums text-[var(--text-primary)]">{money(funnel.openValue)}</span>
+              <span className="text-caption text-[var(--text-tertiary)]">Estimated</span>
+              <span className="text-strong font-semibold tabular-nums text-[var(--text-primary)]">{money(funnel.openValue)}</span>
             </span>
           )}
           <span className="inline-flex items-baseline gap-1.5">
-            <span className="text-[11px] text-[var(--text-tertiary)]">Qualified</span>
-            <span className="text-[13px] font-semibold tabular-nums text-[var(--text-primary)]">{funnel.converted}</span>
+            <span className="text-caption text-[var(--text-tertiary)]">Qualified</span>
+            <span className="text-strong font-semibold tabular-nums text-[var(--text-primary)]">{funnel.converted}</span>
           </span>
           {funnel.conversionRate !== null && (
             <span
               className="inline-flex items-baseline gap-1.5"
               title={`${funnel.converted} qualified out of ${funnel.converted + funnel.archived} decided`}
             >
-              <span className="text-[11px] text-[var(--text-tertiary)]">Conversion</span>
-              <span className="text-[13px] font-semibold tabular-nums text-[var(--indigo)]">{funnel.conversionRate}%</span>
+              <span className="text-caption text-[var(--text-tertiary)]">Conversion</span>
+              <span className="text-strong font-semibold tabular-nums text-[var(--indigo)]">{funnel.conversionRate}%</span>
             </span>
           )}
           <span className="flex-1" />
           {staleCount > 0 && (
             <span
-              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-2 py-1 text-[11.5px] font-medium text-amber-700 dark:text-amber-400"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-2 py-1 text-caption font-medium text-amber-700 dark:text-amber-400"
               title={`Open for more than ${LEAD_STALE_DAYS} days`}
             >
               <Clock className="h-3.5 w-3.5" />
@@ -324,7 +324,7 @@ export function LeadsPage() {
             type="button"
             onClick={() => setTab(t.id)}
             className={cn(
-              'rounded-lg px-2.5 py-1 text-[12px] font-medium transition-colors',
+              'rounded-lg px-2.5 py-1 text-body font-medium transition-colors',
               tab === t.id
                 ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
                 : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
@@ -363,22 +363,22 @@ export function LeadsPage() {
                   <Avatar name={name} email={lead.contact?.email} size="md" />
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-1.5">
-                      <span className="truncate text-[12.5px] font-medium text-[var(--text-primary)]">{lead.title}</span>
+                      <span className="truncate text-body font-medium text-[var(--text-primary)]">{lead.title}</span>
                       {lead.label && (
-                        <span className={cn('rounded-full px-1.5 py-0.5 text-[9.5px] font-bold uppercase', LABEL_TONE[lead.label])}>
+                        <span className={cn('rounded-full px-1.5 py-0.5 text-micro font-bold uppercase', LABEL_TONE[lead.label])}>
                           {lead.label}
                         </span>
                       )}
                       {stale && (
                         <span
                           title={`Open for more than ${LEAD_STALE_DAYS} days — somebody answered and nobody answered back`}
-                          className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9.5px] font-bold uppercase text-amber-700 dark:text-amber-400"
+                          className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-micro font-bold uppercase text-amber-700 dark:text-amber-400"
                         >
                           <Clock className="h-2.5 w-2.5" /> waiting
                         </span>
                       )}
                     </span>
-                    <span className="flex flex-wrap items-center gap-x-2 text-[11px] text-[var(--text-tertiary)]">
+                    <span className="flex flex-wrap items-center gap-x-2 text-caption text-[var(--text-tertiary)]">
                       <span className="truncate">{name}</span>
                       {lead.contact?.job_title && (
                         <span className="inline-flex items-center gap-1 truncate">
@@ -392,7 +392,7 @@ export function LeadsPage() {
                 </button>
 
                 {lead.value != null && (
-                  <span className="flex-shrink-0 text-[12.5px] font-semibold tabular-nums text-[var(--text-primary)]">
+                  <span className="flex-shrink-0 text-body font-semibold tabular-nums text-[var(--text-primary)]">
                     {money(lead.value, lead.currency)}
                   </span>
                 )}
@@ -407,7 +407,7 @@ export function LeadsPage() {
                           onClick={() => setLabel.mutate({ id: lead.id, label: lead.label === l.id ? null : l.id })}
                           title={`Mark ${l.label.toLowerCase()}`}
                           className={cn(
-                            'rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold transition-colors',
+                            'rounded-md px-1.5 py-0.5 text-micro font-semibold transition-colors',
                             lead.label === l.id ? LABEL_TONE[l.id] : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]',
                           )}
                         >
@@ -432,14 +432,14 @@ export function LeadsPage() {
                     type="button"
                     onClick={() => lead.converted_deal_id && navigate(`/deals/${lead.converted_deal_id}`)}
                     disabled={!lead.converted_deal_id}
-                    className="inline-flex flex-shrink-0 items-center gap-1 text-[12px] font-medium text-[var(--indigo)] hover:underline disabled:text-[var(--text-muted)] disabled:no-underline"
+                    className="inline-flex flex-shrink-0 items-center gap-1 text-body font-medium text-[var(--indigo)] hover:underline disabled:text-[var(--text-muted)] disabled:no-underline"
                   >
                     {lead.converted_deal_id ? <>Open the deal <ArrowRight className="h-3.5 w-3.5" /></> : 'Deal deleted'}
                   </button>
                 ) : (
                   <div className="flex flex-shrink-0 items-center gap-1">
                     {lead.archived_reason && (
-                      <span className="text-[11.5px] text-[var(--text-tertiary)]">{lead.archived_reason}</span>
+                      <span className="text-caption text-[var(--text-tertiary)]">{lead.archived_reason}</span>
                     )}
                     <button
                       type="button"

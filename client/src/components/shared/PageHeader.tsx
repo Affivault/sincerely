@@ -48,7 +48,7 @@ export function PageHeader({
       <div className="relative px-6 pt-5 pb-4">
         {/* Breadcrumbs */}
         {breadcrumbs && breadcrumbs.length > 0 && (
-          <nav className="flex items-center gap-1 mb-2 text-[12px] text-[var(--text-tertiary)]">
+          <nav className="flex items-center gap-1 mb-2 text-body text-[var(--text-tertiary)]">
             {breadcrumbs.map((bc, i) => (
               <span key={i} className="flex items-center gap-1">
                 {bc.href ? (
@@ -73,16 +73,16 @@ export function PageHeader({
           {leading && <div className="flex-shrink-0 mt-1">{leading}</div>}
 
           <div className="flex-1 min-w-0">
-            <h1 className="text-[22px] font-semibold text-[var(--text-primary)] leading-[1.15] tracking-[-0.02em]">
+            <h1 className="text-display font-semibold text-[var(--text-primary)] leading-[1.15] tracking-[-0.02em]">
               {title}
             </h1>
             {description && (
-              <p className="mt-1 text-[13px] text-[var(--text-secondary)] leading-snug max-w-2xl">
+              <p className="mt-1 text-strong text-[var(--text-secondary)] leading-snug max-w-2xl">
                 {description}
               </p>
             )}
             {meta && (
-              <div className="mt-2 flex items-center gap-2 text-[12px] text-[var(--text-tertiary)]">
+              <div className="mt-2 flex items-center gap-2 text-body text-[var(--text-tertiary)]">
                 {meta}
               </div>
             )}

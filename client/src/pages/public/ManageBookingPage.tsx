@@ -75,10 +75,10 @@ export function ManageBookingPage() {
       <PublicShell>
         <div className="text-center py-14" data-state="error">
           <AlertCircle className="h-8 w-8 mx-auto text-[var(--text-tertiary)]" />
-          <h1 className="mt-3 text-[17px] font-semibold text-[var(--text-primary)]">
+          <h1 className="mt-3 text-title font-semibold text-[var(--text-primary)]">
             This link is no longer valid
           </h1>
-          <p className="mt-1 text-[13px] text-[var(--text-secondary)]">
+          <p className="mt-1 text-strong text-[var(--text-secondary)]">
             It may have been used already, or the meeting may have been removed.
           </p>
         </div>
@@ -108,14 +108,14 @@ export function ManageBookingPage() {
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-elevated)]">
             <CalendarX className="h-6 w-6 text-[var(--text-tertiary)]" />
           </span>
-          <h1 className="mt-4 text-[18px] font-semibold text-[var(--text-primary)]">
+          <h1 className="mt-4 text-title font-semibold text-[var(--text-primary)]">
             This meeting was cancelled
           </h1>
-          <p className="mt-1 text-[13px] text-[var(--text-secondary)] line-through">
+          <p className="mt-1 text-strong text-[var(--text-secondary)] line-through">
             {fmtLong(b.start)} at {fmtTime(b.start)}
           </p>
           {b.cancel_reason && (
-            <p className="mt-2 text-[12.5px] text-[var(--text-tertiary)]">&ldquo;{b.cancel_reason}&rdquo;</p>
+            <p className="mt-2 text-body text-[var(--text-tertiary)]">&ldquo;{b.cancel_reason}&rdquo;</p>
           )}
           {b.slug && (
             <a href={`/b/${b.slug}`} className="btn-primary mt-6 inline-flex">
@@ -141,17 +141,17 @@ export function ManageBookingPage() {
       <PublicShell>
         <button
           onClick={() => { setMode('view'); setPicked(null); move.reset(); }}
-          className="flex items-center gap-1 text-[12.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          className="flex items-center gap-1 text-body text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> Back
         </button>
-        <h1 className="mt-3 text-[17px] font-semibold text-[var(--text-primary)]">Pick a new time</h1>
-        <p className="mt-0.5 text-[12.5px] text-[var(--text-tertiary)]">
+        <h1 className="mt-3 text-title font-semibold text-[var(--text-primary)]">Pick a new time</h1>
+        <p className="mt-0.5 text-body text-[var(--text-tertiary)]">
           {b.duration_minutes} minutes with {b.organiser} &middot; times in {zone.replace(/_/g, ' ')}
         </p>
 
         {slots.isFetching && (
-          <p className="mt-5 flex items-center gap-1.5 text-[12.5px] text-[var(--text-tertiary)]">
+          <p className="mt-5 flex items-center gap-1.5 text-body text-[var(--text-tertiary)]">
             <Loader2 className="h-3 w-3 animate-spin" /> Looking at the diary&hellip;
           </p>
         )}
@@ -159,14 +159,14 @@ export function ManageBookingPage() {
         <div className="mt-4 space-y-4 max-h-[400px] overflow-y-auto pr-1" data-slots>
           {[...byDay.entries()].map(([day, times]) => (
             <div key={day}>
-              <p className="text-[12px] font-semibold text-[var(--text-primary)]">{day}</p>
+              <p className="text-body font-semibold text-[var(--text-primary)]">{day}</p>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {times.map((s) => (
                   <button
                     key={s.start}
                     onClick={() => setPicked(s)}
                     className={cn(
-                      'rounded-md border px-2.5 py-1 text-[12.5px] tabular transition-colors',
+                      'rounded-md border px-2.5 py-1 text-body tabular transition-colors',
                       picked?.start === s.start
                         ? 'border-[var(--indigo)] bg-[var(--indigo)] text-white'
                         : 'border-[var(--border-subtle)] text-[var(--text-primary)] hover:border-[var(--indigo)]',
@@ -182,7 +182,7 @@ export function ManageBookingPage() {
             </div>
           ))}
           {!slots.isFetching && list.length === 0 && (
-            <p className="text-[12.5px] text-[var(--text-secondary)]">
+            <p className="text-body text-[var(--text-secondary)]">
               Nothing free in the next month. Leave this one as it is, or cancel and
               get in touch another way.
             </p>
@@ -190,7 +190,7 @@ export function ManageBookingPage() {
         </div>
 
         {move.isError && (
-          <p className="mt-3 flex items-start gap-1.5 text-[12.5px] text-[var(--text-primary)]" data-error>
+          <p className="mt-3 flex items-start gap-1.5 text-body text-[var(--text-primary)]" data-error>
             <AlertCircle className="h-3.5 w-3.5 mt-[1px] text-[#ef4444]" />
             {(move.error as any)?.response?.data?.error || 'That did not go through.'}
           </p>
@@ -215,18 +215,18 @@ export function ManageBookingPage() {
       <PublicShell>
         <button
           onClick={() => { setMode('view'); drop.reset(); }}
-          className="flex items-center gap-1 text-[12.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          className="flex items-center gap-1 text-body text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> Back
         </button>
-        <h1 className="mt-3 text-[17px] font-semibold text-[var(--text-primary)]">
+        <h1 className="mt-3 text-title font-semibold text-[var(--text-primary)]">
           Cancel this meeting?
         </h1>
-        <p className="mt-1 text-[13px] text-[var(--text-secondary)]">
+        <p className="mt-1 text-strong text-[var(--text-secondary)]">
           {fmtLong(b.start)} at {fmtTime(b.start)}
         </p>
         <label className="mt-4 block">
-          <span className="text-[12.5px] font-medium text-[var(--text-primary)]">
+          <span className="text-body font-medium text-[var(--text-primary)]">
             Anything you want to say? <span className="text-[var(--text-tertiary)]">Optional</span>
           </span>
           <textarea
@@ -238,7 +238,7 @@ export function ManageBookingPage() {
           />
         </label>
         {drop.isError && (
-          <p className="mt-3 text-[12.5px] text-[#ef4444]" data-error>
+          <p className="mt-3 text-body text-[#ef4444]" data-error>
             {(drop.error as any)?.response?.data?.error || 'That did not go through.'}
           </p>
         )}
@@ -267,12 +267,12 @@ export function ManageBookingPage() {
         <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--indigo-subtle,var(--bg-elevated))]">
           <Check className="h-5 w-5 text-[var(--indigo)]" />
         </span>
-        <h1 className="mt-3 text-[18px] font-semibold text-[var(--text-primary)]">{b.headline}</h1>
-        <p className="mt-0.5 text-[12.5px] text-[var(--text-tertiary)]">with {b.organiser}</p>
+        <h1 className="mt-3 text-title font-semibold text-[var(--text-primary)]">{b.headline}</h1>
+        <p className="mt-0.5 text-body text-[var(--text-tertiary)]">with {b.organiser}</p>
 
         <div className="mt-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2.5">
-          <p className="text-[13.5px] font-medium text-[var(--text-primary)]">{fmtLong(b.start)}</p>
-          <p className="mt-0.5 flex items-center gap-1 text-[12.5px] text-[var(--text-secondary)]">
+          <p className="text-strong font-medium text-[var(--text-primary)]">{fmtLong(b.start)}</p>
+          <p className="mt-0.5 flex items-center gap-1 text-body text-[var(--text-secondary)]">
             <Clock className="h-3.5 w-3.5" />
             {fmtTime(b.start)} &ndash; {fmtTime(b.end)}
             <span className="text-[var(--text-tertiary)]">&middot; {zone.replace(/_/g, ' ')}</span>
@@ -280,7 +280,7 @@ export function ManageBookingPage() {
         </div>
 
         {past ? (
-          <p className="mt-4 text-[12.5px] text-[var(--text-tertiary)]">
+          <p className="mt-4 text-body text-[var(--text-tertiary)]">
             This meeting has already happened.
           </p>
         ) : (
@@ -296,7 +296,7 @@ export function ManageBookingPage() {
                 <CalendarX className="h-3.5 w-3.5" /> Cancel
               </button>
             </div>
-            <p className="mt-3 text-[11.5px] text-[var(--text-tertiary)]">
+            <p className="mt-3 text-caption text-[var(--text-tertiary)]">
               Booked as {b.invitee_name} &middot; {b.invitee_email}
             </p>
           </>

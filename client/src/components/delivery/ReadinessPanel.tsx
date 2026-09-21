@@ -98,16 +98,16 @@ export function CheckRow({ check }: { check: ReadinessCheck }) {
       <StatusDot status={check.status} className="mt-[3px]" />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2">
-          <span className="text-[12.5px] font-medium text-[var(--text-primary)]">{check.label}</span>
-          <span className="text-[12.5px] text-[var(--text-secondary)]">{check.headline}</span>
+          <span className="text-body font-medium text-[var(--text-primary)]">{check.label}</span>
+          <span className="text-body text-[var(--text-secondary)]">{check.headline}</span>
         </div>
         {check.detail && (
-          <p className="mt-1 text-[11.5px] leading-relaxed text-[var(--text-tertiary)]">{check.detail}</p>
+          <p className="mt-1 text-caption leading-relaxed text-[var(--text-tertiary)]">{check.detail}</p>
         )}
         {check.facts.length > 0 && (
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
             {check.facts.map((f) => (
-              <span key={f.label} className="text-[11px] text-[var(--text-tertiary)]">
+              <span key={f.label} className="text-caption text-[var(--text-tertiary)]">
                 {f.label} <span className="font-semibold tabular text-[var(--text-secondary)]">{f.value}</span>
               </span>
             ))}
@@ -117,7 +117,7 @@ export function CheckRow({ check }: { check: ReadinessCheck }) {
       {check.fix && (
         <Link
           to={check.fix.href}
-          className="mt-[1px] inline-flex flex-shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11.5px] font-semibold text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
+          className="mt-[1px] inline-flex flex-shrink-0 items-center gap-1 rounded-md px-2 py-1 text-caption font-semibold text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
         >
           {check.fix.label}
           <ArrowRight className="h-3 w-3" />
@@ -151,12 +151,12 @@ export function ReadinessPanel() {
     return (
       <div className="flex items-center gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3">
         <AlertTriangle className="h-4 w-4 flex-shrink-0 text-amber-500" />
-        <span className="flex-1 text-[12.5px] text-[var(--text-secondary)]">
+        <span className="flex-1 text-body text-[var(--text-secondary)]">
           Couldn&rsquo;t work out your sending readiness just now — that is this check failing, not a verdict on your setup.
         </span>
         <button
           onClick={() => qc.invalidateQueries({ queryKey: ['readiness'] })}
-          className="text-[12px] font-semibold text-[var(--indigo)] hover:underline"
+          className="text-body font-semibold text-[var(--indigo)] hover:underline"
         >
           Retry
         </button>
@@ -188,27 +188,27 @@ export function ReadinessPanel() {
                 * fine, and shouting is what you have left when the sentence
                 * underneath is not carrying its weight.
                 */}
-              <span className={cn('inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold', v.chip)}>
+              <span className={cn('inline-flex items-center rounded-md px-1.5 py-0.5 text-caption font-semibold', v.chip)}>
                 {v.label}
               </span>
               {problems > 0 && (
-                <span className="text-[11px] text-[var(--text-tertiary)]">
+                <span className="text-caption text-[var(--text-tertiary)]">
                   {problems} of {report.checks.length} check{problems === 1 ? '' : 's'}{' '}
                   need{problems === 1 ? 's' : ''} attention
                 </span>
               )}
             </div>
-            <p className="mt-1.5 text-[14px] font-semibold leading-snug text-[var(--text-primary)]">
+            <p className="mt-1.5 text-heading font-semibold leading-snug text-[var(--text-primary)]">
               {report.summary}
             </p>
             {capacity && (
-              <p className="mt-1 text-[12px] text-[var(--text-secondary)] tabular">{capacity}</p>
+              <p className="mt-1 text-body text-[var(--text-secondary)] tabular">{capacity}</p>
             )}
           </div>
           <button
             onClick={() => qc.invalidateQueries({ queryKey: ['readiness'] })}
             disabled={isFetching}
-            className="icon-btn h-7 px-2 text-[11.5px] flex-shrink-0"
+            className="icon-btn h-7 px-2 text-caption flex-shrink-0"
             title="Re-run every check"
           >
             <RefreshCw className={cn('h-3 w-3', isFetching && 'animate-spin')} />
@@ -243,7 +243,7 @@ export function ReadinessPanel() {
             data-show-settled
           >
             <Check className="h-3.5 w-3.5 flex-shrink-0 text-emerald-500" strokeWidth={3} />
-            <span className="text-[12.5px] text-[var(--text-secondary)]">
+            <span className="text-body text-[var(--text-secondary)]">
               {passing.length > 0 && <>{passing.length} check{passing.length === 1 ? '' : 's'} passing</>}
               {passing.length > 0 && unknown.length > 0 && ', '}
               {unknown.length > 0 && (
@@ -265,7 +265,7 @@ export function ReadinessPanel() {
         </div>
       )}
 
-      <p className="text-[11px] text-[var(--text-muted)]">
+      <p className="text-caption text-[var(--text-muted)]">
         Checked {new Date(report.generated_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.
         Every number here is the same one the send path uses.
       </p>
@@ -295,10 +295,10 @@ export function ReadinessSummary({ className }: { className?: string }) {
       <div className="flex items-start gap-2.5">
         <v.Icon className={cn('h-4 w-4 flex-shrink-0 mt-px', v.icon)} />
         <div className="min-w-0 flex-1">
-          <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">{report.summary}</p>
+          <p className="text-body font-semibold text-[var(--text-primary)]">{report.summary}</p>
           <ul className="mt-1.5 space-y-1">
             {problems.slice(0, 3).map((c) => (
-              <li key={c.id} className="flex items-start gap-1.5 text-[11.5px] text-[var(--text-secondary)]">
+              <li key={c.id} className="flex items-start gap-1.5 text-caption text-[var(--text-secondary)]">
                 <StatusDot status={c.status} className="!h-3.5 !w-3.5 mt-[1px] [&>svg]:h-2 [&>svg]:w-2" />
                 <span className="min-w-0">{c.headline}</span>
               </li>
@@ -306,7 +306,7 @@ export function ReadinessSummary({ className }: { className?: string }) {
           </ul>
           <Link
             to="/email-accounts?tab=readiness"
-            className="mt-2 inline-flex items-center gap-1 text-[11.5px] font-semibold text-[var(--indigo)] hover:underline"
+            className="mt-2 inline-flex items-center gap-1 text-caption font-semibold text-[var(--indigo)] hover:underline"
           >
             See the full readiness check
             <ArrowRight className="h-3 w-3" />

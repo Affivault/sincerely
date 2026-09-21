@@ -115,11 +115,11 @@ function LinkPopover({
           if (e.key === 'Escape') onClose();
         }}
         placeholder="https://example.com"
-        className="text-xs bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-primary)] outline-none w-52"
+        className="text-body bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-primary)] outline-none w-52"
       />
       <button
         onClick={setLink}
-        className="px-2 py-1.5 rounded bg-[var(--text-primary)] text-[var(--bg-app)] text-xs font-medium hover:opacity-90"
+        className="px-2 py-1.5 rounded bg-[var(--text-primary)] text-[var(--bg-app)] text-body font-medium hover:opacity-90"
       >
         Apply
       </button>
@@ -165,7 +165,7 @@ function TemplatePicker({
         ref={ref}
         className="absolute top-full right-0 mt-1 z-50 p-4 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl shadow-xl w-64"
       >
-        <p className="text-xs text-[var(--text-tertiary)] text-center">
+        <p className="text-body text-[var(--text-tertiary)] text-center">
           No templates yet. Create one in the Templates page.
         </p>
       </div>
@@ -178,7 +178,7 @@ function TemplatePicker({
       className="absolute top-full right-0 mt-1 z-50 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl shadow-xl w-72 max-h-64 overflow-y-auto"
     >
       <div className="px-3 py-2 border-b border-[var(--border-subtle)]">
-        <p className="text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">
+        <p className="text-caption font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">
           Insert Template
         </p>
       </div>
@@ -191,8 +191,8 @@ function TemplatePicker({
           }}
           className="w-full text-left px-3 py-2.5 hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-subtle)] last:border-0"
         >
-          <p className="text-sm font-medium text-[var(--text-primary)] truncate">{t.name}</p>
-          <p className="text-[11px] text-[var(--text-tertiary)] truncate mt-0.5">{t.subject}</p>
+          <p className="text-strong font-medium text-[var(--text-primary)] truncate">{t.name}</p>
+          <p className="text-caption text-[var(--text-tertiary)] truncate mt-0.5">{t.subject}</p>
         </button>
       ))}
     </div>
@@ -397,7 +397,7 @@ export function RichTextEditor({
               <button
                 type="button"
                 onClick={() => setShowTemplates(!showTemplates)}
-                className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-caption font-medium transition-colors ${
                   showTemplates
                     ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm'
                     : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'

@@ -341,7 +341,7 @@ export function CampaignsListPage() {
         {/* Folder rail */}
         <aside className="panel-inset p-1.5 self-start sticky top-[56px] max-h-[calc(100vh-72px)] overflow-y-auto">
           <div className="px-2 pt-1 pb-1.5 flex items-center justify-between">
-            <span className="text-[10.5px] font-semibold text-[var(--text-tertiary)]">Folders</span>
+            <span className="text-micro font-semibold text-[var(--text-tertiary)]">Folders</span>
             <button
               onClick={() => { setEditingFolder(null); setNewFolderParent(null); setFolderModalOpen(true); }}
               title="New folder"
@@ -423,7 +423,7 @@ export function CampaignsListPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search…"
-                className="h-7 pl-8 pr-7 text-[12.5px] rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[rgba(91,91,245,0.4)] focus:bg-[var(--bg-surface)] transition-colors w-40"
+                className="h-7 pl-8 pr-7 text-body rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[rgba(91,91,245,0.4)] focus:bg-[var(--bg-surface)] transition-colors w-40"
               />
               {searchQuery && (
                 <button
@@ -486,7 +486,7 @@ export function CampaignsListPage() {
                         key={col.key}
                         onClick={() => toggleSort(col.key)}
                         className={cn(
-                          'group/sort inline-flex items-center gap-1 text-[11px] font-medium transition-colors select-none',
+                          'group/sort inline-flex items-center gap-1 text-caption font-medium transition-colors select-none',
                           col.right && 'justify-end',
                           sortKey === col.key ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                         )}
@@ -497,7 +497,7 @@ export function CampaignsListPage() {
                           : <ChevronsUpDown className="h-3 w-3 opacity-0 group-hover/sort:opacity-60 transition-opacity" />}
                       </button>
                     ))}
-                    <span className="text-[11px] font-medium text-[var(--text-tertiary)]">Pipeline</span>
+                    <span className="text-caption font-medium text-[var(--text-tertiary)]">Pipeline</span>
                     <span />
                   </div>
                   <div className="divide-y divide-[var(--border-subtle)]">
@@ -547,12 +547,12 @@ export function CampaignsListPage() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-          <div className="px-3 py-1.5 text-[10px] text-[var(--text-tertiary)] border-b border-[var(--border-subtle)]">
+          <div className="px-3 py-1.5 text-micro text-[var(--text-tertiary)] border-b border-[var(--border-subtle)]">
             Move to folder
           </div>
           <button
             onClick={() => moveMut.mutate({ campaignId: contextMenuFor.id, folderId: null })}
-            className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
+            className="w-full text-left px-3 py-2 text-strong text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
           >
             <Folder className="h-3.5 w-3.5" /> Uncategorised
           </button>
@@ -560,7 +560,7 @@ export function CampaignsListPage() {
             <button
               key={f.id}
               onClick={() => moveMut.mutate({ campaignId: contextMenuFor.id, folderId: f.id })}
-              className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
+              className="w-full text-left px-3 py-2 text-strong text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
             >
               <Folder className="h-3.5 w-3.5" style={{ color: f.color }} /> {f.name}
             </button>
@@ -568,7 +568,7 @@ export function CampaignsListPage() {
           <div className="border-t border-[var(--border-subtle)] my-1" />
           <button
             onClick={() => { cloneMut.mutate(contextMenuFor.id); setContextMenuFor(null); }}
-            className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
+            className="w-full text-left px-3 py-2 text-strong text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] flex items-center gap-2"
           >
             <Copy className="h-3.5 w-3.5" /> Duplicate
           </button>
@@ -577,7 +577,7 @@ export function CampaignsListPage() {
               { title: `Delete "${contextMenuFor.name}"?`, body: 'The sequence, its schedule and its stats go with it. Contacts stay in their lists.', tone: 'danger' },
               () => { deleteMut.mutate(contextMenuFor.id); setContextMenuFor(null); },
             )}
-            className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-2"
+            className="w-full text-left px-3 py-2 text-strong text-red-500 hover:bg-red-500/10 flex items-center gap-2"
           >
             <Trash2 className="h-3.5 w-3.5" /> Delete
           </button>
@@ -644,7 +644,7 @@ function FolderRow({ label, icon: Icon, count, active, onClick, onEdit, onAnalyt
       <button
         onClick={onClick}
         className={cn(
-          'w-full flex items-center gap-2 px-2 h-7 rounded-[6px] text-[12.5px] text-left transition-colors',
+          'w-full flex items-center gap-2 px-2 h-7 rounded-[6px] text-body text-left transition-colors',
           indent && 'pl-6',
           active
             ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_0_0_1px_var(--border-subtle),0_1px_2px_rgba(15,15,25,0.04)] font-medium'
@@ -662,7 +662,7 @@ function FolderRow({ label, icon: Icon, count, active, onClick, onEdit, onAnalyt
         <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: color }} />
         <Icon className="h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]" strokeWidth={1.75} />
         <span className="flex-1 truncate">{label}</span>
-        <span className="text-[10.5px] text-[var(--text-tertiary)] tabular">{count}</span>
+        <span className="text-micro text-[var(--text-tertiary)] tabular">{count}</span>
       </button>
       {(onEdit || onAnalytics || onAddSub) && (
         <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-px bg-[var(--bg-surface)] rounded shadow-[0_0_0_1px_var(--border-subtle)] px-0.5">
@@ -694,14 +694,14 @@ function MetricChip({ icon: Icon, label, value, readout }: {
     <div className="panel p-4" title={readout?.hint}>
       <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
         <Icon className="h-4 w-4 flex-shrink-0" strokeWidth={1.75} />
-        <span className="text-[12.5px] font-medium">{label}</span>
+        <span className="text-body font-medium">{label}</span>
         {/* The count below is always true. The rate beside it only appears
             once it is, and the chip is not empty without it. */}
         {readout?.isRate && (
-          <span className="ml-auto text-[12px] tabular font-semibold text-[var(--text-secondary)]">{readout.label}</span>
+          <span className="ml-auto text-body tabular font-semibold text-[var(--text-secondary)]">{readout.label}</span>
         )}
       </div>
-      <div className="mt-2.5 text-[26px] font-semibold text-[var(--text-primary)] tabular tracking-[-0.03em] leading-none">
+      <div className="mt-2.5 text-hero font-semibold text-[var(--text-primary)] tabular tracking-[-0.03em] leading-none">
         {value.toLocaleString()}
       </div>
     </div>
@@ -736,7 +736,7 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
 
   const metric = (v: string, strong = false, warn = false) => (
     <span className={cn(
-      'text-[13.5px] tabular text-right',
+      'text-strong tabular text-right',
       warn ? 'font-semibold text-rose-500' : strong ? 'font-semibold text-[var(--text-primary)]' : 'font-medium text-[var(--text-secondary)]'
     )}>{v}</span>
   );
@@ -752,7 +752,7 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
       <div className="text-right min-w-0" title={r.hint}>
         <span className={cn(
           'tabular',
-          r.isRate ? 'text-[13.5px]' : 'text-[12px] text-[var(--text-tertiary)]',
+          r.isRate ? 'text-strong' : 'text-body text-[var(--text-tertiary)]',
           r.isRate && (warn ? 'font-semibold text-rose-500' : strong ? 'font-semibold text-[var(--text-primary)]' : 'font-medium text-[var(--text-secondary)]'),
         )} data-rate-cell>{r.label}</span>
         {/* No bar below the sample: a short bar reads as "doing badly"
@@ -788,15 +788,15 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
         <span className={cn('h-1.5 w-1.5 rounded-full flex-shrink-0', STATUS_DOT[campaign.status] || 'bg-slate-400')} />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="text-[13.5px] font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">{campaign.name}</h3>
+            <h3 className="text-strong font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">{campaign.name}</h3>
             <StatusBadge status={campaign.status} type="campaign" />
             {bounced > 0 && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-rose-500 flex-shrink-0" title={`${bounced} bounces — check deliverability`}>
+              <span className="inline-flex items-center gap-0.5 text-micro font-semibold text-rose-500 flex-shrink-0" title={`${bounced} bounces — check deliverability`}>
                 <AlertTriangle className="h-3 w-3" />{bounced}
               </span>
             )}
           </div>
-          <p className="text-[11px] text-[var(--text-tertiary)] truncate mt-0.5">
+          <p className="text-caption text-[var(--text-tertiary)] truncate mt-0.5">
             {campaign.steps_count || 0} steps · {totalContacts.toLocaleString()} contacts · <span title={formatDate(campaign.created_at)}>{formatRelativeTime(campaign.created_at)}</span>
           </p>
         </div>
@@ -815,9 +815,9 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
         * as the second.
         */}
       <div className="text-right min-w-0" title={revenue ? `${revenue.won} won, ${revenue.open} still open` : 'No deals credited to this campaign yet'}>
-        <span className={cn('text-[13.5px] tabular', revenue && revenue.won_value > 0
+        <span className={cn('text-strong tabular', revenue && revenue.won_value > 0
           ? 'font-semibold text-emerald-600 dark:text-emerald-400'
-          : 'text-[11.5px] text-[var(--text-tertiary)]')} data-earned-cell>
+          : 'text-caption text-[var(--text-tertiary)]')} data-earned-cell>
           {revenue && revenue.won_value > 0 ? fmtMoney(revenue.won_value) : '\u2014'}
         </span>
       </div>
@@ -827,11 +827,11 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
         <div className="h-1.5 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
           <div className="h-full rounded-full bg-[var(--indigo)] transition-all duration-500" style={{ width: `${pipelinePct}%` }} />
         </div>
-        <div className="text-[9.5px] tabular text-[var(--text-tertiary)] mt-1 truncate flex items-center gap-1">
+        <div className="text-micro tabular text-[var(--text-tertiary)] mt-1 truncate flex items-center gap-1">
           {total.toLocaleString()} / {totalContacts.toLocaleString()} sent
           {campaign.status === 'running' && (campaign.active_contacts ?? 0) > 0 && (
             <span
-              className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-500 flex-shrink-0"
+              className="inline-flex items-center gap-0.5 text-micro font-semibold text-emerald-500 flex-shrink-0"
               title={`${campaign.active_contacts} contact${campaign.active_contacts === 1 ? '' : 's'} still in sequence`}
             >
               <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse inline-block" />
@@ -880,14 +880,14 @@ function FunnelRow({ icon: Icon, label, value, pct, tone }: {
     <div className="flex items-center gap-3">
       <div className="flex items-center gap-1.5 w-[88px] flex-shrink-0">
         <Icon className="h-3.5 w-3.5" strokeWidth={2} style={{ color: tone }} />
-        <span className="text-[11.5px] font-medium text-[var(--text-secondary)]">{label}</span>
+        <span className="text-caption font-medium text-[var(--text-secondary)]">{label}</span>
       </div>
       <div className="flex-1 h-2 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
         <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(pct, value > 0 ? 2 : 0)}%`, background: tone }} />
       </div>
       <div className="w-[112px] flex-shrink-0 text-right">
-        <span className="text-[12.5px] font-semibold text-[var(--text-primary)] tabular">{value.toLocaleString()}</span>
-        <span className="text-[11px] text-[var(--text-tertiary)] tabular ml-1.5">{pct.toFixed(1)}%</span>
+        <span className="text-body font-semibold text-[var(--text-primary)] tabular">{value.toLocaleString()}</span>
+        <span className="text-caption text-[var(--text-tertiary)] tabular ml-1.5">{pct.toFixed(1)}%</span>
       </div>
     </div>
   );
@@ -922,8 +922,8 @@ function CampaignSnapshot({ campaign: c, onOpenReport }: { campaign: any; onOpen
         {/* Conversion funnel */}
         <div>
           <div className="flex items-center justify-between mb-2.5">
-            <span className="text-[10px] font-semibold text-[var(--text-tertiary)]">Conversion funnel</span>
-            {sent === 0 && <span className="text-[10.5px] text-[var(--text-tertiary)]">No emails sent yet</span>}
+            <span className="text-micro font-semibold text-[var(--text-tertiary)]">Conversion funnel</span>
+            {sent === 0 && <span className="text-micro text-[var(--text-tertiary)]">No emails sent yet</span>}
           </div>
           <div className="space-y-2">
             <FunnelRow icon={Send}              label="Sent"    value={sent}    pct={sent ? 100 : 0} tone="#6366F1" />
@@ -936,14 +936,14 @@ function CampaignSnapshot({ campaign: c, onOpenReport }: { campaign: any; onOpen
           <div className="flex flex-wrap items-center gap-4 mt-4 pt-3 border-t border-[var(--border-subtle)]">
             <div className="flex items-center gap-1.5" title="Bounce rate">
               <AlertTriangle className={cn('h-3.5 w-3.5', bouncePct > 3 ? 'text-rose-500' : 'text-[var(--text-tertiary)]')} strokeWidth={2} />
-              <span className="text-[11.5px] text-[var(--text-secondary)]">
+              <span className="text-caption text-[var(--text-secondary)]">
                 <span className="font-semibold text-[var(--text-primary)] tabular">{bounced.toLocaleString()}</span> bounced
                 <span className="text-[var(--text-tertiary)] tabular ml-1">({bouncePct.toFixed(1)}%)</span>
               </span>
             </div>
             <div className="flex items-center gap-1.5" title="Unsubscribed">
               <Ban className="h-3.5 w-3.5 text-[var(--text-tertiary)]" strokeWidth={2} />
-              <span className="text-[11.5px] text-[var(--text-secondary)]">
+              <span className="text-caption text-[var(--text-secondary)]">
                 <span className="font-semibold text-[var(--text-primary)] tabular">{unsub.toLocaleString()}</span> unsubscribed
               </span>
             </div>
@@ -955,8 +955,8 @@ function CampaignSnapshot({ campaign: c, onOpenReport }: { campaign: any; onOpen
           {/* Audience progress */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-semibold text-[var(--text-tertiary)]">Audience</span>
-              <span className="text-[11px] text-[var(--text-tertiary)] tabular">{totalContacts.toLocaleString()} contacts</span>
+              <span className="text-micro font-semibold text-[var(--text-tertiary)]">Audience</span>
+              <span className="text-caption text-[var(--text-tertiary)] tabular">{totalContacts.toLocaleString()} contacts</span>
             </div>
             <div className="flex h-2.5 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
               {seg(completed, '#6366F1', `${completed} completed`)}
@@ -973,7 +973,7 @@ function CampaignSnapshot({ campaign: c, onOpenReport }: { campaign: any; onOpen
 
           {/* Sending config */}
           <div>
-            <span className="text-[10px] font-semibold text-[var(--text-tertiary)]">Sending config</span>
+            <span className="text-micro font-semibold text-[var(--text-tertiary)]">Sending config</span>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2">
               <ConfigItem icon={Layers}   label="Steps"       value={`${c.steps_count || 0}`} />
               <ConfigItem icon={Gauge}    label="Daily limit" value={c.daily_limit ? `${c.daily_limit}/day` : '—'} />
@@ -988,7 +988,7 @@ function CampaignSnapshot({ campaign: c, onOpenReport }: { campaign: any; onOpen
                     key={d}
                     title={d.charAt(0).toUpperCase() + d.slice(1)}
                     className={cn(
-                      'flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold capitalize',
+                      'flex h-5 w-5 items-center justify-center rounded text-micro font-bold capitalize',
                       on ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)]'
                     )}
                   >
@@ -1001,7 +1001,7 @@ function CampaignSnapshot({ campaign: c, onOpenReport }: { campaign: any; onOpen
 
           <button
             onClick={onOpenReport}
-            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--indigo)] hover:gap-2 transition-all"
+            className="inline-flex items-center gap-1.5 text-body font-semibold text-[var(--indigo)] hover:gap-2 transition-all"
           >
             Open full report
             <ArrowUpRight className="h-3.5 w-3.5" />
@@ -1014,7 +1014,7 @@ function CampaignSnapshot({ campaign: c, onOpenReport }: { campaign: any; onOpen
 
 function LegendDot({ color, icon: Icon, label, value }: { color: string; icon?: any; label: string; value: number }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)]">
+    <span className="inline-flex items-center gap-1.5 text-caption text-[var(--text-secondary)]">
       <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: color }} />
       {Icon && <Icon className="h-3 w-3 text-[var(--text-tertiary)]" strokeWidth={2} />}
       {label}
@@ -1028,8 +1028,8 @@ function ConfigItem({ icon: Icon, label, value }: { icon: any; label: string; va
     <div className="flex items-center gap-2 min-w-0">
       <Icon className="h-3.5 w-3.5 text-[var(--text-tertiary)] flex-shrink-0" strokeWidth={2} />
       <div className="min-w-0">
-        <div className="text-[10px] text-[var(--text-tertiary)] leading-none">{label}</div>
-        <div className="text-[11.5px] font-medium text-[var(--text-primary)] truncate mt-0.5">{value}</div>
+        <div className="text-micro text-[var(--text-tertiary)] leading-none">{label}</div>
+        <div className="text-caption font-medium text-[var(--text-primary)] truncate mt-0.5">{value}</div>
       </div>
     </div>
   );
@@ -1072,7 +1072,7 @@ function FolderModal({ initial, parentId, parentName, onClose }: { initial: Camp
                 { title: `Delete the folder "${initial.name}"?`, body: 'The campaigns inside are kept — they move back out to the top level.', tone: 'danger', confirmLabel: 'Delete folder' },
                 () => deleteMut.mutate(),
               )}
-              className="text-[12px] font-medium text-[var(--error)] hover:underline"
+              className="text-body font-medium text-[var(--error)] hover:underline"
             >
               Delete folder
             </button>
@@ -1089,7 +1089,7 @@ function FolderModal({ initial, parentId, parentName, onClose }: { initial: Camp
       <form id="campaign-folder-form" onSubmit={(e) => { e.preventDefault(); saveMut.mutate(); }} className="space-y-4">
         <Input label="Name" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Acme Corp campaigns" />
         <div>
-          <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-2">Colour</label>
+          <label className="block text-body font-medium text-[var(--text-secondary)] mb-2">Colour</label>
           <div className="flex gap-2 flex-wrap">
             {FOLDER_COLORS.map((c) => (
               <button
@@ -1128,7 +1128,7 @@ function FolderAnalyticsModal({ folderId, onClose }: { folderId: string; onClose
       ) : !data || data.campaigns.length === 0 ? (
         <div className="text-center py-12 text-[var(--text-secondary)]">
           <Megaphone className="h-10 w-10 mx-auto text-[var(--text-tertiary)] mb-2" />
-          <p className="text-sm">No campaigns in this folder yet.</p>
+          <p className="text-strong">No campaigns in this folder yet.</p>
         </div>
       ) : (
         <>
@@ -1139,9 +1139,9 @@ function FolderAnalyticsModal({ folderId, onClose }: { folderId: string; onClose
             <MetricChip icon={MessageSquare}     label="Replied" value={data.totals.replied} tone="emerald" readout={rateReadout(data.totals.replied, data.totals.sent, 'replies')} />
           </div>
 
-          <div className="text-[10px] text-[var(--text-tertiary)] mb-2">By campaign</div>
-          <table className="w-full text-sm">
-            <thead className="text-[10px] text-[var(--text-tertiary)] border-b border-[var(--border-subtle)]">
+          <div className="text-micro text-[var(--text-tertiary)] mb-2">By campaign</div>
+          <table className="w-full text-strong">
+            <thead className="text-micro text-[var(--text-tertiary)] border-b border-[var(--border-subtle)]">
               <tr>
                 <th className="text-left py-2 font-medium">Campaign</th>
                 <th className="text-right py-2 font-medium">Sent</th>
@@ -1205,8 +1205,8 @@ function StartCampaignModal({ onClose }: { onClose: () => void }) {
           <Plus className="h-4 w-4 text-[var(--indigo)]" />
         </span>
         <span className="flex-1 min-w-0">
-          <span className="block text-[13.5px] font-semibold text-[var(--text-primary)]">Start from scratch</span>
-          <span className="block text-[11.5px] text-[var(--text-tertiary)]">A blank sequence — build your emails and timing step by step.</span>
+          <span className="block text-strong font-semibold text-[var(--text-primary)]">Start from scratch</span>
+          <span className="block text-caption text-[var(--text-tertiary)]">A blank sequence — build your emails and timing step by step.</span>
         </span>
         <ChevronRight className="h-4 w-4 text-[var(--text-muted)] flex-shrink-0" />
       </button>
@@ -1214,7 +1214,7 @@ function StartCampaignModal({ onClose }: { onClose: () => void }) {
       {/* Templates */}
       <div className="mt-4">
         <div className="flex items-center gap-2 mb-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Or use a template</p>
+          <p className="text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)]">Or use a template</p>
           <span className="flex-1" />
           {hasTemplates && (
             <div className="relative">
@@ -1223,7 +1223,7 @@ function StartCampaignModal({ onClose }: { onClose: () => void }) {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search templates…"
-                className="h-7 w-44 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] pr-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--indigo)] focus:outline-none"
+                className="h-7 w-44 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] pr-2 text-body text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--indigo)] focus:outline-none"
                 style={{ paddingLeft: '1.6rem' }}
               />
             </div>
@@ -1235,8 +1235,8 @@ function StartCampaignModal({ onClose }: { onClose: () => void }) {
         ) : !hasTemplates ? (
           <div className="rounded-xl border border-dashed border-[var(--border-default)] py-8 text-center">
             <Layers className="h-6 w-6 text-[var(--text-muted)] mx-auto mb-2" />
-            <p className="text-[12.5px] text-[var(--text-secondary)]">No templates saved yet.</p>
-            <button onClick={() => { onClose(); navigate('/templates'); }} className="mt-1 text-[12px] font-medium text-[var(--indigo)] hover:underline">
+            <p className="text-body text-[var(--text-secondary)]">No templates saved yet.</p>
+            <button onClick={() => { onClose(); navigate('/templates'); }} className="mt-1 text-body font-medium text-[var(--indigo)] hover:underline">
               Browse the template library →
             </button>
           </div>
@@ -1252,12 +1252,12 @@ function StartCampaignModal({ onClose }: { onClose: () => void }) {
                   <Layers className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                 </span>
                 <span className="flex-1 min-w-0">
-                  <span className="block text-[13px] font-medium text-[var(--text-primary)] truncate">{t.name}</span>
-                  <span className="block text-[11px] text-[var(--text-tertiary)] truncate">
+                  <span className="block text-strong font-medium text-[var(--text-primary)] truncate">{t.name}</span>
+                  <span className="block text-caption text-[var(--text-tertiary)] truncate">
                     Sequence · {(t.steps || []).length} email{(t.steps || []).length === 1 ? '' : 's'}{t.category ? ` · ${t.category}` : ''}
                   </span>
                 </span>
-                <span className="text-[11.5px] font-medium text-[var(--indigo)] flex-shrink-0">Use →</span>
+                <span className="text-caption font-medium text-[var(--indigo)] flex-shrink-0">Use →</span>
               </button>
             ))}
             {visibleEmails.map((t: any) => (
@@ -1270,14 +1270,14 @@ function StartCampaignModal({ onClose }: { onClose: () => void }) {
                   <Mail className="h-3.5 w-3.5 text-[var(--indigo)]" />
                 </span>
                 <span className="flex-1 min-w-0">
-                  <span className="block text-[13px] font-medium text-[var(--text-primary)] truncate">{t.name}</span>
-                  <span className="block text-[11px] text-[var(--text-tertiary)] truncate">Single email · {t.subject || 'No subject'}</span>
+                  <span className="block text-strong font-medium text-[var(--text-primary)] truncate">{t.name}</span>
+                  <span className="block text-caption text-[var(--text-tertiary)] truncate">Single email · {t.subject || 'No subject'}</span>
                 </span>
-                <span className="text-[11.5px] font-medium text-[var(--indigo)] flex-shrink-0">Use →</span>
+                <span className="text-caption font-medium text-[var(--indigo)] flex-shrink-0">Use →</span>
               </button>
             ))}
             {visibleSequences.length + visibleEmails.length === 0 && (
-              <p className="py-6 text-center text-[12px] text-[var(--text-tertiary)]">No templates match “{search}”.</p>
+              <p className="py-6 text-center text-body text-[var(--text-tertiary)]">No templates match “{search}”.</p>
             )}
           </div>
         )}

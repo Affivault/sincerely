@@ -57,8 +57,8 @@ function Panel({ title, hint, icon: Icon, children }: {
       <div className="mb-3 flex items-start gap-2">
         <Icon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-[var(--text-muted)]" />
         <div className="min-w-0">
-          <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">{title}</p>
-          {hint && <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-tertiary)]">{hint}</p>}
+          <p className="text-body font-semibold text-[var(--text-primary)]">{title}</p>
+          {hint && <p className="mt-0.5 text-caption leading-relaxed text-[var(--text-tertiary)]">{hint}</p>}
         </div>
       </div>
       {children}
@@ -67,7 +67,7 @@ function Panel({ title, hint, icon: Icon, children }: {
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="py-2 text-[12px] text-[var(--text-muted)]">{children}</p>;
+  return <p className="py-2 text-body text-[var(--text-muted)]">{children}</p>;
 }
 
 /** A labelled proportion bar. Always shows the counts behind the percentage. */
@@ -138,7 +138,7 @@ export function DealInsightsPage() {
     <div>
       <Link
         to="/deals"
-        className="group mb-3 inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]"
+        className="group mb-3 inline-flex items-center gap-1.5 text-body font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]"
       >
         <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
         Pipeline
@@ -150,8 +150,8 @@ export function DealInsightsPage() {
             <BarChart3 className="h-5 w-5 text-[var(--indigo)]" />
           </span>
           <div>
-            <h1 className="text-[19px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">Win / loss</h1>
-            <p className="text-[12.5px] text-[var(--text-tertiary)]">
+            <h1 className="text-title font-semibold tracking-[-0.01em] text-[var(--text-primary)]">Win / loss</h1>
+            <p className="text-body text-[var(--text-tertiary)]">
               Where deals die, why, how long they take, and which sources are worth the effort.
             </p>
           </div>
@@ -163,7 +163,7 @@ export function DealInsightsPage() {
               type="button"
               onClick={() => setDays(w.days)}
               className={cn(
-                'rounded-md px-2.5 py-1 text-[11.5px] font-medium transition-colors',
+                'rounded-md px-2.5 py-1 text-caption font-medium transition-colors',
                 days === w.days
                   ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
                   : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
@@ -179,14 +179,14 @@ export function DealInsightsPage() {
         <div className="flex items-center justify-center py-24"><Spinner size="md" /></div>
       ) : isError || !analysis ? (
         <div className="panel py-16 text-center">
-          <p className="text-[13px] font-medium text-[var(--text-primary)]">Could not load the analysis</p>
-          <p className="mt-1 text-[12px] text-[var(--text-tertiary)]">The request failed. It is worth trying again.</p>
+          <p className="text-strong font-medium text-[var(--text-primary)]">Could not load the analysis</p>
+          <p className="mt-1 text-body text-[var(--text-tertiary)]">The request failed. It is worth trying again.</p>
         </div>
       ) : analysis.closedCount === 0 ? (
         <div className="panel py-16 text-center">
           <Trophy className="mx-auto mb-3 h-8 w-8 text-[var(--text-muted)]" />
-          <p className="text-[14px] font-semibold text-[var(--text-primary)]">Nothing has closed in this window</p>
-          <p className="mx-auto mt-1 max-w-md text-[12.5px] leading-relaxed text-[var(--text-tertiary)]">
+          <p className="text-heading font-semibold text-[var(--text-primary)]">Nothing has closed in this window</p>
+          <p className="mx-auto mt-1 max-w-md text-body leading-relaxed text-[var(--text-tertiary)]">
             Every stage change is being recorded from now on. Once deals start closing, this page will show
             where they die, what it costs, and which sources are actually worth working.
           </p>
@@ -196,38 +196,38 @@ export function DealInsightsPage() {
           {/* Headline */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3">
-              <p className="text-[11px] font-medium text-[var(--text-tertiary)]">Win rate</p>
-              <p className="mt-1 text-[21px] font-semibold leading-none tabular-nums text-[var(--text-primary)]">
+              <p className="text-caption font-medium text-[var(--text-tertiary)]">Win rate</p>
+              <p className="mt-1 text-display font-semibold leading-none tabular-nums text-[var(--text-primary)]">
                 {analysis.winRate}%
               </p>
-              <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">
+              <p className="mt-1.5 text-caption text-[var(--text-muted)]">
                 {analysis.wonCount} of {analysis.closedCount} closed
               </p>
             </div>
             <div className="rounded-xl border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-3.5 py-3">
-              <p className="text-[11px] font-medium text-[var(--text-tertiary)]">Won</p>
-              <p className="mt-1 text-[21px] font-semibold leading-none tabular-nums text-[var(--indigo)]">
+              <p className="text-caption font-medium text-[var(--text-tertiary)]">Won</p>
+              <p className="mt-1 text-display font-semibold leading-none tabular-nums text-[var(--indigo)]">
                 {money(analysis.wonValue)}
               </p>
-              <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">
+              <p className="mt-1.5 text-caption text-[var(--text-muted)]">
                 {analysis.wonArr > 0 ? `${money(analysis.wonArr)} new ARR` : 'total contract value'}
               </p>
             </div>
             <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3">
-              <p className="text-[11px] font-medium text-[var(--text-tertiary)]">Lost</p>
-              <p className="mt-1 text-[21px] font-semibold leading-none tabular-nums text-[var(--text-primary)]">
+              <p className="text-caption font-medium text-[var(--text-tertiary)]">Lost</p>
+              <p className="mt-1 text-display font-semibold leading-none tabular-nums text-[var(--text-primary)]">
                 {money(analysis.lostValue)}
               </p>
-              <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">
+              <p className="mt-1.5 text-caption text-[var(--text-muted)]">
                 {analysis.closedCount - analysis.wonCount} deals
               </p>
             </div>
             <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3">
-              <p className="text-[11px] font-medium text-[var(--text-tertiary)]">Sales cycle</p>
-              <p className="mt-1 text-[21px] font-semibold leading-none tabular-nums text-[var(--text-primary)]">
+              <p className="text-caption font-medium text-[var(--text-tertiary)]">Sales cycle</p>
+              <p className="mt-1 text-display font-semibold leading-none tabular-nums text-[var(--text-primary)]">
                 {analysis.medianCycle === null ? '—' : `${analysis.medianCycle}d`}
               </p>
-              <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">median, won deals</p>
+              <p className="mt-1.5 text-caption text-[var(--text-muted)]">median, won deals</p>
             </div>
           </div>
 
@@ -250,10 +250,10 @@ export function DealInsightsPage() {
                     return (
                       <div key={row.stage}>
                         <div className="mb-1 flex items-baseline justify-between gap-2">
-                          <span className="text-[12px] font-medium text-[var(--text-primary)]">
+                          <span className="text-body font-medium text-[var(--text-primary)]">
                             {stageLabel(row.stage)}
                           </span>
-                          <span className="text-[11px] tabular-nums text-[var(--text-tertiary)]">
+                          <span className="text-caption tabular-nums text-[var(--text-tertiary)]">
                             {closed === 0 ? 'nothing closed here' : (
                               <>
                                 <span className="font-semibold text-[var(--text-primary)]">{row.winRate}%</span>
@@ -264,7 +264,7 @@ export function DealInsightsPage() {
                         </div>
                         <Bar won={row.won} lost={row.lost} />
                         {row.lostValue > 0 && (
-                          <p className="mt-1 text-[10.5px] text-[var(--text-muted)]">
+                          <p className="mt-1 text-micro text-[var(--text-muted)]">
                             {money(row.lostValue)} lost from here
                             {row.wonValue > 0 && ` · ${money(row.wonValue)} won`}
                           </p>
@@ -292,8 +292,8 @@ export function DealInsightsPage() {
                     return (
                       <div key={stage}>
                         <div className="mb-1 flex items-baseline justify-between gap-2">
-                          <span className="text-[12px] font-medium text-[var(--text-primary)]">{stageLabel(stage)}</span>
-                          <span className="text-[11px] tabular-nums text-[var(--text-tertiary)]">
+                          <span className="text-body font-medium text-[var(--text-primary)]">{stageLabel(stage)}</span>
+                          <span className="text-caption tabular-nums text-[var(--text-tertiary)]">
                             {d === undefined ? '—' : `${d} days`}
                           </span>
                         </div>
@@ -322,8 +322,8 @@ export function DealInsightsPage() {
                 <div className="space-y-1.5">
                   {analysis.lostReasons.map((r) => (
                     <div key={r.reason} className="flex items-baseline gap-2">
-                      <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--text-primary)]">{r.reason}</span>
-                      <span className="flex-shrink-0 text-[11px] tabular-nums text-[var(--text-tertiary)]">
+                      <span className="min-w-0 flex-1 truncate text-body text-[var(--text-primary)]">{r.reason}</span>
+                      <span className="flex-shrink-0 text-caption tabular-nums text-[var(--text-tertiary)]">
                         {r.count}× · {money(r.value)}
                       </span>
                     </div>
@@ -344,8 +344,8 @@ export function DealInsightsPage() {
                 <div className="space-y-1.5">
                   {analysis.wonReasons.map((r) => (
                     <div key={r.reason} className="flex items-baseline gap-2">
-                      <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--text-primary)]">{r.reason}</span>
-                      <span className="flex-shrink-0 text-[11px] tabular-nums text-[var(--text-tertiary)]">
+                      <span className="min-w-0 flex-1 truncate text-body text-[var(--text-primary)]">{r.reason}</span>
+                      <span className="flex-shrink-0 text-caption tabular-nums text-[var(--text-tertiary)]">
                         {r.count}× · {money(r.value)}
                       </span>
                     </div>
@@ -365,28 +365,28 @@ export function DealInsightsPage() {
               <table className="w-full min-w-[520px] border-collapse">
                 <thead>
                   <tr className="border-b border-[var(--border-subtle)]">
-                    <th className="px-2 py-1.5 text-left text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Source</th>
-                    <th className="px-2 py-1.5 text-right text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Open</th>
-                    <th className="px-2 py-1.5 text-right text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Won</th>
-                    <th className="px-2 py-1.5 text-right text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Lost</th>
-                    <th className="px-2 py-1.5 text-right text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Win rate</th>
-                    <th className="px-2 py-1.5 text-right text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Won value</th>
+                    <th className="px-2 py-1.5 text-left text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Source</th>
+                    <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Open</th>
+                    <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Won</th>
+                    <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Lost</th>
+                    <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Win rate</th>
+                    <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Won value</th>
                   </tr>
                 </thead>
                 <tbody>
                   {analysis.sources.map((row) => (
                     <tr key={row.source} className="border-b border-[var(--border-subtle)] last:border-0">
-                      <td className="px-2 py-2 text-[12.5px] font-medium text-[var(--text-primary)]">{row.source}</td>
-                      <td className="px-2 py-2 text-right text-[12px] tabular-nums text-[var(--text-tertiary)]">{row.open}</td>
-                      <td className="px-2 py-2 text-right text-[12px] tabular-nums text-emerald-600 dark:text-emerald-400">{row.won}</td>
-                      <td className="px-2 py-2 text-right text-[12px] tabular-nums text-rose-500">{row.lost}</td>
-                      <td className="px-2 py-2 text-right text-[12px] font-medium tabular-nums text-[var(--text-primary)]">
+                      <td className="px-2 py-2 text-body font-medium text-[var(--text-primary)]">{row.source}</td>
+                      <td className="px-2 py-2 text-right text-body tabular-nums text-[var(--text-tertiary)]">{row.open}</td>
+                      <td className="px-2 py-2 text-right text-body tabular-nums text-emerald-600 dark:text-emerald-400">{row.won}</td>
+                      <td className="px-2 py-2 text-right text-body tabular-nums text-rose-500">{row.lost}</td>
+                      <td className="px-2 py-2 text-right text-body font-medium tabular-nums text-[var(--text-primary)]">
                         {row.winRate === null ? '—' : `${row.winRate}%`}
                       </td>
-                      <td className="px-2 py-2 text-right text-[12px] font-semibold tabular-nums text-[var(--text-primary)]">
+                      <td className="px-2 py-2 text-right text-body font-semibold tabular-nums text-[var(--text-primary)]">
                         {money(row.wonValue)}
                         {row.wonArr > 0 && (
-                          <span className="ml-1 text-[10.5px] font-normal text-[var(--indigo)]">
+                          <span className="ml-1 text-micro font-normal text-[var(--indigo)]">
                             {money(row.wonArr)} ARR
                           </span>
                         )}

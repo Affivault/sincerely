@@ -53,7 +53,7 @@ export function InviteAcceptPage() {
       <div className="min-h-screen flex items-center justify-center bg-[var(--bg-base)]">
         <div className="text-center space-y-3">
           <Spinner size="lg" />
-          <p className="text-sm text-[var(--text-secondary)]">Accepting invite…</p>
+          <p className="text-strong text-[var(--text-secondary)]">Accepting invite…</p>
         </div>
       </div>
     );
@@ -64,8 +64,8 @@ export function InviteAcceptPage() {
       <div className="min-h-screen flex items-center justify-center bg-[var(--bg-base)]">
         <div className="text-center space-y-3">
           <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
-          <h1 className="text-xl font-semibold text-[var(--text-primary)]">Invite accepted!</h1>
-          <p className="text-sm text-[var(--text-secondary)]">Redirecting to your team page…</p>
+          <h1 className="text-title font-semibold text-[var(--text-primary)]">Invite accepted!</h1>
+          <p className="text-strong text-[var(--text-secondary)]">Redirecting to your team page…</p>
         </div>
       </div>
     );
@@ -75,11 +75,11 @@ export function InviteAcceptPage() {
     <div className="min-h-screen flex items-center justify-center bg-[var(--bg-base)]">
       <div className="text-center space-y-3">
         <XCircle className="h-12 w-12 text-red-500 mx-auto" />
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Unable to accept invite</h1>
-        <p className="text-sm text-[var(--text-secondary)]">{error}</p>
+        <h1 className="text-title font-semibold text-[var(--text-primary)]">Unable to accept invite</h1>
+        <p className="text-strong text-[var(--text-secondary)]">{error}</p>
         <button
           onClick={() => navigate('/dashboard')}
-          className="mt-4 px-4 py-2 rounded-xl bg-[var(--indigo)] text-white text-sm font-semibold hover:opacity-90"
+          className="mt-4 px-4 py-2 rounded-xl bg-[var(--indigo)] text-white text-strong font-semibold hover:opacity-90"
         >
           Go to Dashboard
         </button>

@@ -22,9 +22,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     };
 
     const sizes = {
-      sm: 'h-7 px-2.5 text-[12px] gap-1',
-      md: 'h-8 px-3 text-[13px] gap-1.5',
-      lg: 'h-9 px-4 text-[13.5px] gap-2',
+      sm: 'h-7 px-2.5 text-body gap-1',
+      md: 'h-8 px-3 text-strong gap-1.5',
+      lg: 'h-9 px-4 text-strong gap-2',
     };
 
     return (

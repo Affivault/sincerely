@@ -49,13 +49,13 @@ function IssueRow({ issue }: { issue: CampaignIssue }) {
         )}
       />
       <div className="min-w-0 flex-1">
-        <p className="text-[12.5px] font-medium leading-snug text-[var(--text-primary)]">{issue.headline}</p>
-        <p className="mt-0.5 text-[11.5px] leading-relaxed text-[var(--text-tertiary)]">{issue.detail}</p>
+        <p className="text-body font-medium leading-snug text-[var(--text-primary)]">{issue.headline}</p>
+        <p className="mt-0.5 text-caption leading-relaxed text-[var(--text-tertiary)]">{issue.detail}</p>
       </div>
       {issue.fix && (
         <Link
           to={issue.fix.href}
-          className="mt-px inline-flex flex-shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11.5px] font-semibold text-[var(--indigo)] transition-colors hover:bg-[var(--indigo-subtle)]"
+          className="mt-px inline-flex flex-shrink-0 items-center gap-1 rounded-md px-2 py-1 text-caption font-semibold text-[var(--indigo)] transition-colors hover:bg-[var(--indigo-subtle)]"
         >
           {issue.fix.label}
           <ArrowRight className="h-3 w-3" />
@@ -90,9 +90,9 @@ export function CampaignHealthStrip({ campaignId, status }: { campaignId: string
       <div className="flex items-start gap-2.5 px-4 py-3">
         <style.Icon className={cn('mt-px h-4 w-4 flex-shrink-0', style.text)} />
         <div className="min-w-0 flex-1">
-          <p className={cn('text-[12.5px] font-semibold leading-snug', style.text)}>{data.summary}</p>
+          <p className={cn('text-body font-semibold leading-snug', style.text)}>{data.summary}</p>
 
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-tertiary)]">
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-[var(--text-tertiary)]">
             <span className="inline-flex items-center gap-1">
               <Activity className="h-3 w-3" />
               <span className="font-semibold tabular-nums text-[var(--text-secondary)]">

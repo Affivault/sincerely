@@ -61,9 +61,9 @@ function Leg({ leg, first }: { leg: StageLeg; first: boolean }) {
       />
       <span className={cn('relative z-10 mt-[5px] h-2 w-2 flex-shrink-0 rounded-full', DOT[leg.stage])} />
       <div className="min-w-0 flex-1">
-        <p className="flex flex-wrap items-baseline gap-x-1.5 text-[12.5px]">
+        <p className="flex flex-wrap items-baseline gap-x-1.5 text-body">
           <span className="font-medium text-[var(--text-primary)]">{label(leg.stage)}</span>
-          <span className={cn('text-[11.5px]', leg.current ? 'font-medium text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]')}>
+          <span className={cn('text-caption', leg.current ? 'font-medium text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]')}>
             {leg.current ? `${spell(leg.days)} so far` : spell(leg.days)}
           </span>
         </p>
@@ -71,7 +71,7 @@ function Leg({ leg, first }: { leg: StageLeg; first: boolean }) {
             predates the history table, that first row is the backfilled one
             and its date is when the stage was last known to change, which is
             not the same thing as when the deal was created. */}
-        <p className="text-[11px] text-[var(--text-muted)]">
+        <p className="text-caption text-[var(--text-muted)]">
           {first ? 'Since' : 'Moved'} {when(leg.enteredAt)}
           {leg.reason ? ` · ${leg.reason}` : ''}
         </p>
@@ -103,7 +103,7 @@ export function DealJourney({ deal, events }: { deal: Deal; events?: DealStageEv
     return <div className="flex justify-center py-3"><Spinner size="sm" /></div>;
   }
   if (isError) {
-    return <p className="py-1 text-[12px] text-[var(--text-muted)]">Could not load this deal&rsquo;s history.</p>;
+    return <p className="py-1 text-body text-[var(--text-muted)]">Could not load this deal&rsquo;s history.</p>;
   }
 
   return <Journey events={data || []} />;
@@ -113,7 +113,7 @@ function Journey({ events }: { events: DealStageEvent[] }) {
   const legs = stageTimeline(events);
   if (legs.length === 0) {
     return (
-      <p className="py-1 text-[12px] text-[var(--text-muted)]">
+      <p className="py-1 text-body text-[var(--text-muted)]">
         No movement recorded yet. Every stage change from here on will show up.
       </p>
     );
@@ -135,11 +135,11 @@ function Journey({ events }: { events: DealStageEvent[] }) {
          * or an older deal whose earlier moves were never recorded. Saying
          * "open <n> days" is true either way.
          */
-        <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+        <p className="mt-1 text-caption text-[var(--text-muted)]">
           {spell(total)} in this stage. Nothing earlier was recorded.
         </p>
       ) : (
-        <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+        <p className="mt-1 text-caption text-[var(--text-muted)]">
           {legs.length - 1} move{legs.length - 1 === 1 ? '' : 's'} over {spell(total)}.
         </p>
       )}

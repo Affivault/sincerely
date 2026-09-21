@@ -214,7 +214,7 @@ function NavLeafItem({ item, collapsed, badge, nested }: {
       {!collapsed && (
         <span className={cn(
           'flex-1 truncate leading-none',
-          nested ? 'text-[12.5px] font-medium' : 'text-[13px] font-medium',
+          nested ? 'text-body font-medium' : 'text-strong font-medium',
         )}>
           {item.name}
         </span>
@@ -222,12 +222,12 @@ function NavLeafItem({ item, collapsed, badge, nested }: {
 
       {badge != null && badge > 0 && (
         collapsed ? (
-          <span className="absolute -top-1 -right-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[var(--indigo)] text-white text-[9px] font-bold px-0.5 leading-none ring-2 ring-[var(--bg-app)]">
+          <span className="absolute -top-1 -right-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[var(--indigo)] text-white text-micro font-bold px-0.5 leading-none ring-2 ring-[var(--bg-app)]">
             {badge > 99 ? '99+' : badge}
           </span>
         ) : (
           <span className={cn(
-            'ml-auto flex h-[17px] min-w-[17px] items-center justify-center rounded-[5px] text-[10px] font-semibold px-1 leading-none tabular-nums',
+            'ml-auto flex h-[17px] min-w-[17px] items-center justify-center rounded-[5px] text-micro font-semibold px-1 leading-none tabular-nums',
             isActive
               ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
               : 'bg-[var(--bg-active)] text-[var(--text-secondary)]',
@@ -277,7 +277,7 @@ function NavGroupItem({ item, collapsed, expanded, onToggle }: {
 
         {!collapsed && (
           <>
-            <span className="flex-1 text-[13px] font-medium truncate leading-none">{item.name}</span>
+            <span className="flex-1 text-strong font-medium truncate leading-none">{item.name}</span>
             <ChevronRight
               className={cn(
                 /* Always faintly there: the whole nav now depends on people
@@ -324,7 +324,7 @@ function NavSection({ title, items, collapsed, badges, expandedGroups, onToggleG
     <div>
       {title && !collapsed && (
         <div className="px-2 mt-5 mb-1">
-          <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">{title}</span>
+          <span className="text-micro font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">{title}</span>
         </div>
       )}
       {title && collapsed && (
@@ -372,8 +372,8 @@ function UsageCard({ collapsed }: { collapsed: boolean }) {
   return (
     <div className="mx-2.5 mb-2 rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5 shadow-[0_1px_2px_rgba(16,16,20,0.04)]">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[11px] font-medium text-[var(--text-tertiary)]">Emails this month</span>
-        <span className="text-[11px] font-semibold text-[var(--text-secondary)] tabular-nums">
+        <span className="text-caption font-medium text-[var(--text-tertiary)]">Emails this month</span>
+        <span className="text-caption font-semibold text-[var(--text-secondary)] tabular-nums">
           {usage.emailsSent.toLocaleString()}<span className="text-[var(--text-muted)] font-normal"> / {usage.emailsLimit.toLocaleString()}</span>
         </span>
       </div>
@@ -383,7 +383,7 @@ function UsageCard({ collapsed }: { collapsed: boolean }) {
       {isFree && (
         <button
           onClick={() => navigate('/billing')}
-          className="mt-2 w-full flex items-center justify-center gap-1 h-[26px] rounded-[7px] text-[11.5px] font-semibold text-white transition-opacity hover:opacity-90"
+          className="mt-2 w-full flex items-center justify-center gap-1 h-[26px] rounded-[7px] text-caption font-semibold text-white transition-opacity hover:opacity-90"
           style={{ background: 'var(--indigo-grad)' }}
         >
           Upgrade <ArrowUpRight className="h-3 w-3" strokeWidth={2.2} />
@@ -485,13 +485,13 @@ export function Sidebar() {
             style={{ background: 'var(--indigo-grad)' }}
             title={collapsed ? workspaceName : undefined}
           >
-            <span className="text-[11px] font-bold text-white">{workspaceName[0].toUpperCase()}</span>
+            <span className="text-caption font-bold text-white">{workspaceName[0].toUpperCase()}</span>
           </div>
           {!collapsed && (
             <>
               <div className="flex-1 min-w-0">
-                <div className="text-[12.5px] font-semibold text-[var(--text-primary)] truncate leading-tight capitalize">{workspaceName}</div>
-                <div className="text-[10.5px] text-[var(--text-tertiary)] truncate leading-tight mt-px">{user?.email}</div>
+                <div className="text-body font-semibold text-[var(--text-primary)] truncate leading-tight capitalize">{workspaceName}</div>
+                <div className="text-micro text-[var(--text-tertiary)] truncate leading-tight mt-px">{user?.email}</div>
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); logout(); }}

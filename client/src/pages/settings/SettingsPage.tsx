@@ -329,7 +329,7 @@ export function SettingsPage() {
         actions={
           <button
             onClick={handleSignOut}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12.5px] font-medium text-[var(--error)] border border-[var(--border-default)] hover:bg-[var(--error-bg)] transition-colors"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-body font-medium text-[var(--error)] border border-[var(--border-default)] hover:bg-[var(--error-bg)] transition-colors"
           >
             <LogOut className="h-3.5 w-3.5" strokeWidth={1.75} /> Sign out
           </button>
@@ -346,7 +346,7 @@ export function SettingsPage() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'flex items-center gap-1.5 h-7 px-3 rounded-md text-[12.5px] font-medium whitespace-nowrap transition-colors',
+                'flex items-center gap-1.5 h-7 px-3 rounded-md text-body font-medium whitespace-nowrap transition-colors',
                 isActive
                   ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm'
                   : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
@@ -366,8 +366,8 @@ export function SettingsPage() {
             {activeTab === 'profile' && (
               <div className="space-y-4">
                 <div>
-                  <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Profile Information</h2>
-                  <p className="text-[13px] text-[var(--text-secondary)] mt-1">Update your personal details</p>
+                  <h2 className="text-heading font-semibold text-[var(--text-primary)]">Profile Information</h2>
+                  <p className="text-strong text-[var(--text-secondary)] mt-1">Update your personal details</p>
                 </div>
 
                 <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
@@ -377,16 +377,16 @@ export function SettingsPage() {
                     size="xl"
                   />
                   <div className="min-w-0">
-                    <p className="text-[13px] font-medium text-[var(--text-primary)]">
+                    <p className="text-strong font-medium text-[var(--text-primary)]">
                       {firstName && lastName ? `${firstName} ${lastName}` : 'Profile photo'}
                     </p>
-                    <p className="text-[12px] text-[var(--text-tertiary)] mt-0.5">{user?.email}</p>
+                    <p className="text-body text-[var(--text-tertiary)] mt-0.5">{user?.email}</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-5">
                   <div>
-                    <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1.5">First Name</label>
+                    <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">First Name</label>
                     <input
                       type="text"
                       value={firstName}
@@ -396,7 +396,7 @@ export function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1.5">Last Name</label>
+                    <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Last Name</label>
                     <input
                       type="text"
                       value={lastName}
@@ -409,7 +409,7 @@ export function SettingsPage() {
 
                 <div className="grid grid-cols-2 gap-5">
                   <div>
-                    <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1.5">Company</label>
+                    <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Company</label>
                     <input
                       type="text"
                       value={company}
@@ -419,7 +419,7 @@ export function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1.5">Job Title</label>
+                    <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Job Title</label>
                     <input
                       type="text"
                       value={jobTitle}
@@ -431,13 +431,13 @@ export function SettingsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1.5">Email</label>
+                  <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Email</label>
                   <div className="flex items-center gap-3">
                     <div className="flex-1 flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3.5 py-2.5">
                       <Mail className="h-4 w-4 text-[var(--text-tertiary)]" />
-                      <span className="text-sm text-[var(--text-secondary)]">{user?.email || 'Not set'}</span>
+                      <span className="text-strong text-[var(--text-secondary)]">{user?.email || 'Not set'}</span>
                     </div>
-                    <span className="flex items-center gap-1.5 text-xs text-[var(--success)] bg-[var(--success-bg)] px-3 py-1.5 rounded-full font-medium">
+                    <span className="flex items-center gap-1.5 text-body text-[var(--success)] bg-[var(--success-bg)] px-3 py-1.5 rounded-full font-medium">
                       <CheckCircle className="h-3.5 w-3.5" />
                       Verified
                     </span>
@@ -445,7 +445,7 @@ export function SettingsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1.5">
+                  <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">
                     <Globe className="inline h-3.5 w-3.5 mr-1.5 text-[var(--text-tertiary)]" />
                     Timezone
                   </label>
@@ -474,8 +474,8 @@ export function SettingsPage() {
             {activeTab === 'account' && (
               <div className="space-y-4">
                 <div>
-                  <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Account Security</h2>
-                  <p className="text-[13px] text-[var(--text-secondary)] mt-1">Manage your password and security settings</p>
+                  <h2 className="text-heading font-semibold text-[var(--text-primary)]">Account Security</h2>
+                  <p className="text-strong text-[var(--text-secondary)] mt-1">Manage your password and security settings</p>
                 </div>
 
                 {/* Change Password */}
@@ -485,8 +485,8 @@ export function SettingsPage() {
                       <Key className="h-5 w-5 text-[var(--text-primary)]" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-[var(--text-primary)]">Password</p>
-                      <p className="text-xs text-[var(--text-tertiary)]">Update your account password</p>
+                      <p className="text-strong font-medium text-[var(--text-primary)]">Password</p>
+                      <p className="text-body text-[var(--text-tertiary)]">Update your account password</p>
                     </div>
                   </div>
                   <Button variant="secondary" size="sm" onClick={() => setShowPasswordModal(true)}>
@@ -497,9 +497,9 @@ export function SettingsPage() {
                 {/* Password Modal */}
                 {showPasswordModal && (
                   <div className="p-5 rounded-xl bg-[var(--bg-surface)] space-y-4" style={{ border: '2px solid rgba(99,102,241,0.25)' }}>
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Change Password</h3>
+                    <h3 className="text-strong font-semibold text-[var(--text-primary)]">Change Password</h3>
                     <div>
-                      <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Current Password</label>
+                      <label className="block text-body font-medium text-[var(--text-secondary)] mb-1.5">Current Password</label>
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={currentPassword}
@@ -509,7 +509,7 @@ export function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">New Password</label>
+                      <label className="block text-body font-medium text-[var(--text-secondary)] mb-1.5">New Password</label>
                       <div className="relative">
                         <input
                           type={showPassword ? 'text' : 'password'}
@@ -539,14 +539,14 @@ export function SettingsPage() {
                               />
                             ))}
                           </div>
-                          <p className={cn('text-[11px] mt-1 font-medium', getPasswordStrength(newPassword).textClass)}>
+                          <p className={cn('text-caption mt-1 font-medium', getPasswordStrength(newPassword).textClass)}>
                             {getPasswordStrength(newPassword).label}
                           </p>
                         </div>
                       )}
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Confirm Password</label>
+                      <label className="block text-body font-medium text-[var(--text-secondary)] mb-1.5">Confirm Password</label>
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={confirmPassword}
@@ -555,7 +555,7 @@ export function SettingsPage() {
                         className="input-field"
                       />
                       {confirmPassword && newPassword !== confirmPassword && (
-                        <p className="text-xs text-[var(--error)] mt-1">Passwords do not match</p>
+                        <p className="text-body text-[var(--error)] mt-1">Passwords do not match</p>
                       )}
                     </div>
                     <div className="flex gap-2">
@@ -590,11 +590,11 @@ export function SettingsPage() {
                         <Shield className="h-5 w-5 text-[var(--text-primary)]" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-[var(--text-primary)]">Two-Factor Authentication</p>
-                        <p className="text-xs text-[var(--text-tertiary)]">Add an extra layer of security</p>
+                        <p className="text-strong font-medium text-[var(--text-primary)]">Two-Factor Authentication</p>
+                        <p className="text-body text-[var(--text-tertiary)]">Add an extra layer of security</p>
                       </div>
                     </div>
-                    <span className="flex items-center gap-1.5 text-xs text-[var(--warning)] bg-[var(--warning-bg)] px-3 py-1.5 rounded-full font-medium">
+                    <span className="flex items-center gap-1.5 text-body text-[var(--warning)] bg-[var(--warning-bg)] px-3 py-1.5 rounded-full font-medium">
                       <AlertCircle className="h-3 w-3" />
                       Coming soon
                     </span>
@@ -603,7 +603,7 @@ export function SettingsPage() {
 
                 {/* Connected accounts */}
                 <div className="pt-6 border-t border-[var(--border-subtle)]">
-                  <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Connected Accounts</h3>
+                  <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-4">Connected Accounts</h3>
                   <div className="flex items-center justify-between p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[var(--border-default)] transition-colors">
                     <div className="flex items-center gap-3">
                       <svg className="h-5 w-5" viewBox="0 0 24 24">
@@ -612,17 +612,17 @@ export function SettingsPage() {
                         <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
                         <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                       </svg>
-                      <span className="text-sm font-medium text-[var(--text-primary)]">Google</span>
+                      <span className="text-strong font-medium text-[var(--text-primary)]">Google</span>
                     </div>
-                    <span className="text-xs text-[var(--text-tertiary)]">Managed via Supabase Auth</span>
+                    <span className="text-body text-[var(--text-tertiary)]">Managed via Supabase Auth</span>
                   </div>
                 </div>
 
                 {/* Danger Zone */}
                 <div className="pt-6 border-t border-[var(--border-subtle)]">
-                  <h3 className="text-sm font-semibold text-[var(--error)] mb-4">Danger Zone</h3>
+                  <h3 className="text-strong font-semibold text-[var(--error)] mb-4">Danger Zone</h3>
                   <div className="p-5 border border-[var(--error)]/20 rounded-xl bg-[var(--error-bg)]">
-                    <p className="text-sm text-[var(--text-secondary)] mb-4">
+                    <p className="text-strong text-[var(--text-secondary)] mb-4">
                       Once you delete your account, there is no going back. All your campaigns, contacts, SMTP accounts, and data will be permanently removed.
                     </p>
                     {!showDeleteModal ? (
@@ -632,7 +632,7 @@ export function SettingsPage() {
                       </Button>
                     ) : (
                       <div className="space-y-3 p-4 rounded-lg bg-[var(--bg-surface)] border border-[var(--error)]/30">
-                        <p className="text-xs font-medium text-[var(--error)]">
+                        <p className="text-body font-medium text-[var(--error)]">
                           Type <span className="font-bold">DELETE</span> to confirm permanent account deletion:
                         </p>
                         <input
@@ -640,7 +640,7 @@ export function SettingsPage() {
                           value={deleteConfirmation}
                           onChange={(e) => setDeleteConfirmation(e.target.value)}
                           placeholder="Type DELETE"
-                          className="input-field text-sm"
+                          className="input-field text-strong"
                           autoFocus
                         />
                         <div className="flex gap-2">
@@ -675,8 +675,8 @@ export function SettingsPage() {
             {activeTab === 'notifications' && (
               <div className="space-y-4">
                 <div>
-                  <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Notifications</h2>
-                  <p className="text-[13px] text-[var(--text-secondary)] mt-1">Choose what notifications you receive</p>
+                  <h2 className="text-heading font-semibold text-[var(--text-primary)]">Notifications</h2>
+                  <p className="text-strong text-[var(--text-secondary)] mt-1">Choose what notifications you receive</p>
                 </div>
 
                 <div className="space-y-3">
@@ -712,12 +712,12 @@ export function SettingsPage() {
             {activeTab === 'preferences' && (
               <div className="space-y-4">
                 <div>
-                  <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Preferences</h2>
-                  <p className="text-[13px] text-[var(--text-secondary)] mt-1">Customize your experience</p>
+                  <h2 className="text-heading font-semibold text-[var(--text-primary)]">Preferences</h2>
+                  <p className="text-strong text-[var(--text-secondary)] mt-1">Customize your experience</p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-3">Theme</label>
+                  <label className="block text-strong font-medium text-[var(--text-secondary)] mb-3">Theme</label>
                   <div className="flex gap-2">
                     {([
                       { value: 'light' as const, label: 'Light', icon: Sun },
@@ -727,7 +727,7 @@ export function SettingsPage() {
                       <button
                         key={value}
                         onClick={() => handleThemeChange(value)}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-200 border ${
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-strong font-medium transition-all duration-200 border ${
                           themeMode === value
                             ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[var(--indigo)]'
                             : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[var(--border-default)]'
@@ -741,7 +741,7 @@ export function SettingsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1.5">
+                  <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">
                     Default Email Signature
                   </label>
                   <textarea
@@ -751,13 +751,13 @@ export function SettingsPage() {
                     rows={4}
                     className="input-field resize-none"
                   />
-                  <p className="mt-2 text-xs text-[var(--text-tertiary)]">
+                  <p className="mt-2 text-body text-[var(--text-tertiary)]">
                     Use {'{{signature}}'} in emails to insert this
                   </p>
                 </div>
 
                 <div className="pt-2">
-                  <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1.5">Deliverability</label>
+                  <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Deliverability</label>
                   <ToggleSetting
                     label="Auto-verify contacts"
                     description="Automatically check new and imported contacts in the background (syntax, mail server & mailbox) so the verification status stays up to date."
@@ -772,8 +772,8 @@ export function SettingsPage() {
             {activeTab === 'ai' && (
               <div className="space-y-4">
                 <div>
-                  <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">AI Features</h2>
-                  <p className="text-[13px] text-[var(--text-secondary)] mt-1">
+                  <h2 className="text-heading font-semibold text-[var(--text-primary)]">AI Features</h2>
+                  <p className="text-strong text-[var(--text-secondary)] mt-1">
                     Configure intelligent email tagging and AI-powered reply assistance
                   </p>
                 </div>
@@ -782,8 +782,8 @@ export function SettingsPage() {
                   <div className="flex items-start gap-3">
                     <Sparkles className="h-5 w-5 text-[var(--indigo)] mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="text-sm font-medium text-[var(--text-primary)]">Smart Email Tagging</p>
-                      <p className="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed">
+                      <p className="text-strong font-medium text-[var(--text-primary)]">Smart Email Tagging</p>
+                      <p className="text-body text-[var(--text-secondary)] mt-1 leading-relaxed">
                         AI automatically tags incoming replies by intent &mdash; Interested, Meeting Booked,
                         Not Interested, Objection, Out of Office, Unsubscribe, and Bounce.
                         Filter your inbox by tag to quickly find the messages that matter most.
@@ -803,7 +803,7 @@ export function SettingsPage() {
                   <>
                     <div className="space-y-3">
                       <div className="px-1">
-                        <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                        <h3 className="text-strong font-semibold text-[var(--text-primary)] flex items-center gap-2">
                           <Zap className="h-4 w-4 text-[#818CF8]" />
                           Auto-Tagging
                         </h3>
@@ -819,11 +819,11 @@ export function SettingsPage() {
 
                     <div className="space-y-3">
                       <div className="px-1">
-                        <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                        <h3 className="text-strong font-semibold text-[var(--text-primary)] flex items-center gap-2">
                           <Zap className="h-4 w-4 text-[#818CF8]" />
                           Auto Actions
                         </h3>
-                        <p className="text-xs text-[var(--text-tertiary)] mt-1">
+                        <p className="text-body text-[var(--text-tertiary)] mt-1">
                           Actions that are automatically performed for high-confidence tags
                         </p>
                       </div>
@@ -859,7 +859,7 @@ export function SettingsPage() {
                         onChange={(v) => { setBounceGuard(v); markChanged(); }}
                       />
                       <label className="flex flex-wrap items-center gap-3 pl-1">
-                        <span className="text-[12.5px] text-[var(--text-secondary)]">
+                        <span className="text-body text-[var(--text-secondary)]">
                           At most
                         </span>
                         <input
@@ -872,12 +872,12 @@ export function SettingsPage() {
                             setDomainLimit(Number.isFinite(next) && next >= 0 ? next : 5);
                             markChanged();
                           }}
-                          className="w-16 h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-[12.5px] text-[var(--text-primary)] tabular focus:border-[var(--indigo)] focus:outline-none"
+                          className="w-16 h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-body text-[var(--text-primary)] tabular focus:border-[var(--indigo)] focus:outline-none"
                         />
-                        <span className="text-[12.5px] text-[var(--text-secondary)]">
+                        <span className="text-body text-[var(--text-secondary)]">
                           emails per hour to any one company
                         </span>
-                        <span className="w-full text-[11.5px] text-[var(--text-tertiary)] leading-snug">
+                        <span className="w-full text-caption text-[var(--text-tertiary)] leading-snug">
                           A list sorted by company sends every address at one business back to back,
                           which is the burst their mail gateway is built to notice. Gmail, Outlook and
                           the other consumer providers are exempt &mdash; they aren&rsquo;t one
@@ -887,7 +887,7 @@ export function SettingsPage() {
 
                       {bounceGuard && (
                         <label className="flex items-center gap-3 pl-1">
-                          <span className="text-[12.5px] text-[var(--text-secondary)]">Pause above</span>
+                          <span className="text-body text-[var(--text-secondary)]">Pause above</span>
                           <input
                             type="number"
                             min={1}
@@ -898,10 +898,10 @@ export function SettingsPage() {
                               setBounceThreshold(Number.isFinite(next) ? next : 8);
                               markChanged();
                             }}
-                            className="w-16 h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-[12.5px] text-[var(--text-primary)] tabular focus:border-[var(--indigo)] focus:outline-none"
+                            className="w-16 h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-body text-[var(--text-primary)] tabular focus:border-[var(--indigo)] focus:outline-none"
                           />
-                          <span className="text-[12.5px] text-[var(--text-secondary)]">% bounced</span>
-                          <span className="text-[11.5px] text-[var(--text-tertiary)]">
+                          <span className="text-body text-[var(--text-secondary)]">% bounced</span>
+                          <span className="text-caption text-[var(--text-tertiary)]">
                             A healthy list bounces at 2&ndash;3%. Needs 20 sends before it can act.
                           </span>
                         </label>
@@ -912,7 +912,7 @@ export function SettingsPage() {
                       <div className="flex items-start gap-3">
                         <Info className="h-4 w-4 text-[var(--text-tertiary)] mt-0.5 flex-shrink-0" />
                         <div>
-                          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                          <p className="text-body text-[var(--text-secondary)] leading-relaxed">
                             Use the tag filter in your Inbox to quickly find messages by category.
                             When replying, click the AI Assist button to generate context-aware reply
                             drafts based on your prompt.
@@ -928,7 +928,7 @@ export function SettingsPage() {
             {/* ═══ Save button ═══ */}
             <div className="mt-8 pt-6 border-t border-[var(--border-subtle)] flex items-center justify-between">
               {hasChanges && (
-                <p className="text-xs text-[var(--warning)] flex items-center gap-1.5">
+                <p className="text-body text-[var(--warning)] flex items-center gap-1.5">
                   <AlertCircle className="h-3.5 w-3.5" />
                   You have unsaved changes
                 </p>
@@ -937,7 +937,7 @@ export function SettingsPage() {
               <button
                 onClick={handleSave}
                 disabled={saveMutation.isPending || !hasChanges}
-                className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-[var(--indigo)] text-white text-[13px] font-medium hover:bg-[var(--indigo-hover)] transition-all ${
+                className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-[var(--indigo)] text-white text-strong font-medium hover:bg-[var(--indigo-hover)] transition-all ${
                   hasChanges ? 'shadow-[0_2px_8px_rgba(99,102,241,0.35)] hover:opacity-90' : 'opacity-50 cursor-not-allowed'
                 }`}
               >
@@ -972,8 +972,8 @@ function ToggleSetting({
   return (
     <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[var(--border-default)] transition-colors">
       <div className="min-w-0">
-        <p className="text-[13px] font-medium text-[var(--text-primary)]">{label}</p>
-        <p className="text-[12px] text-[var(--text-tertiary)] mt-0.5 leading-snug">{description}</p>
+        <p className="text-strong font-medium text-[var(--text-primary)]">{label}</p>
+        <p className="text-body text-[var(--text-tertiary)] mt-0.5 leading-snug">{description}</p>
       </div>
       <Toggle checked={checked} onChange={onChange} aria-label={label} />
     </div>

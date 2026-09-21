@@ -70,7 +70,7 @@ export function OutcomeDialog({
           )}
         >
           {won ? <Trophy className="mt-px h-4 w-4 flex-shrink-0" /> : <XCircle className="mt-px h-4 w-4 flex-shrink-0" />}
-          <p className="text-[12.5px] leading-relaxed">
+          <p className="text-body leading-relaxed">
             {won
               ? 'Worth recording why — the pattern across your wins is what tells you which deals to chase next.'
               : 'Worth recording why. Losses are only useful in aggregate, and only if the reasons are countable.'}
@@ -84,7 +84,7 @@ export function OutcomeDialog({
               type="button"
               onClick={() => setPicked(picked === option ? null : option)}
               className={cn(
-                'rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-colors',
+                'rounded-lg px-2.5 py-1.5 text-body font-medium transition-colors',
                 picked === option
                   ? 'bg-[var(--indigo)] text-white'
                   : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
@@ -97,7 +97,7 @@ export function OutcomeDialog({
             type="button"
             onClick={() => setPicked(picked === '__other' ? null : '__other')}
             className={cn(
-              'rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-colors',
+              'rounded-lg px-2.5 py-1.5 text-body font-medium transition-colors',
               picked === '__other'
                 ? 'bg-[var(--indigo)] text-white'
                 : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',

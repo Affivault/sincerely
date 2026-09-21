@@ -337,7 +337,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search people, deals, emails… or type “call ada tomorrow 3pm”"
-            className="flex-1 bg-transparent text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none"
+            className="flex-1 bg-transparent text-heading text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none"
           />
           <kbd className="kbd flex-shrink-0">esc</kbd>
         </div>
@@ -346,17 +346,17 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         <div ref={listRef} className="max-h-[min(60vh,460px)] overflow-y-auto py-2">
           {flatItems.length === 0 ? (
             <div className="px-4 py-10 text-center">
-              <p className="text-[13px] text-[var(--text-secondary)]">
+              <p className="text-strong text-[var(--text-secondary)]">
                 {searching ? 'Searching…' : `No results for “${query}”`}
               </p>
-              <p className="text-[12px] text-[var(--text-tertiary)] mt-1">
+              <p className="text-body text-[var(--text-tertiary)] mt-1">
                 Try a name, a company, an email subject — or start with “call”, “meet” or “deal” to create something.
               </p>
             </div>
           ) : (
             groups.map(([group, groupItems]) => (
               <div key={group} className="px-2 mb-1 last:mb-0">
-                <div className="px-2 pt-2 pb-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[var(--text-tertiary)]">
+                <div className="px-2 pt-2 pb-1 text-micro font-semibold uppercase tracking-[0.08em] text-[var(--text-tertiary)]">
                   {group}
                 </div>
                 {groupItems.map((item) => {
@@ -384,17 +384,17 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                       </span>
                       <span className="flex-1 min-w-0">
                         <span className={cn(
-                          'block text-[13px] truncate',
+                          'block text-strong truncate',
                           isActive ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]'
                         )}>
                           {item.label}
                         </span>
                         {item.sublabel && (
-                          <span className="block text-[11px] text-[var(--text-tertiary)] truncate">{item.sublabel}</span>
+                          <span className="block text-caption text-[var(--text-tertiary)] truncate">{item.sublabel}</span>
                         )}
                       </span>
                       {item.meta && (
-                        <span className="hidden sm:block text-[11px] text-[var(--text-tertiary)] truncate max-w-[34%] flex-shrink-0">
+                        <span className="hidden sm:block text-caption text-[var(--text-tertiary)] truncate max-w-[34%] flex-shrink-0">
                           {item.meta}
                         </span>
                       )}
@@ -410,7 +410,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         </div>
 
         {/* Footer hints */}
-        <div className="flex items-center gap-4 px-4 h-9 border-t border-[var(--border-subtle)] bg-[var(--bg-muted)]/60 text-[11px] text-[var(--text-tertiary)]">
+        <div className="flex items-center gap-4 px-4 h-9 border-t border-[var(--border-subtle)] bg-[var(--bg-muted)]/60 text-caption text-[var(--text-tertiary)]">
           <span className="flex items-center gap-1.5">
             <kbd className="kbd"><ArrowUp className="h-2.5 w-2.5" /></kbd>
             <kbd className="kbd"><ArrowDown className="h-2.5 w-2.5" /></kbd>

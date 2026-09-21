@@ -81,8 +81,8 @@ const LABEL_TONE: Record<DealLabel, string> = {
 function Field({ label, value, tone, title }: { label: string; value: string; tone?: string; title?: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3 py-1.5" title={title}>
-      <span className="flex-shrink-0 text-[11.5px] text-[var(--text-tertiary)]">{label}</span>
-      <span className={cn('min-w-0 truncate text-right text-[12.5px] font-medium tabular-nums', tone || 'text-[var(--text-primary)]')}>
+      <span className="flex-shrink-0 text-caption text-[var(--text-tertiary)]">{label}</span>
+      <span className={cn('min-w-0 truncate text-right text-body font-medium tabular-nums', tone || 'text-[var(--text-primary)]')}>
         {value}
       </span>
     </div>
@@ -148,10 +148,10 @@ export function DealDetailPage() {
     return (
       <div className="panel py-16 text-center">
         <Handshake className="mx-auto mb-3 h-8 w-8 text-[var(--text-muted)]" />
-        <p className="text-[14px] font-semibold text-[var(--text-primary)]">
+        <p className="text-heading font-semibold text-[var(--text-primary)]">
           {status === 404 ? 'That deal no longer exists' : 'Could not load that deal'}
         </p>
-        <p className="mb-4 mt-1 text-[12.5px] text-[var(--text-tertiary)]">
+        <p className="mb-4 mt-1 text-body text-[var(--text-tertiary)]">
           {status === 404
             ? 'It may have been deleted from another tab or by somebody else on the team.'
             : 'The request failed. It is worth trying again.'}
@@ -212,7 +212,7 @@ export function DealDetailPage() {
     <div>
       <Link
         to="/deals"
-        className="group mb-3 inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]"
+        className="group mb-3 inline-flex items-center gap-1.5 text-body font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]"
       >
         <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
         Pipeline
@@ -226,22 +226,22 @@ export function DealDetailPage() {
           </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-[19px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">{deal.title}</h1>
+              <h1 className="text-title font-semibold tracking-[-0.01em] text-[var(--text-primary)]">{deal.title}</h1>
               {deal.label && (
-                <span className={cn('rounded-full border px-2 py-0.5 text-[10.5px] font-semibold uppercase', LABEL_TONE[deal.label])}>
+                <span className={cn('rounded-full border px-2 py-0.5 text-micro font-semibold uppercase', LABEL_TONE[deal.label])}>
                   {deal.label}
                 </span>
               )}
               {rot.rotting && isOpen(deal.stage) && (
                 <span
                   title={`No movement for ${rot.days} days — ${stageMeta?.label.toLowerCase()} deals are expected to move within ${rot.limit}`}
-                  className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-rose-600 dark:text-rose-400"
+                  className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-micro font-semibold text-rose-600 dark:text-rose-400"
                 >
                   <Clock className="h-3 w-3" /> Stalled {rot.days}d
                 </span>
               )}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-[var(--text-tertiary)]">
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-body text-[var(--text-tertiary)]">
               {deal.company && (
                 <button
                   type="button"
@@ -266,7 +266,7 @@ export function DealDetailPage() {
                 onClick={() => setLabel.mutate(deal.label === l.id ? null : l.id)}
                 title={deal.label === l.id ? `Clear the ${l.label.toLowerCase()} label` : `Mark this deal ${l.label.toLowerCase()}`}
                 className={cn(
-                  'rounded-md px-2 py-1 text-[11.5px] font-semibold transition-colors',
+                  'rounded-md px-2 py-1 text-caption font-semibold transition-colors',
                   deal.label === l.id
                     ? LABEL_TONE[l.id]
                     : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
@@ -317,18 +317,18 @@ export function DealDetailPage() {
           {step.missing ? (
             <>
               <AlertTriangle className="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
-              <span className="text-[12.5px] font-medium text-[var(--text-primary)]">Nothing is scheduled on this deal.</span>
-              <span className="text-[12px] text-[var(--text-tertiary)]">
+              <span className="text-body font-medium text-[var(--text-primary)]">Nothing is scheduled on this deal.</span>
+              <span className="text-body text-[var(--text-tertiary)]">
                 Deals without a next step are the ones that go quiet.
               </span>
             </>
           ) : (
             <>
               <CalendarClock className={cn('h-4 w-4 flex-shrink-0', step.overdue ? 'text-rose-500' : 'text-[var(--indigo)]')} />
-              <span className="text-[12.5px] text-[var(--text-primary)]">
+              <span className="text-body text-[var(--text-primary)]">
                 <span className="font-medium">{step.overdue ? 'Overdue:' : 'Next:'}</span> {step.title}
               </span>
-              <span className={cn('text-[12px]', step.overdue ? 'font-medium text-rose-500' : 'text-[var(--text-tertiary)]')}>
+              <span className={cn('text-body', step.overdue ? 'font-medium text-rose-500' : 'text-[var(--text-tertiary)]')}>
                 {whenLabel(step.at).text}
               </span>
             </>
@@ -337,7 +337,7 @@ export function DealDetailPage() {
           <button
             type="button"
             onClick={() => setTaskModal(taskDefaults())}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-semibold text-[var(--indigo)] transition-colors hover:bg-[var(--indigo-subtle)]"
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-caption font-semibold text-[var(--indigo)] transition-colors hover:bg-[var(--indigo-subtle)]"
           >
             <CheckSquare className="h-3.5 w-3.5" /> {step.missing ? 'Schedule one' : 'Add another'}
           </button>
@@ -348,7 +348,7 @@ export function DealDetailPage() {
               contact_email: deal.contact?.email || deal.contact_email,
               title: `Call — ${deal.company || primaryName || deal.title}`,
             })}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-semibold text-[var(--indigo)] transition-colors hover:bg-[var(--indigo-subtle)]"
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-caption font-semibold text-[var(--indigo)] transition-colors hover:bg-[var(--indigo-subtle)]"
           >
             <CalendarPlus className="h-3.5 w-3.5" /> Book
           </button>
@@ -378,7 +378,7 @@ export function DealDetailPage() {
 
         <div className="space-y-4">
           <div className="panel p-3.5">
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Summary</p>
+            <p className="mb-1 text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)]">Summary</p>
             <div className="divide-y divide-[var(--border-subtle)]">
               <Field label="Value" value={money(deal.value, deal.currency)} />
               {/* The parts, when somebody has described them. A total on its
@@ -424,7 +424,7 @@ export function DealDetailPage() {
               )}
             </div>
             {isOpen(deal.stage) && (
-              <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed text-[var(--text-muted)]">
+              <p className="mt-2 flex items-start gap-1.5 text-caption leading-relaxed text-[var(--text-muted)]">
                 <TrendingUp className="mt-px h-3 w-3 flex-shrink-0" />
                 Weighted is what this deal contributes to the forecast. Give it its own probability on the edit form to override the stage default.
               </p>
@@ -439,14 +439,14 @@ export function DealDetailPage() {
           <DealPeople deal={deal} participants={participants} onEmail={(email, name) => setWriteTo({ email, name })} />
 
           <div className="panel p-3.5">
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Journey</p>
+            <p className="mb-2 text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)]">Journey</p>
             <DealJourney deal={deal} events={history} />
           </div>
 
           {deal.notes?.trim() && (
             <div className="panel p-3.5">
-              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Deal notes</p>
-              <p className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-[var(--text-secondary)]">{deal.notes}</p>
+              <p className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)]">Deal notes</p>
+              <p className="whitespace-pre-wrap text-body leading-relaxed text-[var(--text-secondary)]">{deal.notes}</p>
             </div>
           )}
         </div>

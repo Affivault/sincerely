@@ -34,6 +34,43 @@ const config: Config = {
         'tertiary': 'var(--text-tertiary)',
         'accent': 'var(--accent)',
       },
+      /*
+       * The type scale.
+       *
+       * There were thirty-one sizes before this: twenty-five arbitrary
+       * bracket values plus six Tailwind defaults, with NINE of them
+       * living between 9px and 13.5px and every one used hundreds of
+       * times. 11px, 11.5px, 12px and 12.5px are not four sizes - they
+       * are one size that nobody agreed on, and they are why things in
+       * this app looked almost aligned and never settled.
+       *
+       * Eight steps, named by role. Every value here was already one of
+       * the dominant sizes in the codebase, so collapsing onto them moves
+       * almost nothing visually - it just stops the drift.
+       *
+       * FONT SIZE ONLY, deliberately. `text-[12px]` sets font-size and
+       * leaves line-height to inherit; attaching a line-height to these
+       * tokens would silently change the leading of sixteen hundred
+       * places at once, which is a different change and not this one.
+       */
+      fontSize: {
+        /** Chips, badges, uppercase labels. */
+        micro:   ['10px'],
+        /** Secondary and tertiary text, hints, captions. */
+        caption: ['11px'],
+        /** Default UI text. */
+        body:    ['12px'],
+        /** Row titles, emphasis, buttons. */
+        strong:  ['13px'],
+        /** Panel and section headings. */
+        heading: ['15px'],
+        /** Page titles. */
+        title:   ['19px'],
+        /** Large figures on a card. */
+        display: ['22px'],
+        /** The one number a screen is about. */
+        hero:    ['28px'],
+      },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
         mono: ['JetBrains Mono', 'Consolas', 'monospace'],

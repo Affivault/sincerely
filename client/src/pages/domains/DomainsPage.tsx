@@ -38,7 +38,7 @@ import type { SendingDomain, DomainVerifyResponse, DnsRecordInstruction } from '
 
 export function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded ${
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-body font-medium rounded ${
       ok
         ? 'bg-green-500/10 text-green-500'
         : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
@@ -102,9 +102,9 @@ const RECORD_STATUS_META = {
 function RecordField({ label, value, copyable = true }: { label: string; value: string; copyable?: boolean }) {
   return (
     <div className="space-y-1 min-w-0">
-      <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">{label}</span>
+      <span className="text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">{label}</span>
       <div className="flex items-center gap-1.5">
-        <code className="flex-1 min-w-0 text-[11.5px] font-mono text-[var(--text-primary)] bg-[var(--bg-elevated)] px-2.5 py-1.5 rounded-md border border-[var(--border-subtle)] break-all leading-relaxed">
+        <code className="flex-1 min-w-0 text-caption font-mono text-[var(--text-primary)] bg-[var(--bg-elevated)] px-2.5 py-1.5 rounded-md border border-[var(--border-subtle)] break-all leading-relaxed">
           {value}
         </code>
         {copyable && <CopyButton text={value} title={`Copy ${label.toLowerCase()}`} />}
@@ -121,17 +121,17 @@ function DnsRecordCard({ record }: { record: DnsRecordInstruction }) {
     <div className={cn('rounded-xl border bg-[var(--bg-surface)] p-3.5 space-y-2.5', meta.border)}>
       <div className="flex items-center gap-2 flex-wrap">
         {meta.icon}
-        <span className="text-[13px] font-semibold text-[var(--text-primary)]">
+        <span className="text-strong font-semibold text-[var(--text-primary)]">
           {record.label || record.type}
         </span>
-        <span className="text-[10px] font-semibold font-mono px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-tertiary)] border border-[var(--border-subtle)]">
+        <span className="text-micro font-semibold font-mono px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-tertiary)] border border-[var(--border-subtle)]">
           {record.type}
         </span>
-        <span className={cn('text-[10.5px] px-1.5 py-0.5 rounded font-medium', meta.chip)}>{meta.text}</span>
+        <span className={cn('text-micro px-1.5 py-0.5 rounded font-medium', meta.chip)}>{meta.text}</span>
         <span className="flex-1" />
       </div>
 
-      <p className="text-[12px] text-[var(--text-secondary)]">{record.purpose}</p>
+      <p className="text-body text-[var(--text-secondary)]">{record.purpose}</p>
 
       <div className="grid gap-2.5 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <RecordField label="Host / Name" value={record.host} />
@@ -139,7 +139,7 @@ function DnsRecordCard({ record }: { record: DnsRecordInstruction }) {
       </div>
 
       {record.current && record.current !== record.value && record.status !== 'verified' && (
-        <div className="text-[11.5px] text-[var(--text-tertiary)]">
+        <div className="text-caption text-[var(--text-tertiary)]">
           <span className="font-medium text-[var(--text-secondary)]">Currently published:</span>{' '}
           <code className="font-mono break-all">{record.current}</code>
         </div>
@@ -147,7 +147,7 @@ function DnsRecordCard({ record }: { record: DnsRecordInstruction }) {
 
       {record.note && (
         <div className={cn(
-          'flex items-start gap-2 rounded-lg px-2.5 py-2 text-[11.5px] leading-relaxed',
+          'flex items-start gap-2 rounded-lg px-2.5 py-2 text-caption leading-relaxed',
           record.status === 'warning' ? 'bg-amber-500/5 text-amber-700 dark:text-amber-400' : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
         )}>
           <HelpCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
@@ -287,8 +287,8 @@ export function DomainDetailPanel({
       data-dkim-help
       data-dkim-subtree={subtree || 'none'}
     >
-      <p className="text-[12.5px] font-semibold" data-dkim-verdict>{verdict.title}</p>
-      <p className="mt-1 text-[11.5px] leading-relaxed text-[var(--text-secondary)]" data-dkim-note>
+      <p className="text-body font-semibold" data-dkim-verdict>{verdict.title}</p>
+      <p className="mt-1 text-caption leading-relaxed text-[var(--text-secondary)]" data-dkim-note>
         {dkim?.note
           || 'DNS gives no way to list DKIM selectors, so we guess the common ones.'}
       </p>
@@ -300,7 +300,7 @@ export function DomainDetailPanel({
         * instead of offering a box that cannot succeed.
         */}
       {!domain.dkim_ok && subtree !== 'absent' && (
-        <p className="mt-1.5 text-[11.5px] leading-relaxed text-[var(--text-tertiary)]">
+        <p className="mt-1.5 text-caption leading-relaxed text-[var(--text-tertiary)]">
           Providers like Amazon SES, HubSpot and Postmark use selectors nobody
           could guess. Find yours in your provider&rsquo;s DNS settings &mdash;
           it is the part before <code>._domainkey</code> &mdash; and enter it here.
@@ -314,7 +314,7 @@ export function DomainDetailPanel({
             onChange={(e) => setSelector(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') saveSelector.mutate(); }}
             placeholder="e.g. selector1, google, hs1-4021"
-            className="input-field h-8 flex-1 text-[12px]"
+            className="input-field h-8 flex-1 text-body"
             data-dkim-selector
           />
           <button
@@ -329,7 +329,7 @@ export function DomainDetailPanel({
       )}
 
       {domain.dkim_selector && (
-        <p className="mt-1.5 text-[11px] text-[var(--text-tertiary)]">
+        <p className="mt-1.5 text-caption text-[var(--text-tertiary)]">
           Using <code>{domain.dkim_selector}._domainkey.{domain.domain}</code>
           {domain.dkim_selector_source === 'manual' ? ' (you set this)' : ' (we found this)'}
         </p>
@@ -337,10 +337,10 @@ export function DomainDetailPanel({
 
       {/* The evidence, for anyone who wants to check our working. */}
       <details className="mt-2 group">
-        <summary className="cursor-pointer text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] select-none">
+        <summary className="cursor-pointer text-caption text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] select-none">
           What we checked
         </summary>
-        <div className="mt-1.5 space-y-1 text-[11px] text-[var(--text-tertiary)]">
+        <div className="mt-1.5 space-y-1 text-caption text-[var(--text-tertiary)]">
           <p>
             Looked up <code>_domainkey.{domain.domain}</code> to see whether any
             keys exist at all, then{' '}
@@ -366,9 +366,9 @@ export function DomainDetailPanel({
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="text-[16px] font-semibold text-[var(--text-primary)] truncate">{domain.domain}</h3>
+            <h3 className="text-heading font-semibold text-[var(--text-primary)] truncate">{domain.domain}</h3>
             {domain.is_verified && (
-              <span className="inline-flex items-center gap-1 px-1.5 h-[19px] text-[10.5px] font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-[4px]">
+              <span className="inline-flex items-center gap-1 px-1.5 h-[19px] text-micro font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-[4px]">
                 <Sparkles className="h-2.5 w-2.5" /> Ready to send
               </span>
             )}
@@ -384,7 +384,7 @@ export function DomainDetailPanel({
                 />
               ))}
             </div>
-            <span className="text-[11.5px] font-medium text-[var(--text-tertiary)] tabular">{passing} of {CHECKS.length} checks passing</span>
+            <span className="text-caption font-medium text-[var(--text-tertiary)] tabular">{passing} of {CHECKS.length} checks passing</span>
           </div>
           <div className="flex items-center gap-1.5 mt-2 flex-wrap">
             {CHECKS.map((c) => <StatusBadge key={c.key} ok={!!domain[c.key]} label={c.label} />)}
@@ -411,13 +411,13 @@ export function DomainDetailPanel({
       {/* Provider + MX context */}
       <div className="flex items-center gap-2 flex-wrap">
         {domain.detected_provider && (
-          <span className="inline-flex items-center gap-1.5 px-2.5 h-7 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[11.5px] text-[var(--text-secondary)]">
+          <span className="inline-flex items-center gap-1.5 px-2.5 h-7 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-caption text-[var(--text-secondary)]">
             <Mail className="h-3 w-3 shrink-0" />
             Provider: <span className="font-medium text-[var(--text-primary)]">{domain.detected_provider}</span>
           </span>
         )}
         {mx && (
-          <span className="inline-flex items-center gap-1.5 px-2.5 h-7 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[11.5px] text-[var(--text-secondary)]" title={mx.records.map((r) => `${r.priority} ${r.exchange}`).join('\n')}>
+          <span className="inline-flex items-center gap-1.5 px-2.5 h-7 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-caption text-[var(--text-secondary)]" title={mx.records.map((r) => `${r.priority} ${r.exchange}`).join('\n')}>
             <Server className="h-3 w-3 shrink-0" />
             {mx.found
               ? <>MX: <span className="font-medium text-[var(--text-primary)] font-mono">{mx.records[0]?.exchange}</span>{mx.records.length > 1 ? ` +${mx.records.length - 1}` : ''}</>
@@ -431,7 +431,7 @@ export function DomainDetailPanel({
         <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 p-3.5">
           <div className="flex items-start gap-2.5">
             <HelpCircle className="h-4 w-4 text-[var(--indigo)] mt-0.5 shrink-0" />
-            <div className="text-[12px] text-[var(--text-secondary)] min-w-0">
+            <div className="text-body text-[var(--text-secondary)] min-w-0">
               <p className="font-medium text-[var(--text-primary)] mb-1.5">How to finish setup</p>
               <ol className="space-y-1 list-decimal list-inside">
                 <li>Open the DNS manager at your registrar (Cloudflare, Namecheap, GoDaddy…)</li>
@@ -450,7 +450,7 @@ export function DomainDetailPanel({
         </div>
       ) : records.length > 0 ? (
         <div className="space-y-2.5">
-          <h4 className="text-[12px] font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
+          <h4 className="text-body font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
             <Shield className="h-3.5 w-3.5 text-[var(--indigo)]" />
             DNS records
           </h4>
@@ -465,7 +465,7 @@ export function DomainDetailPanel({
 
       {/* Last checked */}
       {domain.last_checked_at && (
-        <p className="text-[11px] text-[var(--text-tertiary)]">
+        <p className="text-caption text-[var(--text-tertiary)]">
           Last checked {new Date(domain.last_checked_at).toLocaleString()}
           {!domain.is_verified && ' · re-checking automatically'}
         </p>
@@ -574,7 +574,7 @@ export function DomainsPage() {
         }
         actions={
           <>
-            <Link to="/smtp-accounts/guide" className="icon-btn h-8 px-2.5 text-[12.5px]">
+            <Link to="/smtp-accounts/guide" className="icon-btn h-8 px-2.5 text-body">
               <HelpCircle className="h-3.5 w-3.5" /> Setup guide
             </Link>
             <Button size="sm" onClick={() => setShowAddModal(true)}>
@@ -600,11 +600,11 @@ export function DomainsPage() {
             <Shield className="h-4 w-4 text-[var(--indigo)]" />
           </span>
           <div className="min-w-0">
-            <p className="text-[13px] font-medium text-[var(--text-primary)]">Why verify your domain?</p>
-            <p className="text-[12.5px] text-[var(--text-secondary)] mt-1">
+            <p className="text-strong font-medium text-[var(--text-primary)]">Why verify your domain?</p>
+            <p className="text-body text-[var(--text-secondary)] mt-1">
               SPF, DKIM and DMARC tell email providers that Sincerely is authorised to send from your domain — dramatically improving inbox placement.
             </p>
-            <div className="flex flex-wrap items-center gap-3 mt-2 text-[11.5px] text-[var(--text-tertiary)]">
+            <div className="flex flex-wrap items-center gap-3 mt-2 text-caption text-[var(--text-tertiary)]">
               <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald-500" /> Better inbox placement</span>
               <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald-500" /> Prevent spoofing</span>
               <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald-500" /> Build sender reputation</span>
@@ -647,18 +647,18 @@ export function DomainsPage() {
                   </span>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <h3 className="text-[14px] font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">{domain.domain}</h3>
+                      <h3 className="text-heading font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">{domain.domain}</h3>
                       {domain.is_verified ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-[10.5px] font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-[4px]">
+                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-micro font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-[4px]">
                           Verified
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-[10.5px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-[4px]">
+                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-micro font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-[4px]">
                           Pending
                         </span>
                       )}
                       {domain.detected_provider && (
-                        <span className="text-[10.5px] text-[var(--text-tertiary)]">via {domain.detected_provider}</span>
+                        <span className="text-micro text-[var(--text-tertiary)]">via {domain.detected_provider}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -710,7 +710,7 @@ export function DomainsPage() {
       >
         {!addResult ? (
           <form onSubmit={handleAdd} className="space-y-4">
-            <p className="text-sm text-[var(--text-secondary)]">
+            <p className="text-strong text-[var(--text-secondary)]">
               Enter the domain you want to send emails from. We'll generate the DNS records you need to add.
             </p>
             <Input
@@ -720,7 +720,7 @@ export function DomainsPage() {
               placeholder="example.com"
               required
             />
-            <p className="text-xs text-[var(--text-tertiary)]">
+            <p className="text-body text-[var(--text-tertiary)]">
               Enter the root domain (e.g., <code className="bg-[var(--bg-elevated)] px-1 py-0.5 rounded">example.com</code>),
               not a subdomain or full email address.
             </p>
@@ -739,8 +739,8 @@ export function DomainsPage() {
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-[var(--text-primary)]">Domain added successfully</p>
-                  <p className="text-sm text-[var(--text-secondary)] mt-1">
+                  <p className="text-strong font-medium text-[var(--text-primary)]">Domain added successfully</p>
+                  <p className="text-strong text-[var(--text-secondary)] mt-1">
                     Now add these DNS records to your domain registrar (GoDaddy, Cloudflare, Namecheap, etc.)
                     and click <strong>Verify</strong> when done.
                   </p>

@@ -363,7 +363,7 @@ export function BulkImportPage() {
       <div className="flex items-center justify-between gap-4">
         <button
           onClick={() => navigate('/contacts')}
-          className="flex items-center gap-1.5 px-2 h-7 rounded-md text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+          className="flex items-center gap-1.5 px-2 h-7 rounded-md text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
           disabled={step === 'importing'}
         >
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -391,7 +391,7 @@ export function BulkImportPage() {
                   )}
                 </span>
                 <span className={cn(
-                  'text-[11.5px] font-semibold transition-colors hidden sm:inline',
+                  'text-caption font-semibold transition-colors hidden sm:inline',
                   current ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]'
                 )}>
                   {s.label}
@@ -414,10 +414,10 @@ export function BulkImportPage() {
           <Upload className="h-4 w-4 text-white" />
         </span>
         <div>
-          <h1 className="text-[22px] font-semibold text-[var(--text-primary)] leading-[1.15] tracking-[-0.02em]">
+          <h1 className="text-display font-semibold text-[var(--text-primary)] leading-[1.15] tracking-[-0.02em]">
             Import contacts from CSV
           </h1>
-          <p className="text-[13px] text-[var(--text-secondary)] mt-0.5">
+          <p className="text-strong text-[var(--text-secondary)] mt-0.5">
             {step === 'upload'    && 'Upload a CSV file with your leads — we\'ll detect columns automatically.'}
             {step === 'map'       && 'Match each CSV column to the right contact field, then start the import.'}
             {step === 'importing' && 'Hang tight — your contacts are being added in batches.'}
@@ -456,10 +456,10 @@ export function BulkImportPage() {
             )}>
               <Upload className="h-6 w-6" strokeWidth={1.5} />
             </span>
-            <p className="text-[14px] font-semibold text-[var(--text-primary)] mb-1">
+            <p className="text-heading font-semibold text-[var(--text-primary)] mb-1">
               {isDragging ? 'Drop your CSV here' : 'Drop a CSV file here or click to browse'}
             </p>
-            <p className="text-[12px] text-[var(--text-secondary)]">
+            <p className="text-body text-[var(--text-secondary)]">
               We support .csv, .tsv, and .txt files up to 50 MB
             </p>
           </label>
@@ -468,8 +468,8 @@ export function BulkImportPage() {
             <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-lg bg-rose-500/10 border border-rose-500/25">
               <AlertCircle className="h-4 w-4 text-rose-500 flex-shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
-                <p className="text-[12.5px] font-semibold text-rose-700 dark:text-rose-400">Couldn't read this file</p>
-                <p className="text-[11.5px] text-rose-600 dark:text-rose-400 mt-0.5">{parseError}</p>
+                <p className="text-body font-semibold text-rose-700 dark:text-rose-400">Couldn't read this file</p>
+                <p className="text-caption text-rose-600 dark:text-rose-400 mt-0.5">{parseError}</p>
               </div>
               <button onClick={() => { setFile(null); setParseError(null); }} className="p-1 rounded hover:bg-rose-500/10">
                 <X className="h-3 w-3 text-rose-500" />
@@ -479,17 +479,17 @@ export function BulkImportPage() {
 
           {/* Requirements box */}
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-            <p className="text-[11px] font-bold text-[var(--text-tertiary)] mb-2.5">
+            <p className="text-caption font-bold text-[var(--text-tertiary)] mb-2.5">
               Tips for a smooth import
             </p>
-            <ul className="space-y-1.5 text-[12.5px] text-[var(--text-secondary)]">
+            <ul className="space-y-1.5 text-body text-[var(--text-secondary)]">
               <li className="flex items-start gap-2">
                 <Check className="h-3.5 w-3.5 text-emerald-500 mt-0.5 flex-shrink-0" />
                 <span>Your CSV must include a header row in the first line.</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="h-3.5 w-3.5 text-emerald-500 mt-0.5 flex-shrink-0" />
-                <span>An <span className="font-mono text-[11.5px] px-1 py-0.5 rounded bg-[var(--bg-elevated)]">email</span> column is required — other fields are optional.</span>
+                <span>An <span className="font-mono text-caption px-1 py-0.5 rounded bg-[var(--bg-elevated)]">email</span> column is required — other fields are optional.</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="h-3.5 w-3.5 text-emerald-500 mt-0.5 flex-shrink-0" />
@@ -515,8 +515,8 @@ export function BulkImportPage() {
               <FileText className="h-4 w-4" />
             </span>
             <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-semibold text-[var(--text-primary)] truncate">{file?.name}</p>
-              <p className="text-[11.5px] text-[var(--text-tertiary)]">
+              <p className="text-strong font-semibold text-[var(--text-primary)] truncate">{file?.name}</p>
+              <p className="text-caption text-[var(--text-tertiary)]">
                 {bytes(file?.size || 0)} · {allRows.length.toLocaleString()} rows · {headers.length} columns
               </p>
             </div>
@@ -529,10 +529,10 @@ export function BulkImportPage() {
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
             <div className="px-4 py-3 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] flex items-center justify-between">
               <div>
-                <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">Column mapping</p>
-                <p className="text-[11px] text-[var(--text-tertiary)]">Match your CSV columns to contact fields. Skip any you don't need.</p>
+                <p className="text-body font-semibold text-[var(--text-primary)]">Column mapping</p>
+                <p className="text-caption text-[var(--text-tertiary)]">Match your CSV columns to contact fields. Skip any you don't need.</p>
               </div>
-              <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)]">
+              <div className="flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
                 <Eye className="h-3 w-3" />
                 Preview shows first {previewRows.length} rows
               </div>
@@ -548,9 +548,9 @@ export function BulkImportPage() {
                 return (
                   <div key={`${h}-${i}`} className="grid grid-cols-[1fr,auto,1fr] gap-3 items-center px-4 py-2.5">
                     <div className="min-w-0">
-                      <p className="text-[12.5px] font-mono font-semibold text-[var(--text-primary)] truncate">{h}</p>
+                      <p className="text-body font-mono font-semibold text-[var(--text-primary)] truncate">{h}</p>
                       {samples.length > 0 && (
-                        <p className="text-[11px] text-[var(--text-tertiary)] truncate">
+                        <p className="text-caption text-[var(--text-tertiary)] truncate">
                           {samples.map((s) => `"${s}"`).join('  ·  ')}
                         </p>
                       )}
@@ -561,7 +561,7 @@ export function BulkImportPage() {
                         value={mapping[h] || ''}
                         onChange={(e) => setMapping({ ...mapping, [h]: e.target.value })}
                         className={cn(
-                          'flex-1 h-8 px-2.5 rounded-md border bg-[var(--bg-elevated)] text-[12.5px] text-[var(--text-primary)] outline-none transition-all',
+                          'flex-1 h-8 px-2.5 rounded-md border bg-[var(--bg-elevated)] text-body text-[var(--text-primary)] outline-none transition-all',
                           isDuplicate ? 'border-rose-500/50 focus:ring-2 focus:ring-rose-500/20'
                             : isEmail   ? 'border-emerald-500/40 focus:ring-2 focus:ring-emerald-500/20'
                                         : 'border-[var(--border-subtle)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15'
@@ -572,13 +572,13 @@ export function BulkImportPage() {
                         ))}
                       </select>
                       {isEmail && (
-                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold flex-shrink-0">
+                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-micro font-bold flex-shrink-0">
                           <MailCheck className="h-2.5 w-2.5" />
                           KEY
                         </span>
                       )}
                       {isDuplicate && (
-                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] bg-rose-500/10 text-rose-700 dark:text-rose-400 text-[10px] font-bold flex-shrink-0">
+                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] bg-rose-500/10 text-rose-700 dark:text-rose-400 text-micro font-bold flex-shrink-0">
                           DUP
                         </span>
                       )}
@@ -596,8 +596,8 @@ export function BulkImportPage() {
                 <FolderOpen className="h-4 w-4" />
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">Add to a list <span className="font-normal text-[var(--text-tertiary)]">(optional)</span></p>
-                <p className="text-[11px] text-[var(--text-tertiary)] mb-2.5">Imported contacts always land in All Contacts. A list groups this batch so you can target it in a campaign.</p>
+                <p className="text-body font-semibold text-[var(--text-primary)]">Add to a list <span className="font-normal text-[var(--text-tertiary)]">(optional)</span></p>
+                <p className="text-caption text-[var(--text-tertiary)] mb-2.5">Imported contacts always land in All Contacts. A list groups this batch so you can target it in a campaign.</p>
 
                 {/* Three-way choice — creating the list here saves a detour to
                     the lists page and back before every import. */}
@@ -616,7 +616,7 @@ export function BulkImportPage() {
                         if (opt.id === 'new' && !newListName) setNewListName(suggestedListName);
                       }}
                       className={cn(
-                        'flex-1 inline-flex items-center justify-center gap-1.5 h-7 rounded-md text-[12px] font-medium transition-colors',
+                        'flex-1 inline-flex items-center justify-center gap-1.5 h-7 rounded-md text-body font-medium transition-colors',
                         listMode === opt.id
                           ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.06)]'
                           : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -630,14 +630,14 @@ export function BulkImportPage() {
 
                 {listMode === 'existing' && (
                   (lists || []).length === 0 ? (
-                    <p className="text-[12px] text-[var(--text-tertiary)]">
+                    <p className="text-body text-[var(--text-tertiary)]">
                       You don't have any lists yet — switch to <span className="font-medium text-[var(--text-primary)]">New list</span> to create one as part of this import.
                     </p>
                   ) : (
                     <select
                       value={targetListId}
                       onChange={(e) => setTargetListId(e.target.value)}
-                      className="w-full h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 transition-all"
+                      className="w-full h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-strong text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 transition-all"
                     >
                       <option value="">Choose a list…</option>
                       {(lists || []).map((l) => (
@@ -655,12 +655,12 @@ export function BulkImportPage() {
                       placeholder="e.g. Q3 UK brokers"
                       maxLength={80}
                       className={cn(
-                        'w-full h-9 px-3 rounded-lg border bg-[var(--bg-elevated)] text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none transition-all focus:ring-2 focus:ring-[#5B5BF5]/15',
+                        'w-full h-9 px-3 rounded-lg border bg-[var(--bg-elevated)] text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none transition-all focus:ring-2 focus:ring-[#5B5BF5]/15',
                         duplicateListName ? 'border-amber-500/50 focus:border-amber-500' : 'border-[var(--border-subtle)] focus:border-[var(--indigo)]'
                       )}
                     />
                     <p className={cn(
-                      'text-[11px] mt-1',
+                      'text-caption mt-1',
                       duplicateListName ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-tertiary)]'
                     )}>
                       {duplicateListName
@@ -687,13 +687,13 @@ export function BulkImportPage() {
               )} />
               <div className="flex-1 min-w-0">
                 {!hasEmail && (
-                  <p className="text-[12.5px] font-semibold text-rose-700 dark:text-rose-400">Map at least one column to "Email" — it's required for every contact.</p>
+                  <p className="text-body font-semibold text-rose-700 dark:text-rose-400">Map at least one column to "Email" — it's required for every contact.</p>
                 )}
                 {dupes.length > 0 && (
-                  <p className="text-[12.5px] font-semibold text-rose-700 dark:text-rose-400">Multiple columns are mapped to the same field. Pick a different field for each.</p>
+                  <p className="text-body font-semibold text-rose-700 dark:text-rose-400">Multiple columns are mapped to the same field. Pick a different field for each.</p>
                 )}
                 {mappingValid && importableCount < allRows.length && (
-                  <p className="text-[12.5px] text-amber-700 dark:text-amber-400">
+                  <p className="text-body text-amber-700 dark:text-amber-400">
                     <span className="font-semibold">{(allRows.length - importableCount).toLocaleString()} rows</span> will be skipped because they have no email value.
                   </p>
                 )}
@@ -705,7 +705,7 @@ export function BulkImportPage() {
           <div className="flex items-center justify-between pt-2">
             <button
               onClick={reset}
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[12.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               Pick a different file
@@ -714,7 +714,7 @@ export function BulkImportPage() {
               onClick={startImport}
               disabled={!mappingValid || importableCount === 0 || !listChoiceValid}
               title={!listChoiceValid ? 'Choose a list, name a new one, or switch to "No list"' : undefined}
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-[12.5px] font-semibold hover:bg-[#4F46E5] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[#4F46E5] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
             >
               <Users className="h-3.5 w-3.5" />
               Import {importableCount.toLocaleString()} contact{importableCount === 1 ? '' : 's'}
@@ -732,10 +732,10 @@ export function BulkImportPage() {
           {/* Big progress bar */}
           <div className="space-y-3 mb-6">
             <div className="flex items-baseline justify-between">
-              <span className="text-[13px] font-semibold text-[var(--text-primary)]">
+              <span className="text-strong font-semibold text-[var(--text-primary)]">
                 Importing batch {progress.currentBatch} of {progress.totalBatches}
               </span>
-              <span className="text-[20px] font-bold tabular text-[var(--text-primary)] tracking-[-0.02em]">
+              <span className="text-title font-bold tabular text-[var(--text-primary)] tracking-[-0.02em]">
                 {progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0}%
               </span>
             </div>
@@ -745,7 +745,7 @@ export function BulkImportPage() {
                 style={{ width: `${progress.total > 0 ? (progress.processed / progress.total) * 100 : 0}%` }}
               />
             </div>
-            <div className="flex items-center justify-between text-[11.5px] text-[var(--text-tertiary)] tabular">
+            <div className="flex items-center justify-between text-caption text-[var(--text-tertiary)] tabular">
               <span>{progress.processed.toLocaleString()} of {progress.total.toLocaleString()} processed</span>
               <span className="flex items-center gap-1.5">
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -759,27 +759,27 @@ export function BulkImportPage() {
             <div className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3">
               <div className="flex items-center gap-1.5 mb-1">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-[10.5px] font-bold text-[var(--text-tertiary)]">Imported</span>
+                <span className="text-micro font-bold text-[var(--text-tertiary)]">Imported</span>
               </div>
-              <p className="text-[22px] font-semibold tabular text-emerald-600 dark:text-emerald-400 tracking-[-0.02em] leading-none">
+              <p className="text-display font-semibold tabular text-emerald-600 dark:text-emerald-400 tracking-[-0.02em] leading-none">
                 {progress.imported.toLocaleString()}
               </p>
             </div>
             <div className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3">
               <div className="flex items-center gap-1.5 mb-1">
                 <Loader2 className="h-3.5 w-3.5 text-[var(--indigo)] animate-spin" />
-                <span className="text-[10.5px] font-bold text-[var(--text-tertiary)]">Processing</span>
+                <span className="text-micro font-bold text-[var(--text-tertiary)]">Processing</span>
               </div>
-              <p className="text-[22px] font-semibold tabular text-[var(--indigo)] tracking-[-0.02em] leading-none">
+              <p className="text-display font-semibold tabular text-[var(--indigo)] tracking-[-0.02em] leading-none">
                 {progress.processed.toLocaleString()}
               </p>
             </div>
             <div className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3">
               <div className="flex items-center gap-1.5 mb-1">
                 <XCircle className="h-3.5 w-3.5 text-rose-500" />
-                <span className="text-[10.5px] font-bold text-[var(--text-tertiary)]">Skipped</span>
+                <span className="text-micro font-bold text-[var(--text-tertiary)]">Skipped</span>
               </div>
-              <p className="text-[22px] font-semibold tabular text-rose-600 dark:text-rose-400 tracking-[-0.02em] leading-none">
+              <p className="text-display font-semibold tabular text-rose-600 dark:text-rose-400 tracking-[-0.02em] leading-none">
                 {progress.errors.toLocaleString()}
               </p>
             </div>
@@ -788,15 +788,15 @@ export function BulkImportPage() {
           {/* Recent issues live preview */}
           {progress.errorDetails.length > 0 && (
             <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 mb-5">
-              <p className="text-[10.5px] font-bold text-[var(--text-tertiary)] mb-2 flex items-center gap-1">
+              <p className="text-micro font-bold text-[var(--text-tertiary)] mb-2 flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3 text-amber-500" />
                 Recent issues
               </p>
               <div className="space-y-1 max-h-24 overflow-y-auto">
                 {progress.errorDetails.slice(-5).reverse().map((e, i) => (
-                  <div key={i} className="flex items-center gap-2 text-[11px]">
+                  <div key={i} className="flex items-center gap-2 text-caption">
                     <span className="font-mono text-[var(--text-secondary)] truncate flex-1">{e.email}</span>
-                    <span className="text-rose-600 dark:text-rose-400 text-[10.5px] flex-shrink-0">{e.reason}</span>
+                    <span className="text-rose-600 dark:text-rose-400 text-micro flex-shrink-0">{e.reason}</span>
                   </div>
                 ))}
               </div>
@@ -805,13 +805,13 @@ export function BulkImportPage() {
 
           {/* Cancel */}
           <div className="flex items-center justify-between border-t border-[var(--border-subtle)] pt-4">
-            <p className="text-[11.5px] text-[var(--text-tertiary)]">
+            <p className="text-caption text-[var(--text-tertiary)]">
               Don't close this tab until the import finishes — leaving will stop it.
             </p>
             <button
               onClick={cancel}
               disabled={cancelRequested}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-rose-500/30 text-[12px] font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 disabled:opacity-40 transition-all"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-rose-500/30 text-body font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 disabled:opacity-40 transition-all"
             >
               <X className="h-3.5 w-3.5" />
               Cancel import
@@ -849,14 +849,14 @@ export function BulkImportPage() {
                   : <XCircle className="h-6 w-6" />}
             </span>
             <div className="flex-1 min-w-0">
-              <h2 className="text-[16px] font-semibold text-[var(--text-primary)]">
+              <h2 className="text-heading font-semibold text-[var(--text-primary)]">
                 {completedResult.errors === 0
                   ? `Imported ${completedResult.imported.toLocaleString()} contact${completedResult.imported === 1 ? '' : 's'}`
                   : completedResult.imported > 0
                     ? `Imported ${completedResult.imported.toLocaleString()} contacts with ${completedResult.errors.toLocaleString()} issue${completedResult.errors === 1 ? '' : 's'}`
                     : 'Import failed — no contacts were added'}
               </h2>
-              <p className="text-[12.5px] text-[var(--text-secondary)] mt-1">
+              <p className="text-body text-[var(--text-secondary)] mt-1">
                 Processed {completedResult.total.toLocaleString()} rows in {(completedResult.durationMs / 1000).toFixed(1)} seconds
                 {(() => {
                   if (createdListName) return ` · Added to the new list "${createdListName}"`;
@@ -872,27 +872,27 @@ export function BulkImportPage() {
             <div className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-4">
               <div className="flex items-center gap-1.5 mb-2">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-[10.5px] font-bold text-[var(--text-tertiary)]">Imported</span>
+                <span className="text-micro font-bold text-[var(--text-tertiary)]">Imported</span>
               </div>
-              <p className="text-[26px] font-semibold tabular text-emerald-600 dark:text-emerald-400 tracking-[-0.02em] leading-none">
+              <p className="text-hero font-semibold tabular text-emerald-600 dark:text-emerald-400 tracking-[-0.02em] leading-none">
                 {completedResult.imported.toLocaleString()}
               </p>
             </div>
             <div className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-4">
               <div className="flex items-center gap-1.5 mb-2">
                 <XCircle className="h-3.5 w-3.5 text-rose-500" />
-                <span className="text-[10.5px] font-bold text-[var(--text-tertiary)]">Skipped</span>
+                <span className="text-micro font-bold text-[var(--text-tertiary)]">Skipped</span>
               </div>
-              <p className="text-[26px] font-semibold tabular text-rose-600 dark:text-rose-400 tracking-[-0.02em] leading-none">
+              <p className="text-hero font-semibold tabular text-rose-600 dark:text-rose-400 tracking-[-0.02em] leading-none">
                 {completedResult.errors.toLocaleString()}
               </p>
             </div>
             <div className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-4">
               <div className="flex items-center gap-1.5 mb-2">
                 <Users className="h-3.5 w-3.5 text-[var(--text-secondary)]" />
-                <span className="text-[10.5px] font-bold text-[var(--text-tertiary)]">Total rows</span>
+                <span className="text-micro font-bold text-[var(--text-tertiary)]">Total rows</span>
               </div>
-              <p className="text-[26px] font-semibold tabular text-[var(--text-primary)] tracking-[-0.02em] leading-none">
+              <p className="text-hero font-semibold tabular text-[var(--text-primary)] tracking-[-0.02em] leading-none">
                 {completedResult.total.toLocaleString()}
               </p>
             </div>
@@ -902,7 +902,7 @@ export function BulkImportPage() {
           {completedResult.errorDetails.length > 0 && (
             <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
               <div className="px-4 py-3 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] flex items-center justify-between">
-                <p className="text-[12.5px] font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
+                <p className="text-body font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
                   <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
                   {completedResult.errorDetails.length === completedResult.errors
                     ? `${completedResult.errors} issue${completedResult.errors === 1 ? '' : 's'}`
@@ -910,7 +910,7 @@ export function BulkImportPage() {
                 </p>
                 <button
                   onClick={downloadErrors}
-                  className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                  className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
                 >
                   <Download className="h-3 w-3" />
                   Download CSV
@@ -918,7 +918,7 @@ export function BulkImportPage() {
               </div>
               <div className="max-h-64 overflow-y-auto">
                 {completedResult.errorDetails.map((e, i) => (
-                  <div key={i} className="flex items-center gap-3 px-4 py-2 border-b border-[var(--border-subtle)] last:border-0 text-[11.5px]">
+                  <div key={i} className="flex items-center gap-3 px-4 py-2 border-b border-[var(--border-subtle)] last:border-0 text-caption">
                     <span className="font-mono text-[var(--text-secondary)] truncate flex-1">{e.email}</span>
                     <span className="text-rose-600 dark:text-rose-400 flex-shrink-0">{e.reason}</span>
                   </div>
@@ -931,14 +931,14 @@ export function BulkImportPage() {
           <div className="flex items-center justify-between pt-2">
             <button
               onClick={reset}
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[12.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               Import another file
             </button>
             <button
               onClick={() => navigate(targetListId ? `/contacts?list=${targetListId}` : '/contacts')}
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-[12.5px] font-semibold hover:bg-[#4F46E5] transition-all shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[#4F46E5] transition-all shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
             >
               View contacts
               <ArrowRight className="h-3.5 w-3.5" />

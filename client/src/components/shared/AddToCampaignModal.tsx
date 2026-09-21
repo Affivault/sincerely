@@ -113,8 +113,8 @@ export function AddToCampaignModal({
       ) : activeCampaigns.length === 0 ? (
         <div className="py-8 text-center">
           <Megaphone className="h-7 w-7 text-[var(--text-muted)] mx-auto mb-2" />
-          <p className="text-[13px] font-medium text-[var(--text-primary)]">No active campaigns yet</p>
-          <p className="text-[12px] text-[var(--text-tertiary)] mt-1 mb-4">Create one and these leads will be waiting.</p>
+          <p className="text-strong font-medium text-[var(--text-primary)]">No active campaigns yet</p>
+          <p className="text-body text-[var(--text-tertiary)] mt-1 mb-4">Create one and these leads will be waiting.</p>
           <Button onClick={() => { onClose(); navigate('/campaigns/new'); }}>
             <Plus className="h-3.5 w-3.5" /> New campaign
           </Button>
@@ -125,7 +125,7 @@ export function AddToCampaignModal({
             <SearchInput value={search} onChange={setSearch} placeholder="Search campaigns…" />
           )}
           {campaigns.length === 0 ? (
-            <p className="py-6 text-center text-[13px] text-[var(--text-tertiary)]">No campaigns match “{search}”.</p>
+            <p className="py-6 text-center text-strong text-[var(--text-tertiary)]">No campaigns match “{search}”.</p>
           ) : (
             <div className="space-y-1.5 max-h-80 overflow-y-auto -mx-1 px-1">
               {campaigns.map((c: any) => {
@@ -147,8 +147,8 @@ export function AddToCampaignModal({
                       <Megaphone className={cn('h-3.5 w-3.5', active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} />
                     </span>
                     <span className="flex-1 min-w-0">
-                      <span className="block text-[13px] font-medium text-[var(--text-primary)] truncate">{c.name}</span>
-                      <span className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)]">
+                      <span className="block text-strong font-medium text-[var(--text-primary)] truncate">{c.name}</span>
+                      <span className="flex items-center gap-2 text-caption text-[var(--text-tertiary)]">
                         <span className={cn('inline-flex items-center gap-1 font-medium', meta.cls)}><Icon className="h-3 w-3" />{meta.label}</span>
                         <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{c.total_contacts ?? 0} enrolled</span>
                       </span>
@@ -164,7 +164,7 @@ export function AddToCampaignModal({
             className="w-full flex items-center gap-3 rounded-xl border border-dashed border-[var(--border-default)] px-3 py-2.5 text-left hover:bg-[var(--bg-hover)] transition-colors"
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg-elevated)] flex-shrink-0"><Plus className="h-3.5 w-3.5 text-[var(--text-tertiary)]" /></span>
-            <span className="text-[13px] font-medium text-[var(--text-secondary)]">Create a new campaign instead…</span>
+            <span className="text-strong font-medium text-[var(--text-secondary)]">Create a new campaign instead…</span>
           </button>
         </div>
       )}

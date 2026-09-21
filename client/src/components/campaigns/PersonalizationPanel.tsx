@@ -80,14 +80,14 @@ export function TimezoneCoverageNote({ coverage }: { coverage?: TimezoneCoverage
   const unplaced = coverage.total - coverage.placed;
   if (unplaced <= 0) {
     return (
-      <p className="flex items-center gap-2 text-[11.5px] text-emerald-600 dark:text-emerald-400">
+      <p className="flex items-center gap-2 text-caption text-emerald-600 dark:text-emerald-400">
         <Globe className="h-3.5 w-3.5 flex-shrink-0" />
         All {coverage.total.toLocaleString()} contacts have a location we could place on a clock.
       </p>
     );
   }
   return (
-    <p className="flex items-start gap-2 text-[11.5px] text-[var(--text-secondary)] leading-snug">
+    <p className="flex items-start gap-2 text-caption text-[var(--text-secondary)] leading-snug">
       <Globe className="h-3.5 w-3.5 flex-shrink-0 mt-px text-[var(--text-tertiary)]" />
       <span>
         <strong className="text-[var(--text-primary)]">{coverage.placed.toLocaleString()} of{' '}
@@ -110,7 +110,7 @@ export function PersonalizationPanel({
   if (audit.tags.length === 0) {
     if (!emptyHint) return null;
     return (
-      <p className={cn('text-[12px] text-[var(--text-tertiary)]', className)}>
+      <p className={cn('text-body text-[var(--text-tertiary)]', className)}>
         This sequence doesn’t use any merge tags — every recipient gets identical copy.
       </p>
     );
@@ -144,12 +144,12 @@ export function PersonalizationPanel({
 
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline gap-2">
-                <code className="text-[11.5px] font-medium text-[var(--text-primary)]">
+                <code className="text-caption font-medium text-[var(--text-primary)]">
                   {`{{${tag.name}}}`}
                 </code>
-                <span className="text-[10.5px] text-[var(--text-tertiary)] truncate">{tag.label}</span>
+                <span className="text-micro text-[var(--text-tertiary)] truncate">{tag.label}</span>
               </div>
-              <p className="text-[11.5px] text-[var(--text-secondary)] leading-snug mt-0.5">
+              <p className="text-caption text-[var(--text-secondary)] leading-snug mt-0.5">
                 {describe(tag)}
               </p>
 

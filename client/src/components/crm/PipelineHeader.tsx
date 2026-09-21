@@ -72,19 +72,19 @@ function Figure({
           : 'border-[var(--border-subtle)] bg-[var(--bg-surface)]',
       )}
     >
-      <p className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-tertiary)]">
+      <p className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-tertiary)]">
         <Icon className="h-3 w-3" />
         {label}
       </p>
       <p
         className={cn(
-          'mt-1 text-[21px] font-semibold leading-none tabular-nums tracking-[-0.02em]',
+          'mt-1 text-display font-semibold leading-none tabular-nums tracking-[-0.02em]',
           accent ? 'text-[var(--indigo)]' : 'text-[var(--text-primary)]',
         )}
       >
         {value}
       </p>
-      <p className={cn('mt-1.5 text-[11px]', subTone || 'text-[var(--text-muted)]')}>{sub}</p>
+      <p className={cn('mt-1.5 text-caption', subTone || 'text-[var(--text-muted)]')}>{sub}</p>
     </div>
   );
 }
@@ -106,7 +106,7 @@ function Flag({
       type="button"
       onClick={onClick}
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-medium transition-colors',
+        'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-caption font-medium transition-colors',
         tone === 'rose'
           ? 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/[0.16] dark:text-rose-400'
           : 'bg-amber-500/10 text-amber-700 hover:bg-amber-500/[0.16] dark:text-amber-400',
@@ -124,10 +124,10 @@ function Flag({
 function Chip({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <span className="inline-flex items-baseline gap-1.5">
-      <span className="text-[11px] text-[var(--text-tertiary)]">{label}</span>
+      <span className="text-caption text-[var(--text-tertiary)]">{label}</span>
       <span
         className={cn(
-          'text-[13px] font-semibold tabular-nums',
+          'text-strong font-semibold tabular-nums',
           accent ? 'text-[var(--indigo)]' : 'text-[var(--text-primary)]',
         )}
       >
@@ -198,7 +198,7 @@ export function PipelineHeader({
           <button
             type="button"
             onClick={onShowRotting}
-            className="text-[11.5px] font-medium text-rose-600 transition-opacity hover:opacity-80 dark:text-rose-400"
+            className="text-caption font-medium text-rose-600 transition-opacity hover:opacity-80 dark:text-rose-400"
           >
             {s.rottingCount} stalled
           </button>
@@ -207,7 +207,7 @@ export function PipelineHeader({
           <button
             type="button"
             onClick={onShowOverdue}
-            className="text-[11.5px] font-medium text-amber-700 transition-opacity hover:opacity-80 dark:text-amber-400"
+            className="text-caption font-medium text-amber-700 transition-opacity hover:opacity-80 dark:text-amber-400"
           >
             {s.overdueCount} past close date
           </button>
@@ -287,7 +287,7 @@ export function PipelineHeader({
             onClick={onShowOverdue}
           />
           {s.closingSoonCount > 0 && (
-            <span className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--bg-elevated)] px-2.5 py-1.5 text-[11.5px] font-medium text-[var(--text-secondary)]">
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--bg-elevated)] px-2.5 py-1.5 text-caption font-medium text-[var(--text-secondary)]">
               <CalendarClock className="h-3.5 w-3.5" />
               <span className="font-semibold tabular-nums">{s.closingSoonCount}</span>
               closing in 30 days
@@ -297,7 +297,7 @@ export function PipelineHeader({
           <span className="flex-1" />
           <Link
             to="/tasks"
-            className="text-[11.5px] font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--indigo)]"
+            className="text-caption font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--indigo)]"
           >
             Open activities →
           </Link>
@@ -313,10 +313,10 @@ export function PipelineHeader({
             {rows.map((row) => (
               <div key={row.stage} className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="truncate text-[11.5px] font-medium text-[var(--text-secondary)]">
+                  <span className="truncate text-caption font-medium text-[var(--text-secondary)]">
                     {stageLabel(row.stage)}
                   </span>
-                  <span className="flex-shrink-0 text-[11px] font-semibold tabular-nums text-[var(--text-primary)]">
+                  <span className="flex-shrink-0 text-caption font-semibold tabular-nums text-[var(--text-primary)]">
                     {row.count}
                   </span>
                 </div>
@@ -326,7 +326,7 @@ export function PipelineHeader({
                     style={{ width: `${Math.max(row.share * 100, row.count > 0 ? 4 : 0)}%` }}
                   />
                 </div>
-                <p className="mt-1 text-[10.5px] tabular-nums text-[var(--text-tertiary)]">
+                <p className="mt-1 text-micro tabular-nums text-[var(--text-tertiary)]">
                   {money(row.value, currency)}
                   <span className="text-[var(--text-muted)]"> · {money(row.weighted, currency)} wtd</span>
                 </p>

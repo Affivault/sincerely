@@ -301,9 +301,9 @@ export function CompaniesPage() {
       {needsMigration ? (
         <div className="panel px-5 py-8 text-center">
           <Building2 className="h-6 w-6 mx-auto text-[var(--text-muted)] mb-2" />
-          <p className="text-[14px] font-semibold text-[var(--text-primary)]">Companies aren't set up yet</p>
-          <p className="text-[12.5px] text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
-            Run migration <span className="font-mono text-[11.5px]">038_companies.sql</span> in Supabase, then
+          <p className="text-heading font-semibold text-[var(--text-primary)]">Companies aren't set up yet</p>
+          <p className="text-body text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
+            Run migration <span className="font-mono text-caption">038_companies.sql</span> in Supabase, then
             preview the backfill before letting it group your existing contacts.
           </p>
         </div>
@@ -360,7 +360,7 @@ export function CompaniesPage() {
                       {col.icon && <col.icon className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />}
                       {col.sortKey
                         ? <SortableHeader label={col.label} colKey={col.sortKey} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
-                        : <span className="text-[11px] font-medium text-[var(--text-tertiary)] truncate">{col.label}</span>}
+                        : <span className="text-caption font-medium text-[var(--text-tertiary)] truncate">{col.label}</span>}
                     </DraggableHeader>
                   ))}
 
@@ -382,7 +382,7 @@ export function CompaniesPage() {
                     className="group cursor-pointer transition-colors duration-150 hover:bg-[var(--bg-hover)]"
                   >
                     <td className="sticky left-0 z-[1] bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] pl-3 pr-2 py-1.5 border-b border-[var(--border-subtle)]">
-                      <span className="text-[10.5px] tabular text-[var(--text-muted)] select-none">{rowIdx + 1}</span>
+                      <span className="text-micro tabular text-[var(--text-muted)] select-none">{rowIdx + 1}</span>
                     </td>
 
                     <td className="sticky left-[44px] z-[1] bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] px-3 py-1.5 border-b border-[var(--border-subtle)] shadow-[inset_-1px_0_0_var(--border-subtle)]">
@@ -390,7 +390,7 @@ export function CompaniesPage() {
                         <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">
                           <Building2 className="h-3 w-3" />
                         </span>
-                        <span className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{c.name}</span>
+                        <span className="text-body font-medium text-[var(--text-primary)] truncate">{c.name}</span>
                       </span>
                     </td>
 
@@ -398,7 +398,7 @@ export function CompaniesPage() {
                       <td
                         key={col.id}
                         className={cn(
-                          'px-3 py-1.5 border-b border-[var(--border-subtle)] text-[12.5px] text-[var(--text-secondary)] truncate',
+                          'px-3 py-1.5 border-b border-[var(--border-subtle)] text-body text-[var(--text-secondary)] truncate',
                           col.align === 'right' && 'text-right',
                         )}
                       >
@@ -408,7 +408,7 @@ export function CompaniesPage() {
 
                     <td className="border-b border-[var(--border-subtle)]" />
                     <td className="sticky right-0 z-[1] bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] px-2 py-1.5 border-b border-[var(--border-subtle)] shadow-[inset_1px_0_0_var(--border-subtle)] text-right">
-                      <span className="text-[11px] font-medium text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-caption font-medium text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity">
                         Open
                       </span>
                     </td>

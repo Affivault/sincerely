@@ -157,7 +157,7 @@ export function ReplyActions({ target, compact }: { target: ReplyTarget; compact
         {openDeal ? (
           <Link
             to="/deals"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-[11.5px] font-semibold text-emerald-600 transition-opacity hover:opacity-80 dark:text-emerald-400"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-caption font-semibold text-emerald-600 transition-opacity hover:opacity-80 dark:text-emerald-400"
             title={`Already in the pipeline as “${openDeal.title}”`}
           >
             <Briefcase className="h-3 w-3" />
@@ -216,7 +216,7 @@ function ActionButton({
       type="button"
       onClick={onClick}
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-semibold transition-colors',
+        'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-caption font-semibold transition-colors',
         primary
           ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] hover:bg-[rgba(91,91,245,0.14)]'
           : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]',
@@ -275,7 +275,7 @@ function LinkSheet({ target, busy, onClose, onSubmit }: {
     >
       <div className="space-y-3">
         {!live ? (
-          <p className="text-[12.5px] text-[var(--text-secondary)]" data-no-link>
+          <p className="text-body text-[var(--text-secondary)]" data-no-link>
             No booking link is live.{' '}
             <Link to="/calendar/links" className="text-[var(--indigo)] hover:underline">
               Turn one on
@@ -294,13 +294,13 @@ function LinkSheet({ target, busy, onClose, onSubmit }: {
                 data-note
               />
             </Field>
-            <p className="text-[11.5px] text-[var(--text-tertiary)]">
+            <p className="text-caption text-[var(--text-tertiary)]">
               Sends as a reply in this thread, with{' '}
               <span className="text-[var(--text-secondary)]">/b/{live.slug}</span> underneath.
               Whatever they book is credited to the campaign this thread came from.
             </p>
             {readiness && !readiness.can_email && (
-              <p className="text-[11.5px] text-[#f59e0b]" data-no-mailbox>
+              <p className="text-caption text-[#f59e0b]" data-no-mailbox>
                 No mailbox is connected, so this will not send.
               </p>
             )}
@@ -369,7 +369,7 @@ function DealSheet({
         {/* Qualified rather than lead: they replied. That is the whole
             difference between the two stages, and defaulting to lead would
             make every reply-sourced deal need an immediate edit. */}
-        <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+        <p className="text-caption leading-relaxed text-[var(--text-tertiary)]">
           Starting at Qualified because they replied — move it back if this one is earlier than that.
         </p>
       </div>
@@ -448,7 +448,7 @@ function NoteSheet({
         rows={5}
         autoFocus
         placeholder="What came out of this conversation…"
-        className="w-full resize-y rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-[13px] leading-relaxed text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--indigo)]"
+        className="w-full resize-y rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-strong leading-relaxed text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--indigo)]"
       />
     </Modal>
   );
@@ -457,7 +457,7 @@ function NoteSheet({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[11.5px] font-semibold text-[var(--text-secondary)]">{label}</span>
+      <span className="mb-1 block text-caption font-semibold text-[var(--text-secondary)]">{label}</span>
       {children}
     </label>
   );

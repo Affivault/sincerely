@@ -146,14 +146,14 @@ export function ContactPicker({
   if (contactId) {
     return (
       <div>
-        <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">{label}</label>
+        <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">{label}</label>
         <div className="flex items-center gap-2.5 rounded-lg border border-[var(--indigo)]/30 bg-[var(--indigo-subtle)]/40 px-2.5 h-10">
           <Avatar name={contactName} email={contactEmail || ''} size="md" />
           <div className="flex-1 min-w-0 leading-tight">
-            <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{contactName || contactEmail}</p>
-            {contactEmail && <p className="text-[10.5px] text-[var(--text-tertiary)] truncate">{contactEmail}</p>}
+            <p className="text-body font-medium text-[var(--text-primary)] truncate">{contactName || contactEmail}</p>
+            {contactEmail && <p className="text-micro text-[var(--text-tertiary)] truncate">{contactEmail}</p>}
           </div>
-          <span className="hidden sm:inline-flex items-center gap-1 text-[10.5px] font-medium text-[var(--indigo)]"><Link2 className="h-3 w-3" /> Linked</span>
+          <span className="hidden sm:inline-flex items-center gap-1 text-micro font-medium text-[var(--indigo)]"><Link2 className="h-3 w-3" /> Linked</span>
           <button type="button" onClick={onUnlink} className="icon-btn h-6 w-6" title="Unlink"><X className="h-3.5 w-3.5" /></button>
         </div>
       </div>
@@ -187,8 +187,8 @@ export function ContactPicker({
               >
                 <Avatar name={full || c.email} email={c.email} size="md" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">{full || c.email}</p>
-                  <p className="text-[11px] text-[var(--text-tertiary)] truncate">{c.email}{c.company ? ` · ${c.company}` : ''}</p>
+                  <p className="text-body font-medium text-[var(--text-primary)] truncate">{full || c.email}</p>
+                  <p className="text-caption text-[var(--text-tertiary)] truncate">{c.email}{c.company ? ` · ${c.company}` : ''}</p>
                 </div>
                 <Link2 className="h-3.5 w-3.5 text-[var(--text-muted)]" />
               </button>
@@ -196,7 +196,7 @@ export function ContactPicker({
           })}
         </div>
       )}
-      <p className="mt-1 text-[11px] text-[var(--text-tertiary)]">Link a contact and this shows on their profile.</p>
+      <p className="mt-1 text-caption text-[var(--text-tertiary)]">Link a contact and this shows on their profile.</p>
     </div>
   );
 }
@@ -208,11 +208,11 @@ function useDealOptions() {
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">{children}</label>;
+  return <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">{children}</label>;
 }
 
 function selectCls() {
-  return 'w-full h-9 px-2.5 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-all';
+  return 'w-full h-9 px-2.5 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] text-strong text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-all';
 }
 
 /* ── Activity (task) modal ────────────────────────────────────────────── */
@@ -293,7 +293,7 @@ export function ActivityModal({
                 onClose();
                 gone.remove(task!.id!, 'Activity deleted', () => remove.mutateAsync());
               }}
-              className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[var(--error)] hover:underline"
+              className="inline-flex items-center gap-1.5 text-body font-medium text-[var(--error)] hover:underline"
             >
               <Trash2 className="h-3.5 w-3.5" /> Delete
             </button>
@@ -321,7 +321,7 @@ export function ActivityModal({
                   type="button"
                   onClick={() => set('type', t.id)}
                   className={cn(
-                    'flex flex-col items-center gap-1 rounded-lg border py-2 text-[11px] font-medium transition-all',
+                    'flex flex-col items-center gap-1 rounded-lg border py-2 text-caption font-medium transition-all',
                     active
                       ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
                       : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]',
@@ -380,7 +380,7 @@ export function ActivityModal({
             onChange={(e) => set('notes', e.target.value)}
             rows={3}
             placeholder="Context, talking points, what you promised…"
-            className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 py-2 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-all"
+            className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-all"
           />
         </div>
       </form>
@@ -470,7 +470,7 @@ export function MeetingModal({
                 onClose();
                 gone.remove(event!.id!, 'Meeting deleted', () => remove.mutateAsync());
               }}
-              className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[var(--error)] hover:underline"
+              className="inline-flex items-center gap-1.5 text-body font-medium text-[var(--error)] hover:underline"
             >
               <Trash2 className="h-3.5 w-3.5" /> Delete
             </button>
@@ -494,7 +494,7 @@ export function MeetingModal({
                 type="button"
                 onClick={() => set('type', t)}
                 className={cn(
-                  'inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border text-[12px] font-medium capitalize transition-all',
+                  'inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border text-body font-medium capitalize transition-all',
                   form.type === t
                     ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
                     : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
@@ -540,7 +540,7 @@ export function MeetingModal({
               ? { ...f, all_day: true, starts_at: `${f.starts_at.slice(0, 10)}T00:00`, ends_at: '' }
               : { ...f, all_day: false };
           })}
-          className="inline-flex items-center gap-2 text-[12px] font-medium text-[var(--text-secondary)]"
+          className="inline-flex items-center gap-2 text-body font-medium text-[var(--text-secondary)]"
         >
           <span className={cn('relative inline-flex h-[18px] w-8 items-center rounded-full transition-colors', form.all_day ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]')}>
             <span className={cn('inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform', form.all_day ? 'translate-x-[15px]' : 'translate-x-[2px]')} />
@@ -589,7 +589,7 @@ export function MeetingModal({
             onChange={(e) => set('notes', e.target.value)}
             rows={2}
             placeholder="What you want out of it"
-            className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 py-2 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] transition-all"
+            className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] transition-all"
           />
         </div>
 
@@ -602,7 +602,7 @@ export function MeetingModal({
               onChange={(e) => set('outcome', e.target.value)}
               rows={2}
               placeholder="Outcome, next steps, who else was on the call"
-              className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 py-2 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] transition-all"
+              className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] transition-all"
             />
           </div>
         )}

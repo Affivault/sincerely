@@ -75,7 +75,7 @@ export function InlineEdit({
   const cancel = () => { setDraft(initial); setEditing(false); };
 
   if (disabled) {
-    return <span className={cn('text-[12.5px] text-[var(--text-secondary)]', className)}>{initial || placeholder}</span>;
+    return <span className={cn('text-body text-[var(--text-secondary)]', className)}>{initial || placeholder}</span>;
   }
 
   if (!editing) {
@@ -94,7 +94,7 @@ export function InlineEdit({
         {/* cn is plain clsx, so a caller's size class would merely collide with
             the default rather than beat it — drop the default when one is given. */}
         <span className={cn(
-          !textClassName && 'text-[12.5px]',
+          !textClassName && 'text-body',
           shown ? textClassName || 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)] italic',
           multiline ? 'whitespace-pre-wrap' : 'inline-block max-w-full truncate align-middle',
           textClassName,
@@ -119,7 +119,7 @@ export function InlineEdit({
     },
     className: cn(
       'w-full rounded-md border border-[var(--indigo)] bg-[var(--bg-app)] px-1.5 py-0.5 -mx-1.5',
-      !inputClassName && 'text-[12.5px]',
+      !inputClassName && 'text-body',
       'text-[var(--text-primary)] outline-none',
       'focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] disabled:opacity-60',
       inputClassName,
@@ -184,7 +184,7 @@ export function InlineSelect<T extends string>({
         )}
       >
         {saving ? <Loader2 className="h-3 w-3 animate-spin text-[var(--indigo)]" /> : null}
-        {renderValue ? renderValue(value) : <span className="text-[12.5px] text-[var(--text-secondary)]">{current?.label || value}</span>}
+        {renderValue ? renderValue(value) : <span className="text-body text-[var(--text-secondary)]">{current?.label || value}</span>}
       </button>
       {open && (
         <span className="absolute left-0 top-full mt-1 z-50 min-w-[140px] rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] overflow-hidden block">
@@ -194,7 +194,7 @@ export function InlineSelect<T extends string>({
               type="button"
               onMouseDown={(e) => { e.preventDefault(); pick(o.value); }}
               className={cn(
-                'w-full text-left px-2.5 py-1.5 text-[12.5px] transition-colors',
+                'w-full text-left px-2.5 py-1.5 text-body transition-colors',
                 o.value === value
                   ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] font-medium'
                   : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',

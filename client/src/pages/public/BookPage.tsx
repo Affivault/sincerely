@@ -162,10 +162,10 @@ export function BookPage() {
       <PublicShell>
         <div className="text-center py-16" data-state="error">
           <AlertCircle className="h-8 w-8 mx-auto text-[var(--text-tertiary)]" />
-          <h1 className="mt-3 text-[17px] font-semibold text-[var(--text-primary)]">
+          <h1 className="mt-3 text-title font-semibold text-[var(--text-primary)]">
             {status === 403 ? 'This page is not taking bookings' : 'Nothing here'}
           </h1>
-          <p className="mt-1 text-[13px] text-[var(--text-secondary)] max-w-sm mx-auto">
+          <p className="mt-1 text-strong text-[var(--text-secondary)] max-w-sm mx-auto">
             {status === 403
               ? 'The person you are trying to reach has paused it. Try them another way.'
               : 'There is no booking page at this address. Check the link you were sent.'}
@@ -199,13 +199,13 @@ export function BookPage() {
           >
             <Check className="h-6 w-6" style={{ color: p.colour }} />
           </span>
-          <h1 className="mt-4 text-[19px] font-semibold text-[var(--text-primary)]">
+          <h1 className="mt-4 text-title font-semibold text-[var(--text-primary)]">
             You are booked in
           </h1>
-          <p className="mt-1 text-[13.5px] text-[var(--text-secondary)]">
+          <p className="mt-1 text-strong text-[var(--text-secondary)]">
             {fmtLong(booked.start)} at <strong className="text-[var(--text-primary)]">{fmtTime(booked.start)}</strong>
           </p>
-          <p className="mt-0.5 text-[12px] text-[var(--text-tertiary)]">
+          <p className="mt-0.5 text-body text-[var(--text-tertiary)]">
             {p.duration_minutes} minutes with {p.organiser} &middot; times shown in {zone.replace(/_/g, ' ')}
           </p>
 
@@ -221,7 +221,7 @@ export function BookPage() {
               Change or cancel
             </a>
           </div>
-          <p className="mt-4 text-[11.5px] text-[var(--text-tertiary)] max-w-sm mx-auto">
+          <p className="mt-4 text-caption text-[var(--text-tertiary)] max-w-sm mx-auto">
             Keep this page, or the link above, if you need to move it later.
           </p>
         </div>
@@ -238,7 +238,7 @@ export function BookPage() {
         <div className="mt-5 border-t border-[var(--border-subtle)] pt-5">
           <button
             onClick={() => { setChosenSlot(null); booking.reset(); }}
-            className="flex items-center gap-1 text-[12.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            className="flex items-center gap-1 text-body text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Pick a different time
           </button>
@@ -250,10 +250,10 @@ export function BookPage() {
               background: `color-mix(in srgb, ${p.colour} 8%, var(--bg-surface))`,
             }}
           >
-            <p className="text-[13.5px] font-medium text-[var(--text-primary)]">
+            <p className="text-strong font-medium text-[var(--text-primary)]">
               {fmtLong(chosenSlot.start)}
             </p>
-            <p className="text-[12.5px] text-[var(--text-secondary)]">
+            <p className="text-body text-[var(--text-secondary)]">
               {fmtTime(chosenSlot.start)} &ndash; {fmtTime(chosenSlot.end)} &middot; {zone.replace(/_/g, ' ')}
             </p>
           </div>
@@ -311,7 +311,7 @@ export function BookPage() {
 
             {booking.isError && (
               <p
-                className="flex items-start gap-1.5 rounded-md border border-[var(--red-border,rgba(239,68,68,0.3))] bg-[rgba(239,68,68,0.08)] px-2.5 py-2 text-[12.5px] text-[var(--text-primary)]"
+                className="flex items-start gap-1.5 rounded-md border border-[var(--red-border,rgba(239,68,68,0.3))] bg-[rgba(239,68,68,0.08)] px-2.5 py-2 text-body text-[var(--text-primary)]"
                 data-error
               >
                 <AlertCircle className="h-3.5 w-3.5 mt-[1px] flex-shrink-0 text-[#ef4444]" />
@@ -347,18 +347,18 @@ export function BookPage() {
         <div className="md:border-r md:border-[var(--border-subtle)] md:pr-6">
           <Header page={p} LocIcon={LocIcon} />
           {p.blurb && (
-            <p className="mt-3 text-[13px] leading-relaxed text-[var(--text-secondary)] whitespace-pre-line">
+            <p className="mt-3 text-strong leading-relaxed text-[var(--text-secondary)] whitespace-pre-line">
               {p.blurb}
             </p>
           )}
           <label className="mt-5 block">
-            <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-[var(--text-tertiary)]">
+            <span className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-tertiary)]">
               <Globe className="h-3 w-3" /> Times shown in
             </span>
             <select
               value={zone}
               onChange={(e) => { setZone(e.target.value); setChosenDay(null); }}
-              className="mt-1 h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+              className="mt-1 h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
               data-zone
             >
               {zoneOptions(zone).map((z) => (
@@ -388,12 +388,12 @@ export function BookPage() {
         <div className="mt-6 md:mt-0 md:border-l md:border-[var(--border-subtle)] md:pl-6">
           {chosenDay ? (
             <>
-              <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">
+              <p className="text-body font-semibold text-[var(--text-primary)]">
                 {new Date(`${chosenDay}T12:00:00`).toLocaleDateString(undefined, {
                   weekday: 'long', day: 'numeric', month: 'long',
                 })}
               </p>
-              <p className="mt-0.5 text-[11.5px] text-[var(--text-tertiary)]">
+              <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
                 {dayList.length} time{dayList.length === 1 ? '' : 's'} free
               </p>
               {/*
@@ -407,21 +407,21 @@ export function BookPage() {
                   <button
                     key={s.start}
                     onClick={() => setChosenSlot(s)}
-                    className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-[13px] tabular font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--indigo)]"
+                    className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-strong tabular font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--indigo)]"
                     style={{ ['--tw-ring-color' as any]: p.colour }}
                   >
                     {fmtTime(s.start)}
                   </button>
                 ))}
                 {dayList.length === 0 && (
-                  <p className="text-[12.5px] text-[var(--text-tertiary)]">
+                  <p className="text-body text-[var(--text-tertiary)]">
                     Nothing free on this day.
                   </p>
                 )}
               </div>
             </>
           ) : (
-            <p className="text-[12.5px] text-[var(--text-tertiary)]" data-empty>
+            <p className="text-body text-[var(--text-tertiary)]" data-empty>
               {slots.isFetching
                 ? 'Looking at the diary…'
                 : 'No free times in this month. Try the next one.'}
@@ -440,13 +440,13 @@ function Header({ page, LocIcon }: { page: any; LocIcon: any }) {
   const firstName = (page.invitee?.name || '').split(/\s+/)[0];
   return (
     <div>
-      <p className="text-[12.5px] font-medium text-[var(--text-tertiary)]" data-organiser>
+      <p className="text-body font-medium text-[var(--text-tertiary)]" data-organiser>
         {firstName ? `${firstName}, book a time with ${page.organiser}` : page.organiser}
       </p>
-      <h1 className="mt-0.5 text-[18px] font-semibold leading-snug text-[var(--text-primary)]">
+      <h1 className="mt-0.5 text-title font-semibold leading-snug text-[var(--text-primary)]">
         {page.headline}
       </h1>
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-[var(--text-secondary)]">
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-body text-[var(--text-secondary)]">
         <span className="flex items-center gap-1">
           <Clock className="h-3.5 w-3.5" /> {page.duration_minutes} min
         </span>
@@ -463,10 +463,10 @@ function Field({ label, hint, required, children }: {
 }) {
   return (
     <label className="block">
-      <span className="text-[12.5px] font-medium text-[var(--text-primary)]">
+      <span className="text-body font-medium text-[var(--text-primary)]">
         {label}{required && <span className="text-[#ef4444]"> *</span>}
       </span>
-      {hint && <span className="block text-[11.5px] text-[var(--text-tertiary)]">{hint}</span>}
+      {hint && <span className="block text-caption text-[var(--text-tertiary)]">{hint}</span>}
       <div className="mt-1">{children}</div>
     </label>
   );
@@ -507,7 +507,7 @@ function MonthGrid({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <p className="text-[13px] font-semibold text-[var(--text-primary)]">
+        <p className="text-strong font-semibold text-[var(--text-primary)]">
           {month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
         </p>
         <div className="flex items-center gap-1">
@@ -533,7 +533,7 @@ function MonthGrid({
 
       <div className="mt-3 grid grid-cols-7 gap-1">
         {WEEKDAY_SHORT.map((d) => (
-          <div key={d} className="text-center text-[10.5px] font-medium text-[var(--text-tertiary)] pb-1">
+          <div key={d} className="text-center text-micro font-medium text-[var(--text-tertiary)] pb-1">
             {d[0]}
           </div>
         ))}
@@ -550,7 +550,7 @@ function MonthGrid({
               data-day={key}
               data-has={has ? 'yes' : 'no'}
               className={cn(
-                'relative aspect-square rounded-lg text-[12.5px] tabular transition-colors',
+                'relative aspect-square rounded-lg text-body tabular transition-colors',
                 has
                   ? 'font-medium text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]'
                   : 'text-[var(--text-tertiary)] opacity-40 cursor-default',

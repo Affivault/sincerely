@@ -32,7 +32,7 @@ function StepRow({ step, index }: { step: SetupStep; index: number }) {
     >
       <span
         className={cn(
-          'mt-px flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10.5px] font-bold',
+          'mt-px flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-micro font-bold',
           step.done
             ? 'bg-emerald-500 text-white'
             : step.current
@@ -47,7 +47,7 @@ function StepRow({ step, index }: { step: SetupStep; index: number }) {
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span
             className={cn(
-              'text-[13px] font-semibold',
+              'text-strong font-semibold',
               step.done
                 ? 'text-[var(--text-tertiary)] line-through decoration-[var(--text-muted)]'
                 : dim
@@ -58,18 +58,18 @@ function StepRow({ step, index }: { step: SetupStep; index: number }) {
             {step.label}
           </span>
           {step.progress && (
-            <span className="text-[11px] font-medium text-[var(--text-tertiary)]">{step.progress}</span>
+            <span className="text-caption font-medium text-[var(--text-tertiary)]">{step.progress}</span>
           )}
         </div>
 
         {/* The explanation earns its place only where a decision is being
             made. Repeating it under five ticked-off rows is just noise. */}
         {!step.done && step.current && (
-          <p className="mt-1 text-[11.5px] leading-relaxed text-[var(--text-secondary)]">{step.detail}</p>
+          <p className="mt-1 text-caption leading-relaxed text-[var(--text-secondary)]">{step.detail}</p>
         )}
 
         {step.warning && (
-          <p className="mt-1 flex items-start gap-1.5 text-[11.5px] leading-relaxed text-amber-600 dark:text-amber-400">
+          <p className="mt-1 flex items-start gap-1.5 text-caption leading-relaxed text-amber-600 dark:text-amber-400">
             <AlertTriangle className="mt-px h-3 w-3 flex-shrink-0" />
             {step.warning}
           </p>
@@ -81,7 +81,7 @@ function StepRow({ step, index }: { step: SetupStep; index: number }) {
       {step.current && (
         <Link
           to={step.href}
-          className="mt-px inline-flex flex-shrink-0 items-center gap-1 rounded-lg bg-[var(--indigo)] px-2.5 py-1.5 text-[11.5px] font-semibold text-white transition-opacity hover:opacity-90"
+          className="mt-px inline-flex flex-shrink-0 items-center gap-1 rounded-lg bg-[var(--indigo)] px-2.5 py-1.5 text-caption font-semibold text-white transition-opacity hover:opacity-90"
         >
           {step.cta}
           <ArrowRight className="h-3 w-3" />
@@ -90,7 +90,7 @@ function StepRow({ step, index }: { step: SetupStep; index: number }) {
       {!step.current && !step.done && (
         <Link
           to={step.href}
-          className="mt-1 flex-shrink-0 text-[11.5px] font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]"
+          className="mt-1 flex-shrink-0 text-caption font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]"
         >
           {step.cta}
         </Link>
@@ -98,7 +98,7 @@ function StepRow({ step, index }: { step: SetupStep; index: number }) {
       {step.done && step.warning && (
         <Link
           to={step.href}
-          className="mt-1 flex-shrink-0 text-[11.5px] font-medium text-amber-600 transition-opacity hover:opacity-80 dark:text-amber-400"
+          className="mt-1 flex-shrink-0 text-caption font-medium text-amber-600 transition-opacity hover:opacity-80 dark:text-amber-400"
         >
           Fix
         </Link>
@@ -132,16 +132,16 @@ export function SetupChecklist() {
       <div className="border-b border-[var(--border-subtle)] p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="text-[13.5px] font-semibold text-[var(--text-primary)]">
+            <h3 className="text-strong font-semibold text-[var(--text-primary)]">
               {data.fresh ? 'Get your first campaign out' : 'Finish setting up'}
             </h3>
-            <p className="mt-0.5 text-[11.5px] leading-snug text-[var(--text-secondary)]">
+            <p className="mt-0.5 text-caption leading-snug text-[var(--text-secondary)]">
               {data.fresh
                 ? 'Five steps, in the order they depend on each other. Most of it is once, and then never again.'
                 : 'A few things are still outstanding — each one is something a campaign will otherwise trip over.'}
             </p>
           </div>
-          <span className="flex-shrink-0 text-[11.5px] font-semibold tabular-nums text-[var(--text-tertiary)]">
+          <span className="flex-shrink-0 text-caption font-semibold tabular-nums text-[var(--text-tertiary)]">
             {data.done_count}/{data.steps.length}
           </span>
         </div>

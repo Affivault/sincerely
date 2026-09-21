@@ -51,7 +51,7 @@ function ChipInput({
   };
   return (
     <div>
-      <label className="flex items-center gap-1.5 text-[11.5px] font-medium text-[var(--text-secondary)] mb-1">
+      <label className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-secondary)] mb-1">
         <Icon className="h-3 w-3 text-[var(--text-muted)]" /> {label}
       </label>
       <input
@@ -60,12 +60,12 @@ function ChipInput({
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commit(); } }}
         onBlur={commit}
         placeholder={placeholder}
-        className="block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-[12.5px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-[border-color,box-shadow]"
+        className="block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-[border-color,box-shadow]"
       />
       {values.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-1.5">
           {values.map((v) => (
-            <span key={v} className="inline-flex items-center gap-1 pl-2 pr-1 h-[20px] rounded-[5px] bg-[var(--indigo-subtle)] text-[11px] font-medium text-[var(--indigo)]">
+            <span key={v} className="inline-flex items-center gap-1 pl-2 pr-1 h-[20px] rounded-[5px] bg-[var(--indigo-subtle)] text-caption font-medium text-[var(--indigo)]">
               {v}
               <button onClick={() => onChange(values.filter((x) => x !== v))} className="rounded hover:bg-[var(--indigo)]/15 p-0.5">
                 <X className="h-2.5 w-2.5" />
@@ -82,7 +82,7 @@ function CreditsMeter({ allowance, planRemaining, purchased, onBuy }: {
   allowance: number; planRemaining: number; purchased: number; onBuy: () => void;
 }) {
   if (allowance < 0) {
-    return <span className="text-[12px] font-medium text-[var(--text-secondary)]">Unlimited credits</span>;
+    return <span className="text-body font-medium text-[var(--text-secondary)]">Unlimited credits</span>;
   }
   const pct = allowance > 0 ? Math.max(0, Math.min(100, (planRemaining / allowance) * 100)) : 0;
   const low = pct <= 15 && purchased === 0;
@@ -92,7 +92,7 @@ function CreditsMeter({ allowance, planRemaining, purchased, onBuy }: {
       <div className="w-28 h-1.5 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
         <div className={cn('h-full rounded-full transition-all', low ? 'bg-amber-500' : '[background:var(--indigo-grad)]')} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-[12px] font-medium text-[var(--text-primary)] tabular">
+      <span className="text-body font-medium text-[var(--text-primary)] tabular">
         {planRemaining}<span className="text-[var(--text-muted)]">/{allowance}</span>
         {purchased > 0 && <span className="text-[var(--indigo)]"> +{purchased.toLocaleString()}</span>}
         <span className="text-[var(--text-muted)]"> credits</span>
@@ -126,11 +126,11 @@ function BuyCreditsModal({ onClose }: { onClose: () => void }) {
                 <Coins className="h-4 w-4 text-[var(--indigo)]" />
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-semibold text-[var(--text-primary)] tabular">
+                <p className="text-strong font-semibold text-[var(--text-primary)] tabular">
                   {pack.credits.toLocaleString()} credits
-                  <span className="ml-2 inline-flex items-center px-1.5 h-[17px] text-[10px] font-medium bg-[var(--bg-elevated)] text-[var(--text-tertiary)] rounded-[4px]">{pack.label}</span>
+                  <span className="ml-2 inline-flex items-center px-1.5 h-[17px] text-micro font-medium bg-[var(--bg-elevated)] text-[var(--text-tertiary)] rounded-[4px]">{pack.label}</span>
                 </p>
-                <p className="text-[11px] text-[var(--text-tertiary)]">${perCredit.toFixed(3)} per lead</p>
+                <p className="text-caption text-[var(--text-tertiary)]">${perCredit.toFixed(3)} per lead</p>
               </div>
               <Button variant={pack.id === 'pack_2000' ? 'primary' : 'secondary'} disabled={busyId !== null} onClick={() => buy(pack.id)}>
                 {busyId === pack.id ? 'Redirecting…' : `$${pack.priceUsd}`}
@@ -139,7 +139,7 @@ function BuyCreditsModal({ onClose }: { onClose: () => void }) {
           );
         })}
       </div>
-      <p className="mt-3 text-[11px] text-[var(--text-muted)]">Secure checkout via Stripe. Credits appear within a few seconds of payment.</p>
+      <p className="mt-3 text-caption text-[var(--text-muted)]">Secure checkout via Stripe. Credits appear within a few seconds of payment.</p>
     </Modal>
   );
 }
@@ -296,8 +296,8 @@ export function ProspectorPage() {
             <Radar className="h-5 w-5 text-[var(--indigo)]" />
           </span>
           <div>
-            <h1 className="text-[19px] font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Prospector</h1>
-            <p className="text-[12.5px] text-[var(--text-tertiary)]">Search 100M+ B2B profiles, reveal verified emails, and drop them straight into your contact lists.</p>
+            <h1 className="text-title font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Prospector</h1>
+            <p className="text-body text-[var(--text-tertiary)]">Search 100M+ B2B profiles, reveal verified emails, and drop them straight into your contact lists.</p>
           </div>
         </div>
         {credits && (
@@ -317,11 +317,11 @@ export function ProspectorPage() {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-500/10 flex-shrink-0">
             <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
           </span>
-          <div className="min-w-0 text-[12.5px] flex-1">
+          <div className="min-w-0 text-body flex-1">
             <p className="font-semibold text-[var(--text-primary)]">Couldn't load Prospector status</p>
             <p className="text-[var(--text-secondary)]">Credit balance and provider connection couldn't be checked — this doesn't mean they're unavailable.</p>
           </div>
-          <button onClick={() => qc.invalidateQueries({ queryKey: ['prospecting', 'status'] })} className="text-[12px] font-semibold text-[var(--indigo)] hover:underline flex-shrink-0">Retry</button>
+          <button onClick={() => qc.invalidateQueries({ queryKey: ['prospecting', 'status'] })} className="text-body font-semibold text-[var(--indigo)] hover:underline flex-shrink-0">Retry</button>
         </div>
       )}
 
@@ -331,11 +331,11 @@ export function ProspectorPage() {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 flex-shrink-0">
             <KeyRound className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           </span>
-          <div className="min-w-0 text-[12.5px]">
+          <div className="min-w-0 text-body">
             <p className="font-medium text-[var(--text-primary)]">Connect a data provider to switch on the Prospector</p>
             <p className="text-[var(--text-secondary)] mt-0.5">
-              Add a <code className="bg-[var(--bg-elevated)] px-1 py-0.5 rounded text-[11.5px]">PDL_API_KEY</code> (People Data Labs) or{' '}
-              <code className="bg-[var(--bg-elevated)] px-1 py-0.5 rounded text-[11.5px]">APOLLO_API_KEY</code> to the server environment and restart.
+              Add a <code className="bg-[var(--bg-elevated)] px-1 py-0.5 rounded text-caption">PDL_API_KEY</code> (People Data Labs) or{' '}
+              <code className="bg-[var(--bg-elevated)] px-1 py-0.5 rounded text-caption">APOLLO_API_KEY</code> to the server environment and restart.
               Search, credits, reveals and lead-list saving are already wired up — the key is the only missing piece.
             </p>
           </div>
@@ -346,7 +346,7 @@ export function ProspectorPage() {
         {/* Filters */}
         <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 space-y-3.5 lg:sticky lg:top-4">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
+            <p className="text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
               <Search className="h-3 w-3" /> Filters
             </p>
             {hasFilters && (
@@ -356,7 +356,7 @@ export function ProspectorPage() {
                   setCompanies([]); setSeniorities([]); setCompanySizes([]);
                   setKeywords('');
                 }}
-                className="text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] transition-colors"
+                className="text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] transition-colors"
               >
                 Clear all
               </button>
@@ -368,7 +368,7 @@ export function ProspectorPage() {
           <ChipInput label="Company" icon={Building2} values={companies} onChange={setCompanies} placeholder="Name or domain…" />
 
           <div>
-            <label className="flex items-center gap-1.5 text-[11.5px] font-medium text-[var(--text-secondary)] mb-1">
+            <label className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-secondary)] mb-1">
               <Users className="h-3 w-3 text-[var(--text-muted)]" /> Seniority
             </label>
             <div className="flex flex-wrap gap-1">
@@ -379,7 +379,7 @@ export function ProspectorPage() {
                     key={s.value}
                     onClick={() => setSeniorities(on ? seniorities.filter((x) => x !== s.value) : [...seniorities, s.value])}
                     className={cn(
-                      'h-6 px-2 rounded-md text-[11px] font-medium border transition-colors',
+                      'h-6 px-2 rounded-md text-caption font-medium border transition-colors',
                       on ? 'bg-[var(--indigo-subtle)] border-[rgba(91,91,245,0.3)] text-[var(--indigo)]' : 'border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]'
                     )}
                   >
@@ -391,7 +391,7 @@ export function ProspectorPage() {
           </div>
 
           <div>
-            <label className="flex items-center gap-1.5 text-[11.5px] font-medium text-[var(--text-secondary)] mb-1">
+            <label className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-secondary)] mb-1">
               <Building2 className="h-3 w-3 text-[var(--text-muted)]" /> Company size
             </label>
             <div className="flex flex-wrap gap-1">
@@ -402,7 +402,7 @@ export function ProspectorPage() {
                     key={s}
                     onClick={() => setCompanySizes(on ? companySizes.filter((x) => x !== s) : [...companySizes, s])}
                     className={cn(
-                      'h-6 px-2 rounded-md text-[11px] font-medium border tabular transition-colors',
+                      'h-6 px-2 rounded-md text-caption font-medium border tabular transition-colors',
                       on ? 'bg-[var(--indigo-subtle)] border-[rgba(91,91,245,0.3)] text-[var(--indigo)]' : 'border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]'
                     )}
                   >
@@ -414,13 +414,13 @@ export function ProspectorPage() {
           </div>
 
           <div>
-            <label className="text-[11.5px] font-medium text-[var(--text-secondary)] mb-1 block">Keywords</label>
+            <label className="text-caption font-medium text-[var(--text-secondary)] mb-1 block">Keywords</label>
             <input
               value={keywords}
               onChange={(e) => setKeywords(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') runSearch(1); }}
               placeholder="e.g. outbound, PLG, agency…"
-              className="block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-[12.5px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-[border-color,box-shadow]"
+              className="block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-[border-color,box-shadow]"
             />
           </div>
 
@@ -434,7 +434,7 @@ export function ProspectorPage() {
           {/* Save-to-list bar */}
           <div className="flex items-center gap-2.5 mb-3 flex-wrap">
             <FolderOpen className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-            <span className="text-[12px] text-[var(--text-secondary)]">Save revealed leads to</span>
+            <span className="text-body text-[var(--text-secondary)]">Save revealed leads to</span>
             <div className="w-52">
               <Select
                 options={[{ value: '', label: 'All contacts (no list)' }, ...(lists || []).map((l) => ({ value: l.id, label: l.name }))]}
@@ -444,7 +444,7 @@ export function ProspectorPage() {
             </div>
             <span className="flex-1" />
             {results && (
-              <span className="text-[12px] text-[var(--text-tertiary)] tabular">
+              <span className="text-body text-[var(--text-tertiary)] tabular">
                 {results.total.toLocaleString()} match{results.total === 1 ? '' : 'es'}
               </span>
             )}
@@ -452,7 +452,7 @@ export function ProspectorPage() {
 
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-2.5 mb-3 rounded-lg border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-3 py-2">
-              <span className="text-[12px] font-medium text-[var(--text-primary)]">{selectedIds.size} selected</span>
+              <span className="text-body font-medium text-[var(--text-primary)]">{selectedIds.size} selected</span>
               <span className="flex-1" />
               <Button size="sm" variant="secondary" onClick={() => setSelectedIds(new Set())} disabled={bulkRevealing}>
                 Clear
@@ -472,8 +472,8 @@ export function ProspectorPage() {
           {!results ? (
             <div className="rounded-xl border border-dashed border-[var(--border-default)] bg-[var(--bg-surface)] py-20 text-center px-6">
               <Radar className="h-8 w-8 text-[var(--text-muted)] mx-auto mb-3" />
-              <p className="text-[14px] font-semibold text-[var(--text-primary)]">Find your next customers</p>
-              <p className="text-[12.5px] text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
+              <p className="text-heading font-semibold text-[var(--text-primary)]">Find your next customers</p>
+              <p className="text-body text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
                 Filter by job title, location, industry and company size. Each verified email you reveal costs 1 credit and lands in your contact lists — ready for campaigns.
               </p>
             </div>
@@ -491,7 +491,7 @@ export function ProspectorPage() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left">
                   <thead>
-                    <tr className="border-b border-[var(--border-subtle)] text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                    <tr className="border-b border-[var(--border-subtle)] text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                       <th className="py-2.5 pl-4 pr-2 w-8">
                         {unrevealedOnPage.length > 0 && (
                           <input
@@ -536,29 +536,29 @@ export function ProspectorPage() {
                             <Avatar name={p.full_name} size="lg" />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">{p.full_name}</span>
+                                <span className="text-strong font-medium text-[var(--text-primary)] truncate">{p.full_name}</span>
                                 {p.linkedin_url && (
                                   <a href={p.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-[var(--text-muted)] hover:text-[#0A66C2] transition-colors flex-shrink-0" title="Open LinkedIn">
                                     <Linkedin className="h-3 w-3" />
                                   </a>
                                 )}
                               </div>
-                              <p className="text-[11.5px] text-[var(--text-tertiary)] truncate">{p.job_title || '—'}</p>
+                              <p className="text-caption text-[var(--text-tertiary)] truncate">{p.job_title || '—'}</p>
                             </div>
                           </div>
                         </td>
                         <td className="py-2.5 px-3">
-                          <p className="text-[12.5px] text-[var(--text-primary)] truncate max-w-[180px]">{p.company || '—'}</p>
-                          <p className="text-[11px] text-[var(--text-tertiary)] truncate">{[p.industry, p.company_size && `${p.company_size} people`].filter(Boolean).join(' · ')}</p>
+                          <p className="text-body text-[var(--text-primary)] truncate max-w-[180px]">{p.company || '—'}</p>
+                          <p className="text-caption text-[var(--text-tertiary)] truncate">{[p.industry, p.company_size && `${p.company_size} people`].filter(Boolean).join(' · ')}</p>
                         </td>
-                        <td className="py-2.5 px-3 text-[12px] text-[var(--text-secondary)] truncate max-w-[150px]">{p.location || '—'}</td>
+                        <td className="py-2.5 px-3 text-body text-[var(--text-secondary)] truncate max-w-[150px]">{p.location || '—'}</td>
                         <td className="py-2.5 px-3">
                           {p.already_revealed ? (
-                            <span className="inline-flex items-center gap-1 text-[11.5px] font-medium text-emerald-600 dark:text-emerald-400">
+                            <span className="inline-flex items-center gap-1 text-caption font-medium text-emerald-600 dark:text-emerald-400">
                               <CheckCircle2 className="h-3 w-3" /> Unlocked
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--text-muted)] font-mono select-none">
+                            <span className="inline-flex items-center gap-1.5 text-body text-[var(--text-muted)] font-mono select-none">
                               <Lock className="h-3 w-3" /> ●●●●●@{p.company_domain || '●●●●●.com'}
                             </span>
                           )}
@@ -569,14 +569,14 @@ export function ProspectorPage() {
                               <span className="inline-flex items-center gap-0.5">
                                 <button
                                   onClick={() => setCampaignContactIds([p.contact_id!])}
-                                  className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[12px] font-medium text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
+                                  className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-body font-medium text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
                                   title="Add this lead to a campaign"
                                 >
                                   <Megaphone className="h-3 w-3" /> Campaign
                                 </button>
                                 <button
                                   onClick={() => navigate(`/contacts/${p.contact_id}`)}
-                                  className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
+                                  className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-body font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
                                 >
                                   Open <ArrowUpRight className="h-3 w-3" />
                                 </button>
@@ -603,7 +603,7 @@ export function ProspectorPage() {
 
               {/* Pagination */}
               <div className="flex items-center justify-between px-4 h-11 border-t border-[var(--border-subtle)]">
-                <span className="text-[11.5px] text-[var(--text-tertiary)] tabular">Page {page} of {totalPages}</span>
+                <span className="text-caption text-[var(--text-tertiary)] tabular">Page {page} of {totalPages}</span>
                 <div className="flex items-center gap-1">
                   <button onClick={() => runSearch(page - 1)} disabled={page <= 1 || searchMutation.isPending} className="icon-btn h-7 w-7 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
                   <button onClick={() => runSearch(page + 1)} disabled={page >= totalPages || searchMutation.isPending} className="icon-btn h-7 w-7 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
@@ -616,14 +616,14 @@ export function ProspectorPage() {
           {/* Out of credits nudge */}
           {credits && credits.allowance >= 0 && credits.remaining === 0 && (
             <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-2.5 flex-wrap">
-              <span className="text-[12.5px] text-[var(--text-secondary)] flex items-center gap-2">
+              <span className="text-body text-[var(--text-secondary)] flex items-center gap-2">
                 <Coins className="h-3.5 w-3.5 text-amber-500" /> You're out of credits. Plan credits reset {new Date(credits.resets_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.
               </span>
               <span className="flex items-center gap-3 flex-shrink-0">
-                <button onClick={() => setBuyOpen(true)} className="inline-flex items-center gap-1 text-[12px] font-semibold text-[var(--indigo)] hover:underline">
+                <button onClick={() => setBuyOpen(true)} className="inline-flex items-center gap-1 text-body font-semibold text-[var(--indigo)] hover:underline">
                   <Plus className="h-3 w-3" /> Buy credits
                 </button>
-                <Link to="/billing" className="text-[12px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">
+                <Link to="/billing" className="text-body font-medium text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">
                   or upgrade plan
                 </Link>
               </span>

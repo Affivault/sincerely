@@ -106,7 +106,7 @@ function Segmented<T extends string | number>({ options, value, onChange, size =
           onClick={() => onChange(o.value)}
           className={cn(
             'rounded-[6px] font-medium transition-all duration-150',
-            size === 'sm' ? 'h-6 px-2.5 text-[12px]' : 'h-7 px-3 text-[12.5px]',
+            size === 'sm' ? 'h-6 px-2.5 text-body' : 'h-7 px-3 text-body',
             value === o.value
               ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
               : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
@@ -122,13 +122,13 @@ function Segmented<T extends string | number>({ options, value, onChange, size =
 /* ─── Delta (the only place red/green appears) ─────────── */
 function Delta({ value, className }: { value: number | null | undefined; className?: string }) {
   if (value == null || !isFinite(value)) {
-    return <span className={cn('text-[12px] font-medium text-[var(--text-muted)]', className)}>—</span>;
+    return <span className={cn('text-body font-medium text-[var(--text-muted)]', className)}>—</span>;
   }
   const flat = Math.abs(value) < 0.05;
   const up = value > 0;
   return (
     <span className={cn(
-      'inline-flex items-center gap-0.5 text-[12px] font-semibold tabular',
+      'inline-flex items-center gap-0.5 text-body font-semibold tabular',
       flat ? 'text-[var(--text-tertiary)]' : up ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-500',
       className
     )}>
@@ -160,10 +160,10 @@ function AttentionRow({ icon: Icon, count, label, sub, to, tone = 'default', onD
       <span className={cn('flex h-6 w-6 items-center justify-center rounded-[6px] flex-shrink-0', iconCls)}>
         <Icon className="h-[13px] w-[13px]" strokeWidth={2} />
       </span>
-      <span className="text-[13px] font-medium text-[var(--text-primary)] flex-shrink-0">{label}</span>
-      <span className="text-[12px] text-[var(--text-tertiary)] truncate flex-1 min-w-0">{sub}</span>
+      <span className="text-strong font-medium text-[var(--text-primary)] flex-shrink-0">{label}</span>
+      <span className="text-body text-[var(--text-tertiary)] truncate flex-1 min-w-0">{sub}</span>
       <span className={cn(
-        'flex h-[19px] min-w-[19px] items-center justify-center rounded-[5px] px-1.5 text-[11px] font-semibold tabular flex-shrink-0',
+        'flex h-[19px] min-w-[19px] items-center justify-center rounded-[5px] px-1.5 text-caption font-semibold tabular flex-shrink-0',
         tone === 'warn' ? 'bg-amber-500/12 text-amber-700 dark:text-amber-400' : 'bg-[var(--bg-active)] text-[var(--text-secondary)]'
       )}>
         {fmtNum(count)}
@@ -214,12 +214,12 @@ function MetricCell({ label, value, delta, active, onClick, readout }: {
         'absolute top-0 left-0 right-0 h-[2px] transition-opacity',
         active ? 'opacity-100' : 'opacity-0'
       )} style={{ background: ACCENT }} />
-      <span className="block text-[12px] font-medium text-[var(--text-tertiary)] truncate">{label}</span>
+      <span className="block text-body font-medium text-[var(--text-tertiary)] truncate">{label}</span>
       <span className="mt-1 flex items-baseline gap-2">
         <span className={cn(
           'font-semibold tabular leading-none tracking-[-0.02em]',
           // Smaller and quieter, because it is not a measurement.
-          unproven ? 'text-[14px] text-[var(--text-tertiary)]' : 'text-[19px]',
+          unproven ? 'text-heading text-[var(--text-tertiary)]' : 'text-title',
           !unproven && (active ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'),
         )} data-metric-value>{readout ? readout.label : value}</span>
         {!unproven && <Delta value={delta} />}
@@ -233,8 +233,8 @@ function Head({ title, desc, action }: { title: string; desc?: string; action?: 
   return (
     <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[var(--border-subtle)]">
       <div className="min-w-0">
-        <h3 className="text-[13.5px] font-semibold text-[var(--text-primary)] tracking-[-0.01em] leading-tight truncate">{title}</h3>
-        {desc && <p className="text-[12px] text-[var(--text-tertiary)] leading-tight mt-0.5 truncate">{desc}</p>}
+        <h3 className="text-strong font-semibold text-[var(--text-primary)] tracking-[-0.01em] leading-tight truncate">{title}</h3>
+        {desc && <p className="text-body text-[var(--text-tertiary)] leading-tight mt-0.5 truncate">{desc}</p>}
       </div>
       {action && <div className="flex-shrink-0">{action}</div>}
     </div>
@@ -243,7 +243,7 @@ function Head({ title, desc, action }: { title: string; desc?: string; action?: 
 
 function MoreLink({ to, label = 'View all' }: { to: string; label?: string }) {
   return (
-    <Link to={to} className="text-[12px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] inline-flex items-center gap-0.5 transition-colors">
+    <Link to={to} className="text-body font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] inline-flex items-center gap-0.5 transition-colors">
       {label} <ChevronRight className="h-3.5 w-3.5" />
     </Link>
   );
@@ -254,8 +254,8 @@ function ChartTooltip({ active, payload, label, metricLabel }: any) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-[8px] border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] px-2.5 py-1.5">
-      <div className="text-[11px] font-medium text-[var(--text-tertiary)] mb-0.5">{fmtDate(label)}</div>
-      <div className="flex items-center gap-2 text-[12.5px]">
+      <div className="text-caption font-medium text-[var(--text-tertiary)] mb-0.5">{fmtDate(label)}</div>
+      <div className="flex items-center gap-2 text-body">
         <span className="text-[var(--text-secondary)]">{metricLabel}</span>
         <span className="font-semibold tabular text-[var(--text-primary)]">{fmtFull(payload[0].value)}</span>
       </div>
@@ -268,8 +268,8 @@ function PerformanceChart({ data, metric }: { data: TrendDataPoint[]; metric: Me
     return (
       <div className="h-[268px] flex flex-col items-center justify-center gap-2 text-center">
         <Activity className="h-6 w-6 text-[var(--text-muted)]" strokeWidth={1.5} />
-        <p className="text-[13px] text-[var(--text-secondary)]">No activity yet</p>
-        <p className="text-[12px] text-[var(--text-tertiary)]">Launch a campaign to see trends.</p>
+        <p className="text-strong text-[var(--text-secondary)]">No activity yet</p>
+        <p className="text-body text-[var(--text-tertiary)]">Launch a campaign to see trends.</p>
       </div>
     );
   }
@@ -316,21 +316,21 @@ function Funnel({ sent, opened, clicked, replied }: {
         return (
           <div key={st.label}>
             {i > 0 && (
-              <div className="flex items-center gap-1.5 pl-[76px] py-1 text-[11px] text-[var(--text-tertiary)]">
+              <div className="flex items-center gap-1.5 pl-[76px] py-1 text-caption text-[var(--text-tertiary)]">
                 <ArrowDown className="h-3 w-3 text-[var(--text-muted)]" strokeWidth={2} />
                 <span className="tabular font-medium">{conv != null ? `${conv.toFixed(1)}%` : '—'}</span>
                 <span>of {stages[i - 1].label.toLowerCase()}</span>
               </div>
             )}
             <div className="flex items-center gap-3">
-              <span className="w-[64px] text-[12px] font-medium text-[var(--text-secondary)] flex-shrink-0 text-right">{st.label}</span>
+              <span className="w-[64px] text-body font-medium text-[var(--text-secondary)] flex-shrink-0 text-right">{st.label}</span>
               <div className="flex-1 h-6 rounded-[4px] bg-[var(--bg-elevated)] overflow-hidden">
                 <div
                   className="h-full rounded-[4px] transition-all duration-700"
                   style={{ width: `${widthPct}%`, background: ACCENT, opacity: 1 - i * 0.18 }}
                 />
               </div>
-              <span className="w-[52px] text-[12.5px] font-semibold tabular text-[var(--text-primary)] flex-shrink-0">{fmtNum(st.value)}</span>
+              <span className="w-[52px] text-body font-semibold tabular text-[var(--text-primary)] flex-shrink-0">{fmtNum(st.value)}</span>
             </div>
           </div>
         );
@@ -378,10 +378,10 @@ function InboxHealth({ score, verified, bounced, suppressed }: {
   return (
     <div className="p-4">
       <div className="flex items-baseline justify-between">
-        <span className="text-[24px] font-semibold tabular leading-none tracking-[-0.03em] text-[var(--text-primary)]">
-          {pct.toFixed(0)}<span className="text-[13px] text-[var(--text-tertiary)] font-medium">/100</span>
+        <span className="text-display font-semibold tabular leading-none tracking-[-0.03em] text-[var(--text-primary)]">
+          {pct.toFixed(0)}<span className="text-strong text-[var(--text-tertiary)] font-medium">/100</span>
         </span>
-        <span className="text-[12px] font-medium" style={{ color }}>{tier}</span>
+        <span className="text-body font-medium" style={{ color }}>{tier}</span>
       </div>
       <div className="mt-2.5 h-1.5 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
         <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: color }} />
@@ -393,8 +393,8 @@ function InboxHealth({ score, verified, bounced, suppressed }: {
           { label: 'Suppressed', value: suppressed },
         ].map((m) => (
           <div key={m.label}>
-            <div className="text-[14px] font-semibold tabular text-[var(--text-primary)] leading-none">{fmtNum(m.value)}</div>
-            <div className="text-[11px] text-[var(--text-tertiary)] mt-1">{m.label}</div>
+            <div className="text-heading font-semibold tabular text-[var(--text-primary)] leading-none">{fmtNum(m.value)}</div>
+            <div className="text-caption text-[var(--text-tertiary)] mt-1">{m.label}</div>
           </div>
         ))}
       </div>
@@ -532,10 +532,10 @@ export function DashboardPage() {
       {/* ── Header ── */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-[24px] font-semibold text-[var(--text-primary)] tracking-[-0.025em] leading-tight">
+          <h1 className="text-display font-semibold text-[var(--text-primary)] tracking-[-0.025em] leading-tight">
             {greeting()}, <span className="capitalize">{name}</span>
           </h1>
-          <div className="mt-2 flex items-center flex-wrap gap-x-2.5 gap-y-1 text-[13px] text-[var(--text-tertiary)]">
+          <div className="mt-2 flex items-center flex-wrap gap-x-2.5 gap-y-1 text-strong text-[var(--text-tertiary)]">
             <span className="inline-flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full" style={{ background: s.active_campaigns > 0 ? '#10B981' : 'var(--text-muted)' }} />
               {s.active_campaigns} active {s.active_campaigns === 1 ? 'campaign' : 'campaigns'}
@@ -578,7 +578,7 @@ export function DashboardPage() {
           {allClear && unhealthySmtpAccounts.length === 0 ? (
             <div className="flex items-center gap-2.5 px-4 py-8 justify-center">
               <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" strokeWidth={2} />
-              <span className="text-[13px] text-[var(--text-secondary)]">All clear — nothing waiting on you right now.</span>
+              <span className="text-strong text-[var(--text-secondary)]">All clear — nothing waiting on you right now.</span>
             </div>
           ) : (
             <div className="divide-y divide-[var(--border-subtle)]">
@@ -628,15 +628,15 @@ export function DashboardPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className={cn('text-[12.5px] truncate', msg.is_read ? 'text-[var(--text-secondary)]' : 'font-semibold text-[var(--text-primary)]')}>
+                        <span className={cn('text-body truncate', msg.is_read ? 'text-[var(--text-secondary)]' : 'font-semibold text-[var(--text-primary)]')}>
                           {msg.contact_name || msg.from_email?.split('@')[0] || 'Unknown'}
                         </span>
-                        <span className="text-[11px] text-[var(--text-tertiary)] flex-shrink-0 tabular">{timeAgo(msg.received_at)}</span>
+                        <span className="text-caption text-[var(--text-tertiary)] flex-shrink-0 tabular">{timeAgo(msg.received_at)}</span>
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-                        <p className="text-[11.5px] text-[var(--text-tertiary)] truncate leading-tight flex-1">{msg.subject || '(no subject)'}</p>
+                        <p className="text-caption text-[var(--text-tertiary)] truncate leading-tight flex-1">{msg.subject || '(no subject)'}</p>
                         {chip && (
-                          <span className={cn('text-[9.5px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0', chip.cls)}>{chip.label}</span>
+                          <span className={cn('text-micro font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0', chip.cls)}>{chip.label}</span>
                         )}
                       </div>
                     </div>
@@ -670,13 +670,13 @@ export function DashboardPage() {
             active={metric === 'replied'} onClick={() => setMetric('replied')} />
         </div>
         <div className="flex items-center justify-between px-4 pt-3">
-          <p className="text-[12px] text-[var(--text-tertiary)]">
+          <p className="text-body text-[var(--text-tertiary)]">
             <span className="font-semibold tabular text-[var(--text-secondary)]">{fmtFull(metricTotal)}</span>
             {' '}{METRICS[metric].label.toLowerCase()} · vs previous {period} days
           </p>
         </div>
         <div className="px-2 pb-2">
-          <ErrorBoundary fallback={<div className="h-[240px] flex items-center justify-center text-[12px] text-[var(--text-tertiary)]">Chart unavailable</div>}>
+          <ErrorBoundary fallback={<div className="h-[240px] flex items-center justify-center text-body text-[var(--text-tertiary)]">Chart unavailable</div>}>
             <PerformanceChart data={trend} metric={metric} />
           </ErrorBoundary>
         </div>
@@ -696,10 +696,10 @@ export function DashboardPage() {
                 return (
                 <button key={c.id} onClick={() => navigate(`/campaigns/${c.id}`)}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left group">
-                  <span className="w-6 text-[12px] font-semibold tabular text-[var(--text-muted)] flex-shrink-0">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="w-6 text-body font-semibold tabular text-[var(--text-muted)] flex-shrink-0">{String(i + 1).padStart(2, '0')}</span>
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: STATUS_DOT[c.status] || 'var(--text-muted)' }} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">{c.name}</p>
+                    <p className="text-strong font-medium text-[var(--text-primary)] truncate">{c.name}</p>
                     {/*
                       * The bar is a claim about magnitude and cannot carry a
                       * caveat, so below the sample there is no bar at all -
@@ -714,18 +714,18 @@ export function DashboardPage() {
                   </div>
                   <div className="flex items-center gap-5 text-right flex-shrink-0">
                     <div className="hidden sm:block w-12" title={open.hint}>
-                      <div className={cn('text-[13px] font-semibold tabular',
-                        open.isRate ? 'text-[var(--text-primary)]' : 'text-[11.5px] text-[var(--text-tertiary)]')}>{open.label}</div>
-                      <div className="text-[11px] text-[var(--text-tertiary)]">open</div>
+                      <div className={cn('text-strong font-semibold tabular',
+                        open.isRate ? 'text-[var(--text-primary)]' : 'text-caption text-[var(--text-tertiary)]')}>{open.label}</div>
+                      <div className="text-caption text-[var(--text-tertiary)]">open</div>
                     </div>
                     <div className="hidden sm:block w-12" title={reply.hint}>
-                      <div className={cn('text-[13px] font-semibold tabular',
-                        reply.isRate ? 'text-[var(--text-primary)]' : 'text-[11.5px] text-[var(--text-tertiary)]')}>{reply.label}</div>
-                      <div className="text-[11px] text-[var(--text-tertiary)]">reply</div>
+                      <div className={cn('text-strong font-semibold tabular',
+                        reply.isRate ? 'text-[var(--text-primary)]' : 'text-caption text-[var(--text-tertiary)]')}>{reply.label}</div>
+                      <div className="text-caption text-[var(--text-tertiary)]">reply</div>
                     </div>
                     <div className="w-12">
-                      <div className="text-[13px] font-semibold tabular text-[var(--text-primary)]">{fmtNum(c.sent)}</div>
-                      <div className="text-[11px] text-[var(--text-tertiary)]">sent</div>
+                      <div className="text-strong font-semibold tabular text-[var(--text-primary)]">{fmtNum(c.sent)}</div>
+                      <div className="text-caption text-[var(--text-tertiary)]">sent</div>
                     </div>
                     <ChevronRight className="h-4 w-4 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>

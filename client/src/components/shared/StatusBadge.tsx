@@ -35,7 +35,7 @@ export function StatusBadge({ status, type = 'campaign' }: StatusBadgeProps) {
   const { pill, dot } = configMap[status] || fallback;
 
   return (
-    <span className={cn('inline-flex items-center h-[18px] rounded-[4px] px-1.5 text-[11px] font-medium leading-none whitespace-nowrap', pill)}>
+    <span className={cn('inline-flex items-center h-[18px] rounded-[4px] px-1.5 text-caption font-medium leading-none whitespace-nowrap', pill)}>
       <span className={cn(DOT, dot)} />
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>

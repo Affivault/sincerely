@@ -65,7 +65,7 @@ export function EventTypeBar({ types, hidden, onToggle }: {
             onDoubleClick={() => setEditing(t)}
             title={`${t.name} · ${durationLabel(t.duration_minutes)} · double-click to edit`}
             className={cn(
-              'inline-flex items-center gap-1.5 h-7 rounded-full border px-2.5 text-[11.5px] font-medium transition-colors',
+              'inline-flex items-center gap-1.5 h-7 rounded-full border px-2.5 text-caption font-medium transition-colors',
               off
                 ? 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
                 : 'border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)]',
@@ -76,14 +76,14 @@ export function EventTypeBar({ types, hidden, onToggle }: {
               style={{ background: off ? 'transparent' : t.colour, boxShadow: off ? `inset 0 0 0 1.5px ${t.colour}` : undefined }}
             />
             {t.name}
-            <span className="tabular text-[10.5px] text-[var(--text-tertiary)]">{durationLabel(t.duration_minutes)}</span>
+            <span className="tabular text-micro text-[var(--text-tertiary)]">{durationLabel(t.duration_minutes)}</span>
           </button>
         );
       })}
 
       <button
         onClick={() => setAdding(true)}
-        className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-[var(--border-default)] px-2.5 text-[11.5px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--indigo)] transition-colors"
+        className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-[var(--border-default)] px-2.5 text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--indigo)] transition-colors"
       >
         <Plus className="h-3 w-3" /> Kind of meeting
       </button>
@@ -122,23 +122,23 @@ function TypeEditor({ type, busy, onSave, onCancel, onArchive }: {
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-sm rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-xl"
       >
-        <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">
+        <h3 className="text-heading font-semibold text-[var(--text-primary)]">
           {type ? 'Edit kind of meeting' : 'New kind of meeting'}
         </h3>
-        <p className="mt-0.5 text-[11.5px] text-[var(--text-secondary)]">
+        <p className="mt-0.5 text-caption text-[var(--text-secondary)]">
           Its colour is how you read the week at a glance. Its length is what a click on the grid books.
         </p>
 
-        <label className="mt-3 block text-[11.5px] font-medium text-[var(--text-secondary)]">Name</label>
+        <label className="mt-3 block text-caption font-medium text-[var(--text-secondary)]">Name</label>
         <input
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Discovery call"
-          className="mt-1 h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+          className="mt-1 h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-strong text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
         />
 
-        <label className="mt-3 block text-[11.5px] font-medium text-[var(--text-secondary)]">Colour</label>
+        <label className="mt-3 block text-caption font-medium text-[var(--text-secondary)]">Colour</label>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {EVENT_COLOURS.map((c) => (
             <button
@@ -158,11 +158,11 @@ function TypeEditor({ type, busy, onSave, onCancel, onArchive }: {
 
         <div className="mt-3 flex gap-3">
           <div className="flex-1">
-            <label className="block text-[11.5px] font-medium text-[var(--text-secondary)]">Usually runs</label>
+            <label className="block text-caption font-medium text-[var(--text-secondary)]">Usually runs</label>
             <select
               value={minutes}
               onChange={(e) => setMinutes(Number(e.target.value))}
-              className="mt-1 h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+              className="mt-1 h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
             >
               {[15, 20, 30, 45, 60, 90, 120].map((m) => (
                 <option key={m} value={m}>{durationLabel(m)}</option>
@@ -170,11 +170,11 @@ function TypeEditor({ type, busy, onSave, onCancel, onArchive }: {
             </select>
           </div>
           <div className="flex-1">
-            <label className="block text-[11.5px] font-medium text-[var(--text-secondary)]">Usually happens</label>
+            <label className="block text-caption font-medium text-[var(--text-secondary)]">Usually happens</label>
             <select
               value={location}
               onChange={(e) => setLocation(e.target.value as any)}
-              className="mt-1 h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+              className="mt-1 h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
             >
               {EVENT_LOCATION_KINDS.map((k) => (
                 <option key={k.id} value={k.id}>{k.label}</option>
@@ -187,12 +187,12 @@ function TypeEditor({ type, busy, onSave, onCancel, onArchive }: {
           <button
             onClick={() => onSave({ name, colour, duration_minutes: minutes, location_kind: location })}
             disabled={busy || !name.trim()}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--indigo)] px-3 text-[12px] font-semibold text-white hover:opacity-90 disabled:opacity-40"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--indigo)] px-3 text-body font-semibold text-white hover:opacity-90 disabled:opacity-40"
           >
             {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {type ? 'Save' : 'Create'}
           </button>
-          <button onClick={onCancel} className="h-8 px-2.5 text-[12px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
+          <button onClick={onCancel} className="h-8 px-2.5 text-body text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
             Cancel
           </button>
           {onArchive && (
@@ -200,7 +200,7 @@ function TypeEditor({ type, busy, onSave, onCancel, onArchive }: {
               onClick={onArchive}
               disabled={busy}
               title="Meetings already booked keep this colour"
-              className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-2.5 text-[12px] font-medium text-[var(--text-tertiary)] hover:text-rose-600 hover:border-rose-500/40 disabled:opacity-40"
+              className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-2.5 text-body font-medium text-[var(--text-tertiary)] hover:text-rose-600 hover:border-rose-500/40 disabled:opacity-40"
             >
               <Trash2 className="h-3.5 w-3.5" /> Retire
             </button>

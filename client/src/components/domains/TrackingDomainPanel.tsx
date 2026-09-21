@@ -21,7 +21,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="min-w-0">
-      <p className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)] mb-1">
+      <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)] mb-1">
         {label}
       </p>
       <button
@@ -34,7 +34,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
         className="w-full flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 py-1.5 text-left hover:border-[var(--border-strong)] transition-colors"
         title="Copy"
       >
-        <code className="flex-1 min-w-0 truncate text-[11.5px] text-[var(--text-primary)]">{value}</code>
+        <code className="flex-1 min-w-0 truncate text-caption text-[var(--text-primary)]">{value}</code>
         {copied
           ? <Check className="h-3 w-3 flex-shrink-0 text-emerald-500" />
           : <Copy className="h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]" />}
@@ -94,14 +94,14 @@ export function TrackingDomainPanel() {
           <Link2 className="h-4 w-4 text-[var(--indigo)]" />
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Tracking domain</h3>
-          <p className="text-[11.5px] text-[var(--text-secondary)] leading-snug mt-0.5">
+          <h3 className="text-strong font-semibold text-[var(--text-primary)]">Tracking domain</h3>
+          <p className="text-caption text-[var(--text-secondary)] leading-snug mt-0.5">
             Spam filters look at the links inside your emails, not just who sent them. On the shared
             domain your deliverability moves with everyone else&rsquo;s; on your own it moves with yours.
           </p>
         </div>
         {record?.verified && (
-          <span className="inline-flex items-center gap-1 flex-shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-600 dark:text-emerald-400">
+          <span className="inline-flex items-center gap-1 flex-shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-micro font-semibold text-emerald-600 dark:text-emerald-400">
             <ShieldCheck className="h-3 w-3" /> Active
           </span>
         )}
@@ -125,7 +125,7 @@ export function TrackingDomainPanel() {
       ) : (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <code className="flex-1 min-w-0 truncate text-[12.5px] font-medium text-[var(--text-primary)]">
+            <code className="flex-1 min-w-0 truncate text-body font-medium text-[var(--text-primary)]">
               {record.domain}
             </code>
             <Button
@@ -168,7 +168,7 @@ export function TrackingDomainPanel() {
                 * step nobody can follow. Numbering them also stops the second
                 * looking like a footnote to the first.
                 */}
-              <p className="text-[11.5px] font-medium text-[var(--text-primary)]">
+              <p className="text-caption font-medium text-[var(--text-primary)]">
                 Step 1 &mdash; add this record at your DNS provider
               </p>
               <div className="grid gap-2 sm:grid-cols-3">
@@ -177,10 +177,10 @@ export function TrackingDomainPanel() {
                 <CopyField label="Value" value={data.cname.value} />
               </div>
 
-              <p className="text-[11.5px] font-medium text-[var(--text-primary)] pt-1">
+              <p className="text-caption font-medium text-[var(--text-primary)] pt-1">
                 Step 2 &mdash; add the domain where this app is hosted
               </p>
-              <p className="text-[11px] text-[var(--text-tertiary)] leading-relaxed">
+              <p className="text-caption text-[var(--text-tertiary)] leading-relaxed">
                 Your host issues the HTTPS certificate, and it will not issue one for a
                 domain it has never been told about &mdash; so the DNS record on its own
                 gives you a name that resolves and a connection that fails. Add{' '}
@@ -192,7 +192,7 @@ export function TrackingDomainPanel() {
                 Vercel, <span className="text-[var(--text-secondary)]">Project &rarr; Settings
                 &rarr; Domains</span>. A certificate usually appears within a few minutes.
               </p>
-              <p className="text-[11px] text-[var(--text-tertiary)] leading-relaxed">
+              <p className="text-caption text-[var(--text-tertiary)] leading-relaxed">
                 Then press Verify. Both halves are checked, and nothing switches over until
                 the domain genuinely serves this app over HTTPS &mdash; a broken link in an
                 email that has already been sent cannot be fixed afterwards.
@@ -203,7 +203,7 @@ export function TrackingDomainPanel() {
           {checks && (
             <ul className="space-y-1.5">
               {checks.map((check) => (
-                <li key={check.label} className="flex items-start gap-2 text-[11.5px]">
+                <li key={check.label} className="flex items-start gap-2 text-caption">
                   <span className={cn(
                     'flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full mt-px',
                     check.ok
@@ -222,7 +222,7 @@ export function TrackingDomainPanel() {
           )}
 
           {!checks && record.last_error && !record.verified && (
-            <p className="text-[11.5px] text-amber-600 dark:text-amber-400">{record.last_error}</p>
+            <p className="text-caption text-amber-600 dark:text-amber-400">{record.last_error}</p>
           )}
         </div>
       )}

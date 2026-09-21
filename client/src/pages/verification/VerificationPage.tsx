@@ -49,7 +49,7 @@ function StageCell({ icon: Icon, label, state }: { icon: any; label: string; sta
       </span>
       <span
         className={cn(
-          'text-[11px] font-medium',
+          'text-caption font-medium',
           state === 'idle' && 'text-[var(--text-tertiary)]',
           state === 'pending' && 'text-[var(--indigo)]',
           state === 'pass' && 'text-emerald-600 dark:text-emerald-400',
@@ -96,10 +96,10 @@ function HealthGauge({ score, size = 160 }: { score: number; size?: number }) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <div className="text-[34px] font-semibold tabular tracking-[-0.03em] text-[var(--text-primary)] leading-none">
+        <div className="text-hero font-semibold tabular tracking-[-0.03em] text-[var(--text-primary)] leading-none">
           {score}
         </div>
-        <div className="text-[10px] font-semibold text-[var(--text-tertiary)] mt-1">
+        <div className="text-micro font-semibold text-[var(--text-tertiary)] mt-1">
           Avg DCS
         </div>
       </div>
@@ -162,7 +162,7 @@ export function VerificationPage() {
       {stats?.smtp?.available === false && (
         <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
           <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
-          <div className="text-[13px] leading-relaxed text-[var(--text-secondary)]">
+          <div className="text-strong leading-relaxed text-[var(--text-secondary)]">
             <span className="font-medium text-[var(--text-primary)]">
               Mailbox checks are not running on this server.
             </span>{' '}
@@ -178,7 +178,7 @@ export function VerificationPage() {
         <div className="relative p-5">
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="h-3.5 w-3.5 text-[var(--indigo)]" />
-            <span className="text-[10.5px] font-semibold text-[var(--text-tertiary)]">
+            <span className="text-micro font-semibold text-[var(--text-tertiary)]">
               Live deliverability pipeline
             </span>
           </div>
@@ -196,13 +196,13 @@ export function VerificationPage() {
                   placeholder="Type an email address to verify it instantly…"
                   value={emailInput}
                   onChange={(e) => setEmailInput(e.target.value)}
-                  className="w-full h-11 pl-10 pr-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[14px] text-[var(--text-primary)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 outline-none transition-all"
+                  className="w-full h-11 pl-10 pr-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-heading text-[var(--text-primary)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 outline-none transition-all"
                 />
               </div>
               <button
                 type="submit"
                 disabled={!emailInput || isPending}
-                className="inline-flex items-center gap-1.5 px-4 h-11 rounded-xl bg-[var(--indigo)] text-white text-[13px] font-semibold hover:bg-[#4F46E5] disabled:opacity-40 transition-all shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
+                className="inline-flex items-center gap-1.5 px-4 h-11 rounded-xl bg-[var(--indigo)] text-white text-strong font-semibold hover:bg-[#4F46E5] disabled:opacity-40 transition-all shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
               >
                 {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
                 Verify
@@ -227,14 +227,14 @@ export function VerificationPage() {
               ) : (
                 <ShieldX className="h-4 w-4 text-rose-500 flex-shrink-0" />
               )}
-              <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">
+              <span className="text-strong font-medium text-[var(--text-primary)] truncate">
                 {lastResult.email}
               </span>
-              <span className="text-[12px] text-[var(--text-secondary)] truncate">
+              <span className="text-body text-[var(--text-secondary)] truncate">
                 {lastResult.fail_reason || (lastResult.score >= 60 ? 'Deliverable' : 'Delivery issue detected')}
               </span>
               <span className={cn(
-                'ml-auto inline-flex items-center px-1.5 h-[20px] rounded-[5px] text-[11px] font-bold tabular flex-shrink-0',
+                'ml-auto inline-flex items-center px-1.5 h-[20px] rounded-[5px] text-caption font-bold tabular flex-shrink-0',
                 lastResult.score >= 80 ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
                   : lastResult.score >= 50 ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
                   : 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
@@ -255,10 +255,10 @@ export function VerificationPage() {
           <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 flex flex-col items-center justify-center">
             <HealthGauge score={avgScore} />
             <div className="mt-3 text-center">
-              <div className="text-[13px] font-medium text-[var(--text-primary)]">
+              <div className="text-strong font-medium text-[var(--text-primary)]">
                 {verifiedPct}% verified
               </div>
-              <div className="text-[11px] text-[var(--text-tertiary)]">
+              <div className="text-caption text-[var(--text-tertiary)]">
                 {stats.verified.toLocaleString()} of {stats.total.toLocaleString()} contacts
               </div>
             </div>
@@ -268,13 +268,13 @@ export function VerificationPage() {
           <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">DCS distribution</h2>
-                <p className="text-[11.5px] text-[var(--text-tertiary)]">How your contacts score across the deliverability spectrum.</p>
+                <h2 className="text-strong font-semibold text-[var(--text-primary)]">DCS distribution</h2>
+                <p className="text-caption text-[var(--text-tertiary)]">How your contacts score across the deliverability spectrum.</p>
               </div>
               <button
                 disabled={batchMut.isPending || stats.unverified === 0}
                 onClick={() => batchMut.mutate()}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-40 transition-all flex-shrink-0"
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-40 transition-all flex-shrink-0"
               >
                 {batchMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
                 {batchMut.isPending ? 'Running…' : `Verify ${stats.unverified} pending`}
@@ -303,7 +303,7 @@ export function VerificationPage() {
                         title={`${bucket.range}: ${bucket.count} (${Math.round(pct)}%)`}
                       >
                         {pct >= 8 && (
-                          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white/95 tabular">
+                          <span className="absolute inset-0 flex items-center justify-center text-micro font-bold text-white/95 tabular">
                             {bucket.count}
                           </span>
                         )}
@@ -324,9 +324,9 @@ export function VerificationPage() {
                           'w-2 h-2 rounded-sm',
                           isGood ? 'bg-emerald-500' : isMid ? 'bg-amber-500' : 'bg-rose-500'
                         )} />
-                        <span className="text-[11px] font-mono text-[var(--text-tertiary)]">{bucket.range}</span>
-                        <span className="text-[11px] font-semibold tabular text-[var(--text-secondary)]">{bucket.count}</span>
-                        <span className="text-[10.5px] tabular text-[var(--text-tertiary)]">({pct}%)</span>
+                        <span className="text-caption font-mono text-[var(--text-tertiary)]">{bucket.range}</span>
+                        <span className="text-caption font-semibold tabular text-[var(--text-secondary)]">{bucket.count}</span>
+                        <span className="text-micro tabular text-[var(--text-tertiary)]">({pct}%)</span>
                       </div>
                     );
                   })}
@@ -336,7 +336,7 @@ export function VerificationPage() {
           </div>
         </div>
       ) : statsError ? (
-        <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 text-center text-[13px] text-[var(--text-tertiary)]">
+        <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 text-center text-strong text-[var(--text-tertiary)]">
           Couldn't load verification stats. Try refreshing the page.
         </div>
       ) : null}
@@ -345,8 +345,8 @@ export function VerificationPage() {
       {history.length > 0 && (
         <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
           <div className="flex items-center justify-between mb-2.5">
-            <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">Recent checks</h2>
-            <span className="text-[11px] text-[var(--text-tertiary)]">{history.length} this session</span>
+            <h2 className="text-strong font-semibold text-[var(--text-primary)]">Recent checks</h2>
+            <span className="text-caption text-[var(--text-tertiary)]">{history.length} this session</span>
           </div>
           <div className="divide-y divide-[var(--border-subtle)]">
             {history.map((r, i) => {
@@ -360,8 +360,8 @@ export function VerificationPage() {
                     {passed ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldX className="h-3.5 w-3.5" />}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">{r.email}</p>
-                    <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)]">
+                    <p className="text-strong font-medium text-[var(--text-primary)] truncate">{r.email}</p>
+                    <div className="flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
                       <span className={cn('flex items-center gap-0.5', r.syntax_ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500')}>
                         {r.syntax_ok ? <CheckCircle2 className="h-2.5 w-2.5" /> : <XCircle className="h-2.5 w-2.5" />} Syntax
                       </span>
@@ -393,7 +393,7 @@ export function VerificationPage() {
                     </div>
                   </div>
                   <span className={cn(
-                    'inline-flex items-center px-1.5 h-[20px] rounded-[5px] text-[11px] font-bold tabular flex-shrink-0',
+                    'inline-flex items-center px-1.5 h-[20px] rounded-[5px] text-caption font-bold tabular flex-shrink-0',
                     r.score >= 80 ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
                       : r.score >= 50 ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
                       : 'bg-rose-500/10 text-rose-700 dark:text-rose-400'

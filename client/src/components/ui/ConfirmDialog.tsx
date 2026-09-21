@@ -92,7 +92,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                 <AlertTriangle className="h-4 w-4 text-[var(--error)]" />
               </span>
             )}
-            <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
+            <p className="text-strong text-[var(--text-secondary)] leading-relaxed">
               {options.body || 'This cannot be undone.'}
             </p>
           </div>

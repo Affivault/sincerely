@@ -90,11 +90,11 @@ export function Modal({ isOpen, onClose, title, description, children, size = 'm
         {/* Header */}
         <div className="flex items-start justify-between px-4 pt-4 pb-3 border-b border-[var(--border-subtle)] flex-shrink-0">
           <div className="min-w-0">
-            <h2 className="text-[14px] font-semibold text-[var(--text-primary)] tracking-tight leading-tight">
+            <h2 className="text-heading font-semibold text-[var(--text-primary)] tracking-tight leading-tight">
               {title}
             </h2>
             {description && (
-              <p className="text-[12px] text-[var(--text-secondary)] mt-0.5 leading-snug">
+              <p className="text-body text-[var(--text-secondary)] mt-0.5 leading-snug">
                 {description}
               </p>
             )}

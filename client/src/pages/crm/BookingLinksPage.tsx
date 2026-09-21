@@ -118,7 +118,7 @@ export function BookingLinksPage() {
           data-no-mailbox
         >
           <AlertTriangle className="mt-[1px] h-3.5 w-3.5 flex-shrink-0 text-[#f59e0b]" />
-          <p className="text-[12.5px] text-[var(--text-primary)]">
+          <p className="text-body text-[var(--text-primary)]">
             No mailbox connected, so nobody gets a confirmation.{' '}
             <span className="text-[var(--text-secondary)]">
               Bookings still land on your calendar, but the person who booked hears nothing.
@@ -143,10 +143,10 @@ export function BookingLinksPage() {
               <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--bg-elevated)]">
                 <Link2 className="h-5 w-5 text-[var(--text-tertiary)]" />
               </span>
-              <h3 className="mt-3 text-[14px] font-semibold text-[var(--text-primary)]">
+              <h3 className="mt-3 text-heading font-semibold text-[var(--text-primary)]">
                 No booking links yet
               </h3>
-              <p className="mt-1 text-[12.5px] text-[var(--text-secondary)] max-w-sm mx-auto">
+              <p className="mt-1 text-body text-[var(--text-secondary)] max-w-sm mx-auto">
                 Make one and put it in a sequence. A reply that says &ldquo;sure, when?&rdquo;
                 turns into a meeting without another email.
               </p>
@@ -180,13 +180,13 @@ export function BookingLinksPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className={cn(
-                        'truncate text-[13.5px] font-semibold',
+                        'truncate text-strong font-semibold',
                         link.is_active ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]',
                       )}>
                         {link.headline}
                       </h3>
                       {!link.is_active && (
-                        <span className="rounded px-1.5 py-[1px] text-[10.5px] font-medium bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">
+                        <span className="rounded px-1.5 py-[1px] text-micro font-medium bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">
                           Paused
                         </span>
                       )}
@@ -195,7 +195,7 @@ export function BookingLinksPage() {
                     <button
                       onClick={() => copy(link.slug)}
                       title="Copy this address"
-                      className="mt-0.5 flex items-center gap-1 text-[12px] text-[var(--text-secondary)] hover:text-[var(--indigo)]"
+                      className="mt-0.5 flex items-center gap-1 text-body text-[var(--text-secondary)] hover:text-[var(--indigo)]"
                       data-copy={link.slug}
                     >
                       <span className="truncate">/b/{link.slug}</span>
@@ -204,7 +204,7 @@ export function BookingLinksPage() {
                         : <Copy className="h-3 w-3 flex-shrink-0" />}
                     </button>
 
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-[var(--text-tertiary)]">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-[var(--text-tertiary)]">
                       <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {minutes} min</span>
                       <span className="flex items-center gap-1"><Loc className="h-3 w-3" /> {link.event_type?.name || 'No kind set'}</span>
                       <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {link.views}</span>
@@ -279,10 +279,10 @@ export function BookingLinksPage() {
             />
           ) : (
             <div className="panel px-4 py-5">
-              <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">
+              <h3 className="text-strong font-semibold text-[var(--text-primary)]">
                 How these work
               </h3>
-              <ol className="mt-2 space-y-2 text-[12.5px] leading-relaxed text-[var(--text-secondary)]">
+              <ol className="mt-2 space-y-2 text-body leading-relaxed text-[var(--text-secondary)]">
                 <li>
                   <strong className="text-[var(--text-primary)]">1.</strong> A link offers the
                   free times from your{' '}
@@ -300,7 +300,7 @@ export function BookingLinksPage() {
                   cancel it themselves, so it never costs you an email.
                 </li>
               </ol>
-              <p className="mt-3 text-[11.5px] text-[var(--text-tertiary)]">
+              <p className="mt-3 text-caption text-[var(--text-tertiary)]">
                 In a sequence, <code className="rounded bg-[var(--bg-elevated)] px-1 py-[1px]">{'{{booking_link}}'}</code>{' '}
                 becomes your first live link. It blanks if none is live, so a
                 paused link never sends a dead address to a prospect.
@@ -340,7 +340,7 @@ function Bookings({ linkId }: { linkId: string }) {
         const past = new Date(b.starts_at).getTime() < Date.now();
         const off = b.status === 'cancelled';
         return (
-          <div key={b.id} className="flex items-center gap-2 text-[12px]">
+          <div key={b.id} className="flex items-center gap-2 text-body">
             <span className={cn(
               'h-1.5 w-1.5 flex-shrink-0 rounded-full',
               off ? 'bg-[var(--text-tertiary)]' : past ? 'bg-[var(--border-strong,#a1a1aa)]' : 'bg-[#10b981]',
@@ -360,7 +360,7 @@ function Bookings({ linkId }: { linkId: string }) {
                 the scheduler rather than linking out to one. */}
             {b.campaign?.name && (
               <span
-                className="flex-shrink-0 max-w-[120px] truncate rounded bg-[var(--bg-elevated)] px-1.5 py-[1px] text-[10.5px] text-[var(--text-secondary)]"
+                className="flex-shrink-0 max-w-[120px] truncate rounded bg-[var(--bg-elevated)] px-1.5 py-[1px] text-micro text-[var(--text-secondary)]"
                 title={`Booked from ${b.campaign.name}`}
                 data-campaign
               >
@@ -368,7 +368,7 @@ function Bookings({ linkId }: { linkId: string }) {
               </span>
             )}
             {off && (
-              <span className="flex-shrink-0 text-[10.5px] text-[var(--text-tertiary)]">
+              <span className="flex-shrink-0 text-micro text-[var(--text-tertiary)]">
                 {b.cancelled_by === 'invitee' ? 'they cancelled' : 'cancelled'}
               </span>
             )}
@@ -376,7 +376,7 @@ function Bookings({ linkId }: { linkId: string }) {
         );
       })}
       {data.length === 0 && (
-        <p className="text-[12px] text-[var(--text-tertiary)]">Nothing booked through this yet.</p>
+        <p className="text-body text-[var(--text-tertiary)]">Nothing booked through this yet.</p>
       )}
     </div>
   );
@@ -450,7 +450,7 @@ function Editor({ link, types, onClose, onArchive }: {
   return (
     <div className="panel overflow-hidden" data-editor>
       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
-        <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">
+        <h3 className="text-strong font-semibold text-[var(--text-primary)]">
           {link ? 'Edit link' : 'New booking link'}
         </h3>
         <button
@@ -476,11 +476,11 @@ function Editor({ link, types, onClose, onArchive }: {
 
         <Field label="Address" hint="Where the link points. Permanent once you share it.">
           <div className="flex items-center gap-1 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] pl-2">
-            <span className="text-[12px] text-[var(--text-tertiary)] whitespace-nowrap">/b/</span>
+            <span className="text-body text-[var(--text-tertiary)] whitespace-nowrap">/b/</span>
             <input
               value={previewSlug}
               onChange={(e) => { setSlugTouched(true); setForm({ ...form, slug: e.target.value }); }}
-              className="h-8 flex-1 bg-transparent text-[12.5px] text-[var(--text-primary)] outline-none"
+              className="h-8 flex-1 bg-transparent text-body text-[var(--text-primary)] outline-none"
               data-slug
             />
           </div>
@@ -490,7 +490,7 @@ function Editor({ link, types, onClose, onArchive }: {
           <select
             value={form.event_type_id}
             onChange={(e) => setForm({ ...form, event_type_id: e.target.value })}
-            className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+            className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
           >
             <option value="">None</option>
             {types.filter((t) => !t.archived_at).map((t) => (
@@ -510,7 +510,7 @@ function Editor({ link, types, onClose, onArchive }: {
               ...form,
               duration_minutes: e.target.value === '' ? null : Number(e.target.value),
             })}
-            className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+            className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
           >
             <option value="">Whatever the kind says</option>
             {[15, 20, 30, 45, 60, 90, 120].map((m) => (
@@ -559,7 +559,7 @@ function Editor({ link, types, onClose, onArchive }: {
               create_deal: e.target.value !== 'none',
               deal_stage: e.target.value === 'none' ? '' : e.target.value,
             })}
-            className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-[12.5px] text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+            className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
             data-deal
           >
             <option value="none">Just book it</option>
@@ -622,8 +622,8 @@ function Field({ label, hint, children }: {
 }) {
   return (
     <label className="block">
-      <span className="text-[12.5px] font-medium text-[var(--text-primary)]">{label}</span>
-      {hint && <span className="block text-[11px] text-[var(--text-tertiary)]">{hint}</span>}
+      <span className="text-body font-medium text-[var(--text-primary)]">{label}</span>
+      {hint && <span className="block text-caption text-[var(--text-tertiary)]">{hint}</span>}
       <div className="mt-1">{children}</div>
     </label>
   );
@@ -667,7 +667,7 @@ function Check2({ on, onChange, label }: {
       >
         {on && <Check className="h-3 w-3 text-white" />}
       </span>
-      <span className="text-[12.5px] text-[var(--text-primary)]">{label}</span>
+      <span className="text-body text-[var(--text-primary)]">{label}</span>
     </label>
   );
 }
