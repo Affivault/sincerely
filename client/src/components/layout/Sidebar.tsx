@@ -10,6 +10,7 @@ import {
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
 import { useSidebar } from '../../context/SidebarContext';
+import { SetupNudge } from '../setup/SetupNudge';
 import { useUnreadCount } from '../../hooks/useUnreadCount';
 import { billingApi } from '../../api/billing.api';
 import { isUnlimited, ADMIN_EMAILS } from '@lemlist/shared';
@@ -447,6 +448,11 @@ export function Sidebar() {
           )}
         </div>
       </nav>
+
+      {/* The next setup step, carried onto every page. The checklist lives
+          on the dashboard, which is where nobody is when they get stuck.
+          Removes itself for good once setup is done. */}
+      <SetupNudge collapsed={collapsed} />
 
       {/* Plan usage — quiet until it matters, loud when the cap nears */}
       <UsageCard collapsed={collapsed} />
