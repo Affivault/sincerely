@@ -62,6 +62,8 @@ const SINGLE: Array<{ name: string; why: string }> = [
   { name: 'missingFields', why: 'the connect form had one list for testing and another for saving' },
   { name: 'serverSummary', why: 'the line shown with a section shut must match what opens it' },
   { name: 'sectionsToOpen', why: 'what starts open is the only thing keeping a gap visible' },
+  { name: 'rateReadout', why: 'one rule about when a percentage has earned the right to be one' },
+  { name: 'setupNudge', why: 'the sidebar and the dashboard must agree about the same account' },
 ];
 
 console.log('\nnothing load-bearing is defined twice');
