@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Skeleton, SkeletonList } from '../../components/ui/Skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Link2, Plus, Copy, Check, ExternalLink, Trash2, Eye, CalendarCheck,
@@ -132,11 +133,9 @@ export function BookingLinksPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <section className="lg:col-span-2 self-start space-y-2.5">
           {isLoading && (
-            <div className="panel p-4 space-y-2">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="h-16 rounded-lg bg-[var(--bg-elevated)] animate-pulse" />
-              ))}
-            </div>
+            /* The shared placeholder rather than a bespoke one, so this
+               loads identically to every other list. */
+            <SkeletonList rows={3} />
           )}
 
           {!isLoading && links.length === 0 && (
@@ -330,7 +329,7 @@ function Bookings({ linkId }: { linkId: string }) {
   if (isLoading) {
     return (
       <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
-        <div className="h-8 rounded bg-[var(--bg-elevated)] animate-pulse" />
+        <Skeleton className="h-8" />
       </div>
     );
   }

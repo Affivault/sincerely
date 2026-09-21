@@ -23,6 +23,7 @@ import {
 import { cn } from '../../lib/utils';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
+import { Spinner } from '../../components/ui/Spinner';
 
 const MERGE_TAGS = ['{{first_name}}', '{{last_name}}', '{{email}}', '{{company}}', '{{title}}'];
 
@@ -283,7 +284,7 @@ export function AssetBuilderPage() {
           </h3>
           {isLoading ? (
             <div className="flex items-center justify-center py-20">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--border-default)] border-t-transparent" />
+              <Spinner size="lg" />
             </div>
           ) : !templates || templates.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">

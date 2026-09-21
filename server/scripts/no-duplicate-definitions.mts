@@ -73,6 +73,7 @@ const SINGLE: Array<{ name: string; why: string }> = [
   { name: 'replyPriority', why: 'two orderings would put different replies at the top of the same queue' },
   { name: 'segmentRevenue', why: 'one set of rules about when a segment has earned a win rate' },
   { name: 'wilsonLowerBound', why: 'two confidence bounds agree until one is tuned; it moved to shared for that' },
+  { name: 'describeFailure', why: 'one answer to what went wrong, for the toast and the panel alike' },
 ];
 
 console.log('\nnothing load-bearing is defined twice');

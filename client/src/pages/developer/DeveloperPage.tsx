@@ -27,6 +27,9 @@ import { API_URL, ABSOLUTE_API_URL } from '../../lib/constants';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
+import { EmptyState } from '../../components/shared/EmptyState';
+import { InlineError } from '../../components/ui/AsyncPanel';
+import { Spinner } from '../../components/ui/Spinner';
 
 const ALL_EVENTS = Object.values(WebhookEventType) as WebhookEventType[];
 const EVENT_CATEGORIES: Record<string, WebhookEventType[]> = {
@@ -106,7 +109,7 @@ export function DeveloperPage() {
     if (!latestDeliveryByEndpoint.has(d.endpoint_id)) latestDeliveryByEndpoint.set(d.endpoint_id, d);
   }
 
-  const { data: apiKeys, isLoading: loadingKeys, isError: keysErrored, refetch: refetchKeys } = useQuery({
+  const { data: apiKeys, isLoading: loadingKeys, isError: keysErrored, error: keysError, refetch: refetchKeys } = useQuery({
     queryKey: ['api-keys'],
     queryFn: apikeyApi.list,
     enabled: tab === 'api-keys',
@@ -404,16 +407,14 @@ export function DeveloperPage() {
 
           {loadingEndpoints ? (
             <div className="flex items-center justify-center py-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--border-subtle)] border-t-[#6366F1]" />
+              <Spinner />
             </div>
           ) : !endpoints || endpoints.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center border border-[var(--border-subtle)] rounded-lg">
-              <div className="w-12 h-12 rounded-md bg-[var(--bg-elevated)] flex items-center justify-center mb-3">
-                <Webhook className="h-6 w-6 text-[var(--text-tertiary)]" />
-              </div>
-              <h3 className="font-medium text-[var(--text-primary)] mb-1">No webhooks configured</h3>
-              <p className="text-sm text-[var(--text-secondary)]">Add a webhook to receive real-time event notifications.</p>
-            </div>
+            <EmptyState
+              icon={Webhook}
+              title="No webhooks configured"
+              description="Add a webhook to receive real-time event notifications."
+            />
           ) : (
             <div className="space-y-3">
               {endpoints.map((ep) => {
@@ -698,33 +699,23 @@ export function DeveloperPage() {
 
           {loadingKeys ? (
             <div className="flex items-center justify-center py-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--border-subtle)] border-t-[#6366F1]" />
+              <Spinner />
             </div>
           ) : keysErrored ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center border border-[var(--border-subtle)] rounded-lg">
-              <div className="w-12 h-12 rounded-md bg-rose-500/10 flex items-center justify-center mb-3">
-                <XCircle className="h-6 w-6 text-rose-500" />
-              </div>
-              <h3 className="font-medium text-[var(--text-primary)] mb-1">Couldn't load your API keys</h3>
-              <p className="text-sm text-[var(--text-secondary)] mb-3">
-                This is a lookup failure, not necessarily an empty list — a security-sensitive page
-                shouldn't say "none" when it isn't sure.
-              </p>
-              <button
-                onClick={() => refetchKeys()}
-                className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-md text-[12px] font-medium bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-              >
-                <RefreshCw className="h-3.5 w-3.5" /> Try again
-              </button>
-            </div>
+            /*
+              * A lookup failure, not an empty list. The instinct here was
+              * right and was hand-rolled: a security-sensitive page must
+              * not say "none" when it does not know. InlineError reaches
+              * the same conclusion from the error itself, and offers the
+              * retry only when retrying could work.
+              */
+            <InlineError error={keysError} onRetry={() => refetchKeys()} />
           ) : !apiKeys || apiKeys.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center border border-[var(--border-subtle)] rounded-lg">
-              <div className="w-12 h-12 rounded-md bg-[var(--bg-elevated)] flex items-center justify-center mb-3">
-                <Key className="h-6 w-6 text-[var(--text-tertiary)]" />
-              </div>
-              <h3 className="font-medium text-[var(--text-primary)] mb-1">No API keys</h3>
-              <p className="text-sm text-[var(--text-secondary)]">Create an API key to access Sincerely programmatically.</p>
-            </div>
+            <EmptyState
+              icon={Key}
+              title="No API keys"
+              description="Create an API key to access Sincerely programmatically."
+            />
           ) : (
             <div className="space-y-3">
               {apiKeys.map((key) => (

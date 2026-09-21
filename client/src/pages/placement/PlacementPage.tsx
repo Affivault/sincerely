@@ -7,9 +7,11 @@ import {
   CheckCircle2, AlertTriangle, Mail, ChevronRight, Info, Play,
 } from 'lucide-react';
 import { PageHeader } from '../../components/shared/PageHeader';
+import { AsyncPanel } from '../../components/ui/AsyncPanel';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
+import { Skeleton } from '../../components/ui/Skeleton';
 import { placementApi, type PlacementDetail, type PlacementProbe, type PlacementSeed } from '../../api/placement.api';
 import { smtpApi } from '../../api/smtp.api';
 import { campaignsApi } from '../../api/campaigns.api';
@@ -493,12 +495,13 @@ export function PlacementPage() {
   const [showStart, setShowStart] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const { data: seeds, isLoading: loadingSeeds } = useQuery({
+  const seedsQuery = useQuery({
     queryKey: ['placement', 'seeds'],
     queryFn: placementApi.seeds,
   });
+  const seeds = seedsQuery.data;
 
-  const { data: tests, isLoading: loadingTests } = useQuery({
+  const testsQuery = useQuery({
     queryKey: ['placement', 'tests'],
     queryFn: placementApi.list,
     // A running test resolves over minutes, so the list follows it without
@@ -506,6 +509,7 @@ export function PlacementPage() {
     refetchInterval: (q) =>
       (q.state.data || []).some((t) => t.status === 'sending' || t.status === 'waiting') ? 30_000 : false,
   });
+  const tests = testsQuery.data;
 
   const currentId = openId || tests?.[0]?.id || null;
 
@@ -580,31 +584,29 @@ export function PlacementPage() {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_360px]">
         <div className="space-y-4">
-          {loadingTests ? (
-            <div className="h-48 animate-pulse rounded-xl bg-[var(--bg-elevated)]" />
-          ) : !tests || tests.length === 0 ? (
-            <section className="panel px-6 py-12 text-center">
-              <Target className="mx-auto mb-3 h-6 w-6 text-[var(--text-muted)]" strokeWidth={1.5} />
-              <p className="text-[13.5px] font-semibold text-[var(--text-primary)]">Nothing measured yet</p>
-              <p className="mx-auto mt-1.5 max-w-md text-[12px] leading-relaxed text-[var(--text-secondary)]">
-                Your domain records, warm-up and bounce guard all exist to get mail into the inbox.
-                This is the only thing here that can tell you whether they are working.
-              </p>
-              {readableSeeds.length === 0 && (
-                <p className="mx-auto mt-3 max-w-md text-[11.5px] text-[var(--text-tertiary)]">
-                  Add a seed mailbox first — one you control at each provider your recipients use.
-                </p>
-              )}
-            </section>
-          ) : detail ? (
-            <TestDetail
-              detail={detail}
-              onRefresh={() => refresh.mutate()}
-              refreshing={refresh.isPending}
-            />
-          ) : (
-            <div className="h-48 animate-pulse rounded-xl bg-[var(--bg-elevated)]" />
-          )}
+          <AsyncPanel
+            query={testsQuery}
+            skeleton="panel"
+            empty={{
+              icon: Target,
+              title: 'Nothing measured yet',
+              description: readableSeeds.length === 0
+                ? 'Your domain records, warm-up and bounce guard all exist to get mail into the inbox, and this is the only thing that can tell you whether they are working. Add a seed mailbox first \u2014 one you control at each provider your recipients use.'
+                : 'Your domain records, warm-up and bounce guard all exist to get mail into the inbox. This is the only thing here that can tell you whether they are working.',
+            }}
+          >
+            {() => detail ? (
+              <TestDetail
+                detail={detail}
+                onRefresh={() => refresh.mutate()}
+                refreshing={refresh.isPending}
+              />
+            ) : (
+              /* The list has arrived but the chosen test has not yet. Same
+                 placeholder shape, so the panel does not change size twice. */
+              <Skeleton className="h-48 rounded-xl" />
+            )}
+          </AsyncPanel>
 
           {(tests?.length || 0) > 1 && (
             <section className="panel overflow-hidden">
@@ -648,9 +650,9 @@ export function PlacementPage() {
         </div>
 
         <div className="space-y-4">
-          {loadingSeeds
-            ? <div className="h-56 animate-pulse rounded-xl bg-[var(--bg-elevated)]" />
-            : <SeedPanel seeds={seeds || []} />}
+          <AsyncPanel query={seedsQuery} skeleton="panel">
+            {(rows) => <SeedPanel seeds={rows} />}
+          </AsyncPanel>
 
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 px-4 py-3">
             <p className="flex items-center gap-1.5 text-[12px] font-semibold text-[var(--text-primary)]">

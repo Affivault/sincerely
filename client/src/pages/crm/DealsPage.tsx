@@ -22,6 +22,7 @@ import {
 import { useFillViewport, autoScrollX, autoScrollY } from '../../hooks/useFillViewport';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
+import { EmptyState } from '../../components/shared/EmptyState';
 import {
   Handshake, ListTodo, Calendar as CalendarIcon, Plus, Trash2,
   Phone, Users as UsersIcon, Building2,
@@ -902,11 +903,11 @@ export function DealsPage() {
       ) : deals.length === 0 ? (
         <EmptyBoard icon={Handshake} title="No deals yet" body="Add your first deal to start tracking your pipeline." action="New deal" onAction={() => setDealModal(null)} />
       ) : visibleDeals.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[var(--border-default)] bg-[var(--bg-surface)] py-14 text-center">
-          <p className="text-[13px] font-medium text-[var(--text-primary)]">
+        <div className="panel py-4">
+          <p className="text-center text-[13px] font-medium text-[var(--text-primary)]">
             {query ? `No deals match “${query}”` : 'Nothing here'}
           </p>
-          <p className="mt-1 text-[12px] text-[var(--text-tertiary)]">
+          <p className="mt-1 text-center text-[12px] text-[var(--text-tertiary)]">
             {filters.focus === 'stalled'
               ? 'Nothing has gone quiet — every open deal has moved recently.'
               : filters.focus === 'overdue'
@@ -993,11 +994,7 @@ export function DealsPage() {
 
 function EmptyBoard({ icon: Icon, title, body, action, onAction }: { icon: typeof Handshake; title: string; body: string; action: string; onAction: () => void }) {
   return (
-    <div className="rounded-xl border border-dashed border-[var(--border-default)] bg-[var(--bg-surface)] py-16 text-center">
-      <Icon className="h-8 w-8 text-[var(--text-muted)] mx-auto mb-3" />
-      <p className="text-[14px] font-semibold text-[var(--text-primary)]">{title}</p>
-      <p className="text-[12.5px] text-[var(--text-tertiary)] mt-1 mb-4">{body}</p>
-      <Button variant="primary" onClick={onAction}><Plus className="h-4 w-4" /> {action}</Button>
-    </div>
+    /* This was EmptyState, reimplemented locally with its own spacing. */
+    <EmptyState icon={Icon} title={title} description={body} actionLabel={action} onAction={onAction} />
   );
 }

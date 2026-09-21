@@ -14,9 +14,10 @@ import { cn } from '../../lib/utils';
 import {
   Radar, Search, MapPin, Building2, Briefcase, Users, Sparkles,
   Lock, Unlock, CheckCircle2, ChevronLeft, ChevronRight, X,
-  Linkedin, ArrowUpRight, Coins, KeyRound, FolderOpen, Plus, Megaphone, AlertTriangle,
+  Linkedin, ArrowUpRight, Coins, KeyRound, FolderOpen, Plus, Megaphone, AlertTriangle, SearchX,
 } from 'lucide-react';
 import { CREDIT_PACKS } from '@lemlist/shared';
+import { EmptyState } from '../../components/shared/EmptyState';
 import type {
   ProspectPerson, ProspectSearchFilters, ProspectSearchResponse,
 } from '@lemlist/shared';
@@ -477,10 +478,11 @@ export function ProspectorPage() {
               </p>
             </div>
           ) : results.results.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[var(--border-default)] bg-[var(--bg-surface)] py-16 text-center">
-              <p className="text-[13px] font-medium text-[var(--text-primary)]">No prospects match those filters</p>
-              <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Try broadening the title or removing a filter.</p>
-            </div>
+            <EmptyState
+              icon={SearchX}
+              title="No prospects match those filters"
+              description="Try broadening the title or removing a filter."
+            />
           ) : (() => {
             const unrevealedOnPage = results.results.filter((p) => !p.already_revealed).map((p) => p.id);
             const allSelected = unrevealedOnPage.length > 0 && unrevealedOnPage.every((id) => selectedIds.has(id));

@@ -18,6 +18,7 @@ import {
 import { cn } from '../../lib/utils';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { StatCard } from '../../components/shared/StatCard';
+import { Spinner } from '../../components/ui/Spinner';
 
 function getHealthColor(score: number): string {
   if (score >= 80) return 'text-emerald-400';
@@ -82,7 +83,7 @@ export function SseDashboardPage() {
       {/* Account Cards */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--text-primary)] border-t-transparent" />
+          <Spinner size="lg" />
         </div>
       ) : isError ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">

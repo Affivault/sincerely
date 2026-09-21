@@ -20,6 +20,7 @@ import {
   Archive, ArrowRight, Briefcase, Clock, Download, Inbox, RotateCcw, Sparkles, Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { EmptyState } from '../../components/shared/EmptyState';
 
 /* ═══════════════════════════════════════════════════════════════════════
    The inbox between a reply and a forecast.
@@ -337,20 +338,16 @@ export function LeadsPage() {
       {isLoading ? (
         <div className="flex items-center justify-center py-24"><Spinner size="md" /></div>
       ) : visible.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[var(--border-default)] bg-[var(--bg-surface)] py-16 text-center">
-          <Sparkles className="mx-auto mb-3 h-8 w-8 text-[var(--text-muted)]" />
-          <p className="text-[14px] font-semibold text-[var(--text-primary)]">
-            {query ? `No leads match “${query}”`
-              : tab === 'open' ? 'The inbox is clear'
-                : tab === 'converted' ? 'Nothing qualified yet'
-                  : tab === 'archived' ? 'Nothing dropped yet' : 'No leads yet'}
-          </p>
-          <p className="mx-auto mt-1 max-w-md text-[12.5px] leading-relaxed text-[var(--text-tertiary)]">
-            {tab === 'open'
-              ? 'Turn a promising reply into a lead from the contact, and it waits here until you qualify it or drop it.'
-              : 'Leads you decide on end up here.'}
-          </p>
-        </div>
+        <EmptyState
+          icon={Sparkles}
+          title={query ? `No leads match “${query}”`
+            : tab === 'open' ? 'The inbox is clear'
+              : tab === 'converted' ? 'Nothing qualified yet'
+                : tab === 'archived' ? 'Nothing dropped yet' : 'No leads yet'}
+          description={tab === 'open'
+            ? 'Turn a promising reply into a lead from the contact, and it waits here until you qualify it or drop it.'
+            : 'Leads you decide on end up here.'}
+        />
       ) : (
         <div className="panel divide-y divide-[var(--border-subtle)]">
           {visible.map((lead) => {
