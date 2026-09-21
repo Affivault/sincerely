@@ -1,6 +1,8 @@
 import { useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { UNDO_REVERSE_WINDOW_MS } from '@lemlist/shared';
+import { UndoBarShell } from '../components/ui/UndoBar';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Undo, meaning undo.
@@ -19,11 +21,14 @@ import toast from 'react-hot-toast';
    that fails.
 
    Which means the rule for what belongs here is strict: only actions with
-   a true inverse. Deleting contacts has none — the rows are gone — so
-   deletion keeps its dialog and is not offered an undo it could not honour.
-   ═══════════════════════════════════════════════════════════════════════ */
+   a true inverse. Deleting contacts has none — the rows are gone.
 
-const UNDO_WINDOW_MS = 8000;
+   That gap is what `useDeferredAction` in components/ui/UndoBar covers: it
+   does not run the action at all until the offer expires, which is the only
+   honest way back from something with no inverse. The two are opposites and
+   both are right for their own case, so the window they use, and the bar
+   they draw, come from one place rather than two.
+   ═══════════════════════════════════════════════════════════════════════ */
 
 export interface UndoableAction<T> {
   /** Do the thing. Whatever it returns is handed to `undo`. */
@@ -71,17 +76,12 @@ export function useUndoable() {
 
     toast.custom(
       (t) => (
-        <div
-          className={`flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-2.5 shadow-[var(--shadow-lg)] ${
-            t.visible ? 'animate-in fade-in slide-in-from-bottom-2' : 'opacity-0'
-          }`}
-        >
-          <span className="text-[12.5px] font-medium text-[var(--text-primary)]">
-            {action.describe(result)}
-          </span>
-          <button
-            type="button"
-            onClick={async () => {
+        <div className={t.visible ? 'animate-in fade-in slide-in-from-bottom-2' : 'opacity-0'}>
+          {/* No countdown: this already happened, so there is nothing to
+              count down to. The offer simply stands until the toast goes. */}
+          <UndoBarShell
+            label={action.describe(result)}
+            onUndo={async () => {
               toast.dismiss(t.id);
               try {
                 await action.undo(result);
@@ -93,13 +93,10 @@ export function useUndoable() {
                 toast.error(err?.response?.data?.error || 'Could not undo that — it stands as it is');
               }
             }}
-            className="flex-shrink-0 rounded-lg px-2 py-1 text-[12px] font-bold text-[var(--indigo)] transition-colors hover:bg-[var(--indigo-subtle)]"
-          >
-            Undo
-          </button>
+          />
         </div>
       ),
-      { duration: UNDO_WINDOW_MS },
+      { duration: UNDO_REVERSE_WINDOW_MS },
     );
 
     return result;

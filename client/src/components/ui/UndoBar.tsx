@@ -41,6 +41,44 @@ interface UndoApi {
 
 const UndoContext = createContext<UndoApi | null>(null);
 
+/**
+ * The bar itself, and the only one in the app.
+ *
+ * There are two undo mechanisms here on purpose - see UNDO_WINDOW_MS and
+ * UNDO_REVERSE_WINDOW_MS in shared - and for a while they looked entirely
+ * different, a toast in one place and this in another. The same gesture
+ * wearing two faces reads as two features, so both render this.
+ */
+export function UndoBarShell({ label, onUndo, secondsLeft, action = 'Undo' }: {
+  label: string;
+  onUndo: () => void;
+  /** Omitted when the action has already happened and is merely reversible. */
+  secondsLeft?: number;
+  action?: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] py-2 pl-3.5 pr-2 shadow-[var(--shadow-xl)]">
+      <Trash2 className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)]" />
+      <span className="text-[12.5px] font-medium text-[var(--text-primary)]">{label}</span>
+      <button
+        type="button"
+        onClick={onUndo}
+        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12.5px] font-semibold text-[var(--indigo)] transition-colors hover:bg-[var(--bg-hover)]"
+        data-undo-action
+      >
+        <Undo2 className="h-3.5 w-3.5" />
+        {action}
+        {/* The countdown belongs only to the deferred kind, where it says
+            how long until the thing actually happens. On a reversal it
+            would be a countdown to nothing. */}
+        {secondsLeft != null && (
+          <span className="tabular-nums font-normal text-[var(--text-tertiary)]">{secondsLeft}s</span>
+        )}
+      </button>
+    </div>
+  );
+}
+
 export function UndoProvider({ children }: { children: React.ReactNode }) {
   const [pending, setPending] = useState<PendingUndo | null>(null);
   /** Ticks once a second, only while something is pending. */
@@ -116,22 +154,11 @@ export function UndoProvider({ children }: { children: React.ReactNode }) {
           role="status"
           data-undo-bar
         >
-          <div className="flex items-center gap-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] py-2 pl-3.5 pr-2 shadow-[var(--shadow-xl)]">
-            <Trash2 className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)]" />
-            <span className="text-[12.5px] font-medium text-[var(--text-primary)]">{pending.label}</span>
-            <button
-              type="button"
-              onClick={() => queue.undo(pending.id)}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12.5px] font-semibold text-[var(--indigo)] transition-colors hover:bg-[var(--bg-hover)]"
-              data-undo-action
-            >
-              <Undo2 className="h-3.5 w-3.5" />
-              Undo
-              {/* The countdown is what makes the offer honest: it says how
-                  long you have rather than leaving you to guess. */}
-              <span className="tabular-nums font-normal text-[var(--text-tertiary)]">{secondsLeft}s</span>
-            </button>
-          </div>
+          <UndoBarShell
+            label={pending.label}
+            onUndo={() => queue.undo(pending.id)}
+            secondsLeft={secondsLeft}
+          />
         </div>,
         document.body,
       )}
@@ -140,13 +167,19 @@ export function UndoProvider({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * @returns `undoable(entry)` — removes it now, sends the request shortly.
+ * @returns `defer(entry)` — removes it now, sends the request shortly.
+ *
+ * Named for what it does, because `hooks/useUndoable` already existed and
+ * does the OPPOSITE: it runs the action immediately and offers a real
+ * reversing call afterwards. Two hooks called useUndoable with different
+ * signatures is a wrong import waiting to happen, and the wrong one here
+ * either deletes something twice or not at all.
  *
  * With no provider mounted the action is run straight away rather than
  * dropped: a component rendered outside the app shell must still do what
  * it was asked, even if nothing can offer it back.
  */
-export function useUndoable(): (entry: UndoEntry) => void {
+export function useDeferredAction(): (entry: UndoEntry) => void {
   const ctx = useContext(UndoContext);
   return useCallback((entry: UndoEntry) => {
     if (ctx) { ctx.offer(entry); return; }
@@ -185,13 +218,13 @@ export function useFlushUndo(): () => Promise<void> {
  */
 export function usePendingRemoval() {
   const ctx = useContext(UndoContext);
-  const undoable = useUndoable();
+  const defer = useDeferredAction();
 
   const restore = useCallback((id: string) => ctx?.unhide(id), [ctx]);
 
   const remove = useCallback((id: string, label: string, commit: () => Promise<unknown>) => {
     ctx?.hide(id);
-    undoable({
+    defer({
       id,
       label,
       commit,
@@ -199,7 +232,7 @@ export function usePendingRemoval() {
       // still there and the screen must say so.
       revert: () => { ctx?.unhide(id); },
     });
-  }, [ctx, undoable]);
+  }, [ctx, defer]);
 
   const hiddenIds = ctx?.hidden;
   return useMemo(() => ({

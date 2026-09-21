@@ -29,7 +29,7 @@
     "check:health": "tsx scripts/campaign-health-check.mts",
     "check:pipeline": "tsx scripts/pipeline-check.mts",
     "check:overlay": "tsx scripts/overlay-containment-check.mts",
-    "check": "npm run check:html && npm run check:imap && npm run check:failures && npm run check:send && npm run check:steps && npm run check:enrol && npm run check:triage && npm run check:schema && npm run check:health && npm run check:pipeline && npm run check:overlay && npm run check:readiness && npm run check:apikeys && npm run check:calendar && npm run check:availability && npm run check:bookingmail && npm run check:bookingtoken && npm run check:bookingreply && npm run check:calsync && npm run check:dkim && npm run check:maildiscovery && npm run check:connect && npm run check:placeholders && npm run check:mailboxui && npm run check:mailboxsetup && npm run check:warmuppool && npm run check:dupes && npm run check:drafts && npm run check:undo && npm run check:setupnudge && npm run check:rates && npm run check:days && npm run audit:writes && npm run audit:tenants",
+    "check": "npm run check:html && npm run check:imap && npm run check:failures && npm run check:send && npm run check:steps && npm run check:enrol && npm run check:triage && npm run check:schema && npm run check:health && npm run check:pipeline && npm run check:overlay && npm run check:readiness && npm run check:apikeys && npm run check:calendar && npm run check:availability && npm run check:bookingmail && npm run check:bookingtoken && npm run check:bookingreply && npm run check:calsync && npm run check:dkim && npm run check:maildiscovery && npm run check:connect && npm run check:placeholders && npm run check:mailboxui && npm run check:mailboxsetup && npm run check:warmuppool && npm run check:dupes && npm run check:drafts && npm run check:undo && npm run check:setupnudge && npm run check:rates && npm run check:absupp && npm run check:days && npm run audit:writes && npm run audit:tenants",
     "check:html": "tsx scripts/outgoing-html-check.mts",
     "check:imap": "tsx scripts/imap-window-check.mts",
     "check:maildiscovery": "tsx scripts/mail-discovery-check.mts",
@@ -42,7 +42,8 @@
     "check:drafts": "tsx scripts/draft-recovery-check.mts",
     "check:undo": "tsx scripts/undo-check.mts",
     "check:setupnudge": "tsx scripts/setup-nudge-check.mts",
-    "check:rates": "tsx scripts/rate-honesty-check.mts"
+    "check:rates": "tsx scripts/rate-honesty-check.mts",
+    "check:absupp": "tsx scripts/ab-suppression-check.mts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

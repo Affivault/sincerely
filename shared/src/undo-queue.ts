@@ -63,7 +63,28 @@ export interface UndoQueueOptions {
   onError?: (entry: PendingUndo, error: unknown) => void;
 }
 
+/**
+ * How long a DEFERRED action waits before it happens.
+ *
+ * Short, because this window is dead time: the delete has not been sent
+ * yet, and everything downstream of it is waiting.
+ */
 export const UNDO_WINDOW_MS = 6000;
+
+/**
+ * How long a REVERSIBLE action stays reversible.
+ *
+ * Longer, and the difference is the point rather than an oversight. This
+ * window costs nothing - the action already happened, and the offer is
+ * only how long the way back stays on screen - so it is set by how long
+ * somebody needs to notice a bulk change landed wrongly, not by how long
+ * anything is being held up.
+ *
+ * Two mechanisms, deliberately. Suppressing three hundred contacts has a
+ * true inverse and should happen at once; deleting a template has none, so
+ * the only honest way back is not to have done it yet.
+ */
+export const UNDO_REVERSE_WINDOW_MS = 8000;
 
 export class UndoQueue {
   private entry: PendingUndo | null = null;
