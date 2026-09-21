@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { textToHtml } from '../utils/html.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { decrypt } from '../utils/encryption.js';
+import { imapHostFor as syncImapHostFor } from './inbox-sync.service.js';
 import { sendViaSmtp, formatFromHeader } from './email-sender.service.js';
 import {
   warmupAllowance, warmupDayNumber, warmupIsComplete, warmupSendTarget,
@@ -271,23 +272,27 @@ const WARMUP_REPLIES = [
   'Perfect, that works for me. Thanks for following up.',
 ];
 
-function imapHostFor(account: any): string | null {
-  const host = (account.imap_host || account.smtp_host || '') as string;
-  const email = (account.email_address || '') as string;
-  const isGmail = host.includes('gmail') || email.endsWith('@gmail.com');
-  const isOutlook = host.includes('outlook') || host.includes('office365');
-  if (account.imap_host) return account.imap_host;
-  if (isGmail) return 'imap.gmail.com';
-  if (isOutlook) return 'outlook.office365.com';
-  if (host.startsWith('smtp.')) return host.replace('smtp.', 'imap.');
-  const domain = email.split('@')[1];
-  return domain ? `imap.${domain}` : null;
+/*
+ * The sync's version, not a second one.
+ *
+ * There were two functions of this name. Warm-up's honoured the imap_host
+ * column all along; the sync's derived a name from smtp_host and ignored
+ * it - so the thing that tested a mailbox and the thing that read it
+ * disagreed about which server it was on, and three mailboxes reported
+ * "Verified" while none could read a reply. They agree now, which is
+ * exactly the state the last one was in before it broke.
+ */
+function warmupImapHost(account: any): string | null {
+  const host = syncImapHostFor(account);
+  // The shared one always returns a string; warm-up wants to skip a
+  // mailbox it cannot place rather than dial "imap.".
+  return host && host !== 'imap.' ? host : null;
 }
 
 async function connectImap(account: any): Promise<any | null> {
   let ImapFlow: any;
   try { ({ ImapFlow } = await import('imapflow')); } catch { return null; }
-  const host = imapHostFor(account);
+  const host = warmupImapHost(account);
   if (!host) return null;
   let password: string;
   try { password = decrypt(account.smtp_pass_encrypted); } catch { return null; }

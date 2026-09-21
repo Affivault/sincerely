@@ -134,3 +134,20 @@ export function resolveMailboxState(m: MailboxFacts): MailboxState {
 export function mailboxScore(m: { health_score: number; total_sent: number }): number | null {
   return m.total_sent > 0 ? m.health_score : null;
 }
+
+/**
+ * Can this mailbox carry a real campaign send right now?
+ *
+ * There were three copies of this - readiness, campaign health, and the
+ * send selector's own WHERE clause - and they agreed, which is the
+ * dangerous state rather than the safe one. The imapHostFor bug was two
+ * copies of a definition that agreed until one of them was edited, and by
+ * then the thing that tested a mailbox and the thing that used it
+ * disagreed about which server it was on.
+ *
+ * One definition, so a change to what "sendable" means cannot reach one
+ * caller and miss another.
+ */
+export function isSendable(a: { is_active: boolean; is_verified: boolean }): boolean {
+  return a.is_active && a.is_verified;
+}

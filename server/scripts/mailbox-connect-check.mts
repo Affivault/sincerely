@@ -174,7 +174,16 @@ console.log('\nthe three IMAP host resolvers agree');
   const warmup = src('services/warmup.service.ts');
   const sync = src('services/inbox-sync.service.ts');
 
-  is('warm-up prefers the stored host', /if \(account\.imap_host\) return account\.imap_host;/.test(warmup));
+  /*
+   * Warm-up used to carry its own copy, which happened to be the correct
+   * one while the sync's was wrong. Two definitions agreeing is the state
+   * immediately before the bug, not a safe one - so it now imports the
+   * single definition rather than holding a second opinion.
+   */
+  is('warm-up gets the host from the sync rather than deciding again',
+     /imapHostFor as syncImapHostFor/.test(warmup)
+     && !/function imapHostFor/.test(warmup),
+     'warm-up is deciding for itself which server a mailbox is on');
   is('and so does the sync', /const explicit = \(account\.imap_host \|\| ''\)\.trim\(\);/.test(sync));
   is('the connection check uses it directly',
      /host: input\.imap_host/.test(src('services/smtp.service.ts')));
