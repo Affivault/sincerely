@@ -44,7 +44,9 @@ export async function selectBestSender(
     .select('*')
     .eq('user_id', userId)
     .eq('is_active', true)
-    .eq('is_verified', true);
+    .eq('is_verified', true)
+    // A seed mailbox receives placement probes and never sends.
+    .eq('is_seed', false);
 
   if (accountIds) {
     query = query.in('id', accountIds);

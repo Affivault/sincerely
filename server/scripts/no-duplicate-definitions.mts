@@ -67,6 +67,8 @@ const SINGLE: Array<{ name: string; why: string }> = [
   { name: 'stepHasVariantB', why: 'the sender and the report disagreed about what an A/B test is' },
   { name: 'assignVariant', why: 'two ways of picking an arm would split the same contact both ways' },
   { name: 'abStatusLine', why: 'the campaign page and the panel must describe one test the same way' },
+  { name: 'placementSummary', why: 'one set of rules about when placement may be reported as a rate' },
+  { name: 'classifyFolder', why: 'inbox-versus-spam decided twice is a report that disagrees with itself' },
 ];
 
 console.log('\nnothing load-bearing is defined twice');

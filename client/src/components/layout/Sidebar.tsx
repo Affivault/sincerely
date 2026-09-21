@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
+  Target,
   LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers, Blocks,
   ChevronRight, Wrench, Clock, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck, Sparkles,
@@ -54,6 +55,9 @@ const primaryNav: NavItem[] = [
       { name: 'Templates',      href: '/templates',      icon: FileText },
       { name: 'Schedules',      href: '/schedules',      icon: CalendarClock },
       { name: 'Email accounts', href: '/email-accounts', icon: AtSign },
+      /* The only thing here that can say whether any of the rest is
+         working: where the mail actually landed. */
+      { name: 'Placement',      href: '/placement',      icon: Target },
       { name: 'Analytics',      href: '/analytics',      icon: BarChart3, exact: true },
       // The join between outreach and revenue, and the reason for owning both.
       { name: 'Revenue',        href: '/analytics/revenue', icon: Banknote },

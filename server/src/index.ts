@@ -5,6 +5,7 @@ import { startVerificationWorker } from './jobs/workers/verification.worker.js';
 import { startInboxScheduler } from './jobs/schedulers/inbox.scheduler.js';
 import { startSseMaintenanceScheduler } from './jobs/schedulers/sse-maintenance.scheduler.js';
 import { startWarmupScheduler } from './jobs/schedulers/warmup.scheduler.js';
+import { startPlacementScheduler } from './jobs/schedulers/placement.scheduler.js';
 import { startAbPromoteScheduler } from './jobs/schedulers/ab-promote.scheduler.js';
 import { startBookingReminderScheduler } from './jobs/schedulers/booking-reminder.scheduler.js';
 
@@ -62,6 +63,15 @@ const server = app.listen(port, () => {
     console.log('Warm-up scheduler started');
   } catch (err: any) {
     console.warn('Warm-up scheduler failed to start:', err.message);
+  }
+
+  // Inbox placement: look for the seed probes of any test still running.
+  try {
+    const placement = startPlacementScheduler();
+    if (placement) disposers.push(() => placement.stop());
+    console.log('Placement scheduler started');
+  } catch (err: any) {
+    console.warn('Placement scheduler failed to start:', err.message);
   }
 
   // Remind invitees the day before a booked meeting (cross-tenant).
