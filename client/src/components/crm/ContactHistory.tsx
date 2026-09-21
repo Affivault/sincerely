@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { crmApi } from '../../api/crm.api';
 import { Checkbox } from '../ui/Checkbox';
-import { useConfirm } from '../ui/ConfirmDialog';
+import { usePendingRemoval } from '../ui/UndoBar';
 import { QuickCompose } from '../shared/QuickCompose';
 import { EmailBody } from '../shared/EmailBody';
 import { cn } from '../../lib/utils';
@@ -257,7 +257,7 @@ export function ContactHistory({
   /** Campaign send/open/click/reply events. */
   campaignActivity: any[];
 }) {
-  const confirm = useConfirm();
+  const gone = usePendingRemoval();
   const qc = useQueryClient();
   const [noteDraft, setNoteDraft] = useState('');
   const [activityModal, setActivityModal] = useState<Partial<CrmTask> | null>(null);
@@ -296,7 +296,8 @@ export function ContactHistory({
 
   const removeNote = useMutation({
     mutationFn: (id: string) => crmApi.deleteNote(id),
-    onSuccess: () => { invalidate(); toast.success('Note deleted'); },
+    // The undo bar already said so, six seconds earlier.
+    onSuccess: () => { invalidate(); },
   });
 
   const toggleTask = useMutation({
@@ -390,8 +391,16 @@ export function ContactHistory({
       });
     }
 
-    return out.sort((a, b) => b.at.getTime() - a.at.getTime());
-  }, [emails, campaignActivity, notes, tasks, events, contactName, contactEmail]);
+    return out
+      /*
+       * Rows on their way out. Entry ids are prefixed by kind, so one line
+       * covers notes, activities and meetings - all three can be deleted
+       * from here or from their own dialog, and all three must leave the
+       * timeline before the request that deletes them is sent.
+       */
+      .filter((e) => !gone.hidden(e.id.replace(/^(note|task|event)-/, '')))
+      .sort((a, b) => b.at.getTime() - a.at.getTime());
+  }, [emails, campaignActivity, notes, tasks, events, contactName, contactEmail, gone]);
 
   const visible = useMemo(() => {
     if (filter === 'all') return entries;
@@ -401,10 +410,13 @@ export function ContactHistory({
     return entries.filter((e) => e.kind === 'event' || e.kind === 'task');
   }, [entries, filter]);
 
-  const pinned = notes.filter((n) => n.pinned);
-  const openTasks = tasks.filter((t) => !t.is_done)
+  // Filtered at the source so the "up next" count and the rows under it
+  // cannot disagree about a row that has just been deleted.
+  const pinned = notes.filter((n) => n.pinned && !gone.hidden(n.id));
+  const openTasks = tasks.filter((t) => !t.is_done && !gone.hidden(t.id))
     .sort((a, b) => new Date(a.due_date || 0).getTime() - new Date(b.due_date || 0).getTime());
-  const upcomingEvents = events.filter((e) => new Date(e.starts_at).getTime() >= Date.now())
+  const upcomingEvents = events
+    .filter((e) => !gone.hidden(e.id) && new Date(e.starts_at).getTime() >= Date.now())
     .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
 
   const seed = { contact_id: contactId, contact_name: contactName || contactEmail };
@@ -697,9 +709,8 @@ export function ContactHistory({
                             <Pin className="h-3 w-3" /> {e.note.pinned ? 'Unpin' : 'Pin'}
                           </button>
                           <button
-                            onClick={() => confirm(
-                              { title: 'Delete this note?', tone: 'danger' },
-                              () => removeNote.mutate(e.note!.id),
+                            onClick={() => gone.remove(
+                              e.note!.id, 'Note deleted', () => removeNote.mutateAsync(e.note!.id),
                             )}
                             className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--error)]"
                           >

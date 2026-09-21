@@ -8,7 +8,7 @@ import { crmApi } from '../../api/crm.api';
 import { Avatar } from '../shared/Avatar';
 import { EmailBody } from '../shared/EmailBody';
 import { QuickCompose } from '../shared/QuickCompose';
-import { useConfirm } from '../ui/ConfirmDialog';
+import { usePendingRemoval } from '../ui/UndoBar';
 import { dueLabel, DUE_TONE, TASK_TYPE_ICON } from './CrmPrimitives';
 import { cn } from '../../lib/utils';
 import {
@@ -168,7 +168,9 @@ export function DealTimeline({
   onBookMeeting: () => void;
 }) {
   const qc = useQueryClient();
-  const confirm = useConfirm();
+  /* A note is the thing people delete most often here, and it was behind a
+     dialog every time. Offered back instead. */
+  const gone = usePendingRemoval();
   const [tab, setTab] = useState<Tab>('all');
   const [openEmail, setOpenEmail] = useState<string | null>(null);
 
@@ -186,8 +188,9 @@ export function DealTimeline({
   });
   const deleteNote = useMutation({
     mutationFn: (n: CrmNote) => crmApi.deleteNote(n.id),
-    onSuccess: () => { invalidate(); toast.success('Note deleted'); },
-    onError: () => toast.error('Could not delete that note'),
+    // Neither toast: the undo bar announced it, and the queue reports a
+    // failure itself after putting the note back.
+    onSuccess: () => { invalidate(); },
   });
 
   const entries = useMemo<Entry[]>(() => {
@@ -258,8 +261,15 @@ export function DealTimeline({
 
     return out
       .filter((e) => Number.isFinite(e.at.getTime()))
+      /*
+       * Rows on their way out. Entry ids are prefixed by kind, so one line
+       * covers notes, activities and meetings - all three can be deleted
+       * from here or from their own dialog, and all three must leave the
+       * timeline before the request that deletes them is sent.
+       */
+      .filter((e) => !gone.hidden(e.id.replace(/^(note|task|event)-/, '')))
       .sort((a, b) => b.at.getTime() - a.at.getTime());
-  }, [notes, tasks, events, emails, history]);
+  }, [notes, tasks, events, emails, history, gone]);
 
   const shown = tab === 'all' ? entries : entries.filter((e) => e.tab === tab);
   const counts = useMemo(() => {
@@ -268,7 +278,8 @@ export function DealTimeline({
     return c;
   }, [entries]);
 
-  const pinned = notes.filter((n) => n.pinned);
+  // Pinned notes are promoted above the stream, so they need the same filter.
+  const pinned = notes.filter((n) => n.pinned && !gone.hidden(n.id));
   const primaryContactId = deal.contact_id || deal.contact?.id || null;
 
   // Group by day so the stream reads as a diary rather than a list.
@@ -460,9 +471,8 @@ export function DealTimeline({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => confirm(
-                                  { title: 'Delete this note?', body: 'It goes from the deal and from the contact.', tone: 'danger' },
-                                  () => deleteNote.mutate(e.note!),
+                                onClick={() => gone.remove(
+                                  e.note!.id, 'Note deleted', () => deleteNote.mutateAsync(e.note!),
                                 )}
                                 className="icon-btn h-5 w-5 hover:text-rose-500"
                                 title="Delete"

@@ -6,6 +6,7 @@ export * from './mailbox-state.js';
 export * from './mailbox-setup.js';
 export * from './warmup-pool.js';
 export * from './draft-recovery.js';
+export * from './undo-queue.js';
 export * from './analytics.types.js';
 export * from './inbox.types.js';
 export * from './inbox-sync.types.js';

@@ -7,7 +7,7 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { Card } from '../../components/shared/Card';
 import { Button } from '../../components/ui/Button';
 import { SkeletonList } from '../../components/ui/Skeleton';
-import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { cn } from '../../lib/utils';
 
 const DAYS = [
@@ -52,7 +52,9 @@ function isSendingNow(schedule: SendingSchedule, now: Date): boolean {
 }
 
 export function SchedulesPage() {
-  const confirm = useConfirm();
+  /* The row goes now and the request follows in six seconds, so deleting a
+     schedule you did not mean to is one click back rather than gone. */
+  const gone = usePendingRemoval();
   const qc = useQueryClient();
   const { data: schedules = [], isLoading } = useQuery({
     queryKey: ['sending-schedules'],
@@ -127,7 +129,7 @@ export function SchedulesPage() {
               loading={createMut.isPending}
             />
           )}
-          {schedules.map((s) => (
+          {schedules.filter((s) => !gone.hidden(s.id)).map((s) => (
             editing?.id === s.id ? (
               <ScheduleEditor
                 key={s.id}
@@ -142,9 +144,8 @@ export function SchedulesPage() {
                 schedule={s}
                 now={now}
                 onEdit={() => setEditing(s)}
-                onDelete={() => confirm(
-                  { title: `Delete "${s.name}"?`, body: 'Campaigns using this schedule fall back to your default sending hours.', tone: 'danger' },
-                  () => deleteMut.mutate(s.id),
+                onDelete={() => gone.remove(
+                  s.id, `"${s.name}" deleted`, () => deleteMut.mutateAsync(s.id),
                 )}
                 onMakeDefault={() => updateMut.mutate({ id: s.id, input: { is_default: true } })}
               />
