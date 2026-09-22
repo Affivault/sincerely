@@ -1,3 +1,4 @@
+export * from './blocked.js';
 export * from './format-date.js';
 export * from './enums.js';
 export * from './contact.types.js';

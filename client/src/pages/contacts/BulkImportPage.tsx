@@ -10,6 +10,8 @@ import {
   FolderOpen, RotateCcw, Download, AlertCircle, MailCheck, Plus,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { blockedProps, BLOCKED_CLASS } from '../../lib/blockedAction';
+import { firstBlocker } from '@lemlist/shared';
 
 type Step = 'upload' | 'map' | 'importing' | 'complete';
 
@@ -710,11 +712,20 @@ export function BulkImportPage() {
               <ArrowLeft className="h-3.5 w-3.5" />
               Pick a different file
             </button>
+            {/* Three conditions used to share one grey rectangle, and the
+                explanation that WAS written here never appeared: a disabled
+                control dispatches no pointer events, so its title is not
+                shown. Ordered the way the page reads. */}
             <button
-              onClick={startImport}
-              disabled={!mappingValid || importableCount === 0 || !listChoiceValid}
-              title={!listChoiceValid ? 'Choose a list, name a new one, or switch to "No list"' : undefined}
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[#4F46E5] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
+              {...blockedProps(firstBlocker([
+                [!mappingValid, 'Map the columns you want to import first'],
+                [importableCount === 0, 'Nothing in this file can be imported yet'],
+                [!listChoiceValid, 'Choose a list, name a new one, or switch to "No list"'],
+              ]), startImport)}
+              className={cn(
+                'inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[#4F46E5] transition-all shadow-[0_1px_3px_rgba(91,91,245,0.4)]',
+                (!mappingValid || importableCount === 0 || !listChoiceValid) && BLOCKED_CLASS,
+              )}
             >
               <Users className="h-3.5 w-3.5" />
               Import {importableCount.toLocaleString()} contact{importableCount === 1 ? '' : 's'}
