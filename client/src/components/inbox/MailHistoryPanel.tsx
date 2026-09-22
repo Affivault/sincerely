@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { inboxApi } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
-import { SYNC_WINDOW_MONTHS, syncWindowLabel } from '@lemlist/shared';
+import { SYNC_WINDOW_MONTHS, syncWindowLabel, formatDate } from '@lemlist/shared';
 import type { InboxSyncProgress, SyncWindowMonths } from '@lemlist/shared';
 import { cn, formatRelativeTime } from '../../lib/utils';
 import { AlertTriangle, Check, History, Loader2 } from 'lucide-react';
@@ -23,7 +23,7 @@ function sinceLabel(iso: string | null): string {
   if (!iso) return 'nothing yet';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return 'nothing yet';
-  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  return formatDate(date);
 }
 
 function MailboxRow({

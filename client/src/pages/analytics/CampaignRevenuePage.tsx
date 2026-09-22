@@ -4,7 +4,7 @@ import { ArrowLeft, Banknote, TrendingUp, Reply, Handshake, AlertTriangle } from
 import { analyticsApi, type StepRevenueRow, type AttributedDealRow } from '../../api/analytics.api';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/shared/EmptyState';
-import { ATTRIBUTION_LABEL, type Attribution } from '@lemlist/shared';
+import { ATTRIBUTION_LABEL, type Attribution, formatMoney } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -18,7 +18,7 @@ import { cn } from '../../lib/utils';
 
 function money(v: number): string {
   try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v || 0);
+    return formatMoney(v || 0);
   } catch { return `$${Math.round(v || 0).toLocaleString()}`; }
 }
 const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%`);

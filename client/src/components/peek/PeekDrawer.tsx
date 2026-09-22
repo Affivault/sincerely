@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -20,8 +20,9 @@ import {
   Handshake, ArrowRight, Users, MapPin, Factory, Copy, Check,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { DEAL_STAGES, type DealStage } from '@lemlist/shared';
+import { DEAL_STAGES, type DealStage, formatLongDate, formatMoney } from '@lemlist/shared';
 import { OutcomeDialog } from '../crm/OutcomeDialog';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 /* ═══════════════════════════════════════════════════════════════════════
    The peek drawer.
@@ -342,9 +343,7 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
           ariaLabel="deal value"
           textClassName="text-display font-semibold tabular text-[var(--text-primary)] tracking-[-0.02em] leading-none"
           inputClassName="text-display font-semibold tabular"
-          format={(v) => Number(v).toLocaleString('en-US', {
-            style: 'currency', currency: deal.currency || 'USD', maximumFractionDigits: 0,
-          })}
+          format={(v) => formatMoney(Number(v), deal.currency)}
           onSave={(next) => {
             // People type "12,500" and "$12.5k" — take the digits, refuse the rest.
             const n = Number(next.replace(/[^0-9.-]/g, ''));
@@ -354,7 +353,7 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
         />
         {deal.expected_close_date && (
           <p className="text-caption text-[var(--text-tertiary)] mt-1">
-            Expected {new Date(deal.expected_close_date).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
+            Expected {formatLongDate(new Date(deal.expected_close_date))}
           </p>
         )}
       </div>
@@ -513,7 +512,7 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
         <div className="px-3 py-3">
           <p className="text-title font-semibold tabular text-[var(--text-primary)] leading-none">
-            {(company.open_value || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0, notation: 'compact' })}
+            {formatMoney(company.open_value, 'USD', { compact: true })}
           </p>
           <p className="text-micro text-[var(--text-tertiary)] mt-1">Open value</p>
         </div>
@@ -597,7 +596,7 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
                   <span className="block text-caption text-[var(--text-tertiary)] capitalize">{d.stage}</span>
                 </span>
                 <span className="text-body font-semibold tabular text-[var(--text-primary)] flex-shrink-0">
-                  {(d.value || 0).toLocaleString('en-US', { style: 'currency', currency: d.currency || 'USD', maximumFractionDigits: 0 })}
+                  {formatMoney(d.value, d.currency)}
                 </span>
               </button>
             ))}
@@ -611,6 +610,18 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
 export function PeekDrawer() {
   const { target, closePeek } = usePeek();
   const identity = useRef({});
+  const panelRef = useRef<HTMLElement>(null);
+
+  /*
+   * The drawer joins the same overlay stack Modal uses, so a dialog
+   * opened from inside it - ContactHistory's activity and delete dialogs -
+   * takes the keyboard while it is up rather than fighting this one for it.
+   */
+  const isTopmost = useCallback(
+    () => openModals[openModals.length - 1] === identity.current,
+    [],
+  );
+  useFocusTrap(panelRef, !!target, { topmost: isTopmost });
   // usePeek() derives `target` and `closePeek` from useSearchParams(), so
   // both get a new identity whenever the URL's search params change for
   // *any* reason — not just a peek opening or closing. Keeping either in
@@ -656,9 +667,11 @@ export function PeekDrawer() {
     <div className="fixed inset-0 z-[55]">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px] animate-fade-in" onClick={closePeek} />
       <aside
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={`${target.type} details`}
+        tabIndex={-1}
         className="absolute right-0 top-0 h-full w-full max-w-[520px] bg-[var(--bg-surface)] border-l border-[var(--border-subtle)] shadow-[var(--shadow-xl)] overflow-y-auto"
         style={{ animation: 'slideInRight 220ms var(--ease-out) both' }}
       >

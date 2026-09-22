@@ -42,14 +42,11 @@ import {
   type CrmTask, type TaskPriority,
   type CrmEvent, type EventType,
   type ContactWithTags,
-  PLACEHOLDER,
-} from '@lemlist/shared';
+  PLACEHOLDER, formatDayMonth, formatMoney } from '@lemlist/shared';
 
 /* ─── Helpers ─────────────────────────────────────── */
 function fmtMoney(v: number, currency = 'USD'): string {
-  try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(v || 0);
-  } catch { return `$${Math.round(v || 0).toLocaleString()}`; }
+  return formatMoney(v, currency);
 }
 function dealAge(iso?: string | null): string {
   if (!iso) return '—';
@@ -84,7 +81,7 @@ function relDay(iso?: string | null): { label: string; tone: 'over' | 'today' | 
   if (diff === 0) return { label: 'Today', tone: 'today', diff };
   if (diff === 1) return { label: 'Tomorrow', tone: 'soon', diff };
   if (diff < 7) return { label: `In ${diff}d`, tone: 'soon', diff };
-  return { label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), tone: 'none', diff };
+  return { label: formatDayMonth(d), tone: 'none', diff };
 }
 
 /** Best display name for the lead attached to a deal (live contact wins). */

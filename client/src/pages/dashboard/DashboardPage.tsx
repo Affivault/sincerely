@@ -11,7 +11,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { SetupChecklist } from '../../components/setup/SetupChecklist';
 import { EmptyState, InlineEmpty } from '../../components/shared/EmptyState';
-import { rateReadout, averageRateReadout, rateBarWidth, type RateReadout } from '@lemlist/shared';
+import { rateReadout, averageRateReadout, rateBarWidth, type RateReadout, formatDayMonth } from '@lemlist/shared';
 import { Avatar } from '../../components/shared/Avatar';
 import {
   Plus, Send, MailOpen, MousePointerClick, MessageSquare, Inbox,
@@ -45,7 +45,7 @@ const fmtNum = (n: number | undefined | null): string => {
 };
 const fmtFull = (n: number | undefined | null): string => (Number(n) || 0).toLocaleString();
 const fmtPct = (n: number | undefined | null): string => `${(Number(n) || 0).toFixed(1)}%`;
-const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const fmtDate = (d: string) => formatDayMonth(new Date(d));
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -62,7 +62,7 @@ function timeAgo(date: string): string {
   if (h < 24) return `${h}h`;
   const d = Math.floor(h / 24);
   if (d < 7) return `${d}d`;
-  return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return formatDayMonth(new Date(date));
 }
 
 /* ─── Metric config ─────────────────────────────────── */

@@ -18,8 +18,7 @@ import { campaignsApi } from '../../api/campaigns.api';
 import { cn } from '../../lib/utils';
 import {
   placementByProvider, placementAdvice, PROVIDER_LABELS, MIN_SEEDS_FOR_RATE,
-  type PlacementSummary, type ProbePlacement, type PlacementVerdict,
-} from '@lemlist/shared';
+  type PlacementSummary, type ProbePlacement, type PlacementVerdict, formatDateTime } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Where the mail actually landed.
@@ -634,7 +633,7 @@ export function PlacementPage() {
                         : 'bg-[var(--text-muted)]')} />
                     <span className="min-w-0 flex-1 truncate text-body text-[var(--text-primary)]">{t.subject}</span>
                     <span className="hidden shrink-0 text-caption text-[var(--text-tertiary)] sm:block">
-                      {new Date(t.started_at).toLocaleDateString()}
+                      {formatDateTime(new Date(t.started_at))}
                     </span>
                     <span className="w-24 shrink-0 text-right text-caption tabular text-[var(--text-secondary)]">
                       {t.summary.inboxRate !== null

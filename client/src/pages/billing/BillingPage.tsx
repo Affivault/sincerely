@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { SettingsShell } from '../../components/shared/SettingsShell';
 import { billingApi } from '../../api/billing.api';
-import { PLANS, isUnlimited, type PlanId } from '@lemlist/shared';
+import { PLANS, isUnlimited, type PlanId, formatDate } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import { CreditCard, Mail, Inbox, Check, Sparkles, Zap, Building2, ExternalLink } from 'lucide-react';
 
@@ -120,7 +120,7 @@ export function BillingPage() {
   const currentPlan = usage?.plan;
   const isTrialing = usage?.status === 'trialing';
   const renewLabel = usage?.currentPeriodEnd
-    ? new Date(usage.currentPeriodEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    ? formatDate(new Date(usage.currentPeriodEnd))
     : null;
 
   return (
@@ -166,7 +166,7 @@ export function BillingPage() {
             </div>
             <p className="mt-2 text-body text-[var(--text-tertiary)]">
               {isTrialing && usage?.trialEndsAt
-                ? `Trial ends ${new Date(usage.trialEndsAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
+                ? `Trial ends ${formatDate(new Date(usage.trialEndsAt))}`
                 : renewLabel
                   ? `Renews ${renewLabel}`
                   : 'No active subscription'}

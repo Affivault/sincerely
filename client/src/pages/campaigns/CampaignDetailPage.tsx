@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
 import { analyticsApi, type AbTestStep } from '../../api/analytics.api';
-import { stepHasVariantB, abStatusLine, type AbStatus } from '@lemlist/shared';
+import { stepHasVariantB, abStatusLine, type AbStatus, formatDate, formatDateTime } from '@lemlist/shared';
 import { Spinner } from '../../components/ui/Spinner';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -15,7 +15,7 @@ import { SequenceStepsPanel } from '../../components/analytics/SequenceStepsPane
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { StatCard } from '../../components/shared/StatCard';
 import { Avatar } from '../../components/shared/Avatar';
-import { formatDate, formatDateTime, formatTimeUntil, cn } from '../../lib/utils';
+import { formatTimeUntil, cn } from '../../lib/utils';
 import {
   ArrowLeft,
   Play,

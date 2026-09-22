@@ -19,6 +19,7 @@ import {
 import toast from 'react-hot-toast';
 import type { CrmNote, CrmTask, CrmEvent } from '@lemlist/shared';
 import { useOptimisticRow } from '../../lib/optimistic';
+import { formatDate, formatDayMonth, formatLongDate, formatTime, formatWeekday, formatMoney } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    The history of a relationship.
@@ -232,12 +233,12 @@ function dayHeading(d: Date): string {
   const diff = Math.round((today.getTime() - day.getTime()) / 86_400_000);
   if (diff === 0) return 'Today';
   if (diff === 1) return 'Yesterday';
-  if (diff < 7 && diff > 0) return d.toLocaleDateString(undefined, { weekday: 'long' });
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+  if (diff < 7 && diff > 0) return formatWeekday(d);
+  return formatLongDate(d);
 }
 
 function timeOf(d: Date): string {
-  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return formatTime(d);
 }
 
 /** Strip HTML and clamp, so a note or email preview reads as one line. */
@@ -590,7 +591,7 @@ export function ContactHistory({
                 <span className="flex-1 min-w-0">
                   <span className="block text-body font-medium text-[var(--text-primary)] truncate">{e.title}</span>
                   <span className="block text-caption text-[var(--text-tertiary)] truncate">
-                    {new Date(e.starts_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, {timeOf(new Date(e.starts_at))}
+                    {formatDayMonth(new Date(e.starts_at))}, {timeOf(new Date(e.starts_at))}
                     {e.location ? ` · ${e.location}` : ''}
                   </span>
                 </span>
@@ -617,7 +618,7 @@ export function ContactHistory({
                   <span className="block text-caption text-[var(--text-tertiary)] capitalize">{d.stage}</span>
                 </span>
                 <span className="text-body font-semibold tabular text-[var(--text-primary)] flex-shrink-0">
-                  {(d.value || 0).toLocaleString(undefined, { style: 'currency', currency: d.currency || 'USD', maximumFractionDigits: 0 })}
+                  {formatMoney(d.value, d.currency)}
                 </span>
               </div>
             ))}
@@ -773,7 +774,7 @@ export function ContactOrigin({ source, importSource, importedAt, createdAt }: {
   createdAt?: string | null;
 }) {
   const when = importedAt || createdAt;
-  const whenText = when ? new Date(when).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : null;
+  const whenText = when ? formatDate(new Date(when)) : null;
 
   if (importSource) {
     return (

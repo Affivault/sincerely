@@ -28,6 +28,7 @@ import { SequenceStepsPanel } from '../../components/analytics/SequenceStepsPane
 import toast from 'react-hot-toast';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
+import { formatDateTime, formatDayMonth } from '@lemlist/shared';
 import {
   LineChart, Line,
   BarChart, Bar,
@@ -867,7 +868,7 @@ export function AnalyticsDashboardPage() {
     if (!Array.isArray(trendData) || trendData.length === 0) return [];
     return trendData.map((d: TrendDataPoint) => ({
       ...d,
-      label: new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      label: formatDayMonth(new Date(d.date + 'T00:00:00')),
     }));
   }, [trendData]);
 
@@ -875,7 +876,7 @@ export function AnalyticsDashboardPage() {
     if (!Array.isArray(campaignTrend) || campaignTrend.length === 0) return [];
     return campaignTrend.map((d: TrendDataPoint) => ({
       ...d,
-      label: new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      label: formatDayMonth(new Date(d.date + 'T00:00:00')),
     }));
   }, [campaignTrend]);
 
@@ -1285,7 +1286,7 @@ export function AnalyticsDashboardPage() {
                         </Badge>
                         <span className="text-caption text-[var(--text-tertiary)]">{fmtNum(selectedCampaign.sent)} total emails sent</span>
                         <span className="sep-dot text-[var(--text-tertiary)]" />
-                        <span className="text-caption text-[var(--text-tertiary)]">Created {new Date(selectedCampaign.created_at).toLocaleDateString()}</span>
+                        <span className="text-caption text-[var(--text-tertiary)]">Created {formatDateTime(new Date(selectedCampaign.created_at))}</span>
                       </div>
                     </div>
                   </div>

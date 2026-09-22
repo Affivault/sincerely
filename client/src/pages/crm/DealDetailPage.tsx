@@ -3,8 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DEAL_LABELS, DEAL_STAGES, daysInStage, hasEconomics, isOpen, nextStep,
-  probabilityOf, revenueSplit, rotOf, weightedValue,
-} from '@lemlist/shared';
+  probabilityOf, revenueSplit, rotOf, weightedValue, formatDayMonth, formatMoney } from '@lemlist/shared';
 import type {
   CrmEvent, CrmTask, Deal, DealLabel, DealStage,
 } from '@lemlist/shared';
@@ -45,9 +44,7 @@ import toast from 'react-hot-toast';
    ═══════════════════════════════════════════════════════════════════════ */
 
 function money(v: number, currency = 'USD'): string {
-  try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(v || 0);
-  } catch { return `$${Math.round(v || 0).toLocaleString()}`; }
+  return formatMoney(v, currency);
 }
 
 function spellDays(days: number | null): string {
@@ -65,7 +62,7 @@ function whenLabel(iso: string | null | undefined): { text: string; tone: string
   if (Number.isNaN(d.getTime())) return { text: 'No date', tone: 'text-[var(--text-muted)]' };
   const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diff = Math.round((startOf(d) - startOf(new Date())) / 86_400_000);
-  const text = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const text = formatDayMonth(d);
   if (diff < 0) return { text: `${text} · ${Math.abs(diff)}d late`, tone: 'text-rose-500' };
   if (diff === 0) return { text: 'Today', tone: 'text-amber-600 dark:text-amber-400' };
   if (diff <= 7) return { text, tone: 'text-amber-600 dark:text-amber-400' };

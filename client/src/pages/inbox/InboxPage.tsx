@@ -85,8 +85,7 @@ import {
 
 import {
   DEAL_STAGES, TRIAGE_DECISIONS, BULK_TRIAGE_LIMIT,
-  type DealStage, type TriageDecision,
-} from '@lemlist/shared';
+  type DealStage, type TriageDecision, formatDate, formatDayMonth, formatFullDateTime, formatMonthYear, formatTime, formatWeekday, formatWeekdayDate, formatMoney, formatDayMonthTime } from '@lemlist/shared';
 
 /* ─── Types ────────────────────────────────────────── */
 type Folder = 'inbox' | 'starred' | 'sent' | 'archived' | 'scheduled' | 'needs_triage';
@@ -155,18 +154,7 @@ function timeAgo(date: string): string {
   if (hrs < 24) return `${hrs}h`;
   const days = Math.floor(hrs / 24);
   if (days < 7) return `${days}d`;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-function formatFullDate(date: string): string {
-  return new Date(date).toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatDayMonth(d);
 }
 
 function senderInitial(msg: Message): string {
@@ -210,11 +198,8 @@ function dayLabel(date: string): string {
   const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';
-  if (diffDays > 1 && diffDays < 7) return d.toLocaleDateString('en-US', { weekday: 'long' });
-  return d.toLocaleDateString('en-US', {
-    weekday: 'short', month: 'short', day: 'numeric',
-    ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
-  });
+  if (diffDays > 1 && diffDays < 7) return formatWeekday(d);
+  return formatFullDateTime(d);
 }
 
 /** Strip Re:/Fwd: prefixes for subject-change detection within a thread. */
@@ -649,7 +634,7 @@ function CustomCalendar({ selected, onSelect }: { selected: Date | null; onSelec
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
-  const monthLabel = viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const monthLabel = formatMonthYear(viewDate);
 
   const days = useMemo(() => {
     const firstDay = new Date(year, month, 1).getDay();
@@ -861,7 +846,7 @@ function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string
     const tomMorn = fmt(tomorrow, 8, 0);
     items.push({
       label: 'Tomorrow morning',
-      sublabel: tomMorn.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' · 8:00 AM',
+      sublabel: formatWeekdayDate(tomMorn) + ' · 8:00 AM',
       date: tomMorn,
       icon: Sun,
     });
@@ -869,7 +854,7 @@ function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string
     const tomAfter = fmt(tomorrow, 13, 0);
     items.push({
       label: 'Tomorrow afternoon',
-      sublabel: tomAfter.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' · 1:00 PM',
+      sublabel: formatWeekdayDate(tomAfter) + ' · 1:00 PM',
       date: tomAfter,
       icon: CloudSun,
     });
@@ -878,7 +863,7 @@ function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string
       const monMorn = fmt(nextMonday, 8, 0);
       items.push({
         label: 'Monday morning',
-        sublabel: monMorn.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' · 8:00 AM',
+        sublabel: formatWeekdayDate(monMorn) + ' · 8:00 AM',
         date: monMorn,
         icon: Briefcase,
       });
@@ -899,7 +884,7 @@ function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string
   };
 
   const selectedDateLabel = selectedDate
-    ? selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    ? formatWeekdayDate(selectedDate)
     : '';
 
   const isPM = selectedTime.hour >= 12;
@@ -1152,7 +1137,7 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
     : null;
   const subjectChanged = !!baseSubject(msg.subject) && !!baseSubject(threadSubject) && baseSubject(msg.subject) !== baseSubject(threadSubject);
   const d = new Date(msg.received_at);
-  const stamp = `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+  const stamp = `${formatDayMonth(d)} · ${formatTime(d)}`;
   const viaInbox = msg.smtp_label || msg.smtp_email?.split('@')[0] || null;
 
   return (
@@ -1201,7 +1186,7 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
                 {intent.label}
               </span>
             )}
-            <span className="text-micro text-[var(--text-tertiary)] tabular flex-shrink-0" title={formatFullDate(msg.received_at)}>{stamp}</span>
+            <span className="text-micro text-[var(--text-tertiary)] tabular flex-shrink-0" title={formatFullDateTime(msg.received_at)}>{stamp}</span>
             <ChevronDown className={cn('h-3.5 w-3.5 text-[var(--text-muted)] transition-transform flex-shrink-0', expanded && 'rotate-180')} />
           </div>
 
@@ -1510,9 +1495,7 @@ function ThreadDealPanel({ msg }: { msg: Message }) {
                 ariaLabel="deal value"
                 textClassName="text-body font-semibold tabular text-[var(--text-primary)]"
                 inputClassName="text-body font-semibold tabular text-right"
-                format={(v) => Number(v).toLocaleString('en-US', {
-                  style: 'currency', currency: d.currency || 'USD', maximumFractionDigits: 0,
-                })}
+                format={(v) => formatMoney(Number(v), d.currency)}
                 onSave={(next) => {
                   const n = Number(next.replace(/[^0-9.-]/g, ''));
                   if (!Number.isFinite(n)) return Promise.reject(new Error('nan'));
@@ -1809,7 +1792,7 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
             ) : <span className="text-[var(--text-tertiary)] font-normal">Untagged</span>}
           </DetailRow>
           {stats.first && (
-            <DetailRow label="First contact">{new Date(stats.first).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</DetailRow>
+            <DetailRow label="First contact">{formatDate(new Date(stats.first))}</DetailRow>
           )}
           {stats.last && (
             <DetailRow label="Last activity">{timeAgo(stats.last)} ago</DetailRow>
@@ -1887,11 +1870,11 @@ function ScheduledEmailsPanel({ onCancel, onReschedule }: {
                   <div className="flex items-center gap-3 mt-2">
                     <div className="flex items-center gap-1.5 text-body text-[var(--text-tertiary)]">
                       <Calendar className="h-3 w-3" />
-                      {scheduledDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                      {formatWeekdayDate(scheduledDate)}
                     </div>
                     <div className="flex items-center gap-1.5 text-body text-[var(--text-tertiary)]">
                       <Clock className="h-3 w-3" />
-                      {scheduledDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      {formatTime(scheduledDate)}
                     </div>
                     {email.smtp_email && (
                       <span className="text-micro font-medium px-1.5 py-0.5 rounded-md bg-blue-500/8 text-blue-500">
@@ -2467,7 +2450,7 @@ export function InboxPage() {
       invalidate();
       setShowCompose(false);
       const dt = new Date(data.scheduled_at);
-      toast.success(`Email scheduled for ${dt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`);
+      toast.success(`Email scheduled for ${formatDayMonthTime(dt)}`);
     },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to schedule email'),
   });
@@ -2480,7 +2463,7 @@ export function InboxPage() {
       setReplyMode(null);
       setReplySenderId('');
       const dt = new Date(data.scheduled_at);
-      toast.success(`Reply scheduled for ${dt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`);
+      toast.success(`Reply scheduled for ${formatDayMonthTime(dt)}`);
     },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to schedule reply'),
   });
@@ -2501,7 +2484,7 @@ export function InboxPage() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['inbox', 'scheduled'] });
       const dt = new Date(data.scheduled_at);
-      toast.success(`Moved to ${dt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`);
+      toast.success(`Moved to ${formatDayMonthTime(dt)}`);
     },
     onError: () => toast.error('Failed to reschedule that email'),
   });
@@ -2978,7 +2961,7 @@ export function InboxPage() {
                               {threadStats.first && threadStats.total > 1 && (
                                 <>
                                   <span className="sep-dot" />
-                                  <span>Started {new Date(threadStats.first).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                  <span>Started {formatDayMonth(new Date(threadStats.first))}</span>
                                 </>
                               )}
                               {currentMsg.campaign_name && (
@@ -3167,7 +3150,7 @@ export function InboxPage() {
                               <p className="text-micro font-semibold text-[var(--text-muted)] mb-1.5">Forwarded message</p>
                               <div className="text-caption text-[var(--text-tertiary)] space-y-0.5">
                                 <p><span className="font-medium text-[var(--text-secondary)]">From:</span> {currentMsg.from_email}</p>
-                                <p><span className="font-medium text-[var(--text-secondary)]">Date:</span> {formatFullDate(currentMsg.received_at)}</p>
+                                <p><span className="font-medium text-[var(--text-secondary)]">Date:</span> {formatFullDateTime(currentMsg.received_at)}</p>
                                 <p><span className="font-medium text-[var(--text-secondary)]">Subject:</span> {currentMsg.subject || '(no subject)'}</p>
                                 <p><span className="font-medium text-[var(--text-secondary)]">To:</span> {currentMsg.to_email}</p>
                               </div>

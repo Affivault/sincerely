@@ -19,6 +19,7 @@ import { usePeek } from './peek/usePeek';
 import { crmApi } from '../api/crm.api';
 import toast from 'react-hot-toast';
 import { keepPrevious } from '../lib/listQuery';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import {
   parseQuickAdd, SEARCH_TYPE_LABEL, MIN_SEARCH_LENGTH,
   type SearchHit, type SearchHitType, type QuickAddKind,
@@ -92,6 +93,14 @@ interface CommandPaletteProps {
 }
 
 export function CommandPalette({ open, onClose }: CommandPaletteProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  /*
+   * The search input already carries autoFocus, and the trap leaves an
+   * element inside alone if one is focused - so this only holds Tab in.
+   * Without it, tabbing past the last result walked into the page behind
+   * the backdrop.
+   */
+  useFocusTrap(panelRef, open);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { openPeek } = usePeek();
@@ -323,9 +332,11 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       <div className="fixed inset-0 bg-black/40 backdrop-blur-[3px] animate-fade-in" onClick={onClose} />
 
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
+        tabIndex={-1}
         className="relative w-full max-w-[600px] overflow-hidden rounded-[14px] glass shadow-[var(--shadow-xl)]"
         style={{ animation: 'cmdkIn 200ms var(--ease-out) both' }}
       >

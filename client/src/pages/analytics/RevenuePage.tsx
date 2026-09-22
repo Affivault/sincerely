@@ -7,7 +7,7 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
-import { valuePerReply } from '@lemlist/shared';
+import { valuePerReply, formatMoney } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -24,11 +24,7 @@ import { cn } from '../../lib/utils';
    ═══════════════════════════════════════════════════════════════════════ */
 
 function money(v: number): string {
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency', currency: 'USD', maximumFractionDigits: 0,
-    }).format(v || 0);
-  } catch { return `$${Math.round(v || 0).toLocaleString()}`; }
+  return formatMoney(v);
 }
 
 /** A rate as a percentage, or an em dash where there is no evidence yet. */

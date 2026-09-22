@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, Check, Loader2, ArrowLeft, Download, AlertCircle,
 } from 'lucide-react';
 import { publicBookingApi, type WireSlot } from '../../api/booking.api';
-import { WEEKDAY_SHORT, PLACEHOLDER } from '@lemlist/shared';
+import { WEEKDAY_SHORT, PLACEHOLDER, formatLongWeekdayDate, formatMonthYear } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import { PublicShell } from './PublicShell';
 import { keepPrevious } from '../../lib/listQuery';
@@ -391,9 +391,7 @@ export function BookPage() {
           {chosenDay ? (
             <>
               <p className="text-body font-semibold text-[var(--text-primary)]">
-                {new Date(`${chosenDay}T12:00:00`).toLocaleDateString(undefined, {
-                  weekday: 'long', day: 'numeric', month: 'long',
-                })}
+                {formatLongWeekdayDate(new Date(`${chosenDay}T12:00:00`))}
               </p>
               <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
                 {dayList.length} time{dayList.length === 1 ? '' : 's'} free
@@ -510,7 +508,7 @@ function MonthGrid({
     <div>
       <div className="flex items-center justify-between">
         <p className="text-strong font-semibold text-[var(--text-primary)]">
-          {month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+          {formatMonthYear(month)}
         </p>
         <div className="flex items-center gap-1">
           {loading && <Loader2 className="h-3 w-3 animate-spin text-[var(--text-tertiary)]" />}

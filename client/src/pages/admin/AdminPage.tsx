@@ -14,7 +14,7 @@ import {
   ShieldCheck, Crown, Users, Mail, Globe, Megaphone, Infinity as InfinityIcon,
   Gift, CheckCircle2, XCircle, Undo2, Sparkles,
 } from 'lucide-react';
-import { ADMIN_EMAILS, PLANS, type AdminUserRow, type PlanId } from '@lemlist/shared';
+import { ADMIN_EMAILS, PLANS, type AdminUserRow, type PlanId, formatDate } from '@lemlist/shared';
 import { keepPrevious } from '../../lib/listQuery';
 
 const PLAN_BADGE: Record<string, string> = {
@@ -32,7 +32,7 @@ function relTime(iso: string | null): string {
   const d = Math.floor(diff / 86400000);
   if (d < 1) { const h = Math.floor(diff / 3600000); return h < 1 ? 'Just now' : `${h}h ago`; }
   if (d < 30) return `${d}d ago`;
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return formatDate(new Date(iso));
 }
 
 export function AdminPage() {

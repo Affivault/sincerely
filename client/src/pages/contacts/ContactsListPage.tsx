@@ -5,7 +5,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import Papa from 'papaparse';
 import { useDebounce } from '../../hooks/useDebounce';
 import { contactsApi, listsApi, tagsApi } from '../../api/contacts.api';
-import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL } from '@lemlist/shared';
+import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL, formatDate } from '@lemlist/shared';
 import type { Lifecycle, ListKind } from '@lemlist/shared';
 import { usePeek } from '../../components/peek/usePeek';
 import { useFillViewport } from '../../hooks/useFillViewport';
@@ -25,7 +25,7 @@ import { Button } from '../../components/ui/Button';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { Avatar } from '../../components/shared/Avatar';
-import { formatDate, formatRelativeTime, cn } from '../../lib/utils';
+import { formatRelativeTime, cn } from '../../lib/utils';
 import {
   Plus,
   Upload,

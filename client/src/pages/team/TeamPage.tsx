@@ -9,7 +9,8 @@ import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { SettingsShell } from '../../components/shared/SettingsShell';
 import { Avatar } from '../../components/shared/Avatar';
-import { formatDate, cn } from '../../lib/utils';
+import { cn } from '../../lib/utils';
+import { formatDate } from '@lemlist/shared';
 import {
   Users,
   UserPlus,

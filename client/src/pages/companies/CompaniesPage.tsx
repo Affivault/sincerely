@@ -13,7 +13,8 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { usePeek } from '../../components/peek/usePeek';
 import { useColumnLayout, GUTTER_W } from '../../components/table/useColumnLayout';
 import { SortableHeader, DraggableHeader, ResizeHandle } from '../../components/table/TableParts';
-import { cn, formatDate } from '../../lib/utils';
+import { cn } from '../../lib/utils';
+import { formatDate, formatMoney } from '@lemlist/shared';
 import {
   Building2, Plus, Users, Handshake, Globe, MapPin, Factory,
   Linkedin, CircleDollarSign, CalendarPlus, ExternalLink, Download,
@@ -51,7 +52,7 @@ interface ColumnDef {
 }
 
 const money = (n: number) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  formatMoney(n);
 
 const blank = <span className="text-[var(--text-muted)]">—</span>;
 

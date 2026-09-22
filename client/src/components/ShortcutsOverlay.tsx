@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { X, Keyboard } from 'lucide-react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface ShortcutsOverlayProps {
   open: boolean;
@@ -74,6 +75,13 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
 ];
 
 export function ShortcutsOverlay({ open, onClose }: ShortcutsOverlayProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  /*
+   * A sheet to read, not to fill in - so the cursor goes to the panel
+   * rather than being pushed at the close button, and Escape or Tab both
+   * still work from there.
+   */
+  useFocusTrap(panelRef, open);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); onClose(); } };
@@ -88,9 +96,11 @@ export function ShortcutsOverlay({ open, onClose }: ShortcutsOverlayProps) {
       <div className="fixed inset-0 bg-black/40 backdrop-blur-[3px] animate-fade-in" onClick={onClose} />
 
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="Keyboard shortcuts"
+        tabIndex={-1}
         className="relative w-full max-w-[480px] glass rounded-[16px] shadow-[var(--shadow-xl)] overflow-hidden"
         style={{ animation: 'cmdkIn 200ms var(--ease-out) both' }}
       >

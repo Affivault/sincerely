@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { readinessApi } from '../../api/readiness.api';
 import type { ReadinessCheck, ReadinessReport, ReadinessStatus } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
+import { formatTime } from '@lemlist/shared';
 import {
   AlertTriangle, ArrowRight, Check, ChevronDown, Minus, RefreshCw, ShieldAlert, ShieldCheck, XCircle,
 } from 'lucide-react';
@@ -266,7 +267,7 @@ export function ReadinessPanel() {
       )}
 
       <p className="text-caption text-[var(--text-muted)]">
-        Checked {new Date(report.generated_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.
+        Checked {formatTime(new Date(report.generated_at))}.
         Every number here is the same one the send path uses.
       </p>
     </div>

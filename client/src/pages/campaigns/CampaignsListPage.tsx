@@ -16,7 +16,7 @@ import { EmptyState } from '../../components/shared/EmptyState';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { PageTabs } from '../../components/shared/Toolbar';
-import { formatDate, formatRelativeTime, cn } from '../../lib/utils';
+import { formatRelativeTime, cn } from '../../lib/utils';
 import {
   Megaphone, Plus, Send, Mail, MousePointerClick, MessageSquare, Copy,
   Folder, FolderPlus, FolderOpen, X, Pencil, Trash2,
@@ -67,7 +67,7 @@ function sortValue(c: any, key: SortKey): number | string {
 }
 import toast from 'react-hot-toast';
 import type { CampaignWithStats } from '@lemlist/shared';
-import { rateReadout, rateBarWidth } from '@lemlist/shared';
+import { rateReadout, rateBarWidth, formatDate } from '@lemlist/shared';
 import { analyticsApi } from '../../api/analytics.api';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
