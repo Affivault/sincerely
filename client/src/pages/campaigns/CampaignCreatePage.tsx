@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useDraftRecovery, useUnsavedChangesWarning } from '../../hooks/useDraftRecovery';
-import { draftAgeLabel } from '@lemlist/shared';
+import { draftAgeLabel, firstBlocker } from '@lemlist/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
 import { PersonalizationPanel, TimezoneCoverageNote, countGaps, shouldPauseLaunch } from '../../components/campaigns/PersonalizationPanel';
@@ -40,6 +40,7 @@ import toast from 'react-hot-toast';
 import { StepType, formatDailyLimit } from '@lemlist/shared';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
+import { blockedProps, BLOCKED_CLASS } from '../../lib/blockedAction';
 import type {
   CreateCampaignInput, CreateStepInput, CampaignStep, SmtpAccount, ContactWithTags,
   PersonalizationAudit,
@@ -1009,9 +1010,23 @@ export function CampaignCreatePage() {
           {createCampaignMutation.isPending ? 'Saving…' : 'Save draft'}
         </button>
         <button
-          onClick={() => isReady ? handleSaveAndLaunch() : toast.error('Resolve all issues before launching')}
-          disabled={!isReady || launching}
-          title={!isReady ? `${totalIssues} issue${totalIssues === 1 ? '' : 's'} remaining` : 'Launch this campaign'}
+          /*
+           * The onClick below already fell back to a toast when not ready -
+           * and could never run it, because a disabled button dispatches no
+           * click. Five conditions, a dead branch guarding them, and a
+           * tooltip the browser refused to show.
+           *
+           * Now the reasons are named and ordered the way the builder reads,
+           * so it answers with the next thing to fix rather than a count.
+           */
+          disabled={launching}
+          {...blockedProps(firstBlocker([
+            [!campaignForm.name, 'Give the campaign a name'],
+            [steps.length === 0, 'Add at least one email step'],
+            [selectedContactIds.length === 0, 'Choose who this campaign goes to'],
+            [!campaignForm.smtp_account_id, 'Choose a mailbox to send from'],
+            [totalIssues > 0, `${totalIssues} issue${totalIssues === 1 ? '' : 's'} still to resolve`],
+          ]), handleSaveAndLaunch)}
           className={cn(
             'inline-flex items-center gap-1.5 px-3 h-7 rounded-md text-body font-semibold transition-all',
             isReady
@@ -1732,15 +1747,20 @@ export function CampaignCreatePage() {
                                     />
                                     <button
                                       type="button"
-                                      disabled={sendingTest || !testEmailTo || !effectiveSmtp || !steps[editingStep].subject || !hasBody}
-                                      title={
-                                        !effectiveSmtp ? 'Choose a sending account'
-                                          : !steps[editingStep].subject ? 'Add a subject line first'
-                                          : !hasBody ? 'Write an email body first'
-                                          : !testEmailTo ? 'Enter a recipient'
-                                          : 'Send a test to your inbox'
-                                      }
-                                      onClick={async () => {
+                                      /* The four reasons below were already
+                                         written here, as a nested ternary, and
+                                         never once appeared: a disabled control
+                                         dispatches no pointer events so its
+                                         title is not shown. `disabled` is kept
+                                         only for the in-flight case, where the
+                                         label already says so. */
+                                      disabled={sendingTest}
+                                      {...blockedProps(firstBlocker([
+                                        [!effectiveSmtp, 'Choose a sending account'],
+                                        [!steps[editingStep].subject, 'Add a subject line first'],
+                                        [!hasBody, 'Write an email body first'],
+                                        [!testEmailTo, 'Enter a recipient'],
+                                      ]), async () => {
                                         setSendingTest(true);
                                         try {
                                           const result = await smtpApi.sendTestEmail(effectiveSmtp, {
@@ -1754,8 +1774,11 @@ export function CampaignCreatePage() {
                                           toast.error(err.response?.data?.error || 'Send failed');
                                         }
                                         setSendingTest(false);
-                                      }}
-                                      className="inline-flex items-center gap-1 px-3 rounded-md bg-[var(--indigo)] text-white text-caption font-semibold disabled:opacity-40 hover:bg-[var(--indigo-hover)] transition-colors"
+                                      })}
+                                      className={cn(
+                                        'inline-flex items-center gap-1 px-3 rounded-md bg-[var(--indigo)] text-white text-caption font-semibold disabled:opacity-40 hover:bg-[var(--indigo-hover)] transition-colors',
+                                        (!effectiveSmtp || !steps[editingStep].subject || !hasBody || !testEmailTo) && BLOCKED_CLASS,
+                                      )}
                                     >
                                       <Send className="h-3 w-3" />
                                       {sendingTest ? '…' : 'Send'}
