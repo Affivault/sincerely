@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { type Session, type User, type Provider } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { readPersistedUser } from '../lib/persistedSession';
 import { queryClient } from '../lib/queryClient';
 
 interface AuthContextType {
@@ -17,9 +18,31 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  /*
+   * Start from what the browser already knows.
+   *
+   * Every route is behind `loading`, so starting it true meant EVERY page
+   * load - including a reload of the page you were already on - showed a
+   * skeleton until supabase answered, and the app could not begin
+   * fetching its data until it cleared.
+   *
+   * supabase persists the session in localStorage and hands it back
+   * through a promise; the storage read itself is synchronous. So the
+   * information needed to render the right screen is in memory the whole
+   * time the skeleton is up. readPersistedUser returns a user only when
+   * the stored token has real time left on it, and null whenever there is
+   * any doubt - a wrong null costs a skeleton that would have been there
+   * anyway.
+   *
+   * Nothing here is trusted as authentication. Every request is still
+   * authorised by the server, and if it disagrees, getSession resolves
+   * with null a moment later and the redirect happens then.
+   */
+  const optimisticUser = useState(() => readPersistedUser())[0];
+
+  const [user, setUser] = useState<User | null>(optimisticUser);
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!optimisticUser);
 
   useEffect(() => {
     // Get initial session

@@ -69,7 +69,28 @@ console.log('\nthe scale exists, and it is small');
   is('there is a fontSize scale in the theme', /fontSize: \{/.test(config),
      'sizes would go back to being invented per component');
 
-  const block = config.slice(config.indexOf('fontSize: {'), config.indexOf('fontFamily:'));
+  /*
+   * ONE fontSize KEY, AND THIS ASSERTION IS THE WHOLE REASON THE SCALE
+   * WAS DEAD FOR TWO RELEASES.
+   *
+   * The config carried a SECOND `fontSize:` further down, left over from
+   * an older scale. In a JavaScript object literal the later key wins
+   * silently, so none of micro/caption/body/strong/title/hero existed as
+   * a utility at all - 2,448 call sites emitted no font-size - and
+   * text-heading and text-display resolved to 24px and 48px instead of
+   * 15px and 22px.
+   *
+   * This file did not catch it because it sliced from the FIRST
+   * `fontSize: {` to `fontFamily:`, which is exactly the block that was
+   * being overridden. It validated the dead one, in detail, and passed.
+   */
+  const declarations = (config.match(/^\s*fontSize:\s*\{/gm) || []).length;
+  is('and only one of them', declarations === 1,
+     `${declarations} fontSize keys - the last one silently wins and the others emit nothing`);
+
+  // Read the LAST one, because that is the one Tailwind will use.
+  const from = config.lastIndexOf('fontSize: {');
+  const block = config.slice(from, config.indexOf('},', from));
   for (const step of STEPS) {
     is(`${step} is defined`, new RegExp(`${step}:\\s*\\[`).test(block), block.slice(0, 200));
   }
@@ -165,7 +186,8 @@ console.log('\nthe steps are the sizes the app already used most');
    * almost invisible - which is the point. This change was about removing
    * the near-duplicates, not about redesigning the typography.
    */
-  const block = config.slice(config.indexOf('fontSize: {'), config.indexOf('fontFamily:'));
+  const from = config.lastIndexOf('fontSize: {');
+  const block = config.slice(from, config.indexOf('},', from));
   const sizes = [...block.matchAll(/(\w+):\s*\['(\d+)px'\]/g)].map((m) => [m[1], Number(m[2])] as const);
 
   is('each step is a whole number of pixels',

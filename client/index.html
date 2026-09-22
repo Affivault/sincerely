@@ -32,10 +32,31 @@
     <link rel="apple-touch-icon" href="/favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+      One font request, and it does not block the first paint.
+
+      This used to be two: this tag for the landing pages, and an @import
+      at the top of index.css for the app's own Inter and JetBrains Mono.
+      The @import was the expensive one - a stylesheet cannot be discovered
+      until the stylesheet that imports it has downloaded and parsed, so it
+      was a second round trip chained behind the first, and both of them
+      held up the first screen.
+
+      `preload as=style` fetches it at high priority without blocking
+      rendering; the onload promotes it to a real stylesheet once it
+      arrives. display=swap was already set, so text paints immediately in
+      the fallback stack and swaps when the webfont lands - which is what
+      makes not blocking safe rather than merely faster.
+    -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Newsreader:ital,wght@1,400;1,500;1,600&family=JetBrains+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Newsreader:ital,wght@1,400;1,500;1,600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap"
+      onload="this.onload=null;this.rel='stylesheet'"
     />
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Newsreader:ital,wght@1,400;1,500;1,600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" />
+    </noscript>
   </head>
   <body class="bg-gray-50 text-gray-900 antialiased">
     <div id="root"></div>
