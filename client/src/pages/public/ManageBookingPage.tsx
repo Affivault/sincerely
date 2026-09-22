@@ -7,6 +7,7 @@ import {
 import { publicBookingApi, type WireSlot } from '../../api/booking.api';
 import { cn } from '../../lib/utils';
 import { PublicShell } from './PublicShell';
+import { keepPrevious } from '../../lib/listQuery';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Moving or cancelling a booking, without an account.
@@ -44,6 +45,7 @@ export function ManageBookingPage() {
     queryFn: () => publicBookingApi.rescheduleSlots(token, range.from, range.to),
     enabled: mode === 'move',
     retry: false,
+    ...keepPrevious,
   });
 
   const move = useMutation({

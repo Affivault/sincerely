@@ -15,6 +15,7 @@ import {
   Gift, CheckCircle2, XCircle, Undo2, Sparkles,
 } from 'lucide-react';
 import { ADMIN_EMAILS, PLANS, type AdminUserRow, type PlanId } from '@lemlist/shared';
+import { keepPrevious } from '../../lib/listQuery';
 
 const PLAN_BADGE: Record<string, string> = {
   lifetime: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(91,91,245,0.3)]',
@@ -45,10 +46,11 @@ export function AdminPage() {
   const debouncedSearch = useDebounce(search, 250);
 
   const { data: stats } = useQuery({ queryKey: ['admin', 'stats'], queryFn: adminApi.stats, enabled: isAdmin });
-  const { data: usersData, isLoading: loadingUsers } = useQuery({
+  const { data: usersData, isLoading: loadingUsers, isPlaceholderData: staleUsers } = useQuery({
     queryKey: ['admin', 'users', debouncedSearch],
     queryFn: () => adminApi.users(debouncedSearch || undefined),
     enabled: isAdmin,
+    ...keepPrevious,
   });
 
   const refresh = () => {
@@ -181,7 +183,7 @@ export function AdminPage() {
       {/* Users table */}
       <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
         <div className="flex items-center gap-3 px-3 h-12 border-b border-[var(--border-subtle)]">
-          <SearchInput value={search} onChange={setSearch} placeholder="Search users by email…" className="w-72" />
+          <SearchInput value={search} onChange={setSearch} placeholder="Search users by email…" className="w-72" busy={staleUsers} />
           <span className="flex-1" />
           <span className="text-caption text-[var(--text-tertiary)] tabular">
             {users.length}{usersData && usersData.total > users.length ? ` of ${usersData.total}` : ''} user{users.length === 1 ? '' : 's'}

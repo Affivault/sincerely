@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Company } from '@lemlist/shared';
+import { keepPrevious } from '../../lib/listQuery';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Companies.
@@ -219,9 +220,10 @@ export function CompaniesPage() {
     },
   });
 
-  const { data: companies = [], isLoading, error } = useQuery({
+  const { data: companies = [], isLoading, error, isPlaceholderData: stale } = useQuery({
     queryKey: ['companies', debounced],
     queryFn: () => companiesApi.list(debounced || undefined),
+    ...keepPrevious,
   });
 
   // The migration is opt-in, so a 503 here means "not set up yet", not broken.
@@ -281,7 +283,7 @@ export function CompaniesPage() {
         }
         actions={
           <div className="flex items-center gap-2">
-            <SearchInput value={search} onChange={onSearch} placeholder="Search companies…" className="hidden sm:block w-56" />
+            <SearchInput value={search} onChange={onSearch} placeholder="Search companies…" className="hidden sm:block w-56" busy={stale} />
             {rows.length > 0 && (
               <button
                 onClick={() => exportCompaniesCsv(rows)}

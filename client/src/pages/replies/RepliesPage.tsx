@@ -11,6 +11,7 @@ import { AsyncPanel } from '../../components/ui/AsyncPanel';
 import { replyQueueApi, type QueuedReply, type QueueFilter } from '../../api/replyQueue.api';
 import { cn } from '../../lib/utils';
 import { replyStateLabel, waitLabel, type ReplyUrgency } from '@lemlist/shared';
+import { keepPrevious } from '../../lib/listQuery';
 
 /* ═══════════════════════════════════════════════════════════════════════
    What you owe people, hardest first.
@@ -201,6 +202,7 @@ export function RepliesPage() {
     // a stale "3h" is a queue that quietly stops being a queue.
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
+    ...keepPrevious,
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['reply-queue'] });

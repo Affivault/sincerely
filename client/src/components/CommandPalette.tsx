@@ -18,6 +18,7 @@ import { getRecentItems, addRecentItem, type RecentItem } from '../lib/recentIte
 import { usePeek } from './peek/usePeek';
 import { crmApi } from '../api/crm.api';
 import toast from 'react-hot-toast';
+import { keepPrevious } from '../lib/listQuery';
 import {
   parseQuickAdd, SEARCH_TYPE_LABEL, MIN_SEARCH_LENGTH,
   type SearchHit, type SearchHitType, type QuickAddKind,
@@ -151,6 +152,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     queryFn: () => searchApi.query(trimmed),
     enabled: open && trimmed.length >= MIN_SEARCH_LENGTH,
     staleTime: 15_000,
+    ...keepPrevious,
   });
 
   /* ── Quick add ──────────────────────────────────────────────────────

@@ -69,6 +69,8 @@ import toast from 'react-hot-toast';
 import type { CampaignWithStats } from '@lemlist/shared';
 import { rateReadout, rateBarWidth } from '@lemlist/shared';
 import { analyticsApi } from '../../api/analytics.api';
+import { keepPrevious } from '../../lib/listQuery';
+import { Refreshing } from '../../components/ui/Refreshing';
 
 const STATUS_TABS = [
   { label: 'All',       value: '' },
@@ -106,7 +108,7 @@ export function CampaignsListPage() {
     return n;
   });
 
-  const { data: campaignsResp, isLoading } = useQuery({
+  const { data: campaignsResp, isLoading, isPlaceholderData: stale } = useQuery({
     queryKey: ['campaigns', 'all', statusFilter],
     queryFn: () => campaignsApi.list({ page: 1, limit: 500, status: statusFilter || undefined }),
     // Auto-refresh every 30 s when viewing running campaigns so stats stay live
@@ -115,6 +117,7 @@ export function CampaignsListPage() {
       const hasRunning = campaigns.some((c: any) => c.status === 'running');
       return hasRunning ? 30_000 : false;
     },
+    ...keepPrevious,
   });
 
   // Independent of `statusFilter` — used only to compute status-tab and
@@ -437,100 +440,102 @@ export function CampaignsListPage() {
           </div>
 
           {/* List */}
-          {isLoading ? (
-            <div className="panel overflow-hidden">
-              {Array.from({ length: 7 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-4 px-4 py-[15px] border-b border-[var(--border-subtle)] last:border-0">
-                  <Skeleton className="h-2 w-2 rounded-full" />
-                  <div className="flex-1 space-y-1.5">
-                    <Skeleton className="h-3.5 w-1/3" />
-                    <Skeleton className="h-2.5 w-1/2" />
+          <Refreshing active={stale}>
+            {isLoading ? (
+              <div className="panel overflow-hidden">
+                {Array.from({ length: 7 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-4 px-4 py-[15px] border-b border-[var(--border-subtle)] last:border-0">
+                    <Skeleton className="h-2 w-2 rounded-full" />
+                    <div className="flex-1 space-y-1.5">
+                      <Skeleton className="h-3.5 w-1/3" />
+                      <Skeleton className="h-2.5 w-1/2" />
+                    </div>
+                    <Skeleton className="h-3 w-10" />
+                    <Skeleton className="h-3 w-10" />
+                    <Skeleton className="h-3 w-10" />
+                    <Skeleton className="h-1.5 w-28 rounded-full" />
                   </div>
-                  <Skeleton className="h-3 w-10" />
-                  <Skeleton className="h-3 w-10" />
-                  <Skeleton className="h-3 w-10" />
-                  <Skeleton className="h-1.5 w-28 rounded-full" />
-                </div>
-              ))}
-            </div>
-          ) : visibleCampaigns.length === 0 ? (
-            <div className="panel p-10">
-              <EmptyState
-                icon={Megaphone}
-                title={activeFolderId === 'all' ? 'No campaigns yet' : 'This folder is empty'}
-                description={activeFolderId === 'all' ? 'Build your first outbound sequence and start reaching prospects.' : 'Move campaigns into this folder or create a new one.'}
-                actionLabel="New campaign"
-                onAction={() => setShowStartChooser(true)}
-              />
-            </div>
-          ) : (
-            <div className="panel overflow-hidden">
-              <div className="overflow-x-auto">
-                {/* The grid's own minimum is 200 + 5x72 + 84 + 170 + 96 plus eight
-                      12px gaps = 1006px. Anything smaller here and the columns
-                      overlap instead of scrolling, which is how a table loses a
-                      column silently on a laptop. */}
-                <div className="min-w-[1010px]">
-                  {/* Column header — click to sort */}
-                  <div className={cn(ROW_GRID, 'px-4 h-10 border-b border-[var(--border-subtle)] bg-[var(--bg-muted)]/40')}>
-                    {([
-                      { key: 'name' as SortKey,   label: 'Campaign', right: false },
-                      { key: 'sent' as SortKey,   label: 'Sent',     right: true },
-                      { key: 'open' as SortKey,   label: 'Open',     right: true },
-                      { key: 'click' as SortKey,  label: 'Click',    right: true },
-                      { key: 'reply' as SortKey,  label: 'Reply',    right: true },
-                      { key: 'bounce' as SortKey, label: 'Bounce',   right: true },
-                      { key: 'earned' as SortKey, label: 'Earned',   right: true },
-                    ]).map((col) => (
-                      <button
-                        key={col.key}
-                        onClick={() => toggleSort(col.key)}
-                        className={cn(
-                          'group/sort inline-flex items-center gap-1 text-caption font-medium transition-colors select-none',
-                          col.right && 'justify-end',
-                          sortKey === col.key ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
-                        )}
-                      >
-                        {col.label}
-                        {sortKey === col.key
-                          ? (sortDir === 'desc' ? <ChevronDown className="h-3 w-3 text-[var(--indigo)]" /> : <ChevronUp className="h-3 w-3 text-[var(--indigo)]" />)
-                          : <ChevronsUpDown className="h-3 w-3 opacity-0 group-hover/sort:opacity-60 transition-opacity" />}
-                      </button>
-                    ))}
-                    <span className="text-caption font-medium text-[var(--text-tertiary)]">Pipeline</span>
-                    <span />
-                  </div>
-                  <div className="divide-y divide-[var(--border-subtle)]">
-                    {visibleCampaigns.map((campaign: any) => (
-                      <div key={campaign.id}>
-                        <CampaignRow
-                          campaign={campaign}
-                          revenue={campaign.__revenue}
-                          expanded={expandedId === campaign.id}
-                          onToggleSnapshot={() => setExpandedId((id) => (id === campaign.id ? null : campaign.id))}
-                          onOpen={() => navigate(`/campaigns/${campaign.id}`)}
-                          onLaunch={() => preflight.launch(campaign.id, campaign.name)}
-                          onPause={()  => pauseMut.mutate(campaign.id)}
-                          onResume={() => resumeMut.mutate(campaign.id)}
-                          launchBusy={preflight.isLaunching(campaign.id)}
-                          pauseBusy={pauseMut.isPending && pauseMut.variables === campaign.id}
-                          resumeBusy={resumeMut.isPending && resumeMut.variables === campaign.id}
-                          onEdit={()   => navigate(`/campaigns/${campaign.id}/edit`)}
-                          onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setContextMenuFor({ id: campaign.id, name: campaign.name, x: e.clientX, y: e.clientY }); }}
-                          dragging={draggingCampaignId === campaign.id}
-                          onDragStart={() => setDraggingCampaignId(campaign.id)}
-                          onDragEnd={() => { setDraggingCampaignId(null); setDropFolderKey(null); }}
-                        />
-                        {expandedId === campaign.id && (
-                          <CampaignSnapshot campaign={campaign} onOpenReport={() => navigate(`/campaigns/${campaign.id}`)} />
-                        )}
-                      </div>
-                    ))}
+                ))}
+              </div>
+            ) : visibleCampaigns.length === 0 ? (
+              <div className="panel p-10">
+                <EmptyState
+                  icon={Megaphone}
+                  title={activeFolderId === 'all' ? 'No campaigns yet' : 'This folder is empty'}
+                  description={activeFolderId === 'all' ? 'Build your first outbound sequence and start reaching prospects.' : 'Move campaigns into this folder or create a new one.'}
+                  actionLabel="New campaign"
+                  onAction={() => setShowStartChooser(true)}
+                />
+              </div>
+            ) : (
+              <div className="panel overflow-hidden">
+                <div className="overflow-x-auto">
+                  {/* The grid's own minimum is 200 + 5x72 + 84 + 170 + 96 plus eight
+                        12px gaps = 1006px. Anything smaller here and the columns
+                        overlap instead of scrolling, which is how a table loses a
+                        column silently on a laptop. */}
+                  <div className="min-w-[1010px]">
+                    {/* Column header — click to sort */}
+                    <div className={cn(ROW_GRID, 'px-4 h-10 border-b border-[var(--border-subtle)] bg-[var(--bg-muted)]/40')}>
+                      {([
+                        { key: 'name' as SortKey,   label: 'Campaign', right: false },
+                        { key: 'sent' as SortKey,   label: 'Sent',     right: true },
+                        { key: 'open' as SortKey,   label: 'Open',     right: true },
+                        { key: 'click' as SortKey,  label: 'Click',    right: true },
+                        { key: 'reply' as SortKey,  label: 'Reply',    right: true },
+                        { key: 'bounce' as SortKey, label: 'Bounce',   right: true },
+                        { key: 'earned' as SortKey, label: 'Earned',   right: true },
+                      ]).map((col) => (
+                        <button
+                          key={col.key}
+                          onClick={() => toggleSort(col.key)}
+                          className={cn(
+                            'group/sort inline-flex items-center gap-1 text-caption font-medium transition-colors select-none',
+                            col.right && 'justify-end',
+                            sortKey === col.key ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                          )}
+                        >
+                          {col.label}
+                          {sortKey === col.key
+                            ? (sortDir === 'desc' ? <ChevronDown className="h-3 w-3 text-[var(--indigo)]" /> : <ChevronUp className="h-3 w-3 text-[var(--indigo)]" />)
+                            : <ChevronsUpDown className="h-3 w-3 opacity-0 group-hover/sort:opacity-60 transition-opacity" />}
+                        </button>
+                      ))}
+                      <span className="text-caption font-medium text-[var(--text-tertiary)]">Pipeline</span>
+                      <span />
+                    </div>
+                    <div className="divide-y divide-[var(--border-subtle)]">
+                      {visibleCampaigns.map((campaign: any) => (
+                        <div key={campaign.id}>
+                          <CampaignRow
+                            campaign={campaign}
+                            revenue={campaign.__revenue}
+                            expanded={expandedId === campaign.id}
+                            onToggleSnapshot={() => setExpandedId((id) => (id === campaign.id ? null : campaign.id))}
+                            onOpen={() => navigate(`/campaigns/${campaign.id}`)}
+                            onLaunch={() => preflight.launch(campaign.id, campaign.name)}
+                            onPause={()  => pauseMut.mutate(campaign.id)}
+                            onResume={() => resumeMut.mutate(campaign.id)}
+                            launchBusy={preflight.isLaunching(campaign.id)}
+                            pauseBusy={pauseMut.isPending && pauseMut.variables === campaign.id}
+                            resumeBusy={resumeMut.isPending && resumeMut.variables === campaign.id}
+                            onEdit={()   => navigate(`/campaigns/${campaign.id}/edit`)}
+                            onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setContextMenuFor({ id: campaign.id, name: campaign.name, x: e.clientX, y: e.clientY }); }}
+                            dragging={draggingCampaignId === campaign.id}
+                            onDragStart={() => setDraggingCampaignId(campaign.id)}
+                            onDragEnd={() => { setDraggingCampaignId(null); setDropFolderKey(null); }}
+                          />
+                          {expandedId === campaign.id && (
+                            <CampaignSnapshot campaign={campaign} onOpenReport={() => navigate(`/campaigns/${campaign.id}`)} />
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </Refreshing>
         </main>
       </div>
 

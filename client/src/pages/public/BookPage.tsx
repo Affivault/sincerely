@@ -9,6 +9,7 @@ import { publicBookingApi, type WireSlot } from '../../api/booking.api';
 import { WEEKDAY_SHORT, PLACEHOLDER } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import { PublicShell } from './PublicShell';
+import { keepPrevious } from '../../lib/listQuery';
 
 /* ═══════════════════════════════════════════════════════════════════════
    The booking page.
@@ -95,6 +96,7 @@ export function BookPage() {
     queryFn: () => publicBookingApi.slots(slug, range.from, range.to),
     enabled: !!page.data,
     retry: false,
+    ...keepPrevious,
   });
 
   /** Slots grouped by the day they fall on *in the visitor's zone*. */

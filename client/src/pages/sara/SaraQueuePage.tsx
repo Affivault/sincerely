@@ -27,6 +27,8 @@ import { StatCard } from '../../components/shared/StatCard';
 import { Avatar } from '../../components/shared/Avatar';
 import toast from 'react-hot-toast';
 import { Spinner } from '../../components/ui/Spinner';
+import { keepPrevious } from '../../lib/listQuery';
+import { Refreshing } from '../../components/ui/Refreshing';
 
 function relTime(iso?: string): string {
   if (!iso) return '';
@@ -81,7 +83,7 @@ export function SaraQueuePage() {
     queryFn: saraApi.getStats,
   });
 
-  const { data: queue, isLoading, isError } = useQuery({
+  const { data: queue, isLoading, isError, isPlaceholderData: stale } = useQuery({
     queryKey: ['sara-queue', statusFilter, intentFilter],
     queryFn: () => saraApi.getQueue({
       status: statusFilter,
@@ -89,6 +91,7 @@ export function SaraQueuePage() {
       limit: 50,
     }),
     meta: { silentError: true }, // has its own inline error state below
+    ...keepPrevious,
   });
 
   const approveMutation = useMutation({
@@ -286,279 +289,281 @@ export function SaraQueuePage() {
       </div>
 
       {/* Queue — two-pane triage */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Spinner size="lg" />
-        </div>
-      ) : isError ? (
-        <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-20 px-8 flex flex-col items-center justify-center text-center">
-          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 mb-5">
-            <XCircle className="h-7 w-7 text-red-600 dark:text-red-400" strokeWidth={1.5} />
-          </span>
-          <h3 className="text-heading font-semibold text-[var(--text-primary)] mb-1.5">Couldn't load the queue</h3>
-          <p className="text-body text-[var(--text-secondary)] max-w-sm mb-4">Something went wrong fetching SARA's queue — this isn't necessarily an empty inbox. Try again.</p>
-          <button
-            onClick={() => queryClient.invalidateQueries({ queryKey: ['sara-queue'] })}
-            className="h-8 px-3.5 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:brightness-110 transition-all"
-          >
-            Retry
-          </button>
-        </div>
-      ) : messages.length === 0 ? (
-        <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-20 px-8 flex flex-col items-center justify-center text-center">
-          <div className="relative mb-5">
-            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-              <CheckCircle2 className="h-7 w-7 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />
-            </span>
-            <Sparkles className="h-4 w-4 text-amber-400 absolute -top-1 -right-1" />
+      <Refreshing active={stale}>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <Spinner size="lg" />
           </div>
-          <h3 className="text-heading font-semibold text-[var(--text-primary)] mb-1.5">
-            {statusFilter === 'pending_review' ? 'Inbox zero — nice.' : 'Nothing here yet'}
-          </h3>
-          <p className="text-body text-[var(--text-secondary)] max-w-sm">
-            {statusFilter === 'pending_review'
-              ? 'SARA hasn\'t flagged any replies for review. New ones will appear here as they come in.'
-              : `No ${STATUS_TABS.find(t => t.value === statusFilter)?.label.toLowerCase()} messages found.`}
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-[340px,1fr] gap-3 h-[calc(100vh-340px)] min-h-[480px]">
-          {/* ── LEFT PANE: message list ───────────────────────────── */}
-          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden flex flex-col">
-            <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] flex items-center justify-between text-caption font-semibold text-[var(--text-tertiary)]">
-              <span>{messages.length} {STATUS_TABS.find(t => t.value === statusFilter)?.label.toLowerCase()}</span>
-              <span className="flex items-center gap-1 text-micro normal-case font-medium tracking-normal">
-                <Kbd>J</Kbd><Kbd>K</Kbd> navigate
+        ) : isError ? (
+          <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-20 px-8 flex flex-col items-center justify-center text-center">
+            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 mb-5">
+              <XCircle className="h-7 w-7 text-red-600 dark:text-red-400" strokeWidth={1.5} />
+            </span>
+            <h3 className="text-heading font-semibold text-[var(--text-primary)] mb-1.5">Couldn't load the queue</h3>
+            <p className="text-body text-[var(--text-secondary)] max-w-sm mb-4">Something went wrong fetching SARA's queue — this isn't necessarily an empty inbox. Try again.</p>
+            <button
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['sara-queue'] })}
+              className="h-8 px-3.5 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:brightness-110 transition-all"
+            >
+              Retry
+            </button>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-20 px-8 flex flex-col items-center justify-center text-center">
+            <div className="relative mb-5">
+              <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+                <CheckCircle2 className="h-7 w-7 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />
               </span>
+              <Sparkles className="h-4 w-4 text-amber-400 absolute -top-1 -right-1" />
             </div>
-            <div className="flex-1 overflow-y-auto">
-              {messages.map((msg: any) => {
+            <h3 className="text-heading font-semibold text-[var(--text-primary)] mb-1.5">
+              {statusFilter === 'pending_review' ? 'Inbox zero — nice.' : 'Nothing here yet'}
+            </h3>
+            <p className="text-body text-[var(--text-secondary)] max-w-sm">
+              {statusFilter === 'pending_review'
+                ? 'SARA hasn\'t flagged any replies for review. New ones will appear here as they come in.'
+                : `No ${STATUS_TABS.find(t => t.value === statusFilter)?.label.toLowerCase()} messages found.`}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-[340px,1fr] gap-3 h-[calc(100vh-340px)] min-h-[480px]">
+            {/* ── LEFT PANE: message list ───────────────────────────── */}
+            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden flex flex-col">
+              <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] flex items-center justify-between text-caption font-semibold text-[var(--text-tertiary)]">
+                <span>{messages.length} {STATUS_TABS.find(t => t.value === statusFilter)?.label.toLowerCase()}</span>
+                <span className="flex items-center gap-1 text-micro normal-case font-medium tracking-normal">
+                  <Kbd>J</Kbd><Kbd>K</Kbd> navigate
+                </span>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                {messages.map((msg: any) => {
+                  const intentConfig = INTENT_CONFIG[msg.sara_intent] || INTENT_CONFIG.other;
+                  const IntentIcon = intentConfig.icon;
+                  const isSelected = selectedId === msg.id;
+                  const name = msg.contacts?.first_name
+                    ? `${msg.contacts.first_name} ${msg.contacts.last_name || ''}`.trim()
+                    : msg.from_email;
+                  const conf = Math.round((msg.sara_confidence || 0) * 100);
+                  const autoHandled = msg.sara_status === 'approved' && !msg.sara_reviewed_by;
+                  return (
+                    <button
+                      key={msg.id}
+                      onClick={() => { setSelectedId(msg.id); setIsEditing(false); }}
+                      className={cn(
+                        'w-full text-left relative px-3 py-2.5 border-b border-[var(--border-subtle)] hover:bg-[var(--bg-hover)] transition-colors',
+                        isSelected && 'bg-[#5B5BF5]/5'
+                      )}
+                    >
+                      {isSelected && (
+                        <span className="absolute left-0 top-2 bottom-2 w-[2px] rounded-r-full bg-[var(--indigo)]" />
+                      )}
+                      <div className="flex items-start gap-2.5">
+                        <Avatar name={name} email={msg.from_email} size="md" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-body font-semibold text-[var(--text-primary)] truncate flex-1">
+                              {name}
+                            </span>
+                            <span className="text-micro tabular text-[var(--text-tertiary)] flex-shrink-0">
+                              {relTime(msg.received_at || msg.created_at)}
+                            </span>
+                          </div>
+                          <p className="text-caption text-[var(--text-secondary)] truncate mt-0.5">
+                            {msg.subject || '(no subject)'}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            <span className={cn(
+                              'inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-semibold',
+                              'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
+                            )}>
+                              <IntentIcon className="h-2.5 w-2.5" />
+                              {intentConfig.label}
+                            </span>
+                            {conf > 0 && (
+                              <span className={cn(
+                                'text-micro tabular font-semibold',
+                                conf >= 80 ? 'text-emerald-600 dark:text-emerald-400' : conf >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-tertiary)]'
+                              )}>
+                                {conf}%
+                              </span>
+                            )}
+                            {autoHandled && (
+                              <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-semibold bg-[#5B5BF5]/8 text-[var(--indigo)]" title="Handled automatically by SARA — no human review">
+                                <Bot className="h-2.5 w-2.5" />
+                                Auto
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── RIGHT PANE: thread + composer ─────────────────────── */}
+            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden flex flex-col">
+              {!selectedMsg ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bg-elevated)] mb-3">
+                    <MessageSquare className="h-5 w-5 text-[var(--text-tertiary)]" />
+                  </span>
+                  <p className="text-strong text-[var(--text-secondary)]">Select a message to review</p>
+                </div>
+              ) : (() => {
+                const msg = selectedMsg;
                 const intentConfig = INTENT_CONFIG[msg.sara_intent] || INTENT_CONFIG.other;
                 const IntentIcon = intentConfig.icon;
-                const isSelected = selectedId === msg.id;
                 const name = msg.contacts?.first_name
                   ? `${msg.contacts.first_name} ${msg.contacts.last_name || ''}`.trim()
                   : msg.from_email;
                 const conf = Math.round((msg.sara_confidence || 0) * 100);
                 const autoHandled = msg.sara_status === 'approved' && !msg.sara_reviewed_by;
                 return (
-                  <button
-                    key={msg.id}
-                    onClick={() => { setSelectedId(msg.id); setIsEditing(false); }}
-                    className={cn(
-                      'w-full text-left relative px-3 py-2.5 border-b border-[var(--border-subtle)] hover:bg-[var(--bg-hover)] transition-colors',
-                      isSelected && 'bg-[#5B5BF5]/5'
-                    )}
-                  >
-                    {isSelected && (
-                      <span className="absolute left-0 top-2 bottom-2 w-[2px] rounded-r-full bg-[var(--indigo)]" />
-                    )}
-                    <div className="flex items-start gap-2.5">
-                      <Avatar name={name} email={msg.from_email} size="md" />
+                  <>
+                    {/* Thread header */}
+                    <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-start gap-3">
+                      <Avatar name={name} email={msg.from_email} size="lg" />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-body font-semibold text-[var(--text-primary)] truncate flex-1">
-                            {name}
-                          </span>
-                          <span className="text-micro tabular text-[var(--text-tertiary)] flex-shrink-0">
-                            {relTime(msg.received_at || msg.created_at)}
-                          </span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-heading font-semibold text-[var(--text-primary)]">{name}</h3>
+                          <span className="text-caption text-[var(--text-tertiary)]">&lt;{msg.from_email}&gt;</span>
                         </div>
-                        <p className="text-caption text-[var(--text-secondary)] truncate mt-0.5">
-                          {msg.subject || '(no subject)'}
-                        </p>
-                        <div className="flex items-center gap-1.5 mt-1.5">
-                          <span className={cn(
-                            'inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-semibold',
-                            'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
-                          )}>
-                            <IntentIcon className="h-2.5 w-2.5" />
-                            {intentConfig.label}
-                          </span>
-                          {conf > 0 && (
-                            <span className={cn(
-                              'text-micro tabular font-semibold',
-                              conf >= 80 ? 'text-emerald-600 dark:text-emerald-400' : conf >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-tertiary)]'
-                            )}>
-                              {conf}%
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          {msg.contacts?.company && (
+                            <span className="inline-flex items-center gap-1 text-caption text-[var(--text-secondary)]">
+                              <Building2 className="h-3 w-3" />{msg.contacts.company}
                             </span>
                           )}
-                          {autoHandled && (
-                            <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-semibold bg-[#5B5BF5]/8 text-[var(--indigo)]" title="Handled automatically by SARA — no human review">
-                              <Bot className="h-2.5 w-2.5" />
-                              Auto
+                          {msg.campaigns?.name && (
+                            <span className="inline-flex items-center gap-1 text-caption text-[var(--text-secondary)]">
+                              <Send className="h-3 w-3" />{msg.campaigns.name}
                             </span>
                           )}
+                          <span className="text-caption text-[var(--text-tertiary)]">{formatDateTime(msg.received_at || msg.created_at)}</span>
                         </div>
                       </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ── RIGHT PANE: thread + composer ─────────────────────── */}
-          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden flex flex-col">
-            {!selectedMsg ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bg-elevated)] mb-3">
-                  <MessageSquare className="h-5 w-5 text-[var(--text-tertiary)]" />
-                </span>
-                <p className="text-strong text-[var(--text-secondary)]">Select a message to review</p>
-              </div>
-            ) : (() => {
-              const msg = selectedMsg;
-              const intentConfig = INTENT_CONFIG[msg.sara_intent] || INTENT_CONFIG.other;
-              const IntentIcon = intentConfig.icon;
-              const name = msg.contacts?.first_name
-                ? `${msg.contacts.first_name} ${msg.contacts.last_name || ''}`.trim()
-                : msg.from_email;
-              const conf = Math.round((msg.sara_confidence || 0) * 100);
-              const autoHandled = msg.sara_status === 'approved' && !msg.sara_reviewed_by;
-              return (
-                <>
-                  {/* Thread header */}
-                  <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-start gap-3">
-                    <Avatar name={name} email={msg.from_email} size="lg" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-heading font-semibold text-[var(--text-primary)]">{name}</h3>
-                        <span className="text-caption text-[var(--text-tertiary)]">&lt;{msg.from_email}&gt;</span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        {msg.contacts?.company && (
-                          <span className="inline-flex items-center gap-1 text-caption text-[var(--text-secondary)]">
-                            <Building2 className="h-3 w-3" />{msg.contacts.company}
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                        <span className={cn(
+                          'inline-flex items-center gap-1 px-1.5 h-[20px] rounded-[5px] text-micro font-semibold',
+                          'bg-[#5B5BF5]/8 text-[var(--indigo)]'
+                        )}>
+                          <IntentIcon className="h-2.5 w-2.5" />
+                          {intentConfig.label}
+                        </span>
+                        {conf > 0 && (
+                          <span className="text-micro tabular font-semibold text-[var(--text-tertiary)]">
+                            {conf}% confidence
                           </span>
                         )}
-                        {msg.campaigns?.name && (
-                          <span className="inline-flex items-center gap-1 text-caption text-[var(--text-secondary)]">
-                            <Send className="h-3 w-3" />{msg.campaigns.name}
+                        {autoHandled && (
+                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-semibold bg-[#5B5BF5]/8 text-[var(--indigo)]" title="SARA acted on this automatically based on your auto-execute settings">
+                            <Bot className="h-2.5 w-2.5" />
+                            Auto-handled
                           </span>
                         )}
-                        <span className="text-caption text-[var(--text-tertiary)]">{formatDateTime(msg.received_at || msg.created_at)}</span>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                      <span className={cn(
-                        'inline-flex items-center gap-1 px-1.5 h-[20px] rounded-[5px] text-micro font-semibold',
-                        'bg-[#5B5BF5]/8 text-[var(--indigo)]'
-                      )}>
-                        <IntentIcon className="h-2.5 w-2.5" />
-                        {intentConfig.label}
-                      </span>
-                      {conf > 0 && (
-                        <span className="text-micro tabular font-semibold text-[var(--text-tertiary)]">
-                          {conf}% confidence
-                        </span>
-                      )}
-                      {autoHandled && (
-                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-semibold bg-[#5B5BF5]/8 text-[var(--indigo)]" title="SARA acted on this automatically based on your auto-execute settings">
-                          <Bot className="h-2.5 w-2.5" />
-                          Auto-handled
-                        </span>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Thread body */}
-                  <div className="flex-1 overflow-y-auto">
-                    <div className="px-5 py-4 space-y-4">
-                      {/* Original message */}
-                      <div>
-                        <h4 className="text-micro font-bold text-[var(--text-tertiary)] mb-2">
-                          Reply received
-                        </h4>
-                        <div className="text-strong text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
-                          {msg.body_text || msg.body_html?.replace(/<[^>]*>/g, '') || '(empty message)'}
+                    {/* Thread body */}
+                    <div className="flex-1 overflow-y-auto">
+                      <div className="px-5 py-4 space-y-4">
+                        {/* Original message */}
+                        <div>
+                          <h4 className="text-micro font-bold text-[var(--text-tertiary)] mb-2">
+                            Reply received
+                          </h4>
+                          <div className="text-strong text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
+                            {msg.body_text || msg.body_html?.replace(/<[^>]*>/g, '') || '(empty message)'}
+                          </div>
                         </div>
-                      </div>
 
-                      {/* SARA draft */}
-                      {msg.sara_draft_reply && (
-                        <div className="rounded-xl border border-[#5B5BF5]/20 bg-[var(--indigo-subtle)] p-3.5">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-1.5">
-                              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--indigo)]">
-                                <Bot className="h-3 w-3 text-white" />
-                              </span>
-                              <h4 className="text-caption font-bold text-[var(--indigo)]">
-                                SARA's draft reply
-                              </h4>
+                        {/* SARA draft */}
+                        {msg.sara_draft_reply && (
+                          <div className="rounded-xl border border-[#5B5BF5]/20 bg-[var(--indigo-subtle)] p-3.5">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--indigo)]">
+                                  <Bot className="h-3 w-3 text-white" />
+                                </span>
+                                <h4 className="text-caption font-bold text-[var(--indigo)]">
+                                  SARA's draft reply
+                                </h4>
+                              </div>
+                              {msg.sara_action && (
+                                <span className="text-micro text-[var(--text-tertiary)]">
+                                  Action: <span className="text-[var(--text-secondary)] font-medium">{msg.sara_action}</span>
+                                </span>
+                              )}
                             </div>
-                            {msg.sara_action && (
-                              <span className="text-micro text-[var(--text-tertiary)]">
-                                Action: <span className="text-[var(--text-secondary)] font-medium">{msg.sara_action}</span>
-                              </span>
+                            {isEditing ? (
+                              <textarea
+                                value={editedReply}
+                                onChange={(e) => setEditedReply(e.target.value)}
+                                rows={8}
+                                autoFocus
+                                className="w-full rounded-lg border border-[#5B5BF5]/30 bg-[var(--bg-surface)] px-3 py-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 outline-none resize-y"
+                              />
+                            ) : (
+                              <div className="text-strong text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
+                                {msg.sara_draft_reply}
+                              </div>
                             )}
                           </div>
-                          {isEditing ? (
-                            <textarea
-                              value={editedReply}
-                              onChange={(e) => setEditedReply(e.target.value)}
-                              rows={8}
-                              autoFocus
-                              className="w-full rounded-lg border border-[#5B5BF5]/30 bg-[var(--bg-surface)] px-3 py-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 outline-none resize-y"
-                            />
-                          ) : (
-                            <div className="text-strong text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
-                              {msg.sara_draft_reply}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Action bar */}
-                  {statusFilter === 'pending_review' && (
-                    <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-4 py-2.5 flex items-center gap-2">
-                      <button
-                        onClick={() => approveMutation.mutate({ id: msg.id, reply: isEditing ? editedReply : undefined })}
-                        disabled={approveMutation.isPending}
-                        className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg bg-emerald-600 text-white text-body font-semibold hover:bg-emerald-700 disabled:opacity-40 transition-all shadow-[0_1px_2px_rgba(16,185,129,0.4)]"
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        {isEditing ? 'Send edited' : 'Approve & send'}
-                        <Kbd>A</Kbd>
-                      </button>
-                      {msg.sara_draft_reply && !isEditing && (
+                    {/* Action bar */}
+                    {statusFilter === 'pending_review' && (
+                      <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-4 py-2.5 flex items-center gap-2">
                         <button
-                          onClick={() => { setEditedReply(msg.sara_draft_reply); setIsEditing(true); }}
-                          className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
+                          onClick={() => approveMutation.mutate({ id: msg.id, reply: isEditing ? editedReply : undefined })}
+                          disabled={approveMutation.isPending}
+                          className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg bg-emerald-600 text-white text-body font-semibold hover:bg-emerald-700 disabled:opacity-40 transition-all shadow-[0_1px_2px_rgba(16,185,129,0.4)]"
                         >
-                          <Edit3 className="h-3.5 w-3.5" />
-                          Edit
-                          <Kbd>E</Kbd>
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          {isEditing ? 'Send edited' : 'Approve & send'}
+                          <Kbd>A</Kbd>
                         </button>
-                      )}
-                      {isEditing && (
+                        {msg.sara_draft_reply && !isEditing && (
+                          <button
+                            onClick={() => { setEditedReply(msg.sara_draft_reply); setIsEditing(true); }}
+                            className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                            Edit
+                            <Kbd>E</Kbd>
+                          </button>
+                        )}
+                        {isEditing && (
+                          <button
+                            onClick={() => { setIsEditing(false); setEditedReply(''); }}
+                            className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
+                          >
+                            Cancel
+                            <Kbd>Esc</Kbd>
+                          </button>
+                        )}
                         <button
-                          onClick={() => { setIsEditing(false); setEditedReply(''); }}
-                          className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
+                          onClick={() => dismissMutation.mutate(msg.id)}
+                          disabled={dismissMutation.isPending}
+                          className="ml-auto inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-body font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-all"
                         >
-                          Cancel
-                          <Kbd>Esc</Kbd>
+                          <XCircle className="h-3.5 w-3.5" />
+                          Dismiss
+                          <Kbd>D</Kbd>
                         </button>
-                      )}
-                      <button
-                        onClick={() => dismissMutation.mutate(msg.id)}
-                        disabled={dismissMutation.isPending}
-                        className="ml-auto inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-body font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-all"
-                      >
-                        <XCircle className="h-3.5 w-3.5" />
-                        Dismiss
-                        <Kbd>D</Kbd>
-                      </button>
-                    </div>
-                  )}
-                </>
-              );
-            })()}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Refreshing>
 
     </div>
   );

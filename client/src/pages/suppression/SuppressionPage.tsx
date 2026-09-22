@@ -16,6 +16,8 @@ import { formatDate, cn } from '../../lib/utils';
 import { ShieldOff, Plus, Trash2, Upload, Search, X, Filter, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { DEFAULT_PAGE_SIZE } from '../../lib/constants';
+import { keepPrevious } from '../../lib/listQuery';
+import { Refreshing } from '../../components/ui/Refreshing';
 
 function csvCell(v: string | number | null | undefined): string {
   const s = v == null ? '' : String(v);
@@ -87,9 +89,10 @@ export function SuppressionPage() {
     }
   };
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isPlaceholderData: stale } = useQuery({
     queryKey: ['suppression', page, search, reasonFilter],
     queryFn: () => suppressionApi.list({ page, limit: DEFAULT_PAGE_SIZE, search: search || undefined, reason: reasonFilter || undefined }),
+    ...keepPrevious,
   });
 
   // Reset to page 1 whenever the debounced search term settles on a new value
@@ -222,72 +225,74 @@ export function SuppressionPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <SkeletonList rows={6} />
-      ) : entries.length === 0 ? (
-        <EmptyState
-          icon={ShieldOff}
-          title="No suppressed emails"
-          description="Emails you add here will never receive campaign messages."
-          actionLabel="Add Email"
-          onAction={() => setShowAddModal(true)}
-        />
-      ) : (
-        <>
-          <Card padding="none" className="overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60">
-                  <th className="text-left px-4 py-2.5 text-micro font-medium text-[var(--text-tertiary)]">Email</th>
-                  <th className="text-left px-4 py-2.5 text-micro font-medium text-[var(--text-tertiary)]">Reason</th>
-                  <th className="text-left px-4 py-2.5 text-micro font-medium text-[var(--text-tertiary)]">Notes</th>
-                  <th className="text-left px-4 py-2.5 text-micro font-medium text-[var(--text-tertiary)]">Added</th>
-                  <th className="px-4 py-2.5" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-subtle)]">
-                {entries.map((entry) => {
-                  const meta = REASON_LABELS[entry.reason] || REASON_LABELS.manual;
-                  return (
-                    <tr key={entry.id} className="hover:bg-[var(--bg-hover)] transition-colors group">
-                      <td className="px-4 py-2.5 text-body font-medium text-[var(--text-primary)] tabular">{entry.email}</td>
-                      <td className="px-4 py-2.5">
-                        <span className={cn('inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-medium', meta.color)}>
-                          <span className={cn('w-1.5 h-1.5 rounded-full', meta.dot)} />
-                          {meta.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 text-body text-[var(--text-secondary)] truncate max-w-xs">{entry.notes || <span className="text-[var(--text-muted)]">—</span>}</td>
-                      <td className="px-4 py-2.5 text-body text-[var(--text-secondary)] tabular">{formatDate(entry.created_at)}</td>
-                      <td className="px-4 py-2.5 text-right">
-                        <button
-                          onClick={() => confirm(
-                            { title: `Let ${entry.email} back in?`, body: 'Removing them from the suppression list means campaigns can email them again.', confirmLabel: 'Remove from list' },
-                            () => removeMut.mutate(entry.email),
-                          )}
-                          className="icon-btn opacity-0 group-hover:opacity-100 hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </Card>
+      <Refreshing active={stale}>
+        {isLoading ? (
+          <SkeletonList rows={6} />
+        ) : entries.length === 0 ? (
+          <EmptyState
+            icon={ShieldOff}
+            title="No suppressed emails"
+            description="Emails you add here will never receive campaign messages."
+            actionLabel="Add Email"
+            onAction={() => setShowAddModal(true)}
+          />
+        ) : (
+          <>
+            <Card padding="none" className="overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60">
+                    <th className="text-left px-4 py-2.5 text-micro font-medium text-[var(--text-tertiary)]">Email</th>
+                    <th className="text-left px-4 py-2.5 text-micro font-medium text-[var(--text-tertiary)]">Reason</th>
+                    <th className="text-left px-4 py-2.5 text-micro font-medium text-[var(--text-tertiary)]">Notes</th>
+                    <th className="text-left px-4 py-2.5 text-micro font-medium text-[var(--text-tertiary)]">Added</th>
+                    <th className="px-4 py-2.5" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border-subtle)]">
+                  {entries.map((entry) => {
+                    const meta = REASON_LABELS[entry.reason] || REASON_LABELS.manual;
+                    return (
+                      <tr key={entry.id} className="hover:bg-[var(--bg-hover)] transition-colors group">
+                        <td className="px-4 py-2.5 text-body font-medium text-[var(--text-primary)] tabular">{entry.email}</td>
+                        <td className="px-4 py-2.5">
+                          <span className={cn('inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-medium', meta.color)}>
+                            <span className={cn('w-1.5 h-1.5 rounded-full', meta.dot)} />
+                            {meta.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-body text-[var(--text-secondary)] truncate max-w-xs">{entry.notes || <span className="text-[var(--text-muted)]">—</span>}</td>
+                        <td className="px-4 py-2.5 text-body text-[var(--text-secondary)] tabular">{formatDate(entry.created_at)}</td>
+                        <td className="px-4 py-2.5 text-right">
+                          <button
+                            onClick={() => confirm(
+                              { title: `Let ${entry.email} back in?`, body: 'Removing them from the suppression list means campaigns can email them again.', confirmLabel: 'Remove from list' },
+                              () => removeMut.mutate(entry.email),
+                            )}
+                            className="icon-btn opacity-0 group-hover:opacity-100 hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </Card>
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-3">
-              <p className="text-body text-[var(--text-secondary)] tabular">Page {page} of {totalPages}</p>
-              <div className="flex gap-1.5">
-                <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
-                <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</Button>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-3">
+                <p className="text-body text-[var(--text-secondary)] tabular">Page {page} of {totalPages}</p>
+                <div className="flex gap-1.5">
+                  <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
+                  <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</Button>
+                </div>
               </div>
-            </div>
-          )}
-        </>
-      )}
+            )}
+          </>
+        )}
+      </Refreshing>
 
       {/* Add Modal */}
       {showAddModal && (
