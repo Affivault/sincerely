@@ -56,3 +56,20 @@ export function parseDatetimeLocalInTimezone(value: string, tz: string): Date {
   const [, y, mo, d, h, mi] = m;
   return tzWallTimeToUtc(Number(y), Number(mo), Number(d), Number(h), Number(mi), tz || 'UTC');
 }
+
+/**
+ * The inverse of `parseDatetimeLocalInTimezone`: format a UTC instant as the
+ * wall-clock string a `<input type="datetime-local">` expects ("YYYY-MM-DDTHH:mm"),
+ * as that instant reads in `tz` — not the browser's local timezone.
+ */
+export function formatDatetimeLocalInTimezone(date: Date, tz: string): string {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz || 'UTC',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+  const parts = formatter.formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '00';
+  const hour = get('hour') === '24' ? '00' : get('hour');
+  return `${get('year')}-${get('month')}-${get('day')}T${hour}:${get('minute')}`;
+}

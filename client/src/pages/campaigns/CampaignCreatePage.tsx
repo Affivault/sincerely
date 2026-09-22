@@ -25,7 +25,7 @@ import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import type { FlowStep } from '../../components/campaigns/FlowBuilder';
 import { PreflightDialog, type Refusal } from '../../components/campaigns/LaunchPreflight';
 import { cn } from '../../lib/utils';
-import { parseDatetimeLocalInTimezone } from '../../lib/timezone';
+import { parseDatetimeLocalInTimezone, formatDatetimeLocalInTimezone } from '../../lib/timezone';
 import {
   ArrowLeft, Mail, Clock, Save, Users, Check, Settings, Layers, UserPlus,
   CheckCircle2, Search, Building2, ChevronRight, SkipForward, Gauge, Shield,
@@ -42,13 +42,6 @@ import type {
   CreateCampaignInput, CreateStepInput, CampaignStep, SmtpAccount, ContactWithTags,
   PersonalizationAudit,
 } from '@lemlist/shared';
-
-// <input type="datetime-local"> reads/writes local wall-clock time, not UTC —
-// toISOString() would shift the value by the browser's UTC offset.
-function toDatetimeLocalValue(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -2204,7 +2197,7 @@ export function CampaignCreatePage() {
                       <input
                         type="datetime-local"
                         value={scheduleAt}
-                        min={toDatetimeLocalValue(new Date(Date.now() + 5 * 60000))}
+                        min={formatDatetimeLocalInTimezone(new Date(Date.now() + 5 * 60000), campaignForm.timezone || 'UTC')}
                         onChange={(e) => setScheduleAt(e.target.value)}
                         className="w-full sm:w-72 h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)]"
                       />

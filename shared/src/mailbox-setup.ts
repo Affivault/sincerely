@@ -141,7 +141,8 @@ export function sendingSummary(f: SendingFacts): SetupSummary {
 
   const advice = limitAdvice(limit);
   if (advice.tone !== 'ok') return { text: `${advice.note} ${cap(sig)}.`, tone: 'warning' };
-  return { text: `Up to ${limit} a day, ${sig}.`, tone: 'ok' };
+  const limitText = limit === 0 ? 'No daily cap' : `Up to ${limit} a day`;
+  return { text: `${limitText}, ${sig}.`, tone: 'ok' };
 }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -152,10 +153,17 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
  * The field was a bare number input with no guidance whatsoever, which is
  * how a mailbox ends up set to 2,000 a day. Volume is the single easiest
  * way to get a new domain filtered, and nothing in the form said so.
+ *
+ * Zero is not a broken mailbox: it is the app-wide sentinel for "unlimited"
+ * (see formatDailyLimit and warmupAllowance in smtp.types.ts), so it passes
+ * quietly here too. Only a negative or otherwise invalid value is an error.
  */
 export function limitAdvice(limit: number): { tone: 'ok' | 'warning' | 'danger'; note: string } {
+  if (limit === 0) {
+    return { tone: 'ok', note: '' };
+  }
   if (!(limit > 0)) {
-    return { tone: 'danger', note: 'At zero, this mailbox will not send anything.' };
+    return { tone: 'danger', note: 'This limit is invalid; fix it before sending.' };
   }
   if (limit > 500) {
     return {
