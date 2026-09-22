@@ -1,3 +1,25 @@
+
+/**
+ * The shortest term worth sending to the server.
+ *
+ * Three, not two, and the reason is the index. A trigram index serves
+ * `ILIKE '%term%'` by looking the term's three-character sequences up in
+ * the index, so a two-character term has no complete trigram, finds
+ * nothing to look up, and falls back to a sequential scan of the table.
+ *
+ * That matters more for the palette than anywhere else in the app, because
+ * one keystroke there fans out across nine tables at once. At two
+ * characters that was nine full table scans, and EVERY search passes
+ * through two characters on its way to a real term - so the most expensive
+ * query in the product ran on the way to every cheap one.
+ *
+ * It lives here because both halves have to agree. The server used to
+ * return nothing below its own floor while the client sent requests below
+ * it, which is a round trip spent being told "too short" and a "no results"
+ * flash for a term that would have matched one keystroke later.
+ */
+export const MIN_SEARCH_LENGTH = 3;
+
 /* ═══════════════════════════════════════════════════════════════════════
    Universal search.
 

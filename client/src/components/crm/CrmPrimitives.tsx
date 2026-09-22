@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 import type {
   CrmTask, CrmEvent, TaskType, TaskPriority, EventType, ContactWithTags,
 } from '@lemlist/shared';
-import { TASK_TYPES, PLACEHOLDER } from '@lemlist/shared';
+import { TASK_TYPES, PLACEHOLDER, MIN_SEARCH_LENGTH } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Shared CRM building blocks.
@@ -140,7 +140,7 @@ export function ContactPicker({
   const { data: results } = useQuery({
     queryKey: ['crm', 'contact-search', debounced],
     queryFn: () => contactsApi.list({ search: debounced, limit: 6 }),
-    enabled: !contactId && debounced.length >= 2,
+    enabled: !contactId && debounced.length >= MIN_SEARCH_LENGTH,
   });
 
   if (contactId) {
@@ -161,7 +161,7 @@ export function ContactPicker({
   }
 
   const options = results?.data || [];
-  const open = focused && debounced.length >= 2 && options.length > 0;
+  const open = focused && debounced.length >= MIN_SEARCH_LENGTH && options.length > 0;
 
   return (
     <div className="relative">
