@@ -25,6 +25,7 @@ import { MailHistoryPanel } from '../../components/inbox/MailHistoryPanel';
 import { ReplyActions } from '../../components/inbox/ReplyActions';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
+import { useOptimisticRow } from '../../lib/optimistic';
 import {
   Search,
   Star,
@@ -2313,9 +2314,19 @@ export function InboxPage() {
   }, [showCompose, replyMode]);
 
   /* ── Mutations ── */
+  /*
+   * Reading a message is the single most repeated action in this app, and
+   * it used to wait for a round trip before the row lost its unread dot.
+   */
+  const markReadOptimistic = useOptimisticRow<string>({
+    scope: ['inbox'],
+    id: (id) => id,
+    patch: () => ({ is_read: true }),
+  });
   const markReadMut = useMutation({
     mutationFn: inboxApi.markRead,
     onSuccess: invalidate,
+    ...markReadOptimistic,
   });
 
   const markUnreadMut = useMutation({
@@ -2331,35 +2342,27 @@ export function InboxPage() {
     },
   });
 
+  /*
+   * Starring used to patch two exact keys by hand - the current list and
+   * the open message - and miss every other cached inbox. Star something
+   * from the starred folder and the inbox list behind it kept the old
+   * value until an invalidation caught up, so the same click was instant
+   * in one place and late in another.
+   *
+   * The helper patches every cache under ['inbox'], wherever the row sits
+   * in each response shape.
+   */
+  const starOptimistic = useOptimisticRow<string>({
+    scope: ['inbox'],
+    id: (id) => id,
+    patch: (_id, row) => ({ is_starred: !row.is_starred }),
+    onError: () => toast.error('Failed to toggle star'),
+  });
   const toggleStarMut = useMutation({
     mutationFn: inboxApi.toggleStar,
-    onMutate: async (id: string) => {
-      await qc.cancelQueries({ queryKey: ['inbox'] });
-      const prevList = qc.getQueryData(['inbox', folder, tagFilter, search, messageLimit]);
-      qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit], (old: any) => {
-        if (!old?.data) return old;
-        return {
-          ...old,
-          data: old.data.map((m: Message) =>
-            m.id === id ? { ...m, is_starred: !m.is_starred } : m
-          ),
-        };
-      });
-      const prevDetail = qc.getQueryData(['inbox', 'detail', id]);
-      if (prevDetail) {
-        qc.setQueryData(['inbox', 'detail', id], (old: any) =>
-          old ? { ...old, is_starred: !old.is_starred } : old
-        );
-      }
-      return { prevList, prevDetail };
-    },
-    onError: (_err, id, context) => {
-      if (context?.prevList) qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit], context.prevList);
-      if (context?.prevDetail) qc.setQueryData(['inbox', 'detail', id], context.prevDetail);
-      toast.error('Failed to toggle star');
-    },
-    onSettled: () => invalidate(),
+    ...starOptimistic,
   });
+
 
   const setTagMut = useMutation({
     mutationFn: ({ id, tag }: { id: string; tag: string }) => inboxApi.setTag(id, tag),

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CrmNote, CrmTask, CrmEvent } from '@lemlist/shared';
+import { useOptimisticRow } from '../../lib/optimistic';
 
 /* ═══════════════════════════════════════════════════════════════════════
    The history of a relationship.
@@ -289,9 +290,21 @@ export function ContactHistory({
     onError: (e: any) => toast.error(e.response?.data?.error || 'Could not save the note'),
   });
 
+  /*
+   * Pinning and ticking are glances, not decisions - the round trip was
+   * longer than the thought behind the click. The scope is the CRM prefix
+   * rather than this contact's key, because the same note and the same
+   * task also sit in the deal timeline and the dashboard's today panel,
+   * and a patch that only moved one of them would look like a bug.
+   */
+  const pinOptimistic = useOptimisticRow<CrmNote>({
+    scope: ['crm'],
+    id: (n) => n.id,
+    patch: (_n, row) => ({ pinned: !row.pinned }),
+  });
   const pinNote = useMutation({
     mutationFn: (n: CrmNote) => crmApi.updateNote(n.id, { pinned: !n.pinned }),
-    onSuccess: invalidate,
+    ...pinOptimistic,
   });
 
   const removeNote = useMutation({
@@ -300,10 +313,18 @@ export function ContactHistory({
     onSuccess: () => { invalidate(); },
   });
 
+  const taskOptimistic = useOptimisticRow<CrmTask>({
+    scope: ['crm'],
+    id: (t) => t.id,
+    patch: (_t, row) => ({
+      is_done: !row.is_done,
+      completed_at: !row.is_done ? new Date().toISOString() : null,
+    }),
+    onError: () => toast.error('Could not update that'),
+  });
   const toggleTask = useMutation({
     mutationFn: (t: CrmTask) => crmApi.updateTask(t.id, { is_done: !t.is_done }),
-    onSuccess: invalidate,
-    onError: () => toast.error('Could not update that'),
+    ...taskOptimistic,
   });
 
   /* ── The merged stream ─────────────────────────────────────────────── */

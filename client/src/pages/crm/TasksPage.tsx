@@ -18,6 +18,7 @@ import {
 import toast from 'react-hot-toast';
 import type { CrmTask, TaskType } from '@lemlist/shared';
 import { TASK_TYPES, isLinkedinStep } from '@lemlist/shared';
+import { useOptimisticRow } from '../../lib/optimistic';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Activities.
@@ -237,45 +238,44 @@ export function TasksPage() {
 
   const { data: tasks = [], isLoading } = useQuery({ queryKey: ['crm', 'tasks'], queryFn: () => crmApi.listTasks() });
 
+  /*
+   * Ticking a task should feel instant - the list is the whole interface.
+   *
+   * This was the same idea written out longhand, and it patched the exact
+   * key ['crm','tasks'] only. The same task also appears in the dashboard's
+   * today panel, in a contact's history and on a deal's timeline, and none
+   * of those moved until an invalidation caught up. Scoped to ['crm'] now,
+   * which is every one of them.
+   */
+  const taskOptimistic = useOptimisticRow<CrmTask>({
+    scope: ['crm'],
+    id: (t) => t.id,
+    patch: (_t, row) => ({
+      is_done: !row.is_done,
+      completed_at: !row.is_done ? new Date().toISOString() : null,
+    }),
+    onError: () => toast.error('Could not update that'),
+  });
   const toggle = useMutation({
     mutationFn: (t: CrmTask) => crmApi.updateTask(t.id, { is_done: !t.is_done }),
-    onMutate: async (t) => {
-      // Ticking a task should feel instant — the list is the whole interface.
-      await qc.cancelQueries({ queryKey: ['crm', 'tasks'] });
-      const prev = qc.getQueryData<CrmTask[]>(['crm', 'tasks']);
-      qc.setQueryData<CrmTask[]>(['crm', 'tasks'], (old) =>
-        (old || []).map((x) => (x.id === t.id ? { ...x, is_done: !x.is_done, completed_at: !x.is_done ? new Date().toISOString() : null } : x)));
-      return { prev };
-    },
-    onError: (_e, _t, ctx) => {
-      if (ctx?.prev) qc.setQueryData(['crm', 'tasks'], ctx.prev);
-      toast.error('Could not update that');
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['crm'] }),
+    ...taskOptimistic,
   });
 
   // Overdue is the one bucket that costs deals, so pushing it out shouldn't
   // require opening the edit modal — bump the date a day forward and keep
   // whatever time of day it was already scheduled for.
+  const snoozeOptimistic = useOptimisticRow<CrmTask>({
+    scope: ['crm'],
+    id: (t) => t.id,
+    patch: (t) => ({ due_date: pushToTomorrow(t.due_date!).toISOString() }),
+    onError: () => toast.error('Could not reschedule that'),
+  });
   const snooze = useMutation({
     mutationFn: (t: CrmTask) => {
       const due = pushToTomorrow(t.due_date!);
       return crmApi.updateTask(t.id, { due_date: due.toISOString() });
     },
-    onMutate: async (t) => {
-      await qc.cancelQueries({ queryKey: ['crm', 'tasks'] });
-      const prev = qc.getQueryData<CrmTask[]>(['crm', 'tasks']);
-      const due = pushToTomorrow(t.due_date!);
-      qc.setQueryData<CrmTask[]>(['crm', 'tasks'], (old) =>
-        (old || []).map((x) => (x.id === t.id ? { ...x, due_date: due.toISOString() } : x)));
-      return { prev };
-    },
-    onError: (_e, _t, ctx) => {
-      if (ctx?.prev) qc.setQueryData(['crm', 'tasks'], ctx.prev);
-      toast.error('Could not reschedule that');
-    },
-    onSuccess: () => toast.success('Pushed to tomorrow'),
-    onSettled: () => qc.invalidateQueries({ queryKey: ['crm'] }),
+    ...snoozeOptimistic,
   });
 
   // One toast for the whole batch, not one per task — clearing a dozen
