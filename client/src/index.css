@@ -1,4 +1,18 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/*
+ * The fonts are requested from index.html, not from here.
+ *
+ * An @import inside a stylesheet is the slowest way there is to load a
+ * font: the browser cannot discover it until this file has downloaded AND
+ * parsed, so it is a second round trip chained behind the first, both of
+ * them blocking the first paint. It is invisible in development, where
+ * everything is a local cache hit.
+ *
+ * There were also two separate Google Fonts requests - this one for the
+ * app's Inter and JetBrains Mono, and another in index.html for the
+ * landing pages' Plus Jakarta Sans and Newsreader, which asked for
+ * JetBrains Mono a second time. One request now, in the document, not
+ * blocking anything.
+ */
 
 @tailwind base;
 @tailwind components;
