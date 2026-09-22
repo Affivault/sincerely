@@ -723,6 +723,55 @@
 }
 
 /* ── Skeleton shimmer — a soft sheen sweeps across loading placeholders ── */
+/*
+ * A list being refreshed underneath you.
+ *
+ * Paired with `keepPrevious` in lib/listQuery: the rows you were reading
+ * stay put while the new ones load, and this says so. It runs over the top
+ * edge of the list rather than replacing it, because the whole point is
+ * that nothing moves.
+ *
+ * Deliberately not a spinner and deliberately not a dimmed list. A spinner
+ * says "wait" for something that is usually over in 200ms, and dimming
+ * makes a list that is still perfectly readable look broken.
+ */
+@keyframes refreshSweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+.refresh-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--indigo) 12%, transparent);
+  pointer-events: none;
+}
+.refresh-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 25%;
+  border-radius: 2px;
+  background: var(--indigo);
+  animation: refreshSweep 900ms var(--ease-in-out) infinite;
+}
+
+/*
+ * Nothing here is load-bearing information - the rows underneath are - so
+ * anyone who has asked for less motion simply gets a static hairline.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .refresh-bar::after {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
+}
+
 @keyframes skeletonSheen {
   100% { transform: translateX(100%); }
 }

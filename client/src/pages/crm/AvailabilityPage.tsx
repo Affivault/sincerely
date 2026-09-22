@@ -15,6 +15,8 @@ import { availabilityApi, type AvailabilityResponse } from '../../api/calendar.a
 import { PageHeader } from '../../components/shared/PageHeader';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
+import { keepPrevious } from '../../lib/listQuery';
+import { Refreshing } from '../../components/ui/Refreshing';
 
 /* ═══════════════════════════════════════════════════════════════════════
    When people may book you.
@@ -319,11 +321,12 @@ export function AvailabilityPage() {
     return { from: from.toISOString(), to: to.toISOString() };
   }, []);
 
-  const { data: slots = [], isFetching: previewing } = useQuery({
+  const { data: slots = [], isFetching: previewing, isPlaceholderData: stale } = useQuery({
     queryKey: ['calendar', 'slots', previewRange.from, prefs, dirty],
     queryFn: () => availabilityApi.slots({ ...previewRange, duration: 30 }),
     // Only meaningful once the saved hours are what is on screen.
     enabled: !dirty,
+    ...keepPrevious,
   });
 
   /**
@@ -569,59 +572,61 @@ export function AvailabilityPage() {
               </p>
             </div>
             <div className="px-4 py-3">
-              {dirty ? (
-                <p className="text-body text-[var(--text-tertiary)]">
-                  Save your hours to see what they offer.
-                </p>
-              ) : previewing ? (
-                <p className="flex items-center gap-1.5 text-body text-[var(--text-tertiary)]">
-                  <Loader2 className="h-3 w-3 animate-spin" /> Working it out…
-                </p>
-              ) : slots.length === 0 ? (
-                <p className="text-body text-[var(--text-secondary)]">
-                  {/* The commonest reason is notice, not hours, and it is the
-                      one nobody thinks of. */}
-                  Nothing in the next seven days. Check your hours, and whether
-                  your notice period rules out everything that is left of the week.
-                </p>
-              ) : (
-                <>
-                  <p className="text-body text-[var(--text-secondary)]">
-                    <strong className="text-[var(--text-primary)] tabular" data-slot-count>{slots.length}</strong>
-                    {' '}slot{slots.length === 1 ? '' : 's'}, first on{' '}
-                    <strong className="text-[var(--text-primary)]">
-                      {new Date(slots[0].start).toLocaleString(undefined, {
-                        weekday: 'short', day: 'numeric', month: 'short',
-                        hour: 'numeric', minute: '2-digit',
-                      })}
-                    </strong>
+              <Refreshing active={stale || (previewing && slots.length > 0)}>
+                {dirty ? (
+                  <p className="text-body text-[var(--text-tertiary)]">
+                    Save your hours to see what they offer.
                   </p>
-                  <div className="mt-2 space-y-2">
-                    {slotsByDay.map((day) => (
-                      <div key={day.label}>
-                        <p className="mb-1 text-micro font-medium text-[var(--text-tertiary)]">
-                          {day.label}
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          {day.slots.slice(0, 12).map((s) => (
-                            <span
-                              key={s.start}
-                              className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-1.5 py-0.5 text-caption tabular text-[var(--text-secondary)]"
-                            >
-                              {new Date(s.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-                            </span>
-                          ))}
-                          {day.slots.length > 12 && (
-                            <span className="px-1 py-0.5 text-caption text-[var(--text-tertiary)]">
-                              +{day.slots.length - 12} more
-                            </span>
-                          )}
+                ) : previewing && slots.length === 0 ? (
+                  <p className="flex items-center gap-1.5 text-body text-[var(--text-tertiary)]">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Working it out…
+                  </p>
+                ) : slots.length === 0 ? (
+                  <p className="text-body text-[var(--text-secondary)]">
+                    {/* The commonest reason is notice, not hours, and it is the
+                        one nobody thinks of. */}
+                    Nothing in the next seven days. Check your hours, and whether
+                    your notice period rules out everything that is left of the week.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-body text-[var(--text-secondary)]">
+                      <strong className="text-[var(--text-primary)] tabular" data-slot-count>{slots.length}</strong>
+                      {' '}slot{slots.length === 1 ? '' : 's'}, first on{' '}
+                      <strong className="text-[var(--text-primary)]">
+                        {new Date(slots[0].start).toLocaleString(undefined, {
+                          weekday: 'short', day: 'numeric', month: 'short',
+                          hour: 'numeric', minute: '2-digit',
+                        })}
+                      </strong>
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {slotsByDay.map((day) => (
+                        <div key={day.label}>
+                          <p className="mb-1 text-micro font-medium text-[var(--text-tertiary)]">
+                            {day.label}
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {day.slots.slice(0, 12).map((s) => (
+                              <span
+                                key={s.start}
+                                className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-1.5 py-0.5 text-caption tabular text-[var(--text-secondary)]"
+                              >
+                                {new Date(s.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                              </span>
+                            ))}
+                            {day.slots.length > 12 && (
+                              <span className="px-1 py-0.5 text-caption text-[var(--text-tertiary)]">
+                                +{day.slots.length - 12} more
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
+                      ))}
+                    </div>
+                  </>
+                )}
+              </Refreshing>
             </div>
           </section>
         </div>

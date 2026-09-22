@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, type LucideIcon } from 'lucide-react';
 import { describeFailure } from '@lemlist/shared';
 import { EmptyState } from '../shared/EmptyState';
+import { Refreshing } from './Refreshing';
 import { Skeleton, SkeletonList, SkeletonText } from './Skeleton';
 import { cn } from '../../lib/utils';
 
@@ -134,6 +135,16 @@ export interface AsyncQueryLike<T> {
   isError?: boolean;
   error?: unknown;
   refetch?: () => unknown;
+  /**
+   * The data on screen answers the PREVIOUS key, not the current one.
+   *
+   * Set by react-query on a query using `keepPrevious` (lib/listQuery)
+   * when its key has changed and the new result has not landed. The rows
+   * stay put instead of blanking - and this panel says so, because for
+   * those couple of hundred milliseconds the filter above the list and
+   * the list itself disagree.
+   */
+  isPlaceholderData?: boolean;
 }
 
 export interface AsyncPanelProps<T> {
@@ -214,6 +225,19 @@ export function AsyncPanel<T>({
         <EmptyState {...empty} />
       </div>
     );
+  }
+
+  /*
+   * Refreshing, not loading.
+   *
+   * A query that keeps its previous data never reports isLoading on a key
+   * change, so without this the panel would be indistinguishable from one
+   * that had settled - which is the whole argument against keeping
+   * previous data, and the reason it has to be answered here rather than
+   * left to each caller to remember.
+   */
+  if (query.isPlaceholderData) {
+    return <Refreshing active className={className}>{children(query.data)}</Refreshing>;
   }
 
   return <>{children(query.data)}</>;

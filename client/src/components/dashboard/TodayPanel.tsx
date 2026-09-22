@@ -9,6 +9,8 @@ import {
 import { crmApi } from '../../api/crm.api';
 import { calendarApi } from '../../api/calendar.api';
 import { cn } from '../../lib/utils';
+import { keepPrevious } from '../../lib/listQuery';
+import { Refreshing } from '../ui/Refreshing';
 
 /* ═══════════════════════════════════════════════════════════════════════
    What today actually looks like.
@@ -30,11 +32,12 @@ export function TodayPanel() {
     return { from: start.toISOString(), to: end.toISOString() };
   }, []);
 
-  const { data: events = [], isLoading } = useQuery({
+  const { data: events = [], isLoading, isPlaceholderData: stale } = useQuery({
     queryKey: ['crm', 'events', 'today', dayRange.from],
     queryFn: () => crmApi.listEvents(dayRange),
     // A meeting that appeared elsewhere should surface here without a reload.
     refetchInterval: 120_000,
+    ...keepPrevious,
   });
   const { data: types = [] } = useQuery({
     queryKey: ['calendar', 'types'],
@@ -89,77 +92,79 @@ export function TodayPanel() {
         </Link>
       </div>
 
-      {isLoading ? (
-        <div className="px-4 py-6 space-y-2">
-          {[0, 1].map((i) => (
-            <div key={i} className="h-9 rounded-lg bg-[var(--bg-elevated)] animate-pulse" />
-          ))}
-        </div>
-      ) : upcoming.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
-          <p className="text-body font-medium text-[var(--text-primary)]">Nothing left today</p>
-          <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
-            A clear afternoon. Book something, or leave it clear.
-          </p>
-          <Link
-            to="/calendar"
-            className="mt-3 inline-flex h-7 items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-2.5 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-          >
-            Open the calendar
-          </Link>
-        </div>
-      ) : (
-        <div className="flex-1 divide-y divide-[var(--border-subtle)]">
-          {upcoming.map((e) => {
-            const type = typeById.get(e.event_type_id || '');
-            const colour = e.colour || type?.colour || '#6366f1';
-            const start = new Date(e.starts_at);
-            const mins = durationMinutes(e as any, type?.duration_minutes);
-            const end = resolveEnd(e as any, type?.duration_minutes);
-            const live = start <= now && end >= now;
-            // Ten minutes is about when somebody should be finding the link.
-            const soon = !live && start.getTime() - now.getTime() <= 10 * 60_000;
-            const Icon = LOCATION_ICON[(type?.location_kind ?? 'other') as keyof typeof LOCATION_ICON] ?? Users;
+      <Refreshing active={stale}>
+        {isLoading ? (
+          <div className="px-4 py-6 space-y-2">
+            {[0, 1].map((i) => (
+              <div key={i} className="h-9 rounded-lg bg-[var(--bg-elevated)] animate-pulse" />
+            ))}
+          </div>
+        ) : upcoming.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
+            <p className="text-body font-medium text-[var(--text-primary)]">Nothing left today</p>
+            <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
+              A clear afternoon. Book something, or leave it clear.
+            </p>
+            <Link
+              to="/calendar"
+              className="mt-3 inline-flex h-7 items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-2.5 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              Open the calendar
+            </Link>
+          </div>
+        ) : (
+          <div className="flex-1 divide-y divide-[var(--border-subtle)]">
+            {upcoming.map((e) => {
+              const type = typeById.get(e.event_type_id || '');
+              const colour = e.colour || type?.colour || '#6366f1';
+              const start = new Date(e.starts_at);
+              const mins = durationMinutes(e as any, type?.duration_minutes);
+              const end = resolveEnd(e as any, type?.duration_minutes);
+              const live = start <= now && end >= now;
+              // Ten minutes is about when somebody should be finding the link.
+              const soon = !live && start.getTime() - now.getTime() <= 10 * 60_000;
+              const Icon = LOCATION_ICON[(type?.location_kind ?? 'other') as keyof typeof LOCATION_ICON] ?? Users;
 
-            return (
-              <Link
-                key={e.id}
-                to="/calendar"
-                className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-[var(--bg-hover)] transition-colors"
-              >
-                <span className="h-7 w-[3px] flex-shrink-0 rounded-full" style={{ background: colour }} />
-                <span className="w-[54px] flex-shrink-0">
-                  <span className="block text-body font-semibold tabular text-[var(--text-primary)]">
-                    {clockLabel(start)}
+              return (
+                <Link
+                  key={e.id}
+                  to="/calendar"
+                  className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-[var(--bg-hover)] transition-colors"
+                >
+                  <span className="h-7 w-[3px] flex-shrink-0 rounded-full" style={{ background: colour }} />
+                  <span className="w-[54px] flex-shrink-0">
+                    <span className="block text-body font-semibold tabular text-[var(--text-primary)]">
+                      {clockLabel(start)}
+                    </span>
+                    <span className="block text-micro tabular text-[var(--text-tertiary)]">
+                      {durationLabel(mins)}
+                    </span>
                   </span>
-                  <span className="block text-micro tabular text-[var(--text-tertiary)]">
-                    {durationLabel(mins)}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-body font-medium text-[var(--text-primary)]">
+                      {e.title}
+                    </span>
+                    <span className="flex items-center gap-1 truncate text-caption text-[var(--text-tertiary)]">
+                      <Icon className="h-2.5 w-2.5 flex-shrink-0" />
+                      {e.contact_name || type?.name || 'Meeting'}
+                    </span>
                   </span>
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-body font-medium text-[var(--text-primary)]">
-                    {e.title}
-                  </span>
-                  <span className="flex items-center gap-1 truncate text-caption text-[var(--text-tertiary)]">
-                    <Icon className="h-2.5 w-2.5 flex-shrink-0" />
-                    {e.contact_name || type?.name || 'Meeting'}
-                  </span>
-                </span>
-                {(live || soon) && (
-                  <span className={cn(
-                    'flex-shrink-0 rounded-full px-1.5 py-0.5 text-micro font-semibold',
-                    live
-                      ? 'bg-rose-500/12 text-rose-600 dark:text-rose-400'
-                      : 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
-                  )}>
-                    {live ? 'Now' : 'Soon'}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </div>
-      )}
+                  {(live || soon) && (
+                    <span className={cn(
+                      'flex-shrink-0 rounded-full px-1.5 py-0.5 text-micro font-semibold',
+                      live
+                        ? 'bg-rose-500/12 text-rose-600 dark:text-rose-400'
+                        : 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
+                    )}>
+                      {live ? 'Now' : 'Soon'}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </Refreshing>
     </section>
   );
 }

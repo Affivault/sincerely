@@ -120,6 +120,8 @@ function SortableHeader({
 import toast from 'react-hot-toast';
 import type { CreateContactInput, ContactWithTags, ContactList, Tag } from '@lemlist/shared';
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../../lib/constants';
+import { keepPrevious } from '../../lib/listQuery';
+import { Refreshing } from '../../components/ui/Refreshing';
 
 const FOLDER_COLORS = ['#10B981', '#6366F1', '#F59E0B', '#EC4899', '#06B6D4', '#8B5CF6', '#EF4444', '#84CC16'];
 
@@ -702,7 +704,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     queryFn: contactsApi.lifecycleCounts,
   });
 
-  const { data: contactsData, isLoading } = useQuery({
+  const { data: contactsData, isLoading, isPlaceholderData: stale } = useQuery({
     queryKey: ['contacts', page, pageSize, debouncedSearch, activeListId, sortBy, sortDir, statusFilter, companyFilter, lifecycle],
     queryFn: () => contactsApi.list({
       page,
@@ -727,6 +729,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       const rows = ((query.state.data as any)?.data || []) as any[];
       return rows.some((r) => !r.dcs_verified_at && !r.is_bounced) ? 12000 : false;
     },
+    ...keepPrevious,
   });
 
   const { data: lists } = useQuery({
@@ -2055,263 +2058,265 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         )}
 
         {/* Table */}
-        {isLoading ? (
-          <div className="card divide-y divide-[var(--border-subtle)] overflow-hidden">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 px-4 py-3">
-                <Skeleton className="h-8 w-8 rounded-full" />
-                <div className="flex-1 space-y-1.5">
-                  <Skeleton className="h-3 w-1/4" />
-                  <Skeleton className="h-2.5 w-2/5" />
+        <Refreshing active={stale}>
+          {isLoading ? (
+            <div className="card divide-y divide-[var(--border-subtle)] overflow-hidden">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 px-4 py-3">
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-3 w-1/4" />
+                    <Skeleton className="h-2.5 w-2/5" />
+                  </div>
+                  <Skeleton className="h-5 w-14 rounded-full" />
+                  <Skeleton className="h-3 w-12" />
                 </div>
-                <Skeleton className="h-5 w-14 rounded-full" />
-                <Skeleton className="h-3 w-12" />
-              </div>
-            ))}
-          </div>
-        ) : contacts.length === 0 ? (
-          /* Empty state */
-          <div className="panel">
-            {/* An empty state should say what this page is for and offer the
-                thing you would actually do next on it, not the same generic
-                sentence on every screen. */}
-            <EmptyState
-              icon={Users}
-              title={activeListId ? `Nothing in this list yet` : `No ${noun}s yet`}
-              description={listKind === 'lead'
-                ? 'Import a list, find people with the Prospector, or add someone by hand. Leads are who your campaigns send to.'
-                : 'Contacts arrive here on their own when someone replies, books a meeting, or wins a deal. You can also add one by hand.'}
-              actionLabel={`Add ${noun}`}
-              onAction={() => setShowCreateModal(true)}
-              secondaryActionLabel="Import CSV"
-              onSecondaryAction={() => navigate('/contacts/import')}
-            />
-          </div>
-        ) : (
-          <div className="panel overflow-hidden">
-            {/*
-              The body scrolls, not the page.
+              ))}
+            </div>
+          ) : contacts.length === 0 ? (
+            /* Empty state */
+            <div className="panel">
+              {/* An empty state should say what this page is for and offer the
+                  thing you would actually do next on it, not the same generic
+                  sentence on every screen. */}
+              <EmptyState
+                icon={Users}
+                title={activeListId ? `Nothing in this list yet` : `No ${noun}s yet`}
+                description={listKind === 'lead'
+                  ? 'Import a list, find people with the Prospector, or add someone by hand. Leads are who your campaigns send to.'
+                  : 'Contacts arrive here on their own when someone replies, books a meeting, or wins a deal. You can also add one by hand.'}
+                actionLabel={`Add ${noun}`}
+                onAction={() => setShowCreateModal(true)}
+                secondaryActionLabel="Import CSV"
+                onSecondaryAction={() => navigate('/contacts/import')}
+              />
+            </div>
+          ) : (
+            <div className="panel overflow-hidden">
+              {/*
+                The body scrolls, not the page.
 
-              With a few hundred rows the whole document scrolled, which took
-              the column headers, the filters and the search box off screen -
-              so working down a long list meant losing both what you were
-              filtering by and which column you were reading. maxHeight rather
-              than height, so a short list still ends where it ends instead of
-              sitting in a tall empty box.
-            */}
-            <div ref={gridRef} className="overflow-auto" style={gridHeight ? { maxHeight: gridHeight } : undefined}>
-              <table
-                className="border-separate border-spacing-0 text-left table-fixed w-full"
-                style={{ minWidth: GUTTER_W + widthOf(CONTACT_COL_ID) + activeColumns.reduce((n, c) => n + widthOf(c.id), 0) + ACTIONS_W }}
-              >
-                <colgroup>
-                  <col style={{ width: GUTTER_W }} />
-                  <col style={{ width: widthOf(CONTACT_COL_ID) }} />
-                  {activeColumns.map((col) => (
-                    <col key={col.id} style={{ width: widthOf(col.id) }} />
-                  ))}
-                  {/* Filler — takes any leftover width so set widths stay exact */}
-                  <col />
-                  <col style={{ width: ACTIONS_W }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th className="sticky top-0 left-0 z-[5] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] pl-3 pr-2 py-[7px]">
-                      <Checkbox
-                        checked={allSelected}
-                        indeterminate={someSelected && !allSelected}
-                        onChange={toggleSelectAll}
-                        aria-label="Select all contacts"
-                      />
-                    </th>
-                    <th className="relative sticky top-0 left-[44px] z-[5] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-3 py-[7px] shadow-[inset_-1px_0_0_var(--border-subtle)]">
-                      <span className="flex items-center gap-1.5 min-w-0">
-                        <Users className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />
-                        <SortableHeader label="Contact" colKey="first_name" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
-                      </span>
-                      <ResizeHandle
-                        onPointerDown={(e) => startResize(CONTACT_COL_ID, e)}
-                        onDoubleClick={() => resetWidth(CONTACT_COL_ID)}
-                      />
-                    </th>
+                With a few hundred rows the whole document scrolled, which took
+                the column headers, the filters and the search box off screen -
+                so working down a long list meant losing both what you were
+                filtering by and which column you were reading. maxHeight rather
+                than height, so a short list still ends where it ends instead of
+                sitting in a tall empty box.
+              */}
+              <div ref={gridRef} className="overflow-auto" style={gridHeight ? { maxHeight: gridHeight } : undefined}>
+                <table
+                  className="border-separate border-spacing-0 text-left table-fixed w-full"
+                  style={{ minWidth: GUTTER_W + widthOf(CONTACT_COL_ID) + activeColumns.reduce((n, c) => n + widthOf(c.id), 0) + ACTIONS_W }}
+                >
+                  <colgroup>
+                    <col style={{ width: GUTTER_W }} />
+                    <col style={{ width: widthOf(CONTACT_COL_ID) }} />
                     {activeColumns.map((col) => (
-                      <th
-                        key={col.id}
-                        draggable={resizingCol !== col.id}
-                        onDragStart={(e) => {
-                          e.dataTransfer.effectAllowed = 'move';
-                          e.dataTransfer.setData('text/plain', col.id);
-                          setDragCol(col.id);
-                        }}
-                        onDragOver={(e) => {
-                          if (!dragCol || dragCol === col.id) return;
-                          e.preventDefault();
-                          e.dataTransfer.dropEffect = 'move';
-                          const r = e.currentTarget.getBoundingClientRect();
-                          const side: 'left' | 'right' = e.clientX < r.left + r.width / 2 ? 'left' : 'right';
-                          setDropCol((prev) => (prev?.id === col.id && prev.side === side ? prev : { id: col.id, side }));
-                        }}
-                        onDragLeave={() => setDropCol((prev) => (prev?.id === col.id ? null : prev))}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          const id = e.dataTransfer.getData('text/plain') || dragCol;
-                          if (id && dropCol?.id === col.id) moveColumnTo(id, col.id, dropCol.side);
-                          setDragCol(null);
-                          setDropCol(null);
-                        }}
-                        onDragEnd={() => { setDragCol(null); setDropCol(null); }}
-                        title="Drag to reorder · drag the edge to resize"
-                        className={cn(
-                          'relative sticky top-0 z-[4] select-none bg-[var(--bg-muted)] border-b border-r border-[var(--border-subtle)] px-3 py-[7px] whitespace-nowrap',
-                          resizingCol === col.id ? 'cursor-col-resize' : 'cursor-grab active:cursor-grabbing',
-                          dragCol === col.id && 'opacity-40',
-                        )}
-                      >
-                        <span className="flex items-center gap-1.5 min-w-0">
-                          {col.icon && <col.icon className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />}
-                          {col.sortKey
-                            ? <SortableHeader label={col.label} colKey={col.sortKey} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
-                            : <span className="text-caption font-medium text-[var(--text-tertiary)] truncate">{col.label}</span>}
-                        </span>
-                        {/* Where it will land */}
-                        {dropCol?.id === col.id && dragCol && dragCol !== col.id && (
-                          <span
-                            className={cn(
-                              'pointer-events-none absolute top-0 z-[5] h-full w-[2px] bg-[var(--indigo)]',
-                              dropCol.side === 'left' ? 'left-0' : 'right-0',
-                            )}
-                          />
-                        )}
-                        <ResizeHandle
-                          onPointerDown={(e) => startResize(col.id, e)}
-                          onDoubleClick={() => resetWidth(col.id)}
+                      <col key={col.id} style={{ width: widthOf(col.id) }} />
+                    ))}
+                    {/* Filler — takes any leftover width so set widths stay exact */}
+                    <col />
+                    <col style={{ width: ACTIONS_W }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th className="sticky top-0 left-0 z-[5] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] pl-3 pr-2 py-[7px]">
+                        <Checkbox
+                          checked={allSelected}
+                          indeterminate={someSelected && !allSelected}
+                          onChange={toggleSelectAll}
+                          aria-label="Select all contacts"
                         />
                       </th>
-                    ))}
-                    <th className="sticky top-0 z-[4] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]" />
-                    <th className="sticky top-0 right-0 z-[5] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {contacts.map((contact: any, rowIdx: number) => {
-                    const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
-                    const isSelected = selectedContacts.has(contact.id);
-                    const rowNumber = (page - 1) * pageSize + rowIdx + 1;
-                    const isFocused = focusIndex === rowIdx;
-                    // Frozen cells need an opaque bg so scrolled content can't show through.
-                    const frozenBg = isSelected
-                      ? 'bg-[var(--bg-active)]'
-                      : 'bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)]';
-                    return (
-                      <tr
-                        key={contact.id}
-                        data-row-index={rowIdx}
-                        onClick={(e) => {
-                          // ⌘/ctrl-click still opens the full profile in a tab.
-                          if (e.metaKey || e.ctrlKey) { window.open(`/contacts/${contact.id}`, '_blank'); return; }
-                          // Clicking also moves the keyboard cursor here, so
-                          // mouse and keyboard do not end up in two places.
-                          setFocusIndex(rowIdx);
-                          openPeek('contact', contact.id);
-                        }}
-                        className={cn(
-                          'group cursor-pointer transition-colors duration-150',
-                          isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]',
-                          // The keyboard cursor. An inset ring rather than an
-                          // outline, so it reads inside a table with frozen
-                          // columns instead of being clipped by them.
-                          isFocused && 'bg-[var(--bg-hover)] [&>td]:shadow-[inset_0_1px_0_var(--indigo),inset_0_-1px_0_var(--indigo)]',
-                        )}
-                      >
-                        <td className={cn('sticky left-0 z-[1] pl-3 pr-2 py-1.5 relative border-b border-[var(--border-subtle)]', frozenBg)}>
-                          {/* Sheets-style gutter: row number at rest, checkbox on hover/selection */}
-                          <span className={cn(
-                            'text-micro tabular text-[var(--text-muted)] transition-opacity select-none',
-                            isSelected ? 'opacity-0' : 'group-hover:opacity-0'
-                          )}>
-                            {rowNumber}
+                      <th className="relative sticky top-0 left-[44px] z-[5] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-3 py-[7px] shadow-[inset_-1px_0_0_var(--border-subtle)]">
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <Users className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />
+                          <SortableHeader label="Contact" colKey="first_name" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                        </span>
+                        <ResizeHandle
+                          onPointerDown={(e) => startResize(CONTACT_COL_ID, e)}
+                          onDoubleClick={() => resetWidth(CONTACT_COL_ID)}
+                        />
+                      </th>
+                      {activeColumns.map((col) => (
+                        <th
+                          key={col.id}
+                          draggable={resizingCol !== col.id}
+                          onDragStart={(e) => {
+                            e.dataTransfer.effectAllowed = 'move';
+                            e.dataTransfer.setData('text/plain', col.id);
+                            setDragCol(col.id);
+                          }}
+                          onDragOver={(e) => {
+                            if (!dragCol || dragCol === col.id) return;
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                            const r = e.currentTarget.getBoundingClientRect();
+                            const side: 'left' | 'right' = e.clientX < r.left + r.width / 2 ? 'left' : 'right';
+                            setDropCol((prev) => (prev?.id === col.id && prev.side === side ? prev : { id: col.id, side }));
+                          }}
+                          onDragLeave={() => setDropCol((prev) => (prev?.id === col.id ? null : prev))}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const id = e.dataTransfer.getData('text/plain') || dragCol;
+                            if (id && dropCol?.id === col.id) moveColumnTo(id, col.id, dropCol.side);
+                            setDragCol(null);
+                            setDropCol(null);
+                          }}
+                          onDragEnd={() => { setDragCol(null); setDropCol(null); }}
+                          title="Drag to reorder · drag the edge to resize"
+                          className={cn(
+                            'relative sticky top-0 z-[4] select-none bg-[var(--bg-muted)] border-b border-r border-[var(--border-subtle)] px-3 py-[7px] whitespace-nowrap',
+                            resizingCol === col.id ? 'cursor-col-resize' : 'cursor-grab active:cursor-grabbing',
+                            dragCol === col.id && 'opacity-40',
+                          )}
+                        >
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            {col.icon && <col.icon className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />}
+                            {col.sortKey
+                              ? <SortableHeader label={col.label} colKey={col.sortKey} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                              : <span className="text-caption font-medium text-[var(--text-tertiary)] truncate">{col.label}</span>}
                           </span>
-                          <span className={cn(
-                            'absolute inset-0 flex items-center pl-3 transition-opacity',
-                            isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                          )}>
-                            <Checkbox
-                              checked={isSelected}
-                              onChange={() => toggleSelectContact(contact.id)}
-                              aria-label={`Select ${fullName || contact.email}`}
-                            />
-                          </span>
-                        </td>
-                        <td className={cn('sticky left-[44px] z-[1] px-3 py-1.5 border-b border-[var(--border-subtle)] overflow-hidden shadow-[inset_-1px_0_0_var(--border-subtle)]', frozenBg)}>
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <Avatar name={fullName || contact.email} email={contact.email} size="sm" />
-                            <div className="min-w-0">
-                              <span className="flex items-center gap-1.5 min-w-0">
-                                {/*
-                                  The name is a real link, not a row-click.
-                                  Clicking a row still opens the quick peek,
-                                  which is right for skimming, but the whole
-                                  record needed a way in that you can see,
-                                  middle-click, and open in a new tab like any
-                                  other link on the web. stopPropagation so it
-                                  does not also fire the peek underneath.
-                                */}
-                                <Link
-                                  to={`/contacts/${contact.id}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="block text-body font-semibold text-[var(--text-primary)] truncate hover:text-[var(--indigo)] hover:underline decoration-[var(--indigo)]/40 underline-offset-2 transition-colors"
-                                >
-                                  {fullName || 'Unnamed contact'}
-                                </Link>
-                                <LinkedInGlyph url={contact.linkedin_url} />
-                              </span>
-                              <p className="text-caption text-[var(--text-tertiary)] truncate leading-tight">
-                                {contact.job_title || 'No title'}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        {activeColumns.map((col) => (
-                          <td key={col.id} className={cn('px-3 py-1.5 whitespace-nowrap overflow-hidden text-ellipsis border-b border-r border-[var(--border-subtle)]', col.tdClass)}>
-                            {col.render(contact)}
-                          </td>
-                        ))}
-                        <td className="border-b border-[var(--border-subtle)]" />
-                        <td className={cn('sticky right-0 z-[1] px-2 py-2 border-b border-[var(--border-subtle)] shadow-[inset_1px_0_0_var(--border-subtle)]', frozenBg)} onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => verifyMutation.mutate(contact.id)}
-                              disabled={verifyingIds.has(contact.id)}
-                              className="icon-btn hover:text-[var(--indigo)] hover:bg-[var(--indigo-subtle)]"
-                              title="Verify email"
-                            >
-                              {verifyingIds.has(contact.id)
-                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                : <ShieldCheck className="h-3.5 w-3.5" />}
-                            </button>
-                            <button onClick={() => openEdit(contact)} className="icon-btn" title="Edit">
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => confirm(
-                                { title: 'Delete this contact?', body: 'Their notes, activity and place in every campaign go with them.', tone: 'danger' },
-                                () => deleteMutation.mutate(contact.id),
+                          {/* Where it will land */}
+                          {dropCol?.id === col.id && dragCol && dragCol !== col.id && (
+                            <span
+                              className={cn(
+                                'pointer-events-none absolute top-0 z-[5] h-full w-[2px] bg-[var(--indigo)]',
+                                dropCol.side === 'left' ? 'left-0' : 'right-0',
                               )}
-                              className="icon-btn hover:text-rose-500 hover:bg-rose-500/10"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                            />
+                          )}
+                          <ResizeHandle
+                            onPointerDown={(e) => startResize(col.id, e)}
+                            onDoubleClick={() => resetWidth(col.id)}
+                          />
+                        </th>
+                      ))}
+                      <th className="sticky top-0 z-[4] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]" />
+                      <th className="sticky top-0 right-0 z-[5] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {contacts.map((contact: any, rowIdx: number) => {
+                      const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
+                      const isSelected = selectedContacts.has(contact.id);
+                      const rowNumber = (page - 1) * pageSize + rowIdx + 1;
+                      const isFocused = focusIndex === rowIdx;
+                      // Frozen cells need an opaque bg so scrolled content can't show through.
+                      const frozenBg = isSelected
+                        ? 'bg-[var(--bg-active)]'
+                        : 'bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)]';
+                      return (
+                        <tr
+                          key={contact.id}
+                          data-row-index={rowIdx}
+                          onClick={(e) => {
+                            // ⌘/ctrl-click still opens the full profile in a tab.
+                            if (e.metaKey || e.ctrlKey) { window.open(`/contacts/${contact.id}`, '_blank'); return; }
+                            // Clicking also moves the keyboard cursor here, so
+                            // mouse and keyboard do not end up in two places.
+                            setFocusIndex(rowIdx);
+                            openPeek('contact', contact.id);
+                          }}
+                          className={cn(
+                            'group cursor-pointer transition-colors duration-150',
+                            isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]',
+                            // The keyboard cursor. An inset ring rather than an
+                            // outline, so it reads inside a table with frozen
+                            // columns instead of being clipped by them.
+                            isFocused && 'bg-[var(--bg-hover)] [&>td]:shadow-[inset_0_1px_0_var(--indigo),inset_0_-1px_0_var(--indigo)]',
+                          )}
+                        >
+                          <td className={cn('sticky left-0 z-[1] pl-3 pr-2 py-1.5 relative border-b border-[var(--border-subtle)]', frozenBg)}>
+                            {/* Sheets-style gutter: row number at rest, checkbox on hover/selection */}
+                            <span className={cn(
+                              'text-micro tabular text-[var(--text-muted)] transition-opacity select-none',
+                              isSelected ? 'opacity-0' : 'group-hover:opacity-0'
+                            )}>
+                              {rowNumber}
+                            </span>
+                            <span className={cn(
+                              'absolute inset-0 flex items-center pl-3 transition-opacity',
+                              isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                            )}>
+                              <Checkbox
+                                checked={isSelected}
+                                onChange={() => toggleSelectContact(contact.id)}
+                                aria-label={`Select ${fullName || contact.email}`}
+                              />
+                            </span>
+                          </td>
+                          <td className={cn('sticky left-[44px] z-[1] px-3 py-1.5 border-b border-[var(--border-subtle)] overflow-hidden shadow-[inset_-1px_0_0_var(--border-subtle)]', frozenBg)}>
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <Avatar name={fullName || contact.email} email={contact.email} size="sm" />
+                              <div className="min-w-0">
+                                <span className="flex items-center gap-1.5 min-w-0">
+                                  {/*
+                                    The name is a real link, not a row-click.
+                                    Clicking a row still opens the quick peek,
+                                    which is right for skimming, but the whole
+                                    record needed a way in that you can see,
+                                    middle-click, and open in a new tab like any
+                                    other link on the web. stopPropagation so it
+                                    does not also fire the peek underneath.
+                                  */}
+                                  <Link
+                                    to={`/contacts/${contact.id}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="block text-body font-semibold text-[var(--text-primary)] truncate hover:text-[var(--indigo)] hover:underline decoration-[var(--indigo)]/40 underline-offset-2 transition-colors"
+                                  >
+                                    {fullName || 'Unnamed contact'}
+                                  </Link>
+                                  <LinkedInGlyph url={contact.linkedin_url} />
+                                </span>
+                                <p className="text-caption text-[var(--text-tertiary)] truncate leading-tight">
+                                  {contact.job_title || 'No title'}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          {activeColumns.map((col) => (
+                            <td key={col.id} className={cn('px-3 py-1.5 whitespace-nowrap overflow-hidden text-ellipsis border-b border-r border-[var(--border-subtle)]', col.tdClass)}>
+                              {col.render(contact)}
+                            </td>
+                          ))}
+                          <td className="border-b border-[var(--border-subtle)]" />
+                          <td className={cn('sticky right-0 z-[1] px-2 py-2 border-b border-[var(--border-subtle)] shadow-[inset_1px_0_0_var(--border-subtle)]', frozenBg)} onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => verifyMutation.mutate(contact.id)}
+                                disabled={verifyingIds.has(contact.id)}
+                                className="icon-btn hover:text-[var(--indigo)] hover:bg-[var(--indigo-subtle)]"
+                                title="Verify email"
+                              >
+                                {verifyingIds.has(contact.id)
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  : <ShieldCheck className="h-3.5 w-3.5" />}
+                              </button>
+                              <button onClick={() => openEdit(contact)} className="icon-btn" title="Edit">
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => confirm(
+                                  { title: 'Delete this contact?', body: 'Their notes, activity and place in every campaign go with them.', tone: 'danger' },
+                                  () => deleteMutation.mutate(contact.id),
+                                )}
+                                className="icon-btn hover:text-rose-500 hover:bg-rose-500/10"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </Refreshing>
 
         {/* Pagination — the rows-per-page picker shows even on a single page,
             so it's discoverable before the list grows past one screen. */}

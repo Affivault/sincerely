@@ -26,6 +26,8 @@ import { Link } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { SequenceStepsPanel } from '../../components/analytics/SequenceStepsPanel';
 import toast from 'react-hot-toast';
+import { keepPrevious } from '../../lib/listQuery';
+import { Refreshing } from '../../components/ui/Refreshing';
 import {
   LineChart, Line,
   BarChart, Bar,
@@ -785,14 +787,16 @@ export function AnalyticsDashboardPage() {
   const days = DATE_RANGE_MAP[dateRange];
 
   // ── Global queries ──────────────────────────────────────────────────────
-  const { data: overview, isLoading: overviewLoading } = useQuery({
+  const { data: overview, isLoading: overviewLoading, isPlaceholderData: stale } = useQuery({
     queryKey: ['analytics', 'overview', days],
     queryFn: () => analyticsApi.overview(days),
+    ...keepPrevious,
   });
 
   const { data: trendData } = useQuery({
     queryKey: ['analytics', 'trend', days],
     queryFn: () => analyticsApi.trend(days),
+    ...keepPrevious,
   });
 
   const { data: deliverability } = useQuery({
@@ -816,6 +820,7 @@ export function AnalyticsDashboardPage() {
     queryKey: ['analytics', 'campaign-trend', selectedId, days],
     queryFn: () => analyticsApi.campaignTrend(selectedId, days),
     enabled: !!selectedId && campaignTab === 'stats',
+    ...keepPrevious,
   });
 
   const { data: funnelData } = useQuery({
@@ -942,7 +947,11 @@ export function AnalyticsDashboardPage() {
   ];
 
   return (
-    <div className="animate-fade-in space-y-4">
+    /* The range selector changes three queries at once, and until this
+       landed all three blanked: switching 7d to 30d cleared the tiles and
+       every chart, then redrew them. The numbers now stay put and the bar
+       says they are still the old range's. */
+    <Refreshing active={stale} className="animate-fade-in space-y-4">
       {/* Header */}
       <PageHeader
         decorate
@@ -1607,6 +1616,6 @@ export function AnalyticsDashboardPage() {
           )}
         </>
       )}
-    </div>
+    </Refreshing>
   );
 }

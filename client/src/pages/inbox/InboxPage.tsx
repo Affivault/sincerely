@@ -23,6 +23,8 @@ import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import { MailHistoryPanel } from '../../components/inbox/MailHistoryPanel';
 import { ReplyActions } from '../../components/inbox/ReplyActions';
+import { keepPrevious } from '../../lib/listQuery';
+import { Refreshing } from '../../components/ui/Refreshing';
 import {
   Search,
   Star,
@@ -2202,7 +2204,7 @@ export function InboxPage() {
   }));
 
   /* ── Queries ── */
-  const { data: messagesData, isLoading, isFetching } = useQuery({
+  const { data: messagesData, isLoading, isFetching, isPlaceholderData: stale } = useQuery({
     queryKey: ['inbox', folder, tagFilter, search, messageLimit],
     queryFn: () => inboxApi.list({
       limit: messageLimit,
@@ -2211,7 +2213,7 @@ export function InboxPage() {
       search: search || undefined,
     }),
     enabled: folder !== 'scheduled',
-    placeholderData: (prev) => prev,
+    ...keepPrevious,
   });
 
   const messages: Message[] = Array.isArray(messagesData?.data) ? messagesData.data : [];
@@ -3533,159 +3535,161 @@ export function InboxPage() {
               <span className="w-[54px] flex-shrink-0 text-right">Time</span>
             </div>
 
-            {isLoading ? (
-              <div>
-                {Array.from({ length: 14 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 px-4 h-[40px] border-b border-[var(--border-subtle)]">
-                    <div className="flex items-center gap-2.5 w-[220px] flex-shrink-0">
-                      <Skeleton className="h-6 w-6 rounded-full flex-shrink-0" />
-                      <Skeleton className="h-3 w-28" />
+            <Refreshing active={stale}>
+              {isLoading ? (
+                <div>
+                  {Array.from({ length: 14 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 px-4 h-[40px] border-b border-[var(--border-subtle)]">
+                      <div className="flex items-center gap-2.5 w-[220px] flex-shrink-0">
+                        <Skeleton className="h-6 w-6 rounded-full flex-shrink-0" />
+                        <Skeleton className="h-3 w-28" />
+                      </div>
+                      <Skeleton className="h-3 flex-1" />
+                      <Skeleton className="h-4 w-[90px] rounded-md hidden md:block" />
+                      <Skeleton className="h-3 w-[54px]" />
                     </div>
-                    <Skeleton className="h-3 flex-1" />
-                    <Skeleton className="h-4 w-[90px] rounded-md hidden md:block" />
-                    <Skeleton className="h-3 w-[54px]" />
-                  </div>
-                ))}
-              </div>
-            ) : visibleConversations.length === 0 ? (
-              <EmptyState
-                icon={inTriageQueue ? CheckCheck : MailOpen}
-                title={inTriageQueue ? 'Every reply is decided' : unreadOnly ? 'No unread conversations' : quickFilter !== 'all' ? `No ${QUICK_FILTERS.find(f => f.id === quickFilter)?.label.toLowerCase()} messages` : 'No conversations'}
-                description={
-                  inTriageQueue
-                    // An empty queue is the good outcome, and it should read
-                    // like one — not like a view that failed to load.
-                    ? 'Nothing is waiting on a decision. New replies land here as they arrive.'
-                    : search ? 'Try a different search term.'
-                    : unreadOnly ? "You're all caught up."
-                    : tagFilter !== 'all' ? `No messages tagged as "${TAG_OPTIONS.find(t => t.value === tagFilter)?.label}".`
-                    : quickFilter !== 'all' ? 'Try a different view.'
-                    : `Your ${folder} is empty — replies will land here.`
-                }
-              />
-            ) : (
-              visibleConversations.map(conv => {
-                const msg = conv.latestMessage;
-                const isSelected = msg.id === selectedId;
-                const isOutbound = msg.direction === 'outbound';
-                const intent = msg.sara_intent && msg.sara_intent !== 'scheduled' ? (INTENT_COLORS[msg.sara_intent] || INTENT_COLORS.other) : null;
-                const displayName = isOutbound ? `To: ${msg.to_email?.split('@')[0]}` : (conv.contactName || senderName(msg));
-                const avatarSeed = isOutbound ? (msg.to_email || '') : (conv.contactName || msg.from_email || '');
-                const snippet = msgSnippet(msg);
-                const isPicked = picked.has(msg.id);
-                return (
-                  <div
-                    key={msg.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => selectMessage(msg)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectMessage(msg); } }}
-                    className={cn(
-                      'group w-full min-w-0 overflow-hidden text-left flex items-center gap-3 px-4 h-[40px] border-b border-[var(--border-subtle)] transition-colors cursor-pointer',
-                      isPicked ? 'bg-[var(--indigo-subtle)]/60' : isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]'
-                    )}
-                  >
-                    {/* Pick, for deciding about a stack of these at once.
-                        Only in the queue: everywhere else there is nothing a
-                        selection of threads would do. */}
-                    {inTriageQueue && (
-                      <input
-                        type="checkbox"
-                        checked={isPicked}
-                        aria-label={`Select reply from ${displayName}`}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => togglePick(msg.id, e.currentTarget.checked, visibleConversations)}
-                        className="h-3.5 w-3.5 flex-shrink-0 accent-[var(--indigo)] cursor-pointer"
-                      />
-                    )}
+                  ))}
+                </div>
+              ) : visibleConversations.length === 0 ? (
+                <EmptyState
+                  icon={inTriageQueue ? CheckCheck : MailOpen}
+                  title={inTriageQueue ? 'Every reply is decided' : unreadOnly ? 'No unread conversations' : quickFilter !== 'all' ? `No ${QUICK_FILTERS.find(f => f.id === quickFilter)?.label.toLowerCase()} messages` : 'No conversations'}
+                  description={
+                    inTriageQueue
+                      // An empty queue is the good outcome, and it should read
+                      // like one — not like a view that failed to load.
+                      ? 'Nothing is waiting on a decision. New replies land here as they arrive.'
+                      : search ? 'Try a different search term.'
+                      : unreadOnly ? "You're all caught up."
+                      : tagFilter !== 'all' ? `No messages tagged as "${TAG_OPTIONS.find(t => t.value === tagFilter)?.label}".`
+                      : quickFilter !== 'all' ? 'Try a different view.'
+                      : `Your ${folder} is empty — replies will land here.`
+                  }
+                />
+              ) : (
+                visibleConversations.map(conv => {
+                  const msg = conv.latestMessage;
+                  const isSelected = msg.id === selectedId;
+                  const isOutbound = msg.direction === 'outbound';
+                  const intent = msg.sara_intent && msg.sara_intent !== 'scheduled' ? (INTENT_COLORS[msg.sara_intent] || INTENT_COLORS.other) : null;
+                  const displayName = isOutbound ? `To: ${msg.to_email?.split('@')[0]}` : (conv.contactName || senderName(msg));
+                  const avatarSeed = isOutbound ? (msg.to_email || '') : (conv.contactName || msg.from_email || '');
+                  const snippet = msgSnippet(msg);
+                  const isPicked = picked.has(msg.id);
+                  return (
+                    <div
+                      key={msg.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => selectMessage(msg)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectMessage(msg); } }}
+                      className={cn(
+                        'group w-full min-w-0 overflow-hidden text-left flex items-center gap-3 px-4 h-[40px] border-b border-[var(--border-subtle)] transition-colors cursor-pointer',
+                        isPicked ? 'bg-[var(--indigo-subtle)]/60' : isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]'
+                      )}
+                    >
+                      {/* Pick, for deciding about a stack of these at once.
+                          Only in the queue: everywhere else there is nothing a
+                          selection of threads would do. */}
+                      {inTriageQueue && (
+                        <input
+                          type="checkbox"
+                          checked={isPicked}
+                          aria-label={`Select reply from ${displayName}`}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => togglePick(msg.id, e.currentTarget.checked, visibleConversations)}
+                          className="h-3.5 w-3.5 flex-shrink-0 accent-[var(--indigo)] cursor-pointer"
+                        />
+                      )}
 
-                    {/* Sender */}
-                    <span className="flex items-center gap-2.5 w-[220px] flex-shrink-0 min-w-0">
-                      <span className="relative flex-shrink-0">
-                        {isOutbound ? (
-                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)] border border-[var(--border-subtle)]">
-                            <SendHorizontal className="h-2.5 w-2.5" />
+                      {/* Sender */}
+                      <span className="flex items-center gap-2.5 w-[220px] flex-shrink-0 min-w-0">
+                        <span className="relative flex-shrink-0">
+                          {isOutbound ? (
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)] border border-[var(--border-subtle)]">
+                              <SendHorizontal className="h-2.5 w-2.5" />
+                            </span>
+                          ) : (
+                            <Avatar name={avatarSeed} email={msg.from_email} size="sm" />
+                          )}
+                          {conv.hasUnread && !isOutbound && (
+                            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--indigo)] ring-2 ring-[var(--bg-surface)]" />
+                          )}
+                        </span>
+                        <span className={cn('text-strong truncate', conv.hasUnread ? 'font-semibold text-[var(--text-primary)]' : 'font-medium text-[var(--text-secondary)]')}>
+                          {displayName}
+                        </span>
+                        {conv.messageCount > 1 && (
+                          <span className="text-micro font-semibold px-1 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-tertiary)] flex-shrink-0 tabular">{conv.messageCount}</span>
+                        )}
+                        {conv.isStarred && <Star className="h-3 w-3 text-amber-400 fill-amber-400 flex-shrink-0" />}
+                        {/* Marked rather than hidden. It still belongs in the
+                            thread — it just isn't someone answering you, and a
+                            row that looks like a reply and isn't is how a
+                            fortnight of annual leave got counted as interest. */}
+                        {msg.auto_reply_kind && (
+                          <span
+                            className="inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-tertiary)] flex-shrink-0"
+                            title={msg.auto_reply_kind === 'out_of_office'
+                              ? 'Out-of-office autoresponder — not counted as a reply'
+                              : 'Automatic reply — not counted as a reply'}
+                          >
+                            <BotIcon className="h-2.5 w-2.5" />
+                            {msg.auto_reply_kind === 'out_of_office' ? 'Away' : 'Auto'}
                           </span>
-                        ) : (
-                          <Avatar name={avatarSeed} email={msg.from_email} size="sm" />
-                        )}
-                        {conv.hasUnread && !isOutbound && (
-                          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--indigo)] ring-2 ring-[var(--bg-surface)]" />
                         )}
                       </span>
-                      <span className={cn('text-strong truncate', conv.hasUnread ? 'font-semibold text-[var(--text-primary)]' : 'font-medium text-[var(--text-secondary)]')}>
-                        {displayName}
+
+                      {/* Conversation: subject + snippet on one scannable line */}
+                      <span className="flex-1 min-w-0 flex items-baseline gap-2 overflow-hidden">
+                        <span className={cn('min-w-0 flex-shrink truncate text-body', conv.hasUnread ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]')}>
+                          {msg.subject || '(no subject)'}
+                        </span>
+                        {snippet && (
+                          <span className="flex-1 min-w-0 truncate text-body text-[var(--text-tertiary)] hidden sm:inline">— {snippet}</span>
+                        )}
                       </span>
-                      {conv.messageCount > 1 && (
-                        <span className="text-micro font-semibold px-1 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-tertiary)] flex-shrink-0 tabular">{conv.messageCount}</span>
-                      )}
-                      {conv.isStarred && <Star className="h-3 w-3 text-amber-400 fill-amber-400 flex-shrink-0" />}
-                      {/* Marked rather than hidden. It still belongs in the
-                          thread — it just isn't someone answering you, and a
-                          row that looks like a reply and isn't is how a
-                          fortnight of annual leave got counted as interest. */}
-                      {msg.auto_reply_kind && (
-                        <span
-                          className="inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-tertiary)] flex-shrink-0"
-                          title={msg.auto_reply_kind === 'out_of_office'
-                            ? 'Out-of-office autoresponder — not counted as a reply'
-                            : 'Automatic reply — not counted as a reply'}
-                        >
-                          <BotIcon className="h-2.5 w-2.5" />
-                          {msg.auto_reply_kind === 'out_of_office' ? 'Away' : 'Auto'}
-                        </span>
-                      )}
-                    </span>
 
-                    {/* Conversation: subject + snippet on one scannable line */}
-                    <span className="flex-1 min-w-0 flex items-baseline gap-2 overflow-hidden">
-                      <span className={cn('min-w-0 flex-shrink truncate text-body', conv.hasUnread ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]')}>
-                        {msg.subject || '(no subject)'}
+                      {/* Intent — or, once somebody has decided, what they
+                          decided. A human answer outranks a model's guess about
+                          the same reply, and showing both in one column would
+                          just be two labels contradicting each other. */}
+                      <span className="w-[110px] flex-shrink-0 hidden md:block">
+                        {msg.triage_decision ? (
+                          <span className={cn(
+                            'inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded-md',
+                            TRIAGE_PILL[msg.triage_decision].cls,
+                          )}>
+                            <Check className="h-2.5 w-2.5" />
+                            {TRIAGE_PILL[msg.triage_decision].label}
+                          </span>
+                        ) : intent ? (
+                          <span className={cn('inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded-md', intent.bg, intent.text)}>
+                            <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
+                            {intent.label}
+                          </span>
+                        ) : null}
                       </span>
-                      {snippet && (
-                        <span className="flex-1 min-w-0 truncate text-body text-[var(--text-tertiary)] hidden sm:inline">— {snippet}</span>
-                      )}
-                    </span>
 
-                    {/* Intent — or, once somebody has decided, what they
-                        decided. A human answer outranks a model's guess about
-                        the same reply, and showing both in one column would
-                        just be two labels contradicting each other. */}
-                    <span className="w-[110px] flex-shrink-0 hidden md:block">
-                      {msg.triage_decision ? (
-                        <span className={cn(
-                          'inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded-md',
-                          TRIAGE_PILL[msg.triage_decision].cls,
-                        )}>
-                          <Check className="h-2.5 w-2.5" />
-                          {TRIAGE_PILL[msg.triage_decision].label}
-                        </span>
-                      ) : intent ? (
-                        <span className={cn('inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded-md', intent.bg, intent.text)}>
-                          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-                          {intent.label}
-                        </span>
-                      ) : null}
-                    </span>
+                      {/* Campaign */}
+                      <span className="w-[140px] flex-shrink-0 hidden lg:block text-caption text-[var(--text-tertiary)] truncate">
+                        {msg.campaign_name || ''}
+                      </span>
 
-                    {/* Campaign */}
-                    <span className="w-[140px] flex-shrink-0 hidden lg:block text-caption text-[var(--text-tertiary)] truncate">
-                      {msg.campaign_name || ''}
-                    </span>
+                      {/* Receiving inbox */}
+                      <span className="w-[150px] flex-shrink-0 hidden xl:block text-caption text-[var(--text-tertiary)] truncate">
+                        {msg.smtp_label || msg.smtp_email || ''}
+                      </span>
 
-                    {/* Receiving inbox */}
-                    <span className="w-[150px] flex-shrink-0 hidden xl:block text-caption text-[var(--text-tertiary)] truncate">
-                      {msg.smtp_label || msg.smtp_email || ''}
-                    </span>
-
-                    {/* Time */}
-                    <span className="w-[54px] flex-shrink-0 text-right text-caption text-[var(--text-tertiary)] tabular">
-                      {timeAgo(msg.received_at)}
-                    </span>
-                  </div>
-                );
-              })
-            )}
+                      {/* Time */}
+                      <span className="w-[54px] flex-shrink-0 text-right text-caption text-[var(--text-tertiary)] tabular">
+                        {timeAgo(msg.received_at)}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </Refreshing>
             {!isLoading && hasMoreMessages && (
               <div className="flex items-center justify-center py-3">
                 <button

@@ -1,4 +1,4 @@
-import { Search, X } from 'lucide-react';
+import { Loader2, Search, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 interface SearchInputProps {
@@ -6,12 +6,25 @@ interface SearchInputProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  /**
+   * Results for the term currently typed have not arrived yet.
+   *
+   * Pass the query's `isPlaceholderData`. Its partner is `keepPrevious`
+   * in lib/listQuery: the rows below stay put while the new ones load,
+   * and this is what stops that reading as "your search did nothing".
+   * Without it the list is silently answering the previous term.
+   */
+  busy?: boolean;
 }
 
-export function SearchInput({ value, onChange, placeholder = 'Search…', className }: SearchInputProps) {
+export function SearchInput({ value, onChange, placeholder = 'Search…', className, busy }: SearchInputProps) {
   return (
     <div className={cn('relative flex items-center', className)}>
-      <Search className="absolute left-2.5 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />
+      {/* In the magnifier's place, not beside it - the box must not change
+          width or reflow on every keystroke. */}
+      {busy
+        ? <Loader2 className="absolute left-2.5 h-3.5 w-3.5 animate-spin text-[var(--indigo)] pointer-events-none" data-search-busy />
+        : <Search className="absolute left-2.5 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />}
       <input
         type="text"
         value={value}

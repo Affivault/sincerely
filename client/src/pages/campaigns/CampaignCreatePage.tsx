@@ -38,6 +38,8 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { StepType, formatDailyLimit } from '@lemlist/shared';
+import { keepPrevious } from '../../lib/listQuery';
+import { Refreshing } from '../../components/ui/Refreshing';
 import type {
   CreateCampaignInput, CreateStepInput, CampaignStep, SmtpAccount, ContactWithTags,
   PersonalizationAudit,
@@ -309,9 +311,10 @@ export function CampaignCreatePage() {
     queryFn: smtpApi.list,
   });
 
-  const { data: contactsData } = useQuery({
+  const { data: contactsData, isPlaceholderData: stale } = useQuery({
     queryKey: ['contacts', 'select', contactSearch],
     queryFn: () => contactsApi.list({ limit: 50, search: contactSearch || undefined }),
+    ...keepPrevious,
   });
 
   // Contact pool for the audience list. Fetched ONCE with a stable key, then
@@ -2381,7 +2384,7 @@ export function CampaignCreatePage() {
                   className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] pl-9 pr-3 py-2 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
                 />
               </div>
-              <div className="max-h-[350px] overflow-y-auto rounded-lg border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">
+              <Refreshing active={stale} className="max-h-[350px] overflow-y-auto rounded-lg border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">
                 {contacts.map((contact: ContactWithTags) => {
                   const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
                   const isSelected = selectedContactIds.includes(contact.id);
@@ -2416,7 +2419,7 @@ export function CampaignCreatePage() {
                 {contacts.length === 0 && (
                   <p className="p-6 text-center text-body text-[var(--text-tertiary)]">No contacts found</p>
                 )}
-              </div>
+              </Refreshing>
             </>
           ) : (
             <div className="max-h-[400px] overflow-y-auto rounded-lg border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">

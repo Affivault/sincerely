@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { EmptyState } from '../../components/shared/EmptyState';
+import { keepPrevious } from '../../lib/listQuery';
+import { Refreshing } from '../../components/ui/Refreshing';
 
 /* ═══════════════════════════════════════════════════════════════════════
    The inbox between a reply and a forecast.
@@ -202,9 +204,10 @@ export function LeadsPage() {
   const [converting, setConverting] = useState<Lead | null>(null);
   const [archiving, setArchiving] = useState<Lead | null>(null);
 
-  const { data: leads, isLoading } = useQuery({
+  const { data: leads, isLoading, isPlaceholderData: stale } = useQuery({
     queryKey: ['leads', tab],
     queryFn: () => leadsApi.list({ status: tab }),
+    ...keepPrevious,
   });
 
   // The funnel is measured over everything, not the visible tab, or the
@@ -335,137 +338,139 @@ export function LeadsPage() {
         ))}
       </div>
 
-      {isLoading ? (
-        <div className="flex items-center justify-center py-24"><Spinner size="md" /></div>
-      ) : visible.length === 0 ? (
-        <EmptyState
-          icon={Sparkles}
-          title={query ? `No leads match “${query}”`
-            : tab === 'open' ? 'The inbox is clear'
-              : tab === 'converted' ? 'Nothing qualified yet'
-                : tab === 'archived' ? 'Nothing dropped yet' : 'No leads yet'}
-          description={tab === 'open'
-            ? 'Turn a promising reply into a lead from the contact, and it waits here until you qualify it or drop it.'
-            : 'Leads you decide on end up here.'}
-        />
-      ) : (
-        <div className="panel divide-y divide-[var(--border-subtle)]">
-          {visible.map((lead) => {
-            const stale = leadIsStale(lead);
-            const name = personName(lead);
-            return (
-              <div key={lead.id} className="group flex flex-wrap items-center gap-3 px-3.5 py-2.5 transition-colors hover:bg-[var(--bg-hover)]">
-                <button
-                  type="button"
-                  onClick={() => (lead.contact_id ? openPeek('contact', lead.contact_id) : undefined)}
-                  className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
-                >
-                  <Avatar name={name} email={lead.contact?.email} size="md" />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      <span className="truncate text-body font-medium text-[var(--text-primary)]">{lead.title}</span>
-                      {lead.label && (
-                        <span className={cn('rounded-full px-1.5 py-0.5 text-micro font-bold uppercase', LABEL_TONE[lead.label])}>
-                          {lead.label}
-                        </span>
-                      )}
-                      {stale && (
-                        <span
-                          title={`Open for more than ${LEAD_STALE_DAYS} days — somebody answered and nobody answered back`}
-                          className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-micro font-bold uppercase text-amber-700 dark:text-amber-400"
-                        >
-                          <Clock className="h-2.5 w-2.5" /> waiting
-                        </span>
-                      )}
-                    </span>
-                    <span className="flex flex-wrap items-center gap-x-2 text-caption text-[var(--text-tertiary)]">
-                      <span className="truncate">{name}</span>
-                      {lead.contact?.job_title && (
-                        <span className="inline-flex items-center gap-1 truncate">
-                          <Briefcase className="h-2.5 w-2.5 flex-shrink-0" />{lead.contact.job_title}
-                        </span>
-                      )}
-                      {lead.source && <span className="truncate">via {lead.source}</span>}
-                      <span>{ageLabel(lead.created_at)}</span>
-                    </span>
-                  </span>
-                </button>
-
-                {lead.value != null && (
-                  <span className="flex-shrink-0 text-body font-semibold tabular-nums text-[var(--text-primary)]">
-                    {money(lead.value, lead.currency)}
-                  </span>
-                )}
-
-                {lead.status === 'open' ? (
-                  <div className="flex flex-shrink-0 items-center gap-1">
-                    <div className="hidden items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 sm:flex">
-                      {DEAL_LABELS.map((l) => (
-                        <button
-                          key={l.id}
-                          type="button"
-                          onClick={() => setLabel.mutate({ id: lead.id, label: lead.label === l.id ? null : l.id })}
-                          title={`Mark ${l.label.toLowerCase()}`}
-                          className={cn(
-                            'rounded-md px-1.5 py-0.5 text-micro font-semibold transition-colors',
-                            lead.label === l.id ? LABEL_TONE[l.id] : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]',
-                          )}
-                        >
-                          {l.label}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setArchiving(lead)}
-                      title="Drop this lead"
-                      className="icon-btn h-7 w-7 hover:text-amber-600"
-                    >
-                      <Archive className="h-3.5 w-3.5" />
-                    </button>
-                    <Button variant="primary" onClick={() => setConverting(lead)}>
-                      Qualify <ArrowRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ) : lead.status === 'converted' ? (
+      <Refreshing active={stale}>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-24"><Spinner size="md" /></div>
+        ) : visible.length === 0 ? (
+          <EmptyState
+            icon={Sparkles}
+            title={query ? `No leads match “${query}”`
+              : tab === 'open' ? 'The inbox is clear'
+                : tab === 'converted' ? 'Nothing qualified yet'
+                  : tab === 'archived' ? 'Nothing dropped yet' : 'No leads yet'}
+            description={tab === 'open'
+              ? 'Turn a promising reply into a lead from the contact, and it waits here until you qualify it or drop it.'
+              : 'Leads you decide on end up here.'}
+          />
+        ) : (
+          <div className="panel divide-y divide-[var(--border-subtle)]">
+            {visible.map((lead) => {
+              const stale = leadIsStale(lead);
+              const name = personName(lead);
+              return (
+                <div key={lead.id} className="group flex flex-wrap items-center gap-3 px-3.5 py-2.5 transition-colors hover:bg-[var(--bg-hover)]">
                   <button
                     type="button"
-                    onClick={() => lead.converted_deal_id && navigate(`/deals/${lead.converted_deal_id}`)}
-                    disabled={!lead.converted_deal_id}
-                    className="inline-flex flex-shrink-0 items-center gap-1 text-body font-medium text-[var(--indigo)] hover:underline disabled:text-[var(--text-muted)] disabled:no-underline"
+                    onClick={() => (lead.contact_id ? openPeek('contact', lead.contact_id) : undefined)}
+                    className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
                   >
-                    {lead.converted_deal_id ? <>Open the deal <ArrowRight className="h-3.5 w-3.5" /></> : 'Deal deleted'}
+                    <Avatar name={name} email={lead.contact?.email} size="md" />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <span className="truncate text-body font-medium text-[var(--text-primary)]">{lead.title}</span>
+                        {lead.label && (
+                          <span className={cn('rounded-full px-1.5 py-0.5 text-micro font-bold uppercase', LABEL_TONE[lead.label])}>
+                            {lead.label}
+                          </span>
+                        )}
+                        {stale && (
+                          <span
+                            title={`Open for more than ${LEAD_STALE_DAYS} days — somebody answered and nobody answered back`}
+                            className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-micro font-bold uppercase text-amber-700 dark:text-amber-400"
+                          >
+                            <Clock className="h-2.5 w-2.5" /> waiting
+                          </span>
+                        )}
+                      </span>
+                      <span className="flex flex-wrap items-center gap-x-2 text-caption text-[var(--text-tertiary)]">
+                        <span className="truncate">{name}</span>
+                        {lead.contact?.job_title && (
+                          <span className="inline-flex items-center gap-1 truncate">
+                            <Briefcase className="h-2.5 w-2.5 flex-shrink-0" />{lead.contact.job_title}
+                          </span>
+                        )}
+                        {lead.source && <span className="truncate">via {lead.source}</span>}
+                        <span>{ageLabel(lead.created_at)}</span>
+                      </span>
+                    </span>
                   </button>
-                ) : (
-                  <div className="flex flex-shrink-0 items-center gap-1">
-                    {lead.archived_reason && (
-                      <span className="text-caption text-[var(--text-tertiary)]">{lead.archived_reason}</span>
-                    )}
+
+                  {lead.value != null && (
+                    <span className="flex-shrink-0 text-body font-semibold tabular-nums text-[var(--text-primary)]">
+                      {money(lead.value, lead.currency)}
+                    </span>
+                  )}
+
+                  {lead.status === 'open' ? (
+                    <div className="flex flex-shrink-0 items-center gap-1">
+                      <div className="hidden items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 sm:flex">
+                        {DEAL_LABELS.map((l) => (
+                          <button
+                            key={l.id}
+                            type="button"
+                            onClick={() => setLabel.mutate({ id: lead.id, label: lead.label === l.id ? null : l.id })}
+                            title={`Mark ${l.label.toLowerCase()}`}
+                            className={cn(
+                              'rounded-md px-1.5 py-0.5 text-micro font-semibold transition-colors',
+                              lead.label === l.id ? LABEL_TONE[l.id] : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]',
+                            )}
+                          >
+                            {l.label}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setArchiving(lead)}
+                        title="Drop this lead"
+                        className="icon-btn h-7 w-7 hover:text-amber-600"
+                      >
+                        <Archive className="h-3.5 w-3.5" />
+                      </button>
+                      <Button variant="primary" onClick={() => setConverting(lead)}>
+                        Qualify <ArrowRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : lead.status === 'converted' ? (
                     <button
                       type="button"
-                      onClick={() => reopen.mutate(lead.id)}
-                      title="Put it back in the inbox"
-                      className="icon-btn h-7 w-7"
+                      onClick={() => lead.converted_deal_id && navigate(`/deals/${lead.converted_deal_id}`)}
+                      disabled={!lead.converted_deal_id}
+                      className="inline-flex flex-shrink-0 items-center gap-1 text-body font-medium text-[var(--indigo)] hover:underline disabled:text-[var(--text-muted)] disabled:no-underline"
                     >
-                      <RotateCcw className="h-3.5 w-3.5" />
+                      {lead.converted_deal_id ? <>Open the deal <ArrowRight className="h-3.5 w-3.5" /></> : 'Deal deleted'}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => gone.remove(
-                        lead.id, 'Lead deleted', () => remove.mutateAsync(lead.id),
+                  ) : (
+                    <div className="flex flex-shrink-0 items-center gap-1">
+                      {lead.archived_reason && (
+                        <span className="text-caption text-[var(--text-tertiary)]">{lead.archived_reason}</span>
                       )}
-                      title="Delete permanently"
-                      className="icon-btn h-7 w-7 hover:text-rose-500"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+                      <button
+                        type="button"
+                        onClick={() => reopen.mutate(lead.id)}
+                        title="Put it back in the inbox"
+                        className="icon-btn h-7 w-7"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => gone.remove(
+                          lead.id, 'Lead deleted', () => remove.mutateAsync(lead.id),
+                        )}
+                        title="Delete permanently"
+                        className="icon-btn h-7 w-7 hover:text-rose-500"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Refreshing>
 
       {converting && <ConvertDialog lead={converting} onClose={() => setConverting(null)} />}
       {archiving && <ArchiveDialog lead={archiving} onClose={() => setArchiving(null)} />}

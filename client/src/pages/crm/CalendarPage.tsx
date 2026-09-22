@@ -18,6 +18,8 @@ import { durationMinutes, resolveEnd } from '@lemlist/shared';
 import { calendarApi } from '../../api/calendar.api';
 import { TimeGrid, type GridEvent } from '../../components/calendar/TimeGrid';
 import { EventTypeBar } from '../../components/calendar/EventTypeBar';
+import { keepPrevious } from '../../lib/listQuery';
+import { Refreshing } from '../../components/ui/Refreshing';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Calendar.
@@ -134,9 +136,10 @@ export function CalendarPage() {
     return { from: from.toISOString(), to: to.toISOString() };
   }, [anchor]);
 
-  const { data: events = [] } = useQuery({
+  const { data: events = [], isPlaceholderData: stale } = useQuery({
     queryKey: ['crm', 'events', range.from, range.to],
     queryFn: () => crmApi.listEvents(range),
+    ...keepPrevious,
   });
   const { data: tasks = [] } = useQuery({ queryKey: ['crm', 'tasks'], queryFn: () => crmApi.listTasks() });
   const { data: types = [] } = useQuery({ queryKey: ['calendar', 'types'], queryFn: calendarApi.listTypes });
@@ -327,190 +330,192 @@ export function CalendarPage() {
           />
         )}
 
-        {view === 'agenda' ? (
-          <div className="panel overflow-hidden">
-            {agenda.length === 0 ? (
-              <div className="px-4 py-10 text-center">
-                <CalendarDays className="h-6 w-6 mx-auto text-[var(--text-muted)] mb-2" />
-                <p className="text-strong font-medium text-[var(--text-primary)]">Nothing scheduled from here on</p>
-                <p className="text-body text-[var(--text-tertiary)] mt-1">Book a meeting or schedule an activity and it'll appear.</p>
-              </div>
-            ) : (
-              agenda.map((item, i) => {
-                const prev = agenda[i - 1];
-                const newDay = !prev || !sameDay(prev.at, item.at);
-                const isToday = sameDay(item.at, today);
-                const contactId = item.kind === 'event' ? item.event.contact_id : item.task.contact_id;
-                const contactName = item.kind === 'event'
-                  ? (item.event.contact_name || item.event.contact_email)
-                  : item.task.contact_name;
-                const deal = item.kind === 'event' ? item.event.deal : item.task.deal;
-                return (
-                  <div key={`${item.kind}-${item.kind === 'event' ? item.event.id : item.task.id}`}>
-                    {newDay && (
-                      <div className={cn(
-                        'flex items-baseline gap-2 px-4 py-2 border-b border-[var(--border-subtle)]',
-                        isToday ? 'bg-[var(--indigo-subtle)]/40' : 'bg-[var(--bg-elevated)]/50',
-                      )}>
-                        <span className={cn('text-body font-semibold', isToday ? 'text-[var(--indigo)]' : 'text-[var(--text-primary)]')}>
-                          {isToday ? 'Today' : item.at.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
-                        </span>
-                      </div>
-                    )}
-                    <button
-                      onClick={() => openItem(item)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left border-b border-[var(--border-subtle)] last:border-0 hover:bg-[var(--bg-hover)] transition-colors"
-                    >
-                      <span className="w-16 flex-shrink-0 text-caption tabular font-medium text-[var(--text-tertiary)]">
-                        {item.kind === 'event' ? timeOf(item.at, item.event.all_day) : timeOf(item.at)}
-                      </span>
-                      <span className={cn(
-                        'flex h-7 w-7 items-center justify-center rounded-lg flex-shrink-0',
-                        item.kind === 'event'
-                          ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
-                          : TASK_TYPE_TONE[item.task.type] || TASK_TYPE_TONE.todo,
-                      )}>
-                        {item.kind === 'event'
-                          ? (item.event.type === 'call' ? <Phone className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />)
-                          : (() => { const I = TASK_TYPE_ICON[item.task.type] || CheckSquare; return <I className="h-3.5 w-3.5" />; })()}
-                      </span>
-                      <span className="flex-1 min-w-0">
-                        <span className={cn(
-                          'block text-strong font-medium text-[var(--text-primary)] truncate',
-                          item.kind === 'task' && item.task.is_done && 'line-through opacity-60',
+        <Refreshing active={stale}>
+          {view === 'agenda' ? (
+            <div className="panel overflow-hidden">
+              {agenda.length === 0 ? (
+                <div className="px-4 py-10 text-center">
+                  <CalendarDays className="h-6 w-6 mx-auto text-[var(--text-muted)] mb-2" />
+                  <p className="text-strong font-medium text-[var(--text-primary)]">Nothing scheduled from here on</p>
+                  <p className="text-body text-[var(--text-tertiary)] mt-1">Book a meeting or schedule an activity and it'll appear.</p>
+                </div>
+              ) : (
+                agenda.map((item, i) => {
+                  const prev = agenda[i - 1];
+                  const newDay = !prev || !sameDay(prev.at, item.at);
+                  const isToday = sameDay(item.at, today);
+                  const contactId = item.kind === 'event' ? item.event.contact_id : item.task.contact_id;
+                  const contactName = item.kind === 'event'
+                    ? (item.event.contact_name || item.event.contact_email)
+                    : item.task.contact_name;
+                  const deal = item.kind === 'event' ? item.event.deal : item.task.deal;
+                  return (
+                    <div key={`${item.kind}-${item.kind === 'event' ? item.event.id : item.task.id}`}>
+                      {newDay && (
+                        <div className={cn(
+                          'flex items-baseline gap-2 px-4 py-2 border-b border-[var(--border-subtle)]',
+                          isToday ? 'bg-[var(--indigo-subtle)]/40' : 'bg-[var(--bg-elevated)]/50',
                         )}>
-                          {item.kind === 'event' ? item.event.title : item.task.title}
-                        </span>
-                        <span className="flex items-center gap-2 mt-0.5 text-caption text-[var(--text-tertiary)]">
-                          {item.kind === 'event' && item.event.location && (
-                            <span className="inline-flex items-center gap-1 truncate"><MapPin className="h-3 w-3" />{item.event.location}</span>
-                          )}
-                          {contactName && (
-                            <span className="inline-flex items-center gap-1 truncate"><User className="h-3 w-3" />{contactName}</span>
-                          )}
-                          {deal && (
-                            <span className="inline-flex items-center gap-1 truncate"><Handshake className="h-3 w-3" />{deal.title}</span>
-                          )}
-                        </span>
-                      </span>
-                      {contactId && (
-                        <Link
-                          to={`/contacts/${contactId}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="hidden sm:inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
-                        >
-                          Profile
-                        </Link>
+                          <span className={cn('text-body font-semibold', isToday ? 'text-[var(--indigo)]' : 'text-[var(--text-primary)]')}>
+                            {isToday ? 'Today' : item.at.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
+                          </span>
+                        </div>
                       )}
-                    </button>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        ) : view === 'week' || view === 'day' ? (
-          /*
-             A real grid, against a clock. What used to be here was the month
-             renderer with taller cells: chips stacked in a column, so a 9am
-             standup and a two-hour workshop looked the same and a clash was
-             invisible. Everything that makes this a calendar rather than a
-             list lives in TimeGrid.
-          */
-          <TimeGrid
-            days={days}
-            events={gridEvents}
-            types={types}
-            now={new Date()}
-            onOpen={(e) => setEventModal({ event: e as unknown as CrmEvent })}
-            onBookAt={(at) => setEventModal({ event: { starts_at: at.toISOString() } as Partial<CrmEvent> })}
-            onMove={(e, start) => {
-              // Length is preserved: dragging a block moves it, it does not
-              // reshape it. Resizing is the handle on its bottom edge.
-              const mins = durationMinutes(e, types.find((t) => t.id === e.event_type_id)?.duration_minutes);
-              moveEvent.mutate({
-                id: e.id,
-                starts_at: start.toISOString(),
-                ends_at: new Date(start.getTime() + mins * 60000).toISOString(),
-              });
-            }}
-            onResize={(e, end) => moveEvent.mutate({ id: e.id, ends_at: end.toISOString() })}
-          />
-        ) : (
-          <div className="panel overflow-hidden">
-            {/* Day-of-week header */}
-            <div className="grid grid-cols-7 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50">
-              {DOW.map((d) => (
-                <div key={d} className="px-2 py-2 text-caption font-semibold text-[var(--text-tertiary)] text-center">{d}</div>
-              ))}
-            </div>
-
-            <div className={cn('grid grid-cols-7', view === 'month' ? 'grid-rows-6' : 'grid-rows-1')}>
-              {days.map((day) => {
-                const items = itemsFor(day);
-                const inMonth = day.getMonth() === anchor.getMonth();
-                const isToday = sameDay(day, today);
-                const dayKey = day.toISOString();
-                const isDropTarget = dropDay === dayKey && !!dragging;
-                return (
-                  <div
-                    key={dayKey}
-                    onDragOver={(e) => { if (dragging) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropDay(dayKey); } }}
-                    onDragLeave={() => setDropDay((k) => (k === dayKey ? null : k))}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      if (dragging) reschedule.mutate({ item: dragging, day });
-                      setDragging(null);
-                      setDropDay(null);
-                    }}
-                    onClick={() => bookAt(day)}
-                    className={cn(
-                      'group relative border-b border-r border-[var(--border-subtle)] p-1.5 cursor-pointer transition-colors',
-                      'min-h-[104px]',
-                      !inMonth && 'bg-[var(--bg-elevated)]/40',
-                      isDropTarget ? 'bg-[var(--indigo-subtle)] ring-1 ring-inset ring-[var(--indigo)]/50' : 'hover:bg-[var(--bg-hover)]',
-                    )}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className={cn(
-                        'inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-caption font-semibold tabular',
-                        isToday ? 'bg-[var(--indigo)] text-white' : inMonth ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]',
-                      )}>
-                        {day.getDate()}
-                      </span>
                       <button
-                        onClick={(e) => { e.stopPropagation(); bookAt(day); }}
-                        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity icon-btn h-5 w-5"
-                        title="Book a meeting on this day"
+                        onClick={() => openItem(item)}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left border-b border-[var(--border-subtle)] last:border-0 hover:bg-[var(--bg-hover)] transition-colors"
                       >
-                        <Plus className="h-3 w-3" />
+                        <span className="w-16 flex-shrink-0 text-caption tabular font-medium text-[var(--text-tertiary)]">
+                          {item.kind === 'event' ? timeOf(item.at, item.event.all_day) : timeOf(item.at)}
+                        </span>
+                        <span className={cn(
+                          'flex h-7 w-7 items-center justify-center rounded-lg flex-shrink-0',
+                          item.kind === 'event'
+                            ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                            : TASK_TYPE_TONE[item.task.type] || TASK_TYPE_TONE.todo,
+                        )}>
+                          {item.kind === 'event'
+                            ? (item.event.type === 'call' ? <Phone className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />)
+                            : (() => { const I = TASK_TYPE_ICON[item.task.type] || CheckSquare; return <I className="h-3.5 w-3.5" />; })()}
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className={cn(
+                            'block text-strong font-medium text-[var(--text-primary)] truncate',
+                            item.kind === 'task' && item.task.is_done && 'line-through opacity-60',
+                          )}>
+                            {item.kind === 'event' ? item.event.title : item.task.title}
+                          </span>
+                          <span className="flex items-center gap-2 mt-0.5 text-caption text-[var(--text-tertiary)]">
+                            {item.kind === 'event' && item.event.location && (
+                              <span className="inline-flex items-center gap-1 truncate"><MapPin className="h-3 w-3" />{item.event.location}</span>
+                            )}
+                            {contactName && (
+                              <span className="inline-flex items-center gap-1 truncate"><User className="h-3 w-3" />{contactName}</span>
+                            )}
+                            {deal && (
+                              <span className="inline-flex items-center gap-1 truncate"><Handshake className="h-3 w-3" />{deal.title}</span>
+                            )}
+                          </span>
+                        </span>
+                        {contactId && (
+                          <Link
+                            to={`/contacts/${contactId}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hidden sm:inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
+                          >
+                            Profile
+                          </Link>
+                        )}
                       </button>
                     </div>
-
-                    <div className="space-y-1">
-                      {items.slice(0, 3).map((item) => (
-                        <ItemChip
-                          key={`${item.kind}-${item.kind === 'event' ? item.event.id : item.task.id}`}
-                          item={item}
-                          compact
-                          onOpen={() => openItem(item)}
-                          onDragStart={() => setDragging(item)}
-                        />
-                      ))}
-                      {items.length > 3 && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setAnchor(startOfDay(day)); setView('week'); }}
-                          className="w-full text-left px-1.5 text-micro font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] transition-colors"
-                        >
-                          +{items.length - 3} more
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
-          </div>
-        )}
+          ) : view === 'week' || view === 'day' ? (
+            /*
+               A real grid, against a clock. What used to be here was the month
+               renderer with taller cells: chips stacked in a column, so a 9am
+               standup and a two-hour workshop looked the same and a clash was
+               invisible. Everything that makes this a calendar rather than a
+               list lives in TimeGrid.
+            */
+            <TimeGrid
+              days={days}
+              events={gridEvents}
+              types={types}
+              now={new Date()}
+              onOpen={(e) => setEventModal({ event: e as unknown as CrmEvent })}
+              onBookAt={(at) => setEventModal({ event: { starts_at: at.toISOString() } as Partial<CrmEvent> })}
+              onMove={(e, start) => {
+                // Length is preserved: dragging a block moves it, it does not
+                // reshape it. Resizing is the handle on its bottom edge.
+                const mins = durationMinutes(e, types.find((t) => t.id === e.event_type_id)?.duration_minutes);
+                moveEvent.mutate({
+                  id: e.id,
+                  starts_at: start.toISOString(),
+                  ends_at: new Date(start.getTime() + mins * 60000).toISOString(),
+                });
+              }}
+              onResize={(e, end) => moveEvent.mutate({ id: e.id, ends_at: end.toISOString() })}
+            />
+          ) : (
+            <div className="panel overflow-hidden">
+              {/* Day-of-week header */}
+              <div className="grid grid-cols-7 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50">
+                {DOW.map((d) => (
+                  <div key={d} className="px-2 py-2 text-caption font-semibold text-[var(--text-tertiary)] text-center">{d}</div>
+                ))}
+              </div>
+
+              <div className={cn('grid grid-cols-7', view === 'month' ? 'grid-rows-6' : 'grid-rows-1')}>
+                {days.map((day) => {
+                  const items = itemsFor(day);
+                  const inMonth = day.getMonth() === anchor.getMonth();
+                  const isToday = sameDay(day, today);
+                  const dayKey = day.toISOString();
+                  const isDropTarget = dropDay === dayKey && !!dragging;
+                  return (
+                    <div
+                      key={dayKey}
+                      onDragOver={(e) => { if (dragging) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropDay(dayKey); } }}
+                      onDragLeave={() => setDropDay((k) => (k === dayKey ? null : k))}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (dragging) reschedule.mutate({ item: dragging, day });
+                        setDragging(null);
+                        setDropDay(null);
+                      }}
+                      onClick={() => bookAt(day)}
+                      className={cn(
+                        'group relative border-b border-r border-[var(--border-subtle)] p-1.5 cursor-pointer transition-colors',
+                        'min-h-[104px]',
+                        !inMonth && 'bg-[var(--bg-elevated)]/40',
+                        isDropTarget ? 'bg-[var(--indigo-subtle)] ring-1 ring-inset ring-[var(--indigo)]/50' : 'hover:bg-[var(--bg-hover)]',
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={cn(
+                          'inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-caption font-semibold tabular',
+                          isToday ? 'bg-[var(--indigo)] text-white' : inMonth ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]',
+                        )}>
+                          {day.getDate()}
+                        </span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); bookAt(day); }}
+                          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity icon-btn h-5 w-5"
+                          title="Book a meeting on this day"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-1">
+                        {items.slice(0, 3).map((item) => (
+                          <ItemChip
+                            key={`${item.kind}-${item.kind === 'event' ? item.event.id : item.task.id}`}
+                            item={item}
+                            compact
+                            onOpen={() => openItem(item)}
+                            onDragStart={() => setDragging(item)}
+                          />
+                        ))}
+                        {items.length > 3 && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setAnchor(startOfDay(day)); setView('week'); }}
+                            className="w-full text-left px-1.5 text-micro font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] transition-colors"
+                          >
+                            +{items.length - 3} more
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </Refreshing>
 
         <p className="flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
           <Clock className="h-3 w-3" />

@@ -13,6 +13,8 @@ import {
   Briefcase, Building2, Crown, Mail, Plus, Search, Star, Trash2, UserPlus, X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { keepPrevious } from '../../lib/listQuery';
+import { Refreshing } from '../ui/Refreshing';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Everybody on the deal.
@@ -80,10 +82,11 @@ function AddParticipant({
     return () => clearTimeout(t);
   }, [query]);
 
-  const { data: results, isFetching } = useQuery({
+  const { data: results, isFetching, isPlaceholderData: stale } = useQuery({
     queryKey: ['crm', 'participant-search', debounced],
     queryFn: () => contactsApi.list({ search: debounced, limit: 8 }),
     enabled: debounced.length >= MIN_SEARCH_LENGTH,
+    ...keepPrevious,
   });
 
   const add = useMutation({
@@ -134,36 +137,38 @@ function AddParticipant({
         ))}
       </div>
 
-      {debounced.length < MIN_SEARCH_LENGTH ? (
-        <p className="px-1 py-1 text-caption text-[var(--text-muted)]">
-          Type at least two characters. Pick a role first and it is applied to whoever you add.
-        </p>
-      ) : options.length === 0 ? (
-        <p className="px-1 py-1 text-caption text-[var(--text-muted)]">
-          {isFetching ? 'Searching…' : 'Nobody new matches that. Everyone already on the deal is hidden.'}
-        </p>
-      ) : (
-        <div className="-mx-1 max-h-56 overflow-y-auto">
-          {options.map((c: any) => (
-            <button
-              key={c.id}
-              type="button"
-              disabled={add.isPending}
-              onClick={() => add.mutate(c.id)}
-              className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-[var(--bg-surface)]"
-            >
-              <Avatar name={fullName(c)} email={c.email} size="sm" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-body font-medium text-[var(--text-primary)]">{fullName(c)}</span>
-                <span className="block truncate text-micro text-[var(--text-tertiary)]">
-                  {c.email}{c.job_title ? ` · ${c.job_title}` : ''}
+      <Refreshing active={stale}>
+        {debounced.length < MIN_SEARCH_LENGTH ? (
+          <p className="px-1 py-1 text-caption text-[var(--text-muted)]">
+            Type at least {MIN_SEARCH_LENGTH} characters. Pick a role first and it is applied to whoever you add.
+          </p>
+        ) : options.length === 0 ? (
+          <p className="px-1 py-1 text-caption text-[var(--text-muted)]">
+            {isFetching ? 'Searching…' : 'Nobody new matches that. Everyone already on the deal is hidden.'}
+          </p>
+        ) : (
+          <div className="-mx-1 max-h-56 overflow-y-auto">
+            {options.map((c: any) => (
+              <button
+                key={c.id}
+                type="button"
+                disabled={add.isPending}
+                onClick={() => add.mutate(c.id)}
+                className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-[var(--bg-surface)]"
+              >
+                <Avatar name={fullName(c)} email={c.email} size="sm" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-body font-medium text-[var(--text-primary)]">{fullName(c)}</span>
+                  <span className="block truncate text-micro text-[var(--text-tertiary)]">
+                    {c.email}{c.job_title ? ` · ${c.job_title}` : ''}
+                  </span>
                 </span>
-              </span>
-              <Plus className="h-3.5 w-3.5 flex-shrink-0 text-[var(--indigo)]" />
-            </button>
-          ))}
-        </div>
-      )}
+                <Plus className="h-3.5 w-3.5 flex-shrink-0 text-[var(--indigo)]" />
+              </button>
+            ))}
+          </div>
+        )}
+      </Refreshing>
     </div>
   );
 }

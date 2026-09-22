@@ -9,6 +9,8 @@ import type { DealStage } from '@lemlist/shared';
 import { crmApi } from '../../api/crm.api';
 import { Spinner } from '../../components/ui/Spinner';
 import { cn } from '../../lib/utils';
+import { keepPrevious } from '../../lib/listQuery';
+import { Refreshing } from '../../components/ui/Refreshing';
 import {
   ArrowLeft, BarChart3, Clock, ThumbsDown, ThumbsUp, TrendingUp, Trophy,
 } from 'lucide-react';
@@ -85,9 +87,10 @@ function Bar({ won, lost }: { won: number; lost: number }) {
 export function DealInsightsPage() {
   const [days, setDays] = useState(180);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, isPlaceholderData: stale } = useQuery({
     queryKey: ['crm', 'insights', days],
     queryFn: () => crmApi.insights(days),
+    ...keepPrevious,
   });
 
   const analysis = useMemo(() => {
@@ -175,230 +178,232 @@ export function DealInsightsPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="flex items-center justify-center py-24"><Spinner size="md" /></div>
-      ) : isError || !analysis ? (
-        <div className="panel py-16 text-center">
-          <p className="text-strong font-medium text-[var(--text-primary)]">Could not load the analysis</p>
-          <p className="mt-1 text-body text-[var(--text-tertiary)]">The request failed. It is worth trying again.</p>
-        </div>
-      ) : analysis.closedCount === 0 ? (
-        <div className="panel py-16 text-center">
-          <Trophy className="mx-auto mb-3 h-8 w-8 text-[var(--text-muted)]" />
-          <p className="text-heading font-semibold text-[var(--text-primary)]">Nothing has closed in this window</p>
-          <p className="mx-auto mt-1 max-w-md text-body leading-relaxed text-[var(--text-tertiary)]">
-            Every stage change is being recorded from now on. Once deals start closing, this page will show
-            where they die, what it costs, and which sources are actually worth working.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {/* Headline */}
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3">
-              <p className="text-caption font-medium text-[var(--text-tertiary)]">Win rate</p>
-              <p className="mt-1 text-display font-semibold leading-none tabular-nums text-[var(--text-primary)]">
-                {analysis.winRate}%
-              </p>
-              <p className="mt-1.5 text-caption text-[var(--text-muted)]">
-                {analysis.wonCount} of {analysis.closedCount} closed
-              </p>
-            </div>
-            <div className="rounded-xl border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-3.5 py-3">
-              <p className="text-caption font-medium text-[var(--text-tertiary)]">Won</p>
-              <p className="mt-1 text-display font-semibold leading-none tabular-nums text-[var(--indigo)]">
-                {money(analysis.wonValue)}
-              </p>
-              <p className="mt-1.5 text-caption text-[var(--text-muted)]">
-                {analysis.wonArr > 0 ? `${money(analysis.wonArr)} new ARR` : 'total contract value'}
-              </p>
-            </div>
-            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3">
-              <p className="text-caption font-medium text-[var(--text-tertiary)]">Lost</p>
-              <p className="mt-1 text-display font-semibold leading-none tabular-nums text-[var(--text-primary)]">
-                {money(analysis.lostValue)}
-              </p>
-              <p className="mt-1.5 text-caption text-[var(--text-muted)]">
-                {analysis.closedCount - analysis.wonCount} deals
-              </p>
-            </div>
-            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3">
-              <p className="text-caption font-medium text-[var(--text-tertiary)]">Sales cycle</p>
-              <p className="mt-1 text-display font-semibold leading-none tabular-nums text-[var(--text-primary)]">
-                {analysis.medianCycle === null ? '—' : `${analysis.medianCycle}d`}
-              </p>
-              <p className="mt-1.5 text-caption text-[var(--text-muted)]">median, won deals</p>
-            </div>
+      <Refreshing active={stale}>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-24"><Spinner size="md" /></div>
+        ) : isError || !analysis ? (
+          <div className="panel py-16 text-center">
+            <p className="text-strong font-medium text-[var(--text-primary)]">Could not load the analysis</p>
+            <p className="mt-1 text-body text-[var(--text-tertiary)]">The request failed. It is worth trying again.</p>
           </div>
-
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {/* Where deals die */}
-            <Panel
-              title="Where deals die"
-              hint="The stage a deal was in when it closed. This is the one thing you can act on."
-              icon={ThumbsDown}
-            >
-              {analysis.stages.every((r) => r.won + r.lost === 0) ? (
-                <Empty>
-                  Nothing closed in this window has a recorded prior stage yet. Deals that closed before
-                  stage history existed are left out rather than guessed at.
-                </Empty>
-              ) : (
-                <div className="space-y-3">
-                  {analysis.stages.map((row) => {
-                    const closed = row.won + row.lost;
-                    return (
-                      <div key={row.stage}>
-                        <div className="mb-1 flex items-baseline justify-between gap-2">
-                          <span className="text-body font-medium text-[var(--text-primary)]">
-                            {stageLabel(row.stage)}
-                          </span>
-                          <span className="text-caption tabular-nums text-[var(--text-tertiary)]">
-                            {closed === 0 ? 'nothing closed here' : (
-                              <>
-                                <span className="font-semibold text-[var(--text-primary)]">{row.winRate}%</span>
-                                {' won · '}{row.won}/{closed}
-                              </>
-                            )}
-                          </span>
-                        </div>
-                        <Bar won={row.won} lost={row.lost} />
-                        {row.lostValue > 0 && (
-                          <p className="mt-1 text-micro text-[var(--text-muted)]">
-                            {money(row.lostValue)} lost from here
-                            {row.wonValue > 0 && ` · ${money(row.wonValue)} won`}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </Panel>
-
-            {/* How long each stage takes */}
-            <Panel
-              title="How long each stage takes"
-              hint="Median days, over deals that have actually left the stage. A deal still sitting in it has not told you yet."
-              icon={Clock}
-            >
-              {OPEN_STAGES.every((s) => analysis.stageDays[s] === undefined) ? (
-                <Empty>No deal has completed a stage in this window yet.</Empty>
-              ) : (
-                <div className="space-y-2.5">
-                  {OPEN_STAGES.map((stage) => {
-                    const d = analysis.stageDays[stage];
-                    const longest = Math.max(...OPEN_STAGES.map((s) => analysis.stageDays[s] ?? 0), 1);
-                    return (
-                      <div key={stage}>
-                        <div className="mb-1 flex items-baseline justify-between gap-2">
-                          <span className="text-body font-medium text-[var(--text-primary)]">{stageLabel(stage)}</span>
-                          <span className="text-caption tabular-nums text-[var(--text-tertiary)]">
-                            {d === undefined ? '—' : `${d} days`}
-                          </span>
-                        </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
-                          <div
-                            className="h-full rounded-full bg-[var(--indigo)]"
-                            style={{ width: `${((d ?? 0) / longest) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </Panel>
-
-            {/* Why we lose */}
-            <Panel
-              title="Why deals are lost"
-              hint="Ranked by how often, with what it cost. Closes with no reason recorded are left out rather than counted as blank."
-              icon={ThumbsDown}
-            >
-              {analysis.lostReasons.length === 0 ? (
-                <Empty>No reasons recorded yet. They are asked for whenever a deal is marked lost.</Empty>
-              ) : (
-                <div className="space-y-1.5">
-                  {analysis.lostReasons.map((r) => (
-                    <div key={r.reason} className="flex items-baseline gap-2">
-                      <span className="min-w-0 flex-1 truncate text-body text-[var(--text-primary)]">{r.reason}</span>
-                      <span className="flex-shrink-0 text-caption tabular-nums text-[var(--text-tertiary)]">
-                        {r.count}× · {money(r.value)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Panel>
-
-            {/* Why we win */}
-            <Panel
-              title="Why deals are won"
-              hint="The other half. Worth reading next to the losses — the same reason often appears in both."
-              icon={ThumbsUp}
-            >
-              {analysis.wonReasons.length === 0 ? (
-                <Empty>No reasons recorded yet.</Empty>
-              ) : (
-                <div className="space-y-1.5">
-                  {analysis.wonReasons.map((r) => (
-                    <div key={r.reason} className="flex items-baseline gap-2">
-                      <span className="min-w-0 flex-1 truncate text-body text-[var(--text-primary)]">{r.reason}</span>
-                      <span className="flex-shrink-0 text-caption tabular-nums text-[var(--text-tertiary)]">
-                        {r.count}× · {money(r.value)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Panel>
+        ) : analysis.closedCount === 0 ? (
+          <div className="panel py-16 text-center">
+            <Trophy className="mx-auto mb-3 h-8 w-8 text-[var(--text-muted)]" />
+            <p className="text-heading font-semibold text-[var(--text-primary)]">Nothing has closed in this window</p>
+            <p className="mx-auto mt-1 max-w-md text-body leading-relaxed text-[var(--text-tertiary)]">
+              Every stage change is being recorded from now on. Once deals start closing, this page will show
+              where they die, what it costs, and which sources are actually worth working.
+            </p>
           </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Headline */}
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3">
+                <p className="text-caption font-medium text-[var(--text-tertiary)]">Win rate</p>
+                <p className="mt-1 text-display font-semibold leading-none tabular-nums text-[var(--text-primary)]">
+                  {analysis.winRate}%
+                </p>
+                <p className="mt-1.5 text-caption text-[var(--text-muted)]">
+                  {analysis.wonCount} of {analysis.closedCount} closed
+                </p>
+              </div>
+              <div className="rounded-xl border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-3.5 py-3">
+                <p className="text-caption font-medium text-[var(--text-tertiary)]">Won</p>
+                <p className="mt-1 text-display font-semibold leading-none tabular-nums text-[var(--indigo)]">
+                  {money(analysis.wonValue)}
+                </p>
+                <p className="mt-1.5 text-caption text-[var(--text-muted)]">
+                  {analysis.wonArr > 0 ? `${money(analysis.wonArr)} new ARR` : 'total contract value'}
+                </p>
+              </div>
+              <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3">
+                <p className="text-caption font-medium text-[var(--text-tertiary)]">Lost</p>
+                <p className="mt-1 text-display font-semibold leading-none tabular-nums text-[var(--text-primary)]">
+                  {money(analysis.lostValue)}
+                </p>
+                <p className="mt-1.5 text-caption text-[var(--text-muted)]">
+                  {analysis.closedCount - analysis.wonCount} deals
+                </p>
+              </div>
+              <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3">
+                <p className="text-caption font-medium text-[var(--text-tertiary)]">Sales cycle</p>
+                <p className="mt-1 text-display font-semibold leading-none tabular-nums text-[var(--text-primary)]">
+                  {analysis.medianCycle === null ? '—' : `${analysis.medianCycle}d`}
+                </p>
+                <p className="mt-1.5 text-caption text-[var(--text-muted)]">median, won deals</p>
+              </div>
+            </div>
 
-          {/* Sources */}
-          <Panel
-            title="Which sources are worth working"
-            hint="Volume is misleading on its own: the channel that produces the most deals is regularly the one that produces the least revenue."
-            icon={TrendingUp}
-          >
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[520px] border-collapse">
-                <thead>
-                  <tr className="border-b border-[var(--border-subtle)]">
-                    <th className="px-2 py-1.5 text-left text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Source</th>
-                    <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Open</th>
-                    <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Won</th>
-                    <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Lost</th>
-                    <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Win rate</th>
-                    <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Won value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {analysis.sources.map((row) => (
-                    <tr key={row.source} className="border-b border-[var(--border-subtle)] last:border-0">
-                      <td className="px-2 py-2 text-body font-medium text-[var(--text-primary)]">{row.source}</td>
-                      <td className="px-2 py-2 text-right text-body tabular-nums text-[var(--text-tertiary)]">{row.open}</td>
-                      <td className="px-2 py-2 text-right text-body tabular-nums text-emerald-600 dark:text-emerald-400">{row.won}</td>
-                      <td className="px-2 py-2 text-right text-body tabular-nums text-rose-500">{row.lost}</td>
-                      <td className="px-2 py-2 text-right text-body font-medium tabular-nums text-[var(--text-primary)]">
-                        {row.winRate === null ? '—' : `${row.winRate}%`}
-                      </td>
-                      <td className="px-2 py-2 text-right text-body font-semibold tabular-nums text-[var(--text-primary)]">
-                        {money(row.wonValue)}
-                        {row.wonArr > 0 && (
-                          <span className="ml-1 text-micro font-normal text-[var(--indigo)]">
-                            {money(row.wonArr)} ARR
-                          </span>
-                        )}
-                      </td>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {/* Where deals die */}
+              <Panel
+                title="Where deals die"
+                hint="The stage a deal was in when it closed. This is the one thing you can act on."
+                icon={ThumbsDown}
+              >
+                {analysis.stages.every((r) => r.won + r.lost === 0) ? (
+                  <Empty>
+                    Nothing closed in this window has a recorded prior stage yet. Deals that closed before
+                    stage history existed are left out rather than guessed at.
+                  </Empty>
+                ) : (
+                  <div className="space-y-3">
+                    {analysis.stages.map((row) => {
+                      const closed = row.won + row.lost;
+                      return (
+                        <div key={row.stage}>
+                          <div className="mb-1 flex items-baseline justify-between gap-2">
+                            <span className="text-body font-medium text-[var(--text-primary)]">
+                              {stageLabel(row.stage)}
+                            </span>
+                            <span className="text-caption tabular-nums text-[var(--text-tertiary)]">
+                              {closed === 0 ? 'nothing closed here' : (
+                                <>
+                                  <span className="font-semibold text-[var(--text-primary)]">{row.winRate}%</span>
+                                  {' won · '}{row.won}/{closed}
+                                </>
+                              )}
+                            </span>
+                          </div>
+                          <Bar won={row.won} lost={row.lost} />
+                          {row.lostValue > 0 && (
+                            <p className="mt-1 text-micro text-[var(--text-muted)]">
+                              {money(row.lostValue)} lost from here
+                              {row.wonValue > 0 && ` · ${money(row.wonValue)} won`}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Panel>
+
+              {/* How long each stage takes */}
+              <Panel
+                title="How long each stage takes"
+                hint="Median days, over deals that have actually left the stage. A deal still sitting in it has not told you yet."
+                icon={Clock}
+              >
+                {OPEN_STAGES.every((s) => analysis.stageDays[s] === undefined) ? (
+                  <Empty>No deal has completed a stage in this window yet.</Empty>
+                ) : (
+                  <div className="space-y-2.5">
+                    {OPEN_STAGES.map((stage) => {
+                      const d = analysis.stageDays[stage];
+                      const longest = Math.max(...OPEN_STAGES.map((s) => analysis.stageDays[s] ?? 0), 1);
+                      return (
+                        <div key={stage}>
+                          <div className="mb-1 flex items-baseline justify-between gap-2">
+                            <span className="text-body font-medium text-[var(--text-primary)]">{stageLabel(stage)}</span>
+                            <span className="text-caption tabular-nums text-[var(--text-tertiary)]">
+                              {d === undefined ? '—' : `${d} days`}
+                            </span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
+                            <div
+                              className="h-full rounded-full bg-[var(--indigo)]"
+                              style={{ width: `${((d ?? 0) / longest) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Panel>
+
+              {/* Why we lose */}
+              <Panel
+                title="Why deals are lost"
+                hint="Ranked by how often, with what it cost. Closes with no reason recorded are left out rather than counted as blank."
+                icon={ThumbsDown}
+              >
+                {analysis.lostReasons.length === 0 ? (
+                  <Empty>No reasons recorded yet. They are asked for whenever a deal is marked lost.</Empty>
+                ) : (
+                  <div className="space-y-1.5">
+                    {analysis.lostReasons.map((r) => (
+                      <div key={r.reason} className="flex items-baseline gap-2">
+                        <span className="min-w-0 flex-1 truncate text-body text-[var(--text-primary)]">{r.reason}</span>
+                        <span className="flex-shrink-0 text-caption tabular-nums text-[var(--text-tertiary)]">
+                          {r.count}× · {money(r.value)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Panel>
+
+              {/* Why we win */}
+              <Panel
+                title="Why deals are won"
+                hint="The other half. Worth reading next to the losses — the same reason often appears in both."
+                icon={ThumbsUp}
+              >
+                {analysis.wonReasons.length === 0 ? (
+                  <Empty>No reasons recorded yet.</Empty>
+                ) : (
+                  <div className="space-y-1.5">
+                    {analysis.wonReasons.map((r) => (
+                      <div key={r.reason} className="flex items-baseline gap-2">
+                        <span className="min-w-0 flex-1 truncate text-body text-[var(--text-primary)]">{r.reason}</span>
+                        <span className="flex-shrink-0 text-caption tabular-nums text-[var(--text-tertiary)]">
+                          {r.count}× · {money(r.value)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Panel>
+            </div>
+
+            {/* Sources */}
+            <Panel
+              title="Which sources are worth working"
+              hint="Volume is misleading on its own: the channel that produces the most deals is regularly the one that produces the least revenue."
+              icon={TrendingUp}
+            >
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[520px] border-collapse">
+                  <thead>
+                    <tr className="border-b border-[var(--border-subtle)]">
+                      <th className="px-2 py-1.5 text-left text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Source</th>
+                      <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Open</th>
+                      <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Won</th>
+                      <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Lost</th>
+                      <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Win rate</th>
+                      <th className="px-2 py-1.5 text-right text-micro font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Won value</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Panel>
-        </div>
-      )}
+                  </thead>
+                  <tbody>
+                    {analysis.sources.map((row) => (
+                      <tr key={row.source} className="border-b border-[var(--border-subtle)] last:border-0">
+                        <td className="px-2 py-2 text-body font-medium text-[var(--text-primary)]">{row.source}</td>
+                        <td className="px-2 py-2 text-right text-body tabular-nums text-[var(--text-tertiary)]">{row.open}</td>
+                        <td className="px-2 py-2 text-right text-body tabular-nums text-emerald-600 dark:text-emerald-400">{row.won}</td>
+                        <td className="px-2 py-2 text-right text-body tabular-nums text-rose-500">{row.lost}</td>
+                        <td className="px-2 py-2 text-right text-body font-medium tabular-nums text-[var(--text-primary)]">
+                          {row.winRate === null ? '—' : `${row.winRate}%`}
+                        </td>
+                        <td className="px-2 py-2 text-right text-body font-semibold tabular-nums text-[var(--text-primary)]">
+                          {money(row.wonValue)}
+                          {row.wonArr > 0 && (
+                            <span className="ml-1 text-micro font-normal text-[var(--indigo)]">
+                              {money(row.wonArr)} ARR
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
+          </div>
+        )}
+      </Refreshing>
     </div>
   );
 }

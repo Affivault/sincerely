@@ -16,6 +16,8 @@ import type {
   CrmTask, CrmEvent, TaskType, TaskPriority, EventType, ContactWithTags,
 } from '@lemlist/shared';
 import { TASK_TYPES, PLACEHOLDER, MIN_SEARCH_LENGTH } from '@lemlist/shared';
+import { keepPrevious } from '../../lib/listQuery';
+import { Refreshing } from '../ui/Refreshing';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Shared CRM building blocks.
@@ -137,10 +139,11 @@ export function ContactPicker({
     return () => clearTimeout(t);
   }, [typed]);
 
-  const { data: results } = useQuery({
+  const { data: results, isPlaceholderData: stale } = useQuery({
     queryKey: ['crm', 'contact-search', debounced],
     queryFn: () => contactsApi.list({ search: debounced, limit: 6 }),
     enabled: !contactId && debounced.length >= MIN_SEARCH_LENGTH,
+    ...keepPrevious,
   });
 
   if (contactId) {
@@ -174,28 +177,30 @@ export function ContactPicker({
         placeholder="Search contacts or type a name…"
         autoComplete="off"
       />
-      {open && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] overflow-hidden">
-          {options.map((c) => {
-            const full = [c.first_name, c.last_name].filter(Boolean).join(' ');
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); onLink(c); }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-              >
-                <Avatar name={full || c.email} email={c.email} size="md" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-body font-medium text-[var(--text-primary)] truncate">{full || c.email}</p>
-                  <p className="text-caption text-[var(--text-tertiary)] truncate">{c.email}{c.company ? ` · ${c.company}` : ''}</p>
-                </div>
-                <Link2 className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <Refreshing active={stale}>
+        {open && (
+          <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] overflow-hidden">
+            {options.map((c) => {
+              const full = [c.first_name, c.last_name].filter(Boolean).join(' ');
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); onLink(c); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                >
+                  <Avatar name={full || c.email} email={c.email} size="md" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-body font-medium text-[var(--text-primary)] truncate">{full || c.email}</p>
+                    <p className="text-caption text-[var(--text-tertiary)] truncate">{c.email}{c.company ? ` · ${c.company}` : ''}</p>
+                  </div>
+                  <Link2 className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </Refreshing>
       <p className="mt-1 text-caption text-[var(--text-tertiary)]">Link a contact and this shows on their profile.</p>
     </div>
   );
