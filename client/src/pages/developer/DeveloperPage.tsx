@@ -322,7 +322,7 @@ export function DeveloperPage() {
             <p className="text-body text-[var(--text-secondary)]">Receive real-time notifications when events happen in Sincerely.</p>
             <button
               onClick={() => setShowCreateWebhook(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:opacity-90 transition-all shadow-[0_1px_3px_rgba(99,102,241,0.4)]"
+              className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:opacity-90 transition-all shadow-[var(--glow-indigo)]"
             >
               <Plus className="h-3.5 w-3.5" />
               Add Webhook
@@ -397,7 +397,7 @@ export function DeveloperPage() {
               <button
                 onClick={() => createEndpointMutation.mutate()}
                 disabled={!webhookUrl || webhookEvents.length === 0 || createEndpointMutation.isPending}
-                className="flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-strong font-medium text-white disabled:opacity-50 hover:bg-[#4F46E5] transition-colors"
+                className="flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-strong font-medium text-white disabled:opacity-50 hover:bg-[var(--indigo-hover)] transition-colors"
               >
                 <Plus className="h-4 w-4" />
                 Create Webhook
@@ -429,7 +429,7 @@ export function DeveloperPage() {
                         {lastDelivery && (
                           <span
                             className={cn(
-                              'inline-flex items-center gap-1 h-[18px] px-1.5 rounded-[4px] text-micro font-medium',
+                              'inline-flex items-center gap-1 h-[18px] px-1.5 rounded text-micro font-medium',
                               lastDelivery.success ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
                             )}
                             title={`Last delivery ${formatDateTime(lastDelivery.created_at)} · ${lastDelivery.status_code ?? 'no response'}`}
@@ -522,7 +522,7 @@ export function DeveloperPage() {
               <button
                 onClick={connectExtension}
                 disabled={connectingExtension}
-                className="flex-shrink-0 flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-strong font-medium text-white disabled:opacity-50 hover:bg-[#4F46E5] transition-colors"
+                className="flex-shrink-0 flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-strong font-medium text-white disabled:opacity-50 hover:bg-[var(--indigo-hover)] transition-colors"
               >
                 <Key className="h-4 w-4" />
                 {connectingExtension ? 'Connecting…' : extensionConnected ? 'Reconnect' : 'Connect extension'}
@@ -542,7 +542,7 @@ export function DeveloperPage() {
               </button>
             <button
               onClick={() => setShowCreateKey(true)}
-              className="flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-strong font-medium text-white hover:bg-[#4F46E5] transition-colors"
+              className="flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-strong font-medium text-white hover:bg-[var(--indigo-hover)] transition-colors"
             >
               <Plus className="h-4 w-4" />
               Create Key
@@ -689,7 +689,7 @@ export function DeveloperPage() {
               <button
                 onClick={() => createKeyMutation.mutate()}
                 disabled={!keyName || createKeyMutation.isPending}
-                className="flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-strong font-medium text-white disabled:opacity-50 hover:bg-[#4F46E5] transition-colors"
+                className="flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-strong font-medium text-white disabled:opacity-50 hover:bg-[var(--indigo-hover)] transition-colors"
               >
                 <Key className="h-4 w-4" />
                 Generate Key

@@ -119,7 +119,7 @@ export function DealFilters({
     <div className="mb-3 flex flex-wrap items-center gap-2">
       {/* The named slices. Counted, and hidden when empty — a chip reading
           "Stalled 0" is an invitation to press something that does nothing. */}
-      <div className="inline-flex items-center gap-1 rounded-[9px] bg-[var(--bg-elevated)] p-0.5">
+      <div className="inline-flex items-center gap-1 rounded-lg bg-[var(--bg-elevated)] p-0.5">
         {focuses.map((focus) => {
           const count = focusCount(deals, focus);
           if (count === 0 && focus !== 'open' && focus !== 'all' && filters.focus !== focus) return null;
@@ -130,7 +130,7 @@ export function DealFilters({
               type="button"
               onClick={() => onChange({ ...filters, focus })}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-body font-medium transition-colors',
+                'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-body font-medium transition-colors',
                 on
                   ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
                   : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
@@ -183,7 +183,7 @@ export function DealFilters({
 
       <span className="flex-1" />
 
-      <div className="inline-flex items-center gap-0.5 rounded-[9px] bg-[var(--bg-elevated)] p-0.5">
+      <div className="inline-flex items-center gap-0.5 rounded-lg bg-[var(--bg-elevated)] p-0.5">
         {([['board', KanbanSquare, 'Board'], ['table', Rows3, 'Table']] as const).map(([id, Icon, label]) => (
           <button
             key={id}
@@ -192,7 +192,7 @@ export function DealFilters({
             title={label}
             aria-pressed={view === id}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-body font-medium transition-colors',
+              'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-body font-medium transition-colors',
               view === id
                 ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
                 : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',

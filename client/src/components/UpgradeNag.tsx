@@ -148,7 +148,7 @@ export function UpgradeNag() {
           </div>
           <button
             onClick={() => { setReason(undefined); setOpen(true); }}
-            className="flex-shrink-0 inline-flex items-center gap-1 rounded-lg bg-white/95 px-3 py-1.5 text-body font-semibold text-[#5B5BF5] hover:bg-white transition-colors"
+            className="flex-shrink-0 inline-flex items-center gap-1 rounded-lg bg-white/95 px-3 py-1.5 text-body font-semibold text-[var(--indigo)] hover:bg-white transition-colors"
           >
             Upgrade <ArrowRight className="h-3.5 w-3.5" />
           </button>
@@ -166,7 +166,7 @@ export function UpgradeNag() {
             aria-modal="true"
             aria-label="Upgrade your plan"
             tabIndex={-1}
-            className="relative w-full max-w-[620px] rounded-[14px] border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-xl)] overflow-hidden"
+            className="relative w-full max-w-[620px] rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-xl)] overflow-hidden"
             style={{ animation: 'cmdkIn 200ms var(--ease-out) both' }}
           >
             {/* Brand hairline */}

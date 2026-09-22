@@ -193,7 +193,7 @@ function TemplateListRow({ title, snippet, category, isPreset, meta, active, onC
     <button
       onClick={onClick}
       className={cn(
-        'w-full text-left px-3 py-2.5 rounded-[9px] border transition-colors',
+        'w-full text-left px-3 py-2.5 rounded-lg border transition-colors',
         active
           ? 'bg-[var(--bg-surface)] border-[var(--border-subtle)] shadow-[0_1px_2px_rgba(27,27,31,0.05)]'
           : 'border-transparent hover:bg-[var(--bg-hover)]'
@@ -679,7 +679,7 @@ function SequenceDetailBody({ template }: { template: SequenceTemplate }) {
               <button
                 onClick={() => setActiveStep(i)}
                 className={cn(
-                  'w-full flex items-center gap-2.5 px-3 py-2 rounded-[9px] text-left border transition-colors',
+                  'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left border transition-colors',
                   idx === i
                     ? 'bg-[var(--bg-surface)] border-[var(--border-subtle)] shadow-[0_1px_2px_rgba(27,27,31,0.05)]'
                     : 'border-transparent hover:bg-[var(--bg-hover)]'
@@ -891,7 +891,7 @@ export function TemplatesPage() {
         {/* ── Library rail ── */}
         <aside className="w-[300px] flex-shrink-0 space-y-3">
           {/* Type tabs */}
-          <div className="flex items-center p-0.5 rounded-[9px] bg-[var(--bg-elevated)]">
+          <div className="flex items-center p-0.5 rounded-lg bg-[var(--bg-elevated)]">
             {([
               { key: 'emails' as const, label: 'Emails', icon: Mail, count: emailTemplates?.length ?? 0 },
               { key: 'sequences' as const, label: 'Sequences', icon: Layers, count: sequenceTemplates?.length ?? 0 },
@@ -900,7 +900,7 @@ export function TemplatesPage() {
                 key={t.key}
                 onClick={() => { setTab(t.key); setSelectedId(null); }}
                 className={cn(
-                  'flex-1 flex items-center justify-center gap-1.5 h-8 rounded-[7px] text-body font-medium transition-all',
+                  'flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg text-body font-medium transition-all',
                   tab === t.key
                     ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
                     : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'

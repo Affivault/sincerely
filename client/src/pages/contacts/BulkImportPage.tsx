@@ -382,7 +382,7 @@ export function BulkImportPage() {
                   className={cn(
                     'flex h-6 w-6 items-center justify-center rounded-full transition-all',
                     done && 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
-                    current && 'bg-[var(--indigo)] text-white shadow-[0_1px_3px_rgba(91,91,245,0.5)]',
+                    current && 'bg-[var(--indigo)] text-white shadow-[var(--glow-indigo)]',
                     !done && !current && 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
                   )}
                 >
@@ -412,7 +412,7 @@ export function BulkImportPage() {
 
       {/* ── Hero ────────────────────────────────────────────────── */}
       <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo)] shadow-[0_1px_3px_rgba(91,91,245,0.4)]">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo)] shadow-[var(--glow-indigo)]">
           <Upload className="h-4 w-4 text-white" />
         </span>
         <div>
@@ -440,8 +440,8 @@ export function BulkImportPage() {
             className={cn(
               'relative flex flex-col items-center justify-center min-h-[280px] rounded-2xl border-2 border-dashed cursor-pointer transition-all p-8 text-center',
               isDragging
-                ? 'border-[var(--indigo)] bg-[#5B5BF5]/5 scale-[1.005]'
-                : 'border-[var(--border-default)] bg-[var(--bg-surface)] hover:border-[#5B5BF5]/40 hover:bg-[var(--bg-hover)]'
+                ? 'border-[var(--indigo)] bg-[var(--indigo)]/5 scale-[1.005]'
+                : 'border-[var(--border-default)] bg-[var(--bg-surface)] hover:border-[var(--indigo)]/40 hover:bg-[var(--bg-hover)]'
             )}
           >
             <input
@@ -454,7 +454,7 @@ export function BulkImportPage() {
               'flex h-14 w-14 items-center justify-center rounded-2xl mb-4 transition-all',
               isDragging
                 ? 'bg-[var(--indigo)] text-white scale-110'
-                : 'bg-[#5B5BF5]/10 text-[var(--indigo)]'
+                : 'bg-[var(--indigo)]/10 text-[var(--indigo)]'
             )}>
               <Upload className="h-6 w-6" strokeWidth={1.5} />
             </span>
@@ -513,7 +513,7 @@ export function BulkImportPage() {
         <div className="space-y-4">
           {/* File info bar */}
           <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#5B5BF5]/10 text-[var(--indigo)] flex-shrink-0">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--indigo)]/10 text-[var(--indigo)] flex-shrink-0">
               <FileText className="h-4 w-4" />
             </span>
             <div className="flex-1 min-w-0">
@@ -566,7 +566,7 @@ export function BulkImportPage() {
                           'flex-1 h-8 px-2.5 rounded-md border bg-[var(--bg-elevated)] text-body text-[var(--text-primary)] outline-none transition-all',
                           isDuplicate ? 'border-rose-500/50 focus:ring-2 focus:ring-rose-500/20'
                             : isEmail   ? 'border-emerald-500/40 focus:ring-2 focus:ring-emerald-500/20'
-                                        : 'border-[var(--border-subtle)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15'
+                                        : 'border-[var(--border-subtle)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15'
                         )}
                       >
                         {DB_FIELDS.map((f) => (
@@ -574,13 +574,13 @@ export function BulkImportPage() {
                         ))}
                       </select>
                       {isEmail && (
-                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-micro font-bold flex-shrink-0">
+                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-micro font-bold flex-shrink-0">
                           <MailCheck className="h-2.5 w-2.5" />
                           KEY
                         </span>
                       )}
                       {isDuplicate && (
-                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] bg-rose-500/10 text-rose-700 dark:text-rose-400 text-micro font-bold flex-shrink-0">
+                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded bg-rose-500/10 text-rose-700 dark:text-rose-400 text-micro font-bold flex-shrink-0">
                           DUP
                         </span>
                       )}
@@ -594,7 +594,7 @@ export function BulkImportPage() {
           {/* List assignment */}
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
             <div className="flex items-start gap-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#5B5BF5]/10 text-[var(--indigo)] flex-shrink-0 mt-0.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--indigo)]/10 text-[var(--indigo)] flex-shrink-0 mt-0.5">
                 <FolderOpen className="h-4 w-4" />
               </span>
               <div className="flex-1 min-w-0">
@@ -639,7 +639,7 @@ export function BulkImportPage() {
                     <select
                       value={targetListId}
                       onChange={(e) => setTargetListId(e.target.value)}
-                      className="w-full h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-strong text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 transition-all"
+                      className="w-full h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-strong text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15 transition-all"
                     >
                       <option value="">Choose a list…</option>
                       {(lists || []).map((l) => (
@@ -657,7 +657,7 @@ export function BulkImportPage() {
                       placeholder="e.g. Q3 UK brokers"
                       maxLength={80}
                       className={cn(
-                        'w-full h-9 px-3 rounded-lg border bg-[var(--bg-elevated)] text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none transition-all focus:ring-2 focus:ring-[#5B5BF5]/15',
+                        'w-full h-9 px-3 rounded-lg border bg-[var(--bg-elevated)] text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none transition-all focus:ring-2 focus:ring-[var(--indigo)]/15',
                         duplicateListName ? 'border-amber-500/50 focus:border-amber-500' : 'border-[var(--border-subtle)] focus:border-[var(--indigo)]'
                       )}
                     />
@@ -723,7 +723,7 @@ export function BulkImportPage() {
                 [!listChoiceValid, 'Choose a list, name a new one, or switch to "No list"'],
               ]), startImport)}
               className={cn(
-                'inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[#4F46E5] transition-all shadow-[0_1px_3px_rgba(91,91,245,0.4)]',
+                'inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[var(--indigo-hover)] transition-all shadow-[var(--glow-indigo)]',
                 (!mappingValid || importableCount === 0 || !listChoiceValid) && BLOCKED_CLASS,
               )}
             >
@@ -949,7 +949,7 @@ export function BulkImportPage() {
             </button>
             <button
               onClick={() => navigate(targetListId ? `/contacts?list=${targetListId}` : '/contacts')}
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[#4F46E5] transition-all shadow-[0_1px_3px_rgba(91,91,245,0.4)]"
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[var(--indigo-hover)] transition-all shadow-[var(--glow-indigo)]"
             >
               View contacts
               <ArrowRight className="h-3.5 w-3.5" />

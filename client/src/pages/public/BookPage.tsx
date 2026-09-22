@@ -316,7 +316,7 @@ export function BookPage() {
                 className="flex items-start gap-1.5 rounded-md border border-[var(--red-border,rgba(239,68,68,0.3))] bg-[rgba(239,68,68,0.08)] px-2.5 py-2 text-body text-[var(--text-primary)]"
                 data-error
               >
-                <AlertCircle className="h-3.5 w-3.5 mt-[1px] flex-shrink-0 text-[#ef4444]" />
+                <AlertCircle className="h-3.5 w-3.5 mt-[1px] flex-shrink-0 text-[var(--error)]" />
                 {(booking.error as any)?.response?.data?.error
                   || 'That did not go through. Try again in a moment.'}
               </p>
@@ -464,7 +464,7 @@ function Field({ label, hint, required, children }: {
   return (
     <label className="block">
       <span className="text-body font-medium text-[var(--text-primary)]">
-        {label}{required && <span className="text-[#ef4444]"> *</span>}
+        {label}{required && <span className="text-[var(--error)]"> *</span>}
       </span>
       {hint && <span className="block text-caption text-[var(--text-tertiary)]">{hint}</span>}
       <div className="mt-1">{children}</div>

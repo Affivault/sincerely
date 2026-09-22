@@ -47,7 +47,7 @@ function relTime(iso?: string): string {
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-[4px] border border-[var(--border-default)] bg-[var(--bg-surface)] text-micro font-mono font-semibold text-[var(--text-secondary)] shadow-[inset_0_-1px_0_var(--border-subtle)]">
+    <kbd className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded border border-[var(--border-default)] bg-[var(--bg-surface)] text-micro font-mono font-semibold text-[var(--text-secondary)] shadow-[inset_0_-1px_0_var(--border-subtle)]">
       {children}
     </kbd>
   );
@@ -271,7 +271,7 @@ export function SaraQueuePage() {
             >
               {tab.label}
               {tab.value === 'pending_review' && stats?.pending_review ? (
-                <span className="inline-flex items-center justify-center h-[16px] min-w-[16px] px-1 rounded-[4px] bg-amber-500/20 text-amber-700 dark:text-amber-400 text-micro font-bold">
+                <span className="inline-flex items-center justify-center h-[16px] min-w-[16px] px-1 rounded bg-amber-500/20 text-amber-700 dark:text-amber-400 text-micro font-bold">
                   {stats.pending_review}
                 </span>
               ) : null}
@@ -352,7 +352,7 @@ export function SaraQueuePage() {
                       onClick={() => { setSelectedId(msg.id); setIsEditing(false); }}
                       className={cn(
                         'w-full text-left relative px-3 py-2.5 border-b border-[var(--border-subtle)] hover:bg-[var(--bg-hover)] transition-colors',
-                        isSelected && 'bg-[#5B5BF5]/5'
+                        isSelected && 'bg-[var(--indigo)]/5'
                       )}
                     >
                       {isSelected && (
@@ -374,7 +374,7 @@ export function SaraQueuePage() {
                           </p>
                           <div className="flex items-center gap-1.5 mt-1.5">
                             <span className={cn(
-                              'inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-semibold',
+                              'inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-semibold',
                               'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
                             )}>
                               <IntentIcon className="h-2.5 w-2.5" />
@@ -389,7 +389,7 @@ export function SaraQueuePage() {
                               </span>
                             )}
                             {autoHandled && (
-                              <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-semibold bg-[#5B5BF5]/8 text-[var(--indigo)]" title="Handled automatically by SARA — no human review">
+                              <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-semibold bg-[var(--indigo)]/8 text-[var(--indigo)]" title="Handled automatically by SARA — no human review">
                                 <Bot className="h-2.5 w-2.5" />
                                 Auto
                               </span>
@@ -447,8 +447,8 @@ export function SaraQueuePage() {
                       </div>
                       <div className="flex flex-col items-end gap-1 flex-shrink-0">
                         <span className={cn(
-                          'inline-flex items-center gap-1 px-1.5 h-[20px] rounded-[5px] text-micro font-semibold',
-                          'bg-[#5B5BF5]/8 text-[var(--indigo)]'
+                          'inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-micro font-semibold',
+                          'bg-[var(--indigo)]/8 text-[var(--indigo)]'
                         )}>
                           <IntentIcon className="h-2.5 w-2.5" />
                           {intentConfig.label}
@@ -459,7 +459,7 @@ export function SaraQueuePage() {
                           </span>
                         )}
                         {autoHandled && (
-                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-semibold bg-[#5B5BF5]/8 text-[var(--indigo)]" title="SARA acted on this automatically based on your auto-execute settings">
+                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-semibold bg-[var(--indigo)]/8 text-[var(--indigo)]" title="SARA acted on this automatically based on your auto-execute settings">
                             <Bot className="h-2.5 w-2.5" />
                             Auto-handled
                           </span>
@@ -482,7 +482,7 @@ export function SaraQueuePage() {
 
                         {/* SARA draft */}
                         {msg.sara_draft_reply && (
-                          <div className="rounded-xl border border-[#5B5BF5]/20 bg-[var(--indigo-subtle)] p-3.5">
+                          <div className="rounded-xl border border-[var(--indigo)]/20 bg-[var(--indigo-subtle)] p-3.5">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-1.5">
                                 <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--indigo)]">
@@ -504,7 +504,7 @@ export function SaraQueuePage() {
                                 onChange={(e) => setEditedReply(e.target.value)}
                                 rows={8}
                                 autoFocus
-                                className="w-full rounded-lg border border-[#5B5BF5]/30 bg-[var(--bg-surface)] px-3 py-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 outline-none resize-y"
+                                className="w-full rounded-lg border border-[var(--indigo)]/30 bg-[var(--bg-surface)] px-3 py-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15 outline-none resize-y"
                               />
                             ) : (
                               <div className="text-strong text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">

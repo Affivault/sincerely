@@ -156,7 +156,7 @@ function ProbeRow({ probe }: { probe: PlacementProbe }) {
         </span>
       )}
 
-      <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-micro font-semibold', chip.className)}>
+      <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-micro font-semibold', chip.className)}>
         <Icon className={cn('h-3 w-3', probe.placement === 'pending' && 'animate-spin')} />
         {chip.label}
       </span>
@@ -419,7 +419,7 @@ function SeedPanel({ seeds }: { seeds: PlacementSeed[] }) {
                 * Said here rather than discovered there.
                 */}
               {!seed.readable && (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-[5px] bg-amber-500/10 px-1.5 py-0.5 text-micro font-semibold text-amber-600 dark:text-amber-400">
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-micro font-semibold text-amber-600 dark:text-amber-400">
                   <AlertTriangle className="h-3 w-3" /> No IMAP — cannot be read
                 </span>
               )}

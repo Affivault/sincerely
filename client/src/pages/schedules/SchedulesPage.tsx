@@ -174,7 +174,7 @@ function ScheduleCard({ schedule, now, onEdit, onDelete, onMakeDefault }: {
           <div className="flex items-center gap-2 mb-2">
             <h3 className="text-heading font-semibold text-[var(--text-primary)] tracking-[-0.005em]">{schedule.name}</h3>
             {schedule.is_default && (
-              <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-medium bg-[var(--indigo-subtle)] text-[var(--indigo)]">
+              <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-medium bg-[var(--indigo-subtle)] text-[var(--indigo)]">
                 <Star className="h-2.5 w-2.5 fill-current" /> Default
               </span>
             )}
@@ -182,7 +182,7 @@ function ScheduleCard({ schedule, now, onEdit, onDelete, onMakeDefault }: {
               <span
                 title={active ? 'Within this schedule’s send window right now' : 'Outside this schedule’s send window right now'}
                 className={cn(
-                  'inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-medium',
+                  'inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-medium',
                   active ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]',
                 )}
               >
@@ -277,7 +277,7 @@ function ScheduleEditor({ initial, onCancel, onSave, loading }: {
   };
 
   return (
-    <div className="bg-[var(--bg-surface)] border-2 border-[#6366F1]/30 rounded-xl p-4">
+    <div className="bg-[var(--bg-surface)] border-2 border-[var(--indigo)]/30 rounded-xl p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold text-[var(--text-primary)]">{initial ? 'Edit schedule' : 'New schedule'}</h3>
         <button onClick={onCancel} className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)]">

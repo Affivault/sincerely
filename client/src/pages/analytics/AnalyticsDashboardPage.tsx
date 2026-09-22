@@ -236,7 +236,7 @@ function HeatmapGrid({ grid, maxValue }: { grid: HeatmapDay[]; maxValue: number 
                 return (
                   <div
                     key={h}
-                    className="w-[22px] h-[22px] rounded-[3px] flex-shrink-0 transition-colors"
+                    className="w-[22px] h-[22px] rounded flex-shrink-0 transition-colors"
                     style={{
                       backgroundColor: intensity > 0
                         ? `rgba(99, 102, 241, ${Math.min(1, intensity * 1.2).toFixed(2)})`
@@ -1198,7 +1198,7 @@ export function AnalyticsDashboardPage() {
             <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
               <div>
                 <h3 className="text-strong font-semibold text-[var(--text-primary)] flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-[5px] bg-[var(--indigo-subtle)]">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--indigo-subtle)]">
                     <Activity className="h-3 w-3 text-[var(--indigo)]" />
                   </span>
                   Deliverability Health

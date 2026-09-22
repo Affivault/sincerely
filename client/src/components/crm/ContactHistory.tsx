@@ -139,7 +139,7 @@ function QuickActivity({ contactId, contactName, onDone, onDetail }: {
         <button
           onClick={() => title.trim() && create.mutate()}
           disabled={!title.trim() || create.isPending}
-          className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold disabled:opacity-40 hover:bg-[#4F46E5] transition-colors"
+          className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold disabled:opacity-40 hover:bg-[var(--indigo-hover)] transition-colors"
         >
           <CheckSquare className="h-3.5 w-3.5" /> {create.isPending ? 'Saving…' : 'Schedule'}
         </button>
@@ -218,7 +218,7 @@ function QuickMeeting({ contactId, contactName, contactEmail, onDone, onDetail }
         <button
           onClick={() => create.mutate()}
           disabled={create.isPending}
-          className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold disabled:opacity-40 hover:bg-[#4F46E5] transition-colors"
+          className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold disabled:opacity-40 hover:bg-[var(--indigo-hover)] transition-colors"
         >
           <CalendarPlus className="h-3.5 w-3.5" /> {create.isPending ? 'Saving…' : 'Book'}
         </button>
@@ -486,14 +486,14 @@ export function ContactHistory({
                 }}
                 rows={2}
                 placeholder={`Log a note about ${contactName || contactEmail}… (⌘↵ to save)`}
-                className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-all"
+                className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:shadow-[var(--ring-focus)] transition-all"
               />
               <div className="flex items-center mt-2">
                 <span className="flex-1" />
                 <button
                   onClick={() => noteDraft.trim() && addNote.mutate(noteDraft.trim())}
                   disabled={!noteDraft.trim() || addNote.isPending}
-                  className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#4F46E5] transition-colors"
+                  className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--indigo-hover)] transition-colors"
                 >
                   <StickyNote className="h-3.5 w-3.5" /> {addNote.isPending ? 'Saving…' : 'Save note'}
                 </button>

@@ -47,7 +47,7 @@ export function SetupNudge({ collapsed }: { collapsed: boolean }) {
       <Link
         to={nudge.step.href}
         title={`${nudge.position} — ${nudge.step.label}`}
-        className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-[9px] border border-[var(--indigo)]/30 bg-[var(--indigo-subtle)] text-micro font-bold tabular-nums text-[var(--indigo)] transition-colors hover:bg-[var(--indigo-subtle)]/80"
+        className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--indigo)]/30 bg-[var(--indigo-subtle)] text-micro font-bold tabular-nums text-[var(--indigo)] transition-colors hover:bg-[var(--indigo-subtle)]/80"
         data-setup-nudge
       >
         {nudge.done_count}/{nudge.total}
@@ -58,7 +58,7 @@ export function SetupNudge({ collapsed }: { collapsed: boolean }) {
   return (
     <Link
       to={nudge.step.href}
-      className="group mx-2.5 mb-2 block rounded-[10px] border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)]/60 p-2.5 transition-colors hover:bg-[var(--indigo-subtle)]"
+      className="group mx-2.5 mb-2 block rounded-xl border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)]/60 p-2.5 transition-colors hover:bg-[var(--indigo-subtle)]"
       data-setup-nudge
     >
       <div className="flex items-baseline justify-between gap-2">

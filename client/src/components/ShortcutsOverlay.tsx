@@ -101,7 +101,7 @@ export function ShortcutsOverlay({ open, onClose }: ShortcutsOverlayProps) {
         aria-modal="true"
         aria-label="Keyboard shortcuts"
         tabIndex={-1}
-        className="relative w-full max-w-[480px] glass rounded-[16px] shadow-[var(--shadow-xl)] overflow-hidden"
+        className="relative w-full max-w-[480px] glass rounded-2xl shadow-[var(--shadow-xl)] overflow-hidden"
         style={{ animation: 'cmdkIn 200ms var(--ease-out) both' }}
       >
         {/* Header */}

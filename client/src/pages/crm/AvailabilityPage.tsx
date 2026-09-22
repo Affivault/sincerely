@@ -70,7 +70,7 @@ function Heading({ connected }: { connected?: boolean }) {
     <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
       <h3 className="flex items-center gap-1.5 text-strong font-semibold text-[var(--text-primary)]" data-heading>
         {connected
-          ? <Check className="h-3.5 w-3.5 text-[#10b981]" />
+          ? <Check className="h-3.5 w-3.5 text-[var(--success)]" />
           : <RefreshCw className="h-3.5 w-3.5 text-[var(--indigo)]" />}
         {connected ? 'Calendar connected' : 'Connect your calendar'}
       </h3>
@@ -146,7 +146,7 @@ function ExternalCalendars() {
       <section className="panel overflow-hidden" data-connections>
         <Heading />
         <div className="px-4 py-3">
-          <p className="flex items-start gap-1.5 text-body text-[#ef4444]" data-load-error>
+          <p className="flex items-start gap-1.5 text-body text-[var(--error)]" data-load-error>
             <AlertTriangle className="mt-[1px] h-3.5 w-3.5 flex-shrink-0" />
             {(loadError as any)?.response?.data?.error
               || 'Could not read your calendar connections.'}
@@ -197,21 +197,21 @@ function ExternalCalendars() {
               <div className="flex items-center gap-2">
                 <span className={cn(
                   'h-1.5 w-1.5 flex-shrink-0 rounded-full',
-                  c.broken_at ? 'bg-[#ef4444]' : 'bg-[#10b981]',
+                  c.broken_at ? 'bg-[var(--error)]' : 'bg-[var(--success)]',
                 )} />
                 <span className="min-w-0 flex-1 truncate text-body text-[var(--text-primary)]">
                   {c.account_email || 'Google Calendar'}
                 </span>
                 <button
                   onClick={() => drop.mutate(c.id)}
-                  className="text-caption text-[var(--text-tertiary)] hover:text-[#ef4444]"
+                  className="text-caption text-[var(--text-tertiary)] hover:text-[var(--error)]"
                 >
                   Disconnect
                 </button>
               </div>
 
               {c.broken_at ? (
-                <p className="mt-1.5 flex items-start gap-1.5 text-caption text-[#ef4444]" data-broken>
+                <p className="mt-1.5 flex items-start gap-1.5 text-caption text-[var(--error)]" data-broken>
                   <AlertTriangle className="mt-[1px] h-3 w-3 flex-shrink-0" />
                   {c.broken_reason || 'Reconnect needed.'}
                   <button

@@ -117,7 +117,7 @@ export function BookingLinksPage() {
           className="mb-3 flex items-start gap-2 rounded-lg border border-[rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.08)] px-3 py-2.5"
           data-no-mailbox
         >
-          <AlertTriangle className="mt-[1px] h-3.5 w-3.5 flex-shrink-0 text-[#f59e0b]" />
+          <AlertTriangle className="mt-[1px] h-3.5 w-3.5 flex-shrink-0 text-[var(--warning)]" />
           <p className="text-body text-[var(--text-primary)]">
             No mailbox connected, so nobody gets a confirmation.{' '}
             <span className="text-[var(--text-secondary)]">
@@ -343,7 +343,7 @@ function Bookings({ linkId }: { linkId: string }) {
           <div key={b.id} className="flex items-center gap-2 text-body">
             <span className={cn(
               'h-1.5 w-1.5 flex-shrink-0 rounded-full',
-              off ? 'bg-[var(--text-tertiary)]' : past ? 'bg-[var(--border-strong,#a1a1aa)]' : 'bg-[#10b981]',
+              off ? 'bg-[var(--text-tertiary)]' : past ? 'bg-[var(--border-strong,#a1a1aa)]' : 'bg-[var(--success)]',
             )} />
             <span className={cn(
               'min-w-0 flex-1 truncate',
@@ -602,7 +602,7 @@ function Editor({ link, types, onClose, onArchive }: {
               type="button"
               onClick={() => onArchive(link.id)}
               title="Remove this link"
-              className="btn-secondary text-[#ef4444]"
+              className="btn-secondary text-[var(--error)]"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>

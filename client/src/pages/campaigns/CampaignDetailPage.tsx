@@ -722,7 +722,7 @@ function SequenceStepCard({ step, index, ab }: {
                 <span
                   title={ab?.detail}
                   className={cn(
-                    'inline-flex shrink-0 items-center px-1.5 h-[18px] rounded-[4px] text-micro font-semibold',
+                    'inline-flex shrink-0 items-center px-1.5 h-[18px] rounded text-micro font-semibold',
                     ab?.tone === 'ready'
                       ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                       : 'bg-[rgba(99,102,241,0.08)] text-[var(--indigo)]',
@@ -798,7 +798,7 @@ function SequenceStepCard({ step, index, ab }: {
         )}
 
         {step.skip_if_replied && (
-          <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-micro font-semibold bg-[var(--bg-elevated)] text-[var(--text-secondary)] ml-auto flex-shrink-0">Skip if replied</span>
+          <span className="inline-flex items-center px-1.5 h-[18px] rounded text-micro font-semibold bg-[var(--bg-elevated)] text-[var(--text-secondary)] ml-auto flex-shrink-0">Skip if replied</span>
         )}
       </div>
     </div>

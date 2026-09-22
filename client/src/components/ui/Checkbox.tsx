@@ -35,7 +35,7 @@ export function Checkbox({
       onClick={(e) => { e.stopPropagation(); if (!disabled) onChange(!checked); }}
       {...aria}
       className={cn(
-        'relative inline-flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[5px] border transition-all duration-150 ease-out',
+        'relative inline-flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-md border transition-all duration-150 ease-out',
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--indigo)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)]',
         on
           ? 'border-[var(--indigo)] bg-[var(--indigo)] shadow-[0_1px_2px_rgba(67,56,202,0.35)]'

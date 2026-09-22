@@ -578,7 +578,7 @@ function AiAssistBar({ messageId, onInsert }: { messageId: string; onInsert: (ht
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] hover:bg-[#6366F1]/5 transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] hover:bg-[var(--indigo)]/5 transition-colors"
       >
         <Wand2 className="h-3.5 w-3.5" />
         AI Assist
@@ -705,7 +705,7 @@ function CustomCalendar({ selected, onSelect }: { selected: Date | null; onSelec
                 isSelected
                   ? 'bg-[var(--indigo)] text-[var(--bg-app)] font-semibold shadow-sm'
                   : isToday
-                    ? 'font-semibold text-[var(--indigo)] hover:bg-[#6366F1]/10'
+                    ? 'font-semibold text-[var(--indigo)] hover:bg-[var(--indigo)]/10'
                     : !cell.current
                       ? 'text-[var(--text-muted)]'
                       : disabled
@@ -905,7 +905,7 @@ function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string
             </button>
           )}
           {view === 'presets' && (
-            <div className="w-7 h-7 rounded-lg bg-[#6366F1]/10 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-[var(--indigo)]/10 flex items-center justify-center">
               <CalendarClock className="h-3.5 w-3.5 text-[var(--indigo)]" />
             </div>
           )}
@@ -932,7 +932,7 @@ function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string
                   onClick={() => onSchedule(p.date.toISOString())}
                   className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--bg-hover)] active:bg-[var(--bg-active)] transition-colors flex items-center gap-3 group"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)] group-hover:bg-[#6366F1]/10 flex items-center justify-center transition-colors border border-[var(--border-subtle)] group-hover:border-[#6366F1]/20">
+                  <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)] group-hover:bg-[var(--indigo)]/10 flex items-center justify-center transition-colors border border-[var(--border-subtle)] group-hover:border-[var(--indigo)]/20">
                     <Icon className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[var(--indigo)] transition-colors" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -950,7 +950,7 @@ function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string
               onClick={() => setView('calendar')}
               className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--bg-hover)] active:bg-[var(--bg-active)] transition-colors flex items-center gap-3 group"
             >
-              <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)] group-hover:bg-[#6366F1]/10 flex items-center justify-center transition-colors border border-[var(--border-subtle)] group-hover:border-[#6366F1]/20">
+              <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)] group-hover:bg-[var(--indigo)]/10 flex items-center justify-center transition-colors border border-[var(--border-subtle)] group-hover:border-[var(--indigo)]/20">
                 <Calendar className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[var(--indigo)] transition-colors" />
               </div>
               <div className="flex-1">
@@ -1842,7 +1842,7 @@ function ScheduledEmailsPanel({ onCancel, onReschedule }: {
         <div className="flex items-center gap-2 mb-4">
           <Clock className="h-5 w-5 text-[var(--indigo)]" />
           <h2 className="text-title font-semibold text-[var(--text-primary)]">Scheduled Emails</h2>
-          <span className="text-body font-medium px-2 py-0.5 rounded-full bg-[#6366F1]/10 text-[var(--indigo)]">{emails.length}</span>
+          <span className="text-body font-medium px-2 py-0.5 rounded-full bg-[var(--indigo)]/10 text-[var(--indigo)]">{emails.length}</span>
         </div>
         {emails.map((email: any) => {
           const scheduledDate = new Date(email.scheduled_at);
@@ -1854,14 +1854,14 @@ function ScheduledEmailsPanel({ onCancel, onReschedule }: {
               style={{ boxShadow: 'var(--shadow-card)' }}
             >
               <div className="flex items-start gap-3 p-4">
-                <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-[#6366F1]/10 border border-[#6366F1]/20">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-[var(--indigo)]/10 border border-[var(--indigo)]/20">
                   <Clock className="h-4 w-4 text-[var(--indigo)]" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-strong font-semibold text-[var(--text-primary)]">To: {email.to_email}</span>
                     <span className={`text-micro font-medium px-1.5 py-0.5 rounded-full ${
-                      isPast ? 'bg-amber-500/10 text-amber-500' : 'bg-[#6366F1]/10 text-[var(--indigo)]'
+                      isPast ? 'bg-amber-500/10 text-amber-500' : 'bg-[var(--indigo)]/10 text-[var(--indigo)]'
                     }`}>
                       {isPast ? 'Sending soon...' : 'Scheduled'}
                     </span>
@@ -2024,7 +2024,7 @@ function NavRow({ item, active, collapsed, count, onClick }: {
       onClick={onClick}
       title={collapsed ? item.label : undefined}
       className={cn(
-        'group relative flex items-center w-full rounded-[7px] border transition-colors',
+        'group relative flex items-center w-full rounded-lg border transition-colors',
         collapsed ? 'h-8 justify-center' : 'h-[29px] gap-2.5 px-2',
         active
           ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] border-[var(--border-subtle)] shadow-[0_1px_2px_rgba(27,27,31,0.05)]'
@@ -2891,7 +2891,7 @@ export function InboxPage() {
             <div className="flex items-center gap-2 px-3 h-[50px] border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-shrink-0">
               <button
                 onClick={() => { setSelectedId(null); setReplyMode(null); }}
-                className="flex items-center gap-1.5 h-8 px-2.5 rounded-[8px] text-body font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
+                className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-body font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
               >
                 <ArrowLeft className="h-3.5 w-3.5" /> {foldersList.find(f => f.id === folder)?.label || 'Inbox'}
               </button>
@@ -2906,7 +2906,7 @@ export function InboxPage() {
               <div className="flex-1" />
               <button
                 onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
-                className="flex items-center gap-1.5 h-8 px-3 rounded-[8px] bg-[var(--indigo-subtle)] text-[var(--indigo)] text-body font-semibold hover:bg-[rgba(91,91,245,0.14)] transition-colors"
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo-subtle)] text-[var(--indigo)] text-body font-semibold hover:bg-[rgba(91,91,245,0.14)] transition-colors"
               >
                 <Reply className="h-3.5 w-3.5" /> Reply
               </button>
@@ -3295,7 +3295,7 @@ export function InboxPage() {
                 {tabItem.label}
                 {tabItem.count != null && tabItem.count > 0 && (
                   <span className={cn(
-                    'flex h-[17px] min-w-[17px] items-center justify-center rounded-[5px] px-1 text-micro font-semibold tabular',
+                    'flex h-[17px] min-w-[17px] items-center justify-center rounded-md px-1 text-micro font-semibold tabular',
                     isActive ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
                   )}>{tabItem.count}</span>
                 )}
@@ -3325,7 +3325,7 @@ export function InboxPage() {
                 value={searchInput}
                 onChange={e => setSearchInput(e.target.value)}
                 placeholder="Search…"
-                className="w-[180px] focus:w-[240px] pl-8 pr-7 h-8 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 transition-all"
+                className="w-[180px] focus:w-[240px] pl-8 pr-7 h-8 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15 transition-all"
               />
               {search && (
                 <button type="button" onClick={() => { setSearch(''); setSearchInput(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-[var(--bg-hover)]">

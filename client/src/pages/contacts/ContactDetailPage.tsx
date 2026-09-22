@@ -288,17 +288,17 @@ export function ContactDetailPage() {
               {contact.tags?.map((tag: any) => (
                 <span
                   key={tag.id}
-                  className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-micro font-semibold"
+                  className="inline-flex items-center px-1.5 h-[18px] rounded text-micro font-semibold"
                   style={{ backgroundColor: tag.color + '20', color: tag.color }}
                 >
                   {tag.name}
                 </span>
               ))}
               {contact.is_unsubscribed && (
-                <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-micro font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10">Unsubscribed</span>
+                <span className="inline-flex items-center px-1.5 h-[18px] rounded text-micro font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10">Unsubscribed</span>
               )}
               {contact.is_bounced && (
-                <span className="inline-flex items-center px-1.5 h-[18px] rounded-[4px] text-micro font-semibold text-rose-700 dark:text-rose-400 bg-rose-500/10">Bounced</span>
+                <span className="inline-flex items-center px-1.5 h-[18px] rounded text-micro font-semibold text-rose-700 dark:text-rose-400 bg-rose-500/10">Bounced</span>
               )}
             </div>
           </div>
@@ -404,7 +404,7 @@ export function ContactDetailPage() {
               </span>
             </div>
             <div className={cn(
-              'flex items-start gap-2 rounded-[6px] px-2.5 py-2 text-caption leading-snug',
+              'flex items-start gap-2 rounded-md px-2.5 py-2 text-caption leading-snug',
               coldEmailable
                 ? 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
                 : 'bg-[var(--indigo-subtle)] text-[var(--text-primary)] border border-[var(--indigo)]/20',
@@ -532,7 +532,7 @@ export function ContactDetailPage() {
                 {ls.map((list: any) => (
                   <div
                     key={list.id}
-                    className="flex items-center gap-2 h-8 px-2.5 rounded-[6px] bg-[var(--bg-elevated)] group"
+                    className="flex items-center gap-2 h-8 px-2.5 rounded-md bg-[var(--bg-elevated)] group"
                   >
                     <FolderOpen className="h-3 w-3 text-[var(--text-tertiary)] flex-shrink-0" />
                     <span className="flex-1 text-body font-medium text-[var(--text-primary)] truncate">
@@ -597,7 +597,7 @@ export function ContactDetailPage() {
             {openLead && (
               <Link
                 to="/leads/inbox"
-                className="mb-2 flex items-center gap-2 rounded-[6px] border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-2.5 py-1.5 transition-colors hover:bg-[var(--indigo-subtle)]/70"
+                className="mb-2 flex items-center gap-2 rounded-md border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-2.5 py-1.5 transition-colors hover:bg-[var(--indigo-subtle)]/70"
               >
                 <Sparkles className="h-3 w-3 flex-shrink-0 text-[var(--indigo)]" />
                 <span className="min-w-0 flex-1 truncate text-caption font-medium text-[var(--text-primary)]">
@@ -617,7 +617,7 @@ export function ContactDetailPage() {
                     <Link
                       key={d.id}
                       to={`/deals/${d.id}`}
-                      className="w-full flex items-center gap-2 min-h-9 py-1 px-2.5 rounded-[6px] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] transition-colors text-left"
+                      className="w-full flex items-center gap-2 min-h-9 py-1 px-2.5 rounded-md bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] transition-colors text-left"
                     >
                       <span className={cn('h-2 w-2 rounded-full flex-shrink-0', dot)} />
                       <span className="flex-1 min-w-0">

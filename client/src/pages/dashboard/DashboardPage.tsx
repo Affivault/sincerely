@@ -99,13 +99,13 @@ function Segmented<T extends string | number>({ options, value, onChange, size =
   options: { value: T; label: string }[]; value: T; onChange: (v: T) => void; size?: 'sm' | 'md';
 }) {
   return (
-    <div className="inline-flex items-center p-0.5 rounded-[8px] bg-[var(--bg-elevated)]">
+    <div className="inline-flex items-center p-0.5 rounded-lg bg-[var(--bg-elevated)]">
       {options.map((o) => (
         <button
           key={String(o.value)}
           onClick={() => onChange(o.value)}
           className={cn(
-            'rounded-[6px] font-medium transition-all duration-150',
+            'rounded-md font-medium transition-all duration-150',
             size === 'sm' ? 'h-6 px-2.5 text-body' : 'h-7 px-3 text-body',
             value === o.value
               ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
@@ -157,13 +157,13 @@ function AttentionRow({ icon: Icon, count, label, sub, to, tone = 'default', onD
       onClick={() => navigate(to)}
       className="group w-full flex items-center gap-3 px-4 h-[46px] text-left hover:bg-[var(--bg-hover)] transition-colors"
     >
-      <span className={cn('flex h-6 w-6 items-center justify-center rounded-[6px] flex-shrink-0', iconCls)}>
+      <span className={cn('flex h-6 w-6 items-center justify-center rounded-md flex-shrink-0', iconCls)}>
         <Icon className="h-[13px] w-[13px]" strokeWidth={2} />
       </span>
       <span className="text-strong font-medium text-[var(--text-primary)] flex-shrink-0">{label}</span>
       <span className="text-body text-[var(--text-tertiary)] truncate flex-1 min-w-0">{sub}</span>
       <span className={cn(
-        'flex h-[19px] min-w-[19px] items-center justify-center rounded-[5px] px-1.5 text-caption font-semibold tabular flex-shrink-0',
+        'flex h-[19px] min-w-[19px] items-center justify-center rounded-md px-1.5 text-caption font-semibold tabular flex-shrink-0',
         tone === 'warn' ? 'bg-amber-500/12 text-amber-700 dark:text-amber-400' : 'bg-[var(--bg-active)] text-[var(--text-secondary)]'
       )}>
         {fmtNum(count)}
@@ -253,7 +253,7 @@ function MoreLink({ to, label = 'View all' }: { to: string; label?: string }) {
 function ChartTooltip({ active, payload, label, metricLabel }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-[8px] border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] px-2.5 py-1.5">
+    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] px-2.5 py-1.5">
       <div className="text-caption font-medium text-[var(--text-tertiary)] mb-0.5">{fmtDate(label)}</div>
       <div className="flex items-center gap-2 text-body">
         <span className="text-[var(--text-secondary)]">{metricLabel}</span>
@@ -324,9 +324,9 @@ function Funnel({ sent, opened, clicked, replied }: {
             )}
             <div className="flex items-center gap-3">
               <span className="w-[64px] text-body font-medium text-[var(--text-secondary)] flex-shrink-0 text-right">{st.label}</span>
-              <div className="flex-1 h-6 rounded-[4px] bg-[var(--bg-elevated)] overflow-hidden">
+              <div className="flex-1 h-6 rounded bg-[var(--bg-elevated)] overflow-hidden">
                 <div
-                  className="h-full rounded-[4px] transition-all duration-700"
+                  className="h-full rounded transition-all duration-700"
                   style={{ width: `${widthPct}%`, background: ACCENT, opacity: 1 - i * 0.18 }}
                 />
               </div>
