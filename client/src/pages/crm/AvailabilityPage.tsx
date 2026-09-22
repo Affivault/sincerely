@@ -4,14 +4,16 @@ import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Clock, Plus, X, Loader2, Check, Globe, CalendarCheck,
-  RefreshCw, AlertTriangle,
+  RefreshCw, AlertTriangle, ChevronRight,
 } from 'lucide-react';
 import {
   WEEKDAY_NAMES, SLOT_INTERVALS, minuteLabel, parseMinuteLabel, describeWeek,
-  DEFAULT_SCHEDULING_PREFS, durationLabel,
+  DEFAULT_SCHEDULING_PREFS, durationLabel, firstBlocker,
   type AvailabilityWindow, type SchedulingPrefs, formatTime, formatWeekdayDate } from '@lemlist/shared';
 import { availabilityApi, type AvailabilityResponse } from '../../api/calendar.api';
 import { PageHeader } from '../../components/shared/PageHeader';
+import { WeekPainter, weekProblem } from '../../components/calendar/WeekPainter';
+import { blockedProps, BLOCKED_CLASS } from '../../lib/blockedAction';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import { keepPrevious } from '../../lib/listQuery';
@@ -285,11 +287,19 @@ export function AvailabilityPage() {
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not save that'),
   });
 
+  /*
+   * Each window carries WHERE IT IS IN `windows`, not just its times.
+   *
+   * The typed fields used to identify a window by (weekday, start_minute),
+   * which is only unique until somebody types a start that another window
+   * on the same day already has - and from that keystroke on, editing
+   * either one edited both.
+   */
   const byDay = useMemo(() => {
-    const m = new Map<number, AvailabilityWindow[]>();
+    const m = new Map<number, { window: AvailabilityWindow; index: number }[]>();
     for (let d = 0; d < 7; d++) m.set(d, []);
-    for (const w of windows) m.get(w.weekday)?.push(w);
-    for (const list of m.values()) list.sort((a, b) => a.start_minute - b.start_minute);
+    windows.forEach((window, index) => m.get(window.weekday)?.push({ window, index }));
+    for (const list of m.values()) list.sort((a, b) => a.window.start_minute - b.window.start_minute);
     return m;
   }, [windows]);
 
@@ -299,19 +309,29 @@ export function AvailabilityPage() {
     const existing = byDay.get(weekday) || [];
     // A new window starts after the last one, so adding twice does not stack
     // two identical rows the database will then refuse.
-    const start = existing.length > 0 ? Math.min(existing[existing.length - 1].end_minute + 60, 1380) : 540;
+    const last = existing[existing.length - 1]?.window;
+    const start = last ? Math.min(last.end_minute + 60, 1380) : 540;
     edit([...windows, { weekday, start_minute: start, end_minute: Math.min(start + 480, 1440) }]);
   };
 
-  const removeWindow = (weekday: number, startMinute: number) =>
-    edit(windows.filter((w) => !(w.weekday === weekday && w.start_minute === startMinute)));
+  const removeWindow = (index: number) => edit(windows.filter((_, i) => i !== index));
 
-  const changeWindow = (weekday: number, startMinute: number, field: 'start_minute' | 'end_minute', value: string) => {
+  const changeWindow = (index: number, field: 'start_minute' | 'end_minute', value: string) => {
     const parsed = parseMinuteLabel(value);
     if (parsed === null) return;
-    edit(windows.map((w) =>
-      w.weekday === weekday && w.start_minute === startMinute ? { ...w, [field]: parsed } : w));
+    edit(windows.map((w, i) => (i === index ? { ...w, [field]: parsed } : w)));
   };
+
+  /*
+   * What the server would refuse, said here instead.
+   *
+   * It checks all of this and answers with a 400, which is the right place
+   * for the last word and the wrong place for the only word: a window
+   * ending before it starts looked entirely fine until Save, and the
+   * message that came back named a weekday rather than a field.
+   */
+  const problem = weekProblem(windows);
+  const cannotSave = firstBlocker([[!!problem, problem || '']]);
 
   /* ── The preview, straight from the server that would honour it ── */
   const previewRange = useMemo(() => {
@@ -378,9 +398,9 @@ export function AvailabilityPage() {
                 Discard
               </button>
               <button
-                onClick={() => saveWindows.mutate(windows)}
+                {...blockedProps<HTMLButtonElement>(cannotSave, () => saveWindows.mutate(windows))}
                 disabled={saveWindows.isPending}
-                className="btn-primary"
+                className={cn('btn-primary', cannotSave && BLOCKED_CLASS)}
               >
                 {saveWindows.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                 Save hours
@@ -399,7 +419,7 @@ export function AvailabilityPage() {
             <div>
               <h3 className="text-strong font-semibold text-[var(--text-primary)]">Working hours</h3>
               <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
-                Written on your own clock. They stay put when the clocks change.
+                Drawn on your own clock. They stay put when the clocks change.
               </p>
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -420,68 +440,95 @@ export function AvailabilityPage() {
                as every other list in the app. */
             <div className="p-4"><SkeletonList rows={7} /></div>
           ) : (
-            <div className="divide-y divide-[var(--border-subtle)]">
-              {Array.from({ length: 7 }, (_, i) => (i + 1) % 7).map((weekday) => {
-                const list = byDay.get(weekday) || [];
-                const off = list.length === 0;
-                return (
-                  <div key={weekday} data-day={weekday} className="flex items-start gap-3 px-4 py-2.5">
-                    <div className="w-[92px] flex-shrink-0 pt-1">
-                      <p className={cn(
-                        'text-body font-medium',
-                        off ? 'text-[var(--text-tertiary)]' : 'text-[var(--text-primary)]',
-                      )}>
-                        {WEEKDAY_NAMES[weekday]}
-                      </p>
-                    </div>
+            <>
+              {/*
+                 The week as a shape, because that is what a working week is.
+                 A ragged Friday afternoon and a hole where lunch goes are
+                 the two things people most want to see here, and the two
+                 things a column of time fields cannot show.
+              */}
+              <WeekPainter windows={windows} onChange={edit} />
 
-                    <div className="flex-1 min-w-0 space-y-1.5">
-                      {off ? (
-                        <p className="pt-1 text-body text-[var(--text-tertiary)]">Not available</p>
-                      ) : list.map((w) => (
-                        /*
-                         * Both minutes are in the key on purpose. The time
-                         * fields are uncontrolled, so the only thing that can
-                         * put a discarded edit back to the saved value is a
-                         * remount — and that only happens if the key moves
-                         * with whichever end of the window was typed into.
-                         */
-                        <div key={`${weekday}-${w.start_minute}-${w.end_minute}`} className="flex items-center gap-1.5">
-                          <input
-                            type="time"
-                            defaultValue={minuteLabel(w.start_minute)}
-                            onBlur={(e) => changeWindow(weekday, w.start_minute, 'start_minute', e.target.value)}
-                            className="h-7 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body tabular text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
-                          />
-                          <span className="text-caption text-[var(--text-tertiary)]">to</span>
-                          <input
-                            type="time"
-                            defaultValue={minuteLabel(w.end_minute)}
-                            onBlur={(e) => changeWindow(weekday, w.start_minute, 'end_minute', e.target.value)}
-                            className="h-7 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body tabular text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
-                          />
-                          <button
-                            onClick={() => removeWindow(weekday, w.start_minute)}
-                            title="Remove this window"
-                            className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-rose-600 hover:bg-[var(--bg-hover)] transition-colors"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
+              {/*
+                 And still typeable. The grid rounds to the quarter hour, and
+                 somebody whose day starts at 09:05 is not wrong — nor is
+                 anybody who would simply rather type than draw.
+              */}
+              <details className="group border-t border-[var(--border-subtle)]" data-typed-hours>
+                <summary className="flex cursor-pointer list-none items-center gap-1.5 px-4 py-2 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                  <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
+                  Type exact times
+                </summary>
+                <div className="divide-y divide-[var(--border-subtle)] border-t border-[var(--border-subtle)]">
+                  {Array.from({ length: 7 }, (_, i) => (i + 1) % 7).map((weekday) => {
+                    const list = byDay.get(weekday) || [];
+                    const off = list.length === 0;
+                    return (
+                      <div key={weekday} data-day={weekday} className="flex items-start gap-3 px-4 py-2.5">
+                        <div className="w-[92px] flex-shrink-0 pt-1">
+                          <p className={cn(
+                            'text-body font-medium',
+                            off ? 'text-[var(--text-tertiary)]' : 'text-[var(--text-primary)]',
+                          )}>
+                            {WEEKDAY_NAMES[weekday]}
+                          </p>
                         </div>
-                      ))}
-                    </div>
 
-                    <button
-                      onClick={() => addWindow(weekday)}
-                      title={off ? 'Make this day bookable' : 'Add another window (a split day)'}
-                      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)] transition-colors"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+                        <div className="flex-1 min-w-0 space-y-1.5">
+                          {off ? (
+                            <p className="pt-1 text-body text-[var(--text-tertiary)]">Not available</p>
+                          ) : list.map(({ window: w, index }) => (
+                            /*
+                             * Both minutes are in the key on purpose. The time
+                             * fields are uncontrolled, so the only thing that can
+                             * put a discarded edit back to the saved value is a
+                             * remount — and that only happens if the key moves
+                             * with whichever end of the window was typed into.
+                             *
+                             * What the fields EDIT, though, is the index: the
+                             * times alone stop identifying a window the moment
+                             * two of them on a day are given the same start.
+                             */
+                            <div key={`${weekday}-${w.start_minute}-${w.end_minute}`} className="flex items-center gap-1.5">
+                              <input
+                                type="time"
+                                defaultValue={minuteLabel(w.start_minute)}
+                                aria-label={`${WEEKDAY_NAMES[weekday]} window starts`}
+                                onBlur={(e) => changeWindow(index, 'start_minute', e.target.value)}
+                                className="h-7 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body tabular text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+                              />
+                              <span className="text-caption text-[var(--text-tertiary)]">to</span>
+                              <input
+                                type="time"
+                                defaultValue={minuteLabel(w.end_minute)}
+                                aria-label={`${WEEKDAY_NAMES[weekday]} window ends`}
+                                onBlur={(e) => changeWindow(index, 'end_minute', e.target.value)}
+                                className="h-7 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body tabular text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+                              />
+                              <button
+                                onClick={() => removeWindow(index)}
+                                title="Remove this window"
+                                className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-rose-600 hover:bg-[var(--bg-hover)] transition-colors"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+
+                        <button
+                          onClick={() => addWindow(weekday)}
+                          title={off ? 'Make this day bookable' : 'Add another window (a split day)'}
+                          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)] transition-colors"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
+            </>
           )}
         </section>
 

@@ -427,6 +427,19 @@ export function CalendarPage() {
               now={new Date()}
               onOpen={(e) => setEventModal({ event: e as unknown as CrmEvent })}
               onBookAt={(at) => setEventModal({ event: { starts_at: at.toISOString() } as Partial<CrmEvent> })}
+              /*
+                 Drawn out rather than clicked, so the length is already
+                 decided and arrives with it. Clicking gave a default-length
+                 meeting at the time clicked and left resizing it as a
+                 separate act — which is why "block out two until four" took
+                 two gestures on a surface built for one.
+              */
+              onCreateRange={(start, end) => setEventModal({
+                event: {
+                  starts_at: start.toISOString(),
+                  ends_at: end.toISOString(),
+                } as Partial<CrmEvent>,
+              })}
               onMove={(e, start) => {
                 // Length is preserved: dragging a block moves it, it does not
                 // reshape it. Resizing is the handle on its bottom edge.
@@ -520,7 +533,7 @@ export function CalendarPage() {
         <p className="flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
           <Clock className="h-3 w-3" />
           {view === 'week' || view === 'day'
-            ? 'Click any empty space to book at that time. Drag a meeting to move it, or its bottom edge to change how long it runs.'
+            ? 'Drag down the empty grid to block out a stretch of time, or click once to book at that moment. Drag a meeting to move it — to another day if you like — or its bottom edge to change how long it runs.'
             : 'Drag any meeting or activity onto another day to reschedule it — the time of day is kept.'}
         </p>
       </div>
