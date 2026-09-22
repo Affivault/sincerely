@@ -16,6 +16,7 @@ import {
   Clock, GitCommitHorizontal, Mail, Pin, StickyNote, Trash2, Users,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useOptimisticRow } from '../../lib/optimistic';
 
 /* ═══════════════════════════════════════════════════════════════════════
    What has actually happened on this deal.
@@ -176,15 +177,35 @@ export function DealTimeline({
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['crm'] });
 
+  /*
+   * The same two toggles as the contact history and the activities page,
+   * against the same rows. Scoped to ['crm'] so ticking a task here moves
+   * it in all three at once, which is what stops it reading as a bug when
+   * you look at the other one.
+   */
+  const taskOptimistic = useOptimisticRow<CrmTask>({
+    scope: ['crm'],
+    id: (t) => t.id,
+    patch: (_t, row) => ({
+      is_done: !row.is_done,
+      completed_at: !row.is_done ? new Date().toISOString() : null,
+    }),
+    onError: () => toast.error('Could not update that activity'),
+  });
   const toggleTask = useMutation({
     mutationFn: (t: CrmTask) => crmApi.updateTask(t.id, { is_done: !t.is_done }),
-    onSuccess: invalidate,
-    onError: () => toast.error('Could not update that activity'),
+    ...taskOptimistic,
+  });
+
+  const pinOptimistic = useOptimisticRow<CrmNote>({
+    scope: ['crm'],
+    id: (n) => n.id,
+    patch: (_n, row) => ({ pinned: !row.pinned }),
+    onError: () => toast.error('Could not pin that note'),
   });
   const pinNote = useMutation({
     mutationFn: (n: CrmNote) => crmApi.updateNote(n.id, { pinned: !n.pinned }),
-    onSuccess: invalidate,
-    onError: () => toast.error('Could not pin that note'),
+    ...pinOptimistic,
   });
   const deleteNote = useMutation({
     mutationFn: (n: CrmNote) => crmApi.deleteNote(n.id),
