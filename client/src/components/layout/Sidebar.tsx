@@ -171,7 +171,7 @@ function isGroupActive(group: NavGroup, pathname: string): boolean {
    raised card: white surface, hairline border, soft shadow — the page
    you are on physically sits on top of the rail. */
 const rowBase =
-  'group relative flex items-center rounded-[7px] transition-all duration-100 select-none';
+  'group relative flex items-center rounded-lg transition-all duration-100 select-none';
 const rowInactive =
   'text-[var(--text-secondary)] border border-transparent hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]';
 const rowActive =
@@ -227,7 +227,7 @@ function NavLeafItem({ item, collapsed, badge, nested }: {
           </span>
         ) : (
           <span className={cn(
-            'ml-auto flex h-[17px] min-w-[17px] items-center justify-center rounded-[5px] text-micro font-semibold px-1 leading-none tabular-nums',
+            'ml-auto flex h-[17px] min-w-[17px] items-center justify-center rounded-md text-micro font-semibold px-1 leading-none tabular-nums',
             isActive
               ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
               : 'bg-[var(--bg-active)] text-[var(--text-secondary)]',
@@ -370,7 +370,7 @@ function UsageCard({ collapsed }: { collapsed: boolean }) {
   const isFree = usage.plan === 'free';
 
   return (
-    <div className="mx-2.5 mb-2 rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5 shadow-[0_1px_2px_rgba(16,16,20,0.04)]">
+    <div className="mx-2.5 mb-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5 shadow-[0_1px_2px_rgba(16,16,20,0.04)]">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-caption font-medium text-[var(--text-tertiary)]">Emails this month</span>
         <span className="text-caption font-semibold text-[var(--text-secondary)] tabular-nums">
@@ -383,7 +383,7 @@ function UsageCard({ collapsed }: { collapsed: boolean }) {
       {isFree && (
         <button
           onClick={() => navigate('/billing')}
-          className="mt-2 w-full flex items-center justify-center gap-1 h-[26px] rounded-[7px] text-caption font-semibold text-white transition-opacity hover:opacity-90"
+          className="mt-2 w-full flex items-center justify-center gap-1 h-[26px] rounded-lg text-caption font-semibold text-white transition-opacity hover:opacity-90"
           style={{ background: 'var(--indigo-grad)' }}
         >
           Upgrade <ArrowUpRight className="h-3 w-3" strokeWidth={2.2} />
@@ -477,11 +477,11 @@ export function Sidebar() {
         collapsed ? 'p-2' : 'p-2'
       )}>
         <div className={cn(
-          'flex items-center rounded-[9px] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer group',
+          'flex items-center rounded-lg hover:bg-[var(--bg-hover)] transition-colors cursor-pointer group',
           collapsed ? 'justify-center h-8 w-8 mx-auto' : 'gap-2.5 px-1.5 h-[42px]'
         )}>
           <div
-            className="h-[26px] w-[26px] rounded-[8px] flex items-center justify-center flex-shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_1px_2px_rgba(67,56,202,0.3)]"
+            className="h-[26px] w-[26px] rounded-lg flex items-center justify-center flex-shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_1px_2px_rgba(67,56,202,0.3)]"
             style={{ background: 'var(--indigo-grad)' }}
             title={collapsed ? workspaceName : undefined}
           >

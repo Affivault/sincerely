@@ -180,7 +180,7 @@ function HealthCard({ icon: Icon, label, value, color, desc, negative }: {
   return (
     <div className="panel p-3.5">
       <div className="flex items-center gap-2 mb-2">
-        <span className="flex h-6 w-6 items-center justify-center rounded-[6px]" style={{ background: `${color}18` }}>
+        <span className="flex h-6 w-6 items-center justify-center rounded-md" style={{ background: `${color}18` }}>
           <Icon className="h-3.5 w-3.5" style={{ color }} />
         </span>
         <span className="text-micro font-semibold text-[var(--text-tertiary)]">{label}</span>

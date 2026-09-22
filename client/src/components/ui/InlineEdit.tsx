@@ -121,7 +121,7 @@ export function InlineEdit({
       'w-full rounded-md border border-[var(--indigo)] bg-[var(--bg-app)] px-1.5 py-0.5 -mx-1.5',
       !inputClassName && 'text-body',
       'text-[var(--text-primary)] outline-none',
-      'focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] disabled:opacity-60',
+      'focus:shadow-[var(--ring-focus)] disabled:opacity-60',
       inputClassName,
     ),
   };

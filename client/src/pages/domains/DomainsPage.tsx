@@ -368,7 +368,7 @@ export function DomainDetailPanel({
           <div className="flex items-center gap-2">
             <h3 className="text-heading font-semibold text-[var(--text-primary)] truncate">{domain.domain}</h3>
             {domain.is_verified && (
-              <span className="inline-flex items-center gap-1 px-1.5 h-[19px] text-micro font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-[4px]">
+              <span className="inline-flex items-center gap-1 px-1.5 h-[19px] text-micro font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded">
                 <Sparkles className="h-2.5 w-2.5" /> Ready to send
               </span>
             )}
@@ -649,11 +649,11 @@ export function DomainsPage() {
                     <div className="flex items-center gap-2 mb-0.5">
                       <h3 className="text-heading font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">{domain.domain}</h3>
                       {domain.is_verified ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-micro font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-[4px]">
+                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-micro font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded">
                           Verified
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-micro font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-[4px]">
+                        <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-micro font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded">
                           Pending
                         </span>
                       )}

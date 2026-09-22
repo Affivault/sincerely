@@ -193,7 +193,7 @@ export function ManageBookingPage() {
 
         {move.isError && (
           <p className="mt-3 flex items-start gap-1.5 text-body text-[var(--text-primary)]" data-error>
-            <AlertCircle className="h-3.5 w-3.5 mt-[1px] text-[#ef4444]" />
+            <AlertCircle className="h-3.5 w-3.5 mt-[1px] text-[var(--error)]" />
             {(move.error as any)?.response?.data?.error || 'That did not go through.'}
           </p>
         )}
@@ -240,7 +240,7 @@ export function ManageBookingPage() {
           />
         </label>
         {drop.isError && (
-          <p className="mt-3 text-body text-[#ef4444]" data-error>
+          <p className="mt-3 text-body text-[var(--error)]" data-error>
             {(drop.error as any)?.response?.data?.error || 'That did not go through.'}
           </p>
         )}
@@ -294,7 +294,7 @@ export function ManageBookingPage() {
               <button onClick={() => setMode('move')} className="btn-secondary">
                 <CalendarClock className="h-3.5 w-3.5" /> Move it
               </button>
-              <button onClick={() => setMode('cancel')} className="btn-ghost text-[#ef4444]">
+              <button onClick={() => setMode('cancel')} className="btn-ghost text-[var(--error)]">
                 <CalendarX className="h-3.5 w-3.5" /> Cancel
               </button>
             </div>

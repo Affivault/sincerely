@@ -409,7 +409,7 @@ export function EmailAccountsPage() {
               <Icon className="h-3.5 w-3.5" />
               {t.label}
               {t.count != null && t.count > 0 && (
-                <span className={cn('flex h-[17px] min-w-[17px] items-center justify-center rounded-[5px] px-1 text-micro font-semibold tabular', active ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]')}>{t.count}</span>
+                <span className={cn('flex h-[17px] min-w-[17px] items-center justify-center rounded-md px-1 text-micro font-semibold tabular', active ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]')}>{t.count}</span>
               )}
               {t.alert && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
               <span className={cn('absolute left-2 right-2 -bottom-px h-[2px] rounded-t-full transition-opacity', active ? 'bg-[var(--indigo)] opacity-100' : 'opacity-0')} />
@@ -533,8 +533,8 @@ export function EmailAccountsPage() {
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="text-heading font-semibold text-[var(--text-primary)] truncate">{domain.domain}</h3>
                           {domain.is_verified
-                            ? <span className="inline-flex items-center px-1.5 h-[18px] text-micro font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-[4px]">Authenticated</span>
-                            : <span className="inline-flex items-center px-1.5 h-[18px] text-micro font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-[4px]">Needs DNS setup</span>}
+                            ? <span className="inline-flex items-center px-1.5 h-[18px] text-micro font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded">Authenticated</span>
+                            : <span className="inline-flex items-center px-1.5 h-[18px] text-micro font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded">Needs DNS setup</span>}
                           {mailboxCount > 0 && <span className="text-micro text-[var(--text-tertiary)]">{mailboxCount} mailbox{mailboxCount === 1 ? '' : 'es'}</span>}
                         </div>
                         <div className="flex items-center gap-1.5 flex-wrap">

@@ -137,7 +137,7 @@ function SetupGuide({ summary, onAddMailbox, onEnable }: {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={cn('text-strong font-medium', s.done ? 'text-[var(--text-secondary)]' : 'text-[var(--text-primary)]')}>{s.title}</span>
-                  <span className={cn('text-micro font-medium px-1.5 h-[18px] inline-flex items-center rounded-[4px] tabular', s.done ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]')}>{s.status}</span>
+                  <span className={cn('text-micro font-medium px-1.5 h-[18px] inline-flex items-center rounded tabular', s.done ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]')}>{s.status}</span>
                 </div>
                 {!s.done && (
                   <>
@@ -192,7 +192,7 @@ export function WarmupPanel({ onAddMailbox }: { onAddMailbox?: () => void }) {
         <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500/12"><Flame className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" /></span>
         <h2 className="text-heading font-semibold text-[var(--text-primary)]">Warm-up</h2>
         <span className="text-body text-[var(--text-tertiary)]">— build reputation before you send at volume</span>
-        {data.total_warming > 0 && <span className="ml-1 text-caption font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1.5 h-[18px] inline-flex items-center rounded-[4px]">{data.total_warming} warming</span>}
+        {data.total_warming > 0 && <span className="ml-1 text-caption font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1.5 h-[18px] inline-flex items-center rounded">{data.total_warming} warming</span>}
       </div>
 
       {/*

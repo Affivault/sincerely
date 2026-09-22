@@ -35,7 +35,7 @@ export function Badge({ children, variant = 'default', size = 'md', dot = false,
   return (
     <span
       className={cn(
-        'inline-flex items-center font-medium rounded-[4px] leading-none whitespace-nowrap transition-colors duration-150',
+        'inline-flex items-center font-medium rounded leading-none whitespace-nowrap transition-colors duration-150',
         variants[variant],
         sizes[size],
         className

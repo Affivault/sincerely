@@ -337,7 +337,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         aria-modal="true"
         aria-label="Command palette"
         tabIndex={-1}
-        className="relative w-full max-w-[600px] overflow-hidden rounded-[14px] glass shadow-[var(--shadow-xl)]"
+        className="relative w-full max-w-[600px] overflow-hidden rounded-2xl glass shadow-[var(--shadow-xl)]"
         style={{ animation: 'cmdkIn 200ms var(--ease-out) both' }}
       >
         {/* Search row */}
@@ -385,7 +385,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                       onClick={() => runItem(item)}
                       onMouseMove={() => setActive(index)}
                       className={cn(
-                        'group/cmd w-full flex items-center gap-3 px-2 py-1.5 rounded-[8px] text-left transition-colors duration-100',
+                        'group/cmd w-full flex items-center gap-3 px-2 py-1.5 rounded-lg text-left transition-colors duration-100',
                         isActive ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]'
                       )}
                     >

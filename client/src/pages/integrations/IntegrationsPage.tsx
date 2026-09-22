@@ -218,14 +218,14 @@ export function IntegrationsPage() {
                             className={cn(
                               'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-micro font-medium',
                               connected.is_active
-                                ? 'bg-[rgba(34,197,94,0.1)] text-[#16a34a]'
+                                ? 'bg-[rgba(34,197,94,0.1)] text-[var(--success)]'
                                 : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
                             )}
                           >
                             <span
                               className={cn(
                                 'h-1.5 w-1.5 rounded-full',
-                                connected.is_active ? 'bg-[#16a34a]' : 'bg-[var(--text-tertiary)]'
+                                connected.is_active ? 'bg-[var(--success)]' : 'bg-[var(--text-tertiary)]'
                               )}
                             />
                             {connected.is_active ? 'Connected' : 'Paused'}
@@ -239,7 +239,7 @@ export function IntegrationsPage() {
                   </div>
 
                   {connected?.last_error && (
-                    <p className="text-caption text-[#dc2626] bg-[rgba(220,38,38,0.06)] rounded-md px-2.5 py-1.5 line-clamp-2">
+                    <p className="text-caption text-[var(--error)] bg-[rgba(220,38,38,0.06)] rounded-md px-2.5 py-1.5 line-clamp-2">
                       {connected.last_error.startsWith('Choose') ? connected.last_error : `Last delivery failed: ${connected.last_error}`}
                     </p>
                   )}
@@ -250,7 +250,7 @@ export function IntegrationsPage() {
                         <button
                           onClick={() => oauthStartMutation.mutate(meta.id)}
                           disabled={oauthStartMutation.isPending}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-semibold bg-[var(--indigo)] text-white hover:opacity-90 shadow-[0_1px_3px_rgba(99,102,241,0.4)] transition-all disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-semibold bg-[var(--indigo)] text-white hover:opacity-90 shadow-[var(--glow-indigo)] transition-all disabled:opacity-50"
                         >
                           {oauthStartMutation.isPending && oauthStartMutation.variables === meta.id
                             ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -271,7 +271,7 @@ export function IntegrationsPage() {
                           'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-semibold transition-all',
                           connected
                             ? 'bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] hover:border-[var(--border-default)]'
-                            : 'bg-[var(--indigo)] text-white hover:opacity-90 shadow-[0_1px_3px_rgba(99,102,241,0.4)]'
+                            : 'bg-[var(--indigo)] text-white hover:opacity-90 shadow-[var(--glow-indigo)]'
                         )}
                       >
                         {connected ? 'Manage' : 'Connect'}
@@ -289,7 +289,7 @@ export function IntegrationsPage() {
                     )}
                     {connected?.last_success_at && !connected.last_error && (
                       <span className="ml-auto inline-flex items-center gap-1 text-caption text-[var(--text-tertiary)]">
-                        <CheckCircle2 className="h-3 w-3 text-[#16a34a]" />
+                        <CheckCircle2 className="h-3 w-3 text-[var(--success)]" />
                         {formatDateTime(connected.last_success_at)}
                       </span>
                     )}
@@ -448,7 +448,7 @@ function ProviderModal({
               </p>
               <button
                 onClick={onOAuthStart}
-                className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:opacity-90 transition-all shadow-[0_1px_3px_rgba(99,102,241,0.4)]"
+                className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:opacity-90 transition-all shadow-[var(--glow-indigo)]"
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 Connect with {meta.name}
@@ -627,9 +627,9 @@ function ProviderModal({
                   {activity.map((a) => (
                     <li key={a.id} className="flex items-start gap-2 px-3 py-2 text-body">
                       {a.success ? (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-[#16a34a] mt-0.5 shrink-0" />
+                        <CheckCircle2 className="h-3.5 w-3.5 text-[var(--success)] mt-0.5 shrink-0" />
                       ) : (
-                        <XCircle className="h-3.5 w-3.5 text-[#dc2626] mt-0.5 shrink-0" />
+                        <XCircle className="h-3.5 w-3.5 text-[var(--error)] mt-0.5 shrink-0" />
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="text-[var(--text-primary)] truncate">{a.summary}</p>
@@ -658,7 +658,7 @@ function ProviderModal({
           <button
             onClick={() => connectMutation.mutate()}
             disabled={!canSubmit || events.length === 0 || connectMutation.isPending}
-            className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:opacity-90 transition-all disabled:opacity-50 shadow-[0_1px_3px_rgba(99,102,241,0.4)]"
+            className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:opacity-90 transition-all disabled:opacity-50 shadow-[var(--glow-indigo)]"
           >
             {connectMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {existing ? 'Save & test' : 'Connect & test'}
@@ -690,7 +690,7 @@ function ProviderModal({
                   );
                 }}
                 disabled={disconnectMutation.isPending}
-                className="ml-auto inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-body font-medium text-[#dc2626] hover:bg-[rgba(220,38,38,0.06)] transition-all disabled:opacity-50"
+                className="ml-auto inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-body font-medium text-[var(--error)] hover:bg-[rgba(220,38,38,0.06)] transition-all disabled:opacity-50"
               >
                 <Unplug className="h-3.5 w-3.5" />
                 Disconnect

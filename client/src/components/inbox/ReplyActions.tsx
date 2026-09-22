@@ -300,7 +300,7 @@ function LinkSheet({ target, busy, onClose, onSubmit }: {
               Whatever they book is credited to the campaign this thread came from.
             </p>
             {readiness && !readiness.can_email && (
-              <p className="text-caption text-[#f59e0b]" data-no-mailbox>
+              <p className="text-caption text-[var(--warning)]" data-no-mailbox>
                 No mailbox is connected, so this will not send.
               </p>
             )}

@@ -156,7 +156,7 @@ function CompanyCell({ company }: { company?: string | null }) {
   return (
     <span className="inline-flex items-center gap-2 min-w-0">
       <span
-        className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-[5px] text-micro font-bold leading-none"
+        className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md text-micro font-bold leading-none"
         style={{ color: tint, background: `color-mix(in srgb, ${tint} 14%, transparent)` }}
       >
         {initials}
@@ -319,7 +319,7 @@ function LinkedInGlyph({ url }: { url?: string | null }) {
   const inner = (
     <span
       className={cn(
-        'flex h-4 w-4 items-center justify-center rounded-[3px] flex-shrink-0 transition-colors',
+        'flex h-4 w-4 items-center justify-center rounded flex-shrink-0 transition-colors',
         has ? 'bg-[#0A66C2] text-white' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border-subtle)]'
       )}
       title={has ? 'Has a LinkedIn profile' : 'No LinkedIn profile on file'}
@@ -1388,7 +1388,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 onKeyDown={(e) => { if (e.key === 'Escape') setTitleRenaming(false); }}
                 autoFocus
                 maxLength={80}
-                className="w-full max-w-md px-2 py-0.5 -ml-2 text-display font-semibold tracking-[-0.02em] rounded-md border border-[var(--indigo)] bg-[var(--bg-elevated)] text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[#5B5BF5]/15"
+                className="w-full max-w-md px-2 py-0.5 -ml-2 text-display font-semibold tracking-[-0.02em] rounded-md border border-[var(--indigo)] bg-[var(--bg-elevated)] text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[var(--indigo)]/15"
               />
             </form>
           ) : (
@@ -2342,7 +2342,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 <select
                   value={pageSize}
                   onChange={(e) => changePageSize(Number(e.target.value))}
-                  className="h-8 pl-2 pr-6 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-body font-medium text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[#5B5BF5]/15 transition-all cursor-pointer"
+                  className="h-8 pl-2 pr-6 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-body font-medium text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15 transition-all cursor-pointer"
                 >
                   {PAGE_SIZE_OPTIONS.map((n) => (
                     <option key={n} value={n}>{n}</option>

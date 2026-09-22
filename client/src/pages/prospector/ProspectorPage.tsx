@@ -60,12 +60,12 @@ function ChipInput({
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commit(); } }}
         onBlur={commit}
         placeholder={placeholder}
-        className="block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-[border-color,box-shadow]"
+        className="block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]"
       />
       {values.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-1.5">
           {values.map((v) => (
-            <span key={v} className="inline-flex items-center gap-1 pl-2 pr-1 h-[20px] rounded-[5px] bg-[var(--indigo-subtle)] text-caption font-medium text-[var(--indigo)]">
+            <span key={v} className="inline-flex items-center gap-1 pl-2 pr-1 h-[20px] rounded-md bg-[var(--indigo-subtle)] text-caption font-medium text-[var(--indigo)]">
               {v}
               <button onClick={() => onChange(values.filter((x) => x !== v))} className="rounded hover:bg-[var(--indigo)]/15 p-0.5">
                 <X className="h-2.5 w-2.5" />
@@ -128,7 +128,7 @@ function BuyCreditsModal({ onClose }: { onClose: () => void }) {
               <div className="flex-1 min-w-0">
                 <p className="text-strong font-semibold text-[var(--text-primary)] tabular">
                   {pack.credits.toLocaleString()} credits
-                  <span className="ml-2 inline-flex items-center px-1.5 h-[17px] text-micro font-medium bg-[var(--bg-elevated)] text-[var(--text-tertiary)] rounded-[4px]">{pack.label}</span>
+                  <span className="ml-2 inline-flex items-center px-1.5 h-[17px] text-micro font-medium bg-[var(--bg-elevated)] text-[var(--text-tertiary)] rounded">{pack.label}</span>
                 </p>
                 <p className="text-caption text-[var(--text-tertiary)]">${perCredit.toFixed(3)} per lead</p>
               </div>
@@ -420,7 +420,7 @@ export function ProspectorPage() {
               onChange={(e) => setKeywords(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') runSearch(1); }}
               placeholder="e.g. outbound, PLG, agency…"
-              className="block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-[border-color,box-shadow]"
+              className="block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]"
             />
           </div>
 

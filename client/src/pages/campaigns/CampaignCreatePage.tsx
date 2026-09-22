@@ -1030,7 +1030,7 @@ export function CampaignCreatePage() {
           className={cn(
             'inline-flex items-center gap-1.5 px-3 h-7 rounded-md text-body font-semibold transition-all',
             isReady
-              ? 'bg-[var(--indigo)] text-white hover:bg-[var(--indigo-hover)] shadow-[0_1px_3px_rgba(91,91,245,0.4)]'
+              ? 'bg-[var(--indigo)] text-white hover:bg-[var(--indigo-hover)] shadow-[var(--glow-indigo)]'
               : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)] cursor-not-allowed'
           )}
         >
@@ -2225,7 +2225,7 @@ export function CampaignCreatePage() {
                         value={scheduleAt}
                         min={formatDatetimeLocalInTimezone(new Date(Date.now() + 5 * 60000), campaignForm.timezone || 'UTC')}
                         onChange={(e) => setScheduleAt(e.target.value)}
-                        className="w-full sm:w-72 h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)]"
+                        className="w-full sm:w-72 h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)]"
                       />
                     </div>
                   )}

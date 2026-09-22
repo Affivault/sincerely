@@ -108,7 +108,7 @@ export function AdminPage() {
           <div>
             <h1 className="text-title font-semibold text-[var(--text-primary)] tracking-[-0.01em] flex items-center gap-2">
               Admin
-              <span className="inline-flex items-center gap-1 px-1.5 h-[19px] rounded-[5px] text-micro font-semibold bg-[var(--indigo-subtle)] text-[var(--indigo)]">
+              <span className="inline-flex items-center gap-1 px-1.5 h-[19px] rounded-md text-micro font-semibold bg-[var(--indigo-subtle)] text-[var(--indigo)]">
                 <Crown className="h-2.5 w-2.5" /> Owner
               </span>
             </h1>
@@ -164,7 +164,7 @@ export function AdminPage() {
               value={grantEmail}
               onChange={(e) => setGrantEmail(e.target.value)}
               placeholder="user@example.com — must already have an account"
-              className="flex-1 h-9 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-3 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-[border-color,box-shadow]"
+              className="flex-1 h-9 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-3 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]"
               required
             />
             <Button type="submit" disabled={grantMutation.isPending || !grantEmail.trim()}>
@@ -227,7 +227,7 @@ export function AdminPage() {
                         </div>
                       </td>
                       <td className="py-2.5 px-3">
-                        <span className={cn('inline-flex items-center gap-1 px-1.5 h-[19px] text-micro font-medium rounded-[4px]', PLAN_BADGE[u.plan] || PLAN_BADGE.free)}>
+                        <span className={cn('inline-flex items-center gap-1 px-1.5 h-[19px] text-micro font-medium rounded', PLAN_BADGE[u.plan] || PLAN_BADGE.free)}>
                           {isLifetime && <Crown className="h-2.5 w-2.5" />}
                           {planName}
                         </span>

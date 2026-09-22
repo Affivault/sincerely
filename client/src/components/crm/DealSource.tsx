@@ -128,7 +128,7 @@ export function DealSource({ deal }: { deal: any }) {
         <div className="space-y-1.5">
           <Link
             to={`/analytics/revenue/${deal.source_campaign_id}`}
-            className="flex items-center gap-2 rounded-[6px] bg-[var(--bg-elevated)] px-2.5 h-8 transition-colors hover:bg-[var(--bg-hover)]"
+            className="flex items-center gap-2 rounded-md bg-[var(--bg-elevated)] px-2.5 h-8 transition-colors hover:bg-[var(--bg-hover)]"
           >
             <Megaphone className="h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]" />
             <span className="min-w-0 flex-1 truncate text-body font-medium text-[var(--text-primary)]">

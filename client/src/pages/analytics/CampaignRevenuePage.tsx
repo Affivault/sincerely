@@ -50,14 +50,14 @@ function Funnel({ steps }: { steps: { label: string; count: number; ofPrevious: 
             <span className="w-[104px] flex-shrink-0 text-caption font-medium text-[var(--text-secondary)]">
               {s.label}
             </span>
-            <div className="relative h-7 flex-1 overflow-hidden rounded-[5px] bg-[var(--bg-elevated)]">
+            <div className="relative h-7 flex-1 overflow-hidden rounded-md bg-[var(--bg-elevated)]">
               <div
                 className={cn(
                   // A real Tailwind colour, not bg-[var(--indigo)]/70: an
                   // alpha modifier cannot be applied to an arbitrary var(),
                   // so that emits nothing and the bar renders invisible at
                   // exactly the right width.
-                  'h-full rounded-[5px] transition-all',
+                  'h-full rounded-md transition-all',
                   first ? 'bg-indigo-500/25' : 'bg-indigo-500/80',
                 )}
                 style={{ width: `${width}%` }}

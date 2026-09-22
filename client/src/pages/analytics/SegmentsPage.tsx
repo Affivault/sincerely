@@ -59,7 +59,7 @@ function Row({ row, dimension }: { row: SegmentRow; dimension: SegmentDimension 
             */}
           {row.lift != null && (
             <span className={cn(
-              'inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-micro font-semibold',
+              'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-micro font-semibold',
               strong ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                 : weak ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
                 : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]',

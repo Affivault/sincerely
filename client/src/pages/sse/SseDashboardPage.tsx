@@ -128,13 +128,13 @@ export function SseDashboardPage() {
                   <p className="text-body text-[var(--text-secondary)] truncate">{account.email_address}</p>
                 </div>
                 {account.warmup_mode && (
-                  <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400">
                     <Flame className="h-3 w-3" />
                     Warmup
                   </span>
                 )}
                 <span className={cn(
-                  'inline-flex items-center gap-1 px-1.5 h-[18px] rounded-[4px] text-micro font-semibold',
+                  'inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-semibold',
                   account.is_available
                     ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
                     : 'bg-rose-500/10 text-rose-700 dark:text-rose-400'

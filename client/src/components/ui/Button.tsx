@@ -42,7 +42,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       ghost:
         'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] active:bg-[var(--bg-active)]',
       danger:
-        'bg-[var(--error)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_1px_2px_rgba(220,38,38,0.3)] hover:bg-[#DC2626] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_2px_6px_rgba(220,38,38,0.4)] active:translate-y-[0.5px]',
+        'bg-[var(--error)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_1px_2px_rgba(220,38,38,0.3)] hover:bg-[var(--error)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_2px_6px_rgba(220,38,38,0.4)] active:translate-y-[0.5px]',
     };
 
     const sizes = {

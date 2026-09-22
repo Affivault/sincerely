@@ -59,7 +59,7 @@ export function SettingsShell({ children }: { children: ReactNode }) {
                     key={it.to}
                     to={it.to}
                     className={({ isActive }) => cn(
-                      'relative flex items-center gap-2.5 h-[30px] px-2.5 rounded-[7px] text-body font-medium border transition-colors',
+                      'relative flex items-center gap-2.5 h-[30px] px-2.5 rounded-lg text-body font-medium border transition-colors',
                       isActive
                         // Raised-card active state — same language as the app sidebar
                         ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] border-[var(--border-subtle)] shadow-[0_1px_2px_rgba(27,27,31,0.05)]'

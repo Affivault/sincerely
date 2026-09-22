@@ -804,7 +804,7 @@ export function SettingsPage() {
                     <div className="space-y-3">
                       <div className="px-1">
                         <h3 className="text-strong font-semibold text-[var(--text-primary)] flex items-center gap-2">
-                          <Zap className="h-4 w-4 text-[#818CF8]" />
+                          <Zap className="h-4 w-4 text-[var(--c-indigo)]" />
                           Auto-Tagging
                         </h3>
                       </div>
@@ -820,7 +820,7 @@ export function SettingsPage() {
                     <div className="space-y-3">
                       <div className="px-1">
                         <h3 className="text-strong font-semibold text-[var(--text-primary)] flex items-center gap-2">
-                          <Zap className="h-4 w-4 text-[#818CF8]" />
+                          <Zap className="h-4 w-4 text-[var(--c-indigo)]" />
                           Auto Actions
                         </h3>
                         <p className="text-body text-[var(--text-tertiary)] mt-1">

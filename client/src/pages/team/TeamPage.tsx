@@ -192,7 +192,7 @@ export function TeamPage() {
 
       {/* Organisation identity */}
       <div className="panel p-4 mb-4 flex items-center gap-4">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--indigo)] to-[#7A5BF5] text-white text-heading font-semibold flex-shrink-0">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--indigo)] to-[var(--c-violet)] text-white text-heading font-semibold flex-shrink-0">
           {(org?.name || 'W').trim().charAt(0).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
@@ -203,7 +203,7 @@ export function TeamPage() {
                 type="text"
                 value={editOrgName}
                 onChange={(e) => setEditOrgName(e.target.value)}
-                className="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-heading focus:border-[rgba(91,91,245,0.4)] focus:shadow-[0_0_0_3px_rgba(91,91,245,0.12)] outline-none"
+                className="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-heading focus:border-[rgba(91,91,245,0.4)] focus:shadow-[var(--ring-focus)] outline-none"
                 autoFocus
               />
               <button
@@ -378,7 +378,7 @@ export function TeamPage() {
               <select
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value)}
-                className="w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-[border-color,box-shadow]"
+                className="w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]"
               >
                 <option value="member">Member — can view and run campaigns</option>
                 <option value="admin">Admin — full access except billing</option>

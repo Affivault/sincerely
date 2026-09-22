@@ -340,7 +340,7 @@ export function CompanyDetailPage() {
                 {t.label}
                 {t.count > 0 && (
                   <span className={cn(
-                    'flex h-[17px] min-w-[17px] items-center justify-center rounded-[5px] px-1 text-micro font-semibold tabular',
+                    'flex h-[17px] min-w-[17px] items-center justify-center rounded-md px-1 text-micro font-semibold tabular',
                     tab === t.id ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]',
                   )}>{t.count}</span>
                 )}

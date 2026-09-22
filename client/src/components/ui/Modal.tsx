@@ -102,7 +102,7 @@ export function Modal({ isOpen, onClose, title, description, children, size = 'm
            land in a dialog that has no fields of its own. */
         tabIndex={-1}
         className={cn(
-          'relative w-full max-h-[90vh] flex flex-col rounded-[14px] glass shadow-[var(--shadow-xl)]',
+          'relative w-full max-h-[90vh] flex flex-col rounded-2xl glass shadow-[var(--shadow-xl)]',
           sizes[size]
         )}
         style={{ animation: 'cmdkIn 200ms var(--ease-out) both' }}

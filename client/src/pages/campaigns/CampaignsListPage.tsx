@@ -641,7 +641,7 @@ function FolderRow({ label, icon: Icon, count, active, onClick, onEdit, onAnalyt
 }) {
   return (
     <div
-      className={cn('group relative rounded-[6px] transition-shadow', dropActive && 'ring-1 ring-[var(--indigo)] bg-[var(--indigo-subtle)]')}
+      className={cn('group relative rounded-md transition-shadow', dropActive && 'ring-1 ring-[var(--indigo)] bg-[var(--indigo-subtle)]')}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
@@ -649,7 +649,7 @@ function FolderRow({ label, icon: Icon, count, active, onClick, onEdit, onAnalyt
       <button
         onClick={onClick}
         className={cn(
-          'w-full flex items-center gap-2 px-2 h-7 rounded-[6px] text-body text-left transition-colors',
+          'w-full flex items-center gap-2 px-2 h-7 rounded-md text-body text-left transition-colors',
           indent && 'pl-6',
           active
             ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_0_0_1px_var(--border-subtle),0_1px_2px_rgba(15,15,25,0.04)] font-medium'

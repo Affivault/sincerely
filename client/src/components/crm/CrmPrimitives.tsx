@@ -217,7 +217,7 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 }
 
 function selectCls() {
-  return 'w-full h-9 px-2.5 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] text-strong text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-all';
+  return 'w-full h-9 px-2.5 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] text-strong text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:shadow-[var(--ring-focus)] transition-all';
 }
 
 /* ── Activity (task) modal ────────────────────────────────────────────── */
@@ -385,7 +385,7 @@ export function ActivityModal({
             onChange={(e) => set('notes', e.target.value)}
             rows={3}
             placeholder="Context, talking points, what you promised…"
-            className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] transition-all"
+            className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:shadow-[var(--ring-focus)] transition-all"
           />
         </div>
       </form>

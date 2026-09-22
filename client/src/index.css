@@ -51,6 +51,21 @@
     --indigo-grad: linear-gradient(180deg, #6E6EF8 0%, #5B5BF5 100%);
     --indigo-grad-hover: linear-gradient(180deg, #5A5AF0 0%, #4646E5 100%);
 
+    /*
+     * The focus ring, and the lift under a primary button.
+     *
+     * These were written inline 27 times, in TWO colours - half with the
+     * light indigo and half with the dark one - so whichever theme you
+     * were not looking at had a focus ring that no longer matched the
+     * thing it was focusing. Tokens, so there is one of each and it
+     * follows the theme like everything else.
+     */
+    --ring-focus: 0 0 0 3px rgba(91, 91, 245, 0.12);
+    /* The same ring around a field that is wrong. It was inline too, and
+       in one colour for both themes. */
+    --ring-error: 0 0 0 3px rgba(239, 68, 68, 0.12);
+    --glow-indigo: 0 1px 3px rgba(91, 91, 245, 0.4);
+
     /* Category accent colours — used across nav, stat cards, chips, tiles */
     --c-indigo: #6366F1;
     --c-violet: #8B5CF6;
@@ -152,6 +167,10 @@
     --indigo-subtle: rgba(99, 102, 241, 0.14);
     --indigo-grad: linear-gradient(180deg, #7274F5 0%, #6366F1 100%);
     --indigo-grad-hover: linear-gradient(180deg, #6164F2 0%, #4F46E5 100%);
+
+    --ring-focus: 0 0 0 3px rgba(99, 102, 241, 0.18);
+    --ring-error: 0 0 0 3px rgba(248, 113, 113, 0.18);
+    --glow-indigo: 0 1px 3px rgba(99, 102, 241, 0.45);
 
     --c-indigo: #818CF8;
     --c-violet: #A78BFA;
