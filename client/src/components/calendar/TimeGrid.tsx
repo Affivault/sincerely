@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Video, Phone, MapPin, Users } from 'lucide-react';
 import {
   layoutDay, allDayEvents, durationMinutes, resolveEnd, snapMinutes,
   clockLabel, durationLabel, minutesIntoDay,
+  dragRange, snapToStep, DAY_MINUTES, DEFAULT_STEP,
   type CalendarEventType, type TimedEvent, formatHour, formatWeekdayShort } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 
@@ -16,9 +17,17 @@ import { cn } from '../../lib/utils';
    looked identical.
 
    Here an event is a block: its top is its start, its height is its
-   length, and things happening at once sit side by side. Empty space is
-   clickable and books at the time you clicked, which is the difference
-   between a calendar and a read-only list of meetings made elsewhere.
+   length, and things happening at once sit side by side.
+
+   AND YOU DRAW ON IT. Press on empty space and drag: the block follows,
+   saying what range it covers as it goes, and on release that is the
+   meeting — or the two hours you are marking as busy. Before this, saying
+   "I am busy two until four" was a click (which booked a default-length
+   meeting at two) followed by a drag on its bottom edge. Two gestures and
+   a guess for the single commonest thing anybody does to a calendar.
+
+   A plain click still books at the moment you clicked, because a click is
+   a drag of no length and should not mean something different.
    ═══════════════════════════════════════════════════════════════════════ */
 
 /** Tall enough that a 30-minute meeting has room for a title and a time. */
@@ -40,14 +49,43 @@ export interface GridEvent extends TimedEvent {
   conferencing_url?: string | null;
 }
 
-/** A drag in progress, before it is committed. */
+/** A drag in progress, before it is committed.
+ *
+ *  Every kind carries the DAY COLUMN it is happening in, not just minutes.
+ *  Without it a drag is expressed against whichever column the block was
+ *  first drawn in, which is how dragging a meeting to Thursday used to
+ *  leave it on Tuesday. */
 type Draft =
-  | { kind: 'move'; id: string; startMinutes: number; grabOffset: number; day: Date }
-  | { kind: 'resize'; id: string; endMinutes: number }
+  | { kind: 'move'; id: string; startMinute: number; grabOffset: number; day: Date; from: number; fromDay: Date }
+  | { kind: 'resize'; id: string; startMinute: number; endMinute: number; day: Date; from: number }
+  | { kind: 'create'; day: Date; anchorMinute: number; startMinute: number; endMinute: number; moved: boolean }
   | null;
 
+const sameDate = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+
+/** A moment on a given day. Minute 1440 is midnight at its far end. */
+function at(day: Date, minute: number): Date {
+  const d = new Date(day);
+  d.setHours(0, minute, 0, 0);
+  return d;
+}
+
+/**
+ * Where an event's block starts on THIS column, in minutes.
+ *
+ * An event that began yesterday evening is drawn on today's column from
+ * the top, because that is where its time on today begins. Reading its
+ * real start instead gives 23:00 — a number from a different day, used as
+ * an offset into this one, which is the shape of several bugs at once.
+ */
+function drawnStartMinute(event: TimedEvent, day: Date): number {
+  const start = new Date(event.starts_at);
+  const dayBegin = new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime();
+  return start.getTime() <= dayBegin ? 0 : minutesIntoDay(start);
+}
+
 export function TimeGrid({
-  days, events, types, onOpen, onBookAt, onMove, onResize, now = new Date(),
+  days, events, types, onOpen, onBookAt, onCreateRange, onMove, onResize, now = new Date(),
 }: {
   days: Date[];
   events: GridEvent[];
@@ -55,6 +93,8 @@ export function TimeGrid({
   onOpen: (event: GridEvent) => void;
   /** Empty space was clicked: book something at this exact moment. */
   onBookAt: (at: Date) => void;
+  /** Empty space was dragged: book something covering exactly this stretch. */
+  onCreateRange: (start: Date, end: Date) => void;
   onMove: (event: GridEvent, newStart: Date) => void;
   onResize: (event: GridEvent, newEnd: Date) => void;
   now?: Date;
@@ -63,6 +103,17 @@ export function TimeGrid({
   const [draft, setDraft] = useState<Draft>(null);
   const draftRef = useRef<Draft>(null);
   draftRef.current = draft;
+
+  /*
+   * A drag that ends in a range must not also be read as a click. The click
+   * arrives after pointerup, so the only way to tell them apart is to say
+   * so from the gesture that has just finished.
+   */
+  const swallowClick = useRef(false);
+
+  /** Each day's column, so a pointer anywhere can be told which day it is over. */
+  const columns = useRef(new Map<string, HTMLElement>());
+  const keyOf = (day: Date) => day.toISOString();
 
   const typeById = useMemo(() => {
     const m = new Map<string, CalendarEventType>();
@@ -104,71 +155,210 @@ export function TimeGrid({
 
   /* ── Dragging ─────────────────────────────────────────────────────── */
 
-  const minutesFromPointer = (e: React.PointerEvent | PointerEvent, column: HTMLElement): number => {
+  /**
+   * How far down the day a pointer is.
+   *
+   * Allowed to reach 1440. A block's bottom edge dragged to the bottom of
+   * the grid means midnight, and `snapMinutes` — which answers "where does
+   * a meeting START" — clamps to 23:45, so sharing it between the two ends
+   * made the last quarter-hour of the day unreachable.
+   */
+  const minuteFromPointer = (clientY: number, column: HTMLElement): number => {
     const rect = column.getBoundingClientRect();
-    const y = (e as PointerEvent).clientY - rect.top;
-    return snapMinutes((y / rect.height) * 24 * 60);
+    return snapToStep(((clientY - rect.top) / rect.height) * DAY_MINUTES);
   };
 
+  /**
+   * Which day column a pointer is over, whatever element captured it.
+   *
+   * THE FIX FOR THE BUG THAT MADE DRAGGING ACROSS DAYS DO NOTHING. Pointer
+   * capture routes every subsequent move to the element pressed, so the
+   * handler's `day` was forever the column the block started in — you could
+   * drag a meeting to Friday, watch it follow the cursor, let go, and see
+   * it snap back to Tuesday at the new time.
+   */
+  const dayFromPointer = useCallback((clientX: number): Date | null => {
+    for (const day of days) {
+      const el = columns.current.get(keyOf(day));
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      if (clientX >= rect.left && clientX < rect.right) return day;
+    }
+    // Past the last column, or in the hour gutter: hold whichever end.
+    const first = columns.current.get(keyOf(days[0]))?.getBoundingClientRect();
+    if (first && clientX < first.left) return days[0];
+    return days[days.length - 1] ?? null;
+  }, [days]);
+
+  const columnFor = (day: Date) => columns.current.get(keyOf(day)) || null;
+
   const beginMove = (event: GridEvent, day: Date) => (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
     e.stopPropagation();
-    const column = (e.currentTarget as HTMLElement).closest('[data-daycol]') as HTMLElement;
+    const column = columnFor(day);
     if (!column) return;
-    const start = new Date(event.starts_at);
-    const grabbedAt = minutesFromPointer(e, column);
+    const top = drawnStartMinute(event, day);
     setDraft({
       kind: 'move',
       id: event.id,
-      startMinutes: minutesIntoDay(start),
+      startMinute: top,
       // Where in the block they grabbed it, so it does not jump so the
       // cursor sits at the top edge.
-      grabOffset: grabbedAt - minutesIntoDay(start),
+      grabOffset: minuteFromPointer(e.clientY, column) - top,
       day,
+      // Where it was, so a press that never moved commits nothing.
+      from: top,
+      fromDay: day,
     });
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
-  const beginResize = (event: GridEvent) => (e: React.PointerEvent) => {
+  const beginResize = (event: GridEvent, day: Date) => (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
     e.stopPropagation();
+    const end = resolveEnd(event, minutesOf(event));
+    // Clipped like the start is: an event ending tomorrow is drawn to the
+    // bottom of today, and that is the edge being taken hold of.
+    const bottom = sameDate(end, day) ? minutesIntoDay(end) : DAY_MINUTES;
     setDraft({
       kind: 'resize',
       id: event.id,
-      endMinutes: minutesIntoDay(resolveEnd(event, minutesOf(event))),
+      startMinute: drawnStartMinute(event, day),
+      endMinute: bottom,
+      day,
+      from: bottom,
     });
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
-  const onPointerMove = (event: GridEvent, day: Date) => (e: React.PointerEvent) => {
+  const dragEvent = (event: GridEvent) => (e: React.PointerEvent) => {
     const d = draftRef.current;
-    if (!d || d.id !== event.id) return;
-    const column = (e.currentTarget as HTMLElement).closest('[data-daycol]') as HTMLElement;
+    if (!d || d.kind === 'create' || d.id !== event.id) return;
+    const day = dayFromPointer(e.clientX) ?? d.day;
+    const column = columnFor(day) ?? columnFor(d.day);
     if (!column) return;
-    const at = minutesFromPointer(e, column);
+    const minute = minuteFromPointer(e.clientY, column);
 
     if (d.kind === 'move') {
-      setDraft({ ...d, startMinutes: snapMinutes(at - d.grabOffset), day });
+      setDraft({ ...d, startMinute: snapMinutes(minute - d.grabOffset), day });
     } else {
-      // Never shorter than one snap step, or the block becomes unclickable.
-      const startMin = minutesIntoDay(new Date(event.starts_at));
-      setDraft({ ...d, endMinutes: Math.max(startMin + 15, at) });
+      // Never shorter than one step, or the block becomes unclickable. The
+      // floor is the block's own drawn top, not a start from another day.
+      setDraft({ ...d, endMinute: Math.max(d.startMinute + DEFAULT_STEP, minute) });
     }
   };
 
-  const endDrag = (event: GridEvent) => () => {
+  const endEventDrag = (event: GridEvent) => () => {
     const d = draftRef.current;
     setDraft(null);
-    if (!d || d.id !== event.id) return;
+    if (!d || d.kind === 'create' || d.id !== event.id) return;
 
+    /*
+     * "Did this actually move" is asked of the DRAFT, not of the event.
+     *
+     * Comparing the committed instant against the event's own start looks
+     * equivalent and is not, for anything drawn clipped: a meeting that
+     * began at 23:00 yesterday is drawn on today's column from the top, so
+     * a plain click on it - a drag of no distance - produced a "new" start
+     * of today at midnight, and opening it would have moved it.
+     */
     if (d.kind === 'move') {
-      const next = new Date(d.day);
-      next.setHours(0, d.startMinutes, 0, 0);
-      if (next.getTime() !== new Date(event.starts_at).getTime()) onMove(event, next);
+      if (d.startMinute === d.from && sameDate(d.day, d.fromDay)) return;
+      onMove(event, at(d.day, d.startMinute));
     } else {
-      const start = new Date(event.starts_at);
-      const next = new Date(start);
-      next.setHours(0, d.endMinutes, 0, 0);
-      if (next.getTime() !== resolveEnd(event, minutesOf(event)).getTime()) onResize(event, next);
+      if (d.endMinute === d.from) return;
+      // Built on the column the block was drawn in. Deriving it from the
+      // event's own start put the new end on YESTERDAY for anything that had
+      // run over midnight, silently shortening a two-hour meeting to fifteen
+      // minutes.
+      onResize(event, at(d.day, d.endMinute));
     }
+  };
+
+  /* ── Drawing a new block on empty space ───────────────────────────── */
+
+  const beginCreate = (day: Date) => (e: React.PointerEvent) => {
+    /*
+     * Cleared here rather than only after use. A drag whose click never
+     * arrives - the pointer left the window, the gesture was cancelled -
+     * would otherwise leave the flag standing and swallow somebody's next
+     * perfectly ordinary click on the grid.
+     */
+    swallowClick.current = false;
+    // Only bare grid, never a press that landed on a block.
+    if (e.target !== e.currentTarget) return;
+    if (e.button !== 0) return;
+    /*
+     * Touch is left alone on purpose. The grid lives inside a vertical
+     * scroller, and capturing a touch on press is how a calendar becomes a
+     * thing you cannot scroll. A tap still books at the time tapped.
+     */
+    if (e.pointerType === 'touch') return;
+
+    const anchor = minuteFromPointer(e.clientY, e.currentTarget as HTMLElement);
+    setDraft({ kind: 'create', day, anchorMinute: anchor, ...dragRange(anchor, anchor), moved: false });
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const dragCreate = (e: React.PointerEvent) => {
+    const d = draftRef.current;
+    if (d?.kind !== 'create') return;
+    // Vertical only: a new block belongs to the day it was started on.
+    // Every column shares the grid's vertical geometry, so this one answers
+    // for the pointer wherever it has wandered sideways to.
+    const column = columnFor(d.day);
+    if (!column) return;
+    const minute = minuteFromPointer(e.clientY, column);
+    setDraft({
+      ...d,
+      // A press that wanders inside one quarter-hour cell is still a click.
+      moved: d.moved || minute !== d.anchorMinute,
+      ...dragRange(d.anchorMinute, minute),
+    });
+  };
+
+  const endCreate = () => {
+    const d = draftRef.current;
+    setDraft(null);
+    if (d?.kind !== 'create') return;
+    if (!d.moved) return;   // A click. The click handler books at that moment.
+    swallowClick.current = true;
+    onCreateRange(at(d.day, d.startMinute), at(d.day, d.endMinute));
+  };
+
+  /*
+   * A cancelled pointer — a system gesture, a context menu, capture lost —
+   * used to leave the draft set forever, and the draft is what suppresses
+   * opening an event on click. One stray gesture and no meeting on the grid
+   * could be opened again until another full drag had been completed.
+   */
+  const cancelDrag = () => setDraft(null);
+
+  /** "09:00 – 10:30 · 1h 30m", live, while a drag is happening. */
+  const rangeLabel = (day: Date, from: number, to: number) =>
+    `${clockLabel(at(day, from))} – ${clockLabel(at(day, to))} · ${durationLabel(Math.max(1, to - from))}`;
+
+  /** The block being drawn, if this column is where it is being drawn. */
+  const provisional = (day: Date): { from: number; to: number; colour: string; title: string } | null => {
+    const d = draft;
+    if (!d) return null;
+    if (d.kind === 'create') {
+      return sameDate(d.day, day)
+        ? { from: d.startMinute, to: d.endMinute, colour: 'var(--indigo)', title: 'New' }
+        : null;
+    }
+    if (d.kind !== 'move' || !sameDate(d.day, day)) return null;
+    const event = events.find((e) => e.id === d.id);
+    // Only when it has left the column it was drawn in — otherwise the real
+    // block is already following the cursor and this would double it.
+    if (!event || sameDate(new Date(event.starts_at), day)) return null;
+    const mins = durationMinutes(event, minutesOf(event));
+    return {
+      from: d.startMinute,
+      to: Math.min(DAY_MINUTES, d.startMinute + mins),
+      colour: colourOf(event),
+      title: event.title,
+    };
   };
 
   return (
@@ -177,7 +367,7 @@ export function TimeGrid({
       <div className="flex border-b border-[var(--border-subtle)] bg-[var(--bg-muted)]">
         <div style={{ width: GUTTER }} className="flex-shrink-0" />
         {days.map((day) => {
-          const isToday = day.toDateString() === nowDate.toDateString();
+          const isToday = sameDate(day, nowDate);
           const allDay = allDayEvents(events, day);
           return (
             <div key={day.toISOString()} className="flex-1 min-w-0 border-l border-[var(--border-subtle)]">
@@ -229,21 +419,34 @@ export function TimeGrid({
 
           {days.map((day) => {
             const placed = layoutDay(events, day, minutesOf);
-            const isToday = day.toDateString() === nowDate.toDateString();
+            const isToday = sameDate(day, nowDate);
+            const ghost = provisional(day);
 
             return (
               <div
                 key={day.toISOString()}
                 data-daycol
-                className="relative flex-1 min-w-0 border-l border-[var(--border-subtle)]"
+                ref={(el) => {
+                  if (el) columns.current.set(keyOf(day), el);
+                  else columns.current.delete(keyOf(day));
+                }}
+                className={cn(
+                  'relative flex-1 min-w-0 border-l border-[var(--border-subtle)]',
+                  // Not `select-none` outright: it would kill selecting an
+                  // event's text. Only while a drag is actually happening.
+                  draft && 'select-none',
+                )}
+                onPointerDown={beginCreate(day)}
+                onPointerMove={dragCreate}
+                onPointerUp={endCreate}
+                onPointerCancel={cancelDrag}
                 onClick={(e) => {
                   // Only bare grid, never a click that landed on a block.
                   if (e.target !== e.currentTarget) return;
+                  if (swallowClick.current) { swallowClick.current = false; return; }
                   const rect = e.currentTarget.getBoundingClientRect();
-                  const minutes = snapMinutes(((e.clientY - rect.top) / rect.height) * 24 * 60);
-                  const at = new Date(day);
-                  at.setHours(0, minutes, 0, 0);
-                  onBookAt(at);
+                  const minutes = snapMinutes(((e.clientY - rect.top) / rect.height) * DAY_MINUTES);
+                  onBookAt(at(day, minutes));
                 }}
               >
                 {/* Hour lines. Half-hours are lighter, which is what makes a
@@ -268,7 +471,7 @@ export function TimeGrid({
                 )}
 
                 {placed.map(({ event, top, height, left, width, clashes }) => {
-                  const d = draft?.id === event.id ? draft : null;
+                  const d = draft && draft.kind !== 'create' && draft.id === event.id ? draft : null;
                   const mins = durationMinutes(event, minutesOf(event));
                   const start = new Date(event.starts_at);
 
@@ -276,10 +479,12 @@ export function TimeGrid({
                   // the cursor instead of waiting for the server.
                   let drawTop = top;
                   let drawHeight = height;
-                  if (d?.kind === 'move') drawTop = d.startMinutes / (24 * 60);
+                  if (d?.kind === 'move') drawTop = d.startMinute / DAY_MINUTES;
                   if (d?.kind === 'resize') {
-                    drawHeight = Math.max(15, d.endMinutes - minutesIntoDay(start)) / (24 * 60);
+                    drawHeight = Math.max(DEFAULT_STEP, d.endMinute - d.startMinute) / DAY_MINUTES;
                   }
+                  // Gone to another column: what stays here is where it was.
+                  const elsewhere = d?.kind === 'move' && !sameDate(d.day, day);
 
                   const cancelled = event.status === 'cancelled';
                   const colour = colourOf(event);
@@ -296,17 +501,19 @@ export function TimeGrid({
                       key={event.id}
                       data-event={event.id}
                       onPointerDown={beginMove(event, day)}
-                      onPointerMove={onPointerMove(event, day)}
-                      onPointerUp={endDrag(event)}
+                      onPointerMove={dragEvent(event)}
+                      onPointerUp={endEventDrag(event)}
+                      onPointerCancel={cancelDrag}
                       onClick={(e) => { e.stopPropagation(); if (!draftRef.current) onOpen(event); }}
                       title={`${event.title} · ${clockLabel(start)} · ${durationLabel(mins)}`}
                       className={cn(
                         'group absolute z-[2] cursor-grab overflow-hidden rounded-md border-l-[3px] px-1.5 py-1 text-left transition-shadow active:cursor-grabbing',
                         'hover:shadow-[0_2px_8px_rgba(0,0,0,0.12)]',
                         cancelled && 'opacity-60',
+                        elsewhere && 'opacity-25',
                       )}
                       style={{
-                        top: `${drawTop * 100}%`,
+                        top: `${(elsewhere ? top : drawTop) * 100}%`,
                         height: `${drawHeight * 100}%`,
                         // A sliver of inset so neighbouring blocks do not touch.
                         left: `calc(${left * 100}% + 2px)`,
@@ -323,9 +530,22 @@ export function TimeGrid({
                       </p>
                       {!short && (
                         <p className="mt-0.5 flex items-center gap-1 truncate text-micro text-[var(--text-secondary)]">
-                          <Icon className="h-2.5 w-2.5 flex-shrink-0" />
-                          {clockLabel(start)} · {durationLabel(mins)}
-                          {clashes > 0 && <span className="text-[var(--text-tertiary)]">· clashes</span>}
+                          {/* Mid-drag the times ARE the answer, so they replace
+                              everything decorative rather than sitting beside
+                              it and being cut off. */}
+                          {d ? (
+                            <span className="tabular font-medium text-[var(--indigo)]">
+                              {d.kind === 'move'
+                                ? rangeLabel(d.day, d.startMinute, Math.min(DAY_MINUTES, d.startMinute + mins))
+                                : rangeLabel(d.day, d.startMinute, d.endMinute)}
+                            </span>
+                          ) : (
+                            <>
+                              <Icon className="h-2.5 w-2.5 flex-shrink-0" />
+                              {clockLabel(start)} · {durationLabel(mins)}
+                              {clashes > 0 && <span className="text-[var(--text-tertiary)]">· clashes</span>}
+                            </>
+                          )}
                         </p>
                       )}
 
@@ -333,9 +553,10 @@ export function TimeGrid({
                           without covering the title. */}
                       {!short && (
                         <div
-                          onPointerDown={beginResize(event)}
-                          onPointerMove={onPointerMove(event, day)}
-                          onPointerUp={endDrag(event)}
+                          onPointerDown={beginResize(event, day)}
+                          onPointerMove={dragEvent(event)}
+                          onPointerUp={endEventDrag(event)}
+                          onPointerCancel={cancelDrag}
                           data-resize={event.id}
                           className="absolute inset-x-0 bottom-0 h-1.5 cursor-ns-resize opacity-0 group-hover:opacity-100"
                           style={{ background: colour }}
@@ -344,6 +565,29 @@ export function TimeGrid({
                     </div>
                   );
                 })}
+
+                {/* The block being drawn: a new one, or one dragged in from
+                    another day. Never takes a pointer event — it exists only
+                    to be looked at. */}
+                {ghost && (
+                  <div
+                    data-provisional
+                    className="pointer-events-none absolute inset-x-[2px] z-[4] overflow-hidden rounded-md border border-dashed px-1.5 py-1"
+                    style={{
+                      top: `${(ghost.from / DAY_MINUTES) * 100}%`,
+                      height: `${(Math.max(DEFAULT_STEP, ghost.to - ghost.from) / DAY_MINUTES) * 100}%`,
+                      borderColor: ghost.colour,
+                      background: `color-mix(in srgb, ${ghost.colour} 22%, var(--bg-surface))`,
+                    }}
+                  >
+                    <p className="truncate text-caption font-semibold leading-tight text-[var(--text-primary)]">
+                      {ghost.title}
+                    </p>
+                    <p className="truncate text-micro tabular font-medium text-[var(--indigo)]">
+                      {rangeLabel(day, ghost.from, ghost.to)}
+                    </p>
+                  </div>
+                )}
               </div>
             );
           })}
