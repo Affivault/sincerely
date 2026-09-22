@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PARTICIPANT_ROLES } from '@lemlist/shared';
+import { PARTICIPANT_ROLES, MIN_SEARCH_LENGTH } from '@lemlist/shared';
 import type { Deal, DealParticipant } from '@lemlist/shared';
 import { crmApi } from '../../api/crm.api';
 import { contactsApi } from '../../api/contacts.api';
@@ -83,7 +83,7 @@ function AddParticipant({
   const { data: results, isFetching } = useQuery({
     queryKey: ['crm', 'participant-search', debounced],
     queryFn: () => contactsApi.list({ search: debounced, limit: 8 }),
-    enabled: debounced.length >= 2,
+    enabled: debounced.length >= MIN_SEARCH_LENGTH,
   });
 
   const add = useMutation({
@@ -134,7 +134,7 @@ function AddParticipant({
         ))}
       </div>
 
-      {debounced.length < 2 ? (
+      {debounced.length < MIN_SEARCH_LENGTH ? (
         <p className="px-1 py-1 text-caption text-[var(--text-muted)]">
           Type at least two characters. Pick a role first and it is applied to whoever you add.
         </p>

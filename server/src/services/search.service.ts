@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js';
-import type { SearchHit, SearchResults } from '@lemlist/shared';
+import { MIN_SEARCH_LENGTH, type SearchHit, type SearchResults } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Universal search.
@@ -12,6 +12,7 @@ import type { SearchHit, SearchResults } from '@lemlist/shared';
    ═══════════════════════════════════════════════════════════════════════ */
 
 const PER_TYPE = 5;
+
 
 /** Strip characters that would otherwise break out of an ilike/or filter. */
 function safe(term: string): string {
@@ -43,7 +44,7 @@ export const searchService = {
   async search(userId: string, rawQuery: string): Promise<SearchResults> {
     const started = Date.now();
     const q = safe(String(rawQuery || ''));
-    if (q.length < 2) return { hits: [], took_ms: 0 };
+    if (q.length < MIN_SEARCH_LENGTH) return { hits: [], took_ms: 0 };
     const like = `%${q}%`;
 
     const [contacts, companies, deals, campaigns, lists, activities, meetings, templates, messages] = await Promise.all([

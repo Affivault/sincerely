@@ -19,7 +19,7 @@ import { usePeek } from './peek/usePeek';
 import { crmApi } from '../api/crm.api';
 import toast from 'react-hot-toast';
 import {
-  parseQuickAdd, SEARCH_TYPE_LABEL,
+  parseQuickAdd, SEARCH_TYPE_LABEL, MIN_SEARCH_LENGTH,
   type SearchHit, type SearchHitType, type QuickAddKind,
 } from '@lemlist/shared';
 
@@ -149,7 +149,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const { data: results, isFetching } = useQuery({
     queryKey: ['search', trimmed],
     queryFn: () => searchApi.query(trimmed),
-    enabled: open && trimmed.length >= 2,
+    enabled: open && trimmed.length >= MIN_SEARCH_LENGTH,
     staleTime: 15_000,
   });
 
@@ -186,7 +186,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   });
 
   const hitItems = useMemo<CommandItem[]>(() => {
-    if (trimmed.length < 2) return [];
+    if (trimmed.length < MIN_SEARCH_LENGTH) return [];
     return (results?.hits ?? []).map((h: SearchHit) => ({
       id: `${h.type}-${h.id}`,
       label: h.title,
@@ -313,7 +313,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   if (!open) return null;
 
-  const searching = isFetching && trimmed.length >= 2;
+  const searching = isFetching && trimmed.length >= MIN_SEARCH_LENGTH;
   let flatIndex = -1;
 
   return (
@@ -420,7 +420,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             <kbd className="kbd"><CornerDownLeft className="h-2.5 w-2.5" /></kbd>
             to select
           </span>
-          {results && trimmed.length >= 2 && (
+          {results && trimmed.length >= MIN_SEARCH_LENGTH && (
             <span className="ml-auto tabular">
               {results.hits.length} result{results.hits.length === 1 ? '' : 's'} · {results.took_ms}ms
             </span>
