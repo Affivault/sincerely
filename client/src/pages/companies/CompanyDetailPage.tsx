@@ -10,8 +10,8 @@ import { Avatar } from '../../components/shared/Avatar';
 import { QuickCompose } from '../../components/shared/QuickCompose';
 import { usePeek } from '../../components/peek/usePeek';
 import { COMPANY_SIZE_OPTIONS } from '../../lib/constants';
-import { cn, formatDate } from '../../lib/utils';
-import { DEAL_STAGES, type CompanyActivity } from '@lemlist/shared';
+import { cn } from '../../lib/utils';
+import { DEAL_STAGES, type CompanyActivity, formatDate, formatMoney } from '@lemlist/shared';
 import {
   ArrowLeft, Building2, Users, Handshake, Globe, MapPin, Factory, Linkedin,
   Mail, StickyNote, CalendarDays, ListTodo, ArrowUpRight, ArrowDownLeft,
@@ -214,7 +214,7 @@ export function CompanyDetailPage() {
   const { company, contacts, deals } = data;
   const open = deals.filter((d: any) => d.stage !== 'won' && d.stage !== 'lost');
   const won = deals.filter((d: any) => d.stage === 'won');
-  const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  const money = (n: number) => formatMoney(n);
   const website = company.website || (company.domain ? `https://${company.domain}` : undefined);
 
   return (

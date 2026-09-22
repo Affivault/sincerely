@@ -9,6 +9,7 @@ import { onUpgradePrompt } from '../lib/upgradeNag';
 import { Button } from './ui/Button';
 import { openModals } from './ui/Modal';
 import { cn } from '../lib/utils';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 type Interval = 'monthly' | 'annual';
 const PAID: PlanId[] = ['starter', 'growth'];
@@ -52,6 +53,8 @@ export function UpgradeNag() {
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(panelRef, open);
   const [reason, setReason] = useState<string | undefined>();
   const [interval, setInterval_] = useState<Interval>('monthly');
   const [busy, setBusy] = useState<PlanId | null>(null);
@@ -158,9 +161,11 @@ export function UpgradeNag() {
           <div className="fixed inset-0 bg-black/40 backdrop-blur-[3px] animate-fade-in" onClick={() => setOpen(false)} />
 
           <div
+            ref={panelRef}
             role="dialog"
             aria-modal="true"
             aria-label="Upgrade your plan"
+            tabIndex={-1}
             className="relative w-full max-w-[620px] rounded-[14px] border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-xl)] overflow-hidden"
             style={{ animation: 'cmdkIn 200ms var(--ease-out) both' }}
           >

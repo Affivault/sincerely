@@ -2,8 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  DEAL_LABELS, LEAD_ARCHIVE_REASONS, LEAD_STALE_DAYS, leadIsStale, summariseLeads,
-} from '@lemlist/shared';
+  DEAL_LABELS, LEAD_ARCHIVE_REASONS, LEAD_STALE_DAYS, leadIsStale, summariseLeads, formatMoney } from '@lemlist/shared';
 import type { DealLabel, Lead, LeadStatus } from '@lemlist/shared';
 import { leadsApi } from '../../api/leads.api';
 import { Modal } from '../../components/ui/Modal';
@@ -40,9 +39,7 @@ import { Refreshing } from '../../components/ui/Refreshing';
 
 function money(v: number | null | undefined, currency = 'USD'): string {
   if (v === null || v === undefined) return '—';
-  try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(v || 0);
-  } catch { return `$${Math.round(v || 0).toLocaleString()}`; }
+  return formatMoney(v, currency);
 }
 
 function ageLabel(iso: string): string {

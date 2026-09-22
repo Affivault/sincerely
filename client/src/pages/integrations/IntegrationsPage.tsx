@@ -6,8 +6,7 @@ import {
   INTEGRATION_CATALOG,
   type IntegrationProviderMeta,
   type UserIntegration,
-  type IntegrationResourcesResult,
-} from '@lemlist/shared';
+  type IntegrationResourcesResult, formatDateTime } from '@lemlist/shared';
 import {
   Blocks,
   Slack,
@@ -32,7 +31,7 @@ import {
   Sparkles,
   RefreshCw,
 } from 'lucide-react';
-import { cn, formatDateTime } from '../../lib/utils';
+import { cn } from '../../lib/utils';
 import { PageHeader } from '../../components/shared/PageHeader';
 import toast from 'react-hot-toast';
 

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CrmEvent, CrmTask } from '@lemlist/shared';
-import { durationMinutes, resolveEnd } from '@lemlist/shared';
+import { durationMinutes, resolveEnd, formatDate, formatDayMonth, formatDayOfMonth, formatFullDate, formatLongWeekdayDate, formatMonthYear, formatTime } from '@lemlist/shared';
 import { calendarApi } from '../../api/calendar.api';
 import { TimeGrid, type GridEvent } from '../../components/calendar/TimeGrid';
 import { EventTypeBar } from '../../components/calendar/EventTypeBar';
@@ -65,7 +65,7 @@ function weekDays(anchor: Date): Date[] {
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 function timeOf(d: Date, allDay?: boolean): string {
-  return allDay ? 'All day' : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return allDay ? 'All day' : formatTime(d);
 }
 
 /** A chip on a month cell / week column. */
@@ -233,17 +233,17 @@ export function CalendarPage() {
   const days = view === 'week' ? weekDays(anchor) : view === 'day' ? [startOfDay(anchor)] : monthMatrix(anchor);
 
   const periodLabel = view === 'day'
-    ? anchor.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    ? formatFullDate(anchor)
     : view === 'week'
     ? (() => {
         const w = weekDays(anchor);
         const a = w[0], b = w[6];
         const same = a.getMonth() === b.getMonth();
         return same
-          ? `${a.toLocaleDateString(undefined, { day: 'numeric' })}–${b.getDate()} ${b.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`
-          : `${a.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – ${b.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+          ? `${formatDayOfMonth(a)}–${b.getDate()} ${formatMonthYear(b)}`
+          : `${formatDayMonth(a)} – ${formatDate(b)}`;
       })()
-    : anchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    : formatMonthYear(anchor);
 
   /* ── Agenda: a flat chronological list from today forward ── */
   const agenda = useMemo(() => {
@@ -357,7 +357,7 @@ export function CalendarPage() {
                           isToday ? 'bg-[var(--indigo-subtle)]/40' : 'bg-[var(--bg-elevated)]/50',
                         )}>
                           <span className={cn('text-body font-semibold', isToday ? 'text-[var(--indigo)]' : 'text-[var(--text-primary)]')}>
-                            {isToday ? 'Today' : item.at.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
+                            {isToday ? 'Today' : formatLongWeekdayDate(item.at)}
                           </span>
                         </div>
                       )}

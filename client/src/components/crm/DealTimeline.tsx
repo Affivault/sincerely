@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { DEAL_STAGES } from '@lemlist/shared';
+import { DEAL_STAGES, formatDate, formatTime } from '@lemlist/shared';
 import type {
   CrmEvent, CrmNote, CrmTask, Deal, DealEmail, DealStageEvent, DealStage,
 } from '@lemlist/shared';
@@ -67,14 +67,11 @@ function dayLabel(d: Date): string {
   // and stops reading as a sequence.
   if (diff === -1) return 'Tomorrow';
   if (diff < -1 && diff > -7) return `In ${Math.abs(diff)} days`;
-  return d.toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric',
-    ...(d.getFullYear() === today.getFullYear() ? {} : { year: 'numeric' }),
-  });
+  return formatDate(d);
 }
 
 function timeLabel(d: Date): string {
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return formatTime(d);
 }
 
 function stageLabel(id: string | null): string {
@@ -251,7 +248,7 @@ export function DealTimeline({
         icon: e.type === 'call' ? Users : CalendarPlus,
         tone: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
         title: e.title,
-        meta: `${new Date(e.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}${e.location ? ` · ${e.location}` : ''}`,
+        meta: `${formatTime(new Date(e.starts_at))}${e.location ? ` · ${e.location}` : ''}`,
       });
     }
 

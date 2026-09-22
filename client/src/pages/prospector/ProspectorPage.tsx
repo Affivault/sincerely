@@ -16,7 +16,7 @@ import {
   Lock, Unlock, CheckCircle2, ChevronLeft, ChevronRight, X,
   Linkedin, ArrowUpRight, Coins, KeyRound, FolderOpen, Plus, Megaphone, AlertTriangle, SearchX,
 } from 'lucide-react';
-import { CREDIT_PACKS } from '@lemlist/shared';
+import { CREDIT_PACKS, formatDayMonth } from '@lemlist/shared';
 import { EmptyState } from '../../components/shared/EmptyState';
 import type {
   ProspectPerson, ProspectSearchFilters, ProspectSearchResponse,
@@ -617,7 +617,7 @@ export function ProspectorPage() {
           {credits && credits.allowance >= 0 && credits.remaining === 0 && (
             <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-2.5 flex-wrap">
               <span className="text-body text-[var(--text-secondary)] flex items-center gap-2">
-                <Coins className="h-3.5 w-3.5 text-amber-500" /> You're out of credits. Plan credits reset {new Date(credits.resets_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.
+                <Coins className="h-3.5 w-3.5 text-amber-500" /> You're out of credits. Plan credits reset {formatDayMonth(new Date(credits.resets_at))}.
               </span>
               <span className="flex items-center gap-3 flex-shrink-0">
                 <button onClick={() => setBuyOpen(true)} className="inline-flex items-center gap-1 text-body font-semibold text-[var(--indigo)] hover:underline">

@@ -4,8 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { CalendarDays, ArrowRight, Video, Phone, MapPin, Users } from 'lucide-react';
 import {
   clockLabel, durationLabel, durationMinutes, resolveEnd,
-  type CalendarEventType, type CrmEvent,
-} from '@lemlist/shared';
+  type CalendarEventType, type CrmEvent, formatLongWeekdayDate } from '@lemlist/shared';
 import { crmApi } from '../../api/crm.api';
 import { calendarApi } from '../../api/calendar.api';
 import { cn } from '../../lib/utils';
@@ -72,7 +71,7 @@ export function TodayPanel() {
       .slice(0, 5);
   }, [events, typeById, dayRange, now]);
 
-  const todayLabel = now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+  const todayLabel = formatLongWeekdayDate(now);
 
   return (
     <section className="panel overflow-hidden flex flex-col">

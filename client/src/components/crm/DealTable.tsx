@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { DEAL_STAGES, probabilityOf, rotOf, weightedValue } from '@lemlist/shared';
+import { DEAL_STAGES, probabilityOf, rotOf, weightedValue, formatDayMonth, formatMoney } from '@lemlist/shared';
 import type { Deal, DealStage } from '@lemlist/shared';
 import { Avatar } from '../shared/Avatar';
 import { Checkbox } from '../ui/Checkbox';
@@ -23,9 +23,7 @@ export type SortDir = 'asc' | 'desc';
 
 function money(v: number, currency = 'USD'): string {
   try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency', currency, maximumFractionDigits: 0,
-    }).format(v || 0);
+    return formatMoney(v, currency);
   } catch {
     return `$${Math.round(v || 0).toLocaleString()}`;
   }
@@ -57,7 +55,7 @@ function closeLabel(iso: string | null, stage: DealStage): { text: string; tone:
   if (Number.isNaN(d.getTime())) return { text: '—', tone: 'text-[var(--text-muted)]' };
   const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diff = Math.round((startOf(d) - startOf(new Date())) / 86_400_000);
-  const text = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const text = formatDayMonth(d);
   // A date in the past only matters while the deal is still open; on a closed
   // deal it is just a record of what was expected.
   const live = stage !== 'won' && stage !== 'lost';

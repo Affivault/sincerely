@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { webhookApi } from '../../api/webhook.api';
 import { apikeyApi } from '../../api/apikey.api';
-import { WebhookEventType, type WebhookDelivery } from '@lemlist/shared';
+import { WebhookEventType, type WebhookDelivery, formatDateTime } from '@lemlist/shared';
 import {
   Code2,
   Webhook,
@@ -22,7 +22,7 @@ import {
   Chrome,
   Info,
 } from 'lucide-react';
-import { cn, formatDateTime } from '../../lib/utils';
+import { cn } from '../../lib/utils';
 import { API_URL, ABSOLUTE_API_URL } from '../../lib/constants';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
@@ -204,7 +204,7 @@ export function DeveloperPage() {
     setConnectingExtension(true);
     try {
       const { raw_key } = await apikeyApi.create({
-        name: `Chrome extension (${new Date().toLocaleDateString()})`,
+        name: `Chrome extension (${formatDateTime(new Date())})`,
         rate_limit: 100,
       });
       window.postMessage(

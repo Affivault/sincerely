@@ -9,8 +9,7 @@ import {
 import {
   WEEKDAY_NAMES, SLOT_INTERVALS, minuteLabel, parseMinuteLabel, describeWeek,
   DEFAULT_SCHEDULING_PREFS, durationLabel,
-  type AvailabilityWindow, type SchedulingPrefs,
-} from '@lemlist/shared';
+  type AvailabilityWindow, type SchedulingPrefs, formatTime, formatWeekdayDate } from '@lemlist/shared';
 import { availabilityApi, type AvailabilityResponse } from '../../api/calendar.api';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { cn } from '../../lib/utils';
@@ -344,7 +343,7 @@ export function AvailabilityPage() {
       const group = groups.get(key);
       if (group) group.slots.push(s);
       else groups.set(key, {
-        label: d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }),
+        label: formatWeekdayDate(d),
         slots: [s],
       });
     }
@@ -612,7 +611,7 @@ export function AvailabilityPage() {
                                 key={s.start}
                                 className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-1.5 py-0.5 text-caption tabular text-[var(--text-secondary)]"
                               >
-                                {new Date(s.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                                {formatTime(new Date(s.start))}
                               </span>
                             ))}
                             {day.slots.length > 12 && (

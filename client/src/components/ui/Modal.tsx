@@ -1,6 +1,7 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { cn } from '../../lib/utils';
 
 /* Every open modal/overlay in mount order; the last one is the one on screen
@@ -23,6 +24,21 @@ interface ModalProps {
 
 export function Modal({ isOpen, onClose, title, description, children, size = 'md', footer }: ModalProps) {
   const identity = useRef({});
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  /*
+   * Only the dialog on top may hold Tab.
+   *
+   * Same rule the Escape handling below already follows, and for the same
+   * reason: a confirmation opened from inside an editor sits over it, and
+   * if the editor kept trapping focus it would pull the cursor straight
+   * back out of the confirmation - worse than no trap at all.
+   */
+  const isTopmost = useCallback(
+    () => openModals[openModals.length - 1] === identity.current,
+    [],
+  );
+  useFocusTrap(panelRef, isOpen, { topmost: isTopmost });
   // Most callers pass an inline `onClose`, which gets a new identity on every
   // parent render. Keeping it in the stack effect's deps below would tear
   // down and rebuild that effect on any re-render while the modal is open —
@@ -78,9 +94,13 @@ export function Modal({ isOpen, onClose, title, description, children, size = 'm
 
       {/* Panel — frosted glass over the dimmed workspace */}
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        /* Focusable by script, not by Tab: somewhere for the cursor to
+           land in a dialog that has no fields of its own. */
+        tabIndex={-1}
         className={cn(
           'relative w-full max-h-[90vh] flex flex-col rounded-[14px] glass shadow-[var(--shadow-xl)]',
           sizes[size]
@@ -101,6 +121,7 @@ export function Modal({ isOpen, onClose, title, description, children, size = 'm
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="ml-3 flex-shrink-0 rounded-md p-1 text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors duration-150 -mr-0.5"
           >
             <X className="h-4 w-4" />

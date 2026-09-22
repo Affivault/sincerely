@@ -13,15 +13,14 @@ import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
 import { ContactHistory, ContactOrigin } from '../../components/crm/ContactHistory';
 import {
   DEAL_STAGES, isColdEmailable, LIFECYCLE_LABEL,
-  type Deal, type CrmEvent, type Lifecycle,
-} from '@lemlist/shared';
+  type Deal, type CrmEvent, type Lifecycle, formatDayMonth, formatDate, formatDateTime } from '@lemlist/shared';
 import { Spinner } from '../../components/ui/Spinner';
 import { InlineEdit } from '../../components/ui/InlineEdit';
 import { Modal } from '../../components/ui/Modal';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/shared/Avatar';
-import { formatDate, formatDateTime, cn } from '../../lib/utils';
+import { cn } from '../../lib/utils';
 import {
   ArrowLeft,
   Trash2,
@@ -243,7 +242,7 @@ export function ContactDetailPage() {
     const d = Math.floor(diff / 86400000);
     if (d < 1) { const h = Math.floor(diff / 3600000); return h < 1 ? 'Just now' : `${h}h ago`; }
     if (d < 30) return `${d}d ago`;
-    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return formatDayMonth(new Date(iso));
   };
   const money = (v: number) => `$${Math.round(v || 0).toLocaleString()}`;
   // contact_id is what puts the meeting on this profile's history — the

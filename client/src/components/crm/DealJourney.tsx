@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { DEAL_STAGES, stageTimeline } from '@lemlist/shared';
+import { DEAL_STAGES, stageTimeline, formatDate } from '@lemlist/shared';
 import type { Deal, DealStage, DealStageEvent, StageLeg } from '@lemlist/shared';
 import { crmApi } from '../../api/crm.api';
 import { Spinner } from '../ui/Spinner';
@@ -45,9 +45,7 @@ function when(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   const sameYear = d.getFullYear() === new Date().getFullYear();
-  return d.toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }),
-  });
+  return formatDate(d);
 }
 
 function Leg({ leg, first }: { leg: StageLeg; first: boolean }) {

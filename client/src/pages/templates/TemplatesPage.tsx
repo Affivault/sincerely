@@ -30,8 +30,7 @@ import {
   FileText,
   X,
   Check,
-  MoreHorizontal,
-} from 'lucide-react';
+  MoreHorizontal, History } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type {
   EmailTemplate,
@@ -41,8 +40,9 @@ import type {
   CreateEmailTemplateInput,
   CreateSequenceTemplateInput,
 } from '@lemlist/shared';
-import { TEMPLATE_CATEGORIES } from '@lemlist/shared';
+import { TEMPLATE_CATEGORIES, formatDayMonth, draftAgeLabel } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
+import { useDraftRecovery } from '../../hooks/useDraftRecovery';
 
 // ─── Email Preview Component ────────────────────────────────────────
 
@@ -283,6 +283,34 @@ function EmailEditorModal({
   const [category, setCategory] = useState<TemplateCategory>((initial?.category as TemplateCategory) || 'custom');
   const [showPreview, setShowPreview] = useState(true);
 
+  /*
+   * A template is the longest thing anybody writes in this app, and until
+   * now it was the least protected: the campaign builder autosaved a draft
+   * and this did not, so closing the editor - or a reload, or a crash -
+   * took the whole email with it. Same hook, same policy.
+   */
+  const draftData = { name, subject, bodyHtml, category };
+  const draft = useDraftRecovery({
+    form: 'template',
+    recordId: (initial as any)?.id ?? null,
+    version: 1,
+    data: draftData,
+    enabled: isOpen,
+    // A name on its own is not work worth offering back. A subject or a
+    // body is.
+    isEmpty: (d) => !d.subject.trim() && !d.bodyHtml.replace(/<[^>]*>/g, '').trim(),
+    serverUpdatedAt: (initial as any)?.updated_at ?? null,
+  });
+
+  const restoreDraft = () => {
+    const d = draft.accept();
+    if (!d) return;
+    setName(d.name);
+    setSubject(d.subject);
+    setBodyHtml(d.bodyHtml);
+    setCategory(d.category);
+  };
+
   const insertMergeTag = (tag: string) => {
     window.dispatchEvent(new CustomEvent('rte-insert-text', { detail: { text: `{{${tag}}}` } }));
   };
@@ -291,6 +319,35 @@ function EmailEditorModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Email Template Editor" size="2xl">
+      {draft.offer && (
+        <div
+          className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-3 py-2"
+          data-draft-offer
+        >
+          <History className="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+          <p className="min-w-0 flex-1 text-body text-[var(--text-secondary)]">
+            <span className="font-medium text-[var(--text-primary)]">
+              Unsaved work from {draftAgeLabel(draft.offer.ageMs)}.
+            </span>{' '}
+            This was never saved — restoring replaces what is on screen now.
+          </p>
+          <button
+            type="button"
+            onClick={restoreDraft}
+            className="h-7 flex-shrink-0 rounded-md bg-[var(--indigo)] px-2.5 text-caption font-semibold text-white hover:opacity-90"
+            data-draft-restore
+          >
+            Restore it
+          </button>
+          <button
+            type="button"
+            onClick={draft.dismiss}
+            className="h-7 flex-shrink-0 rounded-md px-2 text-caption font-medium text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)]"
+          >
+            Discard
+          </button>
+        </div>
+      )}
       <div className="flex gap-4 min-h-[500px]">
         {/* Editor side */}
         <div className="flex-1 space-y-3 min-w-0">
@@ -343,7 +400,10 @@ function EmailEditorModal({
 
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" onClick={onClose}>Cancel</Button>
-            <Button variant="primary" onClick={() => onSave({ name, subject, body_html: bodyHtml, category })} disabled={saving || !name || !subject}>
+            {/* The draft is the safety net, not the record. Once the
+                template is genuinely saved it has to go, or it would be
+                offered back over the saved version next time. */}
+            <Button variant="primary" onClick={() => { draft.clear(); onSave({ name, subject, body_html: bodyHtml, category }); }} disabled={saving || !name || !subject}>
               {saving ? 'Saving...' : 'Save Template'}
             </Button>
           </div>
@@ -800,7 +860,7 @@ export function TemplatesPage() {
     if (days < 1) return 'today';
     if (days === 1) return 'yesterday';
     if (days < 30) return `${days}d ago`;
-    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return formatDayMonth(new Date(iso));
   };
 
   return (

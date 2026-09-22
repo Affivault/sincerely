@@ -3,8 +3,7 @@ import { Video, Phone, MapPin, Users } from 'lucide-react';
 import {
   layoutDay, allDayEvents, durationMinutes, resolveEnd, snapMinutes,
   clockLabel, durationLabel, minutesIntoDay,
-  type CalendarEventType, type TimedEvent,
-} from '@lemlist/shared';
+  type CalendarEventType, type TimedEvent, formatHour, formatWeekdayShort } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -184,7 +183,7 @@ export function TimeGrid({
             <div key={day.toISOString()} className="flex-1 min-w-0 border-l border-[var(--border-subtle)]">
               <div className="px-2 py-1.5 text-center">
                 <p className="text-micro font-medium uppercase tracking-wide text-[var(--text-tertiary)]">
-                  {day.toLocaleDateString(undefined, { weekday: 'short' })}
+                  {formatWeekdayShort(day)}
                 </p>
                 <p className={cn(
                   'mx-auto mt-0.5 flex h-6 w-6 items-center justify-center rounded-full text-strong font-semibold tabular',
@@ -223,7 +222,7 @@ export function TimeGrid({
                 className="absolute right-2 -translate-y-1/2 text-micro tabular text-[var(--text-tertiary)]"
                 style={{ top: h * HOUR_HEIGHT }}
               >
-                {h === 0 ? '' : new Date(2026, 0, 1, h).toLocaleTimeString(undefined, { hour: 'numeric' })}
+                {h === 0 ? '' : formatHour(new Date(2026, 0, 1, h))}
               </div>
             ))}
           </div>

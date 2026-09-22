@@ -21,7 +21,7 @@ import {
   Sparkles,
   Command,
 } from 'lucide-react';
-import { cn, formatDateTime } from '../../lib/utils';
+import { cn } from '../../lib/utils';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { StatCard } from '../../components/shared/StatCard';
 import { Avatar } from '../../components/shared/Avatar';
@@ -29,6 +29,7 @@ import toast from 'react-hot-toast';
 import { Spinner } from '../../components/ui/Spinner';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
+import { formatDateTime } from '@lemlist/shared';
 
 function relTime(iso?: string): string {
   if (!iso) return '';
@@ -41,7 +42,7 @@ function relTime(iso?: string): string {
   if (h < 24) return `${h}h`;
   const days = Math.floor(h / 24);
   if (days < 7) return `${days}d`;
-  return d.toLocaleDateString();
+  return formatDateTime(d);
 }
 
 function Kbd({ children }: { children: React.ReactNode }) {

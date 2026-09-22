@@ -1,3 +1,4 @@
+export * from './format-date.js';
 export * from './enums.js';
 export * from './contact.types.js';
 export * from './campaign.types.js';

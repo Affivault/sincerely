@@ -9,7 +9,7 @@ import {
 import { bookingLinksApi, publicBookingUrl } from '../../api/booking.api';
 import { calendarApi } from '../../api/calendar.api';
 import { PageHeader } from '../../components/shared/PageHeader';
-import { slugify, type BookingLink, type CalendarEventType } from '@lemlist/shared';
+import { slugify, type BookingLink, type CalendarEventType, formatDayMonthTime } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 
@@ -352,9 +352,7 @@ function Bookings({ linkId }: { linkId: string }) {
               {b.contact_name || b.contact_email || 'Someone'}
             </span>
             <span className="flex-shrink-0 tabular text-[var(--text-secondary)]">
-              {new Date(b.starts_at).toLocaleDateString(undefined, {
-                day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
-              })}
+              {formatDayMonthTime(new Date(b.starts_at))}
             </span>
             {/* Which sequence produced it. The whole argument for owning
                 the scheduler rather than linking out to one. */}

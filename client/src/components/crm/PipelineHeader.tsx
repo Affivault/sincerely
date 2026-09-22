@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { funnel, pipelineArr, summarisePipeline, DEAL_STAGES } from '@lemlist/shared';
+import { funnel, pipelineArr, summarisePipeline, DEAL_STAGES, formatMoney } from '@lemlist/shared';
 import type { Deal, DealStage } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import {
@@ -35,9 +35,7 @@ function money(v: number, currency = 'USD'): string {
 
 function full(v: number, currency = 'USD'): string {
   try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency', currency, maximumFractionDigits: 0,
-    }).format(v || 0);
+    return formatMoney(v, currency);
   } catch {
     return `$${Math.round(v || 0).toLocaleString()}`;
   }

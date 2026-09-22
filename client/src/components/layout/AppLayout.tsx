@@ -6,6 +6,7 @@ import { ErrorBoundary } from '../ErrorBoundary';
 import { UpgradeNag } from '../UpgradeNag';
 import { CommandPalette, PeekDrawer, ShortcutsOverlay, warmOverlays } from './Overlays';
 import { ConfirmProvider } from '../ui/ConfirmDialog';
+import { OverflowTooltip } from '../ui/OverflowTooltip';
 import { UndoProvider } from '../ui/UndoBar';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { SidebarProvider, useSidebar } from '../../context/SidebarContext';
@@ -256,6 +257,9 @@ function AppContent() {
       <CommandPalette open={open} onClose={closePalette} />
       {/* Any page can open a record over itself; state lives in the URL. */}
       <PeekDrawer />
+      {/* Reads out any value the layout had to cut off. One listener for
+          the 241 places that were clipping text with no way to see it. */}
+      <OverflowTooltip />
       <ShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   );

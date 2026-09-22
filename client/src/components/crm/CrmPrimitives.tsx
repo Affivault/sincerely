@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 import type {
   CrmTask, CrmEvent, TaskType, TaskPriority, EventType, ContactWithTags,
 } from '@lemlist/shared';
-import { TASK_TYPES, PLACEHOLDER, MIN_SEARCH_LENGTH } from '@lemlist/shared';
+import { TASK_TYPES, PLACEHOLDER, MIN_SEARCH_LENGTH, formatDayMonth, formatTime, formatWeekday } from '@lemlist/shared';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../ui/Refreshing';
 
@@ -96,12 +96,12 @@ export function dueLabel(iso?: string | null): { text: string; tone: 'over' | 't
   const today = startOfDay(new Date());
   const day = startOfDay(due);
   const diff = Math.round((day.getTime() - today.getTime()) / 86_400_000);
-  const time = due.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const time = formatTime(due);
   if (diff < 0) return { text: diff === -1 ? 'Yesterday' : `${Math.abs(diff)} days overdue`, tone: 'over' };
   if (diff === 0) return { text: `Today, ${time}`, tone: 'today' };
   if (diff === 1) return { text: `Tomorrow, ${time}`, tone: 'soon' };
-  if (diff <= 7) return { text: due.toLocaleDateString(undefined, { weekday: 'long' }), tone: 'soon' };
-  return { text: due.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }), tone: 'later' };
+  if (diff <= 7) return { text: formatWeekday(due), tone: 'soon' };
+  return { text: formatDayMonth(due), tone: 'later' };
 }
 
 export const DUE_TONE: Record<string, string> = {
