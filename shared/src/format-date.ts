@@ -45,7 +45,29 @@ export type DateLike = Date | string | number | null | undefined;
  * printing nothing: it looks like data.
  */
 function toDate(value: DateLike): Date | null {
+  return parseDay(value);
+}
+
+/**
+ * A date, read the way a person meant it.
+ *
+ * A bare `2026-09-30` - what a Postgres `date` column such as a deal's
+ * expected close date comes back as - is a calendar day, not an instant.
+ * `new Date('2026-09-30')` reads it as midnight UTC, which anywhere west of
+ * Greenwich is the evening of the 29th: every close date showed a day
+ * early, and "Today" and "1d overdue" arrived a day before they were true.
+ * A date-only string is built as local midnight on that day instead;
+ * anything with a time in it is left to mean the instant it says.
+ */
+export function parseDay(value: DateLike): Date | null {
   if (value == null || value === '') return null;
+  if (typeof value === 'string') {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+    if (m) {
+      const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+  }
   const d = value instanceof Date ? value : new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
 }

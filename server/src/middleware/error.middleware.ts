@@ -31,9 +31,10 @@ export function errorMiddleware(
   res: Response,
   _next: NextFunction
 ): void {
-  console.error('Error:', err);
-
   if (err instanceof AppError) {
+    // Expected failures (404s, validation, plan limits) are part of normal
+    // traffic; only the server-side ones are worth a stack trace in the log.
+    if (err.statusCode >= 500) console.error('Error:', err);
     res.status(err.statusCode).json({
       error: err.message,
       ...(err.code ? { code: err.code } : {}),

@@ -1149,6 +1149,32 @@ export async function processWebhookTimeouts(): Promise<number> {
 // ============================================
 
 /**
+ * Start the scheduled campaigns whose time has come.
+ *
+ * launch() files a future start as 'scheduled' and parks every contact on
+ * that start time - and nothing ever moved it on. processDueSteps only
+ * reads contacts of *running* campaigns, so a campaign scheduled for
+ * Monday morning sat on "Scheduled" indefinitely and sent nothing, with
+ * every contact apparently due. Promoting it here, on the worker's own
+ * clock, is the step that was missing.
+ *
+ * Conditioned on the status still being 'scheduled', so a campaign paused
+ * or cancelled in the meantime is left alone, and two instances racing on
+ * the same row cannot both start it.
+ */
+export async function promoteDueScheduledCampaigns(): Promise<number> {
+  const now = new Date().toISOString();
+  const { data, error } = await supabaseAdmin
+    .from('campaigns')
+    .update({ status: 'running', started_at: now })
+    .eq('status', 'scheduled')
+    .or(`scheduled_at.is.null,scheduled_at.lte.${now}`)
+    .select('id');
+  if (error) throw new Error(`Could not start scheduled campaigns: ${error.message}`);
+  return (data || []).length;
+}
+
+/**
  * Find all campaign contacts with next_send_at <= now and process them.
  * Should be called periodically (e.g., every 30 seconds via cron/scheduler).
  */

@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DEAL_LABELS, DEAL_STAGES, daysInStage, hasEconomics, isOpen, nextStep,
-  probabilityOf, revenueSplit, rotOf, weightedValue, formatDayMonth, formatMoney } from '@lemlist/shared';
+  probabilityOf, revenueSplit, rotOf, weightedValue, formatDayMonth, formatMoney, parseDay } from '@lemlist/shared';
 import type {
   CrmEvent, CrmTask, Deal, DealLabel, DealStage,
 } from '@lemlist/shared';
@@ -58,8 +58,9 @@ function spellDays(days: number | null): string {
 
 function whenLabel(iso: string | null | undefined): { text: string; tone: string } {
   if (!iso) return { text: 'No date', tone: 'text-[var(--text-muted)]' };
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return { text: 'No date', tone: 'text-[var(--text-muted)]' };
+  // A calendar day, not UTC midnight - see parseDay.
+  const d = parseDay(iso);
+  if (!d) return { text: 'No date', tone: 'text-[var(--text-muted)]' };
   const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diff = Math.round((startOf(d) - startOf(new Date())) / 86_400_000);
   const text = formatDayMonth(d);

@@ -284,7 +284,11 @@ export function getPresetTemplates(): CreateAssetTemplateInput[] {
         {
           type: 'text',
           content: 'Built for {{company}}',
-          x: 300,
+          // With align:'center', x is the LEFT edge of the box the text is
+          // centred in and width is that box - the renderer adds width/2.
+          // These were written as centre points, which put the headline at
+          // x=600: off the right edge of a 600px image.
+          x: 0,
           y: 18,
           width: 600,
           fontSize: 28,
@@ -296,7 +300,7 @@ export function getPresetTemplates(): CreateAssetTemplateInput[] {
         {
           type: 'text',
           content: '{{first_name}}, see how we can help your team',
-          x: 300,
+          x: 0,
           y: 130,
           width: 600,
           fontSize: 22,
@@ -317,7 +321,8 @@ export function getPresetTemplates(): CreateAssetTemplateInput[] {
         {
           type: 'text',
           content: 'Learn More',
-          x: 300,
+          // The button's own left edge, so the label centres on it.
+          x: 200,
           y: 230,
           width: 200,
           fontSize: 18,

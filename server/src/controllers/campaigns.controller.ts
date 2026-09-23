@@ -6,12 +6,12 @@ import { campaignContactsService } from '../services/campaign-contacts.service.j
 import { campaignHealthService } from '../services/campaign-health.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { decrypt } from '../utils/encryption.js';
-import { sendViaSmtp } from '../services/email-sender.service.js';
+import { sendViaSmtp, formatFromHeader, describeSmtpError } from '../services/email-sender.service.js';
 import { billingService } from '../services/billing.service.js';
 import * as sse from '../services/sse.service.js';
 import { getInboundWebhookToken } from '../utils/inbound-webhook-token.js';
 import { env } from '../config/env.js';
-import { previewWithSampleData } from '../services/sequence.service.js';
+import { previewWithSampleData, htmlToText } from '../services/sequence.service.js';
 
 export const campaignsController = {
   // Campaign CRUD
@@ -237,9 +237,10 @@ export const campaignsController = {
           code: 'UPGRADE_REQUIRED',
         });
       }
-      const fromAddress = account.label
-        ? `"${account.label.replace(/"/g, "'")}" <${account.email_address}>`
-        : account.email_address;
+      // The same From a real send uses. The label is an internal nickname
+      // ("Main inbox"), and a test that arrives from it shows the recipient
+      // a name the campaign itself never will.
+      const fromAddress = formatFromHeader(account.from_name || account.label, account.email_address);
       // Fill merge tags with sample data, matching the SMTP-account-level test
       // endpoint — otherwise this would ship raw literal {{first_name}}-style
       // tags to the test recipient instead of a readable preview.
@@ -256,11 +257,14 @@ export const campaignsController = {
           to,
           subject: `[TEST] ${previewSubject}`,
           html: previewHtml,
-          text: previewHtml.replace(/<[^>]*>/g, ''),
+          text: htmlToText(previewHtml),
+          replyTo: account.reply_to || undefined,
+          // Interactive: answer well inside the browser's 30s timeout.
+          timeoutMs: 12000,
         });
       } catch (sendErr) {
         await billingService.refundEmailQuota(req.userId!);
-        throw sendErr;
+        return res.status(502).json({ error: describeSmtpError(sendErr) });
       }
 
       res.json({ success: true, message: `Test email sent to ${to}` });

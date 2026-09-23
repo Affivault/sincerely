@@ -119,13 +119,18 @@ router.get('/open/:trackingId', async (req: Request, res: Response) => {
       // Update SSE health for the account that actually sent this email.
       // Look up the send activity first so SSE credits the right account when
       // a different sender was chosen by the Smart-Sharding Engine.
+      // Newest send only: a step retried after a transient failure has
+      // more than one 'sent' row, and .single() errors on two, which
+      // quietly credited the open to the campaign's default mailbox.
       const { data: sendActivity } = await supabaseAdmin
         .from('campaign_activities')
         .select('metadata')
         .eq('campaign_contact_id', campaignContactId)
         .eq('step_id', stepId)
         .eq('activity_type', 'sent')
-        .single();
+        .order('occurred_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
       const openSmtpId =
         sendActivity?.metadata?.smtp_account_id ||
         (cc as any).campaigns?.smtp_account_id;
@@ -238,9 +243,21 @@ async function performUnsubscribe(campaignContactId: string, stepId: string | nu
   try {
     const { data: cc } = await supabaseAdmin
       .from('campaign_contacts')
-      .select('campaign_id, contact_id, campaigns(user_id)')
+      .select('campaign_id, contact_id, status, campaigns(user_id)')
       .eq('id', campaignContactId)
       .single();
+
+    /*
+     * Once is enough.
+     *
+     * The same link is hit more than once as a matter of course: Gmail's
+     * one-click POST and then the person opening the link anyway, a mail
+     * scanner pre-fetching it, a second click to be sure. Each used to log
+     * a fresh 'unsubscribed' activity and fire lead.unsubscribed again, so
+     * an integration downstream saw three unsubscribes from one person and
+     * the campaign's unsubscribe count read three.
+     */
+    if (cc && cc.status === 'unsubscribed') return;
 
     if (cc) {
       await supabaseAdmin

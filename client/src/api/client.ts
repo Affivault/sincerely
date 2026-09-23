@@ -2,6 +2,13 @@ import axios from 'axios';
 import { supabase } from '../lib/supabase';
 import { API_URL } from '../lib/constants';
 import { notifyUpgrade } from '../lib/upgradeNag';
+import { rememberReturnTo } from '../lib/returnTo';
+
+/** Off to sign in again, keeping the page they were on to come back to. */
+function toLogin() {
+  rememberReturnTo(`${window.location.pathname}${window.location.search}${window.location.hash}`);
+  window.location.href = '/login';
+}
 
 const apiClient = axios.create({
   baseURL: API_URL,
@@ -48,7 +55,7 @@ apiClient.interceptors.response.use(
       const { error: refreshError } = await supabase.auth.refreshSession();
       if (refreshError) {
         await supabase.auth.signOut();
-        window.location.href = '/login';
+        toLogin();
       } else {
         // Refresh succeeded — retry the original request once with the new token
         const { data: { session } } = await supabase.auth.getSession();
@@ -58,7 +65,7 @@ apiClient.interceptors.response.use(
         }
         // Refresh reported success but produced no usable token — force sign-out
         await supabase.auth.signOut();
-        window.location.href = '/login';
+        toLogin();
       }
     }
     return Promise.reject(error);

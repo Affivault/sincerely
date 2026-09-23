@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { chunk, selectInChunks } from '../utils/batch.js';
 import {
   segmentRevenue, seniorityOf, sizeBandOf, dealValue, isOpen,
   type SegmentDimension, type SegmentMember,
@@ -107,35 +108,43 @@ export const segmentRevenueService = {
       return segmentRevenue([], dimension);
     }
 
-    const contacts = await fetchAll<ContactRow>((from, to) =>
+    /*
+     * In slices. Five thousand ids in one `in` list is a URL of nearly
+     * 200KB, which the gateway refuses long before the database sees it -
+     * so this report failed for exactly the accounts with enough data to
+     * make it worth reading.
+     */
+    const reached = contactIds.slice(0, MAX_CONTACTS);
+    const contacts = await selectInChunks<string, ContactRow>(reached, (slice) =>
       supabaseAdmin
         .from('contacts')
         .select('id, company_id, job_title, location, source')
         .eq('user_id', userId)
-        .in('id', contactIds.slice(0, MAX_CONTACTS))
-        .range(from, to));
+        .in('id', slice));
 
     // Company attributes, for the dimensions that live there.
     const companyIds = [...new Set(contacts.map((c) => c.company_id).filter(Boolean) as string[])];
     const companies = new Map<string, { industry: string | null; size: string | null; location: string | null }>();
     if (companyIds.length > 0 && (dimension === 'industry' || dimension === 'size' || dimension === 'location')) {
-      const rows = await fetchAll<{ id: string; industry: string | null; size: string | null; location: string | null }>(
-        (from, to) => supabaseAdmin
+      const rows = await selectInChunks<string, { id: string; industry: string | null; size: string | null; location: string | null }>(
+        companyIds, (slice) => supabaseAdmin
           .from('companies')
           .select('id, industry, size, location')
           .eq('user_id', userId)
-          .in('id', companyIds)
-          .range(from, to));
+          .in('id', slice));
       for (const r of rows) companies.set(r.id, r);
     }
 
-    const deals = await fetchAll<DealRow>((from, to) =>
-      supabaseAdmin
-        .from('deals')
-        .select('contact_id, stage, value, probability, recurring_amount, recurring_period, one_off_amount, term_months')
-        .eq('user_id', userId)
-        .in('contact_id', contactIds.slice(0, MAX_CONTACTS))
-        .range(from, to));
+    const deals: DealRow[] = [];
+    for (const slice of chunk(reached)) {
+      deals.push(...await fetchAll<DealRow>((from, to) =>
+        supabaseAdmin
+          .from('deals')
+          .select('contact_id, stage, value, probability, recurring_amount, recurring_period, one_off_amount, term_months')
+          .eq('user_id', userId)
+          .in('contact_id', slice)
+          .range(from, to)));
+    }
 
     const dealsByContact = new Map<string, DealRow[]>();
     for (const d of deals) {

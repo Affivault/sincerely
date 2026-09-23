@@ -6,10 +6,11 @@ import { escapeHtml, textToHtml } from '../utils/html.js';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { decrypt } from '../utils/encryption.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
-import { sendViaSmtp } from './email-sender.service.js';
+import { sendViaSmtp, formatFromHeader } from './email-sender.service.js';
+import { htmlToText } from './sequence.service.js';
 import { SaraStatus } from '@lemlist/shared';
 import { billingService } from './billing.service.js';
-import { inboxSyncService } from './inbox-sync.service.js';
+import { inboxSyncService, imapHostFor } from './inbox-sync.service.js';
 
 /** Reserve a monthly-quota slot before an interactive send; throws if over cap. */
 async function assertSendQuota(userId: string): Promise<void> {
@@ -77,7 +78,7 @@ async function syncArchiveToImap(
   for (const [accountId, msgs] of byAccount) {
     const { data: account } = await supabaseAdmin
       .from('smtp_accounts')
-      .select('smtp_host, smtp_user, imap_user, smtp_pass_encrypted, email_address')
+      .select('smtp_host, smtp_user, imap_host, imap_port, imap_secure, imap_user, smtp_pass_encrypted, email_address')
       .eq('id', accountId)
       .single();
     if (!account) continue;
@@ -91,26 +92,28 @@ async function syncArchiveToImap(
     }
     const host = account.smtp_host || '';
     const isGmail = host.includes('gmail') || (account.email_address || '').endsWith('@gmail.com');
-    const isOutlook = host.includes('outlook') || host.includes('office365');
 
-    let imapHost: string;
-    if (isGmail) imapHost = 'imap.gmail.com';
-    else if (isOutlook) imapHost = 'outlook.office365.com';
-    else if (host.startsWith('smtp.')) imapHost = host.replace('smtp.', 'imap.');
-    else {
-      const emailDomain = (account.email_address || '').split('@')[1];
-      if (!emailDomain) {
-        console.warn('[IMAP archive] cannot determine IMAP host for account', accountId, '— skipping');
-        continue;
-      }
-      imapHost = `imap.${emailDomain}`;
+    /*
+     * The server the sync reads, not a third guess at it.
+     *
+     * This derived its own IMAP host from smtp_host and dialled 993 with TLS
+     * regardless, ignoring the imap_host/port/secure the account was set up
+     * with - the same mistake that once had the sync reading the wrong
+     * server, surviving here after it was fixed there. For a hosted mailbox
+     * (Spacemail, Titan, Private Email) that name does not exist, so every
+     * archive in the app quietly failed to reach the real inbox.
+     */
+    const imapHost = imapHostFor(account);
+    if (!imapHost || imapHost === 'imap.') {
+      console.warn('[IMAP archive] cannot determine IMAP host for account', accountId, '— skipping');
+      continue;
     }
 
     const imapIp = await resolveHostIp(imapHost).catch(() => null);
     const client = new ImapFlow({
       host: imapIp || imapHost,
-      port: 993,
-      secure: true,
+      port: account.imap_port || 993,
+      secure: account.imap_secure !== false,
       servername: imapHost,
       auth: { user: account.imap_user || account.smtp_user || account.email_address, pass: password },
       logger: false,
@@ -186,6 +189,35 @@ async function syncArchiveToImap(
       try { await client.logout(); } catch { /* ignore */ }
     }
   }
+}
+
+/**
+ * Who a reply goes to.
+ *
+ * The other party, whichever way the message went. Replying from a thread
+ * where the latest message is one of ours used to address the reply to
+ * from_email - our own mailbox - so the follow-up landed in our own inbox
+ * and the prospect never saw it.
+ */
+function replyRecipient(original: { direction?: string | null; from_email?: string | null; to_email?: string | null }): string {
+  const to = original.direction === 'outbound' ? original.to_email : original.from_email;
+  if (!to) throw new AppError('This message has no address to reply to', 400);
+  return to;
+}
+
+/**
+ * The headers every interactive send shares with a campaign send.
+ *
+ * Replies, forwards and composed mail went out with a bare address in From
+ * and no Reply-To, so the same person appeared as "Thomas Vance" in the
+ * sequence and as "thomas@acme.com" in the follow-up to it - and a reply to
+ * a mailbox with a Reply-To configured bypassed it.
+ */
+function senderHeaders(account: any): { from: string; replyTo?: string } {
+  return {
+    from: formatFromHeader(account.from_name || account.label, account.email_address),
+    replyTo: account.reply_to || undefined,
+  };
 }
 
 async function resolveContactEmail(userId: string, messageId: string): Promise<string | null> {
@@ -311,7 +343,8 @@ export const inboxService = {
     // let it masquerade as already-sent in Inbox/Sent until it really sends.
     // Callers that explicitly ask for sara_status filter their own view.
     if ((folder === 'inbox' || folder === 'sent') && params.sara_status === undefined) {
-      query = query.or('sara_status.is.null,sara_status.not.in.(scheduled,sending)');
+      // 'failed' too: a scheduled send that never went out is not sent mail.
+      query = query.or('sara_status.is.null,sara_status.not.in.(scheduled,sending,failed)');
     }
 
     if (folder === 'needs_triage') {
@@ -647,6 +680,11 @@ export const inboxService = {
   ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}
 </div>`;
 
+    const recipient = replyRecipient(original);
+    // A rich reply arrives with an empty plain body; the text part must
+    // still say what the HTML says.
+    const textBody = body || htmlToText(userHtml);
+
     await assertSendQuota(userId);
     await sendWithQuotaRefund(userId, () => sendViaSmtp({
       smtpHost: smtpAccount.smtp_host,
@@ -654,11 +692,11 @@ export const inboxService = {
       smtpSecure: smtpAccount.smtp_secure,
       smtpUser: smtpAccount.smtp_user,
       smtpPass: smtpPassword,
-      from: smtpAccount.email_address,
-      to: original.from_email,
+      ...senderHeaders(smtpAccount),
+      to: recipient,
       subject,
       html: htmlBody,
-      text: body,
+      text: textBody,
       messageId: newMessageId,
       headers: original.message_id ? { 'In-Reply-To': original.message_id, 'References': original.message_id } : {},
     }));
@@ -670,10 +708,10 @@ export const inboxService = {
       contact_id: original.contact_id,
       smtp_account_id: smtpAccount.id,
       from_email: smtpAccount.email_address,
-      to_email: original.from_email,
+      to_email: recipient,
       subject,
       body_html: htmlBody,
-      body_text: body,
+      body_text: textBody,
       in_reply_to: original.message_id,
       message_id: newMessageId,
       is_read: true,
@@ -748,7 +786,7 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
       smtpSecure: smtpAccount.smtp_secure,
       smtpUser: smtpAccount.smtp_user,
       smtpPass: smtpPassword,
-      from: smtpAccount.email_address,
+      ...senderHeaders(smtpAccount),
       to: toEmail,
       subject,
       html: htmlBody,
@@ -794,11 +832,11 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
       smtpSecure: smtpAccount.smtp_secure,
       smtpUser: smtpAccount.smtp_user,
       smtpPass: smtpPassword,
-      from: smtpAccount.email_address,
+      ...senderHeaders(smtpAccount),
       to: input.to,
       subject: input.subject,
       html: htmlBody,
-      text: input.body,
+      text: input.body || htmlToText(htmlBody),
       messageId,
     }));
 
@@ -886,10 +924,10 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
       contact_id: original.contact_id,
       smtp_account_id: smtpAccount.id,
       from_email: smtpAccount.email_address,
-      to_email: original.from_email,
+      to_email: replyRecipient(original),
       subject,
       body_html: htmlBody,
-      body_text: body,
+      body_text: body || htmlToText(userHtml),
       in_reply_to: original.message_id,
       message_id: newMessageId,
       is_read: true,
@@ -916,7 +954,10 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
       .single();
 
     if (!msg) throw new AppError('Message not found', 404);
-    if (msg.sara_status !== 'scheduled') throw new AppError('Message is not scheduled', 400);
+    // A failed send can be thrown away as well as a pending one.
+    if (msg.sara_status !== 'scheduled' && msg.sara_status !== 'failed') {
+      throw new AppError('Message is not scheduled', 400);
+    }
 
     const { error } = await supabaseAdmin
       .from('inbox_messages')
@@ -947,14 +988,18 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
     if (!msg) throw new AppError('Message not found', 404);
     // 'sending' means the scheduler has already claimed this row for delivery
     // (see processScheduledEmails) — too late to move it.
-    if (msg.sara_status !== 'scheduled') throw new AppError('Message is not scheduled', 400);
+    // Rescheduling a failed send is how it gets retried, once the mailbox
+    // it failed on has been put right.
+    if (msg.sara_status !== 'scheduled' && msg.sara_status !== 'failed') {
+      throw new AppError('Message is not scheduled', 400);
+    }
 
     const { error } = await supabaseAdmin
       .from('inbox_messages')
-      .update({ sara_action: scheduledAt })
+      .update({ sara_action: scheduledAt, sara_status: 'scheduled' })
       .eq('id', id)
       .eq('user_id', userId)
-      .eq('sara_status', 'scheduled');
+      .in('sara_status', ['scheduled', 'failed']);
 
     if (error) throw new AppError(error.message, 500);
     return { success: true, scheduled_at: scheduledAt };
@@ -969,7 +1014,7 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
       .select('*, smtp_accounts(id, email_address, label)')
       .eq('user_id', userId)
       .eq('direction', 'outbound')
-      .eq('sara_status', 'scheduled')
+      .in('sara_status', ['scheduled', 'failed'])
       .not('sara_action', 'is', null)
       .order('sara_action', { ascending: true });
 
@@ -978,6 +1023,7 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
     return (data || []).map((m: any) => ({
       ...m,
       scheduled_at: m.sara_action,
+      failed: m.sara_status === 'failed',
       smtp_email: m.smtp_accounts?.email_address || null,
       smtp_label: m.smtp_accounts?.label || null,
       smtp_accounts: undefined,
@@ -1082,7 +1128,7 @@ export async function processScheduledEmails(): Promise<number> {
 
   const { data: dueMessages, error } = await supabaseAdmin
     .from('inbox_messages')
-    .select('*, smtp_accounts(id, email_address, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass_encrypted, user_id)')
+    .select('*, smtp_accounts(id, email_address, from_name, label, reply_to, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass_encrypted, user_id)')
     .eq('direction', 'outbound')
     .eq('sara_status', 'scheduled')
     .not('sara_action', 'is', null)
@@ -1103,10 +1149,10 @@ export async function processScheduledEmails(): Promise<number> {
     try {
       const smtpAccount = msg.smtp_accounts;
       if (!smtpAccount) {
-        console.error(`[ScheduledEmails] No SMTP account for message ${msg.id}, clearing schedule`);
+        console.error(`[ScheduledEmails] No SMTP account for message ${msg.id}, marking it failed`);
         await supabaseAdmin
           .from('inbox_messages')
-          .update({ sara_status: null, sara_action: null })
+          .update({ sara_status: 'failed' })
           .eq('id', msg.id);
         continue;
       }
@@ -1145,7 +1191,7 @@ export async function processScheduledEmails(): Promise<number> {
         smtpSecure: smtpAccount.smtp_secure,
         smtpUser: smtpAccount.smtp_user,
         smtpPass: smtpPassword,
-        from: smtpAccount.email_address,
+        ...senderHeaders(smtpAccount),
         to: msg.to_email,
         subject: msg.subject,
         html: msg.body_html,
@@ -1182,11 +1228,17 @@ export async function processScheduledEmails(): Promise<number> {
       // problem (see describeSmtpError() in email-sender.service.ts), not a
       // transient blip, so it must NOT be retried forever; it belongs in the
       // permanent-failure branch.
+      //
+      // A permanent failure is marked 'failed', not cleared. Clearing both
+      // markers made the row indistinguishable from mail that went out: it
+      // appeared in Sent, dated as sent, and nobody learned the reply never
+      // left. Kept in the scheduled list instead, saying so, where it can be
+      // rescheduled once the mailbox is fixed or thrown away.
       const TRANSIENT_CODES = new Set(['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'EAI_AGAIN']);
       const isTransient = TRANSIENT_CODES.has(err.code) || err.message?.includes('timeout');
       await supabaseAdmin
         .from('inbox_messages')
-        .update(isTransient ? { sara_status: 'scheduled' } : { sara_status: null, sara_action: null })
+        .update({ sara_status: isTransient ? 'scheduled' : 'failed' })
         .eq('id', msg.id);
     }
   }

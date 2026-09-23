@@ -4,6 +4,7 @@ import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { fireEvent } from './webhook.service.js';
 import { segmentsService } from './segments.service.js';
 import { UNLISTED_LIST_ID } from '@lemlist/shared';
+import { chunk, fetchAllPages, selectInChunks } from '../utils/batch.js';
 import Papa from 'papaparse';
 import fs from 'node:fs';
 
@@ -77,44 +78,46 @@ function assertListCountColumn(error: { message?: string } | null): void {
   }
 }
 
+/** Which of these ids are this user's contacts, asked a slice at a time. */
+async function ownedContactIds(userId: string, contactIds: string[]): Promise<string[]> {
+  const rows = await selectInChunks([...new Set(contactIds)], (slice) =>
+    supabaseAdmin.from('contacts').select('id').eq('user_id', userId).in('id', slice));
+  return rows.map((c: any) => c.id as string);
+}
+
 export const contactsService = {
   async list(userId: string, params: ListParams) {
     const { page, limit, from, to } = getPagination(params);
 
-    // If filtering by list_id, get contact IDs in that list first
-    let listContactIds: string[] | null = null;
-    if (params.list_id && !isUnlisted(params.list_id)) {
-      const { data: listContacts } = await supabaseAdmin
-        .from('list_contacts')
-        .select('contact_id')
-        .eq('list_id', params.list_id);
-      listContactIds = (listContacts || []).map((lc: any) => lc.contact_id);
-      if (listContactIds.length === 0) {
-        return formatPaginatedResponse([], 0, page, limit);
-      }
-    }
+    /*
+     * List and tag filters are joins, not id lists.
+     *
+     * Both used to fetch the matching ids first and hand them back as an
+     * `in` filter. That fetch was unpaged, so it stopped at 1,000 rows -
+     * a list of 3,000 showed a total of 1,000 and pages that ran out early
+     * - and the ids went into the URL, which a list of a few hundred was
+     * already enough to make the gateway refuse. An inner-joined embed
+     * filters in the database instead, at any size, and still composes
+     * with search, sort, status filters and pagination.
+     */
+    const tagIds = Array.isArray(params.tag_ids)
+      ? params.tag_ids.filter(Boolean)
+      : params.tag_ids ? [String(params.tag_ids)] : [];
+    const listScoped = !!params.list_id && !isUnlisted(params.list_id);
 
-    // If filtering by tag_ids, resolve to contact IDs first (keeps DB count accurate)
-    let tagFilterContactIds: string[] | null = null;
-    if (params.tag_ids && params.tag_ids.length > 0) {
-      const { data: tagContacts } = await supabaseAdmin
-        .from('contact_tags')
-        .select('contact_id')
-        .in('tag_id', params.tag_ids);
-      tagFilterContactIds = [...new Set((tagContacts || []).map((tc: any) => tc.contact_id as string))];
-      if (tagFilterContactIds.length === 0) {
-        return formatPaginatedResponse([], 0, page, limit);
-      }
-    }
+    const select = [
+      '*, contact_tags(tag_id, tags(*)), list_contacts(contact_lists(id, name))',
+      listScoped ? 'in_list:list_contacts!inner(list_id)' : null,
+      tagIds.length > 0 ? 'has_tag:contact_tags!inner(tag_id)' : null,
+    ].filter(Boolean).join(', ');
 
     let query = supabaseAdmin
       .from('contacts')
-      .select('*, contact_tags(tag_id, tags(*)), list_contacts(contact_lists(id, name))', { count: 'exact' })
+      .select(select, { count: 'exact' })
       .eq('user_id', userId);
 
-    // Filter by list contacts if specified
-    if (listContactIds) {
-      query = query.in('id', listContactIds);
+    if (listScoped) {
+      query = query.eq('in_list.list_id', params.list_id!);
     }
 
     // "Not in Lists" — everyone with no live list membership.
@@ -122,9 +125,8 @@ export const contactsService = {
       query = query.eq('list_count', 0);
     }
 
-    // Filter by tag contacts if specified
-    if (tagFilterContactIds) {
-      query = query.in('id', tagFilterContactIds);
+    if (tagIds.length > 0) {
+      query = query.in('has_tag.tag_id', tagIds);
     }
 
     if (params.search) {
@@ -206,6 +208,8 @@ export const contactsService = {
       lists: (c.list_contacts || []).map((lc: any) => lc.contact_lists).filter(Boolean),
       contact_tags: undefined,
       list_contacts: undefined,
+      in_list: undefined,
+      has_tag: undefined,
     }));
 
     return formatPaginatedResponse(contacts, count || 0, page, limit);
@@ -684,13 +688,6 @@ export const contactsService = {
     if (!Array.isArray(contactIds) || contactIds.length === 0) return;
     if (!Array.isArray(tagIds) || tagIds.length === 0) return;
 
-    // Verify contacts belong to user
-    const { data: contacts } = await supabaseAdmin
-      .from('contacts')
-      .select('id')
-      .eq('user_id', userId)
-      .in('id', contactIds);
-
     // Verify tags belong to user — otherwise another tenant's tag metadata
     // could be attached to (and rendered for) this user's contacts.
     const { data: tags } = await supabaseAdmin
@@ -698,15 +695,18 @@ export const contactsService = {
       .select('id')
       .eq('user_id', userId)
       .in('id', tagIds);
-
-    const validIds = (contacts || []).map((c: any) => c.id);
     const validTagIds = (tags || []).map((t: any) => t.id);
-    const rows = validIds.flatMap((cId: string) =>
-      validTagIds.map((tId: string) => ({ contact_id: cId, tag_id: tId }))
-    );
+    if (validTagIds.length === 0) return;
 
-    if (rows.length > 0) {
-      await supabaseAdmin.from('contact_tags').upsert(rows, { onConflict: 'contact_id,tag_id' });
+    // Verify contacts belong to user, a slice at a time: a "select all" of a
+    // few hundred contacts is an `in` list too long for one URL.
+    const validIds = await ownedContactIds(userId, contactIds);
+    for (const slice of chunk(validIds)) {
+      const rows = slice.flatMap((cId: string) =>
+        validTagIds.map((tId: string) => ({ contact_id: cId, tag_id: tId })),
+      );
+      const { error } = await supabaseAdmin.from('contact_tags').upsert(rows, { onConflict: 'contact_id,tag_id' });
+      if (error) throw new AppError(error.message, 500);
     }
   },
 
@@ -714,50 +714,40 @@ export const contactsService = {
     if (!Array.isArray(contactIds) || contactIds.length === 0) return;
     if (!Array.isArray(tagIds) || tagIds.length === 0) return;
 
-    const { data: contacts } = await supabaseAdmin
-      .from('contacts')
-      .select('id')
-      .eq('user_id', userId)
-      .in('id', contactIds);
-
     const { data: tags } = await supabaseAdmin
       .from('tags')
       .select('id')
       .eq('user_id', userId)
       .in('id', tagIds);
-
-    const validIds = (contacts || []).map((c: any) => c.id);
     const validTagIds = (tags || []).map((t: any) => t.id);
-    if (validIds.length === 0 || validTagIds.length === 0) return;
+    if (validTagIds.length === 0) return;
 
-    const { error } = await supabaseAdmin
-      .from('contact_tags')
-      .delete()
-      .in('contact_id', validIds)
-      .in('tag_id', validTagIds);
-    if (error) throw new AppError(error.message, 500);
+    const validIds = await ownedContactIds(userId, contactIds);
+    for (const slice of chunk(validIds)) {
+      const { error } = await supabaseAdmin
+        .from('contact_tags')
+        .delete()
+        .in('contact_id', slice)
+        .in('tag_id', validTagIds);
+      if (error) throw new AppError(error.message, 500);
+    }
   },
 
   async bulkDelete(userId: string, contactIds: string[]) {
     if (!Array.isArray(contactIds) || contactIds.length === 0) return { deleted: 0 };
 
     // Verify contacts belong to user before deleting
-    const { data: owned } = await supabaseAdmin
-      .from('contacts')
-      .select('id')
-      .eq('user_id', userId)
-      .in('id', contactIds);
-
-    const validIds = (owned || []).map((c: any) => c.id as string);
+    const validIds = await ownedContactIds(userId, contactIds);
     if (validIds.length === 0) return { deleted: 0 };
 
-    const { error } = await supabaseAdmin
-      .from('contacts')
-      .delete()
-      .eq('user_id', userId)
-      .in('id', validIds);
-
-    if (error) throw new AppError(error.message, 500);
+    for (const slice of chunk(validIds)) {
+      const { error } = await supabaseAdmin
+        .from('contacts')
+        .delete()
+        .eq('user_id', userId)
+        .in('id', slice);
+      if (error) throw new AppError(error.message, 500);
+    }
 
     fireEvent(userId, 'contacts.bulk_deleted', { contact_ids: validIds, count: validIds.length }).catch(() => {});
 
@@ -765,31 +755,46 @@ export const contactsService = {
   },
 
   async export(userId: string, contactIds?: string[], format: 'csv' | 'json' = 'csv', listId?: string, segmentId?: string) {
-    let query = supabaseAdmin
-      .from('contacts')
-      .select('email, first_name, last_name, company, job_title, phone, linkedin_url, website, location, source, is_unsubscribed, is_bounced, dcs_score, custom_fields, created_at')
-      .eq('user_id', userId);
+    const COLUMNS = 'email, first_name, last_name, company, job_title, phone, linkedin_url, website, location, source, is_unsubscribed, is_bounced, dcs_score, custom_fields, created_at';
 
-    if (contactIds && contactIds.length > 0) {
-      query = query.in('id', contactIds);
-    } else if (isUnlisted(listId)) {
-      query = query.eq('list_count', 0);
-    } else if (listId) {
-      // No explicit selection — the caller is exporting whatever list they're
-      // currently viewing, so scope to it instead of the whole account.
-      const { data: listContacts } = await supabaseAdmin
-        .from('list_contacts')
-        .select('contact_id')
-        .eq('list_id', listId);
-      query = query.in('id', (listContacts || []).map((lc: any) => lc.contact_id));
-    } else if (segmentId) {
-      const segment = await segmentsService.get(userId, segmentId);
-      const ids = await segmentsService.getMatchingContactIds(userId, segment.filter_config);
-      query = query.in('id', ids);
+    /*
+     * Paged, or chunked, but never one bare select.
+     *
+     * A bare select comes back capped at 1,000 rows, so "Export all" on an
+     * account of 4,000 contacts produced a tidy CSV of the first thousand
+     * and said nothing about the rest - the kind of loss nobody notices
+     * until the other system is missing people.
+     */
+    let data: any[];
+    try {
+      if (contactIds && contactIds.length > 0) {
+        data = await selectInChunks(contactIds, (slice) =>
+          supabaseAdmin.from('contacts').select(COLUMNS).eq('user_id', userId).in('id', slice));
+      } else if (segmentId) {
+        const segment = await segmentsService.get(userId, segmentId);
+        const ids = await segmentsService.getMatchingContactIds(userId, segment.filter_config);
+        data = await selectInChunks(ids, (slice) =>
+          supabaseAdmin.from('contacts').select(COLUMNS).eq('user_id', userId).in('id', slice));
+      } else {
+        // The whole account, the "Not in Lists" view, or one list - which
+        // is an inner join rather than an id list, for the same reason as
+        // in list() above.
+        const listScoped = !!listId && !isUnlisted(listId);
+        data = await fetchAllPages((from, to) => {
+          let q = supabaseAdmin
+            .from('contacts')
+            .select(listScoped ? `${COLUMNS}, in_list:list_contacts!inner(list_id)` : COLUMNS)
+            .eq('user_id', userId);
+          if (listScoped) q = q.eq('in_list.list_id', listId!);
+          if (isUnlisted(listId)) q = q.eq('list_count', 0);
+          return q.order('created_at', { ascending: true }).order('id').range(from, to);
+        });
+        if (listScoped) data = data.map(({ in_list, ...rest }: any) => rest);
+      }
+    } catch (err: any) {
+      assertListCountColumn(err);
+      throw new AppError(err?.message || 'Could not export contacts', 500);
     }
-
-    const { data, error } = await query;
-    if (error) { assertListCountColumn(error); throw new AppError(error.message, 500); }
 
     if (format === 'json') {
       return { data, format: 'json' };
@@ -810,28 +815,28 @@ export const contactsService = {
   // given. Buckets mirror the client's derived states so the counts line up.
   async verificationBreakdown(userId: string, listId?: string) {
     const empty = { total: 0, valid: 0, risky: 0, invalid: 0, not_found: 0, unverified: 0, with_linkedin: 0 };
+    const listScoped = !!listId && !isUnlisted(listId);
+    const COLUMNS = 'dcs_verified_at, dcs_score, dcs_syntax_ok, dcs_domain_ok, is_bounced, linkedin_url';
 
-    let listContactIds: string[] | null = null;
-    if (listId && !isUnlisted(listId)) {
-      const { data: lc } = await supabaseAdmin
-        .from('list_contacts')
-        .select('contact_id')
-        .eq('list_id', listId);
-      listContactIds = (lc || []).map((x: any) => x.contact_id);
-      if (listContactIds.length === 0) return empty;
+    // Paged: the pills are counts of the whole list, and an unpaged read
+    // stopped counting at 1,000.
+    let rows: any[];
+    try {
+      rows = await fetchAllPages((from, to) => {
+        let q = supabaseAdmin
+          .from('contacts')
+          .select(listScoped ? `id, ${COLUMNS}, in_list:list_contacts!inner(list_id)` : `id, ${COLUMNS}`)
+          .eq('user_id', userId);
+        if (listScoped) q = q.eq('in_list.list_id', listId!);
+        if (isUnlisted(listId)) q = q.eq('list_count', 0);
+        return q.order('id').range(from, to);
+      });
+    } catch (err: any) {
+      assertListCountColumn(err);
+      throw new AppError(err?.message || 'Could not count verification status', 500);
     }
+    if (rows.length === 0) return empty;
 
-    let q = supabaseAdmin
-      .from('contacts')
-      .select('dcs_verified_at, dcs_score, dcs_syntax_ok, dcs_domain_ok, is_bounced, linkedin_url')
-      .eq('user_id', userId);
-    if (listContactIds) q = q.in('id', listContactIds);
-    if (isUnlisted(listId)) q = q.eq('list_count', 0);
-
-    const { data, error } = await q;
-    if (error) { assertListCountColumn(error); throw new AppError(error.message, 500); }
-
-    const rows = data || [];
     const out = { ...empty, total: rows.length };
     for (const r of rows as any[]) {
       if (r.linkedin_url) out.with_linkedin++;

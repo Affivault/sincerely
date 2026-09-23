@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import crypto from 'crypto';
+import { AppError } from '../middleware/error.middleware.js';
 import type { ApiKey, CreateApiKeyInput, ApiKeyCreatedResponse } from '@lemlist/shared';
 
 /**
@@ -93,7 +94,7 @@ export async function rotateKey(userId: string, keyId: string): Promise<ApiKeyCr
     .maybeSingle();
 
   if (error) throw error;
-  if (!data) throw new Error('API key not found');
+  if (!data) throw new AppError('API key not found', 404);
 
   return { key: data as ApiKey, raw_key: rawKey };
 }
@@ -110,7 +111,7 @@ export async function revokeKey(userId: string, keyId: string): Promise<void> {
     .select('id')
     .maybeSingle();
   if (error) throw error;
-  if (!data) throw new Error('API key not found');
+  if (!data) throw new AppError('API key not found', 404);
 }
 
 /**
@@ -125,7 +126,7 @@ export async function deleteKey(userId: string, keyId: string): Promise<void> {
     .select('id')
     .maybeSingle();
   if (error) throw error;
-  if (!data) throw new Error('API key not found');
+  if (!data) throw new AppError('API key not found', 404);
 }
 
 /**

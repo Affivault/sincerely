@@ -508,6 +508,57 @@ export const calendarSync = {
     }
   },
 
+  /**
+   * Move a pushed event to its new time. Best effort, as above.
+   *
+   * Patched in place rather than deleted and re-created, so anything the
+   * organiser added to it in Google (notes, a room) survives the move. An
+   * event that was never pushed - booked before the calendar was connected,
+   * or when Google was unreachable - is pushed now instead.
+   */
+  async moveEvent(userId: string, eventId: string, start: Date, end: Date, fallback: {
+    title: string; inviteeEmail?: string | null;
+  }): Promise<void> {
+    if (!googleConfigured()) return;
+    try {
+      const { data: event } = await supabaseAdmin
+        .from('crm_events')
+        .select('external_event_id, external_connection_id')
+        .eq('id', eventId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!event?.external_event_id || !event.external_connection_id) {
+        await this.pushEvent(userId, { id: eventId, start, end, ...fallback });
+        return;
+      }
+
+      const { data: connection } = await supabaseAdmin
+        .from('calendar_connections')
+        .select('id, access_token, refresh_token, expires_at, calendar_ids')
+        .eq('id', event.external_connection_id)
+        .maybeSingle();
+      if (!connection) return;
+
+      const token = await this.accessTokenFor(connection);
+      if (!token) return;
+
+      const calendarId = connection.calendar_ids?.[0] || 'primary';
+      await authed(
+        `${GOOGLE_EVENTS}/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(event.external_event_id)}`,
+        token,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            start: { dateTime: start.toISOString() },
+            end: { dateTime: end.toISOString() },
+          }),
+        },
+      );
+    } catch (err: any) {
+      console.error(`[CalendarSync] Could not move event: ${err?.message || err}`);
+    }
+  },
+
   /** Take it back out again when it is cancelled. Best effort, as above. */
   async removeEvent(userId: string, eventId: string): Promise<void> {
     if (!googleConfigured()) return;

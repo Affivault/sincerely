@@ -396,7 +396,14 @@ async function runEngagementTick(maxAccounts = 15): Promise<{ opened: number; re
         if (upd.opened_at) opened++;
       }
       // Reply to ~35% of opened, non-reply warm-up mail (keeps threads human).
-      if (row._opened && !row.is_reply && Math.random() < 0.35) {
+      //
+      // Rolled once, on the tick that first sees it opened. Every unreplied
+      // row stays in this sweep for three days, and rolling again on each
+      // ten-minute pass turned "about a third" into very nearly all of them -
+      // a reply rate no human inbox has, which is precisely the pattern
+      // warm-up detection looks for.
+      const firstOpen = row._opened && !row.opened_at;
+      if (firstOpen && !row.is_reply && Math.random() < 0.35) {
         const sender = acctById.get(row.from_account_id);
         if (!sender) continue;
         let password: string;

@@ -11,6 +11,7 @@ import { startOfDayInTimezone } from '../utils/timezone.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { checkAndAutoCompleteCampaign } from './sequence.service.js';
 import { inboxService } from './inbox.service.js';
+import { defaultBookingLinkUrl } from './booking.service.js';
 
 /**
  * SARA → CRM: when a reply is classified as interested/meeting, create a
@@ -293,6 +294,26 @@ export function classifyReply(
  * this message. Internal callers (inbox worker, right after inserting their
  * own message) omit it since the message is already known to be theirs.
  */
+const CALENDAR_PLACEHOLDER = '[CALENDAR_LINK]';
+
+/**
+ * Put the account's real booking link where the meeting draft asks for one.
+ *
+ * The template carried a literal "[CALENDAR_LINK]", and approving the draft
+ * sent it exactly like that - a prospect who had just said "happy to talk"
+ * received a reply with a bracketed placeholder where the link should be.
+ * An account with a live booking page gets its address; one without gets a
+ * sentence that asks for times instead of pointing at nothing.
+ */
+async function fillCalendarLink(text: string, userId: string | null | undefined): Promise<string> {
+  if (!text.includes(CALENDAR_PLACEHOLDER)) return text;
+  const link = userId ? await defaultBookingLinkUrl(userId).catch(() => null) : null;
+  if (link) return text.split(CALENDAR_PLACEHOLDER).join(link);
+  return text
+    .replace(/[^\n]*\[CALENDAR_LINK\][^\n]*/g, 'What times work best for you this week? I will send over an invite.')
+    .trim();
+}
+
 export async function processReply(messageId: string, requestingUserId?: string): Promise<SaraClassificationResult> {
   // Fetch the message with context
   const { data: message, error: msgError } = await supabaseAdmin
@@ -328,6 +349,9 @@ export async function processReply(messageId: string, requestingUserId?: string)
     message.body_text || message.body_html || '',
     contactData
   );
+  if (result.draft_reply) {
+    result.draft_reply = await fillCalendarLink(result.draft_reply, message.user_id);
+  }
 
   // Store classification
   await supabaseAdmin
@@ -449,8 +473,11 @@ export async function approveReply(
   if (fetchError) throw new AppError(fetchError.message, 500);
   if (!message) throw new AppError('Message not found', 404);
 
-  const replyText = editedReply ?? message.sara_draft_reply;
-  if (!replyText) throw new AppError('No draft reply text to send', 400);
+  // Drafts saved before the link was filled in at classification still
+  // carry the placeholder; fill it here too, at the last moment.
+  const draft = editedReply ?? message.sara_draft_reply;
+  if (!draft) throw new AppError('No draft reply text to send', 400);
+  const replyText = await fillCalendarLink(draft, userId);
 
   // Actually send the reply before flipping the status — a failed send (no
   // SMTP account, quota exceeded, etc.) should surface as an error and leave

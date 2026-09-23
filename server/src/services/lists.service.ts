@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { writable } from '../utils/writable-fields.js';
+import { chunk } from '../utils/batch.js';
 import { isColdEmailable } from '@lemlist/shared';
 import type { CreateContactListInput, UpdateContactListInput, BulkActionResult, ListKind } from '@lemlist/shared';
 
@@ -147,29 +148,35 @@ export const listsService = {
     // Verify list belongs to user
     await this.get(userId, listId);
 
-    // Verify contacts belong to user
-    const { data: contacts } = await supabaseAdmin
-      .from('contacts')
-      .select('id')
-      .eq('user_id', userId)
-      .in('id', contactIds);
-
-    const validIds = (contacts || []).map((c: any) => c.id);
-    const rows = validIds.map((contactId: string) => ({ list_id: listId, contact_id: contactId }));
-
+    /*
+     * In slices, and a slice per write.
+     *
+     * This checked ownership with every id in one `in` list and then wrote
+     * the memberships one row per round trip. "Add 800 selected contacts to
+     * a list" therefore either failed outright on the URL length, or - for
+     * a selection just under it - made eight hundred sequential requests
+     * while the browser waited. Two queries per two hundred now.
+     */
+    const requested = [...new Set(contactIds)];
     let success = 0;
     let failed = 0;
+    for (const slice of chunk(requested)) {
+      const { data: owned, error: ownErr } = await supabaseAdmin
+        .from('contacts')
+        .select('id')
+        .eq('user_id', userId)
+        .in('id', slice);
+      if (ownErr) throw new AppError(ownErr.message, 500);
 
-    for (const row of rows) {
+      const rows = (owned || []).map((c: any) => ({ list_id: listId, contact_id: c.id }));
+      failed += slice.length - rows.length;
+      if (rows.length === 0) continue;
+
       const { error } = await supabaseAdmin
         .from('list_contacts')
-        .upsert(row, { onConflict: 'list_id,contact_id' });
-
-      if (error) {
-        failed++;
-      } else {
-        success++;
-      }
+        .upsert(rows, { onConflict: 'list_id,contact_id' });
+      if (error) failed += rows.length;
+      else success += rows.length;
     }
 
     return { success, failed };
@@ -181,15 +188,20 @@ export const listsService = {
     // Verify list belongs to user
     await this.get(userId, listId);
 
-    const { error, count } = await supabaseAdmin
-      .from('list_contacts')
-      .delete()
-      .eq('list_id', listId)
-      .in('contact_id', contactIds);
+    // `count: 'exact'` is what makes the delete report how many it removed;
+    // without it the count is always null and every removal said "0".
+    let removed = 0;
+    for (const slice of chunk([...new Set(contactIds)])) {
+      const { error, count } = await supabaseAdmin
+        .from('list_contacts')
+        .delete({ count: 'exact' })
+        .eq('list_id', listId)
+        .in('contact_id', slice);
+      if (error) throw new AppError(error.message, 500);
+      removed += count || 0;
+    }
 
-    if (error) throw new AppError(error.message, 500);
-
-    return { success: count || 0, failed: 0 };
+    return { success: removed, failed: 0 };
   },
 
   async getContactsInList(userId: string, listId: string) {
@@ -235,11 +247,13 @@ export const listsService = {
 
     const memberListIds = (memberships || []).map((m: any) => m.list_id);
 
-    // Get all lists for user
+    // Get all lists for user. Not the trash: a trashed list offered as
+    // somewhere to put a contact is one they then cannot find again.
     const { data: lists, error } = await supabaseAdmin
       .from('contact_lists')
       .select('*')
       .eq('user_id', userId)
+      .eq('is_trashed', false)
       .order('name', { ascending: true });
 
     if (error) throw new AppError(error.message, 500);

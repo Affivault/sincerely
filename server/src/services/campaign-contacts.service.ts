@@ -5,6 +5,7 @@ import type { EnrolResult, EnrolSkip, EnrolSkipReason } from '@lemlist/shared';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { contactsOnOpenDeals } from './lifecycle.service.js';
 import { listsService } from './lists.service.js';
+import { chunk, fetchAllPages, selectInChunks } from '../utils/batch.js';
 
 export const campaignContactsService = {
   async list(campaignId: string, params: { page?: number; limit?: number }) {
@@ -70,11 +71,16 @@ export const campaignContactsService = {
 
     // 2. Restrict to contacts actually owned by the campaign's user — never trust
     //    caller-supplied contact IDs across tenants.
-    const { data: ownedContacts } = await supabaseAdmin
-      .from('contacts')
-      .select('id, email, first_name, last_name, is_unsubscribed, is_bounced')
-      .eq('user_id', campaign.user_id)
-      .in('id', requested);
+    //    Sliced, and the error is not swallowed: a refused lookup used to
+    //    come back empty, which then read as "none of the selected contacts
+    //    belong to this account" - the wrong sentence about a list that was
+    //    simply too long for one URL.
+    const ownedContacts = await selectInChunks(requested, (slice) =>
+      supabaseAdmin
+        .from('contacts')
+        .select('id, email, first_name, last_name, is_unsubscribed, is_bounced')
+        .eq('user_id', campaign.user_id)
+        .in('id', slice)).catch((e: Error) => { throw new AppError(e.message, 500); });
 
     for (const c of ownedContacts || []) {
       const name = [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
@@ -172,12 +178,13 @@ export const campaignContactsService = {
 
     // 5. If the campaign is bound to a list, restrict to contacts in that list
     if (campaign.list_id && allowedContactIds.length > 0) {
-      const { data: members } = await supabaseAdmin
-        .from('list_contacts')
-        .select('contact_id')
-        .eq('list_id', campaign.list_id)
-        .in('contact_id', allowedContactIds);
-      const memberIds = new Set((members || []).map((m: any) => m.contact_id));
+      const members = await selectInChunks(allowedContactIds, (slice) =>
+        supabaseAdmin
+          .from('list_contacts')
+          .select('contact_id')
+          .eq('list_id', campaign.list_id)
+          .in('contact_id', slice)).catch((e: Error) => { throw new AppError(e.message, 500); });
+      const memberIds = new Set(members.map((m: any) => m.contact_id));
       allowedContactIds = allowedContactIds.filter((id) => {
         if (memberIds.has(id)) return true;
         drop(id, 'not_in_list');
@@ -189,13 +196,14 @@ export const campaignContactsService = {
     //    if the other campaign is bound to a *different* list. (Same-list reuse is allowed.)
     const blockedBy = new Map<string, string | null>();
     if (allowedContactIds.length > 0) {
-      const { data: otherEnrolments } = await supabaseAdmin
-        .from('campaign_contacts')
-        .select('contact_id, campaign_id, campaigns!inner(name, user_id, list_id, status)')
-        .in('contact_id', allowedContactIds)
-        .neq('campaign_id', campaignId);
+      const otherEnrolments = await selectInChunks(allowedContactIds, (slice) =>
+        supabaseAdmin
+          .from('campaign_contacts')
+          .select('contact_id, campaign_id, campaigns!inner(name, user_id, list_id, status)')
+          .in('contact_id', slice)
+          .neq('campaign_id', campaignId)).catch((e: Error) => { throw new AppError(e.message, 500); });
 
-      for (const row of otherEnrolments || []) {
+      for (const row of otherEnrolments) {
         const otherCampaign: any = (row as any).campaigns;
         if (!otherCampaign) continue;
         // Only block if the other campaign is still active and bound to a different list
@@ -219,12 +227,13 @@ export const campaignContactsService = {
     //    same list is re-imported after some contacts already ran the sequence.
     let newIds: string[] = [];
     if (finalIds.length > 0) {
-      const { data: alreadyEnrolled } = await supabaseAdmin
-        .from('campaign_contacts')
-        .select('contact_id')
-        .eq('campaign_id', campaignId)
-        .in('contact_id', finalIds);
-      const alreadyEnrolledIds = new Set((alreadyEnrolled || []).map((r: any) => r.contact_id as string));
+      const alreadyEnrolled = await selectInChunks(finalIds, (slice) =>
+        supabaseAdmin
+          .from('campaign_contacts')
+          .select('contact_id')
+          .eq('campaign_id', campaignId)
+          .in('contact_id', slice)).catch((e: Error) => { throw new AppError(e.message, 500); });
+      const alreadyEnrolledIds = new Set(alreadyEnrolled.map((r: any) => r.contact_id as string));
       newIds = finalIds.filter((id) => {
         if (!alreadyEnrolledIds.has(id)) return true;
         drop(id, 'already_enrolled');
@@ -238,12 +247,13 @@ export const campaignContactsService = {
       // campaign runs, rather than discovering the coverage one send at a time.
       // Contacts it can't place are left null and fall back to the campaign's
       // own timezone, exactly as they did before this existed.
-      const { data: locations } = await supabaseAdmin
-        .from('contacts')
-        .select('id, location')
-        .in('id', newIds);
+      const locations = await selectInChunks(newIds, (slice) =>
+        supabaseAdmin
+          .from('contacts')
+          .select('id, location')
+          .in('id', slice)).catch(() => [] as any[]);
       const zoneByContact = new Map<string, string | null>(
-        (locations || []).map((c: any) => [c.id, inferTimezone(c.location)]),
+        locations.map((c: any) => [c.id, inferTimezone(c.location)]),
       );
 
       const rows = newIds.map((contactId) => ({
@@ -254,20 +264,22 @@ export const campaignContactsService = {
         contact_timezone: zoneByContact.get(contactId) ?? null,
       }));
 
-      const { error } = await supabaseAdmin
-        .from('campaign_contacts')
-        .insert(rows);
+      for (const batch of chunk(rows, 500)) {
+        const { error } = await supabaseAdmin
+          .from('campaign_contacts')
+          .insert(batch);
 
-      if (error) {
-        // Pre-042 databases have no contact_timezone column. Enrolling people
-        // matters more than placing them — retry without it.
-        if (/contact_timezone/.test(error.message)) {
-          const { error: retryError } = await supabaseAdmin
-            .from('campaign_contacts')
-            .insert(rows.map(({ contact_timezone, ...rest }) => rest));
-          if (retryError) throw new AppError(retryError.message, 500);
-        } else {
-          throw new AppError(error.message, 500);
+        if (error) {
+          // Pre-042 databases have no contact_timezone column. Enrolling people
+          // matters more than placing them — retry without it.
+          if (/contact_timezone/.test(error.message)) {
+            const { error: retryError } = await supabaseAdmin
+              .from('campaign_contacts')
+              .insert(batch.map(({ contact_timezone, ...rest }) => rest));
+            if (retryError) throw new AppError(retryError.message, 500);
+          } else {
+            throw new AppError(error.message, 500);
+          }
         }
       }
     }
@@ -322,12 +334,13 @@ export const campaignContactsService = {
     }
 
     // Only the campaign owner's contacts can ever be enrolled.
-    const { data: ownedContacts } = await supabaseAdmin
-      .from('contacts')
-      .select('id')
-      .eq('user_id', campaign.user_id)
-      .in('id', contactIds);
-    const ownedIds = (ownedContacts || []).map((c: any) => c.id as string);
+    const ownedContacts = await selectInChunks([...new Set(contactIds)], (slice) =>
+      supabaseAdmin
+        .from('contacts')
+        .select('id')
+        .eq('user_id', campaign.user_id)
+        .in('id', slice)).catch((e: Error) => { throw new AppError(e.message, 500); });
+    const ownedIds = ownedContacts.map((c: any) => c.id as string);
     if (ownedIds.length === 0) {
       throw new AppError('None of the selected contacts belong to this account', 400);
     }
@@ -335,10 +348,12 @@ export const campaignContactsService = {
     // Membership first, so add()'s list restriction passes.
     if (campaign.list_id) {
       const rows = ownedIds.map((contactId) => ({ list_id: campaign.list_id, contact_id: contactId }));
-      const { error: listError } = await supabaseAdmin
-        .from('list_contacts')
-        .upsert(rows, { onConflict: 'list_id,contact_id' });
-      if (listError) throw new AppError(listError.message, 500);
+      for (const batch of chunk(rows, 500)) {
+        const { error: listError } = await supabaseAdmin
+          .from('list_contacts')
+          .upsert(batch, { onConflict: 'list_id,contact_id' });
+        if (listError) throw new AppError(listError.message, 500);
+      }
     }
 
     // The full request goes on to add(), not just the owned slice, so that
@@ -359,11 +374,15 @@ export const campaignContactsService = {
     if (!campaign) throw new AppError('Campaign not found', 404);
     if (!campaign.list_id) throw new AppError('This campaign is not bound to a lead list', 400);
 
-    const { data: members } = await supabaseAdmin
-      .from('list_contacts')
-      .select('contact_id')
-      .eq('list_id', campaign.list_id);
-    const ids = (members || []).map((m: any) => m.contact_id);
+    // Paged: a bound list of more than 1,000 used to import its first 1,000.
+    const members = await fetchAllPages((from, to) =>
+      supabaseAdmin
+        .from('list_contacts')
+        .select('contact_id')
+        .eq('list_id', campaign.list_id)
+        .order('contact_id')
+        .range(from, to));
+    const ids = members.map((m: any) => m.contact_id);
     if (ids.length === 0) return emptyEnrolResult();
 
     return this.add(campaignId, ids);
@@ -372,13 +391,14 @@ export const campaignContactsService = {
   async remove(campaignId: string, contactIds: string[]) {
     if (!Array.isArray(contactIds) || contactIds.length === 0) return;
 
-    const { error } = await supabaseAdmin
-      .from('campaign_contacts')
-      .delete()
-      .eq('campaign_id', campaignId)
-      .in('contact_id', contactIds);
-
-    if (error) throw new AppError(error.message, 500);
+    for (const slice of chunk([...new Set(contactIds)])) {
+      const { error } = await supabaseAdmin
+        .from('campaign_contacts')
+        .delete()
+        .eq('campaign_id', campaignId)
+        .in('contact_id', slice);
+      if (error) throw new AppError(error.message, 500);
+    }
 
     const { count, error: countError } = await supabaseAdmin
       .from('campaign_contacts')

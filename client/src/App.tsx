@@ -1,9 +1,10 @@
 import { Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Skeleton, SkeletonList } from './components/ui/Skeleton';
 import { lazyRoute } from './lib/prefetch';
 import { useAuth } from './context/AuthContext';
 import { AppLayout } from './components/layout/AppLayout';
+import { rememberReturnTo, takeReturnTo, hasReturnTo } from './lib/returnTo';
 
 // Eagerly loaded — needed on every first paint
 import { LandingPage } from './pages/LandingPage';
@@ -90,8 +91,21 @@ function PageSpinner() {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return <PageSpinner />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) {
+    // Remember the way back, so signing in finishes the click that
+    // brought them here rather than dropping them on the dashboard.
+    rememberReturnTo(`${location.pathname}${location.search}${location.hash}`);
+    return <Navigate to="/login" replace />;
+  }
+  // "Continue with Google" and the signup confirmation link both come back
+  // to a fixed address rather than through the sign-in page, so the
+  // destination they left for is picked up here instead.
+  if (location.pathname === '/dashboard' && hasReturnTo()) {
+    const next = takeReturnTo();
+    if (next && next !== '/dashboard') return <Navigate to={next} replace />;
+  }
   return <>{children}</>;
 }
 
@@ -107,7 +121,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
       sessionStorage.removeItem('invite_token');
       return <Navigate to={`/invite?token=${encodeURIComponent(inviteToken)}`} replace />;
     }
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={takeReturnTo() || '/dashboard'} replace />;
   }
   return <>{children}</>;
 }
