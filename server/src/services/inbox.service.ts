@@ -918,13 +918,21 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
     if (!msg) throw new AppError('Message not found', 404);
     if (msg.sara_status !== 'scheduled') throw new AppError('Message is not scheduled', 400);
 
-    const { error } = await supabaseAdmin
+    // Re-check sara_status in the delete itself: without it, a scheduler tick
+    // that claims this row (see processScheduledEmails) between the read above
+    // and this write would still get deleted unconditionally here, wiping out
+    // the record of a message that actually went on to send.
+    const { data: deleted, error } = await supabaseAdmin
       .from('inbox_messages')
       .delete()
       .eq('id', id)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .eq('sara_status', 'scheduled')
+      .select('id')
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
+    if (!deleted) throw new AppError('Message is no longer scheduled', 409);
     return { success: true };
   },
 
@@ -935,6 +943,9 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
   async rescheduleScheduledEmail(userId: string, id: string, scheduledAt: string) {
     if (!scheduledAt || Number.isNaN(new Date(scheduledAt).getTime())) {
       throw new AppError('A valid scheduled_at is required', 400);
+    }
+    if (new Date(scheduledAt).getTime() <= Date.now()) {
+      throw new AppError('scheduled_at must be in the future', 400);
     }
 
     const { data: msg } = await supabaseAdmin
@@ -949,14 +960,22 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
     // (see processScheduledEmails) — too late to move it.
     if (msg.sara_status !== 'scheduled') throw new AppError('Message is not scheduled', 400);
 
-    const { error } = await supabaseAdmin
+    // Same claim-by-conditional-UPDATE pattern as triage.service.ts: the row
+    // may flip to 'sending' between the read above and this write if the
+    // scheduler's tick wins the race, so the match condition is re-checked
+    // here and the affected row is verified via .select() rather than trusting
+    // `error` alone (a 0-row match is not a Postgres error).
+    const { data: claimed, error } = await supabaseAdmin
       .from('inbox_messages')
       .update({ sara_action: scheduledAt })
       .eq('id', id)
       .eq('user_id', userId)
-      .eq('sara_status', 'scheduled');
+      .eq('sara_status', 'scheduled')
+      .select('id')
+      .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
+    if (!claimed) throw new AppError('Message is no longer scheduled', 409);
     return { success: true, scheduled_at: scheduledAt };
   },
 
