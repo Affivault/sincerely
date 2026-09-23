@@ -158,6 +158,20 @@ export function DeveloperPage() {
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to test webhook'),
   });
 
+  // Resend the exact payload of a past delivery — the fix for a failing
+  // endpoint can only be confirmed by seeing that same event succeed, and
+  // waiting for it to happen for real (another reply, another bounce) is not
+  // a reasonable way to find out.
+  const redeliverMutation = useMutation({
+    mutationFn: webhookApi.redeliverDelivery,
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['webhook-deliveries'] });
+      if (result.success) toast.success(`Redelivered (${result.status_code})`);
+      else toast.error(`Still failing (${result.status_code || 'no response'})`);
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to redeliver'),
+  });
+
   /* The extension announces itself on load; until it does, the connect button
      stays hidden rather than offering something that can't work. */
   const [extensionPresent, setExtensionPresent] = useState(false);
@@ -488,9 +502,27 @@ export function DeveloperPage() {
                       ) : deliveries.map((d) => (
                         <div key={d.id} className="flex items-center gap-3 text-body">
                           {d.success ? <CheckCircle2 className="h-3.5 w-3.5 text-[var(--indigo)] shrink-0" /> : <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />}
-                          <span className="text-[var(--text-secondary)] font-mono">{d.event_type}</span>
-                          <span className="text-[var(--text-tertiary)]">{d.status_code || 'ERR'}</span>
-                          <span className="text-[var(--text-tertiary)] ml-auto">{formatDateTime(d.created_at)}</span>
+                          <span className="text-[var(--text-secondary)] font-mono shrink-0">{d.event_type}</span>
+                          <span className="text-[var(--text-tertiary)] shrink-0">{d.status_code || 'ERR'}</span>
+                          {/* The status code alone never said why — only the log
+                              row (response_body) knows whether it was a timeout,
+                              a 401, or a receiver returning the wrong shape. */}
+                          {!d.success && d.response_body && (
+                            <span className="text-red-400/80 truncate" title={d.response_body}>
+                              {d.response_body}
+                            </span>
+                          )}
+                          <span className="text-[var(--text-tertiary)] ml-auto shrink-0">{formatDateTime(d.created_at)}</span>
+                          {!d.success && (
+                            <button
+                              onClick={() => redeliverMutation.mutate(d.id)}
+                              disabled={redeliverMutation.isPending && redeliverMutation.variables === d.id}
+                              className="shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded text-micro font-medium bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50"
+                            >
+                              <RefreshCw className={cn('h-2.5 w-2.5', redeliverMutation.isPending && redeliverMutation.variables === d.id && 'animate-spin')} />
+                              Redeliver
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>

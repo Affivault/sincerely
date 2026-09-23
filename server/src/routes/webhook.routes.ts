@@ -18,3 +18,4 @@ webhookRoutes.post('/endpoints/:id/regenerate-secret', webhookController.regener
 
 // Delivery logs
 webhookRoutes.get('/deliveries', webhookController.deliveries);
+webhookRoutes.post('/deliveries/:id/redeliver', webhookController.redeliver);

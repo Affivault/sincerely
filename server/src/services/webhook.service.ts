@@ -299,6 +299,45 @@ export async function getDeliveries(
   return (data || []).map(({ webhook_endpoints, ...rest }: any) => rest);
 }
 
+/**
+ * Send a past delivery's exact payload again.
+ *
+ * The log already keeps the payload every attempt sent — a failed delivery
+ * used to mean fixing the receiver and waiting for the event to fire a
+ * second time (a reply, a bounce) before anyone could confirm the fix
+ * worked. Resending the same payload closes that gap: it goes through the
+ * same signing, SSRF-checked, retried path as a live delivery, and lands as
+ * a new row in the log rather than rewriting the one being redelivered, so
+ * the original failure stays on record.
+ */
+export async function redeliverDelivery(userId: string, deliveryId: string): Promise<WebhookDelivery> {
+  const { data: delivery, error } = await supabaseAdmin
+    .from('webhook_deliveries')
+    .select('*, webhook_endpoints!inner(id, user_id, url, secret, is_active)')
+    .eq('id', deliveryId)
+    .eq('webhook_endpoints.user_id', userId)
+    .maybeSingle();
+  if (error) throw new AppError(error.message, 500);
+  if (!delivery) throw new AppError('Delivery not found', 404);
+
+  const endpoint = (delivery as any).webhook_endpoints as WebhookEndpoint;
+  const payloadStr = JSON.stringify((delivery as any).payload ?? {});
+
+  await deliverWebhook(endpoint, (delivery as any).event_type, payloadStr);
+
+  // The attempt just logged itself; hand back the newest row for this
+  // endpoint/event so the caller can show its outcome without a second poll.
+  const { data: latest } = await supabaseAdmin
+    .from('webhook_deliveries')
+    .select('*')
+    .eq('endpoint_id', endpoint.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!latest) throw new AppError('Redelivered, but the new log entry could not be read back', 500);
+  return latest as WebhookDelivery;
+}
+
 // ============================================
 // Fire Webhook Events
 // ============================================
