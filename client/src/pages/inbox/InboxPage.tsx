@@ -20,6 +20,7 @@ import { ReplyTriage } from '../../components/inbox/ReplyTriage';
 import { TriageQuestion } from '../../components/inbox/TriageQuestion';
 import { usePeek } from '../../components/peek/usePeek';
 import { cn } from '../../lib/utils';
+import { acceptsShortcut } from '../../lib/keyboard';
 import toast from 'react-hot-toast';
 import { MailHistoryPanel } from '../../components/inbox/MailHistoryPanel';
 import { ReplyActions } from '../../components/inbox/ReplyActions';
@@ -2750,8 +2751,8 @@ export function InboxPage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'j' && e.key !== 'k') return;
       if (showCompose || replyMode) return;
-      const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+      // Same shared guard as the r/e handler below, for the same reason.
+      if (!acceptsShortcut(e.target)) return;
       e.preventDefault();
       // Navigate within the currently displayed (filtered) list, not the raw list —
       // same reasoning as handleArchiveToggle: never jump to a conversation outside
@@ -2773,9 +2774,15 @@ export function InboxPage() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!currentMsg || showCompose || replyMode) return;
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      /*
+       * The shared guard, which also refuses a key while the app is waiting
+       * for the second stroke of a `g` sequence. Without that, `g` followed
+       * by a change of mind ARCHIVED THE OPEN CONVERSATION: AppLayout found
+       * no `e` in its go-to map and gave up, and this handler took the very
+       * same keypress as its own archive key.
+       */
+      if (!acceptsShortcut(e.target)) return;
       if (e.key === 'r') {
         setReplyMode('reply');
         setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || '');

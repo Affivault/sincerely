@@ -10,7 +10,7 @@ import { usePendingRemoval } from '../ui/UndoBar';
 import { Avatar } from '../shared/Avatar';
 import { cn } from '../../lib/utils';
 import {
-  Phone, Users, Mail, CheckSquare, Flag, RotateCw, Link2, X, MapPin, Trash2,
+  Phone, Users, Mail, CheckSquare, Flag, RotateCw, Link2, X, MapPin, Trash2, Ban,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type {
@@ -527,6 +527,25 @@ export function MeetingModal({
     onSuccess: () => { invalidate(); },
   });
 
+  /** Whether this meeting is currently called off. */
+  const cancelled = (seed.status ?? 'confirmed') === 'cancelled';
+
+  const setStatus = useMutation({
+    mutationFn: (status: 'confirmed' | 'cancelled') =>
+      crmApi.updateEvent(event!.id!, { status } as any),
+    onSuccess: (_r, status) => {
+      invalidate();
+      toast.success(status === 'cancelled'
+        // Says what it did and what it did not do, because "cancelled" and
+        // "deleted" are the same word to most people and only one of them
+        // can be taken back.
+        ? 'Called off. It stays on the calendar, struck through.'
+        : 'Back on.');
+      onClose();
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Could not change that'),
+  });
+
   const started = !!form.starts_at && new Date(form.starts_at).getTime() < Date.now();
 
   /*
@@ -552,15 +571,41 @@ export function MeetingModal({
       footer={
         <div className="flex items-center justify-between w-full">
           {editing ? (
-            <button
-              onClick={() => {
-                onClose();
-                gone.remove(event!.id!, 'Meeting deleted', () => remove.mutateAsync());
-              }}
-              className="inline-flex items-center gap-1.5 text-body font-medium text-[var(--error)] hover:underline"
-            >
-              <Trash2 className="h-3.5 w-3.5" /> Delete
-            </button>
+            <div className="flex items-center gap-3">
+              {/*
+                CALLING IT OFF IS NOT DELETING IT, and until now there was
+                only the second one.
+
+                The column, the constraint and the strikethrough the grid
+                draws for a cancelled meeting have all existed since
+                migration 062 - whose own comment says why: "Cancelled
+                meetings stay on the calendar, struck through. Deleting them
+                loses the fact that the slot was ever taken, which is the
+                thing you are looking for when you ask why a week went
+                nowhere." Nothing in the app could set it. Three quarters of
+                a feature, and the quarter missing was the only one anybody
+                could reach.
+              */}
+              <button
+                onClick={() => setStatus.mutate(cancelled ? 'confirmed' : 'cancelled')}
+                disabled={setStatus.isPending}
+                className="inline-flex items-center gap-1.5 text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:underline disabled:opacity-40"
+                data-cancel-meeting
+              >
+                <Ban className="h-3.5 w-3.5" />
+                {cancelled ? 'Reinstate' : 'Call it off'}
+              </button>
+              <button
+                onClick={() => {
+                  onClose();
+                  gone.remove(event!.id!, 'Meeting deleted', () => remove.mutateAsync());
+                }}
+                title="Removes it entirely. Call it off instead to keep the record that the slot was taken."
+                className="inline-flex items-center gap-1.5 text-body font-medium text-[var(--error)] hover:underline"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Delete
+              </button>
+            </div>
           ) : <span />}
           <div className="flex gap-2">
             <Button variant="secondary" onClick={onClose}>Cancel</Button>

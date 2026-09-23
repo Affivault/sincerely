@@ -10,16 +10,18 @@ import {
 } from '../../components/crm/CrmPrimitives';
 import {
   CalendarDays, ChevronLeft, ChevronRight, Plus, Phone, Users, MapPin,
-  Handshake, User, Clock, CheckSquare,
+  Handshake, User, Clock, CheckSquare, Keyboard,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CrmEvent, CrmTask } from '@lemlist/shared';
-import { durationMinutes, resolveEnd, formatDate, formatDayMonth, formatDayOfMonth, formatFullDate, formatLongWeekdayDate, formatMonthYear, formatTime } from '@lemlist/shared';
-import { calendarApi } from '../../api/calendar.api';
+import { CALENDAR_SHORTCUTS, durationLabel, durationMinutes, resolveEnd, formatDate, formatDayMonth, formatDayOfMonth, formatFullDate, formatLongWeekdayDate, formatMonthYear, formatTime, formatWeekdayDate, viewFromCommand, type CalendarCommand } from '@lemlist/shared';
+import { calendarApi, availabilityApi } from '../../api/calendar.api';
 import { TimeGrid, type GridEvent } from '../../components/calendar/TimeGrid';
 import { EventTypeBar } from '../../components/calendar/EventTypeBar';
 import { keepPrevious } from '../../lib/listQuery';
 import { useOptimisticRow } from '../../lib/optimistic';
+import { useCalendarKeys } from '../../hooks/useCalendarKeys';
+import { useUndoLastChange } from '../../hooks/useUndoable';
 import { Refreshing } from '../../components/ui/Refreshing';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -90,22 +92,42 @@ function timeOf(d: Date, allDay?: boolean): string {
 }
 
 /** A chip on a month cell / week column. */
-function ItemChip({ item, onOpen, onDragStart, compact }: {
-  item: Item; onOpen: () => void; onDragStart: () => void; compact?: boolean;
+function ItemChip({ item, onOpen, onDragStart, onDragEnd, compact }: {
+  item: Item; onOpen: () => void; onDragStart: () => void; onDragEnd: () => void; compact?: boolean;
 }) {
   if (item.kind === 'event') {
     const e = item.event;
     const Icon = e.type === 'call' ? Phone : Users;
+    /*
+     * A meeting called off looks called off HERE TOO. The time grid struck
+     * it through and dimmed it; the month and the agenda drew it exactly
+     * like a meeting that was still happening, so the same week read two
+     * different ways depending on which view you were in.
+     */
+    const off = e.status === 'cancelled';
     return (
       <button
         draggable
         onDragStart={onDragStart}
+        /*
+         * A drag released anywhere but a day cell used to leave `dragging`
+         * set for good - no drop, no dragleave, nothing to clear it - so
+         * the page went on believing a drag was in progress and the next
+         * cell you crossed lit up as a drop target for it.
+         */
+        onDragEnd={onDragEnd}
         onClick={(ev) => { ev.stopPropagation(); onOpen(); }}
-        title={`${e.title}${e.location ? ` · ${e.location}` : ''}`}
-        className="w-full flex items-center gap-1 px-1.5 py-1 rounded-md bg-[var(--indigo-subtle)] border border-[var(--indigo)]/25 text-left cursor-grab active:cursor-grabbing hover:border-[var(--indigo)]/60 transition-colors"
+        title={`${e.title}${off ? ' · called off' : ''}${e.location ? ` · ${e.location}` : ''}`}
+        className={cn(
+          'w-full flex items-center gap-1 px-1.5 py-1 rounded-md bg-[var(--indigo-subtle)] border border-[var(--indigo)]/25 text-left cursor-grab active:cursor-grabbing hover:border-[var(--indigo)]/60 transition-colors',
+          off && 'opacity-60',
+        )}
       >
         <Icon className="h-2.5 w-2.5 flex-shrink-0 text-[var(--indigo)]" />
-        <span className="flex-1 min-w-0 truncate text-micro font-medium text-[var(--indigo)]">{e.title}</span>
+        <span className={cn(
+          'flex-1 min-w-0 truncate text-micro font-medium text-[var(--indigo)]',
+          off && 'line-through',
+        )}>{e.title}</span>
         {!compact && !e.all_day && (
           <span className="text-micro tabular text-[var(--indigo)]/70 flex-shrink-0">{timeOf(item.at)}</span>
         )}
@@ -118,6 +140,7 @@ function ItemChip({ item, onOpen, onDragStart, compact }: {
     <button
       draggable
       onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       onClick={(ev) => { ev.stopPropagation(); onOpen(); }}
       title={t.title}
       className={cn(
@@ -178,6 +201,26 @@ export function CalendarPage() {
   });
   /** The ones still in use — what the bar offers and what may be filtered. */
   const liveTypes = useMemo(() => types.filter((t) => !t.archived_at), [types]);
+
+  /*
+   * The hours people may book you, drawn behind the grid.
+   *
+   * The two halves of the scheduler were two unrelated screens: this page
+   * knew nothing about the availability the booking page was offering on
+   * your behalf, so a week that looked wide open could be closed to
+   * everybody, and a Saturday you had opened up looked exactly like a
+   * Saturday you had not.
+   *
+   * Failure is silent on purpose. Shading is context, not content, and a
+   * calendar that will not draw because a secondary request 500'd is a
+   * calendar that has failed at its actual job.
+   */
+  const { data: availability } = useQuery({
+    queryKey: ['calendar', 'availability'],
+    queryFn: availabilityApi.get,
+    retry: false,
+    meta: { silentError: true },
+  });
 
   /*
    * THE FILTER APPLIES TO EVERY VIEW.
@@ -244,7 +287,7 @@ export function CalendarPage() {
    * panel, and patching one exact key would have made it instant in one
    * place and late in three.
    */
-  const optimisticEvent = useOptimisticRow<{ id: string; starts_at?: string; ends_at?: string }>({
+  const optimisticEvent = useOptimisticRow<{ id: string; starts_at?: string; ends_at?: string | null }>({
     scope: ['crm'],
     id: (v) => v.id,
     patch: (v) => {
@@ -256,33 +299,81 @@ export function CalendarPage() {
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not move that'),
   });
 
-  const reschedule = useMutation({
-    mutationFn: async ({ item, day }: { item: Item; day: Date }) => {
-      const original = item.at;
-      const next = new Date(day);
-      next.setHours(original.getHours(), original.getMinutes(), 0, 0);
-      if (item.kind === 'event') {
-        // Preserve the duration when there's an end time.
-        const ends = item.event.ends_at ? new Date(item.event.ends_at) : null;
-        const durationMs = ends && !Number.isNaN(ends.getTime()) ? ends.getTime() - original.getTime() : null;
-        return crmApi.updateEvent(item.event.id, {
-          starts_at: next.toISOString(),
-          ends_at: durationMs != null ? new Date(next.getTime() + durationMs).toISOString() : undefined,
-        });
-      }
-      return crmApi.updateTask(item.task.id, { due_date: next.toISOString() });
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm'] }); toast.success('Rescheduled'); },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Could not reschedule'),
-  });
-
   /** Drag on the time grid. The block stays where it was dropped. */
   const moveEvent = useMutation({
-    mutationFn: ({ id, ...patch }: { id: string; starts_at?: string; ends_at?: string }) =>
+    mutationFn: ({ id, ...patch }: { id: string; starts_at?: string; ends_at?: string | null }) =>
       crmApi.updateEvent(id, patch as any),
     // Spread last: an onError written after this would replace the rollback.
     ...optimisticEvent,
   });
+
+  /*
+   * The same optimism for the month view's drag.
+   *
+   * It was left rubber-banding when the week view stopped: the chip you had
+   * just dropped on Thursday sat on Tuesday for the length of the round
+   * trip and then jumped. One calendar behaving two ways depending on which
+   * view you were in is worse than either behaviour on its own.
+   */
+  const rescheduleTask = useMutation({
+    mutationFn: ({ id, due_date }: { id: string; due_date: string }) =>
+      crmApi.updateTask(id, { due_date }),
+    ...useOptimisticRow<{ id: string; due_date: string }>({
+      scope: ['crm'],
+      id: (v) => v.id,
+      patch: (v) => ({ due_date: v.due_date }),
+      onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not reschedule'),
+    }),
+  });
+
+  /*
+   * A way back from every change, because direct manipulation without one
+   * is a thing people learn to be careful around.
+   *
+   * A drag is the easiest gesture in the app to do by accident - a meeting
+   * nudged to the wrong day on the way to clicking it - and until now the
+   * only way back was to notice, work out where it had come from, and drag
+   * it there. Google has offered this since 2010 and it is most of why
+   * dragging on a calendar feels safe rather than nervy.
+   */
+  const offerUndo = useUndoLastChange();
+
+  /** Put an event back exactly as it was, whatever moved. */
+  const undoEvent = (e: CrmEvent, label: string) => offerUndo(
+    label,
+    () => moveEvent.mutateAsync({
+      id: e.id,
+      starts_at: e.starts_at,
+      // null, not undefined: a meeting that had no end must get none back.
+      // Undefined would be dropped from the payload and the end it picked
+      // up on the way would silently stand.
+      ends_at: e.ends_at ?? null,
+    }),
+  );
+
+  const reschedule = ({ item, day }: { item: Item; day: Date }) => {
+    const original = item.at;
+    const next = new Date(day);
+    next.setHours(original.getHours(), original.getMinutes(), 0, 0);
+    if (next.getTime() === original.getTime()) return;
+
+    if (item.kind === 'event') {
+      // Preserve the duration when there's an end time.
+      const ends = item.event.ends_at ? new Date(item.event.ends_at) : null;
+      const durationMs = ends && !Number.isNaN(ends.getTime()) ? ends.getTime() - original.getTime() : null;
+      moveEvent.mutate({
+        id: item.event.id,
+        starts_at: next.toISOString(),
+        ends_at: durationMs != null ? new Date(next.getTime() + durationMs).toISOString() : undefined,
+      });
+      undoEvent(item.event, `Moved to ${formatWeekdayDate(next)}`);
+      return;
+    }
+    const was = item.task.due_date!;
+    rescheduleTask.mutate({ id: item.task.id, due_date: next.toISOString() });
+    offerUndo(`Moved to ${formatWeekdayDate(next)}`,
+      () => rescheduleTask.mutateAsync({ id: item.task.id, due_date: was }));
+  };
 
   const openItem = (i: Item) => {
     if (i.kind === 'event') setEventModal({ event: i.event });
@@ -305,6 +396,30 @@ export function CalendarPage() {
       return d;
     });
   };
+
+  /*
+   * The keys, which a calendar needs more than any other screen here.
+   *
+   * What people do on a calendar is not "an action" but navigation -
+   * forward a week, back a week, back to today, show me the month - dozens
+   * of times in a sitting, and each one was a deliberate trip to a
+   * 32-pixel chevron or across the header to a segmented control.
+   *
+   * The bindings are Google Calendar's and come from shared, so the
+   * shortcuts sheet and this cannot disagree about what any of them is.
+   */
+  useCalendarKeys((command: CalendarCommand) => {
+    const next = viewFromCommand(command);
+    if (next) { setView(next); return; }
+    if (command === 'today') { setAnchor(startOfDay(new Date())); return; }
+    if (command === 'prev') { shift(-1); return; }
+    if (command === 'next') { shift(1); return; }
+    // Whatever the view, `c` means the same thing it does everywhere else
+    // on this page: the next free hour, not midnight and not 9am tomorrow.
+    if (command === 'create') {
+      setEventModal({ event: { starts_at: nextHour().toISOString() } as Partial<CrmEvent> });
+    }
+  });
 
   const today = startOfDay(new Date());
   const days = view === 'week' ? weekDays(anchor) : view === 'day' ? [startOfDay(anchor)] : monthMatrix(anchor);
@@ -466,6 +581,9 @@ export function CalendarPage() {
                           <span className={cn(
                             'block text-strong font-medium text-[var(--text-primary)] truncate',
                             item.kind === 'task' && item.task.is_done && 'line-through opacity-60',
+                            // Same as the grid and the month: a meeting called
+                            // off reads as called off in every view.
+                            item.kind === 'event' && item.event.status === 'cancelled' && 'line-through opacity-60',
                           )}>
                             {item.kind === 'event' ? item.event.title : item.task.title}
                           </span>
@@ -524,6 +642,7 @@ export function CalendarPage() {
                   ends_at: end.toISOString(),
                 } as Partial<CrmEvent>,
               })}
+              workingHours={availability?.windows || []}
               onMove={(e, start) => {
                 // Length is preserved: dragging a block moves it, it does not
                 // reshape it. Resizing is the handle on its bottom edge.
@@ -533,8 +652,13 @@ export function CalendarPage() {
                   starts_at: start.toISOString(),
                   ends_at: new Date(start.getTime() + mins * 60000).toISOString(),
                 });
+                undoEvent(e as unknown as CrmEvent, `Moved to ${formatWeekdayDate(start)} ${formatTime(start)}`);
               }}
-              onResize={(e, end) => moveEvent.mutate({ id: e.id, ends_at: end.toISOString() })}
+              onResize={(e, end) => {
+                moveEvent.mutate({ id: e.id, ends_at: end.toISOString() });
+                undoEvent(e as unknown as CrmEvent,
+                  `Now ${durationLabel(Math.max(1, Math.round((end.getTime() - new Date(e.starts_at).getTime()) / 60000)))} long`);
+              }}
             />
           ) : (
             <div className="panel overflow-hidden">
@@ -559,7 +683,7 @@ export function CalendarPage() {
                       onDragLeave={() => setDropDay((k) => (k === dayKey ? null : k))}
                       onDrop={(e) => {
                         e.preventDefault();
-                        if (dragging) reschedule.mutate({ item: dragging, day });
+                        if (dragging) reschedule({ item: dragging, day });
                         setDragging(null);
                         setDropDay(null);
                       }}
@@ -595,6 +719,7 @@ export function CalendarPage() {
                             compact
                             onOpen={() => openItem(item)}
                             onDragStart={() => setDragging(item)}
+                            onDragEnd={() => { setDragging(null); setDropDay(null); }}
                           />
                         ))}
                         {items.length > 3 && (
@@ -614,12 +739,22 @@ export function CalendarPage() {
           )}
         </Refreshing>
 
-        <p className="flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
-          <Clock className="h-3 w-3" />
-          {view === 'week' || view === 'day'
-            ? 'Drag down the empty grid to block out a stretch of time, or click once to book at that moment. Drag a meeting to move it — to another day if you like — or its bottom edge to change how long it runs.'
-            : 'Drag any meeting or activity onto another day to reschedule it — the time of day is kept.'}
-        </p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-[var(--text-tertiary)]">
+          <p className="flex items-center gap-1.5">
+            <Clock className="h-3 w-3" />
+            {view === 'week' || view === 'day'
+              ? 'Drag down the empty grid to block out a stretch of time, or click once to book at that moment. Drag a meeting to move it — to another day if you like — or its bottom edge to change how long it runs.'
+              : 'Drag any meeting or activity onto another day to reschedule it — the time of day is kept.'}
+          </p>
+          {/* The keys, said once where somebody is already looking at the
+              thing they drive. A shortcuts sheet behind `?` is only found by
+              people who already suspect there is one. */}
+          <p className="flex items-center gap-1.5">
+            <Keyboard className="h-3 w-3" />
+            {CALENDAR_SHORTCUTS.map((s) => s.keys.join('')).join(' · ')}
+            {' — press ? for what they do'}
+          </p>
+        </div>
       </div>
 
       {eventModal && <MeetingModal event={eventModal.event} onClose={() => setEventModal(null)} />}
