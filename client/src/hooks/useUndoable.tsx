@@ -102,3 +102,60 @@ export function useUndoable() {
     return result;
   }, [refresh]);
 }
+
+/**
+ * Offer a way back from something that has ALREADY been saved.
+ *
+ * `useUndoable` above runs the action for you, which is right for a bulk
+ * button and wrong for a drag: it holds a `busy` flag that makes a second
+ * call a no-op, so dragging two meetings in quick succession would drop
+ * the second one on the floor. Dropping a move silently is worse than
+ * having no undo at all.
+ *
+ * So this offers only the way back. The caller runs its own mutation -
+ * which on the calendar is already optimistic, so the block stays where it
+ * was dropped - and hands over the inverse:
+ *
+ *     move.mutate({ id, starts_at: next });
+ *     offerUndo('Moved to Thu 10:00', () => move.mutateAsync({ id, starts_at: was }));
+ *
+ * WHY A COMPENSATING WRITE RATHER THAN A DEFERRED ONE. The other mechanism
+ * in this app does not send the request until the offer expires, which is
+ * the only honest way back from a delete. A calendar move has a true
+ * inverse, so it can be saved at once - and it must be, because a drag
+ * held for six seconds is a drag lost to a closed tab.
+ */
+export function useUndoLastChange() {
+  const qc = useQueryClient();
+
+  return useCallback((label: string, undo: () => Promise<unknown>, invalidate?: unknown[][]) => {
+    toast.custom(
+      (t) => (
+        <div className={t.visible ? 'animate-in fade-in slide-in-from-bottom-2' : 'opacity-0'}>
+          <UndoBarShell
+            label={label}
+            onUndo={async () => {
+              toast.dismiss(t.id);
+              try {
+                await undo();
+                for (const key of invalidate || []) qc.invalidateQueries({ queryKey: key as any });
+                toast.success('Undone');
+              } catch (err: any) {
+                // Saying "undone" and meaning "we tried" is how a product
+                // loses the right to be believed about anything else.
+                toast.error(err?.response?.data?.error || 'Could not undo that — it stands as it is');
+              }
+            }}
+          />
+        </div>
+      ),
+      /*
+       * One id for all of them, so a second drag REPLACES the first offer
+       * rather than stacking a second bar on top of it. Two ways back on
+       * screen at once, each pointing at a different change, is a thing
+       * nobody can read and nobody can aim at.
+       */
+      { id: 'calendar-undo', duration: UNDO_REVERSE_WINDOW_MS },
+    );
+  }, [qc]);
+}

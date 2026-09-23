@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { X, Keyboard } from 'lucide-react';
+import { CALENDAR_SHORTCUTS } from '@lemlist/shared';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface ShortcutsOverlayProps {
@@ -40,6 +41,17 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
       { keys: ['/'], label: 'Jump to search' },
       { keys: ['Esc'], label: 'Clear focus and selection' },
     ],
+  },
+  {
+    /*
+     * Built FROM the table the calendar binds, not typed out beside it.
+     *
+     * Every other group here is kept by hand, and the drift that invites
+     * is invisible: the sheet says one key, the page answers to another,
+     * and the only person who finds out is somebody who trusted the sheet.
+     */
+    title: 'Calendar',
+    items: CALENDAR_SHORTCUTS.map((s) => ({ keys: s.keys, label: s.label })),
   },
   {
     title: 'Inbox',

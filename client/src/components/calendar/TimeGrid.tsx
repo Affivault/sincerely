@@ -4,7 +4,8 @@ import {
   layoutDay, allDayEvents, durationMinutes, resolveEnd, snapMinutes,
   clockLabel, durationLabel, minutesIntoDay,
   dragRange, snapToStep, DAY_MINUTES, DEFAULT_STEP,
-  type CalendarEventType, type TimedEvent, formatHour, formatWeekdayShort } from '@lemlist/shared';
+  type AvailabilityWindow, type CalendarEventType, type MinuteRange, type TimedEvent,
+  formatHour, formatWeekdayShort } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -84,12 +85,33 @@ function drawnStartMinute(event: TimedEvent, day: Date): number {
   return start.getTime() <= dayBegin ? 0 : minutesIntoDay(start);
 }
 
+/**
+ * The bands of a day somebody is actually bookable, from availability.
+ *
+ * Drawn because the two halves of a scheduler were two unrelated screens:
+ * the calendar knew nothing about the hours the booking page was offering
+ * on your behalf, so a week that looked wide open could be closed to
+ * everybody, and a Saturday you had opened up looked exactly like a
+ * Saturday you had not. Now the grid says which is which, and the hours
+ * you set on one screen are visible on the other.
+ */
+function workingBands(windows: AvailabilityWindow[], day: Date): MinuteRange[] {
+  const weekday = day.getDay();
+  return windows
+    .filter((w) => w.weekday === weekday && w.end_minute > w.start_minute)
+    .map((w) => ({ startMinute: w.start_minute, endMinute: w.end_minute }))
+    .sort((a, b) => a.startMinute - b.startMinute);
+}
+
 export function TimeGrid({
-  days, events, types, onOpen, onBookAt, onCreateRange, onMove, onResize, now = new Date(),
+  days, events, types, onOpen, onBookAt, onCreateRange, onMove, onResize,
+  workingHours = [], now = new Date(),
 }: {
   days: Date[];
   events: GridEvent[];
   types: CalendarEventType[];
+  /** When people may book you, from the availability page. Shaded behind. */
+  workingHours?: AvailabilityWindow[];
   onOpen: (event: GridEvent) => void;
   /** Empty space was clicked: book something at this exact moment. */
   onBookAt: (at: Date) => void;
@@ -449,6 +471,41 @@ export function TimeGrid({
                   onBookAt(at(day, minutes));
                 }}
               >
+                {/*
+                  The hours you are bookable, behind everything.
+
+                  Shading what is OUTSIDE them rather than what is inside:
+                  the working day is the subject of the grid and should be
+                  the plain surface, with the night and the weekend dimmed
+                  around it. Tinting the working hours instead makes the
+                  part you look at all day the part that is coloured in.
+                */}
+                {workingBands(workingHours, day).length > 0 && (
+                  <div className="pointer-events-none absolute inset-0" data-working-hours>
+                    {(() => {
+                      const bands = workingBands(workingHours, day);
+                      // The gaps between the bands, plus the ends of the day.
+                      const closed: MinuteRange[] = [];
+                      let at = 0;
+                      for (const b of bands) {
+                        if (b.startMinute > at) closed.push({ startMinute: at, endMinute: b.startMinute });
+                        at = Math.max(at, b.endMinute);
+                      }
+                      if (at < DAY_MINUTES) closed.push({ startMinute: at, endMinute: DAY_MINUTES });
+                      return closed.map((c) => (
+                        <div
+                          key={c.startMinute}
+                          className="absolute inset-x-0 bg-[var(--bg-muted)] opacity-60"
+                          style={{
+                            top: `${(c.startMinute / DAY_MINUTES) * 100}%`,
+                            height: `${((c.endMinute - c.startMinute) / DAY_MINUTES) * 100}%`,
+                          }}
+                        />
+                      ));
+                    })()}
+                  </div>
+                )}
+
                 {/* Hour lines. Half-hours are lighter, which is what makes a
                     30-minute block readable without counting pixels. */}
                 {Array.from({ length: 24 }, (_, h) => (

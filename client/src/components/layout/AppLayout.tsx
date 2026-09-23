@@ -13,6 +13,7 @@ import { SidebarProvider, useSidebar } from '../../context/SidebarContext';
 import { CommandPaletteProvider, useCommandPalette } from '../../context/CommandPaletteContext';
 import { useUnreadCount } from '../../hooks/useUnreadCount';
 import { listenForRouteIntent } from '../../lib/prefetch';
+import { holdKeySequence, isModalOpen, isTypingTarget, releaseKeySequence } from '../../lib/keyboard';
 import { warmRichTextEditor } from '../ui/RichTextEditor';
 import { cn } from '../../lib/utils';
 
@@ -54,19 +55,24 @@ const GO_MAP: Record<string, string> = {
   s: '/settings',
 };
 
-function isTypingTarget(el: EventTarget | null): boolean {
-  const t = el as HTMLElement | null;
-  if (!t) return false;
-  const tag = t.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable;
-}
+/**
+ * How long the app waits for the second stroke of a `g`.
+ *
+ * Long enough to be a sequence and not a race, short enough that an
+ * abandoned `g` does not sit there swallowing the next real key.
+ */
+const SEQUENCE_MS = 1400;
 
-// Global shortcuts (like `n` for "new campaign") must not fire while a modal
-// is open — e.g. focus resting on a button inside a template editor — or
-// they silently navigate away and discard whatever the modal held.
-function isModalOpen(): boolean {
-  return document.querySelector('[role="dialog"]') !== null;
-}
+/*
+ * The guards come from lib/keyboard, which exists precisely to be the one
+ * copy of them - its own header says they were written out three times,
+ * "once in AppLayout". That copy was still here, character for character,
+ * with nothing to keep the two in step.
+ *
+ * Note this handler uses the two guards directly rather than
+ * `acceptsShortcut`: that one also refuses a key while a sequence is
+ * pending, and this is the handler that owns the sequence.
+ */
 
 function AppContent() {
   const { collapsed } = useSidebar();
@@ -202,13 +208,32 @@ function AppContent() {
       if (goPending.current !== null) {
         window.clearTimeout(goPending.current);
         goPending.current = null;
+        /*
+         * Released on the NEXT TICK, not on this line.
+         *
+         * Every page-level shortcut is its own window listener, so they are
+         * all still to be called for this very keypress. Clearing the hold
+         * here would hand them the second stroke of the sequence and defeat
+         * the whole mechanism - which is the bug as it stands: `g` then `e`
+         * in the Unibox archives the open conversation, because this
+         * handler finds no `e` in the map, gives up, and the page takes the
+         * same keypress as its own.
+         *
+         * A timeout of zero runs once this keydown has finished being
+         * dispatched to everybody, and not before.
+         */
+        window.setTimeout(releaseKeySequence, 0);
         const to = GO_MAP[e.key.toLowerCase()];
         if (to) { e.preventDefault(); navigate(to); }
         return;
       }
 
       if (e.key === 'g' || e.key === 'G') {
-        goPending.current = window.setTimeout(() => { goPending.current = null; }, 1400);
+        holdKeySequence(SEQUENCE_MS);
+        goPending.current = window.setTimeout(() => {
+          goPending.current = null;
+          releaseKeySequence();
+        }, SEQUENCE_MS);
         return;
       }
       if (e.key === '?') { e.preventDefault(); setShortcutsOpen((o) => !o); return; }
