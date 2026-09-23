@@ -1,3 +1,4 @@
+import { usePeek } from '../../components/peek/usePeek';
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -52,6 +53,7 @@ import type { CampaignStep } from '@lemlist/shared';
 type TabId = 'overview' | 'sequence' | 'contacts';
 
 export function CampaignDetailPage() {
+  const { openPeek } = usePeek();
   const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -602,7 +604,14 @@ export function CampaignDetailPage() {
                           <div className="flex items-center gap-2.5">
                             <Avatar name={fullName || cc.contact?.email || '?'} email={cc.contact?.email} size="sm" />
                             <div className="min-w-0">
-                              <p className="text-strong font-medium text-[var(--text-primary)] truncate">{fullName || '—'}</p>
+                              <button
+                                type="button"
+                                onClick={() => cc.contact_id && openPeek('contact', cc.contact_id)}
+                                className="block max-w-full text-left text-strong font-medium text-[var(--text-primary)] truncate hover:text-[var(--indigo)] hover:underline"
+                                title="Peek - where they stand, without leaving the campaign"
+                              >
+                                {fullName || cc.contact?.email || '—'}
+                              </button>
                               {cc.contact?.email && <p className="text-caption text-[var(--text-tertiary)] truncate">{cc.contact.email}</p>}
                             </div>
                           </div>

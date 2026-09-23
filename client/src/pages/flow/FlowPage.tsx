@@ -8,6 +8,7 @@
      j / k   move          enter   do the prepared thing
      d       done           s       not now (back tomorrow)
      o       open it        e       edit the draft
+     p       peek at the person or deal behind it
 
    Anything with a cost - completing a task, marking a reply handled - goes
    through the undo bar, so moving fast is never a risk.
@@ -30,6 +31,7 @@ import { crmApi } from '../../api/crm.api';
 import { replyQueueApi } from '../../api/replyQueue.api';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { useDeferredAction } from '../../components/ui/UndoBar';
+import { usePeek } from '../../components/peek/usePeek';
 import { DealHealthDot, ACTION_ICON } from '../../components/crm/DealHealth';
 import { MeetingBrief, MeetingOutcome } from '../../components/flow/MeetingBrief';
 import { cn, formatRelativeTime, formatTimeUntil } from '../../lib/utils';
@@ -91,6 +93,7 @@ export function FlowPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const offer = useDeferredAction();
+  const { openPeek } = usePeek();
   const [snoozed, setSnoozed] = useState<Record<string, number>>(() => readSnoozed());
   const [gone, setGone] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<FlowKind | 'all'>('all');
@@ -207,6 +210,14 @@ export function FlowPage() {
         case 'd': e.preventDefault(); done(current); break;
         case 's': e.preventDefault(); snooze(current); break;
         case 'o': e.preventDefault(); openItem(current); break;
+        case 'p': {
+          // Peek: who this is, without leaving the queue.
+          const contact = current.reply?.contact_id || current.meeting?.contact_id;
+          const deal = current.deal?.deal_id || current.task?.deal_id || current.meeting?.deal_id;
+          if (contact) { e.preventDefault(); openPeek('contact', contact); }
+          else if (deal) { e.preventDefault(); openPeek('deal', deal); }
+          break;
+        }
         case 'e':
           if (current.kind === 'reply') { e.preventDefault(); setEditing(current.key); }
           break;
@@ -217,7 +228,7 @@ export function FlowPage() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [current, items.length, primary, done, snooze, openItem, refetch]);
+  }, [current, items.length, primary, done, snooze, openItem, refetch, openPeek]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
@@ -263,7 +274,7 @@ export function FlowPage() {
         })}
         <span className="ml-auto hidden items-center gap-1.5 text-caption text-[var(--text-tertiary)] md:inline-flex">
           <Keyboard className="h-3.5 w-3.5" />
-          <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>enter</kbd> do it · <kbd>d</kbd> done · <kbd>s</kbd> tomorrow · <kbd>o</kbd> open
+          <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>enter</kbd> do it · <kbd>d</kbd> done · <kbd>s</kbd> tomorrow · <kbd>p</kbd> peek · <kbd>o</kbd> open
         </span>
       </div>
 
