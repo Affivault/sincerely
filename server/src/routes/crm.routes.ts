@@ -5,6 +5,8 @@ export const crmRoutes = Router();
 
 // Deals
 crmRoutes.get('/deals', crmController.listDeals);
+// Before /deals/:id so 'health' is not read as an id.
+crmRoutes.get('/deals/health', crmController.dealHealth);
 crmRoutes.post('/deals', crmController.createDeal);
 crmRoutes.put('/deals/:id', crmController.updateDeal);
 crmRoutes.delete('/deals/:id', crmController.deleteDeal);

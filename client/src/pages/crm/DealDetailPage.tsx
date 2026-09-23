@@ -1,3 +1,4 @@
+import { useDealHealth, DealHealthPanel } from '../../components/crm/DealHealth';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -108,6 +109,8 @@ export function DealDetailPage() {
     enabled: !!id,
     retry: false,
   });
+
+  const { data: healthMap } = useDealHealth();
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['crm'] });
 
@@ -375,6 +378,22 @@ export function DealDetailPage() {
         </div>
 
         <div className="space-y-4">
+          {isOpen(deal.stage) && (
+            <DealHealthPanel
+              health={healthMap?.[deal.id]}
+              onAction={(a) => {
+                if ((a === 'reply' || a === 'follow_up') && recipients[0]) setWriteTo(recipients[0]);
+                else if (a === 'book_meeting') setEventModal({
+                  ...taskDefaults(),
+                  contact_email: deal.contact?.email || deal.contact_email,
+                  title: `Call — ${deal.company || primaryName || deal.title}`,
+                });
+                else if (a === 'update_close_date') setEditing(true);
+                else if (a === 'add_stakeholder') document.getElementById('deal-people')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                else if (a === 'do_tasks') setTaskModal(taskDefaults());
+              }}
+            />
+          )}
           <div className="panel p-3.5">
             <p className="mb-1 text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)]">Summary</p>
             <div className="divide-y divide-[var(--border-subtle)]">
@@ -434,6 +453,7 @@ export function DealDetailPage() {
               unarguable-with. */}
           <DealSource deal={deal} />
 
+          <div id="deal-people" />
           <DealPeople deal={deal} participants={participants} onEmail={(email, name) => setWriteTo({ email, name })} />
 
           <div className="panel p-3.5">

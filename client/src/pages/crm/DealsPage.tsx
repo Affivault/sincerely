@@ -1,3 +1,4 @@
+import { useDealHealth, DealHealthDot } from '../../components/crm/DealHealth';
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -385,6 +386,7 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
 
 /* ─── Pipeline (deals kanban) ─────────────────────── */
 function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToStage, dragDisabled }: { deals: Deal[]; tasks: CrmTask[]; events: CrmEvent[]; onEdit: (d: Deal) => void; onStageChange: (d: Deal, stage: DealStage) => void; onAddToStage: (stage: DealStage) => void; dragDisabled?: boolean }) {
+  const { data: health } = useDealHealth();
   const { openPeek } = usePeek();
   const navigate = useNavigate();
   // Peek the account when the deal is linked to one; otherwise show the
@@ -574,6 +576,7 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToSta
                         )}
                       </div>
                       <div className="mt-2 flex items-center gap-2 flex-wrap">
+                        <DealHealthDot health={health?.[d.id]} />
                         <span className="text-body font-semibold text-[var(--text-primary)] tabular">{fmtMoney(d.value, d.currency)}</span>
                         {d.company && (
                           <button
