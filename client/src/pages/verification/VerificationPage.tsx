@@ -131,7 +131,10 @@ export function VerificationPage() {
   const batchMut = useMutation({
     mutationFn: () => verificationApi.batchVerify(),
     onSuccess: (res) => {
-      toast.success(`Verified ${res.verified} contact(s)`);
+      // One call checks at most 100 contacts, so say what was actually
+      // checked rather than implying the whole backlog is done.
+      const checked = res.verified + res.failed;
+      toast.success(`Checked ${checked} contact${checked === 1 ? '' : 's'}: ${res.verified} deliverable`);
       queryClient.invalidateQueries({ queryKey: ['verification-stats'] });
     },
     onError: () => toast.error('Batch verification failed'),
@@ -277,7 +280,7 @@ export function VerificationPage() {
                 className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-40 transition-all flex-shrink-0"
               >
                 {batchMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-                {batchMut.isPending ? 'Running…' : `Verify ${stats.unverified} pending`}
+                {batchMut.isPending ? 'Running…' : stats.unverified > 100 ? `Verify next 100 of ${stats.unverified.toLocaleString()}` : `Verify ${stats.unverified} pending`}
               </button>
             </div>
 

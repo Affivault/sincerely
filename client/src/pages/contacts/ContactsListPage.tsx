@@ -937,12 +937,18 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   });
   const batchVerifyMutation = useMutation({
     mutationFn: (ids: string[]) => verificationApi.batchVerify(ids),
-    onSuccess: () => {
+    onSuccess: (res, ids) => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
       queryClient.invalidateQueries({ queryKey: ['verification-breakdown'] });
-      toast.success('Verification complete');
-      setSelectedContacts(new Set());
+      const checked = res.verified + res.failed;
+      // The server checks at most 100 per call; say so when more were picked.
+      toast.success(ids.length > checked
+        ? `Checked ${checked} of ${ids.length} selected: ${res.verified} deliverable. Run it again for the rest.`
+        : `Checked ${checked}: ${res.verified} deliverable`);
+      // Leave the unchecked remainder selected, so running it again picks up
+      // where this one stopped instead of re-checking the same hundred.
+      setSelectedContacts(new Set(ids.length > 100 ? ids.slice(100) : []));
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Verification failed'),
   });

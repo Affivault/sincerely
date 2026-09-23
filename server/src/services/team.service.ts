@@ -195,11 +195,14 @@ export const teamService = {
       throw new AppError('You already belong to an organisation — leave it before accepting a different invite', 400);
     }
 
-    // Add as member
-    await supabaseAdmin.from('team_members').upsert(
+    // Add as member. Checked: this used to report success whatever
+    // happened, and then delete the invite - so a failed join left somebody
+    // outside the team with no invite left to try again with.
+    const { error: joinError } = await supabaseAdmin.from('team_members').upsert(
       { org_id: invite.org_id, user_id: userId, email: userEmail.toLowerCase(), role: invite.role },
       { onConflict: 'org_id,user_id' }
     );
+    if (joinError) throw new AppError(`Could not join the team: ${joinError.message}`, 500);
 
     // Delete invite
     await supabaseAdmin.from('team_invites').delete().eq('id', invite.id);

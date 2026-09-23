@@ -122,6 +122,15 @@ export const linkedinAgentService = {
     if (patch.work_end !== undefined && toMinutes(patch.work_end) === null) {
       throw new AppError('End time must look like 17:00', 400);
     }
+    if (patch.timezone !== undefined) {
+      // An unknown zone is not an error anywhere downstream - the clock
+      // falls back to UTC - so the agent would quietly work the wrong hours.
+      try {
+        new Intl.DateTimeFormat('en-US', { timeZone: String(patch.timezone) });
+      } catch {
+        throw new AppError(`"${patch.timezone}" is not a timezone this system knows.`, 400);
+      }
+    }
     if (patch.work_days !== undefined) {
       const days = Array.isArray(patch.work_days) ? patch.work_days : [];
       patch.work_days = [...new Set(days.map(Number).filter((d: number) => d >= 1 && d <= 7))];

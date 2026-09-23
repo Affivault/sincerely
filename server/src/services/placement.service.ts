@@ -215,7 +215,17 @@ export const placementService = {
       .single();
     if (testErr) throw new AppError(testErr.message, 500);
 
-    const password = decrypt(sender.smtp_pass_encrypted);
+    // Before the test row exists would be cleaner, but the row is already
+    // written; mark it failed rather than leave it "sending" forever.
+    let password: string;
+    try {
+      password = decrypt(sender.smtp_pass_encrypted);
+    } catch {
+      await supabaseAdmin.from('placement_tests')
+        .update({ status: 'failed', error: 'The mailbox password could not be read. Re-enter it and try again.', completed_at: new Date().toISOString() })
+        .eq('id', test.id);
+      throw new AppError('The sending mailbox password could not be read. Re-enter it on the mailbox and try again.', 400);
+    }
     const from = formatFromHeader(sender.from_name, sender.email_address);
     const rows: any[] = [];
 
