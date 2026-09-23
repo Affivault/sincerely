@@ -115,8 +115,29 @@ export const sendingSchedulesService = {
   },
 
   async delete(userId: string, id: string) {
+    const { data: doomed } = await supabaseAdmin
+      .from('sending_schedules').select('is_default').eq('id', id).eq('user_id', userId).maybeSingle();
+
     const { error } = await supabaseAdmin
       .from('sending_schedules').delete().eq('id', id).eq('user_id', userId);
     if (error) throw new AppError(error.message, 500);
+
+    /*
+     * Deleting the default must not leave the account with none. Every
+     * other path here guarantees exactly one (see migration 061), and new
+     * campaigns pick their window from it - with no default they silently
+     * got no window at all. The oldest remaining schedule takes over.
+     */
+    if (doomed?.is_default) {
+      const { data: next } = await supabaseAdmin
+        .from('sending_schedules').select('id').eq('user_id', userId)
+        .order('created_at', { ascending: true }).limit(1).maybeSingle();
+      if (next) {
+        const { error: swapError } = await supabaseAdmin.rpc('set_default_sending_schedule', {
+          p_user_id: userId, p_schedule_id: next.id,
+        });
+        if (swapError) console.error('[Schedules] Could not promote a new default:', swapError.message);
+      }
+    }
   },
 };

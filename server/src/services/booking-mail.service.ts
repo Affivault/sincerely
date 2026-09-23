@@ -95,9 +95,14 @@ async function senderFor(userId: string): Promise<{
 } | null> {
   const { data } = await supabaseAdmin
     .from('smtp_accounts')
-    .select('smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass_encrypted, email_address, from_name, is_active')
+    .select('smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass_encrypted, email_address, from_name, label, is_active')
     .eq('user_id', userId)
     .eq('is_active', true)
+    // A mailbox that has passed a connection test, and never a placement
+    // seed: the oldest active row could be either, and a confirmation sent
+    // through it failed quietly while the invitee waited for one.
+    .eq('is_verified', true)
+    .eq('is_seed', false)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
@@ -120,7 +125,7 @@ async function senderFor(userId: string): Promise<{
     secure: !!data.smtp_secure,
     user: data.smtp_user || data.email_address,
     pass,
-    from: formatFromHeader(data.from_name, data.email_address),
+    from: formatFromHeader(data.from_name || data.label, data.email_address),
     address: data.email_address,
   };
 }

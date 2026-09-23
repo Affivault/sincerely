@@ -598,16 +598,18 @@ export async function getQueueStats(userId: string): Promise<SaraQueueStats> {
     .gte('sara_reviewed_at', today.toISOString());
 
   // Top intents
-  const { data: intentData } = await supabaseAdmin
-    .from('inbox_messages')
-    .select('sara_intent')
-    .eq('user_id', userId)
-    .not('sara_intent', 'is', null);
-
+  // One head count per intent. Reading every classified row back to tally
+  // it stopped at 1,000 rows, so on any busy inbox the "top intents" were
+  // the top intents of an arbitrary thousand.
   const intentCounts: Record<string, number> = {};
-  intentData?.forEach((m: any) => {
-    intentCounts[m.sara_intent] = (intentCounts[m.sara_intent] || 0) + 1;
-  });
+  await Promise.all(Object.values(SaraIntent).map(async (intent) => {
+    const { count } = await supabaseAdmin
+      .from('inbox_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('sara_intent', intent);
+    if (count) intentCounts[intent] = count;
+  }));
 
   const topIntents = Object.entries(intentCounts)
     .map(([intent, count]) => ({ intent, count }))

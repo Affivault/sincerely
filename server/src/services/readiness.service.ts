@@ -74,12 +74,15 @@ async function gather(userId: string) {
   let bounced = 0;
   if (campaignIds.length > 0) {
     const [sentRes, bouncedRes] = await Promise.all([
+      // By owner through the join: an id list of every campaign is a URL
+      // the gateway refuses once an account has a few hundred of them, and
+      // a refused count read as zero sends - "nothing to judge" - here.
       supabaseAdmin.from('campaign_activities')
-        .select('*', { count: 'exact', head: true })
-        .in('campaign_id', campaignIds).eq('activity_type', 'sent'),
+        .select('id, campaigns!inner(user_id)', { count: 'exact', head: true })
+        .eq('campaigns.user_id', userId).eq('activity_type', 'sent'),
       supabaseAdmin.from('campaign_activities')
-        .select('*', { count: 'exact', head: true })
-        .in('campaign_id', campaignIds).eq('activity_type', 'bounced'),
+        .select('id, campaigns!inner(user_id)', { count: 'exact', head: true })
+        .eq('campaigns.user_id', userId).eq('activity_type', 'bounced'),
     ]);
     sent = sentRes.count || 0;
     bounced = bouncedRes.count || 0;

@@ -162,5 +162,29 @@ console.log('\na calendar day is the day it says, west of Greenwich too');
      !/due_date: due\.toISOString\(\)\.slice\(0, 10\)/.test(triage));
 }
 
+console.log('\nsecond pass: what else failed quietly');
+{
+  const schedules = srv('services/sending-schedules.service.ts');
+  is('deleting the default schedule names a new default', /set_default_sending_schedule/.test(schedules.slice(schedules.indexOf('delete('))));
+  const team = srv('services/team.service.ts');
+  const accept = team.slice(team.indexOf('acceptInvite'));
+  is('an invite is only used up once the membership is written',
+     accept.indexOf('if (joinError)') > 0
+     && accept.indexOf('if (joinError)') < accept.indexOf(".from('team_invites').delete()"));
+  is('a template keeps its plain-text body', /body_text/.test(srv('services/template.service.ts')));
+  const mail = srv('services/booking-mail.service.ts');
+  is('a booking confirmation is sent from a verified mailbox, never a seed',
+     /is_verified/.test(mail) && /is_seed/.test(mail));
+  const finder = srv('services/email-finder.service.ts');
+  is('the email finder resolves over HTTPS, where port 53 is blocked',
+     /resolveDoh\(/.test(finder) && !/from 'node:dns'|from 'dns'/.test(finder));
+  const analytics = srv('services/analytics.service.ts');
+  is('analytics joins on the owner instead of listing every campaign id',
+     /campaigns!inner\(user_id\)/.test(analytics) && !/\.in\('campaign_id', campaignIds\)/.test(analytics));
+  const verification = srv('services/verification.service.ts');
+  const batch = verification.slice(verification.indexOf('export async function batchVerify'));
+  is('a failed batch lookup is an error, not "nothing to verify"', /selectErr/.test(batch.slice(0, 1500)));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

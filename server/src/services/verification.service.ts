@@ -335,7 +335,8 @@ export async function batchVerify(
     query = query.is('dcs_verified_at', null);
   }
 
-  const { data: contacts } = await query.limit(100);
+  const { data: contacts, error: selectErr } = await query.limit(100);
+  if (selectErr) throw new Error(`Failed to load contacts to verify: ${selectErr.message}`);
   if (!contacts || contacts.length === 0) return { verified: 0, failed: 0 };
 
   let verified = 0;

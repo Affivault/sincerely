@@ -579,6 +579,11 @@ export const publicBookingService = {
     if (!name) throw new AppError('Please give a name.', 400);
     if (name.length > 120) throw new AppError('That name is too long.', 400);
     if (!looksLikeEmail(email)) throw new AppError('That email address does not look right.', 400);
+    // A public form: nothing here may be arbitrarily long, or one visitor
+    // can put a megabyte into the organiser's calendar and inbox.
+    if (input.phone) input.phone = String(input.phone).trim().slice(0, 40);
+    if (input.company) input.company = String(input.company).trim().slice(0, 120);
+    if (input.answer) input.answer = String(input.answer).trim().slice(0, 2000);
 
     const start = new Date(input.start);
     if (Number.isNaN(start.getTime())) throw new AppError('That is not a time.', 400);

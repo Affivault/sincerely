@@ -471,7 +471,9 @@ export const templateService = {
 
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Template not found', 404);
-    if (!data.is_preset && data.user_id !== userId) throw new AppError('Unauthorized', 403);
+    // Not found, rather than forbidden: a 403 confirms the id exists in
+    // somebody else's account.
+    if (!data.is_preset && data.user_id !== userId) throw new AppError('Template not found', 404);
     return data;
   },
 
@@ -483,6 +485,9 @@ export const templateService = {
         name: input.name,
         subject: input.subject,
         body_html: input.body_html,
+        // Allowed on update and read by everything that uses a template, but
+        // dropped on create, so a new template's plain-text part was empty.
+        body_text: (input as any).body_text ?? null,
         category: input.category || 'custom',
         tags: input.tags || [],
       })
@@ -577,7 +582,7 @@ export const templateService = {
 
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Sequence not found', 404);
-    if (!data.is_preset && data.user_id !== userId) throw new AppError('Unauthorized', 403);
+    if (!data.is_preset && data.user_id !== userId) throw new AppError('Sequence not found', 404);
     return data;
   },
 

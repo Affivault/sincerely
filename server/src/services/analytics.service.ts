@@ -92,11 +92,17 @@ export const analyticsService = {
     if (campaignIds.length > 0) {
       const sinceFilter = days ? daysAgoISO(days) : null;
 
+      /*
+       * Scoped by owner through the join, not by an id list. Every campaign the
+       * account has went into one `in` filter, which is a URL a few hundred
+       * campaigns long - past what the gateway accepts - so the dashboard,
+       * trend and revenue pages went blank for exactly the busiest accounts.
+       */
       const makeCountQuery = (type: string, since?: string | null, until?: string | null) => {
         let q = supabaseAdmin
           .from('campaign_activities')
-          .select('*', { count: 'exact', head: true })
-          .in('campaign_id', campaignIds)
+          .select('id, campaigns!inner(user_id)', { count: 'exact', head: true })
+          .eq('campaigns.user_id', userId)
           .eq('activity_type', type);
         if (since) q = q.gte('occurred_at', since);
         if (until) q = q.lt('occurred_at', until);
@@ -224,8 +230,8 @@ export const analyticsService = {
     const activities = await fetchAllRows<{ activity_type: string; occurred_at: string }>((from, to) =>
       supabaseAdmin
         .from('campaign_activities')
-        .select('activity_type, occurred_at')
-        .in('campaign_id', campaignIds)
+        .select('activity_type, occurred_at, campaigns!inner(user_id)')
+        .eq('campaigns.user_id', userId)
         .gte('occurred_at', daysAgoISO(days))
         .order('occurred_at', { ascending: true })
         .range(from, to)
@@ -473,8 +479,8 @@ export const analyticsService = {
     const activities = await fetchAllRows<{ campaign_id: string; activity_type: string }>((from, to) =>
       supabaseAdmin
         .from('campaign_activities')
-        .select('campaign_id, activity_type')
-        .in('campaign_id', campaignIds)
+        .select('campaign_id, activity_type, campaigns!inner(user_id)')
+        .eq('campaigns.user_id', userId)
         .range(from, to)
     );
 
@@ -540,8 +546,8 @@ export const analyticsService = {
     const activities = await fetchAllRows<{ campaign_id: string; activity_type: string }>((from, to) =>
       supabaseAdmin
         .from('campaign_activities')
-        .select('campaign_id, activity_type')
-        .in('campaign_id', campaignIds)
+        .select('campaign_id, activity_type, campaigns!inner(user_id)')
+        .eq('campaigns.user_id', userId)
         .range(from, to)
     );
 

@@ -1,6 +1,6 @@
-import dns from 'dns';
 import net from 'net';
 import { supabaseAdmin } from '../config/supabase.js';
+import { resolveDoh, resolveHostIp } from '../utils/dns-doh.js';
 import {
   noteSmtpOutcome,
   shouldSkipSmtpProbe,
@@ -377,24 +377,17 @@ export function probeMailbox(mxHost: string, addresses: string[]): Promise<SmtpP
       }
     });
 
-    socket.connect(SMTP_PORT, mxHost);
+    // Dialled by address: connect(port, hostname) would resolve through
+    // the same blocked OS resolver the lookup above avoids.
+    resolveHostIp(mxHost)
+      .catch(() => null)
+      .then((ip) => { if (!settled) socket.connect(SMTP_PORT, ip || mxHost); });
   });
 }
 
 /* ------------------------------------------------------------------ */
 /* Domain checks                                                      */
 /* ------------------------------------------------------------------ */
-
-const DNS_TIMEOUT_MS = 6000;
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('DNS timeout')), ms);
-    promise
-      .then((value) => { clearTimeout(timer); resolve(value); })
-      .catch((err) => { clearTimeout(timer); reject(err); });
-  });
-}
 
 /**
  * Mail exchangers for a domain, best priority first. Empty when the domain
@@ -403,29 +396,28 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
  * @param domain
  */
 async function mailHosts(domain: string): Promise<string[]> {
-  try {
-    const records = await withTimeout(dns.promises.resolveMx(domain), DNS_TIMEOUT_MS);
-    return records
-      .filter((record) => record.exchange)
-      .sort((a, b) => a.priority - b.priority)
-      .map((record) => record.exchange);
-  } catch {
-    // No MX is legal: the A record is the implicit mail host.
-    try {
-      const addresses = await withTimeout(dns.promises.resolve4(domain), DNS_TIMEOUT_MS);
-      return addresses.length ? [domain] : [];
-    } catch {
-      return [];
-    }
-  }
+  /*
+   * Over DNS-over-HTTPS, like every other lookup in this server.
+   *
+   * This asked the operating system's resolver, which is the one the host
+   * blocks (port 53) - the reason dns-doh exists. A blocked lookup came back
+   * empty, and an empty answer was reported as "has no mail server, so it
+   * cannot receive email at all": a confident, wrong sentence about every
+   * company domain anybody searched.
+   */
+  const mx = (await resolveDoh(domain, 'MX'))
+    .map((d) => {
+      const m = d.trim().match(/^(\d+)\s+(\S+)$/);
+      return m ? { priority: Number(m[1]), exchange: m[2].replace(/\.$/, '') } : null;
+    })
+    .filter((r): r is { priority: number; exchange: string } => !!r && !!r.exchange)
+    .sort((a, b) => a.priority - b.priority)
+    .map((r) => r.exchange);
+  if (mx.length > 0) return mx;
+  // No MX: RFC 5321 falls back to the domain's own address.
+  return (await resolveDoh(domain, 'A')).length > 0 ? [domain] : [];
 }
 
-/**
- * Reduce anything domain-ish to a bare registrable host: a full URL, a
- * "www." prefix, or an address someone pasted whole.
- *
- * @param raw
- */
 export function normaliseDomain(raw: string): string {
   let value = String(raw || '').trim().toLowerCase();
   if (!value) return '';

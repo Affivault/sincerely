@@ -59,10 +59,11 @@ export const setupService = {
      */
     let campaignsWithSteps = 0;
     if (campaignRows.length > 0) {
+      // By owner through the join rather than an id list of every campaign.
       const { data: steps } = await supabaseAdmin
         .from('campaign_steps')
-        .select('campaign_id')
-        .in('campaign_id', campaignRows.map((c: any) => c.id));
+        .select('campaign_id, campaigns!inner(user_id)')
+        .eq('campaigns.user_id', userId);
       campaignsWithSteps = new Set((steps || []).map((s: any) => s.campaign_id)).size;
     }
 
