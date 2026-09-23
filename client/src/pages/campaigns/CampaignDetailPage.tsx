@@ -187,6 +187,16 @@ export function CampaignDetailPage() {
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to retry errors'),
   });
 
+  const resumePausedMutation = useMutation({
+    mutationFn: (ids?: string[]) => campaignsApi.resumePaused(id!, ids),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['campaign-contacts', id] });
+      queryClient.invalidateQueries({ queryKey: ['campaigns', id] });
+      toast.success(`Resumed ${result.resumed} contact${result.resumed !== 1 ? 's' : ''}`);
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Could not resume'),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: () => campaignsApi.delete(id!),
     onSuccess: () => {
@@ -523,11 +533,23 @@ export function CampaignDetailPage() {
                 <option value="bounced">Bounced</option>
                 <option value="unsubscribed">Unsubscribed</option>
                 <option value="suppressed">Suppressed</option>
+                <option value="paused">Paused (colleague replied)</option>
                 <option value="error">Error</option>
               </select>
               <span className="text-caption text-[var(--text-tertiary)] whitespace-nowrap tabular">
                 {filteredContacts.length} / {campaignContacts.data.length}
               </span>
+              {campaignContacts.data.some((cc: any) => cc.status === 'paused') && (
+                <button
+                  onClick={() => resumePausedMutation.mutate(undefined)}
+                  disabled={resumePausedMutation.isPending}
+                  title="These contacts were held back because a colleague at their company replied positively"
+                  className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-50 transition-colors"
+                >
+                  <Play className="h-3.5 w-3.5" />
+                  Resume {campaignContacts.data.filter((cc: any) => cc.status === 'paused').length} paused
+                </button>
+              )}
               {campaignContacts.data.some((cc: any) => cc.status === 'error') && (
                 <button
                   onClick={() => retryErrorsMutation.mutate()}
@@ -616,7 +638,22 @@ export function CampaignDetailPage() {
                             </span>
                           ) : <span className="text-body text-[var(--text-tertiary)]">—</span>}
                         </td>
-                        <td className="px-4 py-2.5 text-caption text-rose-500">{cc.error_message || '—'}</td>
+                        {cc.status === 'paused' ? (
+                          <td className="px-4 py-2.5 text-caption text-[var(--text-secondary)]">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate max-w-[260px]" title={cc.error_message || ''}>{cc.error_message || 'Paused'}</span>
+                              <button
+                                onClick={() => resumePausedMutation.mutate([cc.id])}
+                                disabled={resumePausedMutation.isPending}
+                                className="flex-shrink-0 text-caption font-medium text-[var(--indigo)] hover:underline disabled:opacity-50"
+                              >
+                                Resume
+                              </button>
+                            </div>
+                          </td>
+                        ) : (
+                          <td className="px-4 py-2.5 text-caption text-rose-500">{cc.error_message || '—'}</td>
+                        )}
                       </tr>
                     );
                   })}

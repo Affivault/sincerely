@@ -125,7 +125,7 @@ const conditionFieldOptions = [
   { value: ConditionField.Opened, label: 'Email Opened', icon: Eye },
   { value: ConditionField.Clicked, label: 'Link Clicked', icon: MousePointerClick },
   { value: ConditionField.Replied, label: 'Reply Received', icon: MessageSquare },
-  { value: ConditionField.SaraIntent, label: 'SARA Intent', icon: Brain },
+  { value: ConditionField.SaraIntent, label: 'Relay Intent', icon: Brain },
   { value: ConditionField.DcsScore, label: 'DCS Score', icon: ShieldCheck },
   { value: ConditionField.WebhookReceived, label: 'Webhook Received', icon: Webhook },
 ];

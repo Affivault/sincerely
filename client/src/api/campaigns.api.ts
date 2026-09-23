@@ -152,6 +152,12 @@ export const campaignsApi = {
     return data;
   },
 
+  /** Put contacts held back because a colleague replied back to work. No ids = all of them. */
+  resumePaused: async (id: string, ids?: string[]) => {
+    const { data } = await apiClient.post<{ resumed: number }>(`/campaigns/${id}/resume-paused`, { ids });
+    return data;
+  },
+
   clone: async (id: string) => {
     const { data } = await apiClient.post<Campaign>(`/campaigns/${id}/clone`);
     return data;

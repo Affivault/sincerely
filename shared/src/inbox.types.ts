@@ -20,7 +20,7 @@ export interface InboxMessage {
    * 'out_of_office' or 'auto_reply'. These are never counted as replies.
    */
   auto_reply_kind: 'out_of_office' | 'auto_reply' | null;
-  // SARA fields
+  // Relay fields
   sara_intent: SaraIntent | null;
   sara_confidence: number | null;
   sara_draft_reply: string | null;
@@ -86,6 +86,6 @@ export interface InboxCounts {
    * them is a badge people learn to ignore.
    */
   needs_triage: number;
-  /** Count of inbox messages per SARA intent. Missing keys mean zero. */
+  /** Count of inbox messages per Relay intent. Missing keys mean zero. */
   intents: Partial<Record<SaraIntent, number>>;
 }

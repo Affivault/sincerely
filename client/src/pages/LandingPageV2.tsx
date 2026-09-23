@@ -575,7 +575,7 @@ export function LandingPageV2() {
                 'Unlimited campaigns & sequences',
                 'Up to 25 sending inboxes + automated warm-up',
                 '15,000 emails per month',
-                'SARA autonomous reply agent',
+                'Relay autonomous reply agent',
                 'A/B subject & body testing',
                 'Unified inbox & analytics',
               ].map((item, i) => (

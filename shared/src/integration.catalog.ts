@@ -222,7 +222,7 @@ export const INTEGRATION_CATALOG: IntegrationProviderMeta[] = [
     name: 'HubSpot',
     kind: 'crm',
     description:
-      'Automatically syncs contacts into HubSpot the moment they reply or SARA flags them as interested.',
+      'Automatically syncs contacts into HubSpot the moment they reply or Relay flags them as interested.',
     setupSteps: [
       'In HubSpot go to Settings → Integrations → Private Apps and click “Create a private app”.',
       'Name it (e.g. “Sincerely”), then under Scopes enable crm.objects.contacts.read and crm.objects.contacts.write.',

@@ -29,6 +29,7 @@ campaignRoutes.post('/:id/pause', campaignsController.pause);
 campaignRoutes.post('/:id/resume', campaignsController.resume);
 campaignRoutes.post('/:id/cancel', campaignsController.cancel);
 campaignRoutes.post('/:id/retry-errors', campaignsController.retryErrors);
+campaignRoutes.post('/:id/resume-paused', campaignsController.resumePaused);
 
 // Steps
 campaignRoutes.get('/:id/steps', campaignsController.getSteps);

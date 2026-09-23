@@ -28,10 +28,12 @@ export interface UserSettings {
   sara_draft_replies: boolean;
   ai_tagging_enabled: boolean;
   auto_verify_contacts: boolean;
-  /** SARA auto-creates a CRM deal when a reply is interested/meeting */
+  /** Relay auto-creates a CRM deal when a reply is interested/meeting */
   crm_auto_deals: boolean;
   /** When someone replies to one campaign, stop every other one for them. */
   stop_all_campaigns_on_reply: boolean;
+  /** A positive reply pauses outreach to everyone else at that company. */
+  pause_company_on_reply: boolean;
   /** Auto-pause a campaign whose bounce rate is damaging the sending domain. */
   bounce_guard_enabled: boolean;
   /** Percent. The guard also needs a minimum sample before it can act. */
@@ -67,6 +69,10 @@ const DEFAULTS: Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at
   // Off by default: switching it on changes when live campaigns stop, and
   // that is not a decision to make on someone's behalf.
   stop_all_campaigns_on_reply: false,
+  // On by default: once somebody at a company says yes, the next cold email
+  // to their colleague is the one that loses the deal. Paused, not stopped,
+  // so it is one click to resume.
+  pause_company_on_reply: true,
   // On by default, unlike the opt-in features above. A safety brake that
   // ships switched off protects nobody: the accounts that need it are the
   // ones that do not know they need it.

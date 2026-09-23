@@ -612,7 +612,7 @@
   color: var(--amber);
 }
 
-/* SARA inbox */
+/* Relay inbox */
 .sara {
   background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
   border: 1px solid rgba(255,255,255,0.09);

@@ -66,7 +66,7 @@ const DUE_SOON_FRACTION = 0.25;
 
 export interface ReplyFacts {
   received_at: string | number;
-  /** What SARA made of it. Null when it has not been classified. */
+  /** What Relay made of it. Null when it has not been classified. */
   sara_intent?: string | null;
   /** Set when the message came from a machine rather than a person. */
   auto_reply_kind?: string | null;

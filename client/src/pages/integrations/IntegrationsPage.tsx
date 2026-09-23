@@ -68,7 +68,7 @@ const EVENT_LABELS: Record<string, string> = {
   'campaign.paused': 'Campaign paused',
   'campaign.completed': 'Campaign completed',
   'lead.unsubscribed': 'Lead unsubscribed',
-  'sara.intent_classified': 'SARA classified a reply',
+  'sara.intent_classified': 'Relay classified a reply',
   'contact.created': 'Contact created',
 };
 

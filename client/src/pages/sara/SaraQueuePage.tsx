@@ -195,7 +195,7 @@ export function SaraQueuePage() {
             <Bot className="h-4 w-4 text-white" />
           </span>
         }
-        title="SARA"
+        title="Relay"
         description="Smart Autonomous Reply Agent — AI-powered email responses"
         meta={stats?.pending_review ? (
           <>
@@ -301,7 +301,7 @@ export function SaraQueuePage() {
               <XCircle className="h-7 w-7 text-red-600 dark:text-red-400" strokeWidth={1.5} />
             </span>
             <h3 className="text-heading font-semibold text-[var(--text-primary)] mb-1.5">Couldn't load the queue</h3>
-            <p className="text-body text-[var(--text-secondary)] max-w-sm mb-4">Something went wrong fetching SARA's queue — this isn't necessarily an empty inbox. Try again.</p>
+            <p className="text-body text-[var(--text-secondary)] max-w-sm mb-4">Something went wrong fetching Relay's queue — this isn't necessarily an empty inbox. Try again.</p>
             <button
               onClick={() => queryClient.invalidateQueries({ queryKey: ['sara-queue'] })}
               className="h-8 px-3.5 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:brightness-110 transition-all"
@@ -322,7 +322,7 @@ export function SaraQueuePage() {
             </h3>
             <p className="text-body text-[var(--text-secondary)] max-w-sm">
               {statusFilter === 'pending_review'
-                ? 'SARA hasn\'t flagged any replies for review. New ones will appear here as they come in.'
+                ? 'Relay hasn\'t flagged any replies for review. New ones will appear here as they come in.'
                 : `No ${STATUS_TABS.find(t => t.value === statusFilter)?.label.toLowerCase()} messages found.`}
             </p>
           </div>
@@ -389,7 +389,7 @@ export function SaraQueuePage() {
                               </span>
                             )}
                             {autoHandled && (
-                              <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-semibold bg-[var(--indigo)]/8 text-[var(--indigo)]" title="Handled automatically by SARA — no human review">
+                              <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-semibold bg-[var(--indigo)]/8 text-[var(--indigo)]" title="Handled automatically by Relay — no human review">
                                 <Bot className="h-2.5 w-2.5" />
                                 Auto
                               </span>
@@ -459,7 +459,7 @@ export function SaraQueuePage() {
                           </span>
                         )}
                         {autoHandled && (
-                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-semibold bg-[var(--indigo)]/8 text-[var(--indigo)]" title="SARA acted on this automatically based on your auto-execute settings">
+                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-semibold bg-[var(--indigo)]/8 text-[var(--indigo)]" title="Relay acted on this automatically based on your auto-execute settings">
                             <Bot className="h-2.5 w-2.5" />
                             Auto-handled
                           </span>
@@ -480,7 +480,7 @@ export function SaraQueuePage() {
                           </div>
                         </div>
 
-                        {/* SARA draft */}
+                        {/* Relay draft */}
                         {msg.sara_draft_reply && (
                           <div className="rounded-xl border border-[var(--indigo)]/20 bg-[var(--indigo-subtle)] p-3.5">
                             <div className="flex items-center justify-between mb-2">
@@ -489,7 +489,7 @@ export function SaraQueuePage() {
                                   <Bot className="h-3 w-3 text-white" />
                                 </span>
                                 <h4 className="text-caption font-bold text-[var(--indigo)]">
-                                  SARA's draft reply
+                                  Relay's draft reply
                                 </h4>
                               </div>
                               {msg.sara_action && (

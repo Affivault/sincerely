@@ -81,6 +81,8 @@ export enum ContactCampaignStatus {
   Bounced = 'bounced',
   Unsubscribed = 'unsubscribed',
   Suppressed = 'suppressed',
+  /** Held back because a colleague at the same company replied positively. */
+  Paused = 'paused',
   Error = 'error',
 }
 
@@ -101,7 +103,7 @@ export enum ContactSource {
   Api = 'api',
 }
 
-// SARA Intent Classification
+// Relay Intent Classification
 export enum SaraIntent {
   Interested = 'interested',
   Meeting = 'meeting',
@@ -113,7 +115,7 @@ export enum SaraIntent {
   Other = 'other',
 }
 
-// SARA Recommended Action
+// Relay Recommended Action
 export enum SaraAction {
   Reply = 'reply',
   Unsubscribe = 'unsubscribe',
@@ -122,7 +124,7 @@ export enum SaraAction {
   Escalate = 'escalate',
 }
 
-// SARA Review Status
+// Relay Review Status
 export enum SaraStatus {
   PendingReview = 'pending_review',
   Approved = 'approved',

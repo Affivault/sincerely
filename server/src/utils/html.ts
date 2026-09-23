@@ -2,7 +2,7 @@
    Turning someone's typing into HTML without changing what it says.
 
    Every outgoing message this server composes — a reply, a forward, a
-   scheduled send, a SARA draft, a warm-up email — took plain text and
+   scheduled send, a Relay draft, a warm-up email — took plain text and
    dropped it straight into an HTML template, converting newlines and
    nothing else. Nine places, all the same shape.
 

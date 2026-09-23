@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth.middleware.js';
 import { campaignsService } from '../services/campaigns.service.js';
 import { campaignStepsService } from '../services/campaign-steps.service.js';
 import { campaignContactsService } from '../services/campaign-contacts.service.js';
+import { resumePausedContacts } from '../services/account-pause.service.js';
 import { campaignHealthService } from '../services/campaign-health.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { decrypt } from '../utils/encryption.js';
@@ -123,6 +124,14 @@ export const campaignsController = {
     try {
       const result = await campaignsService.retryErrors(req.userId!, req.params.id);
       res.json(result);
+    } catch (err) { next(err); }
+  },
+
+  async resumePaused(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter((x: unknown) => typeof x === 'string') : undefined;
+      const resumed = await resumePausedContacts(req.userId!, req.params.id, ids);
+      res.json({ resumed });
     } catch (err) { next(err); }
   },
 

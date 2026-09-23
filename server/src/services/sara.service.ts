@@ -12,9 +12,10 @@ import { AppError } from '../middleware/error.middleware.js';
 import { checkAndAutoCompleteCampaign } from './sequence.service.js';
 import { inboxService } from './inbox.service.js';
 import { defaultBookingLinkUrl } from './booking.service.js';
+import { pauseColleaguesAfterReply } from './account-pause.service.js';
 
 /**
- * SARA → CRM: when a reply is classified as interested/meeting, create a
+ * Relay → CRM: when a reply is classified as interested/meeting, create a
  * qualified deal (plus a high-priority follow-up task) linked to the lead —
  * the pipeline fills itself from the inbox. Users can switch this off with
  * the `crm_auto_deals` setting; failures never break classification.
@@ -54,7 +55,7 @@ async function maybeCreateDealFromReply(message: any, result: SaraClassification
       contact_email: email,
       contact_name: name,
       company: message.contacts?.company || null,
-      notes: `Auto-created by SARA — reply classified as "${result.intent}" (${Math.round(result.confidence * 100)}% confidence).\nSubject: ${message.subject || '(no subject)'}\n\nYou can turn this off in Settings → SARA → Auto-create CRM deals.`,
+      notes: `Auto-created by Relay — reply classified as "${result.intent}" (${Math.round(result.confidence * 100)}% confidence).\nSubject: ${message.subject || '(no subject)'}\n\nYou can turn this off in Settings → Relay → Auto-create CRM deals.`,
     });
 
     await crmService.createTask(userId, {
@@ -72,12 +73,36 @@ async function maybeCreateDealFromReply(message: any, result: SaraClassification
       intent: result.intent,
     }).catch(() => {});
   } catch (err: any) {
-    console.error('[SARA] Auto-deal creation failed (classification unaffected):', err?.message || err);
+    console.error('[Relay] Auto-deal creation failed (classification unaffected):', err?.message || err);
   }
 }
 
 /**
- * SARA - Sincerely Autonomous Reply Agent
+ * A yes from one person at a company holds the cold sequences still running
+ * to their colleagues (see account-pause.service). On by default, switchable
+ * in Settings; never breaks classification.
+ */
+async function maybePauseCompany(message: any, result: SaraClassificationResult): Promise<void> {
+  if (result.intent !== SaraIntent.Interested && result.intent !== SaraIntent.Meeting) return;
+  if (result.confidence < 0.6 || !message.user_id) return;
+  const email = String(message.contacts?.email || message.from_email || '').trim().toLowerCase();
+  if (!email) return;
+  try {
+    const settings = await settingsService.get(message.user_id);
+    if ((settings as any).pause_company_on_reply === false) return;
+  } catch { return; }
+  const name = [message.contacts?.first_name, message.contacts?.last_name].filter(Boolean).join(' ') || null;
+  await pauseColleaguesAfterReply({
+    userId: message.user_id,
+    replierEmail: email,
+    replierContactId: message.contact_id,
+    replierName: name,
+    intent: result.intent,
+  });
+}
+
+/**
+ * Relay - the Sincerely reply agent
  * Classifies reply intent and drafts context-aware responses.
  */
 
@@ -287,7 +312,7 @@ export function classifyReply(
 }
 
 /**
- * Process a new reply through SARA classification pipeline.
+ * Process a new reply through Relay classification pipeline.
  *
  * `requestingUserId` is passed only when called from an authenticated HTTP
  * request (the sara.controller `classify` route) to verify the caller owns
@@ -328,14 +353,14 @@ export async function processReply(messageId: string, requestingUserId?: string)
     throw new AppError('Message not found', 404);
   }
 
-  // SARA is a paid feature — skip classification/auto-actions when not included.
+  // Relay is a paid feature — skip classification/auto-actions when not included.
   if (message.user_id && !(await billingService.hasFeature(message.user_id, 'sara'))) {
     return {
       intent: SaraIntent.Other,
       confidence: 0,
       action: 'none',
       draft_reply: null,
-      reasoning: 'SARA is not included in the current plan.',
+      reasoning: 'Relay is not included in the current plan.',
     };
   }
 
@@ -378,9 +403,10 @@ export async function processReply(messageId: string, requestingUserId?: string)
 
   // Positive intent → fill the CRM pipeline automatically (user-toggleable).
   await maybeCreateDealFromReply(message, result);
+  await maybePauseCompany(message, result);
 
   // Auto-execute for high-confidence unsubscribe/bounce — gated by the user's
-  // SARA settings (Settings → SARA), which were previously stored/exposed in
+  // Relay settings (Settings → Relay), which were previously stored/exposed in
   // the UI but never actually consulted here. Only fetch settings when the
   // intent could actually trigger auto-execute, to avoid an extra lookup on
   // every single classified reply.
@@ -457,7 +483,7 @@ export async function processReply(messageId: string, requestingUserId?: string)
 }
 
 /**
- * Approve a SARA draft reply for sending.
+ * Approve a Relay draft reply for sending.
  */
 export async function approveReply(
   messageId: string,
@@ -504,7 +530,7 @@ export async function approveReply(
 }
 
 /**
- * Dismiss a SARA suggestion.
+ * Dismiss a Relay suggestion.
  */
 export async function dismissReply(messageId: string, userId: string): Promise<void> {
   const { data, error } = await supabaseAdmin
@@ -523,7 +549,7 @@ export async function dismissReply(messageId: string, userId: string): Promise<v
 }
 
 /**
- * Get SARA queue - messages pending review.
+ * Get Relay queue - messages pending review.
  */
 export async function getQueue(
   userId: string,
@@ -561,7 +587,7 @@ export async function getQueue(
 }
 
 /**
- * Get SARA queue statistics.
+ * Get Relay queue statistics.
  */
 export async function getQueueStats(userId: string): Promise<SaraQueueStats> {
   // "Today" in the user's own timezone, not the server's — otherwise the

@@ -293,7 +293,7 @@ section('4. CRM relevance filtering');
 for (const id of ['hubspot', 'pipedrive', 'notion', 'airtable'] as const) {
   const before = captured.length;
   const skip1 = await R[id].handleEvent('u1', GOOD[id], 'sara.intent_classified', { contact_id: 'c1', intent: 'objection' });
-  ok(skip1 === null && captured.length === before, `${id}: skips negative SARA intent without any HTTP call`);
+  ok(skip1 === null && captured.length === before, `${id}: skips negative Relay intent without any HTTP call`);
   const skip2 = await R[id].handleEvent('u1', GOOD[id], 'email.replied', { from: 'x@y.z' });
   ok(skip2 === null, `${id}: skips event with no contact_id`);
 }

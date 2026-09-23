@@ -2500,7 +2500,7 @@ export function CampaignCreatePage() {
                 </span>
                 <div>
                   <h2 className="text-strong font-semibold text-[var(--text-primary)]">Generate email with AI</h2>
-                  <p className="text-caption text-[var(--text-tertiary)] mt-0.5">SARA will write the subject and body for you</p>
+                  <p className="text-caption text-[var(--text-tertiary)] mt-0.5">Relay will write the subject and body for you</p>
                 </div>
               </div>
               <button onClick={() => setShowAiModal(false)} className="p-1.5 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
