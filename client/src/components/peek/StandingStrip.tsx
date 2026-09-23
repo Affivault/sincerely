@@ -11,7 +11,9 @@
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { CalendarPlus, Handshake, Megaphone, PauseCircle, PlayCircle } from 'lucide-react';
+import { CalendarPlus, Clock, Handshake, Megaphone, PauseCircle, PlayCircle } from 'lucide-react';
+import { engagementWindow } from '@lemlist/shared';
+import { analyticsApi } from '../../api/analytics.api';
 import { contactsApi } from '../../api/contacts.api';
 import { crmApi } from '../../api/crm.api';
 import { commandApi } from '../../api/command.api';
@@ -30,6 +32,13 @@ export function StandingStrip({ contactId, email, name }: { contactId: string; e
     queryFn: () => crmApi.listDeals({ contact_id: contactId, contact_email: email }),
   });
   const { data: health } = useDealHealth();
+  // Same query the peek already runs for the history below, so no extra request.
+  const { data: timeline } = useQuery({
+    queryKey: ['contact-timeline', contactId],
+    queryFn: () => analyticsApi.contactTimeline(contactId),
+  });
+  const readWindow = engagementWindow((timeline || []) as any[]);
+  const hourLabel = (h: number) => new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: 'numeric' });
 
   const live = memberships.filter((m) => m.status === 'active' || m.status === 'pending');
   const paused = memberships.filter((m) => m.status === 'paused');
@@ -98,6 +107,12 @@ export function StandingStrip({ contactId, email, name }: { contactId: string; e
           </span>
         </Link>
       ))}
+
+      {readWindow && (
+        <p className="flex items-center gap-2 text-caption text-[var(--text-tertiary)]" title={`From ${readWindow.count} opens, clicks and replies`}>
+          <Clock className="h-3.5 w-3.5" /> Usually reads email {hourLabel(readWindow.from)}-{hourLabel(readWindow.to)} your time
+        </p>
+      )}
 
       <div className="flex flex-wrap gap-1.5 pt-0.5">
         {live.length > 0 && (

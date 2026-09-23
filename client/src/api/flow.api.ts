@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { FlowSummary, MeetingBrief } from '@lemlist/shared';
+import type { FlowSummary, MeetingBrief, AwaySummary } from '@lemlist/shared';
 
 export const flowApi = {
   /** Everything that needs a decision, most urgent first. */
@@ -10,4 +10,8 @@ export const flowApi = {
 
 export const briefApi = {
   get: async (eventId: string) => (await apiClient.get<MeetingBrief>(`/flow/meetings/${eventId}/brief`)).data,
+};
+
+export const awayApi = {
+  since: async (at: string) => (await apiClient.get<AwaySummary>('/flow/since', { params: { at } })).data,
 };

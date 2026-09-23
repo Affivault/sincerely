@@ -34,6 +34,7 @@ import { useDeferredAction } from '../../components/ui/UndoBar';
 import { usePeek } from '../../components/peek/usePeek';
 import { DealHealthDot, ACTION_ICON } from '../../components/crm/DealHealth';
 import { MeetingBrief, MeetingOutcome } from '../../components/flow/MeetingBrief';
+import { AwayCard } from '../../components/flow/AwayCard';
 import { cn, formatRelativeTime, formatTimeUntil } from '../../lib/utils';
 
 /* ─── "Not now": hidden until tomorrow morning, per browser ────────────── */
@@ -250,6 +251,8 @@ export function FlowPage() {
           </button>
         }
       />
+
+      <AwayCard />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {(['all', 'meeting', 'reply', 'deal', 'task'] as const).map((k) => {

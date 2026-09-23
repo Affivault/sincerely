@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth.middleware.js';
 import { buildFlow } from '../services/flow.service.js';
 import { replyQueueService } from '../services/reply-queue.service.js';
 import { meetingBrief } from '../services/meeting-brief.service.js';
+import { awaySummary } from '../services/away.service.js';
 
 /* The day's work as one ranked queue. See services/flow.service.ts. */
 export const flowRoutes = Router();
@@ -25,5 +26,12 @@ flowRoutes.post('/replies/:id/handled', async (req: AuthRequest, res: Response, 
 flowRoutes.get('/meetings/:id/brief', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     res.json(await meetingBrief(req.userId!, req.params.id));
+  } catch (err) { next(err); }
+});
+
+/** Counts of what changed since the caller last looked. */
+flowRoutes.get('/since', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json(await awaySummary(req.userId!, req.query.at));
   } catch (err) { next(err); }
 });

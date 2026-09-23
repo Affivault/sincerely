@@ -1,3 +1,4 @@
+import { BuyingCommitteeStrip } from '../../components/crm/BuyingCommittee';
 import { useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -416,6 +417,7 @@ export function CompanyDetailPage() {
               </div>
             ) : (
               <div className="divide-y divide-[var(--border-subtle)]">
+                <BuyingCommitteeStrip contacts={contacts} messages={activity?.messages || []} />
                 {contacts.map((c: any) => {
                   const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || c.email;
                   return (

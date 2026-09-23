@@ -159,3 +159,17 @@ export interface MeetingBrief {
   previous_meetings: { title: string; at: string; outcome: string | null }[];
   open_tasks: { title: string; due_date: string | null }[];
 }
+
+/* ─── While you were away ────────────────────────────────────────────── */
+
+export interface AwaySummary {
+  since: string;
+  replies: number;
+  positive_replies: number;
+  meetings_booked: number;
+  deals_created: number;
+  deals_won: number;
+  won_value: number;
+  bounces: number;
+  campaigns_completed: number;
+}
