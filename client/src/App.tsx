@@ -23,6 +23,7 @@ import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
  * and fails if any pair has drifted.
  */
 const DashboardPage       = lazyRoute('/dashboard', () => import('./pages/dashboard/DashboardPage'), m => m.DashboardPage);
+const FlowPage            = lazyRoute('/flow', () => import('./pages/flow/FlowPage'), m => m.FlowPage);
 const CampaignRevenuePage  = lazyRoute('/analytics/revenue/:id', () => import('./pages/analytics/CampaignRevenuePage'), m => m.CampaignRevenuePage);
 const PlacementPage        = lazyRoute('/placement', () => import('./pages/placement/PlacementPage'), m => m.PlacementPage);
 const RepliesPage          = lazyRoute('/replies', () => import('./pages/replies/RepliesPage'), m => m.RepliesPage);
@@ -165,6 +166,7 @@ export default function App() {
           }
         >
           <Route path="/dashboard"          element={<DashboardPage />} />
+          <Route path="/flow"               element={<FlowPage />} />
           {/* Today briefly lived here and the dashboard was pushed to /overview.
               Kept as a redirect so bookmarks and old links still land. */}
           <Route path="/dashboard/overview" element={<Navigate to="/dashboard" replace />} />

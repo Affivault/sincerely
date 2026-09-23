@@ -25,6 +25,7 @@ import { settingsRoutes } from './settings.routes.js';
 import { suppressionRoutes } from './suppression.routes.js';
 import { placementRoutes } from './placement.routes.js';
 import { replyQueueRoutes } from './reply-queue.routes.js';
+import { flowRoutes } from './flow.routes.js';
 import { segmentRevenueRoutes } from './segment-revenue.routes.js';
 import { teamRoutes } from './team.routes.js';
 import { campaignFoldersRoutes } from './campaign-folders.routes.js';
@@ -73,6 +74,7 @@ routes.use('/settings', settingsRoutes);
 routes.use('/suppression', suppressionRoutes);
 routes.use('/placement', placementRoutes);
 routes.use('/reply-queue', replyQueueRoutes);
+routes.use('/flow', flowRoutes);
 // Its own path. It used to share '/segments' with the saved-segments router,
 // whose GET / answered first - so the report page was handed the list of
 // saved segments and never saw a report at all.

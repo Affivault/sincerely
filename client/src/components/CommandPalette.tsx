@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
+  LayoutDashboard, Waves, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, Send, Globe, ShieldOff, ShieldCheck, UserPlus,
   CalendarClock, Wrench, Plus, Search, Sun, Moon, LogOut, CornerDownLeft, Blocks,
   ArrowUp, ArrowDown, Handshake, ListTodo, CalendarDays, Phone, Mail,
@@ -114,6 +114,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   const staticItems = useMemo<CommandItem[]>(() => [
     // Navigate
+    { id: 'nav-flow', label: 'Flow', icon: Waves, group: 'Navigate', href: '/flow', keywords: 'today queue next focus work decide todo priorities' },
     { id: 'nav-dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Navigate', href: '/dashboard', keywords: 'home overview performance stats numbers' },
     { id: 'nav-inbox', label: 'Unibox', icon: Inbox, group: 'Navigate', href: '/inbox', keywords: 'messages replies email' },
     { id: 'nav-deals', label: 'Deals', icon: Handshake, group: 'Navigate', href: '/deals', keywords: 'pipeline crm opportunities' },
