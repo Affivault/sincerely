@@ -3,6 +3,7 @@ import { type Session, type User, type Provider } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { readPersistedUser } from '../lib/persistedSession';
 import { queryClient } from '../lib/queryClient';
+import { markSignedOutOnPurpose, clearSignedOutOnPurpose } from '../lib/returnTo';
 
 interface AuthContextType {
   user: User | null;
@@ -57,6 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      // Signed in again: an expiry from here on is an interruption worth
+      // coming back from, not a deliberate exit.
+      if (session?.user) clearSignedOutOnPurpose();
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -104,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    markSignedOutOnPurpose();
     try {
       await supabase.auth.signOut();
     } catch (err) {

@@ -79,6 +79,7 @@ function freshWorld(over: Partial<World> = {}): World {
 /** A stand-in for the PostgREST client, matching the enrolment harness. */
 function stub(table: string): any {
   let single = false;
+  let maybe = false;
   let counting = false;
   let deleting = false;
   let pendingUpdate: any = null;
@@ -140,9 +141,11 @@ function stub(table: string): any {
 
     if (counting) return { data: null, error: null, count: rows.length };
     if (single) {
+      // maybeSingle answers "nothing" with a null row and no error, as
+      // supabase-js does; only single() treats an empty result as a failure.
       return {
         data: rows[0] ?? null,
-        error: rows[0] ? null : { code: 'PGRST116', message: 'no rows' },
+        error: rows[0] || maybe ? null : { code: 'PGRST116', message: 'no rows' },
         count: rows.length,
       };
     }
@@ -151,7 +154,8 @@ function stub(table: string): any {
 
   const chain: any = new Proxy(() => {}, {
     get(_t, prop: string) {
-      if (prop === 'single' || prop === 'maybeSingle') return () => { single = true; return chain; };
+      if (prop === 'single') return () => { single = true; return chain; };
+      if (prop === 'maybeSingle') return () => { single = true; maybe = true; return chain; };
       if (prop === 'select') {
         return (selected?: string, opts?: any) => {
           cols = selected || '';
@@ -309,6 +313,40 @@ console.log('\na made-up reason is not recorded as though it were real');
   const sup = wrote('suppression_list');
   is('an unknown reason is stored as "other" rather than as itself',
      String(sup[0]?.notes || '').includes('other'), JSON.stringify(sup[0]));
+}
+
+console.log('\nsaying no to somebody already suppressed changes nothing, and undo lifts nothing');
+{
+  // They unsubscribed weeks ago. Marking their reply "not interested" must
+  // not rewrite that row, and taking the triage back must not delete it -
+  // it predates the decision and is not the decision's to undo.
+  world = freshWorld({
+    suppression_list: [{
+      id: 'sup-1', user_id: USER, email: 'priya@northbeam.com', reason: 'unsubscribed', notes: null,
+    }],
+  });
+  await triageService.triage(USER, MESSAGE, { decision: 'not_interested', reason: 'no_budget' });
+  is('the existing suppression is not rewritten',
+     world.suppression_list.length === 1 && world.suppression_list[0].reason === 'unsubscribed',
+     JSON.stringify(world.suppression_list));
+
+  const undone = await triageService.undo(USER, MESSAGE);
+  is('undo leaves an unsubscribe in place',
+     world.suppression_list.some((r: any) => r.email === 'priya@northbeam.com'),
+     JSON.stringify(world.suppression_list));
+  is('and says so, rather than claiming they can be emailed again',
+     !/emailed again/.test(undone.message), undone.message);
+}
+
+console.log('\nundo lifts a suppression the decision itself made');
+{
+  world = freshWorld();
+  await triageService.triage(USER, MESSAGE, { decision: 'not_interested', reason: 'no_budget' });
+  is('the decision suppressed them', world.suppression_list.length === 1, JSON.stringify(world.suppression_list));
+  await triageService.undo(USER, MESSAGE);
+  is('and undoing it takes that back',
+     !world.suppression_list.some((r: any) => r.email === 'priya@northbeam.com'),
+     JSON.stringify(world.suppression_list));
 }
 
 console.log('\nlead titles are readable at a glance');
@@ -527,8 +565,10 @@ console.log('\nbulk not now dates every follow-up the same way');
   is('one follow-up per reply', tasks.length === 2, String(tasks.length));
   is('all dated a month out, because that is what was answered',
      tasks.every((t: any) => {
-       const days = Math.round((new Date(`${t.due_date}T00:00:00Z`).getTime() - Date.now()) / 86400000);
-       return days >= 29 && days <= 30;
+       // A full instant now (see markLater): a bare date stored as UTC
+       // midnight showed as the day before anywhere west of Greenwich.
+       const days = Math.round((new Date(t.due_date).getTime() - Date.now()) / 86400000);
+       return days === 30 && String(t.due_date).includes('T');
      }), JSON.stringify(tasks.map((t: any) => t.due_date)));
   is('nobody is suppressed by saying not now', wrote('suppression_list').length === 0);
   is('and the references point at the tasks, so undo removes those',

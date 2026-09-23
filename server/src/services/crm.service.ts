@@ -209,6 +209,20 @@ function trackStageChange(input: Record<string, any>, previousStage?: string | n
   if (!closing) input.outcome_reason = null;
 }
 
+/**
+ * The strength of an attribution is the server's to say.
+ *
+ * `attribution` and `attributed_at` were on the writable list, so a body
+ * could label a deal 'reply' or 'booking' - the strongest evidence the
+ * report knows - without any reply or booking behind it. They are derived
+ * below from what actually happened, or recorded as 'manual' when a person
+ * names the campaign, and never taken from the request.
+ */
+function stripClaimedAttribution(input: Record<string, any>) {
+  delete input.attribution;
+  delete input.attributed_at;
+}
+
 /** Reject a contact_id/deal_id that doesn't belong to this user before it's persisted. */
 async function assertOwned(userId: string, table: string, id: string, label: string) {
   const { data } = await supabaseAdmin.from(table).select('id').eq('id', id).eq('user_id', userId).maybeSingle();
@@ -330,6 +344,7 @@ export const crmService = {
   async createDeal(userId: string, body: any) {
     if (!body.title || !String(body.title).trim()) throw new AppError('Deal title is required', 400);
     const input = pick(body, DEAL_KEYS as any);
+    stripClaimedAttribution(input);
     sanitizeDealInput(input);
     // A new deal is entering its first stage right now, whether or not the
     // caller named one — without this its clock never starts and it can never
@@ -382,6 +397,7 @@ export const crmService = {
 
   async updateDeal(userId: string, id: string, body: any) {
     const input = pick(body, DEAL_KEYS as any);
+    stripClaimedAttribution(input);
     sanitizeDealInput(input);
 
     /*

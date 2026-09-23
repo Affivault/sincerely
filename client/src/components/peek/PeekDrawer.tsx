@@ -353,7 +353,7 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
         />
         {deal.expected_close_date && (
           <p className="text-caption text-[var(--text-tertiary)] mt-1">
-            Expected {formatLongDate(new Date(deal.expected_close_date))}
+            Expected {formatLongDate(deal.expected_close_date)}
           </p>
         )}
       </div>

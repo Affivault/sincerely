@@ -152,6 +152,21 @@ export function CampaignDetailPage() {
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to cancel campaign'),
   });
 
+  // Cancelling is final - there is no resume from it - so it asks first,
+  // the way deleting does. Pause sits right beside it for the "just stop
+  // for now" case.
+  const confirmCancel = () => confirm(
+    {
+      title: 'Cancel this campaign?',
+      body: 'Nobody else in it will be sent anything, and it cannot be resumed. Pause instead if you only want to stop for now.',
+      tone: 'danger',
+      confirmLabel: 'Cancel campaign',
+      // "Cancel" beside "Cancel campaign" reads as two ways to do the same thing.
+      cancelLabel: 'Keep it',
+    },
+    () => cancelMutation.mutate(),
+  );
+
   const cloneMutation = useMutation({
     mutationFn: () => campaignsApi.clone(id!),
     onSuccess: (cloned) => {
@@ -245,6 +260,11 @@ export function CampaignDetailPage() {
           <p className="mt-0.5 text-body text-[var(--text-secondary)]">
             Created {formatDate(campaign.created_at)}
             {campaign.started_at && ` · Started ${formatDate(campaign.started_at)}`}
+            {campaign.status === 'scheduled' && campaign.scheduled_at && (
+              <span title={formatDateTime(campaign.scheduled_at)}>
+                {' '}&middot; Starts {formatDateTime(campaign.scheduled_at)}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
@@ -261,12 +281,15 @@ export function CampaignDetailPage() {
               </button>
             </>
           )}
-          {campaign.status === 'running' && (
+          {/* A scheduled campaign can be held or called off before it starts;
+              it used to show no actions at all, so the only way to stop one
+              was to wait for it to send. */}
+          {(campaign.status === 'running' || campaign.status === 'scheduled') && (
             <>
               <button onClick={() => pauseMutation.mutate()} disabled={pauseMutation.isPending} className="btn-secondary text-body h-8 px-3 rounded-lg gap-1.5 disabled:opacity-50 disabled:pointer-events-none">
                 <Pause className="h-3.5 w-3.5" /> Pause
               </button>
-              <button onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending} className="btn-secondary text-body h-8 px-3 rounded-lg gap-1.5 hover:text-rose-500 hover:border-rose-500/30 disabled:opacity-50 disabled:pointer-events-none">
+              <button onClick={confirmCancel} disabled={cancelMutation.isPending} className="btn-secondary text-body h-8 px-3 rounded-lg gap-1.5 hover:text-rose-500 hover:border-rose-500/30 disabled:opacity-50 disabled:pointer-events-none">
                 <Square className="h-3.5 w-3.5" /> Cancel
               </button>
             </>
@@ -276,7 +299,7 @@ export function CampaignDetailPage() {
               <button onClick={() => resumeMutation.mutate()} disabled={resumeMutation.isPending} className="btn-primary disabled:opacity-50 disabled:pointer-events-none">
                 <Play className="h-3.5 w-3.5" /> Resume
               </button>
-              <button onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending} className="btn-secondary hover:text-rose-500 hover:border-rose-500/30 disabled:opacity-50 disabled:pointer-events-none">
+              <button onClick={confirmCancel} disabled={cancelMutation.isPending} className="btn-secondary hover:text-rose-500 hover:border-rose-500/30 disabled:opacity-50 disabled:pointer-events-none">
                 <Square className="h-3.5 w-3.5" /> Cancel
               </button>
             </>

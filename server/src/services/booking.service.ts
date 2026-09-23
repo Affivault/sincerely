@@ -7,6 +7,8 @@ import { readBookingIdentity, isStepId, signBookingIdentity, NO_STEP } from '../
 import { calendarSync } from './calendar-sync.service.js';
 import { inboxService } from './inbox.service.js';
 import { env } from '../config/env.js';
+import { escapeHtml, textToHtml } from '../utils/html.js';
+import { promoteToContact } from './lifecycle.service.js';
 import {
   slugify, looksLikeEmail, buildIcs,
   type BookingLink, type CreateBookingLinkInput,
@@ -138,6 +140,24 @@ function validateLink(input: CreateBookingLinkInput, partial = false): Record<st
 }
 
 /**
+ * A link may only be a kind of meeting the account owns.
+ *
+ * The id went straight onto the row, and the public page renders the kind's
+ * name, colour and location through the join - so another account's event
+ * type id put their meeting's name on this account's booking page.
+ */
+async function assertOwnEventType(userId: string, eventTypeId: string | null | undefined): Promise<void> {
+  if (!eventTypeId) return;
+  const { data } = await supabaseAdmin
+    .from('calendar_event_types')
+    .select('id')
+    .eq('id', eventTypeId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (!data) throw new AppError('That kind of meeting was not found.', 404);
+}
+
+/**
  * The address `{{booking_link}}` resolves to.
  *
  * The oldest live link, because that is the one an account thinks of as
@@ -193,6 +213,7 @@ export const bookingService = {
    */
   async createLink(userId: string, input: CreateBookingLinkInput): Promise<BookingLink> {
     const patch = validateLink(input);
+    await assertOwnEventType(userId, patch.event_type_id);
     if (!patch.event_type_id) {
       const { data: fallback } = await supabaseAdmin
         .from('calendar_event_types')
@@ -231,6 +252,7 @@ export const bookingService = {
 
   async updateLink(userId: string, id: string, input: CreateBookingLinkInput): Promise<BookingLink> {
     const patch = validateLink(input, true);
+    await assertOwnEventType(userId, patch.event_type_id);
     if (Object.keys(patch).length === 0) return this.getLink(userId, id);
 
     const { data, error } = await supabaseAdmin
@@ -325,9 +347,12 @@ export const bookingService = {
       url,
     ].join('\n');
 
-    const html = `<p>${greeting}</p><p>${
-      (note || '').trim() || 'Here is my calendar &mdash; grab whatever time suits you:'
-    }</p><p><a href="${url}">${url}</a></p>`;
+    // The note is typed text, so it is escaped like every other composed
+    // message: raw, "reach me at <jane@acme.com>" lost the address to the
+    // HTML parser and the prospect received a sentence with a hole in it.
+    const html = `<p>${escapeHtml(greeting)}</p><p>${
+      (note || '').trim() ? textToHtml((note || '').trim()) : 'Here is my calendar &mdash; grab whatever time suits you:'
+    }</p><p><a href="${escapeHtml(url)}">${escapeHtml(url)}</a></p>`;
 
     await inboxService.reply(userId, messageId, body, undefined, html);
     return { sent: true, url };
@@ -355,6 +380,15 @@ export const bookingService = {
 /* ═══════════════════════════════════════════════════════════════════════
    The public half. No session, no user id from the caller, ever.
    ═══════════════════════════════════════════════════════════════════════ */
+
+function isKnownTimezone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** Resolve a slug to the row plus its owner. Never returned to a visitor. */
 async function linkBySlug(slug: string) {
@@ -548,6 +582,12 @@ export const publicBookingService = {
 
     const start = new Date(input.start);
     if (Number.isNaN(start.getTime())) throw new AppError('That is not a time.', 400);
+
+    // The visitor's zone comes from their browser and is only used to write
+    // times back to them. One this server cannot read would make every
+    // confirmation and reminder fail to render, silently, so it is dropped
+    // in favour of the organiser's rather than stored.
+    if (input.timezone && !isKnownTimezone(input.timezone)) input.timezone = undefined;
 
     const minutes = durationOf(link);
     const end = new Date(start.getTime() + minutes * 60_000);
@@ -811,10 +851,18 @@ export const publicBookingService = {
       if (!existing.last_name && last) patch.last_name = last;
       if (!existing.phone && who.phone) patch.phone = who.phone;
       if (!existing.company && who.company) patch.company = who.company;
-      // Somebody who booked a meeting is not a cold prospect any more.
-      patch.lifecycle = 'engaged';
-      patch.engaged_at = new Date().toISOString();
-      await supabaseAdmin.from('contacts').update(patch).eq('id', existing.id);
+      if (Object.keys(patch).length > 0) {
+        await supabaseAdmin.from('contacts').update(patch).eq('id', existing.id).eq('user_id', userId);
+      }
+      /*
+       * Somebody who booked a meeting is not a cold prospect any more - but
+       * through the one promotion path, which only ever moves forwards.
+       * This wrote lifecycle 'engaged', a value the column's CHECK does not
+       * allow (prospect/contact/customer), so the whole update failed and
+       * took the name and phone enrichment with it; it would also have
+       * demoted a customer.
+       */
+      promoteToContact(userId, [existing.id], 'meeting').catch(() => {});
       return existing.id;
     }
 
@@ -828,7 +876,10 @@ export const publicBookingService = {
         phone: who.phone || null,
         company: who.company || null,
         source: 'booking_link',
-        lifecycle: 'engaged',
+        // 'contact', not 'engaged': the insert failed the lifecycle CHECK,
+        // so every new booker was left out of the CRM entirely and the
+        // meeting, its deal and its note were attached to nobody.
+        lifecycle: 'contact',
         engaged_at: new Date().toISOString(),
       })
       .select('id')
@@ -939,6 +990,24 @@ export const publicBookingService = {
     if (Number.isNaN(start.getTime())) throw new AppError('That is not a time.', 400);
     if (start.getTime() === new Date(booking.start).getTime()) return booking;
 
+    /*
+     * The same rules as booking it in the first place.
+     *
+     * Only the collision check ran here, so anybody holding a manage link
+     * could move a meeting to three in the morning on a Sunday, into the
+     * past, past the booking horizon or over the daily cap - none of which
+     * the page would ever have offered. A time is allowed if it is one of
+     * the times the page offers for this booking.
+     */
+    const offered = await this.rescheduleSlots(
+      token,
+      new Date(start.getTime() - 60_000),
+      new Date(start.getTime() + booking.duration_minutes * 60_000 + 60_000),
+    );
+    if (!offered.some((slot) => slot.start.getTime() === start.getTime())) {
+      throw new AppError('That time is not being offered. Have another look at what is free.', 409);
+    }
+
     const end = new Date(start.getTime() + booking.duration_minutes * 60_000);
     const prefs = await availabilityService.getPrefs(booking.user_id);
 
@@ -964,7 +1033,17 @@ export const publicBookingService = {
     const moved = await this.byToken(token);
     // Told after the move, not before: an email announcing a time the
     // database then refused is worse than one that arrives a second late.
-    await this.notify(moved, (ctx) => bookingMail.rescheduled(ctx, new Date(booking.start)));
+    await Promise.allSettled([
+      this.notify(moved, (ctx) => bookingMail.rescheduled(ctx, new Date(booking.start))),
+      // And moved in the real calendar too. Booking pushed the event there
+      // and cancelling removed it, but a reschedule left it at the old time:
+      // the account's own diary showed the meeting when it no longer was,
+      // and the new time sat unblocked for anything else.
+      calendarSync.moveEvent(moved.user_id, moved.id, new Date(moved.start), new Date(moved.end), {
+        title: `${moved.headline} with ${moved.invitee_name || moved.invitee_email}`,
+        inviteeEmail: moved.invitee_email,
+      }),
+    ]);
     return moved;
   },
 
@@ -1046,9 +1125,11 @@ export const publicBookingService = {
         organiserEmail: email || undefined,
         attendeeEmail: booking.invitee_email || undefined,
         cancelled: booking.status === 'cancelled',
-        // A cancellation must outrank the invite it replaces, or the client
-        // keeps whichever it saw first.
-        sequence: booking.status === 'cancelled' ? 1 : 0,
+        // The stored revision, bumped by every move - a fixed 0 made a
+        // downloaded file for a rescheduled meeting older than the invite
+        // it should replace, so calendars kept the original time. A
+        // cancellation must outrank whatever it replaces.
+        sequence: ((booking as any).ics_sequence ?? 0) + (booking.status === 'cancelled' ? 1 : 0),
       }),
     };
   },

@@ -47,6 +47,9 @@ function counterparty(message: any): string | null {
   return trimmed || null;
 }
 
+/** Marks a suppression row as one a triage decision created, so undo can tell. */
+const TRIAGE_NOTE_PREFIX = 'Not interested: ';
+
 export const triageService = {
   /**
    * Record what a reply is, and do the work that follows from it.
@@ -305,10 +308,24 @@ export const triageService = {
     if (decision === 'not_interested') {
       const email = counterparty(message);
       if (email) {
-        await suppressionService.remove(userId, email).catch(() => {
-          notes.push('the suppression could not be lifted');
-        });
-        if (notes.length === 0) notes.push('they can be emailed again');
+        // Only lift what triage put there. A row with any other origin - an
+        // unsubscribe, a bounce, a hand-added block - predates this decision
+        // and must survive its undo.
+        const { data: row } = await supabaseAdmin
+          .from('suppression_list')
+          .select('reason, notes')
+          .eq('user_id', userId)
+          .eq('email', email)
+          .maybeSingle();
+        const ours = row?.reason === 'manual' && String(row?.notes || '').startsWith(TRIAGE_NOTE_PREFIX);
+        if (ours) {
+          await suppressionService.remove(userId, email).catch(() => {
+            notes.push('the suppression could not be lifted');
+          });
+          if (notes.length === 0) notes.push('they can be emailed again');
+        } else if (row) {
+          notes.push('they stay suppressed, as they were before');
+        }
       }
     }
 
@@ -405,7 +422,12 @@ export const triageService = {
     const task = await crmService.createTask(userId, {
       title: `Follow up${who}: ${message.subject || 'their reply'}`,
       contact_id: message.contact_id || null,
-      due_date: due.toISOString().slice(0, 10),
+      // The instant, not the bare date. due_date is a timestamptz, so
+      // "2026-09-30" is stored as UTC midnight - which for anybody west of
+      // Greenwich is the evening BEFORE, and "follow up in a week" landed in
+      // the task list a day early. Now + N days is the right local day for
+      // everyone.
+      due_date: due.toISOString(),
       type: 'follow_up',
       priority: 'normal',
     });
@@ -434,7 +456,19 @@ export const triageService = {
     const known = NOT_INTERESTED_REASONS.some((r) => r.id === input.reason);
     const note = known ? input.reason : 'other';
 
-    await suppressionService.add(userId, email, 'manual', `Not interested: ${note}`);
+    /*
+     * An address that is already suppressed stays exactly as it was.
+     *
+     * The add is an upsert, so this used to rewrite an 'unsubscribed' row
+     * as a 'manual' one with a triage note on it - and undo then deleted
+     * that row outright, lifting an unsubscribe the person had asked for
+     * weeks earlier. Only a suppression this decision created is one this
+     * decision may take back (see undo).
+     */
+    const already = await suppressionService.isSuppressed(userId, email);
+    if (!already) {
+      await suppressionService.add(userId, email, 'manual', `${TRIAGE_NOTE_PREFIX}${note}`);
+    }
 
     return {
       decision: 'not_interested',

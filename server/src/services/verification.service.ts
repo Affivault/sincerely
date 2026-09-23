@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import net from 'net';
+import { AppError } from '../middleware/error.middleware.js';
 import type { DcsVerificationResult } from '@lemlist/shared';
 import { fireEvent } from './webhook.service.js';
 import {
@@ -9,6 +10,7 @@ import {
   smtpBlockedMessage,
 } from './smtp-reachability.service.js';
 import { resolveDoh, resolveHostIp } from '../utils/dns-doh.js';
+import { chunk, fetchAllPages } from '../utils/batch.js';
 
 /**
  * Triple-Layer Verification Pipeline + Deliverability Confidence Score (DCS)
@@ -280,7 +282,7 @@ export async function verifyContact(contactId: string, userId: string): Promise<
     .eq('user_id', userId)
     .maybeSingle();
 
-  if (!contact) throw new Error('Contact not found');
+  if (!contact) throw new AppError('Contact not found', 404);
 
   const result = await verifyEmail(contact.email, contact.is_bounced ? 1 : 0);
 
@@ -326,8 +328,9 @@ export async function batchVerify(
   if (contactIds && contactIds.length > 0) {
     // An explicit selection is verified regardless of prior status — the
     // caller picked these contacts on purpose, possibly to re-check ones
-    // that already have a DCS score.
-    query = query.in('id', contactIds);
+    // that already have a DCS score. Only the first hundred are taken per
+    // call (see the limit below), so only those go into the URL.
+    query = query.in('id', chunk(contactIds, 100)[0]);
   } else {
     query = query.is('dcs_verified_at', null);
   }
@@ -432,12 +435,15 @@ export async function getDcsStats(userId: string): Promise<{
     retry_after_seconds: number | null;
   };
 }> {
-  const { data: contacts } = await supabaseAdmin
-    .from('contacts')
-    .select('dcs_score, dcs_verified_at')
-    .eq('user_id', userId);
-
-  const all = contacts || [];
+  // Paged: an unpaged select stops at 1,000 rows, so on any real account
+  // every number on the verification page described the first thousand.
+  const all = await fetchAllPages<{ dcs_score: number | null; dcs_verified_at: string | null }>((from, to) =>
+    supabaseAdmin
+      .from('contacts')
+      .select('dcs_score, dcs_verified_at')
+      .eq('user_id', userId)
+      .order('id')
+      .range(from, to));
   const verified = all.filter(c => c.dcs_verified_at !== null);
   const scores = verified.map(c => c.dcs_score || 0);
   const avg = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
@@ -473,7 +479,7 @@ export async function getSuppressedContacts(
     .eq('id', campaignId)
     .eq('user_id', userId)
     .maybeSingle();
-  if (!campaign) throw new Error('Campaign not found');
+  if (!campaign) throw new AppError('Campaign not found', 404);
 
   const { data } = await supabaseAdmin
     .from('campaign_contacts')

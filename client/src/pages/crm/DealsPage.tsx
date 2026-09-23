@@ -42,7 +42,7 @@ import {
   type CrmTask, type TaskPriority,
   type CrmEvent, type EventType,
   type ContactWithTags,
-  PLACEHOLDER, formatDayMonth, formatMoney } from '@lemlist/shared';
+  PLACEHOLDER, formatDayMonth, formatMoney, parseDay } from '@lemlist/shared';
 
 /* ─── Helpers ─────────────────────────────────────── */
 function fmtMoney(v: number, currency = 'USD'): string {
@@ -73,8 +73,9 @@ function updatedLabel(iso?: string | null): string {
 }
 
 function relDay(iso?: string | null): { label: string; tone: 'over' | 'today' | 'soon' | 'none'; diff: number | null } {
-  if (!iso) return { label: 'No date', tone: 'none', diff: null };
-  const d = new Date(iso);
+  // A calendar day, not UTC midnight - see parseDay.
+  const d = parseDay(iso);
+  if (!d) return { label: 'No date', tone: 'none', diff: null };
   const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diff = Math.round((start(d) - start(new Date())) / 86400000);
   if (diff < 0) return { label: `${Math.abs(diff)}d overdue`, tone: 'over', diff };

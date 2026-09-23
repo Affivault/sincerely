@@ -16,12 +16,14 @@ async function tick() {
   const today = new Date().toISOString().slice(0, 10);
   if (today !== lastResetDay) {
     try {
+      // Safe to run on every boot: the service only zeroes mailboxes whose
+      // own last_send_reset_at predates today, so a restart mid-day no longer
+      // hands every mailbox a second day's allowance. This in-memory guard
+      // just saves the query on the remaining ticks of the day.
       const count = await resetDailySendCounts();
       // Only commit the guard once the reset actually succeeds — otherwise a
       // transient DB/network error on one tick permanently skips the reset
-      // for the rest of the day (every hourly tick after would see
-      // today === lastResetDay and never retry), leaving every tenant's
-      // sends_today/warmup_sent_today counters un-zeroed for up to 24h.
+      // for the rest of the day.
       lastResetDay = today;
       if (count > 0) console.log(`[SSE Maintenance] Reset daily send counts for ${count} account(s)`);
     } catch (err: any) {

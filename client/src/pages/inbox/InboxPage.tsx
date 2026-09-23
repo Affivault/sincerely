@@ -60,6 +60,7 @@ import {
   Calendar,
   MessageSquare,
   XCircle,
+  AlertTriangle,
   Sun,
   CloudSun,
   Briefcase,
@@ -1847,7 +1848,11 @@ function ScheduledEmailsPanel({ onCancel, onReschedule }: {
         </div>
         {emails.map((email: any) => {
           const scheduledDate = new Date(email.scheduled_at);
-          const isPast = scheduledDate < new Date();
+          // A send the server tried and could not make. It used to vanish
+          // into Sent looking delivered; it stays here now, saying so, with
+          // Reschedule as the retry once the mailbox is fixed.
+          const failed = !!email.failed;
+          const isPast = !failed && scheduledDate < new Date();
           return (
             <div
               key={email.id}
@@ -1855,16 +1860,21 @@ function ScheduledEmailsPanel({ onCancel, onReschedule }: {
               style={{ boxShadow: 'var(--shadow-card)' }}
             >
               <div className="flex items-start gap-3 p-4">
-                <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-[var(--indigo)]/10 border border-[var(--indigo)]/20">
-                  <Clock className="h-4 w-4 text-[var(--indigo)]" />
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 border ${
+                  failed ? 'bg-red-500/10 border-red-500/20' : 'bg-[var(--indigo)]/10 border-[var(--indigo)]/20'
+                }`}>
+                  {failed
+                    ? <AlertTriangle className="h-4 w-4 text-red-500" />
+                    : <Clock className="h-4 w-4 text-[var(--indigo)]" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-strong font-semibold text-[var(--text-primary)]">To: {email.to_email}</span>
                     <span className={`text-micro font-medium px-1.5 py-0.5 rounded-full ${
-                      isPast ? 'bg-amber-500/10 text-amber-500' : 'bg-[var(--indigo)]/10 text-[var(--indigo)]'
+                      failed ? 'bg-red-500/10 text-red-500'
+                        : isPast ? 'bg-amber-500/10 text-amber-500' : 'bg-[var(--indigo)]/10 text-[var(--indigo)]'
                     }`}>
-                      {isPast ? 'Sending soon...' : 'Scheduled'}
+                      {failed ? 'Did not send' : isPast ? 'Sending soon...' : 'Scheduled'}
                     </span>
                   </div>
                   <p className="text-strong text-[var(--text-secondary)] mt-0.5 truncate">{email.subject || '(no subject)'}</p>
@@ -1892,18 +1902,20 @@ function ScheduledEmailsPanel({ onCancel, onReschedule }: {
                     onClick={() => setReschedulingId(reschedulingId === email.id ? null : email.id)}
                     disabled={isPast}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    title={isPast ? 'Too close to send time to reschedule' : 'Pick a new send time'}
+                    title={failed
+                      ? 'Check the sending mailbox, then pick a time to try again'
+                      : isPast ? 'Too close to send time to reschedule' : 'Pick a new send time'}
                   >
                     <Calendar className="h-3.5 w-3.5" />
-                    Reschedule
+                    {failed ? 'Try again' : 'Reschedule'}
                   </button>
                   <button
                     onClick={() => onCancel(email.id)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-medium text-red-500 hover:bg-red-500/10 transition-colors"
-                    title="Cancel scheduled email"
+                    title={failed ? 'Discard this email' : 'Cancel scheduled email'}
                   >
                     <XCircle className="h-3.5 w-3.5" />
-                    Cancel
+                    {failed ? 'Discard' : 'Cancel'}
                   </button>
                   {reschedulingId === email.id && (
                     <ScheduleSendPicker

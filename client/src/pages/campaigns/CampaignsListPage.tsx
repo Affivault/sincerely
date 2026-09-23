@@ -75,6 +75,8 @@ import { Refreshing } from '../../components/ui/Refreshing';
 const STATUS_TABS = [
   { label: 'All',       value: '' },
   { label: 'Draft',     value: 'draft' },
+  // A campaign waiting for its start time was only findable under "All".
+  { label: 'Scheduled', value: 'scheduled' },
   { label: 'Running',   value: 'running' },
   { label: 'Paused',    value: 'paused' },
   { label: 'Completed', value: 'completed' },
@@ -858,8 +860,8 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
         {campaign.status === 'draft' && (
           <button onClick={onLaunch} disabled={launchBusy} title="Launch" className="icon-btn !text-[var(--indigo)] hover:!bg-[var(--indigo-subtle)] disabled:opacity-50 disabled:pointer-events-none"><Play className="h-3.5 w-3.5" /></button>
         )}
-        {campaign.status === 'running' && (
-          <button onClick={onPause} disabled={pauseBusy} title="Pause" className="icon-btn disabled:opacity-50 disabled:pointer-events-none"><Pause className="h-3.5 w-3.5" /></button>
+        {(campaign.status === 'running' || campaign.status === 'scheduled') && (
+          <button onClick={onPause} disabled={pauseBusy} title={campaign.status === 'scheduled' ? 'Hold — do not start yet' : 'Pause'} className="icon-btn disabled:opacity-50 disabled:pointer-events-none"><Pause className="h-3.5 w-3.5" /></button>
         )}
         {campaign.status === 'paused' && (
           <button onClick={onResume} disabled={resumeBusy} title="Resume" className="icon-btn !text-[var(--indigo)] hover:!bg-[var(--indigo-subtle)] disabled:opacity-50 disabled:pointer-events-none"><Play className="h-3.5 w-3.5" /></button>

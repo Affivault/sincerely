@@ -463,7 +463,7 @@ export async function testEndpoint(userId: string, endpointId: string): Promise<
     .eq('user_id', userId)
     .single();
   const endpoint = data as WebhookEndpoint | null;
-  if (!endpoint) throw new Error('Endpoint not found');
+  if (!endpoint) throw new AppError('Endpoint not found', 404);
 
   const payload: WebhookPayload = {
     event: 'test.ping',

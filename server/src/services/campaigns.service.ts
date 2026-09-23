@@ -19,17 +19,20 @@ import type { PersonalizationAudit, PersonalizationTag, TimezoneCoverage } from 
  * named here is dropped: id, user_id, timestamps, computed counters.
  */
 const UPDATABLE_CAMPAIGN_FIELDS = new Set([
-  'name', 'status', 'smtp_account_id', 'scheduled_at', 'timezone',
+  'name', 'smtp_account_id', 'scheduled_at', 'timezone',
   'send_window_start', 'send_window_end', 'send_days',
   'dcs_threshold', 'daily_limit',
   'delay_between_emails', 'delay_between_emails_min', 'delay_between_emails_max',
   'stop_on_reply', 'ab_auto_promote', 'send_in_recipient_timezone', 'track_opens', 'track_clicks', 'include_unsubscribe',
 ]);
 
-/** `status` is lifecycle, driven by launch/pause/resume — never by a form post. */
-const CREATABLE_CAMPAIGN_FIELDS = new Set(
-  [...UPDATABLE_CAMPAIGN_FIELDS].filter((f) => f !== 'status'),
-);
+/*
+ * `status` is lifecycle, driven by launch/pause/resume — never by a form
+ * post. It used to be on the update list, which meant a PUT of
+ * { status: 'running' } to a draft started it without a single launch
+ * check: no steps, no contacts, no mailbox and no readiness gate.
+ */
+const CREATABLE_CAMPAIGN_FIELDS = UPDATABLE_CAMPAIGN_FIELDS;
 
 function pickCampaignFields(input: any, allowed: Set<string>): Record<string, any> {
   const out: Record<string, any> = {};
@@ -554,10 +557,25 @@ export const campaignsService = {
      */
     const report = await readinessService.report(userId).catch(() => null);
     if (report && report.verdict !== 'ready') {
-      const blocking = report.checks.filter((c) => c.status === 'fail');
-      const warning = report.checks.filter((c) => c.status === 'warn');
+      /*
+       * Two failures are reported as failures and still may not wall off a
+       * launch, because the wall would never come down.
+       *
+       * The account's lifetime bounce rate only falls by sending more, so
+       * blocking every launch on it is a deadlock - one bad list and the
+       * account can never send again. And "today's allowance is used up"
+       * is true of a launch meant for tomorrow, or of one that will simply
+       * queue until the counters reset, which the check says itself. Both
+       * are serious enough to stop and read; neither is unfixable by the
+       * person pressing the button, so they are asked to acknowledge them.
+       */
+      const ACKNOWLEDGEABLE = new Set(['bounce_rate', 'capacity']);
+      const blocking = report.checks.filter((c) => c.status === 'fail' && !ACKNOWLEDGEABLE.has(c.id));
+      const warning = report.checks.filter(
+        (c) => c.status === 'warn' || (c.status === 'fail' && ACKNOWLEDGEABLE.has(c.id)),
+      );
 
-      if (report.verdict === 'blocked') {
+      if (blocking.length > 0) {
         throw new AppError(
           report.summary,
           422,
@@ -565,12 +583,19 @@ export const campaignsService = {
           { readiness: report, blocking: blocking.map((c) => c.id) },
         );
       }
-      if (!opts.acknowledgeWarnings) {
+      if (warning.length > 0 && !opts.acknowledgeWarnings) {
+        // The report's own summary says "not safe to send" when one of the
+        // acknowledgeable checks failed, which reads wrongly above a button
+        // offering to launch anyway.
+        const softened = warning.filter((c) => c.status === 'fail').map((c) => c.label.toLowerCase());
+        const summary = softened.length > 0
+          ? `You can launch, but look at your ${softened.join(' and ')} first.`
+          : report.summary;
         throw new AppError(
-          report.summary,
+          summary,
           409,
           'LAUNCH_NEEDS_ACKNOWLEDGEMENT',
-          { readiness: report, warnings: warning.map((c) => c.id) },
+          { readiness: { ...report, summary }, warnings: warning.map((c) => c.id) },
         );
       }
     }
@@ -658,8 +683,10 @@ export const campaignsService = {
 
   async pause(userId: string, id: string) {
     const campaign = await this.get(userId, id);
-    if (campaign.status !== 'running') {
-      throw new AppError('Campaign must be running to pause', 400);
+    // A scheduled campaign can be held too - otherwise the only way to stop
+    // one from starting was to delete it.
+    if (campaign.status !== 'running' && campaign.status !== 'scheduled') {
+      throw new AppError('Campaign must be running or scheduled to pause', 400);
     }
 
     // A hand pause has no automatic reason behind it, and leaving a stale one
@@ -738,8 +765,8 @@ export const campaignsService = {
 
   async cancel(userId: string, id: string) {
     const campaign = await this.get(userId, id);
-    if (campaign.status !== 'running' && campaign.status !== 'paused') {
-      throw new AppError('Campaign must be running or paused to cancel', 400);
+    if (!['running', 'paused', 'scheduled'].includes(campaign.status)) {
+      throw new AppError('Campaign must be running, paused or scheduled to cancel', 400);
     }
 
     const { data, error } = await supabaseAdmin

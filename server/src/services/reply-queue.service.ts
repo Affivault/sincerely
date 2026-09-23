@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { selectInChunks } from '../utils/batch.js';
 import {
   replyState, replyPriority, queueCounts, needsHuman, isOpen,
   type ReplyFacts,
@@ -65,13 +66,17 @@ async function dealValueByContact(
   const out = new Map<string, number>();
   if (contactIds.length === 0) return out;
 
-  const { data } = await supabaseAdmin
-    .from('deals')
-    .select('contact_id, value, stage')
-    .eq('user_id', userId)
-    .in('contact_id', contactIds.slice(0, MAX_ROWS));
+  // Sliced: up to four hundred ids in one `in` list is a URL the gateway
+  // refuses, and a refused lookup here quietly ranked every reply as if
+  // nothing were at stake.
+  const data = await selectInChunks(contactIds.slice(0, MAX_ROWS), (slice) =>
+    supabaseAdmin
+      .from('deals')
+      .select('contact_id, value, stage')
+      .eq('user_id', userId)
+      .in('contact_id', slice)).catch(() => [] as any[]);
 
-  for (const deal of data || []) {
+  for (const deal of data) {
     /*
      * Open deals only. A closed-lost deal is not what is at stake now,
      * and a closed-won one is already earned.

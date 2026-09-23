@@ -78,7 +78,9 @@ app.get('/health', async (_req, res) => {
   // Check SMTP relay config
   const { env: envConfig } = await import('./config/env.js');
   diagnostics.smtp_relay = envConfig.SMTP_RELAY_URL
-    ? { configured: true, url: envConfig.SMTP_RELAY_URL }
+    // Whether, not where: this endpoint is public, and the relay's address
+    // is one half of what it takes to send mail through it.
+    ? { configured: true }
     : { configured: false, note: 'SMTP_RELAY_URL not set — using direct SMTP (blocked on Render free tier)' };
 
   // Ping the relay if configured

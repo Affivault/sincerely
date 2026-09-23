@@ -73,7 +73,10 @@ routes.use('/settings', settingsRoutes);
 routes.use('/suppression', suppressionRoutes);
 routes.use('/placement', placementRoutes);
 routes.use('/reply-queue', replyQueueRoutes);
-routes.use('/segments', segmentRevenueRoutes);
+// Its own path. It used to share '/segments' with the saved-segments router,
+// whose GET / answered first - so the report page was handed the list of
+// saved segments and never saw a report at all.
+routes.use('/segment-revenue', segmentRevenueRoutes);
 routes.use('/team', teamRoutes);
 routes.use('/campaign-folders', campaignFoldersRoutes);
 routes.use('/list-folders', listFoldersRoutes);

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { DEAL_STAGES, probabilityOf, rotOf, weightedValue, formatDayMonth, formatMoney } from '@lemlist/shared';
+import { DEAL_STAGES, probabilityOf, rotOf, weightedValue, formatDayMonth, formatMoney, parseDay } from '@lemlist/shared';
 import type { Deal, DealStage } from '@lemlist/shared';
 import { Avatar } from '../shared/Avatar';
 import { Checkbox } from '../ui/Checkbox';
@@ -51,8 +51,9 @@ function leadEmail(d: Deal): string | null {
 /** Close date as a short label plus how it should read. */
 function closeLabel(iso: string | null, stage: DealStage): { text: string; tone: string } {
   if (!iso) return { text: '—', tone: 'text-[var(--text-muted)]' };
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return { text: '—', tone: 'text-[var(--text-muted)]' };
+  // A calendar day, not UTC midnight - see parseDay.
+  const d = parseDay(iso);
+  if (!d) return { text: '—', tone: 'text-[var(--text-muted)]' };
   const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diff = Math.round((startOf(d) - startOf(new Date())) / 86_400_000);
   const text = formatDayMonth(d);
@@ -76,7 +77,7 @@ function sortValue(d: Deal, key: SortKey): string | number {
     case 'close':
       // Deals with no close date sort last in either direction rather than
       // clumping at the top as epoch zero and burying everything real.
-      return d.expected_close_date ? new Date(d.expected_close_date).getTime() : Number.MAX_SAFE_INTEGER;
+      return d.expected_close_date ? (parseDay(d.expected_close_date)?.getTime() ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
     default: return 0;
   }
 }

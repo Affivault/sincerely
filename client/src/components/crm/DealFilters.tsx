@@ -1,4 +1,4 @@
-import { DEAL_STAGES, isOpen, rotOf } from '@lemlist/shared';
+import { DEAL_STAGES, isOpen, rotOf, parseDay } from '@lemlist/shared';
 import type { Deal, DealStage } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import { KanbanSquare, Rows3, X } from 'lucide-react';
@@ -65,7 +65,7 @@ export function applyDealFilters(deals: Deal[], f: DealFilterState, query: strin
       // Both are statements about a deal that might still close, so a closed
       // one is never either.
       if (!isOpen(d.stage) || !d.expected_close_date) return false;
-      const close = new Date(d.expected_close_date).getTime();
+      const close = parseDay(d.expected_close_date)?.getTime() ?? NaN;
       if (!Number.isFinite(close)) return false;
       if (f.focus === 'overdue' && close >= floor) return false;
       if (f.focus === 'closing' && (close < floor || close > horizon)) return false;

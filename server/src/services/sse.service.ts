@@ -163,17 +163,22 @@ export async function refundWarmupSend(accountId: string): Promise<void> {
  */
 export async function recordSend(accountId: string, alreadyReserved = false): Promise<void> {
   try {
-    await supabaseAdmin.rpc('increment_field', {
+    // supabase-js reports a failed RPC in `error` rather than by throwing,
+    // so the fallback below was unreachable: a missing function meant the
+    // counters silently never moved. Throw it so the fallback runs.
+    const total = await supabaseAdmin.rpc('increment_field', {
       table_name: 'smtp_accounts',
       field_name: 'total_sent',
       row_id: accountId,
     });
+    if (total.error) throw total.error;
     if (!alreadyReserved) {
-      await supabaseAdmin.rpc('increment_field', {
+      const today = await supabaseAdmin.rpc('increment_field', {
         table_name: 'smtp_accounts',
         field_name: 'sends_today',
         row_id: accountId,
       });
+      if (today.error) throw today.error;
     }
   } catch {
     // Fallback: direct update if RPC doesn't exist
@@ -203,17 +208,13 @@ export async function recordSend(accountId: string, alreadyReserved = false): Pr
  */
 export async function recordBounce(accountId: string): Promise<void> {
   // Atomically increment the bounce counter (mirrors recordSend's RPC approach)
-  let rpcSucceeded = false;
-  try {
-    await supabaseAdmin.rpc('increment_field', {
-      table_name: 'smtp_accounts',
-      field_name: 'total_bounced',
-      row_id: accountId,
-    });
-    rpcSucceeded = true;
-  } catch {
-    // RPC not available — fall back to manual update below
-  }
+  const { error: bouncedErr } = await supabaseAdmin.rpc('increment_field', {
+    table_name: 'smtp_accounts',
+    field_name: 'total_bounced',
+    row_id: accountId,
+  });
+  // RPC not available — fall back to a manual update below.
+  const rpcSucceeded = !bouncedErr;
 
   // Atomic clamped decrement (GREATEST(0, score-5)) via adjust_health_score:
   // a single UPDATE per account, so concurrent bounces on the same mailbox
@@ -258,17 +259,13 @@ export async function recordBounce(accountId: string): Promise<void> {
 export async function recordOpen(accountId: string): Promise<void> {
   // Atomically increment total_opened (mirrors recordSend's RPC approach to avoid
   // lost-update races when multiple opens arrive concurrently for the same account).
-  let rpcSucceeded = false;
-  try {
-    await supabaseAdmin.rpc('increment_field', {
-      table_name: 'smtp_accounts',
-      field_name: 'total_opened',
-      row_id: accountId,
-    });
-    rpcSucceeded = true;
-  } catch {
-    // RPC not available — fall back to manual update below
-  }
+  const { error: openedErr } = await supabaseAdmin.rpc('increment_field', {
+    table_name: 'smtp_accounts',
+    field_name: 'total_opened',
+    row_id: accountId,
+  });
+  // RPC not available — fall back to a manual update below.
+  const rpcSucceeded = !openedErr;
 
   // Atomic clamped increment (LEAST(100, score+1)) via adjust_health_score: a
   // single UPDATE per account, so concurrent opens on the same mailbox can't
@@ -378,26 +375,31 @@ export async function getCampaignPool(campaignId: string): Promise<string[]> {
 }
 
 /**
- * Reset daily send counts (should be called by a daily cron job).
+ * Zero the daily counters, once per UTC day per mailbox.
+ *
+ * The "once" used to live only in the scheduler's memory, which starts
+ * empty on every boot - so each deploy, crash or free-tier cold start reset
+ * every mailbox's sends_today and warmup_sent_today in the middle of the
+ * day. A mailbox that had sent its 50 at 10:00 could send another 50 after
+ * a 14:00 deploy, and a warm-up ramp meant to hold a new domain to 8 a day
+ * quietly became 8 per restart. The guard is the row's own
+ * last_send_reset_at now, which survives a restart because it is data.
+ *
+ * Both counters move in the same write, so they can never disagree about
+ * which day it is.
  */
-export async function resetDailySendCounts(): Promise<number> {
+export async function resetDailySendCounts(now = new Date()): Promise<number> {
+  const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
   const { data, error } = await supabaseAdmin
     .from('smtp_accounts')
     .update({
       sends_today: 0,
-      last_send_reset_at: new Date().toISOString(),
+      warmup_sent_today: 0,
+      last_send_reset_at: now.toISOString(),
     })
-    .gt('sends_today', 0)
+    .or(`last_send_reset_at.is.null,last_send_reset_at.lt.${dayStart}`)
     .select('id');
-  if (error) throw new Error(`Failed to reset sends_today: ${error.message}`);
-
-  // Reset the separate warm-up traffic counter too.
-  const { error: warmupError } = await supabaseAdmin
-    .from('smtp_accounts')
-    .update({ warmup_sent_today: 0 })
-    .gt('warmup_sent_today', 0);
-  if (warmupError) throw new Error(`Failed to reset warmup_sent_today: ${warmupError.message}`);
-
+  if (error) throw new Error(`Failed to reset daily send counts: ${error.message}`);
   return data?.length || 0;
 }
 

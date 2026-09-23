@@ -214,18 +214,52 @@ export const prospectingService = {
       location: snap.location || null,
       source: 'prospector',
     };
-    const { data: contact, error: contactError } = await supabaseAdmin
+    /*
+     * Enrich somebody already known; never overwrite them.
+     *
+     * This was an upsert of the whole row, so revealing a person already in
+     * the CRM replaced their name, company and title with whatever the
+     * provider had - including nulls for anything it lacked - and rewrote
+     * their source to 'prospector', erasing where they really came from.
+     * What the account already knows beats what a data vendor guessed.
+     */
+    const { data: known } = await supabaseAdmin
       .from('contacts')
-      .upsert(contactRow, { onConflict: 'user_id,email' })
-      .select('id')
-      .single();
-    if (contactError) {
+      .select('id, first_name, last_name, company, job_title, linkedin_url, website, location')
+      .eq('user_id', userId)
+      .eq('email', contactRow.email)
+      .maybeSingle();
+
+    let contact: { id: string } | null = null;
+    let contactError: { message: string } | null = null;
+    if (known) {
+      const fill: Record<string, any> = {};
+      for (const key of ['first_name', 'last_name', 'company', 'job_title', 'linkedin_url', 'website', 'location'] as const) {
+        if (!(known as any)[key] && contactRow[key]) fill[key] = contactRow[key];
+      }
+      if (Object.keys(fill).length > 0) {
+        // Filling blanks is a nicety: the person exists either way, so a
+        // failed enrichment is not worth refunding the reveal over.
+        const { error } = await supabaseAdmin.from('contacts').update(fill).eq('id', known.id).eq('user_id', userId);
+        if (error) console.warn(`[Prospector] Could not enrich contact ${known.id}: ${error.message}`);
+      }
+      contact = { id: known.id };
+    } else {
+      const inserted = await supabaseAdmin
+        .from('contacts')
+        .upsert(contactRow, { onConflict: 'user_id,email' })
+        .select('id')
+        .single();
+      contact = inserted.data;
+      contactError = inserted.error;
+    }
+    if (contactError || !contact) {
       // Contact write failed → refund; the user was charged for nothing.
       await supabaseAdmin.from('prospect_credit_ledger').insert({
         user_id: userId, delta: 1, kind: 'refund', reason: 'contact_write_error',
         provider: provider.id, provider_person_id: personId, bucket: spentBucket,
       });
-      throw new AppError(contactError.message, 500);
+      throw new AppError(contactError?.message || 'Could not save the contact', 500);
     }
 
     const { error: revealInsertError } = await supabaseAdmin.from('prospect_reveals').insert({
