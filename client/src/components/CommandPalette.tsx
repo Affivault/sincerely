@@ -17,11 +17,13 @@ import { openModals } from './ui/Modal';
 import { getRecentItems, addRecentItem, type RecentItem } from '../lib/recentItems';
 import { usePeek } from './peek/usePeek';
 import { crmApi } from '../api/crm.api';
+import { commandApi } from '../api/command.api';
+import { PauseCircle, PlayCircle, UserPlus as EnrolIcon, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { keepPrevious } from '../lib/listQuery';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import {
-  parseQuickAdd, SEARCH_TYPE_LABEL, MIN_SEARCH_LENGTH,
+  parseQuickAdd, SEARCH_TYPE_LABEL, MIN_SEARCH_LENGTH, parseCommand, matchesDealQuery, rotOf,
   type SearchHit, type SearchHitType, type QuickAddKind,
 } from '@lemlist/shared';
 
@@ -80,6 +82,8 @@ const QUICK_ADD_VERB: Record<QuickAddKind, string> = {
 
 /** Record groups come first — you searched for a thing, not a page. */
 const GROUP_ORDER = [
+  'Do it',
+  'Answer',
   'Recent',
   'Create',
   ...Object.values(SEARCH_TYPE_LABEL),
@@ -197,6 +201,85 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     onError: (e: any) => toast.error(e.response?.data?.error || 'Could not create that'),
   });
 
+  /* ── Instructions and questions ─────────────────────────────────────
+     "pause acme.com", "add jane@acme.com to Q4 outbound", "deals over 10k
+     closing this month". Parsed off the raw query like quick add. */
+  const intent = useMemo(() => parseCommand(query), [query]);
+  const wantsDeals = open && intent?.kind === 'deal_query';
+  const { data: allDeals } = useQuery({ queryKey: ['crm', 'deals'], queryFn: () => crmApi.listDeals(), enabled: wantsDeals, staleTime: 30_000 });
+  const { data: dealHealth } = useQuery({
+    queryKey: ['crm', 'deal-health'],
+    queryFn: () => crmApi.dealHealth(),
+    enabled: wantsDeals && !!(intent?.kind === 'deal_query' && intent.query.health),
+    staleTime: 60_000,
+  });
+
+  const runCommand = useMutation({
+    mutationFn: async () => {
+      if (!intent) return;
+      if (intent.kind === 'pause_recipient') {
+        const r = await commandApi.pause(intent.target);
+        toast.success(r.paused > 0
+          ? `Paused ${r.paused} sequence${r.paused === 1 ? '' : 's'} to ${r.label}`
+          : r.contacts === 0 ? `No contacts at ${r.label}` : `Nothing running to ${r.label}`);
+      } else if (intent.kind === 'resume_recipient') {
+        const r = await commandApi.resume(intent.target);
+        toast.success(r.resumed > 0 ? `Resumed ${r.resumed} sequence${r.resumed === 1 ? '' : 's'} to ${r.label}` : `Nothing paused for ${r.label}`);
+      } else if (intent.kind === 'enroll') {
+        const r = await commandApi.enroll(intent.email, intent.campaign);
+        if (r.result.added > 0) {
+          toast.success(`${intent.email} added to ${r.campaign.name}${r.created_contact ? ' (new contact)' : ''}`);
+        } else {
+          const why = Object.keys(r.result.reasons)[0];
+          toast.error(`Not added to ${r.campaign.name}${why ? `: ${why.replace(/_/g, ' ')}` : ''}`);
+        }
+      }
+      qc.invalidateQueries({ queryKey: ['campaign-contacts'] });
+      qc.invalidateQueries({ queryKey: ['flow'] });
+    },
+    onSuccess: () => onClose(),
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'That did not work'),
+  });
+
+  const intentItems = useMemo<CommandItem[]>(() => {
+    if (!intent) return [];
+    if (intent.kind === 'pause_recipient') {
+      return [{ id: 'cmd-pause', label: `Pause every sequence to ${intent.target}`, sublabel: 'Held, not stopped - resume the same way', icon: PauseCircle, group: 'Do it', run: () => runCommand.mutate() }];
+    }
+    if (intent.kind === 'resume_recipient') {
+      return [{ id: 'cmd-resume', label: `Resume sequences to ${intent.target}`, sublabel: 'Anything paused for them starts sending again', icon: PlayCircle, group: 'Do it', run: () => runCommand.mutate() }];
+    }
+    if (intent.kind === 'enroll') {
+      return [{ id: 'cmd-enroll', label: `Add ${intent.email} to "${intent.campaign}"`, sublabel: 'Creates the contact if they are new; the usual enrolment checks apply', icon: EnrolIcon, group: 'Do it', run: () => runCommand.mutate() }];
+    }
+    if (!allDeals) return [{ id: 'cmd-deals-loading', label: intent.label, sublabel: 'Looking...', icon: Filter, group: 'Answer', href: '/deals' }];
+    const matches = allDeals.filter((d) => matchesDealQuery(d as any, intent.query, {
+      stalled: rotOf(d).rotting,
+      grade: dealHealth?.[d.id]?.grade ?? null,
+    }));
+    const total = matches.reduce((n, d) => n + (Number(d.value) || 0), 0);
+    const cur = matches[0]?.currency || 'USD';
+    let totalLabel = '';
+    try { totalLabel = new Intl.NumberFormat(undefined, { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(total); } catch { totalLabel = String(total); }
+    const head: CommandItem = {
+      id: 'cmd-deals-summary',
+      label: `${intent.label}: ${matches.length} deal${matches.length === 1 ? '' : 's'}${matches.length ? `, ${totalLabel}` : ''}`,
+      sublabel: 'Open the pipeline',
+      icon: Filter,
+      group: 'Answer',
+      href: '/deals',
+    };
+    return [head, ...matches.slice(0, 8).map((d) => ({
+      id: `cmd-deal-${d.id}`,
+      label: d.title,
+      sublabel: [d.company, d.stage].filter(Boolean).join(' · '),
+      meta: (() => { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: d.currency || 'USD', maximumFractionDigits: 0 }).format(Number(d.value) || 0); } catch { return String(d.value); } })(),
+      icon: Handshake,
+      group: 'Answer',
+      peek: { type: 'deal' as const, id: d.id },
+    }))];
+  }, [intent, allDeals, dealHealth, runCommand]);
+
   const hitItems = useMemo<CommandItem[]>(() => {
     if (trimmed.length < MIN_SEARCH_LENGTH) return [];
     return (results?.hits ?? []).map((h: SearchHit) => ({
@@ -247,8 +330,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     const staticMatches = staticItems.filter((it) =>
       `${it.label} ${it.group} ${it.keywords ?? ''}`.toLowerCase().includes(q)
     );
-    return [...quickItem, ...hitItems, ...staticMatches];
-  }, [staticItems, hitItems, quickItem, recentItems, query]);
+    return [...intentItems, ...quickItem, ...hitItems, ...staticMatches];
+  }, [staticItems, hitItems, quickItem, intentItems, recentItems, query]);
 
   // Group, keeping the flat order the keyboard walks through.
   const groups = useMemo(() => {

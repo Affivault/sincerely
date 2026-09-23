@@ -140,3 +140,62 @@ export async function resumePausedContacts(
   }
   return resumed;
 }
+
+/* ─── By hand, from the command bar ───────────────────────────────────── */
+
+/** The user's contacts at an address, or at every address on a domain. */
+async function contactsFor(userId: string, target: string): Promise<{ ids: string[]; label: string }> {
+  const t = target.trim().toLowerCase();
+  const isEmail = t.includes('@');
+  const domain = isEmail ? emailDomain(t) : t.replace(/^@/, '');
+  if (!domain) throw new AppError('That is not an email address or a domain.', 400);
+  if (!isEmail && isFreeMailDomain(domain)) {
+    throw new AppError(`${domain} is a personal mail provider, not a company. Pause a single address instead.`, 400);
+  }
+  let q = supabaseAdmin.from('contacts').select('id, email').eq('user_id', userId);
+  q = isEmail ? q.eq('email', t) : q.ilike('email', `%@${domain.replace(/[%_]/g, '')}`);
+  const { data, error } = await q.limit(2000);
+  if (error) throw new AppError(error.message, 500);
+  const ids = (data || [])
+    .filter((c: any) => isEmail || emailDomain(c.email) === domain)
+    .map((c: any) => c.id as string);
+  return { ids, label: isEmail ? t : domain };
+}
+
+/** Hold every live sequence to a person or a company. Returns how many. */
+export async function pauseRecipient(userId: string, target: string): Promise<{ paused: number; contacts: number; label: string }> {
+  const { ids, label } = await contactsFor(userId, target);
+  let paused = 0;
+  for (const slice of chunk(ids)) {
+    const { data, error } = await supabaseAdmin
+      .from('campaign_contacts')
+      .update({ status: 'paused', next_send_at: null, error_message: `${COMPANY_PAUSE_PREFIX}paused by hand for ${label}` })
+      .in('contact_id', slice)
+      .in('status', ['pending', 'active'])
+      .select('id');
+    if (error) throw new AppError(error.message, 500);
+    paused += (data || []).length;
+  }
+  return { paused, contacts: ids.length, label };
+}
+
+/** Let a person's or company's paused sequences go again. */
+export async function resumeRecipient(userId: string, target: string): Promise<{ resumed: number; label: string }> {
+  const { ids, label } = await contactsFor(userId, target);
+  const byCampaign = new Map<string, string[]>();
+  for (const slice of chunk(ids)) {
+    const { data, error } = await supabaseAdmin
+      .from('campaign_contacts')
+      .select('id, campaign_id')
+      .in('contact_id', slice)
+      .eq('status', 'paused');
+    if (error) throw new AppError(error.message, 500);
+    for (const r of data || []) byCampaign.set(r.campaign_id, [...(byCampaign.get(r.campaign_id) || []), r.id]);
+  }
+  let resumed = 0;
+  for (const [campaignId, ccIds] of byCampaign) {
+    // Owner-checked per campaign inside; a foreign campaign simply 404s.
+    resumed += await resumePausedContacts(userId, campaignId, ccIds).catch(() => 0);
+  }
+  return { resumed, label };
+}
