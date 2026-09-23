@@ -19,6 +19,7 @@ import { calendarApi } from '../../api/calendar.api';
 import { TimeGrid, type GridEvent } from '../../components/calendar/TimeGrid';
 import { EventTypeBar } from '../../components/calendar/EventTypeBar';
 import { keepPrevious } from '../../lib/listQuery';
+import { useOptimisticRow } from '../../lib/optimistic';
 import { Refreshing } from '../../components/ui/Refreshing';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -37,6 +38,26 @@ type Item =
   | { kind: 'task'; at: Date; task: CrmTask };
 
 function itemTime(i: Item): number { return i.at.getTime(); }
+
+/** The filter's name for "no kind at all", which is a kind of its own here. */
+const NO_KIND = 'none';
+
+/**
+ * The next whole hour — or tomorrow morning, once today has run out.
+ *
+ * `bookAt(today, new Date().getHours() + 1)` reads as "in an hour" and is,
+ * for twenty-three hours of the day. At 23:20 it asked for hour 24, which
+ * Date normalises to the next day at MIDNIGHT, so the one time anybody is
+ * likely to press this late in the evening offered a meeting at midnight.
+ */
+function nextHour(): Date {
+  const at = new Date();
+  const today = at.getDate();
+  at.setMinutes(0, 0, 0);
+  at.setHours(at.getHours() + 1);
+  if (at.getDate() !== today) at.setHours(9, 0, 0, 0);
+  return at;
+}
 
 function monthMatrix(anchor: Date): Date[] {
   // Monday-first grid covering the whole month plus the spill either side.
@@ -142,15 +163,42 @@ export function CalendarPage() {
     ...keepPrevious,
   });
   const { data: tasks = [] } = useQuery({ queryKey: ['crm', 'tasks'], queryFn: () => crmApi.listTasks() });
-  const { data: types = [] } = useQuery({ queryKey: ['calendar', 'types'], queryFn: calendarApi.listTypes });
+  /*
+   * Retired kinds included, on purpose.
+   *
+   * This list is what the grid LOOKS A MEETING'S KIND UP IN, and retiring a
+   * kind promises in its own confirmation that the meetings already booked
+   * keep it. They did not: a retired kind was absent from this list, so
+   * every demo in the past fell back to the default indigo and to thirty
+   * minutes the moment the Demo kind was retired.
+   */
+  const { data: types = [] } = useQuery({
+    queryKey: ['calendar', 'types', 'all'],
+    queryFn: () => calendarApi.listTypes({ includeArchived: true }),
+  });
+  /** The ones still in use — what the bar offers and what may be filtered. */
+  const liveTypes = useMemo(() => types.filter((t) => !t.archived_at), [types]);
+
+  /*
+   * THE FILTER APPLIES TO EVERY VIEW.
+   *
+   * It used to be applied when building the time grid's events and nowhere
+   * else, so hiding a kind hid it in the week and the day and left it fully
+   * visible in the month and the agenda - and the bar carrying the filter
+   * was not rendered in either of those, so there was nothing on screen to
+   * say why. Switching view silently un-hid things.
+   */
+  const isVisible = (e: CrmEvent) => !hidden.has(e.event_type_id || NO_KIND);
 
   /** What the time grid draws, after the colour filters. */
   const gridEvents = useMemo<GridEvent[]>(
-    () => events
-      .filter((e) => !hidden.has(e.event_type_id || 'none'))
-      .map((e) => e as unknown as GridEvent),
+    () => events.filter(isVisible).map((e) => e as unknown as GridEvent),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [events, hidden],
   );
+
+  /** Whether anything on screen has no kind at all, so the bar can offer it. */
+  const hasUnsorted = useMemo(() => events.some((e) => !e.event_type_id), [events]);
 
   /** Everything on the calendar, keyed by local day. */
   const byDay = useMemo(() => {
@@ -162,6 +210,7 @@ export function CalendarPage() {
       if (arr) arr.push(i); else map.set(k, [i]);
     };
     for (const e of events) {
+      if (!isVisible(e)) continue;
       const at = new Date(e.starts_at);
       if (!Number.isNaN(at.getTime())) push({ kind: 'event', at, event: e });
     }
@@ -172,13 +221,41 @@ export function CalendarPage() {
     }
     for (const arr of map.values()) arr.sort((a, b) => itemTime(a) - itemTime(b));
     return map;
-  }, [events, tasks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events, tasks, hidden]);
 
   const itemsFor = (d: Date) => byDay.get(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`) || [];
 
   /* ── Drag to reschedule ─────────────────────────────────────────────
      Dropping on a day keeps the original time of day and only moves the
      date — nobody means "move this 10am call to midnight". */
+  /*
+   * MEASURED BEFORE THIS LANDED: every drag on this page rubber-banded.
+   *
+   * TimeGrid clears its draft the instant the pointer comes up, and the
+   * mutation only invalidated on success - so the block you had just
+   * dragged to Thursday snapped back to Tuesday, sat there for the length
+   * of the round trip, and then jumped to Thursday. The one place a
+   * calendar most needs to feel direct was the one place it looked like
+   * the save had failed and then changed its mind.
+   *
+   * The shared helper rather than a hand-rolled setQueryData: the same
+   * event is in the month cache, the agenda's, and the dashboard's today
+   * panel, and patching one exact key would have made it instant in one
+   * place and late in three.
+   */
+  const optimisticEvent = useOptimisticRow<{ id: string; starts_at?: string; ends_at?: string }>({
+    scope: ['crm'],
+    id: (v) => v.id,
+    patch: (v) => {
+      const next: Record<string, unknown> = {};
+      if (v.starts_at !== undefined) next.starts_at = v.starts_at;
+      if (v.ends_at !== undefined) next.ends_at = v.ends_at;
+      return next;
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not move that'),
+  });
+
   const reschedule = useMutation({
     mutationFn: async ({ item, day }: { item: Item; day: Date }) => {
       const original = item.at;
@@ -199,12 +276,12 @@ export function CalendarPage() {
     onError: (e: any) => toast.error(e.response?.data?.error || 'Could not reschedule'),
   });
 
-  /** Drag on the time grid: a direct patch, optimistic in feel via invalidate. */
+  /** Drag on the time grid. The block stays where it was dropped. */
   const moveEvent = useMutation({
     mutationFn: ({ id, ...patch }: { id: string; starts_at?: string; ends_at?: string }) =>
       crmApi.updateEvent(id, patch as any),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm', 'events'] }); },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Could not move that'),
+    // Spread last: an onError written after this would replace the rollback.
+    ...optimisticEvent,
   });
 
   const openItem = (i: Item) => {
@@ -280,7 +357,10 @@ export function CalendarPage() {
             <button onClick={() => { setTaskModal(null); setTaskModalOpen(true); }} className="btn-secondary">
               <CheckSquare className="h-3.5 w-3.5" /> Activity
             </button>
-            <button onClick={() => bookAt(today, new Date().getHours() + 1)} className="btn-primary">
+            <button
+              onClick={() => setEventModal({ event: { starts_at: nextHour().toISOString() } as Partial<CrmEvent> })}
+              className="btn-primary"
+            >
               <Plus className="h-3.5 w-3.5" /> Book meeting
             </button>
           </div>
@@ -318,10 +398,14 @@ export function CalendarPage() {
           </div>
         </div>
 
-        {(view === 'week' || view === 'day') && types.length > 0 && (
+        {/* Every view, not just the two that used to have it. It is a legend
+            as much as a filter, and a filter you cannot see the state of is
+            how a month looks emptier than it is. */}
+        {liveTypes.length > 0 && (
           <EventTypeBar
-            types={types}
+            types={liveTypes}
             hidden={hidden}
+            showUnsorted={hasUnsorted}
             onToggle={(id) => setHidden((prev) => {
               const next = new Set(prev);
               if (next.has(id)) next.delete(id); else next.add(id);

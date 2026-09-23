@@ -6,6 +6,7 @@ import {
   durationLabel, type CalendarEventType,
 } from '@lemlist/shared';
 import { calendarApi } from '../../api/calendar.api';
+import { Modal } from '../ui/Modal';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 
@@ -18,10 +19,19 @@ import toast from 'react-hot-toast';
    thing you have to go and find in settings.
    ═══════════════════════════════════════════════════════════════════════ */
 
-export function EventTypeBar({ types, hidden, onToggle }: {
+export function EventTypeBar({ types, hidden, onToggle, showUnsorted }: {
   types: CalendarEventType[];
   hidden: Set<string>;
   onToggle: (id: string) => void;
+  /**
+   * Whether anything on screen has no kind at all.
+   *
+   * Without a chip for it, turning every kind off left a handful of grey
+   * blocks on the grid with nothing switched on to explain them - which
+   * reads as the filter being broken rather than as those meetings simply
+   * not having a kind.
+   */
+  showUnsorted?: boolean;
 }) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState<CalendarEventType | null>(null);
@@ -81,6 +91,28 @@ export function EventTypeBar({ types, hidden, onToggle }: {
         );
       })}
 
+      {showUnsorted && (() => {
+        const off = hidden.has('none');
+        return (
+          <button
+            onClick={() => onToggle('none')}
+            title="Meetings with no kind - anything booked before you had any, or filed under none"
+            className={cn(
+              'inline-flex items-center gap-1.5 h-7 rounded-full border border-dashed px-2.5 text-caption font-medium transition-colors',
+              off
+                ? 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
+                : 'border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)]',
+            )}
+          >
+            <span className={cn(
+              'h-2 w-2 flex-shrink-0 rounded-full',
+              off ? 'ring-1 ring-inset ring-[var(--text-tertiary)]' : 'bg-[var(--text-tertiary)]',
+            )} />
+            No kind
+          </button>
+        );
+      })()}
+
       <button
         onClick={() => setAdding(true)}
         className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-[var(--border-default)] px-2.5 text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--indigo)] transition-colors"
@@ -113,23 +145,50 @@ function TypeEditor({ type, busy, onSave, onCancel, onArchive }: {
   const [minutes, setMinutes] = useState(type?.duration_minutes ?? 30);
   const [location, setLocation] = useState(type?.location_kind ?? 'video');
 
+  /*
+   * The shared Modal, not a hand-rolled overlay.
+   *
+   * This was a bare `fixed inset-0` div, which meant it was the one dialog
+   * in the app that Escape did not close, that Tab walked straight out of
+   * into the page behind, that let the page underneath keep scrolling, and
+   * that never joined the modal stack - so an Escape pressed over it went
+   * to whatever was open behind it instead.
+   */
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-      onClick={onCancel}
+    <Modal
+      isOpen
+      onClose={onCancel}
+      size="sm"
+      title={type ? 'Edit kind of meeting' : 'New kind of meeting'}
+      description="Its colour is how you read the week at a glance. Its length is what booking one of these fills in."
+      footer={
+        <div className="flex w-full items-center gap-2">
+          <button
+            onClick={() => onSave({ name, colour, duration_minutes: minutes, location_kind: location })}
+            disabled={busy || !name.trim()}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--indigo)] px-3 text-body font-semibold text-white hover:opacity-90 disabled:opacity-40"
+          >
+            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {type ? 'Save' : 'Create'}
+          </button>
+          <button onClick={onCancel} className="h-8 px-2.5 text-body text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
+            Cancel
+          </button>
+          {onArchive && (
+            <button
+              onClick={onArchive}
+              disabled={busy}
+              title="Meetings already booked keep this colour"
+              className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-2.5 text-body font-medium text-[var(--text-tertiary)] hover:text-rose-600 hover:border-rose-500/40 disabled:opacity-40"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Retire
+            </button>
+          )}
+        </div>
+      }
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-xl"
-      >
-        <h3 className="text-heading font-semibold text-[var(--text-primary)]">
-          {type ? 'Edit kind of meeting' : 'New kind of meeting'}
-        </h3>
-        <p className="mt-0.5 text-caption text-[var(--text-secondary)]">
-          Its colour is how you read the week at a glance. Its length is what a click on the grid books.
-        </p>
-
-        <label className="mt-3 block text-caption font-medium text-[var(--text-secondary)]">Name</label>
+      <div>
+        <label className="block text-caption font-medium text-[var(--text-secondary)]">Name</label>
         <input
           autoFocus
           value={name}
@@ -183,30 +242,7 @@ function TypeEditor({ type, busy, onSave, onCancel, onArchive }: {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center gap-2">
-          <button
-            onClick={() => onSave({ name, colour, duration_minutes: minutes, location_kind: location })}
-            disabled={busy || !name.trim()}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--indigo)] px-3 text-body font-semibold text-white hover:opacity-90 disabled:opacity-40"
-          >
-            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            {type ? 'Save' : 'Create'}
-          </button>
-          <button onClick={onCancel} className="h-8 px-2.5 text-body text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
-            Cancel
-          </button>
-          {onArchive && (
-            <button
-              onClick={onArchive}
-              disabled={busy}
-              title="Meetings already booked keep this colour"
-              className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-2.5 text-body font-medium text-[var(--text-tertiary)] hover:text-rose-600 hover:border-rose-500/40 disabled:opacity-40"
-            >
-              <Trash2 className="h-3.5 w-3.5" /> Retire
-            </button>
-          )}
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }

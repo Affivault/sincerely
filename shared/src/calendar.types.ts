@@ -74,6 +74,43 @@ export function isHexColour(value: unknown): boolean {
   return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
 }
 
+/**
+ * Why these two times are not a meeting, or null.
+ *
+ * MEASURED BEFORE THIS LANDED: NOTHING CHECKED THIS. Neither createEvent
+ * nor updateEvent looked at the pair, so an end before its start was stored
+ * exactly as sent - and the calendar then hid the damage, because
+ * `resolveEnd` below ignores an end that is not after the start and quietly
+ * falls back to the type's usual length. The grid drew a tidy 30-minute
+ * block over a row that said something else entirely, and the agenda, an
+ * export and every other reader saw the real value.
+ *
+ * An unparseable date was worse than unchecked: it reached Postgres, which
+ * refused it in its own words, so "next tuesday" came back as a 500 and
+ * read to the caller as the server having fallen over.
+ *
+ * Shared rather than written on the server alone so the form can say it
+ * before the round trip, in the same words the server would use. Two copies
+ * of this rule would agree right up until one of them was edited.
+ */
+export function eventTimeProblem(startRaw: unknown, endRaw: unknown): string | null {
+  const start = new Date(String(startRaw));
+  if (Number.isNaN(start.getTime())) return 'The start time is not a date.';
+
+  // No end at all is entirely normal: most rows have none, and the length is
+  // derived from the kind of meeting.
+  if (endRaw === null || endRaw === undefined || endRaw === '') return null;
+
+  const end = new Date(String(endRaw));
+  if (Number.isNaN(end.getTime())) return 'The end time is not a date.';
+  /*
+   * Equal is refused as well as backwards. A meeting of zero length draws as
+   * nothing, cannot be clicked, and is not a thing anybody meant.
+   */
+  if (end.getTime() <= start.getTime()) return 'A meeting has to end after it starts.';
+  return null;
+}
+
 /* ── Geometry ─────────────────────────────────────────────────────── */
 
 /** The shape the grid needs from an event, whatever else it carries. */

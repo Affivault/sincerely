@@ -38,9 +38,15 @@ export function TodayPanel() {
     refetchInterval: 120_000,
     ...keepPrevious,
   });
+  /*
+   * Retired kinds included: this list is looked up in, not chosen from. A
+   * meeting booked under a kind that has since been retired still has to
+   * know its colour and how long it runs, which is precisely what retiring
+   * one promises in its own confirmation.
+   */
   const { data: types = [] } = useQuery({
-    queryKey: ['calendar', 'types'],
-    queryFn: calendarApi.listTypes,
+    queryKey: ['calendar', 'types', 'all'],
+    queryFn: () => calendarApi.listTypes({ includeArchived: true }),
   });
 
   const typeById = useMemo(() => {

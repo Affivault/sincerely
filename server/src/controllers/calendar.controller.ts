@@ -4,10 +4,19 @@ import { calendarService, availabilityService } from '../services/calendar.servi
 import { calendarSync, googleConfigured } from '../services/calendar-sync.service.js';
 
 export const calendarController = {
-  /** Every kind of meeting this account uses, seeded on first read. */
+  /**
+   * Every kind of meeting this account uses, seeded on first read.
+   *
+   * `?include_archived=1` for the calendar, which has to look up the kind of
+   * a meeting booked months ago - including one whose kind has since been
+   * retired. Pickers leave it off, because nothing new should be filed under
+   * a kind that is no longer in use.
+   */
   async listTypes(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      res.json(await calendarService.listTypes(req.userId!));
+      const includeArchived = req.query.include_archived === '1'
+        || req.query.include_archived === 'true';
+      res.json(await calendarService.listTypes(req.userId!, includeArchived));
     } catch (err) { next(err); }
   },
 

@@ -44,7 +44,9 @@ export function BookingLinksPage() {
 
   const { data: types = [] } = useQuery({
     queryKey: ['calendar', 'types'],
-    queryFn: calendarApi.listTypes,
+    // Wrapped, not passed by reference: React Query calls a queryFn with its
+    // own context object, which would arrive here as the options argument.
+    queryFn: () => calendarApi.listTypes(),
   });
 
   // A link that takes bookings and sends nothing is the worst outcome: the

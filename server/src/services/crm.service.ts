@@ -2,7 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { widenWindowStart } from './calendar.service.js';
 import { resumeAfterTask } from './sequence.service.js';
-import { hasEconomics, totalContractValue } from '@lemlist/shared';
+import { eventTimeProblem, hasEconomics, totalContractValue } from '@lemlist/shared';
 import { contactIdsOnDeal, promoteToContact, promoteToCustomer } from './lifecycle.service.js';
 
 const DEAL_STAGES = ['lead', 'qualified', 'proposal', 'won', 'lost'];
@@ -47,6 +47,23 @@ const TASK_TYPES = ['todo', 'call', 'meeting', 'email', 'follow_up', 'deadline']
 const LINKED = 'contact:contacts(id, email, first_name, last_name, company), deal:deals(id, title, stage)';
 const TASK_SELECT = `*, ${LINKED}`;
 const EVENT_SELECT = `*, ${LINKED}`;
+
+/**
+ * A meeting runs forwards, and its ends are dates.
+ *
+ * The rule itself lives in shared/calendar.types so the form can say the
+ * same thing in the same words before the round trip. This is only the part
+ * that turns it into a 400 - previously an unparseable date reached Postgres
+ * and came back as a 500, and a backwards one was simply stored.
+ *
+ * The STORED pair is passed in by the caller so a patch carrying only one
+ * end is still checked against the other, which is the realistic case:
+ * dragging a block's bottom edge sends `ends_at` and nothing else.
+ */
+function assertRunsForwards(startRaw: unknown, endRaw: unknown) {
+  const problem = eventTimeProblem(startRaw, endRaw);
+  if (problem) throw new AppError(problem, 400);
+}
 
 /** Coerce/validate deal input in place so bad payloads 400 instead of 500ing at the DB. */
 function sanitizeDealInput(input: Record<string, any>) {
@@ -673,6 +690,7 @@ export const crmService = {
     if (!body.starts_at) throw new AppError('Event start time is required', 400);
     const input = pick(body, EVENT_KEYS as any);
     if (input.type && !EVENT_TYPES.includes(input.type)) throw new AppError('Invalid event type', 400);
+    assertRunsForwards(input.starts_at, input.ends_at);
     if (input.deal_id) await assertOwned(userId, 'deals', input.deal_id, 'Deal');
     if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
     if (input.company_id) await assertOwned(userId, 'companies', input.company_id, 'Company');
@@ -692,6 +710,29 @@ export const crmService = {
   async updateEvent(userId: string, id: string, body: any) {
     const input = pick(body, EVENT_KEYS as any);
     if (input.type && !EVENT_TYPES.includes(input.type)) throw new AppError('Invalid event type', 400);
+
+    /*
+     * Read the stored pair before judging a new one.
+     *
+     * Dragging a block's bottom edge sends `ends_at` and nothing else, so
+     * checking only what arrived would check nothing at all - which is how
+     * an end before its start got in.
+     */
+    if (input.starts_at !== undefined || input.ends_at !== undefined) {
+      const { data: current, error: readError } = await supabaseAdmin
+        .from('crm_events')
+        .select('starts_at, ends_at')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (readError) throw new AppError(readError.message, 500);
+      if (!current) throw new AppError('Event not found', 404);
+      assertRunsForwards(
+        input.starts_at !== undefined ? input.starts_at : current.starts_at,
+        input.ends_at !== undefined ? input.ends_at : current.ends_at,
+      );
+    }
+
     if (input.deal_id) await assertOwned(userId, 'deals', input.deal_id, 'Deal');
     if (input.contact_id) await assertOwned(userId, 'contacts', input.contact_id, 'Contact');
     if (input.event_type_id) await assertOwned(userId, 'calendar_event_types', input.event_type_id, 'Event type');
