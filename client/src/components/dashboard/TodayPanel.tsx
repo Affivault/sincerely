@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarDays, ArrowRight, Video, Phone, MapPin, Users } from 'lucide-react';
+import { CalendarDays, ArrowRight, Video, Phone, MapPin, Users, Sparkles, CheckCircle2 } from 'lucide-react';
+import { MeetingBrief, MeetingOutcome } from '../flow/MeetingBrief';
 import {
   clockLabel, durationLabel, durationMinutes, resolveEnd,
   type CalendarEventType, type CrmEvent, formatLongWeekdayDate } from '@lemlist/shared';
@@ -23,6 +24,7 @@ import { Refreshing } from '../ui/Refreshing';
 const LOCATION_ICON = { video: Video, phone: Phone, in_person: MapPin, other: Users } as const;
 
 export function TodayPanel() {
+  const [openId, setOpenId] = useState<string | null>(null);
   const dayRange = useMemo(() => {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
@@ -77,6 +79,22 @@ export function TodayPanel() {
       .slice(0, 5);
   }, [events, typeById, dayRange, now]);
 
+  /*
+   * Meetings that have ended with nothing written down. The minutes after a
+   * call are when the notes are still in somebody's head; tomorrow they are
+   * a guess. So they wait here, in front of the next meeting, until done.
+   */
+  const awaitingOutcome = useMemo(() => {
+    const todayStart = new Date(dayRange.from).getTime();
+    return (events as CrmEvent[])
+      .filter((e) => {
+        if (e.status === 'cancelled' || e.outcome) return false;
+        if (new Date(e.starts_at).getTime() < todayStart - 86_400_000) return false;
+        return resolveEnd(e as any, typeById.get(e.event_type_id || '')?.duration_minutes).getTime() < now.getTime();
+      })
+      .slice(-3);
+  }, [events, typeById, dayRange, now]);
+
   const todayLabel = formatLongWeekdayDate(now);
 
   return (
@@ -104,7 +122,7 @@ export function TodayPanel() {
               <div key={i} className="h-9 rounded-lg bg-[var(--bg-elevated)] animate-pulse" />
             ))}
           </div>
-        ) : upcoming.length === 0 ? (
+        ) : upcoming.length === 0 && awaitingOutcome.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
             <p className="text-body font-medium text-[var(--text-primary)]">Nothing left today</p>
             <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
@@ -119,6 +137,27 @@ export function TodayPanel() {
           </div>
         ) : (
           <div className="flex-1 divide-y divide-[var(--border-subtle)]">
+            {awaitingOutcome.map((e) => (
+              <div key={`outcome-${e.id}`} className="px-4 py-2.5 bg-amber-500/[0.05]">
+                <button
+                  type="button"
+                  onClick={() => setOpenId(openId === `o:${e.id}` ? null : `o:${e.id}`)}
+                  className="flex w-full items-center gap-2 text-left"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
+                  <span className="min-w-0 flex-1 truncate text-body text-[var(--text-primary)]">
+                    <span className="font-medium">How did it go?</span>{' '}
+                    <span className="text-[var(--text-tertiary)]">{e.title}</span>
+                  </span>
+                  <span className="text-micro font-semibold text-[var(--indigo)]">{openId === `o:${e.id}` ? 'Later' : 'Log it'}</span>
+                </button>
+                {openId === `o:${e.id}` && (
+                  <div className="mt-2.5">
+                    <MeetingOutcome eventId={e.id} onDone={() => setOpenId(null)} />
+                  </div>
+                )}
+              </div>
+            ))}
             {upcoming.map((e) => {
               const type = typeById.get(e.event_type_id || '');
               const colour = e.colour || type?.colour || '#6366f1';
@@ -130,41 +169,60 @@ export function TodayPanel() {
               const soon = !live && start.getTime() - now.getTime() <= 10 * 60_000;
               const Icon = LOCATION_ICON[(type?.location_kind ?? 'other') as keyof typeof LOCATION_ICON] ?? Users;
 
+              const isOpen = openId === e.id;
+
               return (
-                <Link
-                  key={e.id}
-                  to="/calendar"
-                  className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-[var(--bg-hover)] transition-colors"
-                >
-                  <span className="h-7 w-[3px] flex-shrink-0 rounded-full" style={{ background: colour }} />
-                  <span className="w-[54px] flex-shrink-0">
-                    <span className="block text-body font-semibold tabular text-[var(--text-primary)]">
-                      {clockLabel(start)}
+                <div key={e.id}>
+                  <div className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-[var(--bg-hover)] transition-colors">
+                    <span className="h-7 w-[3px] flex-shrink-0 rounded-full" style={{ background: colour }} />
+                    <span className="w-[54px] flex-shrink-0">
+                      <span className="block text-body font-semibold tabular text-[var(--text-primary)]">
+                        {clockLabel(start)}
+                      </span>
+                      <span className="block text-micro tabular text-[var(--text-tertiary)]">
+                        {durationLabel(mins)}
+                      </span>
                     </span>
-                    <span className="block text-micro tabular text-[var(--text-tertiary)]">
-                      {durationLabel(mins)}
-                    </span>
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-body font-medium text-[var(--text-primary)]">
-                      {e.title}
-                    </span>
-                    <span className="flex items-center gap-1 truncate text-caption text-[var(--text-tertiary)]">
-                      <Icon className="h-2.5 w-2.5 flex-shrink-0" />
-                      {e.contact_name || type?.name || 'Meeting'}
-                    </span>
-                  </span>
-                  {(live || soon) && (
-                    <span className={cn(
-                      'flex-shrink-0 rounded-full px-1.5 py-0.5 text-micro font-semibold',
-                      live
-                        ? 'bg-rose-500/12 text-rose-600 dark:text-rose-400'
-                        : 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
-                    )}>
-                      {live ? 'Now' : 'Soon'}
-                    </span>
+                    <Link to="/calendar" className="min-w-0 flex-1">
+                      <span className="block truncate text-body font-medium text-[var(--text-primary)] hover:underline">
+                        {e.title}
+                      </span>
+                      <span className="flex items-center gap-1 truncate text-caption text-[var(--text-tertiary)]">
+                        <Icon className="h-2.5 w-2.5 flex-shrink-0" />
+                        {e.contact_name || type?.name || 'Meeting'}
+                      </span>
+                    </Link>
+                    {(live || soon) && (
+                      <span className={cn(
+                        'flex-shrink-0 rounded-full px-1.5 py-0.5 text-micro font-semibold',
+                        live
+                          ? 'bg-rose-500/12 text-rose-600 dark:text-rose-400'
+                          : 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
+                      )}>
+                        {live ? 'Now' : 'Soon'}
+                      </span>
+                    )}
+                    {/* Before a call is when the context is worth most. */}
+                    <button
+                      type="button"
+                      onClick={() => setOpenId(isOpen ? null : e.id)}
+                      className={cn(
+                        'flex-shrink-0 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-micro font-semibold transition-colors',
+                        isOpen || soon || live
+                          ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                          : 'text-[var(--text-tertiary)] hover:text-[var(--indigo)]',
+                      )}
+                      title="What to know before this meeting"
+                    >
+                      <Sparkles className="h-3 w-3" /> {isOpen ? 'Hide' : 'Brief'}
+                    </button>
+                  </div>
+                  {isOpen && (
+                    <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 px-4 py-3">
+                      <MeetingBrief eventId={e.id} />
+                    </div>
                   )}
-                </Link>
+                </div>
               );
             })}
           </div>

@@ -26,7 +26,7 @@ function LdHeader() {
         <nav className="ld-nav">
           <a href="#features">Features</a>
           <a href="#leads">Leads</a>
-          <a href="#sara">SARA</a>
+          <a href="#sara">Relay</a>
           <a href="#pricing">Pricing</a>
           <a href="#faq">FAQ</a>
         </nav>
@@ -53,7 +53,7 @@ function Frame({ src, alt, url }: { src: string; alt: string; url: string }) {
 
 const FEATURES = [
   { icon: Inbox, tint: 'rgba(91,91,245,.10)', color: '#5B5BF5', title: 'One unibox for every inbox', desc: 'Every reply from every sending account lands in a single inbox, threaded and classified — nothing slips through.' },
-  { icon: Sparkles, tint: 'rgba(139,92,246,.10)', color: '#7C4DDC', title: 'SARA, your reply agent', desc: 'Classifies every reply — interested, objection, meeting, unsubscribe — and drafts the response for your approval.' },
+  { icon: Sparkles, tint: 'rgba(139,92,246,.10)', color: '#7C4DDC', title: 'Relay, your reply agent', desc: 'Classifies every reply — interested, objection, meeting, unsubscribe — and drafts the response for your approval.' },
   { icon: Table2, tint: 'rgba(16,185,129,.10)', color: '#059669', title: 'Spreadsheet-grade lead lists', desc: 'A real data grid: typed columns, verification status, tags and lists — as fast to work in as a spreadsheet.' },
   { icon: ShieldCheck, tint: 'rgba(6,182,212,.10)', color: '#0891B2', title: 'Deliverability built in', desc: 'Warm-up throttling, health scores per inbox, bounce protection and a global suppression list, on by default.' },
   { icon: FlaskConical, tint: 'rgba(245,158,11,.12)', color: '#B45309', title: 'A/B everything', desc: 'Split-test subjects and bodies per step, with a deterministic 50/50 split and results you can act on.' },
@@ -63,7 +63,7 @@ const FEATURES = [
 const FAQS = [
   { q: 'Do I need my own email accounts?', a: 'Yes — Sincerely sends through inboxes you connect (Google Workspace, Outlook, or any SMTP provider). That keeps your sending reputation yours, and lets you scale by adding inboxes.' },
   { q: 'How does the free plan work?', a: 'The free plan includes 1 connected inbox and 100 emails a month, forever — no card required. Paid plans start a 10-day free trial when you subscribe.' },
-  { q: 'What exactly does SARA do?', a: 'SARA reads incoming replies, classifies the intent (interested, objection, meeting request, out-of-office, unsubscribe, bounce) and drafts a contextual reply. You approve or edit before anything sends — high-confidence unsubscribes and bounces are handled automatically.' },
+  { q: 'What exactly does Relay do?', a: 'Relay reads incoming replies, classifies the intent (interested, objection, meeting request, out-of-office, unsubscribe, bounce) and drafts a contextual reply. You approve or edit before anything sends — high-confidence unsubscribes and bounces are handled automatically.' },
   { q: 'Will this hurt my domain reputation?', a: 'The opposite is the goal: per-inbox daily caps, warm-up mode for new accounts, live health scores, automatic bounce handling, and a suppression list all exist to protect deliverability.' },
   { q: 'Can I cancel anytime?', a: 'Yes. Manage or cancel from the billing page in two clicks — your plan stays active until the end of the period you paid for.' },
 ];
@@ -84,7 +84,7 @@ function PlanCard({ id, hot }: { id: PlanId; hot?: boolean }) {
       <ul>
         <li><Check size={14} strokeWidth={2.4} /> {p.maxInboxes < 0 ? 'Unlimited' : p.maxInboxes} sending inbox{p.maxInboxes === 1 ? '' : 'es'}</li>
         <li><Check size={14} strokeWidth={2.4} /> {p.emailsPerMonth < 0 ? 'Unlimited' : p.emailsPerMonth.toLocaleString()} emails / month</li>
-        <li className={p.features.sara ? '' : 'is-off'}><Check size={14} strokeWidth={2.4} /> SARA autonomous replies</li>
+        <li className={p.features.sara ? '' : 'is-off'}><Check size={14} strokeWidth={2.4} /> Relay autonomous replies</li>
         <li className={p.features.abTesting ? '' : 'is-off'}><Check size={14} strokeWidth={2.4} /> A/B subject &amp; body testing</li>
         <li><Check size={14} strokeWidth={2.4} /> Unified inbox &amp; analytics</li>
       </ul>
@@ -103,9 +103,9 @@ export function LandingPage() {
       {/* ── Hero ── */}
       <section className="ld-hero">
         <div className="ld-wrap">
-          <a className="ld-eyebrow ld-rise" href="#sara"><b>NEW</b> Meet SARA — replies that answer themselves <ArrowRight size={12} /></a>
+          <a className="ld-eyebrow ld-rise" href="#sara"><b>NEW</b> Meet Relay — replies that answer themselves <ArrowRight size={12} /></a>
           <h1 className="ld-rise" style={{ animationDelay: '60ms' }}>
-            You send the cold email.<br /><em>She books the meeting.</em>
+            You send the cold email.<br /><em>Relay books the meeting.</em>
           </h1>
           <p className="ld-hero__sub ld-rise" style={{ animationDelay: '120ms' }}>
             Sincerely runs outbound end to end: sends from every inbox you own,
@@ -129,7 +129,7 @@ export function LandingPage() {
       </section>
 
 
-      {/* ── Intent marquee — the work SARA sorts, scrolling by ── */}
+      {/* ── Intent marquee — the work Relay sorts, scrolling by ── */}
       <div className="ld-marquee" aria-hidden="true">
         <div className="ld-marquee__track">
           {[0, 1].map(half => (
@@ -172,8 +172,8 @@ export function LandingPage() {
             </div>
             <div className="ld-step">
               <div className="ld-step__n">03</div>
-              <h3>Launch. SARA takes the replies.</h3>
-              <p>Sequences send on your schedule. When replies land, SARA reads them, tags the intent, and drafts the answer — you approve, she sends, the meeting books.</p>
+              <h3>Launch. Relay takes the replies.</h3>
+              <p>Sequences send on your schedule. When replies land, Relay reads them, tags the intent, and drafts the answer — you approve, it sends, the meeting books.</p>
             </div>
           </div>
         </div>
@@ -224,12 +224,12 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── SARA ── */}
+      {/* ── Relay ── */}
       <section className="ld-section" id="sara">
         <div className="ld-wrap">
           <div className="ld-split">
             <div className="ld-split__copy">
-              <div className="ld-kicker">SARA — Sincerely Autonomous Reply Agent</div>
+              <div className="ld-kicker">Relay — the Sincerely reply agent</div>
               <h3>Every reply read, tagged, and drafted — before you open the tab.</h3>
               <p>
                 Interested? The draft is waiting. Objection? Countered, pending your
@@ -252,7 +252,7 @@ export function LandingPage() {
               </div>
               <div className="ld-sara__msg ld-sara__draft">
                 <div className="ld-sara__meta">
-                  <span className="ld-sara__who" style={{ color: '#5B5BF5' }}>SARA · draft ready</span>
+                  <span className="ld-sara__who" style={{ color: '#5B5BF5' }}>Relay · draft ready</span>
                   <span className="ld-sara__intent" style={{ background: 'rgba(91,91,245,.10)', color: '#5B5BF5' }}>AWAITING APPROVAL</span>
                 </div>
                 <p>"Great to hear, Sarah! For a team of five you'd be on Growth. Happy to walk you through it — would a quick call Thursday work?"</p>
@@ -303,7 +303,7 @@ export function LandingPage() {
       <section className="ld-cta">
         <div className="ld-wrap">
           <h2>Your next customer already<br />opened the email. <em>Answer them.</em></h2>
-          <p>Connect an inbox, load your list, launch before lunch. SARA covers the replies from day one.</p>
+          <p>Connect an inbox, load your list, launch before lunch. Relay covers the replies from day one.</p>
           <div className="ld-cta__row">
             <Link className="ld-btn ld-btn--ghost ld-btn--lg" to="/signup">Get started free</Link>
             <Link className="ld-btn ld-btn--accent ld-btn--lg" to="/login">Sign in <ArrowRight size={15} strokeWidth={2.2} /></Link>

@@ -4,7 +4,7 @@
 export type PlanId = 'free' | 'trial' | 'starter' | 'growth' | 'scale' | 'lifetime';
 
 export interface PlanFeatures {
-  /** SARA autonomous reply agent */
+  /** Relay autonomous reply agent */
   sara: boolean;
   /** A/B subject & body testing */
   abTesting: boolean;

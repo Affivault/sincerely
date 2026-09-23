@@ -14,7 +14,7 @@ export function TermsPage() {
       <h2>1. The Service</h2>
       <p>
         Sincerely provides tools for sending email campaigns from email accounts you connect, including sequence
-        automation, inbox management, reply classification ("SARA"), analytics, and related features. You send
+        automation, inbox management, reply classification ("Relay"), analytics, and related features. You send
         email through your own connected email accounts (SMTP/IMAP); Sincerely is not the sender of your email
         and does not provide you with email addresses or sending infrastructure of its own.
       </p>

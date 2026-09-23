@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { CampaignAnalytics, OverviewAnalytics, ContactActivityItem, SequencePerformance } from '@lemlist/shared';
+import type { CampaignAnalytics, OverviewAnalytics, ContactActivityItem, SequencePerformance, StepOutcomes } from '@lemlist/shared';
 
 /** One row of the revenue report. Mirrors analyticsService.revenue(). */
 export interface CampaignRevenueRow {
@@ -231,6 +231,10 @@ export const analyticsApi = {
     const { data } = await apiClient.get<SequencePerformance>(`/analytics/campaigns/${campaignId}/steps`);
     return data;
   },
+
+  /** Meetings and revenue per 100 emails, per step and A/B arm. */
+  stepOutcomes: async (campaignId: string) =>
+    (await apiClient.get<StepOutcomes>(`/analytics/campaigns/${campaignId}/outcomes`)).data,
 
   campaignAbTest: async (campaignId: string) => {
     const { data } = await apiClient.get<CampaignAbTestResult>(`/analytics/campaigns/${campaignId}/ab-test`);

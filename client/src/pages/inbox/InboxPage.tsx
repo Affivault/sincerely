@@ -2064,7 +2064,7 @@ function NavRow({ item, active, collapsed, count, onClick }: {
   );
 }
 
-/* ─── SARA co-pilot card (surfaces AI triage inline) ── */
+/* ─── Relay co-pilot card (surfaces AI triage inline) ── */
 function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void }) {
   const intent = msg.sara_intent;
   const info = intent ? (INTENT_COLORS[intent] || INTENT_COLORS.other) : null;
@@ -2082,7 +2082,7 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-body font-semibold text-[var(--text-primary)]">SARA analysis</span>
+            <span className="text-body font-semibold text-[var(--text-primary)]">Relay analysis</span>
             {info && (
               <span className={cn('text-micro font-semibold px-1.5 py-0.5 rounded-full', info.bg, info.text)}>{info.label}</span>
             )}
@@ -2096,7 +2096,7 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
             )}
           </div>
           <p className="mt-1.5 text-body text-[var(--text-secondary)] leading-snug">
-            {msg.sara_action || (hasDraft ? 'SARA drafted a reply for this conversation.' : 'SARA reviewed this reply and tagged its intent.')}
+            {msg.sara_action || (hasDraft ? 'Relay drafted a reply for this conversation.' : 'Relay reviewed this reply and tagged its intent.')}
           </p>
         </div>
       </div>
@@ -2106,7 +2106,7 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
             onClick={onUseDraft}
             className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]"
           >
-            <Wand2 className="h-3.5 w-3.5" /> Use SARA's draft
+            <Wand2 className="h-3.5 w-3.5" /> Use Relay's draft
           </button>
           <span className="text-caption text-[var(--text-tertiary)] hidden sm:inline">Loads into the composer — review before sending.</span>
         </div>
@@ -2830,7 +2830,7 @@ export function InboxPage() {
     return match?.label || 'Inbox';
   }, [isViewActive]);
 
-  // Load SARA's pre-written draft into the reply composer (reuses the AI insert path)
+  // Load Relay's pre-written draft into the reply composer (reuses the AI insert path)
   const applySaraDraft = useCallback(() => {
     if (!currentMsg?.sara_draft_reply) return;
     setShowCompose(false);
@@ -3082,7 +3082,7 @@ export function InboxPage() {
 
                     <div className="my-6 h-px bg-[var(--border-subtle)]" />
 
-                    {/* SARA co-pilot — surfaces AI triage + one-tap draft */}
+                    {/* Relay co-pilot — surfaces AI triage + one-tap draft */}
                     <SaraCopilot msg={currentMsg} onUseDraft={applySaraDraft} />
 
                     {/* Conversation timeline — day-grouped, direction-coded */}

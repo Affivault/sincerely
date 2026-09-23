@@ -105,3 +105,53 @@ export interface RevealProspectResponse {
   already_revealed: boolean;
   credits: ProspectCreditsSummary;
 }
+
+/* ─── Standing searches ───────────────────────────────────────────────────
+   A Prospector search that keeps running: new matches are revealed,
+   verified and enrolled on a cadence, within a daily cap. Migration 074. */
+
+export type ProspectRuleCadence = 'daily' | 'weekdays' | 'weekly';
+
+export interface ProspectRuleRunResult {
+  at: string;
+  searched: number;
+  revealed: number;
+  no_email: number;
+  failed_verification: number;
+  enrolled: number;
+  /** Enrolment skip reasons, e.g. { suppressed: 1, on_open_deal: 2 }. */
+  skipped: Record<string, number>;
+  /** Why the run ended: cap reached, out of matches, out of credits, an error. */
+  stopped: 'cap' | 'exhausted' | 'no_credits' | 'no_provider' | 'error';
+  error?: string;
+}
+
+export interface ProspectRule {
+  id: string;
+  user_id: string;
+  name: string;
+  filters: ProspectSearchFilters;
+  campaign_id: string | null;
+  list_id: string | null;
+  daily_cap: number;
+  cadence: ProspectRuleCadence;
+  min_score: number;
+  is_active: boolean;
+  next_run_at: string;
+  last_run_at: string | null;
+  last_result: ProspectRuleRunResult | null;
+  total_enrolled: number;
+  created_at: string;
+  updated_at: string;
+  campaign?: { id: string; name: string; status: string } | null;
+}
+
+/** When a rule runs next, from when it last ran. */
+export function nextRuleRun(cadence: ProspectRuleCadence, from: Date): Date {
+  const d = new Date(from);
+  d.setUTCDate(d.getUTCDate() + (cadence === 'weekly' ? 7 : 1));
+  if (cadence === 'weekdays') {
+    while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return d;
+}

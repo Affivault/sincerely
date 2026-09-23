@@ -1,3 +1,4 @@
+import { useDealHealth, DealHealthDot } from './DealHealth';
 import { useMemo, useState } from 'react';
 import { DEAL_STAGES, probabilityOf, rotOf, weightedValue, formatDayMonth, formatMoney, parseDay } from '@lemlist/shared';
 import type { Deal, DealStage } from '@lemlist/shared';
@@ -159,6 +160,7 @@ export function DealTable({
   onStageChange: (d: Deal, stage: DealStage) => void;
   currency?: string;
 }) {
+  const { data: health } = useDealHealth();
   const rows = useMemo(() => sortDeals(deals, sortKey, sortDir), [deals, sortKey, sortDir]);
   const allOn = rows.length > 0 && rows.every((d) => selected.has(d.id));
   /*
@@ -211,6 +213,7 @@ export function DealTable({
 
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2">
+                      <DealHealthDot health={health?.[d.id]} />
                       <span className="truncate text-body font-medium text-[var(--text-primary)]">
                         {d.title}
                       </span>

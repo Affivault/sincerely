@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { TodayPanel } from '../../components/dashboard/TodayPanel';
+import { FlowTeaser } from '../../components/dashboard/FlowTeaser';
+import { AwayCard } from '../../components/flow/AwayCard';
 import { analyticsApi, type TrendDataPoint } from '../../api/analytics.api';
 import { inboxApi } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
@@ -529,6 +531,8 @@ export function DashboardPage() {
 
   return (
     <div className="stagger pb-8 space-y-5">
+      {/* What changed since the last visit, once per return. */}
+      <AwayCard />
       {/* ── Header ── */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
@@ -612,6 +616,7 @@ export function DashboardPage() {
         {/* The right-hand column carries the two time-critical things: what
             is happening today, and what has just come in. */}
         <div className="flex flex-col gap-4">
+        <FlowTeaser />
         <TodayPanel />
 
         <section className="panel overflow-hidden flex flex-col">

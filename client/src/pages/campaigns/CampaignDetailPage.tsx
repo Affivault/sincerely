@@ -1,3 +1,6 @@
+import { StepOutcomesPanel } from '../../components/campaigns/StepOutcomesPanel';
+import { ForecastPanel } from '../../components/campaigns/ForecastPanel';
+import { usePeek } from '../../components/peek/usePeek';
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -52,6 +55,7 @@ import type { CampaignStep } from '@lemlist/shared';
 type TabId = 'overview' | 'sequence' | 'contacts';
 
 export function CampaignDetailPage() {
+  const { openPeek } = usePeek();
   const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -185,6 +189,16 @@ export function CampaignDetailPage() {
       toast.success(`Retried ${result.retried} errored contact${result.retried !== 1 ? 's' : ''}`);
     },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to retry errors'),
+  });
+
+  const resumePausedMutation = useMutation({
+    mutationFn: (ids?: string[]) => campaignsApi.resumePaused(id!, ids),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['campaign-contacts', id] });
+      queryClient.invalidateQueries({ queryKey: ['campaigns', id] });
+      toast.success(`Resumed ${result.resumed} contact${result.resumed !== 1 ? 's' : ''}`);
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Could not resume'),
   });
 
   const deleteMutation = useMutation({
@@ -325,6 +339,12 @@ export function CampaignDetailPage() {
           mailbox that stopped authenticating, an exhausted daily allowance,
           a queue where everyone is errored, a schedule that is closed. */}
       <CampaignHealthStrip campaignId={id!} status={campaign.status} />
+
+      {/* Before launch, and while it runs: when it will finish and what it should return. */}
+      {['draft', 'scheduled', 'running', 'paused'].includes(campaign.status) && (
+        <div className="mb-4"><ForecastPanel campaignId={id!} title={campaign.status === 'draft' ? 'If you launch now' : 'What happens next'} /></div>
+      )}
+      {campaign.status !== 'draft' && <div className="mb-4"><StepOutcomesPanel campaignId={id!} /></div>}
 
       {/* Why this campaign is stopped, or stuck.
           The engine has always known — it computes "every mailbox is at its
@@ -523,11 +543,23 @@ export function CampaignDetailPage() {
                 <option value="bounced">Bounced</option>
                 <option value="unsubscribed">Unsubscribed</option>
                 <option value="suppressed">Suppressed</option>
+                <option value="paused">Paused (colleague replied)</option>
                 <option value="error">Error</option>
               </select>
               <span className="text-caption text-[var(--text-tertiary)] whitespace-nowrap tabular">
                 {filteredContacts.length} / {campaignContacts.data.length}
               </span>
+              {campaignContacts.data.some((cc: any) => cc.status === 'paused') && (
+                <button
+                  onClick={() => resumePausedMutation.mutate(undefined)}
+                  disabled={resumePausedMutation.isPending}
+                  title="These contacts were held back because a colleague at their company replied positively"
+                  className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-50 transition-colors"
+                >
+                  <Play className="h-3.5 w-3.5" />
+                  Resume {campaignContacts.data.filter((cc: any) => cc.status === 'paused').length} paused
+                </button>
+              )}
               {campaignContacts.data.some((cc: any) => cc.status === 'error') && (
                 <button
                   onClick={() => retryErrorsMutation.mutate()}
@@ -580,7 +612,14 @@ export function CampaignDetailPage() {
                           <div className="flex items-center gap-2.5">
                             <Avatar name={fullName || cc.contact?.email || '?'} email={cc.contact?.email} size="sm" />
                             <div className="min-w-0">
-                              <p className="text-strong font-medium text-[var(--text-primary)] truncate">{fullName || '—'}</p>
+                              <button
+                                type="button"
+                                onClick={() => cc.contact_id && openPeek('contact', cc.contact_id)}
+                                className="block max-w-full text-left text-strong font-medium text-[var(--text-primary)] truncate hover:text-[var(--indigo)] hover:underline"
+                                title="Peek - where they stand, without leaving the campaign"
+                              >
+                                {fullName || cc.contact?.email || '—'}
+                              </button>
                               {cc.contact?.email && <p className="text-caption text-[var(--text-tertiary)] truncate">{cc.contact.email}</p>}
                             </div>
                           </div>
@@ -616,7 +655,22 @@ export function CampaignDetailPage() {
                             </span>
                           ) : <span className="text-body text-[var(--text-tertiary)]">—</span>}
                         </td>
-                        <td className="px-4 py-2.5 text-caption text-rose-500">{cc.error_message || '—'}</td>
+                        {cc.status === 'paused' ? (
+                          <td className="px-4 py-2.5 text-caption text-[var(--text-secondary)]">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate max-w-[260px]" title={cc.error_message || ''}>{cc.error_message || 'Paused'}</span>
+                              <button
+                                onClick={() => resumePausedMutation.mutate([cc.id])}
+                                disabled={resumePausedMutation.isPending}
+                                className="flex-shrink-0 text-caption font-medium text-[var(--indigo)] hover:underline disabled:opacity-50"
+                              >
+                                Resume
+                              </button>
+                            </div>
+                          </td>
+                        ) : (
+                          <td className="px-4 py-2.5 text-caption text-rose-500">{cc.error_message || '—'}</td>
+                        )}
                       </tr>
                     );
                   })}

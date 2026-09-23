@@ -731,10 +731,10 @@ export const inboxService = {
      */
     await replyQueueService.markResponded(userId, messageId);
 
-    // A manual reply to a message SARA had flagged (pending review or already
+    // A manual reply to a message Relay had flagged (pending review or already
     // approved) counts as the reply having gone out — keep the "Sent Today"
     // stat accurate even when the user replies directly instead of through
-    // the SARA approve flow.
+    // the Relay approve flow.
     if (original.sara_status === SaraStatus.PendingReview || original.sara_status === SaraStatus.Approved) {
       await supabaseAdmin
         .from('inbox_messages')

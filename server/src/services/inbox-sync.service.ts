@@ -856,7 +856,7 @@ export const inboxSyncService = {
   },
 };
 
-/** Whether SARA should classify what arrives. Never blocks a sync. */
+/** Whether Relay should classify what arrives. Never blocks a sync. */
 async function isAiTaggingEnabled(userId: string): Promise<boolean> {
   try {
     const { data } = await supabaseAdmin

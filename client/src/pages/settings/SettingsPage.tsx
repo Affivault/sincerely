@@ -112,13 +112,14 @@ export function SettingsPage() {
 
   const [defaultSignature, setDefaultSignature] = useState('');
 
-  // AI Features settings (uses same DB columns as SARA for backwards compat)
+  // AI Features settings (uses same DB columns as Relay for backwards compat)
   const [aiTaggingEnabled, setAiTaggingEnabled] = useState(true);
   const [aiAutoClassify, setAiAutoClassify] = useState(true);
   const [aiAutoUnsubscribe, setAiAutoUnsubscribe] = useState(true);
   const [aiAutoBounce, setAiAutoBounce] = useState(true);
   const [crmAutoDeals, setCrmAutoDeals] = useState(true);
   const [stopAllOnReply, setStopAllOnReply] = useState(false);
+  const [pauseCompany, setPauseCompany] = useState(true);
   const [bounceGuard, setBounceGuard] = useState(true);
   const [bounceThreshold, setBounceThreshold] = useState(8);
   const [domainLimit, setDomainLimit] = useState(5);
@@ -173,6 +174,7 @@ export function SettingsPage() {
       setAiAutoBounce(settings.sara_auto_bounce ?? true);
       setCrmAutoDeals((settings as any).crm_auto_deals ?? true);
       setStopAllOnReply((settings as any).stop_all_campaigns_on_reply ?? false);
+      setPauseCompany((settings as any).pause_company_on_reply ?? true);
       setBounceGuard((settings as any).bounce_guard_enabled ?? true);
       setBounceThreshold(Number((settings as any).bounce_guard_threshold ?? 8));
       setDomainLimit(Number((settings as any).domain_hourly_limit ?? 5));
@@ -235,6 +237,7 @@ export function SettingsPage() {
       sara_auto_bounce: aiAutoBounce,
       crm_auto_deals: crmAutoDeals,
       stop_all_campaigns_on_reply: stopAllOnReply,
+      pause_company_on_reply: pauseCompany,
       bounce_guard_enabled: bounceGuard,
       bounce_guard_threshold: bounceThreshold,
       domain_hourly_limit: domainLimit,
@@ -851,6 +854,12 @@ export function SettingsPage() {
                         description="When someone answers one sequence, stop the others they are in. Still receiving a different pitch after replying reads as though nobody is paying attention."
                         checked={stopAllOnReply}
                         onChange={(v) => { setStopAllOnReply(v); markChanged(); }}
+                      />
+                      <ToggleSetting
+                        label="A yes pauses the rest of the company"
+                        description="When someone replies Interested or asks for a meeting, pause the sequences still running to their colleagues. Nothing is stopped for good - resume them from the campaign in one click."
+                        checked={pauseCompany}
+                        onChange={(v) => { setPauseCompany(v); markChanged(); }}
                       />
                       <ToggleSetting
                         label="Stop a campaign that is bouncing"

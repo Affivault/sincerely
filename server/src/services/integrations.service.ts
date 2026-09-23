@@ -224,7 +224,7 @@ function richEvent(eventType: string, data: Record<string, any>, ctx?: EventCont
       return {
         headline: positive
           ? `🎯 ${intent === 'meeting' ? 'Meeting request' : 'Interested lead'}${who ? `: ${who.split(' <')[0]}` : ''}`
-          : `🤖 SARA classified a reply as “${intent}”`,
+          : `🤖 Relay classified a reply as “${intent}”`,
         facts,
         link: { label: 'Open in Unibox', url: appUrl('/inbox') },
         color: positive ? GREEN : INDIGO,
@@ -310,7 +310,7 @@ function renderTeamsCard(rich: RichEvent): Record<string, any> {
   };
 }
 
-/** CRM sync fires on replies and on positive SARA intents only. */
+/** CRM sync fires on replies and on positive Relay intents only. */
 function crmShouldSync(eventType: string, data: Record<string, any>): boolean {
   if (eventType === 'email.replied') return true;
   if (eventType === 'sara.intent_classified') {
@@ -323,7 +323,7 @@ function crmNoteText(eventType: string, data: Record<string, any>): string {
   if (eventType === 'email.replied') {
     return `Replied to a Sincerely campaign email${data.subject ? ` — “${data.subject}”` : ''}.`;
   }
-  return `Sincerely SARA classified this lead's reply as “${data.intent}”${typeof data.confidence === 'number' ? ` (${Math.round(data.confidence * 100)}% confidence)` : ''}.`;
+  return `Sincerely Relay classified this lead's reply as “${data.intent}”${typeof data.confidence === 'number' ? ` (${Math.round(data.confidence * 100)}% confidence)` : ''}.`;
 }
 
 // ============================================

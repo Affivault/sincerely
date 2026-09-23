@@ -43,7 +43,7 @@ const PLAN_META: Record<'starter' | 'growth', {
     features: (p) => [
       `${p.maxInboxes} connected inboxes`,
       `${p.emailsPerMonth.toLocaleString()} emails / month`,
-      'SARA — AI inbox replies',
+      'Relay — AI inbox replies',
       'A/B subject & body testing',
     ],
   },
@@ -144,7 +144,7 @@ export function UpgradeNag() {
           style={{ background: 'linear-gradient(100deg,#5B5BF5,#8B5CF6)' }}>
           <div className="flex items-center gap-2 text-strong">
             <Lock className="h-4 w-4 flex-shrink-0" />
-            <span><strong>You're on the Free plan</strong> — 1 inbox, {PLANS.free.emailsPerMonth} emails/mo. Upgrade to send at scale and unlock SARA + A/B.</span>
+            <span><strong>You're on the Free plan</strong> — 1 inbox, {PLANS.free.emailsPerMonth} emails/mo. Upgrade to send at scale and unlock Relay + A/B.</span>
           </div>
           <button
             onClick={() => { setReason(undefined); setOpen(true); }}

@@ -1,4 +1,5 @@
 import { Response, NextFunction } from 'express';
+import { healthForDeals } from '../services/deal-health.service.js';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { crmService } from '../services/crm.service.js';
 import { parseDayWindow } from '../utils/day-window.js';
@@ -10,6 +11,12 @@ export const crmController = {
       const contactId = typeof req.query.contact_id === 'string' ? req.query.contact_id : undefined;
       const contactEmail = typeof req.query.contact_email === 'string' ? req.query.contact_email : undefined;
       res.json(await crmService.listDeals(req.userId!, { contactId, contactEmail }));
+    } catch (err) { next(err); }
+  },
+  async dealHealth(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const ids = typeof req.query.ids === 'string' && req.query.ids ? req.query.ids.split(',').filter(Boolean) : undefined;
+      res.json(await healthForDeals(req.userId!, ids));
     } catch (err) { next(err); }
   },
   async createDeal(req: AuthRequest, res: Response, next: NextFunction) {

@@ -174,7 +174,7 @@ export function BillingPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <FeatureChip label="SARA replies" on={!!usage?.features.sara} />
+            <FeatureChip label="Relay replies" on={!!usage?.features.sara} />
             <FeatureChip label="A/B testing" on={!!usage?.features.abTesting} />
           </div>
         </div>
@@ -272,7 +272,7 @@ export function BillingPage() {
               <ul className="space-y-2 text-body text-[var(--text-secondary)]">
                 <PlanLine>{fmtLimit(plan.maxInboxes)} sending inbox{plan.maxInboxes === 1 ? '' : 'es'}</PlanLine>
                 <PlanLine>{fmtLimit(plan.emailsPerMonth)} emails / month</PlanLine>
-                <PlanLine muted={!plan.features.sara}>SARA autonomous replies</PlanLine>
+                <PlanLine muted={!plan.features.sara}>Relay autonomous replies</PlanLine>
                 <PlanLine muted={!plan.features.abTesting}>A/B subject &amp; body testing</PlanLine>
               </ul>
 

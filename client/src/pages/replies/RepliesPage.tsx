@@ -1,11 +1,11 @@
+import { usePeek } from '../../components/peek/usePeek';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   MessageSquare, Clock, AlertTriangle, Hand, Inbox, CheckCircle2,
-  CalendarClock, Banknote, ChevronRight, Info, Undo2,
-} from 'lucide-react';
+  CalendarClock, Banknote, ChevronRight, Info, Undo2, Eye } from 'lucide-react';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { AsyncPanel } from '../../components/ui/AsyncPanel';
 import { replyQueueApi, type QueuedReply, type QueueFilter } from '../../api/replyQueue.api';
@@ -73,6 +73,7 @@ function ReplyRow({ reply, onOpen, onClaim, onPark, busy }: {
   busy: boolean;
 }) {
   const [parkOpen, setParkOpen] = useState(false);
+  const { openPeek } = usePeek();
   const u = URGENCY[reply.state.urgency];
   const intent = INTENT_LABEL[reply.sara_intent || ''] || 'Reply';
   const snippet = (reply.body_text || '').replace(/\s+/g, ' ').trim().slice(0, 160);
@@ -119,6 +120,16 @@ function ReplyRow({ reply, onOpen, onClaim, onPark, busy }: {
       </button>
 
       <div className="flex shrink-0 items-center gap-1.5">
+        {reply.contact_id && (
+          <button
+            type="button"
+            onClick={() => openPeek('contact', reply.contact_id!)}
+            title="Peek at who this is - deal, sequences, history"
+            className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-caption font-medium text-[var(--text-tertiary)] opacity-0 transition-opacity hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] group-hover:opacity-100 focus:opacity-100"
+          >
+            <Eye className="h-3.5 w-3.5" /> Peek
+          </button>
+        )}
         {/*
           * Claimed, or nobody has it. Shown always rather than on hover:
           * unowned work is the work that gets dropped, so the absence has

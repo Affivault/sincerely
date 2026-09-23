@@ -5,7 +5,7 @@ import {
   Crosshair,
   MessageSquare,
   Target,
-  LayoutDashboard, Users, Megaphone, Inbox, BarChart3, Settings,
+  LayoutDashboard, Waves, Users, Megaphone, Inbox, BarChart3, Settings,
   FileText, Webhook, LogOut, CalendarClock, Layers, Blocks,
   ChevronRight, Wrench, Clock, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck, Sparkles,
   CalendarDays, ListTodo, Building2, Linkedin, Contact2, Banknote, Link2,
@@ -47,6 +47,9 @@ const isGroup = (item: NavItem): item is NavGroup => (item as NavGroup).kind ===
    have to undo. */
 
 const primaryNav: NavItem[] = [
+  /* Everything that needs a decision today, in one ranked list. First,
+     because it is where a day starts. */
+  { name: 'Flow',      href: '/flow',      icon: Waves },
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Unibox',    href: '/inbox',     icon: Inbox },
   /* What you owe people, hardest first. Beside the unibox because it is

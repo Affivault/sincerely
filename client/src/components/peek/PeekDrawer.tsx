@@ -23,6 +23,7 @@ import toast from 'react-hot-toast';
 import { DEAL_STAGES, type DealStage, formatLongDate, formatMoney } from '@lemlist/shared';
 import { OutcomeDialog } from '../crm/OutcomeDialog';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { StandingStrip } from './StandingStrip';
 
 /* ═══════════════════════════════════════════════════════════════════════
    The peek drawer.
@@ -236,6 +237,8 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
           href={contact.website || undefined}
         />
       </div>
+
+      <StandingStrip contactId={contact.id} email={contact.email} name={name} />
 
       {/* The whole relationship, same component the profile page uses */}
       <div className="p-3">

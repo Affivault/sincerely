@@ -64,7 +64,7 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
     ],
   },
   {
-    title: 'SARA queue',
+    title: 'Relay queue',
     items: [
       { keys: ['J'], label: 'Next message' },
       { keys: ['K'], label: 'Previous message' },

@@ -79,3 +79,35 @@ export const STEP_VERDICT_LABELS: Record<StepVerdict, string> = {
 
 /** Below this many sends, a step's rate is not evidence of anything. */
 export const MIN_STEP_SENDS = 25;
+
+/* ─── Meetings and money per step ────────────────────────────────────────
+   Interested/meeting replies credited to the email just before them, and
+   won deals to the step recorded on the deal, per hundred emails sent. */
+
+export interface StepOutcomeArm {
+  sent: number;
+  /** People whose interested or meeting reply followed this email. */
+  positive: number;
+  won: number;
+  won_value: number;
+  meetings_per_100: number;
+  revenue_per_100: number;
+}
+
+export interface StepOutcomeRow extends StepOutcomeArm {
+  step_id: string;
+  step_order: number;
+  subject: string;
+  subject_b: string | null;
+  split: boolean;
+  a: StepOutcomeArm | null;
+  b: StepOutcomeArm | null;
+  /** Set when one arm books meetings at a clearly better rate. */
+  suggestion: { variant: 'a' | 'b'; remaining: number; text: string } | null;
+}
+
+export interface StepOutcomes {
+  steps: StepOutcomeRow[];
+  total_positive: number;
+  headline: string;
+}

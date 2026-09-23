@@ -4,7 +4,7 @@ import type {
   CrmTask, CreateTaskInput, UpdateTaskInput,
   CrmEvent, CreateEventInput, UpdateEventInput,
   CrmNote, CreateNoteInput, UpdateNoteInput,
-  ContactCrmSummary,
+  ContactCrmSummary, DealHealth,
 } from '@lemlist/shared';
 
 export const crmApi = {
@@ -14,6 +14,9 @@ export const crmApi = {
   createDeal: async (input: CreateDealInput) => (await apiClient.post<Deal>('/crm/deals', input)).data,
   updateDeal: async (id: string, input: UpdateDealInput) => (await apiClient.put<Deal>(`/crm/deals/${id}`, input)).data,
   deleteDeal: async (id: string) => { await apiClient.delete(`/crm/deals/${id}`); },
+  /** Health of every open deal (or just `ids`), keyed by deal id. */
+  dealHealth: async (ids?: string[]) =>
+    (await apiClient.get<Record<string, DealHealth>>('/crm/deals/health', { params: ids?.length ? { ids: ids.join(',') } : undefined })).data,
   /** Every stage this deal has passed through, oldest first. */
   dealHistory: async (id: string) =>
     (await apiClient.get<DealStageEvent[]>(`/crm/deals/${id}/history`)).data,

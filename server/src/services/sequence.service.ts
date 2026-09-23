@@ -809,7 +809,7 @@ async function evaluateCondition(cc: any, step: any): Promise<boolean> {
     }
 
     case 'sara_intent': {
-      // Get the latest SARA classification for this contact's replies. Scoped to
+      // Get the latest Relay classification for this contact's replies. Scoped to
       // this campaign_contact_id (not just contact_id) so a contact enrolled in
       // multiple campaigns at once can't have one campaign's branch fire off a
       // reply that only happened in a different campaign.
@@ -1356,12 +1356,14 @@ export async function checkAndAutoCompleteCampaign(campaignId: string): Promise<
 
   if (!campaign || campaign.status !== 'running') return;
 
-  // Count contacts still in non-terminal states (pending or active)
+  // Count contacts still in non-terminal states. Paused counts: somebody
+  // held back because a colleague replied is waiting on a decision, and a
+  // campaign that completes around them cannot send once they are resumed.
   const { count: nonTerminal } = await supabaseAdmin
     .from('campaign_contacts')
     .select('*', { count: 'exact', head: true })
     .eq('campaign_id', campaignId)
-    .in('status', ['pending', 'active']);
+    .in('status', ['pending', 'active', 'paused']);
 
   if (nonTerminal && nonTerminal > 0) return;
 

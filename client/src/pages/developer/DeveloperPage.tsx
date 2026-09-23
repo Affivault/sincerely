@@ -36,7 +36,7 @@ const EVENT_CATEGORIES: Record<string, WebhookEventType[]> = {
   'Contacts': ALL_EVENTS.filter(e => e.startsWith('contact.') || e.startsWith('lead.')),
   'Campaigns': ALL_EVENTS.filter(e => e.startsWith('campaign.') || e.startsWith('sequence.')),
   'Email': ALL_EVENTS.filter(e => e.startsWith('email.')),
-  'SARA': ALL_EVENTS.filter(e => e.startsWith('sara.')),
+  'Relay': ALL_EVENTS.filter(e => e.startsWith('sara.')),
   'System': ALL_EVENTS.filter(e => e.startsWith('account.')),
 };
 

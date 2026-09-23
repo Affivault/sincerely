@@ -1,3 +1,4 @@
+import { StandingSearches, SaveStandingSearch } from '../../components/prospector/StandingSearches';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -175,6 +176,7 @@ export function ProspectorPage() {
   const [seniorities, setSeniorities] = useState<string[]>([]);
   const [companySizes, setCompanySizes] = useState<string[]>([]);
   const [keywords, setKeywords] = useState('');
+  const [saveRuleOpen, setSaveRuleOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [listId, setListId] = useState('');
   const [results, setResults] = useState<ProspectSearchResponse | null>(null);
@@ -427,10 +429,22 @@ export function ProspectorPage() {
           <Button className="w-full" onClick={() => runSearch(1)} disabled={!providerReady || searchMutation.isPending}>
             {searchMutation.isPending ? <><Spinner size="sm" /> Searching…</> : <><Search className="h-3.5 w-3.5" /> Search prospects</>}
           </Button>
+          {/* The same search, working every day without you. */}
+          <button
+            type="button"
+            onClick={() => setSaveRuleOpen(true)}
+            disabled={!hasFilters || !providerReady}
+            className="w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-lg border border-dashed border-[var(--border-default)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 disabled:opacity-40 transition-colors"
+            title="Reveal, verify and enrol new matches automatically"
+          >
+            <Radar className="h-3.5 w-3.5" /> Keep this search running
+          </button>
+          <SaveStandingSearch filters={filters} open={saveRuleOpen} onClose={() => setSaveRuleOpen(false)} />
         </div>
 
         {/* Results */}
-        <div className="min-w-0">
+        <div className="min-w-0 space-y-3">
+          <StandingSearches />
           {/* Save-to-list bar */}
           <div className="flex items-center gap-2.5 mb-3 flex-wrap">
             <FolderOpen className="h-3.5 w-3.5 text-[var(--text-muted)]" />
