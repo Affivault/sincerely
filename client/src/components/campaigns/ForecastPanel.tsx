@@ -11,12 +11,12 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, CalendarRange, Gauge, MessageSquareReply, Sparkles, TrendingUp } from 'lucide-react';
 import type { CampaignForecast } from '@lemlist/shared';
 import { campaignsApi } from '../../api/campaigns.api';
-import { parseDay } from '@lemlist/shared';
+import { parseDay, formatWeekdayDate } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 
 function dayLabel(iso: string | null): string {
   const d = parseDay(iso);
-  return d ? d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) : '—';
+  return d ? formatWeekdayDate(d) : '—';
 }
 
 function Stat({ icon: Icon, label, value, hint }: { icon: typeof Gauge; label: string; value: string; hint?: string }) {

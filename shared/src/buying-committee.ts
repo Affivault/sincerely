@@ -36,7 +36,7 @@ export interface BuyingCommittee {
 const DM = /\b(ceo|cfo|coo|cto|cmo|cro|cio|chief|founder|co-?founder|owner|president|partner|managing director|md|vp|vice president|head of|director|gm|general manager)\b/i;
 const MGR = /\b(manager|lead|principal|senior manager|team lead)\b/i;
 
-export function seniorityOf(title: string | null | undefined): CommitteeSeniority {
+export function committeeSeniorityOf(title: string | null | undefined): CommitteeSeniority {
   const t = String(title || '').trim();
   if (!t) return 'unknown';
   if (DM.test(t)) return 'decision_maker';
@@ -68,7 +68,7 @@ export function buyingCommittee(
       name: [c.first_name, c.last_name].filter(Boolean).join(' ') || c.email,
       job_title: c.job_title ?? null,
       standing,
-      seniority: seniorityOf(c.job_title),
+      seniority: committeeSeniorityOf(c.job_title),
       last_inbound_at: inbound.get(e) || null,
     };
   }).sort((a, b) => order[a.standing] - order[b.standing] || rank[a.seniority] - rank[b.seniority] || a.name.localeCompare(b.name));

@@ -15,7 +15,7 @@ import {
   AlertTriangle, ArrowDownLeft, ArrowUpRight, Briefcase, Building2, CalendarClock, CheckCircle2,
   ExternalLink, Handshake, ListChecks, Loader2, MessageSquare, Video,
 } from 'lucide-react';
-import { DEAL_STAGES, type DealStage } from '@lemlist/shared';
+import { DEAL_STAGES, formatDate, type DealStage } from '@lemlist/shared';
 import { briefApi } from '../../api/flow.api';
 import { crmApi } from '../../api/crm.api';
 import { formatRelativeTime } from '../../lib/utils';
@@ -79,7 +79,7 @@ export function MeetingBrief({ eventId }: { eventId: string }) {
             </Link>
             <p className="text-caption text-[var(--text-tertiary)]">
               {DEAL_STAGES.find((s) => s.id === b.deal!.stage)?.label || b.deal.stage} · {money(b.deal.value, b.deal.currency)}
-              {b.deal.expected_close_date && ` · closes ${new Date(b.deal.expected_close_date).toLocaleDateString()}`}
+              {b.deal.expected_close_date && ` · closes ${formatDate(b.deal.expected_close_date)}`}
             </p>
             {b.deal.health && b.deal.health.reasons.filter((r) => r.impact < 0).slice(0, 2).map((r, i) => (
               <p key={i} className="mt-0.5 text-caption text-amber-600 dark:text-amber-400">{r.text}</p>
@@ -96,7 +96,7 @@ export function MeetingBrief({ eventId }: { eventId: string }) {
             <ul className="space-y-1">
               {b.previous_meetings.map((m, i) => (
                 <li key={i} className="text-caption text-[var(--text-secondary)]">
-                  <span className="text-[var(--text-tertiary)]">{new Date(m.at).toLocaleDateString()}:</span>{' '}
+                  <span className="text-[var(--text-tertiary)]">{formatDate(m.at)}:</span>{' '}
                   {m.outcome || <span className="italic text-[var(--text-tertiary)]">no notes</span>}
                 </li>
               ))}

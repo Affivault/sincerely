@@ -169,7 +169,7 @@ export async function pauseRecipient(userId: string, target: string): Promise<{ 
   for (const slice of chunk(ids)) {
     const { data, error } = await supabaseAdmin
       .from('campaign_contacts')
-      .update({ status: 'paused', next_send_at: null, error_message: `${COMPANY_PAUSE_PREFIX}paused by hand for ${label}` })
+      .update({ status: 'paused', next_send_at: null, error_message: `Paused by hand for ${label}` })
       .in('contact_id', slice)
       .in('status', ['pending', 'active'])
       .select('id');

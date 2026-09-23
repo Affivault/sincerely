@@ -23,7 +23,7 @@ import {
   MessageSquareReply, RefreshCw, Send, Sparkles, Sun, Video, Waves,
 } from 'lucide-react';
 import {
-  DEAL_ACTION_LABEL, type FlowItem, type FlowKind,
+  DEAL_ACTION_LABEL, formatTime, type FlowItem, type FlowKind,
 } from '@lemlist/shared';
 import { flowApi } from '../../api/flow.api';
 import { saraApi } from '../../api/sara.api';
@@ -378,7 +378,7 @@ function FlowCard({
     title = m.title;
     sub = m.needs_outcome
       ? <>Ended {formatRelativeTime(m.ends_at || m.starts_at)}{m.contact_name ? ` · with ${m.contact_name}` : ''}</>
-      : <>{new Date(m.starts_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {formatTimeUntil(m.starts_at)}{m.contact_name ? ` · with ${m.contact_name}` : ''}</>;
+      : <>{formatTime(m.starts_at)} · {formatTimeUntil(m.starts_at)}{m.contact_name ? ` · with ${m.contact_name}` : ''}</>;
     primaryLabel = m.needs_outcome ? 'Log outcome' : expanded ? 'Hide brief' : 'Prep';
     PrimaryIcon = m.needs_outcome ? CheckCircle2 : Sparkles;
     doneLabel = m.needs_outcome ? 'Log outcome' : 'Tomorrow';

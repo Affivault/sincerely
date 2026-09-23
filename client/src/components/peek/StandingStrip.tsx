@@ -12,7 +12,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { CalendarPlus, Clock, Handshake, Megaphone, PauseCircle, PlayCircle } from 'lucide-react';
-import { engagementWindow } from '@lemlist/shared';
+import { engagementWindow, formatHour } from '@lemlist/shared';
 import { analyticsApi } from '../../api/analytics.api';
 import { contactsApi } from '../../api/contacts.api';
 import { crmApi } from '../../api/crm.api';
@@ -38,7 +38,7 @@ export function StandingStrip({ contactId, email, name }: { contactId: string; e
     queryFn: () => analyticsApi.contactTimeline(contactId),
   });
   const readWindow = engagementWindow((timeline || []) as any[]);
-  const hourLabel = (h: number) => new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: 'numeric' });
+  const hourLabel = (h: number) => formatHour(new Date(2000, 0, 1, h));
 
   const live = memberships.filter((m) => m.status === 'active' || m.status === 'pending');
   const paused = memberships.filter((m) => m.status === 'paused');
