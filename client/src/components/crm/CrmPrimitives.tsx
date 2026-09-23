@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crmApi } from '../../api/crm.api';
+import { calendarApi } from '../../api/calendar.api';
 import { contactsApi } from '../../api/contacts.api';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
@@ -15,7 +16,7 @@ import toast from 'react-hot-toast';
 import type {
   CrmTask, CrmEvent, TaskType, TaskPriority, EventType, ContactWithTags,
 } from '@lemlist/shared';
-import { TASK_TYPES, PLACEHOLDER, MIN_SEARCH_LENGTH, formatDayMonth, formatTime, formatWeekday } from '@lemlist/shared';
+import { TASK_TYPES, PLACEHOLDER, MIN_SEARCH_LENGTH, durationLabel, eventTimeProblem, firstBlocker, formatDayMonth, formatTime, formatWeekday } from '@lemlist/shared';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../ui/Refreshing';
 
@@ -422,9 +423,70 @@ export function MeetingModal({
     deal_id: seed.deal_id || '',
     notes: seed.notes || '',
     outcome: seed.outcome || '',
+    event_type_id: seed.event_type_id || '',
   });
   const set = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
   const dealOptions = useDealOptions();
+
+  /* ── What kind of meeting this is ──────────────────────────────────────
+   *
+   * MEASURED BEFORE THIS LANDED: `event_type_id` appeared nowhere in this
+   * form and nowhere in the payload it sent. So the kinds of meeting the
+   * calendar lets you invent - their colour, their usual length, the filter
+   * bar that hides them - applied to nothing anybody booked by hand. Every
+   * meeting made here came out with no kind: drawn in the fallback indigo,
+   * assumed to be thirty minutes, and impossible to filter out. A whole
+   * feature was readable everywhere and writable only from a booking link.
+   *
+   * Live kinds only. Nothing new should be filed under one that has been
+   * retired, even though the calendar still looks retired ones up to colour
+   * what was booked under them.
+   */
+  const { data: kinds = [] } = useQuery({
+    queryKey: ['calendar', 'types'],
+    queryFn: () => calendarApi.listTypes(),
+  });
+
+  /** An end that far after the start, in the form's own local format. */
+  const endAfter = (startsAt: string, minutes: number): string => {
+    const iso = fromLocalInput(startsAt);
+    if (!iso) return '';
+    return toLocalInput(new Date(new Date(iso).getTime() + minutes * 60_000).toISOString());
+  };
+
+  const chooseKind = (id: string) => setForm((f) => {
+    const kind = kinds.find((k) => k.id === id);
+    return {
+      ...f,
+      event_type_id: id,
+      /*
+       * Only fills an end that is EMPTY. A range dragged out on the grid is
+       * a decision about how long this runs, and picking a kind afterwards
+       * must not quietly overwrite it with the kind's usual length.
+       */
+      ends_at: f.ends_at || (kind && !f.all_day ? endAfter(f.starts_at, kind.duration_minutes) : f.ends_at),
+    };
+  });
+
+  /*
+   * A new meeting starts out as the default kind, once the kinds arrive.
+   *
+   * Only a new one. Defaulting the picker while EDITING would file a meeting
+   * that has never had a kind under one the moment somebody saved an
+   * unrelated change to its agenda.
+   */
+  const kindTouched = useRef(false);
+  useEffect(() => {
+    if (editing || kindTouched.current || kinds.length === 0) return;
+    const fallback = kinds.find((k) => k.is_default) || kinds[0];
+    if (fallback) setForm((f) => (f.event_type_id ? f : {
+      ...f,
+      event_type_id: fallback.id,
+      ends_at: f.ends_at || (f.all_day ? '' : endAfter(f.starts_at, fallback.duration_minutes)),
+    }));
+    // Runs when the kinds land, and never fights a choice already made.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kinds, editing]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['crm'] });
@@ -446,6 +508,13 @@ export function MeetingModal({
         deal_id: form.deal_id || null,
         notes: form.notes.trim() || null,
         outcome: form.outcome.trim() || null,
+        /*
+         * `colour` is deliberately NOT sent alongside it. That column is a
+         * one-off override for this event alone, and freezing the kind's
+         * colour into every row would mean recolouring a kind later left
+         * every meeting already booked under it on the old colour.
+         */
+        event_type_id: form.event_type_id || null,
       };
       return editing ? crmApi.updateEvent(event!.id!, payload) : crmApi.createEvent(payload);
     },
@@ -459,6 +528,19 @@ export function MeetingModal({
   });
 
   const started = !!form.starts_at && new Date(form.starts_at).getTime() < Date.now();
+
+  /*
+   * The same rule the API applies, in the same words, before the round trip.
+   * An all-day meeting has no end, so there is nothing to compare.
+   */
+  const timeProblem = form.all_day
+    ? null
+    : eventTimeProblem(fromLocalInput(form.starts_at), fromLocalInput(form.ends_at));
+
+  const cannotSave = firstBlocker([
+    [!form.title.trim(), 'Give this meeting a title'],
+    [!!timeProblem, timeProblem || ''],
+  ]);
 
   return (
     <Modal
@@ -482,14 +564,16 @@ export function MeetingModal({
           ) : <span />}
           <div className="flex gap-2">
             <Button variant="secondary" onClick={onClose}>Cancel</Button>
-            <Button type="submit" form="meeting-form" disabled={!form.title.trim() || save.isPending}>
+            {/* disabled only for what is merely busy; anything the person
+                could act on carries its reason instead. */}
+            <Button type="submit" form="meeting-form" disabled={save.isPending} blockedBy={cannotSave}>
               {save.isPending ? 'Saving…' : editing ? 'Save changes' : 'Book it'}
             </Button>
           </div>
         </div>
       }
     >
-      <form id="meeting-form" onSubmit={(e) => { e.preventDefault(); if (form.title.trim()) save.mutate(); }} className="space-y-3.5">
+      <form id="meeting-form" onSubmit={(e) => { e.preventDefault(); if (!cannotSave) save.mutate(); }} className="space-y-3.5">
         <div className="grid grid-cols-[1fr_auto] gap-3 items-end">
           <Input label="Title" value={form.title} onChange={(e) => set('title', e.target.value)} placeholder={`e.g. Intro call — ${PLACEHOLDER.company}`} autoFocus />
           <div className="flex gap-1.5 pb-0.5">
@@ -512,27 +596,84 @@ export function MeetingModal({
           </div>
         </div>
 
+        {kinds.length > 0 && (
+          <div>
+            <FieldLabel>Kind</FieldLabel>
+            <select
+              value={form.event_type_id}
+              onChange={(e) => { kindTouched.current = true; chooseKind(e.target.value); }}
+              className={selectCls()}
+            >
+              {/* Still allowed to be nothing. Plenty of what lands on a
+                  calendar is not one of the kinds you sell. */}
+              <option value="">No particular kind</option>
+              {kinds.map((k) => (
+                <option key={k.id} value={k.id}>{k.name} · {durationLabel(k.duration_minutes)}</option>
+              ))}
+            </select>
+            <p className="mt-1 flex items-center gap-1.5 text-micro text-[var(--text-tertiary)]">
+              {form.event_type_id && (
+                <span
+                  className="h-2 w-2 flex-shrink-0 rounded-full"
+                  style={{ background: kinds.find((k) => k.id === form.event_type_id)?.colour }}
+                />
+              )}
+              This is what colours it on the calendar and what the filter bar hides.
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <FieldLabel>Starts</FieldLabel>
             <input
               type={form.all_day ? 'date' : 'datetime-local'}
               value={form.all_day ? form.starts_at.slice(0, 10) : form.starts_at}
-              onChange={(e) => set('starts_at', form.all_day ? `${e.target.value}T09:00` : e.target.value)}
+              /*
+               * Local midnight, not nine. The all-day toggle below clears the
+               * clock time for a stated reason - a stale hour skews the
+               * day-bucket sorting and the reschedule - and then editing the
+               * date put an hour straight back in.
+               */
+              onChange={(e) => set('starts_at', form.all_day ? `${e.target.value}T00:00` : e.target.value)}
               className={selectCls()}
             />
           </div>
           <div>
             <FieldLabel>Ends <span className="font-normal text-[var(--text-tertiary)]">(optional)</span></FieldLabel>
-            <input
-              type="datetime-local"
-              value={form.ends_at}
-              onChange={(e) => set('ends_at', e.target.value)}
-              disabled={form.all_day}
-              className={cn(selectCls(), form.all_day && 'opacity-50')}
-            />
+            {form.all_day ? (
+              /*
+               * Not a greyed-out box. A disabled input says "not now" and
+               * nothing else - it cannot be hovered for a title and cannot
+               * be focused to be asked - so the field just sat there looking
+               * broken. An all-day meeting has no end time, and saying so
+               * takes exactly the space the dead control did.
+               */
+              <p className="flex h-9 items-center text-body text-[var(--text-tertiary)]" data-no-end>
+                An all-day meeting has no end time.
+              </p>
+            ) : (
+              <input
+                type="datetime-local"
+                value={form.ends_at}
+                onChange={(e) => set('ends_at', e.target.value)}
+                className={selectCls()}
+              />
+            )}
           </div>
         </div>
+
+        {/*
+          Said here rather than found out on save. The API rejects an end
+          before its start - it had to be taught to, because nothing did -
+          and a 400 arriving after you have filled in the rest of the form
+          is a worse way to learn it.
+        */}
+        {timeProblem && (
+          <p role="alert" data-time-problem className="text-caption text-[var(--error)]">
+            {timeProblem}
+          </p>
+        )}
 
         <button
           type="button"

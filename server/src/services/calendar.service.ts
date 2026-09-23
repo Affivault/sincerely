@@ -85,16 +85,38 @@ export const calendarService = {
    * created before this existed are not left with a blank calendar and
    * nothing to book.
    */
-  async listTypes(userId: string): Promise<CalendarEventType[]> {
-    const { data, error } = await supabaseAdmin
+  async readTypes(userId: string, includeArchived: boolean): Promise<CalendarEventType[]> {
+    let query = supabaseAdmin
       .from('calendar_event_types')
       .select(TYPE_SELECT)
-      .eq('user_id', userId)
-      .is('archived_at', null)
+      .eq('user_id', userId);
+    if (!includeArchived) query = query.is('archived_at', null);
+    const { data, error } = await query
       .order('is_default', { ascending: false })
       .order('name', { ascending: true });
     if (error) throw new AppError(error.message, 500);
-    if (data && data.length > 0) return data as CalendarEventType[];
+    return (data || []) as CalendarEventType[];
+  },
+
+  /**
+   * `includeArchived` is what keeps the promise retiring one makes.
+   *
+   * Retiring a kind says, in its own confirmation, "the N meetings already
+   * booked keep it" - and it was not true on the grid. The calendar draws an
+   * event's colour and its usual length by looking its kind up in this list,
+   * and a retired kind was simply absent: those meetings fell back to the
+   * default indigo and to thirty minutes, so retiring the Demo colour
+   * recoloured and reshaped every demo in the past.
+   *
+   * A picker must still only offer live ones, so the flag is the caller's
+   * choice: lists that are being CHOSEN FROM ask for live, lists that are
+   * being LOOKED UP IN ask for all.
+   */
+  async listTypes(userId: string, includeArchived = false): Promise<CalendarEventType[]> {
+    const data = await this.readTypes(userId, includeArchived);
+    // Seeded on the absence of LIVE types, whichever list was asked for. An
+    // account whose every kind is retired still needs something to book with.
+    if (data.some((t) => !t.archived_at)) return data;
 
     /*
      * Nothing yet. Seeded with ignoreDuplicates so two tabs opening the
@@ -117,15 +139,7 @@ export const calendarService = {
       );
     if (seedError) throw new AppError(seedError.message, 500);
 
-    const { data: seeded, error: reread } = await supabaseAdmin
-      .from('calendar_event_types')
-      .select(TYPE_SELECT)
-      .eq('user_id', userId)
-      .is('archived_at', null)
-      .order('is_default', { ascending: false })
-      .order('name', { ascending: true });
-    if (reread) throw new AppError(reread.message, 500);
-    return (seeded || []) as CalendarEventType[];
+    return this.readTypes(userId, includeArchived);
   },
 
   async createType(userId: string, input: CreateEventTypeInput): Promise<CalendarEventType> {

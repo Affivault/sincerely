@@ -3,7 +3,16 @@ import type { CalendarEventType, CreateEventTypeInput, AvailabilityWindow, Sched
 
 /** Kinds of meeting: the calendar's colour vocabulary. */
 export const calendarApi = {
-  listTypes: async () => (await apiClient.get<CalendarEventType[]>('/calendar/types')).data,
+  /**
+   * `includeArchived` for looking a kind UP, not for choosing one.
+   *
+   * The calendar has to colour a meeting booked months ago, and its kind may
+   * have been retired since - which is exactly the case retiring one promises
+   * to survive. Pickers ask without it.
+   */
+  listTypes: async (opts?: { includeArchived?: boolean }) => (await apiClient.get<CalendarEventType[]>(
+    opts?.includeArchived ? '/calendar/types?include_archived=1' : '/calendar/types',
+  )).data,
 
   createType: async (input: CreateEventTypeInput) =>
     (await apiClient.post<CalendarEventType>('/calendar/types', input)).data,
