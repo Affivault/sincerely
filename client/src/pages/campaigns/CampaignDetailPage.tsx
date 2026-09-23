@@ -1,3 +1,4 @@
+import { ForecastPanel } from '../../components/campaigns/ForecastPanel';
 import { usePeek } from '../../components/peek/usePeek';
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -337,6 +338,11 @@ export function CampaignDetailPage() {
           mailbox that stopped authenticating, an exhausted daily allowance,
           a queue where everyone is errored, a schedule that is closed. */}
       <CampaignHealthStrip campaignId={id!} status={campaign.status} />
+
+      {/* Before launch, and while it runs: when it will finish and what it should return. */}
+      {['draft', 'scheduled', 'running', 'paused'].includes(campaign.status) && (
+        <div className="mb-4"><ForecastPanel campaignId={id!} title={campaign.status === 'draft' ? 'If you launch now' : 'What happens next'} /></div>
+      )}
 
       {/* Why this campaign is stopped, or stuck.
           The engine has always known — it computes "every mailbox is at its

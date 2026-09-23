@@ -2,6 +2,7 @@ import { apiClient } from './client';
 import type {
   Campaign,
   CampaignWithStats,
+  CampaignForecast,
   CampaignStep,
   CampaignContact,
   CreateCampaignInput,
@@ -157,6 +158,9 @@ export const campaignsApi = {
     const { data } = await apiClient.post<{ resumed: number }>(`/campaigns/${id}/resume-paused`, { ids });
     return data;
   },
+
+  /** Day-by-day simulation of what launching now would do. */
+  forecast: async (id: string) => (await apiClient.get<CampaignForecast>(`/campaigns/${id}/forecast`)).data,
 
   clone: async (id: string) => {
     const { data } = await apiClient.post<Campaign>(`/campaigns/${id}/clone`);

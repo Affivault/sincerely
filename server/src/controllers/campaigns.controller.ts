@@ -4,6 +4,7 @@ import { campaignsService } from '../services/campaigns.service.js';
 import { campaignStepsService } from '../services/campaign-steps.service.js';
 import { campaignContactsService } from '../services/campaign-contacts.service.js';
 import { resumePausedContacts } from '../services/account-pause.service.js';
+import { campaignForecast } from '../services/forecast.service.js';
 import { campaignHealthService } from '../services/campaign-health.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { decrypt } from '../utils/encryption.js';
@@ -125,6 +126,10 @@ export const campaignsController = {
       const result = await campaignsService.retryErrors(req.userId!, req.params.id);
       res.json(result);
     } catch (err) { next(err); }
+  },
+
+  async forecast(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await campaignForecast(req.userId!, req.params.id)); } catch (err) { next(err); }
   },
 
   async resumePaused(req: AuthRequest, res: Response, next: NextFunction) {
