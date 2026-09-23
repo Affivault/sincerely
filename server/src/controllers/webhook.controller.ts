@@ -69,4 +69,11 @@ export const webhookController = {
       res.json(deliveries);
     } catch (err) { next(err); }
   },
+
+  async redeliver(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const delivery = await webhookService.redeliverDelivery(req.userId!, req.params.id);
+      res.json(delivery);
+    } catch (err) { next(err); }
+  },
 };

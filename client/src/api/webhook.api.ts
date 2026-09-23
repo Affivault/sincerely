@@ -43,4 +43,9 @@ export const webhookApi = {
     const { data } = await apiClient.get<WebhookDelivery[]>('/webhooks/deliveries', { params });
     return data;
   },
+
+  redeliverDelivery: async (deliveryId: string) => {
+    const { data } = await apiClient.post<WebhookDelivery>(`/webhooks/deliveries/${deliveryId}/redeliver`);
+    return data;
+  },
 };

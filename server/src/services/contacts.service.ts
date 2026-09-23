@@ -632,6 +632,20 @@ export const contactsService = {
     const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     let errors = 0;
 
+    // columnMapping's values pick which contacts column each CSV column lands
+    // on, and the mapping is client-supplied — so, same as bulkCreate's
+    // ALLOWED_FIELDS, it must be checked against an allow-list rather than
+    // written straight onto the row. Unchecked, a mapping of some CSV column
+    // to "user_id" would overwrite the user_id set below, and an upsert with
+    // no existing (user_id, email) match on that id would silently INSERT a
+    // fabricated contact into a completely different tenant's account —
+    // exactly the write that source/user_id being set first here was meant
+    // to prevent. Mapping to "id", "created_at", etc. is equally unintended.
+    const IMPORT_ALLOWED_FIELDS = new Set([
+      'email', 'first_name', 'last_name', 'company',
+      'job_title', 'phone', 'linkedin_url', 'website', 'location',
+    ]);
+
     // Dedup within the batch (last occurrence wins), same rule bulkCreate
     // uses — Postgres upsert errors if two rows in one call share a conflict key.
     const validByEmail = new Map<string, Record<string, any>>();
@@ -640,6 +654,7 @@ export const contactsService = {
       const contact: Record<string, any> = { user_id: userId, source: 'csv_import' };
 
       for (const [csvCol, dbField] of Object.entries(columnMapping)) {
+        if (!IMPORT_ALLOWED_FIELDS.has(dbField)) continue;
         if (row[csvCol] !== undefined && row[csvCol] !== '') {
           contact[dbField] = row[csvCol];
         }
