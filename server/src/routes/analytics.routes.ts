@@ -1,4 +1,6 @@
-import { Router } from 'express';
+import { Router, Response, NextFunction } from 'express';
+import { AuthRequest } from '../middleware/auth.middleware.js';
+import { stepOutcomes } from '../services/step-outcomes.service.js';
 import { analyticsController } from '../controllers/analytics.controller.js';
 
 export const analyticsRoutes = Router();
@@ -20,6 +22,10 @@ analyticsRoutes.get('/campaigns/:campaignId/trend', analyticsController.campaign
 analyticsRoutes.get('/campaigns/:campaignId/contacts', analyticsController.campaignContacts);
 analyticsRoutes.get('/campaigns/:campaignId/funnel', analyticsController.campaignFunnel);
 analyticsRoutes.get('/campaigns/:campaignId/steps', analyticsController.sequencePerformance);
+// Meetings and money per hundred emails, per step and per A/B arm.
+analyticsRoutes.get('/campaigns/:campaignId/outcomes', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await stepOutcomes(req.userId!, req.params.campaignId)); } catch (err) { next(err); }
+});
 analyticsRoutes.get('/campaigns/:campaignId/ab-test', analyticsController.campaignAbTest);
 analyticsRoutes.get('/campaigns/:campaignId/heatmap', analyticsController.campaignHeatmap);
 

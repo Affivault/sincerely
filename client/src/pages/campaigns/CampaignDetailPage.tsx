@@ -1,3 +1,4 @@
+import { StepOutcomesPanel } from '../../components/campaigns/StepOutcomesPanel';
 import { ForecastPanel } from '../../components/campaigns/ForecastPanel';
 import { usePeek } from '../../components/peek/usePeek';
 import { useState, useMemo } from 'react';
@@ -343,6 +344,7 @@ export function CampaignDetailPage() {
       {['draft', 'scheduled', 'running', 'paused'].includes(campaign.status) && (
         <div className="mb-4"><ForecastPanel campaignId={id!} title={campaign.status === 'draft' ? 'If you launch now' : 'What happens next'} /></div>
       )}
+      {campaign.status !== 'draft' && <div className="mb-4"><StepOutcomesPanel campaignId={id!} /></div>}
 
       {/* Why this campaign is stopped, or stuck.
           The engine has always known — it computes "every mailbox is at its
