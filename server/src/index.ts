@@ -6,6 +6,7 @@ import { startInboxScheduler } from './jobs/schedulers/inbox.scheduler.js';
 import { startSseMaintenanceScheduler } from './jobs/schedulers/sse-maintenance.scheduler.js';
 import { startWarmupScheduler } from './jobs/schedulers/warmup.scheduler.js';
 import { startPlacementScheduler } from './jobs/schedulers/placement.scheduler.js';
+import { startProspectRulesScheduler } from './jobs/schedulers/prospect-rules.scheduler.js';
 import { startAbPromoteScheduler } from './jobs/schedulers/ab-promote.scheduler.js';
 import { startBookingReminderScheduler } from './jobs/schedulers/booking-reminder.scheduler.js';
 
@@ -81,6 +82,15 @@ const server = app.listen(port, () => {
     console.log('Booking reminder scheduler started');
   } catch (err: any) {
     console.warn('Booking reminder scheduler failed to start:', err.message);
+  }
+
+  // Standing searches: prospect, verify and enrol on a cadence (cross-tenant).
+  try {
+    const prospectRules = startProspectRulesScheduler();
+    if (prospectRules) disposers.push(() => prospectRules.stop());
+    console.log('Standing search scheduler started');
+  } catch (err: any) {
+    console.warn('Standing search scheduler failed to start:', err.message);
   }
 
   // End settled A/B tests on campaigns that asked for it (cross-tenant).
