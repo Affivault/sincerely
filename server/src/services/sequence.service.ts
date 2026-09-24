@@ -1269,7 +1269,9 @@ export async function markReplied(campaignContactId: string): Promise<boolean> {
       completed_at: new Date().toISOString(),
     })
     .eq('id', campaignContactId)
-    .in('status', ['pending', 'active'])
+    // Paused counts: somebody held back because a colleague replied can
+    // still write in themselves, and must not be resumed into a follow-up.
+    .in('status', ['pending', 'active', 'paused'])
     .select('campaign_id')
     .maybeSingle();
 
@@ -1307,7 +1309,7 @@ export async function stopOtherCampaignsForContact(
     .update({ status: 'replied', next_send_at: null, completed_at: new Date().toISOString() })
     .eq('contact_id', contactId)
     .neq('id', exceptCampaignContactId)
-    .in('status', ['pending', 'active'])
+    .in('status', ['pending', 'active', 'paused'])
     .select('campaign_id');
 
   if (error) {

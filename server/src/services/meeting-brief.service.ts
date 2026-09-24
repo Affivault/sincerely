@@ -40,7 +40,7 @@ export async function meetingBrief(userId: string, eventId: string): Promise<Mee
   if (!contact && event.contact_email) {
     const { data } = await supabaseAdmin.from('contacts')
       .select('id, email, first_name, last_name, company, company_id, job_title, linkedin_url, phone')
-      .eq('user_id', userId).ilike('email', String(event.contact_email).replace(/[%_]/g, ''))
+      .eq('user_id', userId).eq('email', String(event.contact_email).trim().toLowerCase())
       .limit(1).maybeSingle();
     contact = data;
   }

@@ -20,9 +20,10 @@ const WINDOW_DAYS = 120;
 /** Open deals scored per call. A board with more than this is paged anyway. */
 const MAX_DEALS = 500;
 
-const ENCODABLE = /^[^\s,()"'\\%_]+@[^\s,()"'\\%_]+$/;
+/** What can sit in a PostgREST in-list unquoted. `_` and `%` are fine there: it is not a LIKE. */
+const ENCODABLE = /^[^\s,()"'\\]+@[^\s,()"'\\]+$/;
 
-interface Mail { from_email: string | null; to_email: string | null; direction: string | null; received_at: string }
+interface Mail { from_email: string | null; to_email: string | null; direction: string | null; received_at: string; auto_reply_kind?: string | null }
 
 /** Hours they took to answer each of our emails, oldest first. */
 export function responseHours(mail: Mail[], addresses: Set<string>): number[] {
@@ -93,7 +94,7 @@ export async function healthForDeals(userId: string, dealIds?: string[]): Promis
     const list = `(${slice.join(',')})`;
     const { data, error: mErr } = await supabaseAdmin
       .from('inbox_messages')
-      .select('from_email, to_email, direction, received_at')
+      .select('from_email, to_email, direction, received_at, auto_reply_kind')
       .eq('user_id', userId)
       .gte('received_at', since)
       .or(`from_email.in.${list},to_email.in.${list}`)
@@ -101,6 +102,9 @@ export async function healthForDeals(userId: string, dealIds?: string[]): Promis
       .limit(2000);
     if (mErr) throw new AppError(mErr.message, 500);
     for (const m of (data || []) as Mail[]) {
+      // An out-of-office is not the buyer writing back. Counted, it would
+      // flag the deal "waiting on you" over a robot.
+      if (m.auto_reply_kind) continue;
       const touched = new Set<string>();
       for (const a of [m.from_email, m.to_email]) {
         for (const dealId of addressToDeals.get(String(a || '').toLowerCase()) || []) touched.add(dealId);

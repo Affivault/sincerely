@@ -122,7 +122,7 @@ export interface ProspectRuleRunResult {
   /** Enrolment skip reasons, e.g. { suppressed: 1, on_open_deal: 2 }. */
   skipped: Record<string, number>;
   /** Why the run ended: cap reached, out of matches, out of credits, an error. */
-  stopped: 'cap' | 'exhausted' | 'no_credits' | 'no_provider' | 'error';
+  stopped: 'cap' | 'exhausted' | 'no_credits' | 'no_provider' | 'no_destination' | 'error';
   error?: string;
 }
 

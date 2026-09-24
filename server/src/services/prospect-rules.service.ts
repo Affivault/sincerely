@@ -139,6 +139,16 @@ export async function runRule(rule: ProspectRule): Promise<ProspectRuleRunResult
       const { data: c } = await supabaseAdmin.from('campaigns').select('status').eq('id', campaignId).maybeSingle();
       if (!c || ['completed', 'cancelled'].includes(c.status)) campaignId = null;
     }
+    /*
+     * The campaign it fed has finished or gone, and there is no list to
+     * catch people instead. Revealing now would spend real credits on
+     * contacts that land nowhere, every run until somebody noticed - so the
+     * rule stops and pauses itself, and the page says why.
+     */
+    if (rule.campaign_id && !campaignId && !rule.list_id) {
+      result.stopped = 'no_destination';
+      return result;
+    }
 
     outer:
     for (let page = 1; page <= MAX_PAGES; page++) {
@@ -185,6 +195,7 @@ export async function runRule(rule: ProspectRule): Promise<ProspectRuleRunResult
       next_run_at: nextRuleRun(rule.cadence, now).toISOString(),
       last_result: result,
       total_enrolled: (rule.total_enrolled || 0) + result.enrolled,
+      ...(result.stopped === 'no_destination' ? { is_active: false } : {}),
     }).eq('id', rule.id);
   }
   return result;

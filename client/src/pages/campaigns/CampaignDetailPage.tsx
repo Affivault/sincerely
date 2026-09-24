@@ -54,6 +54,13 @@ import type { CampaignStep } from '@lemlist/shared';
 
 type TabId = 'overview' | 'sequence' | 'contacts';
 
+/**
+ * Held back because a colleague replied - what "Resume N paused" resumes.
+ * Somebody paused by hand stays paused until resumed by name. Matches
+ * COMPANY_PAUSE_PREFIX in server/src/services/account-pause.service.ts.
+ */
+const isColleaguePause = (cc: any) => cc.status === 'paused' && String(cc.error_message || '').startsWith('Paused: ');
+
 export function CampaignDetailPage() {
   const { openPeek } = usePeek();
   const confirm = useConfirm();
@@ -549,7 +556,7 @@ export function CampaignDetailPage() {
               <span className="text-caption text-[var(--text-tertiary)] whitespace-nowrap tabular">
                 {filteredContacts.length} / {campaignContacts.data.length}
               </span>
-              {campaignContacts.data.some((cc: any) => cc.status === 'paused') && (
+              {campaignContacts.data.some(isColleaguePause) && (
                 <button
                   onClick={() => resumePausedMutation.mutate(undefined)}
                   disabled={resumePausedMutation.isPending}
@@ -557,7 +564,7 @@ export function CampaignDetailPage() {
                   className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-50 transition-colors"
                 >
                   <Play className="h-3.5 w-3.5" />
-                  Resume {campaignContacts.data.filter((cc: any) => cc.status === 'paused').length} paused
+                  Resume {campaignContacts.data.filter(isColleaguePause).length} paused
                 </button>
               )}
               {campaignContacts.data.some((cc: any) => cc.status === 'error') && (
