@@ -96,10 +96,19 @@ export async function stepOutcomes(userId: string, campaignId: string): Promise<
     if (v) { row[v].won++; row[v].won_value += value; }
   }
 
-  // How many people are still to receive each step, for "switch for the remaining N".
-  const { data: waiting } = await supabaseAdmin.from('campaign_contacts')
-    .select('current_step_order').eq('campaign_id', campaignId).in('status', ['pending', 'active']).limit(10000);
-  const orderOf = new Map((steps || []).map((s: any) => [s.id, s.step_order]));
+  /*
+   * How many people are still to receive a step, for "send it to the
+   * remaining N". A head count rather than reading the rows: a select is
+   * capped at 1,000, which made every big campaign "the remaining 1,000".
+   */
+  const stillToReceive = async (stepOrder: number) => {
+    const { count, error } = await supabaseAdmin.from('campaign_contacts')
+      .select('id', { count: 'exact', head: true })
+      .eq('campaign_id', campaignId).in('status', ['pending', 'active'])
+      .lte('current_step_order', stepOrder);
+    if (error) throw new AppError(error.message, 500);
+    return count || 0;
+  };
 
   const per100 = (x: number, n: number) => (n > 0 ? (x / n) * 100 : 0);
   const rows: StepOutcomeRow[] = emailSteps.map((s: any) => {
@@ -112,12 +121,8 @@ export async function stepOutcomes(userId: string, campaignId: string): Promise<
       const bRate = r.b.positive / r.b.sent;
       if (p !== null && p < ALPHA && aRate !== bRate) {
         const better: 'a' | 'b' = bRate > aRate ? 'b' : 'a';
-        const remaining = (waiting || []).filter((w: any) => (w.current_step_order ?? 0) <= (orderOf.get(s.id) ?? 0)).length;
-        suggestion = {
-          variant: better,
-          remaining,
-          text: `Version ${better.toUpperCase()} books ${per100(better === 'b' ? r.b.positive : r.a.positive, better === 'b' ? r.b.sent : r.a.sent).toFixed(1)} meetings per 100 against ${per100(better === 'b' ? r.a.positive : r.b.positive, better === 'b' ? r.a.sent : r.b.sent).toFixed(1)}. Send it to the remaining ${remaining.toLocaleString()}?`,
-        };
+        const lead = `Version ${better.toUpperCase()} books ${per100(better === 'b' ? r.b.positive : r.a.positive, better === 'b' ? r.b.sent : r.a.sent).toFixed(1)} meetings per 100 against ${per100(better === 'b' ? r.a.positive : r.b.positive, better === 'b' ? r.a.sent : r.b.sent).toFixed(1)}.`;
+        suggestion = { variant: better, remaining: 0, text: lead };
       }
     }
     const arm = (x: Arm) => ({ ...x, meetings_per_100: per100(x.positive, x.sent), revenue_per_100: per100(x.won_value, x.sent) });
@@ -133,6 +138,12 @@ export async function stepOutcomes(userId: string, campaignId: string): Promise<
       suggestion,
     };
   });
+
+  // Only the steps that earned a suggestion pay for a count.
+  await Promise.all(rows.filter((r) => r.suggestion).map(async (r) => {
+    const remaining = await stillToReceive(r.step_order);
+    r.suggestion = { ...r.suggestion!, remaining, text: `${r.suggestion!.text} Send it to the remaining ${remaining.toLocaleString()}?` };
+  }));
 
   const best = rows.filter((r) => r.sent >= 25).sort((x, y) => y.meetings_per_100 - x.meetings_per_100)[0];
   return {

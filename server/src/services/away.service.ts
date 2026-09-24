@@ -24,7 +24,8 @@ export async function awaySummary(userId: string, sinceRaw: unknown): Promise<Aw
       .eq('direction', 'inbound').is('auto_reply_kind', null).gte('received_at', since),
     supabaseAdmin.from('inbox_messages').select('id', head).eq('user_id', userId)
       .in('sara_intent', ['interested', 'meeting']).gte('received_at', since),
-    supabaseAdmin.from('crm_events').select('id', head).eq('user_id', userId).gte('created_at', since),
+    supabaseAdmin.from('crm_events').select('id', head).eq('user_id', userId).gte('created_at', since)
+      .or('status.is.null,status.neq.cancelled'),
     supabaseAdmin.from('deals').select('id', head).eq('user_id', userId).gte('created_at', since),
     supabaseAdmin.from('deals').select('value').eq('user_id', userId).eq('stage', 'won').gte('closed_at', since),
     supabaseAdmin.from('campaign_activities').select('id, campaigns!inner(user_id)', head)

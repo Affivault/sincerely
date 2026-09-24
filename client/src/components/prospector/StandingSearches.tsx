@@ -33,6 +33,7 @@ function stopped(r: ProspectRuleRunResult): string {
     case 'exhausted': return 'no more new matches';
     case 'no_credits': return 'out of prospect credits';
     case 'no_provider': return 'no data provider configured';
+    case 'no_destination': return 'its campaign has ended - paused so no credits are spent; pick a new campaign to restart';
     default: return r.error ? `error: ${r.error}` : 'error';
   }
 }
@@ -121,6 +122,15 @@ export function StandingSearches() {
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Run failed'),
   });
   const remove = useMutation({ mutationFn: (id: string) => prospectRulesApi.remove(id), onSuccess: refresh });
+  const { data: campaigns } = useQuery({ queryKey: ['campaigns', 'for-rules'], queryFn: () => campaignsApi.list({ limit: 100 }) });
+  const live = (campaigns?.data || []).filter((c: any) => ['draft', 'scheduled', 'running', 'paused'].includes(c.status));
+  const retarget = useMutation({
+    // Choosing a campaign also restarts a rule that paused itself for lack of one.
+    mutationFn: ({ id, campaign_id }: { id: string; campaign_id: string | null }) =>
+      prospectRulesApi.update(id, { campaign_id, ...(campaign_id ? { is_active: true } : {}) }),
+    onSuccess: () => { refresh(); toast.success('Destination updated'); },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not change the campaign'),
+  });
 
   if (isError) {
     const msg = (error as any)?.response?.data?.error;
@@ -152,6 +162,18 @@ export function StandingSearches() {
               </p>
             </div>
             <div className="flex items-center gap-1">
+              <select
+                value={r.campaign_id || ''}
+                onChange={(e) => retarget.mutate({ id: r.id, campaign_id: e.target.value || null })}
+                className="h-8 max-w-[160px] rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-caption text-[var(--text-secondary)]"
+                title="Where new people go"
+              >
+                <option value="">Contacts only</option>
+                {live.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {r.campaign && !live.some((c: any) => c.id === r.campaign!.id) && (
+                  <option value={r.campaign.id} disabled>{r.campaign.name} ({r.campaign.status})</option>
+                )}
+              </select>
               <button className="icon-btn h-8 w-8" title="Run now" disabled={run.isPending} onClick={() => run.mutate(r.id)}>
                 {run.isPending && run.variables === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               </button>

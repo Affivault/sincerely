@@ -105,7 +105,13 @@ export async function resumePausedContacts(
     .eq('campaign_id', campaignId)
     .eq('status', 'paused');
   if (campaignContactIds && campaignContactIds.length > 0) {
+    // Named rows resume whatever paused them - somebody chose them.
     query = query.in('id', campaignContactIds.slice(0, 1000));
+  } else {
+    // "Resume all" means the ones a colleague's reply held back. A person
+    // paused by hand ("stop emailing bob@...") was paused on purpose and
+    // stays paused until somebody resumes them by name.
+    query = query.like('error_message', `${COMPANY_PAUSE_PREFIX}%`);
   }
   const { data: rows, error } = await query.limit(5000);
   if (error) throw new AppError(error.message, 500);
@@ -194,8 +200,15 @@ export async function resumeRecipient(userId: string, target: string): Promise<{
   }
   let resumed = 0;
   for (const [campaignId, ccIds] of byCampaign) {
-    // Owner-checked per campaign inside; a foreign campaign simply 404s.
-    resumed += await resumePausedContacts(userId, campaignId, ccIds).catch(() => 0);
+    // Owner-checked per campaign inside. A campaign that is not this
+    // account's is skipped; any other failure is reported, not swallowed -
+    // "nothing paused" when the resume failed would leave outreach stopped
+    // while the user believes it is running.
+    try {
+      resumed += await resumePausedContacts(userId, campaignId, ccIds);
+    } catch (e: any) {
+      if (e?.statusCode !== 404) throw e;
+    }
   }
   return { resumed, label };
 }

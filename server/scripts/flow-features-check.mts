@@ -149,5 +149,26 @@ console.log('\nwiring');
   is('nothing user-facing still says SARA', !/SARA/.test(cli('pages/inbox/InboxPage.tsx')) && !/SARA/.test(cli('pages/settings/SettingsPage.tsx')));
 }
 
+console.log('\nreview fixes');
+{
+  const seq = srv('services/sequence.service.ts');
+  const marked = seq.slice(seq.indexOf('export async function markReplied'), seq.indexOf('export async function stopOtherCampaignsForContact'));
+  is('a paused contact who replies is marked replied', /'pending', 'active', 'paused'/.test(marked));
+  const stopOthers = seq.slice(seq.indexOf('export async function stopOtherCampaignsForContact'), seq.indexOf('async function markCompleted'));
+  is('and stopped everywhere else too', /'pending', 'active', 'paused'/.test(stopOthers));
+  const pause = srv('services/account-pause.service.ts');
+  is('"resume all" leaves hand-paused people paused', /like\('error_message', `\$\{COMPANY_PAUSE_PREFIX\}%`\)/.test(pause));
+  is('a failed resume is not reported as nothing paused', !/resumePausedContacts\(userId, campaignId, ccIds\)\.catch\(\(\) => 0\)/.test(pause));
+  const health = srv('services/deal-health.service.ts');
+  const enc = /const ENCODABLE = (\/.*\/);/.exec(health)?.[1] || '';
+  const re = eval(enc) as RegExp;
+  is('an address with an underscore is still read', re.test('john_doe@acme.com'), enc);
+  is('out-of-office replies are not the buyer writing', /if \(m\.auto_reply_kind\) continue;/.test(health));
+  is('the brief finds a contact by exact address', !/ilike\('email', String\(event\.contact_email\)\.replace/.test(srv('services/meeting-brief.service.ts')));
+  is('a cancelled meeting was not booked', /status\.neq\.cancelled/.test(srv('services/away.service.ts')));
+  is('"the remaining N" is counted, not capped at a page', /count: 'exact', head: true/.test(srv('services/step-outcomes.service.ts')));
+  is('a standing search with nowhere to put people spends nothing', /no_destination/.test(srv('services/prospect-rules.service.ts')));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
