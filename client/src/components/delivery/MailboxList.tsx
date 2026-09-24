@@ -1,13 +1,18 @@
-import { useState } from 'react';
-import { cn, formatRelativeTime } from '../../lib/utils';
-import {
-  AlertTriangle, Check, ChevronDown, Loader2, Settings2, Trash2, Zap,
-} from 'lucide-react';
-import type { SmtpAccount, InboxSyncProgress, SyncWindowMonths } from '@lemlist/shared';
+import { cn } from '../../lib/utils';
+import { AlertTriangle, Check, ChevronRight } from 'lucide-react';
+import type { SmtpAccount, InboxSyncProgress } from '@lemlist/shared';
 import {
   resolveMailboxState, mailboxScore, formatDailyLimit, warmupAllowance,
-  SYNC_WINDOW_MONTHS, syncWindowLabel,
+  detectPresetFromEmail, SMTP_PRESETS,
 } from '@lemlist/shared';
+import { ProviderLogo } from '../mailbox/ProviderLogo';
+
+/** Which provider a saved mailbox is, from its address or its server. */
+function providerOf(a: SmtpAccount): string | null {
+  return detectPresetFromEmail(a.email_address)?.name
+    ?? SMTP_PRESETS.find((p) => p.smtp_host && p.smtp_host === a.smtp_host)?.name
+    ?? null;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    The mailbox list.
@@ -29,10 +34,10 @@ import {
    went unnoticed behind three green badges. Working mailboxes are quiet
    here; the eye is meant to land on the one that is not.
 
-   SETTINGS BEHIND THE ROW. The history window and the daily cap belong to
-   a mailbox, so they live inside it - not in a panel above the list, which
-   is what happens when a rarely-touched preference is given the most
-   valuable space on the page.
+   SETTINGS BEHIND THE ROW. The history window, the daily cap, the servers
+   belong to a mailbox, so they live inside it - the row opens the
+   mailbox's own panel (MailboxDrawer) rather than a preference taking the
+   most valuable space on the page.
    ═══════════════════════════════════════════════════════════════════════ */
 
 const TONE = {
@@ -63,11 +68,11 @@ export interface MailboxListProps {
   progress: InboxSyncProgress[];
   domainVerified: (email: string) => boolean;
   domainKnown: (email: string) => boolean;
+  /** Open the mailbox's detail panel. */
+  onOpen: (a: SmtpAccount) => void;
   onEdit: (a: SmtpAccount) => void;
-  onRemove: (a: SmtpAccount) => void;
   onTest: (a: SmtpAccount) => void;
   onRepair: () => void;
-  onWindow: (a: SmtpAccount, months: SyncWindowMonths) => void;
   onAuthenticateDomain: (a: SmtpAccount) => void;
   testingId: string | null;
   repairing: boolean;
@@ -75,23 +80,21 @@ export interface MailboxListProps {
 
 function Row({
   account, progress, domainVerified, domainKnown,
-  onEdit, onRemove, onTest, onRepair, onWindow, onAuthenticateDomain,
+  onOpen, onEdit, onTest, onRepair, onAuthenticateDomain,
   testing, repairing,
 }: {
   account: SmtpAccount;
   progress?: InboxSyncProgress;
   domainVerified: boolean;
   domainKnown: boolean;
+  onOpen: () => void;
   onEdit: () => void;
-  onRemove: () => void;
   onTest: () => void;
   onRepair: () => void;
-  onWindow: (months: SyncWindowMonths) => void;
   onAuthenticateDomain: () => void;
   testing: boolean;
   repairing: boolean;
 }) {
-  const [open, setOpen] = useState(false);
 
   const state = resolveMailboxState({
     is_active: account.is_active,
@@ -113,8 +116,15 @@ function Row({
    * button for every situation is a row that has not decided anything -
    * and deciding is the entire job of the status above it.
    */
-  const remedy = state.action === 'fix-connection' || state.action === 'set-imap'
+  const remedy = state.action === 'fix-connection'
     ? { label: repairing ? 'Fixing…' : 'Fix this for me', run: onRepair, disabled: repairing }
+    /*
+     * No incoming server is not something the repair can guess - it
+     * corrects hosts that do not exist, it cannot invent one that was never
+     * set. The settings form opens straight onto the empty field.
+     */
+    : state.action === 'set-imap'
+      ? { label: 'Add incoming server', run: onEdit, disabled: false }
     : state.action === 'authenticate-domain'
       ? { label: domainKnown ? 'Finish DNS setup' : 'Add this domain', run: onAuthenticateDomain, disabled: false }
       : state.action === 'verify'
@@ -132,10 +142,13 @@ function Row({
 
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
+          onClick={onOpen}
           className="flex min-w-0 flex-1 items-center gap-3 text-left"
-          aria-expanded={open}
+          title="Open this mailbox"
         >
+          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+            <ProviderLogo name={providerOf(account)} className="h-4 w-4" />
+          </span>
           <span className="min-w-0 flex-1">
             <span className="flex items-baseline gap-2">
               <span className="truncate text-strong font-medium text-[var(--text-primary)]">
@@ -179,10 +192,7 @@ function Row({
             </span>
           </span>
 
-          <ChevronDown className={cn(
-            'h-4 w-4 flex-shrink-0 text-[var(--text-muted)] transition-transform',
-            open && 'rotate-180',
-          )} />
+          <ChevronRight className="h-4 w-4 flex-shrink-0 text-[var(--text-muted)]" />
         </button>
 
         {/*
@@ -203,94 +213,6 @@ function Row({
         )}
       </div>
 
-      {open && (
-        <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 px-4 py-3">
-          <div className="grid gap-4 sm:grid-cols-2">
-            {/* Mail history — a per-mailbox setting, living with its mailbox. */}
-            <div>
-              <p className="text-caption font-medium text-[var(--text-secondary)]">History kept</p>
-              <div className="mt-1.5 flex items-center gap-1">
-                {SYNC_WINDOW_MONTHS.map((months) => {
-                  const active = (progress?.window_months ?? 1) === months;
-                  return (
-                    <button
-                      key={months}
-                      type="button"
-                      onClick={() => !active && onWindow(months)}
-                      className={cn(
-                        'h-7 rounded-md px-2.5 text-caption font-semibold transition-colors',
-                        active
-                          ? 'bg-[var(--indigo)] text-white'
-                          : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
-                      )}
-                      title={`Keep ${syncWindowLabel(months).toLowerCase()}`}
-                    >
-                      {months}m
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="mt-1.5 text-caption text-[var(--text-tertiary)]">
-                {progress ? (
-                  <>
-                    {progress.stored.toLocaleString()} message{progress.stored === 1 ? '' : 's'}
-                    {progress.blocked
-                      ? <span className="text-amber-600 dark:text-amber-400"> · stopped</span>
-                      : progress.history_complete
-                        ? <span className="text-emerald-600 dark:text-emerald-400"> · history loaded</span>
-                        : <span className="text-[var(--indigo)]"> · still fetching</span>}
-                    {progress.last_synced_at && !progress.last_error && (
-                      <> · synced {formatRelativeTime(progress.last_synced_at)}</>
-                    )}
-                  </>
-                ) : 'Not syncing yet.'}
-              </p>
-            </div>
-
-            {/* Where it sends from. Reference, not something to edit here. */}
-            <div>
-              <p className="text-caption font-medium text-[var(--text-secondary)]">Servers</p>
-              <dl className="mt-1.5 space-y-0.5 text-caption">
-                <div className="flex gap-2">
-                  <dt className="w-14 flex-shrink-0 text-[var(--text-tertiary)]">Sending</dt>
-                  <dd className="truncate font-data text-[var(--text-secondary)]">
-                    {account.smtp_host}:{account.smtp_port}
-                  </dd>
-                </div>
-                <div className="flex gap-2">
-                  <dt className="w-14 flex-shrink-0 text-[var(--text-tertiary)]">Replies</dt>
-                  <dd className="truncate font-data text-[var(--text-secondary)]">
-                    {account.imap_host
-                      ? `${account.imap_host}:${account.imap_port || 993}`
-                      : <span className="font-sans text-amber-600 dark:text-amber-400">not set</span>}
-                  </dd>
-                </div>
-                <div className="flex gap-2">
-                  <dt className="w-14 flex-shrink-0 text-[var(--text-tertiary)]">Signs in</dt>
-                  <dd className="truncate font-data text-[var(--text-secondary)]">{account.smtp_user}</dd>
-                </div>
-              </dl>
-            </div>
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--border-subtle)] pt-3">
-            <button type="button" onClick={onTest} disabled={testing}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border-default)] px-2.5 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50">
-              {testing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
-              {testing ? 'Testing…' : 'Test connection'}
-            </button>
-            <button type="button" onClick={onEdit}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border-default)] px-2.5 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
-              <Settings2 className="h-3 w-3" /> Settings
-            </button>
-            <span className="flex-1" />
-            <button type="button" onClick={onRemove}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--error)]">
-              <Trash2 className="h-3 w-3" /> Disconnect
-            </button>
-          </div>
-        </div>
-      )}
     </li>
   );
 }
@@ -298,7 +220,7 @@ function Row({
 export function MailboxList(props: MailboxListProps) {
   const {
     accounts, progress, domainVerified, domainKnown,
-    onEdit, onRemove, onTest, onRepair, onWindow, onAuthenticateDomain,
+    onOpen, onEdit, onTest, onRepair, onAuthenticateDomain,
     testingId, repairing,
   } = props;
 
@@ -375,11 +297,10 @@ export function MailboxList(props: MailboxListProps) {
             progress={byId.get(account.id)}
             domainVerified={domainVerified(account.email_address)}
             domainKnown={domainKnown(account.email_address)}
+            onOpen={() => onOpen(account)}
             onEdit={() => onEdit(account)}
-            onRemove={() => onRemove(account)}
             onTest={() => onTest(account)}
             onRepair={onRepair}
-            onWindow={(m) => onWindow(account, m)}
             onAuthenticateDomain={() => onAuthenticateDomain(account)}
             testing={testingId === account.id}
             repairing={repairing}

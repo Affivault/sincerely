@@ -263,5 +263,59 @@ console.log('\nthe page shows what needs you, not all eight checks');
      'not-measured still wears a status colour');
 }
 
+console.log('\nconnecting is one step that tests, and a pass is remembered');
+{
+  const svc = readFileSync(join(here, '../src/services/smtp.service.ts'), 'utf8');
+  const ctl = readFileSync(join(here, '../src/controllers/smtp.controller.ts'), 'utf8');
+  const modal = readFileSync(join(here, '../../client/src/pages/smtp/SmtpAccountModal.tsx'), 'utf8');
+
+  /*
+   * The form said "Connection verified", then saved the mailbox unverified,
+   * so it arrived in the list as "Not verified - Test it now". And nothing
+   * stopped a mailbox that could not send from being saved at all.
+   */
+  is('create can test before saving', /async create\(userId: string, input: any, opts: \{ verify\?: boolean \}/.test(svc));
+  is('a failed test saves nothing and says why', /'verify_failed', \{ verification \}/.test(svc));
+  is('a passed test is saved verified, by the server', /verification\?\.success \? \{ is_verified: true \} : \{\}/.test(svc));
+  is('verified is never taken from the request body', !/'is_verified'/.test(svc.slice(svc.indexOf('const SMTP_ACCOUNT_FIELDS'), svc.indexOf('] as const;'))));
+  is('the endpoint takes the verify flag', /req\.query\.verify === '1'/.test(ctl));
+  is('the wizard connects through it', /smtpApi\.create\([\s\S]{0,160}\{ verify: verified \}\)/.test(modal));
+  is('the same address cannot be connected twice', /is already connected/.test(svc));
+
+  // Migration 023 added the columns; the allow-list never did, so every
+  // signature was dropped on save.
+  is('a signature is saved', /'signature_html', 'signature_auto'/.test(svc));
+}
+
+console.log('\nthe right kind of password, explained where it is typed');
+{
+  const { providerGuide, PROVIDER_GUIDES, isSendOnlyProvider } = await import('@lemlist/shared');
+  is('Gmail says it wants an app password', /app password/i.test(providerGuide('Gmail').secret));
+  is('and links to where to make one', /myaccount\.google\.com\/apppasswords/.test(providerGuide('Gmail').link?.url || ''));
+  is('Microsoft 365 warns that SMTP sign-in is off by default', /off by default/i.test(providerGuide('Outlook / Microsoft 365').gotcha || ''));
+  is('an unknown provider still gets guidance', providerGuide('Nope').steps.length > 0);
+  is('every guide has steps', Object.values(PROVIDER_GUIDES).every((g: any) => g.steps.length > 0));
+  is('relays are known to have no inbox', isSendOnlyProvider('SendGrid') && !isSendOnlyProvider('Gmail'));
+}
+
+console.log('\na new mailbox never starts at a limit the form calls dangerous');
+{
+  const modal = readFileSync(join(here, '../../client/src/pages/smtp/SmtpAccountModal.tsx'), 'utf8');
+  is('the starting limit is capped', /Math\.min\(preset\.recommended_daily_limit \|\| 200, 200\)/.test(modal));
+  is('and no preset bypasses the cap', !/daily_send_limit: (preset|detected)\.recommended_daily_limit/.test(modal));
+}
+
+console.log('\na mailbox is opened, not re-set-up, to be checked');
+{
+  const ui = readFileSync(join(here, '../../client/src/components/delivery/MailboxList.tsx'), 'utf8');
+  const page = readFileSync(join(here, '../../client/src/pages/smtp/EmailAccountsPage.tsx'), 'utf8');
+  is('a row opens the mailbox panel', /onClick=\{onOpen\}/.test(ui));
+  is('the panel is linkable', /searchParams\.get\('mailbox'\)/.test(page) && /<MailboxDrawer/.test(page));
+  // The repair corrects hosts that do not exist; it cannot invent one never set.
+  is('no incoming server opens the settings, not the repair',
+     /state\.action === 'set-imap'\s*\?\s*\{ label: 'Add incoming server', run: onEdit/.test(ui));
+  is('the connect wizard is linkable', /searchParams\.get\('connect'\)/.test(page));
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 assert.equal(fail, 0, `${fail} mailbox UI check(s) failed`);

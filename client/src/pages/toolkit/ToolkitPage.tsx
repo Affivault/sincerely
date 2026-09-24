@@ -105,15 +105,15 @@ export function ToolkitPage() {
           iconBg="bg-cyan-500/10"
           title="Domain Management"
           description="Monitor your sending domains, check DKIM/SPF/DMARC status, and manage custom tracking domains."
-          onClick={() => navigate('/domains')}
+          onClick={() => navigate('/email-accounts?tab=domains')}
         />
 
         <ToolCard
           icon={Mail}
           iconColor="#8B5CF6"
           iconBg="bg-violet-500/10"
-          title="SMTP Accounts"
-          description="Configure and manage sending accounts. Monitor send rates, test connections, and rotate accounts for deliverability."
+          title="Email accounts"
+          description="Connect and manage the mailboxes you send from. Check their health, test connections, and rotate accounts for deliverability."
           onClick={() => navigate('/email-accounts')}
         />
 

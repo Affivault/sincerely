@@ -63,6 +63,13 @@ const SMTP_ACCOUNT_FIELDS = [
   'smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user',
   'imap_host', 'imap_port', 'imap_secure', 'imap_user',
   'daily_send_limit', 'is_active',
+  /*
+   * The signature. Migration 023 added the columns and the form has always
+   * sent them, but they were missing here - so every signature anybody
+   * typed was dropped on save without a word, and the composer never had
+   * one to offer.
+   */
+  'signature_html', 'signature_auto',
   // How far back this mailbox's history reaches. Validated as 1/3/6 by a
   // CHECK constraint, so a bad value is rejected by the database rather than
   // silently stored.
@@ -109,13 +116,45 @@ export const smtpService = {
     return rest;
   },
 
-  async create(userId: string, input: any) {
+  /**
+   * Connect a mailbox. With `verify`, it is tested first - sending a probe
+   * to itself and, when there is an IMAP server, signing in to read - and
+   * only saved if sending works. A saved mailbox then starts life verified,
+   * rather than landing in the list as "not verified" straight after the
+   * form said the connection was fine.
+   *
+   * On a failed test nothing is saved and the result comes back with each
+   * leg's reason, so the form can show exactly what to fix.
+   */
+  async create(userId: string, input: any, opts: { verify?: boolean } = {}) {
     // Enforce the plan's inbox cap before connecting another mailbox.
     await billingService.assertCanAddInbox(userId);
 
     const required = ['email_address', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass'];
     for (const key of required) {
       if (!input?.[key]) throw new AppError(`Missing ${key.replace('_', ' ')}`, 400);
+    }
+
+    // The same address twice is two rows sending as one person, each with
+    // its own daily cap - double the volume the limit was meant to allow.
+    // Compared here rather than in SQL: an account has a handful of
+    // mailboxes, and an exact case-insensitive match needs no index.
+    const wanted = String(input.email_address).trim().toLowerCase();
+    const { data: existing, error: existingErr } = await supabaseAdmin
+      .from('smtp_accounts')
+      .select('email_address')
+      .eq('user_id', userId);
+    if (existingErr) throw new AppError(existingErr.message, 500);
+    if ((existing || []).some((r: any) => String(r.email_address || '').trim().toLowerCase() === wanted)) {
+      throw new AppError(`${String(input.email_address).trim()} is already connected. Open it from the list to change its settings.`, 409);
+    }
+
+    let verification: Awaited<ReturnType<typeof smtpService.verifyCredentials>> | null = null;
+    if (opts.verify) {
+      verification = await this.verifyCredentials(userId, { ...input, account_id: undefined });
+      if (!verification.success) {
+        throw new AppError(verification.message || 'The connection test failed', 422, 'verify_failed', { verification });
+      }
     }
 
     const { smtp_pass } = input;
@@ -126,7 +165,13 @@ export const smtpService = {
     // sends_today / health_score / warmup_* — the counters the daily cap and
     // the warm-up ramp are enforced on, which a body could otherwise reset to
     // zero on every request and send without limit.
-    const row: any = { ...writable(input, SMTP_ACCOUNT_FIELDS), user_id: userId, smtp_pass_encrypted };
+    const row: any = {
+      ...writable(input, SMTP_ACCOUNT_FIELDS),
+      user_id: userId,
+      smtp_pass_encrypted,
+      // Set by the server from its own test, never taken from the body.
+      ...(verification?.success ? { is_verified: true } : {}),
+    };
 
     // Retry without any column the DB doesn't have yet, so shipping ahead of a
     // migration (e.g. reply_to) never blocks connecting a mailbox.

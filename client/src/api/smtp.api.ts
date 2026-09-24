@@ -12,8 +12,17 @@ export const smtpApi = {
     return data;
   },
 
-  create: async (input: CreateSmtpAccountInput) => {
-    const { data } = await apiClient.post<SmtpAccount>('/smtp-accounts', input);
+  /**
+   * Connect a mailbox. With `verify`, the server tests sending (and IMAP,
+   * when set) first and only saves a mailbox that works - saving it
+   * verified. A failed test answers 422 with `verification` in the body.
+   */
+  create: async (input: CreateSmtpAccountInput, opts: { verify?: boolean } = {}) => {
+    const { data } = await apiClient.post<SmtpAccount>('/smtp-accounts', input, {
+      params: opts.verify ? { verify: 1 } : undefined,
+      // Sending a probe and signing in to IMAP can take a while on a slow server.
+      timeout: opts.verify ? 45_000 : undefined,
+    });
     return data;
   },
 
