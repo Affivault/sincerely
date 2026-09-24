@@ -36,7 +36,10 @@ export const smtpController = {
 
   async create(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const account = await smtpService.create(req.userId!, req.body);
+      // ?verify=1: test first, save only if it works, and save it verified.
+      const verify = req.query.verify === '1' || req.body?.verify === true;
+      const { verify: _v, ...body } = req.body || {};
+      const account = await smtpService.create(req.userId!, body, { verify });
       res.status(201).json(account);
     } catch (err) { next(err); }
   },

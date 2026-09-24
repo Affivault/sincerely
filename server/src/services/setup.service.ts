@@ -77,7 +77,8 @@ export const setupService = {
         detail: 'Sincerely sends from your own address, so replies land in your inbox and your domain builds its own reputation.',
         done: activeMailboxes.length > 0,
         current: false,
-        href: '/email-accounts',
+        // Straight into the connect wizard while there is nothing to manage yet.
+        href: activeMailboxes.length > 0 ? '/email-accounts' : '/email-accounts?connect=1',
         cta: 'Connect',
         progress: activeMailboxes.length > 0
           ? `${activeMailboxes.length} connected`

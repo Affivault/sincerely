@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { smtpApi } from '../../api/smtp.api';
@@ -13,65 +13,46 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { Card } from '../../components/shared/Card';
 import { cn } from '../../lib/utils';
 import {
-  Mail, Plus, Trash2, TestTube, CheckCircle2, XCircle, HelpCircle,
-  ArrowRight, Settings, Globe, Search, Flame, ShieldCheck, ShieldAlert,
-  ChevronDown, ChevronRight, AlertTriangle, RefreshCw, Gauge,
+  Mail, Plus, Trash2, CheckCircle2, HelpCircle, ArrowRight, Globe, Search, Flame,
+  ShieldCheck, ShieldAlert, ChevronDown, ChevronRight, AlertTriangle, RefreshCw, Gauge,
+  Lock, Plug, Server,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import type { SmtpAccount, SmtpPreset, SendingDomain, InboxSyncProgress, SyncWindowMonths } from '@lemlist/shared';
-import { SMTP_PRESETS, warmupAllowance, formatDailyLimit } from '@lemlist/shared';
+import type { SmtpAccount, SmtpPreset, SendingDomain, InboxSyncProgress } from '@lemlist/shared';
+import { SMTP_PRESETS } from '@lemlist/shared';
 import { SmtpAccountModal } from './SmtpAccountModal';
 import { WarmupPanel } from './WarmupPanel';
 import { StatusBadge, DomainDetailPanel } from '../domains/DomainsPage';
 import { TrackingDomainPanel } from '../../components/domains/TrackingDomainPanel';
 import { ReadinessPanel } from '../../components/delivery/ReadinessPanel';
 import { MailboxList } from '../../components/delivery/MailboxList';
+import { MailboxDrawer } from '../../components/mailbox/MailboxDrawer';
+import { ProviderLogo } from '../../components/mailbox/ProviderLogo';
 import { EmptyState } from '../../components/shared/EmptyState';
 
-/* ─── Quick-connect providers ─────────────────────── */
-interface QuickConnectProvider { preset: SmtpPreset; icon: React.ReactNode; description: string; }
+/* ═══════════════════════════════════════════════════════════════════════
+   Email accounts.
 
-const QUICK_PROVIDERS: QuickConnectProvider[] = [
-  {
-    preset: SMTP_PRESETS.find((p) => p.name === 'Gmail')!,
-    icon: (
-      <svg className="h-5 w-5" viewBox="0 0 24 24">
-        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
-        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-      </svg>
-    ),
-    description: 'Gmail or Google Workspace',
-  },
-  {
-    preset: SMTP_PRESETS.find((p) => p.name === 'Outlook / Microsoft 365')!,
-    icon: (
-      <svg className="h-5 w-5" viewBox="0 0 24 24">
-        <path d="M24 7.387v10.478c0 .23-.08.424-.238.576a.806.806 0 0 1-.587.234h-8.55V6.576h8.55c.229 0 .424.078.587.234A.772.772 0 0 1 24 7.387z" fill="#0078D4" />
-        <path d="M14.625 6.576v12.1L0 16.75V3.45l14.625 3.126z" fill="#0364B8" />
-        <path d="M9.875 9.45c-.5-.3-1.075-.45-1.725-.45-.725 0-1.325.2-1.8.6-.475.4-.712.912-.712 1.537 0 .625.237 1.137.712 1.538.475.4 1.075.6 1.8.6.65 0 1.225-.15 1.725-.45v1.4c-.55.25-1.175.375-1.875.375-1.1 0-2-.35-2.7-1.05-.7-.7-1.05-1.55-1.05-2.55 0-.95.363-1.763 1.088-2.438C5.963 7.688 6.838 7.35 7.863 7.35c.737 0 1.387.137 1.95.412L9.875 9.45z" fill="white" />
-      </svg>
-    ),
-    description: 'Outlook, Hotmail, or Microsoft 365',
-  },
-  {
-    preset: SMTP_PRESETS.find((p) => p.name === 'SendGrid')!,
-    icon: <div className="flex items-center justify-center w-5 h-5 rounded bg-blue-600 text-white text-micro font-bold">SG</div>,
-    description: 'Transactional email with API key',
-  },
-  {
-    preset: SMTP_PRESETS.find((p) => p.name === 'Zoho Mail')!,
-    icon: <div className="flex items-center justify-center w-5 h-5 rounded bg-green-600 text-white text-micro font-bold">Z</div>,
-    description: 'Zoho Mail or Zoho Workplace',
-  },
+   One page for everything that decides whether mail lands: the mailboxes
+   it is sent from, the domains that vouch for them, the warm-up that earns
+   their reputation, and the readiness check over all three.
+
+   Mailboxes lead, because that is what somebody arriving here came to do.
+   The other three are the steps that follow, in the order they follow -
+   which is also the order of the setup guide shown until they are done.
+
+   Everything is linkable: ?mailbox=<id> opens a mailbox's panel,
+   ?connect=1 the connect wizard, ?tab=domains&domain=<id> a domain,
+   &add=<domain> the add-domain dialog pre-filled. The wizard's last step
+   and other pages lean on these rather than saying "go to the Domains tab".
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* The three providers most people connect, as the first thing offered. */
+const HERO_PROVIDERS: { name: string; title: string; blurb: string }[] = [
+  { name: 'Gmail', title: 'Google', blurb: 'Gmail or Google Workspace' },
+  { name: 'Outlook / Microsoft 365', title: 'Microsoft', blurb: 'Outlook, Hotmail or Microsoft 365' },
+  { name: '', title: 'Any other provider', blurb: 'Zoho, Titan, your own server - found from the address' },
 ];
-
-function healthColor(score: number): string {
-  return score >= 80 ? 'text-emerald-600 dark:text-emerald-400'
-    : score >= 50 ? 'text-amber-600 dark:text-amber-400'
-    : 'text-rose-600 dark:text-rose-400';
-}
 
 const domainOf = (email: string) => (email.split('@')[1] || '').toLowerCase();
 function matchDomain(domains: SendingDomain[], email: string): SendingDomain | null {
@@ -102,10 +83,10 @@ function ExplainerModal({ onClose }: { onClose: () => void }) {
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-muted)]/40 p-3">
           <p className="text-body font-semibold text-[var(--text-primary)] mb-1.5">Where each thing goes</p>
           <ul className="space-y-1 text-caption">
-            <li><span className="font-medium text-[var(--text-primary)]">DNS records (SPF/DKIM/DMARC)</span> → published on your <span className="font-medium">domain</span>, at your registrar/DNS host (Cloudflare, Namecheap, GoDaddy…). Your mail provider gives you the exact values.</li>
-            <li><span className="font-medium text-[var(--text-primary)]">Mailbox credentials (SMTP/IMAP)</span> → entered here in Sincerely, so we can send and read replies.</li>
+            <li><span className="font-medium text-[var(--text-primary)]">Mailbox sign-in (SMTP/IMAP)</span> → entered here in Sincerely, so we can send and read replies. Passwords are stored encrypted.</li>
+            <li><span className="font-medium text-[var(--text-primary)]">DNS records (SPF/DKIM/DMARC)</span> → published on your <span className="font-medium">domain</span>, at your registrar/DNS host (Cloudflare, Namecheap, GoDaddy…). We generate the exact values.</li>
           </ul>
-          <p className="text-caption text-[var(--text-tertiary)] mt-2">Best practice: authenticate the domain <span className="font-medium text-[var(--text-primary)]">first</span>, then connect its mailboxes, then warm them up before sending real volume.</p>
+          <p className="text-caption text-[var(--text-tertiary)] mt-2">The order that works: connect the mailbox, authenticate its domain, then warm it up before sending real volume.</p>
         </div>
         <p className="text-caption text-[var(--text-tertiary)]">
           Need a full walkthrough? <Link to="/smtp-accounts/guide" className="text-[var(--indigo)] hover:underline" onClick={onClose}>Read the setup guide</Link>.
@@ -115,63 +96,81 @@ function ExplainerModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-/* ─── Setup progress — shown only while incomplete ──── */
-function SetupProgress({
-  steps, onStep,
+/* ─── Getting ready to send — shown only until done ──── */
+function SetupGuide({
+  steps,
 }: {
-  steps: { label: string; done: boolean; hint: string }[];
-  onStep: (index: number) => void;
+  steps: { label: string; done: boolean; hint: string; cta: string; run: () => void }[];
 }) {
-  const firstOpen = steps.findIndex((s) => !s.done);
+  const next = steps.findIndex((s) => !s.done);
+  const doneCount = steps.filter((s) => s.done).length;
   return (
     <Card padding="none" className="mb-4 overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-stretch divide-y sm:divide-y-0 sm:divide-x divide-[var(--border-subtle)]">
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--border-subtle)] px-4 py-3">
+        <div>
+          <p className="text-body font-semibold text-[var(--text-primary)]">Get ready to send</p>
+          <p className="text-caption text-[var(--text-tertiary)]">{doneCount} of {steps.length} done - about ten minutes in all.</p>
+        </div>
+        <div className="flex h-1.5 w-28 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
+          <span className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${(doneCount / steps.length) * 100}%` }} />
+        </div>
+      </div>
+      <ol className="grid divide-y divide-[var(--border-subtle)] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         {steps.map((step, i) => {
-          const active = i === firstOpen;
+          const active = i === next;
           return (
-            <button
-              key={step.label}
-              onClick={() => onStep(i)}
-              className={cn(
-                'flex-1 flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--bg-hover)]',
-                active && 'bg-[var(--indigo-subtle)]/40'
+            <li key={step.label} className={cn('flex flex-col gap-2 px-4 py-3.5', active && 'bg-[var(--indigo-subtle)]/35')}>
+              <div className="flex items-center gap-2.5">
+                {step.done ? (
+                  <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-emerald-500" />
+                ) : (
+                  <span className={cn(
+                    'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-micro font-bold',
+                    active ? 'bg-[var(--indigo)] text-white' : 'border border-[var(--border-default)] text-[var(--text-muted)]',
+                  )}>{i + 1}</span>
+                )}
+                <span className={cn('text-body font-medium', step.done ? 'text-[var(--text-tertiary)]' : 'text-[var(--text-primary)]')}>{step.label}</span>
+              </div>
+              <p className="pl-[30px] text-caption leading-snug text-[var(--text-tertiary)]">{step.hint}</p>
+              {active && (
+                <div className="pl-[30px]">
+                  <Button size="sm" onClick={step.run}>{step.cta} <ArrowRight className="h-3.5 w-3.5" /></Button>
+                </div>
               )}
-            >
-              {step.done ? (
-                <CheckCircle2 className="h-[18px] w-[18px] text-emerald-500 flex-shrink-0" />
-              ) : (
-                <span className={cn(
-                  'flex h-[18px] w-[18px] items-center justify-center rounded-full text-micro font-bold flex-shrink-0',
-                  active ? 'bg-[var(--indigo)] text-white' : 'border border-[var(--border-default)] text-[var(--text-muted)]'
-                )}>{i + 1}</span>
-              )}
-              <span className="min-w-0">
-                <span className={cn('block text-body font-medium', step.done ? 'text-[var(--text-tertiary)] line-through decoration-[var(--text-muted)]' : 'text-[var(--text-primary)]')}>{step.label}</span>
-                {!step.done && <span className="block text-caption text-[var(--text-tertiary)] truncate">{step.hint}</span>}
-              </span>
-              {active && <ArrowRight className="h-3.5 w-3.5 text-[var(--indigo)] ml-auto flex-shrink-0" />}
-            </button>
+            </li>
           );
         })}
-      </div>
+      </ol>
     </Card>
   );
 }
 
 /* ─── Page ───────────────────────────────────────────── */
-type Tab = 'readiness' | 'mailboxes' | 'domains' | 'warmup';
-const VALID_TABS: Tab[] = ['readiness', 'mailboxes', 'domains', 'warmup'];
+type Tab = 'mailboxes' | 'domains' | 'warmup' | 'readiness';
+const VALID_TABS: Tab[] = ['mailboxes', 'domains', 'warmup', 'readiness'];
 
 export function EmailAccountsPage() {
   const confirm = useConfirm();
   const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   // Lets other pages (e.g. the Toolkit's Warm-up card) link straight to a
   // specific tab instead of always landing on Mailboxes.
-  const [tab, setTab] = useState<Tab>(() => {
-    const requested = searchParams.get('tab');
-    return (VALID_TABS as string[]).includes(requested || '') ? (requested as Tab) : 'mailboxes';
+  const requestedTab = searchParams.get('tab');
+  const tab: Tab = (VALID_TABS as string[]).includes(requestedTab || '') ? (requestedTab as Tab) : 'mailboxes';
+  const setTab = (t: Tab) => setSearchParams((prev) => {
+    const next = new URLSearchParams(prev);
+    if (t === 'mailboxes') next.delete('tab'); else next.set('tab', t);
+    next.delete('domain');
+    next.delete('add');
+    return next;
   });
+  const openMailboxId = searchParams.get('mailbox');
+  const setOpenMailbox = (id: string | null) => setSearchParams((prev) => {
+    const next = new URLSearchParams(prev);
+    if (id) next.set('mailbox', id); else next.delete('mailbox');
+    return next;
+  });
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editAccount, setEditAccount] = useState<SmtpAccount | null>(null);
   const [initialPreset, setInitialPreset] = useState<SmtpPreset | null>(null);
@@ -202,25 +201,37 @@ export function EmailAccountsPage() {
   const domains = domainsData || [];
   const list = accounts || [];
 
-  // Fresh accounts start on the Domains tab — authenticating the domain is
-  // step one of the deliverability flow. Everyone else lands on Readiness,
-  // because "am I safe to send?" is the question this page exists to answer
-  // and it was previously spread across all three of the others. Decided
-  // once, when data first lands, and never against an explicit ?tab=.
-  const pickedInitialTab = useRef(searchParams.get('tab') !== null);
+  /* Links in: ?connect=1, ?domain=<id>, ?add=<domain>. Handled once, then cleared. */
   useEffect(() => {
-    if (pickedInitialTab.current || isLoading || loadingDomains) return;
-    pickedInitialTab.current = true;
-    setTab(list.length === 0 && domains.length === 0 ? 'domains' : 'readiness');
-  }, [isLoading, loadingDomains, list.length, domains.length]);
+    const connect = searchParams.get('connect');
+    const domainId = searchParams.get('domain');
+    const add = searchParams.get('add');
+    if (!connect && !domainId && !add) return;
+    if (connect) {
+      const preset = SMTP_PRESETS.find((p) => p.name === connect) || null;
+      setEditAccount(null); setInitialPreset(preset); setModalOpen(true);
+    }
+    if (domainId) setExpandedDomain(domainId);
+    if (add) { setNewDomain(add); setAddDomainOpen(true); }
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('connect'); next.delete('domain'); next.delete('add');
+      if (domainId || add) next.set('tab', 'domains');
+      return next;
+    }, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const openAdd = () => { setEditAccount(null); setInitialPreset(null); setModalOpen(true); };
-  const openQuick = (preset: SmtpPreset) => { setEditAccount(null); setInitialPreset(preset); setModalOpen(true); };
+  const openQuick = (preset: SmtpPreset | null) => { setEditAccount(null); setInitialPreset(preset); setModalOpen(true); };
   const openEdit = (a: SmtpAccount) => { setEditAccount(a); setInitialPreset(null); setModalOpen(true); };
 
   const deleteMutation = useMutation({
     mutationFn: smtpApi.delete,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['smtp-accounts'] }); toast.success('Account removed'); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['smtp-accounts'] });
+      setOpenMailbox(null);
+      toast.success('Mailbox disconnected');
+    },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to remove account'),
   });
 
@@ -239,17 +250,6 @@ export function EmailAccountsPage() {
       }
     },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Could not check the mail servers'),
-  });
-
-  const windowMutation = useMutation({
-    mutationFn: ({ id, months }: { id: string; months: SyncWindowMonths }) =>
-      smtpApi.update(id, { inbox_sync_months: months } as any),
-    onSuccess: (_d, v) => {
-      queryClient.invalidateQueries({ queryKey: ['inbox-sync-progress'] });
-      toast.success(`Keeping ${v.months} month${v.months === 1 ? '' : 's'}. Older mail arrives in the background.`);
-      inboxApi.syncInbox().catch(() => { /* background */ });
-    },
-    onError: (err: any) => toast.error(err.response?.data?.error || 'Could not change the history window'),
   });
 
   const testMutation = useMutation({
@@ -292,6 +292,8 @@ export function EmailAccountsPage() {
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to remove domain'),
   });
 
+  const openMailbox = useMemo(() => list.find((a: SmtpAccount) => a.id === openMailboxId) || null, [list, openMailboxId]);
+
   if (isLoading || loadingDomains) return <div className="max-w-5xl space-y-3"><SkeletonList rows={5} /></div>;
 
   const filtered = search.trim()
@@ -304,22 +306,33 @@ export function EmailAccountsPage() {
   const warmingCount = list.filter((a: SmtpAccount) => a.warmup_mode).length;
   const unauthedMailboxes = list.filter((a: SmtpAccount) => { const d = matchDomain(domains, a.email_address); return !d || !d.is_verified; }).length;
 
+  const authenticateFor = (a: SmtpAccount) => {
+    setOpenMailbox(null);
+    const dom = matchDomain(domains, a.email_address);
+    if (dom) { setTab('domains'); setExpandedDomain(dom.id); return; }
+    setNewDomain(domainOf(a.email_address));
+    setAddDomainOpen(true);
+  };
+
+  const firstUnauthed = list.find((a: SmtpAccount) => !matchDomain(domains, a.email_address)?.is_verified);
   const setupSteps = [
-    { label: 'Authenticate a domain', done: authedDomains > 0, hint: 'Prove SPF, DKIM & DMARC' },
-    { label: 'Connect a mailbox', done: list.length > 0, hint: 'The address you send from' },
-    { label: 'Start warm-up', done: warmingCount > 0, hint: 'Build sender reputation' },
+    { label: 'Connect a mailbox', done: list.length > 0, hint: 'The address your campaigns send from. We find its servers and test it for you.', cta: 'Connect mailbox', run: openAdd },
+    {
+      label: 'Authenticate its domain', done: authedDomains > 0,
+      hint: 'Three DNS records (SPF, DKIM, DMARC) that decide whether you reach the inbox.',
+      cta: 'Set up the domain',
+      run: () => (firstUnauthed ? authenticateFor(firstUnauthed) : setAddDomainOpen(true)),
+    },
+    { label: 'Warm it up', done: warmingCount > 0, hint: 'A slow, automatic ramp that builds the address a sending reputation.', cta: 'Start warm-up', run: () => setTab('warmup') },
   ];
   const setupComplete = setupSteps.every((s) => s.done);
-  const stepTab: Tab[] = ['domains', 'mailboxes', 'warmup'];
 
   const tabs: { id: Tab; label: string; icon: React.ElementType; count?: number; alert?: boolean }[] = [
-    { id: 'readiness', label: 'Readiness', icon: Gauge },
     { id: 'mailboxes', label: 'Mailboxes', icon: Mail, count: list.length },
     { id: 'domains', label: 'Domains', icon: Globe, count: domains.length, alert: domains.length > 0 && authedDomains < domains.length },
     { id: 'warmup', label: 'Warm-up', icon: Flame, count: warmingCount },
+    { id: 'readiness', label: 'Readiness check', icon: Gauge },
   ];
-
-  const goToDomain = (id: string) => { setTab('domains'); setExpandedDomain(id); };
 
   return (
     <div>
@@ -331,8 +344,8 @@ export function EmailAccountsPage() {
             <Mail className="h-4 w-4 text-[var(--indigo)]" />
           </span>
         }
-        title="Email delivery"
-        description="Domains, mailboxes and warm-up — everything that decides whether you land in the inbox."
+        title="Email accounts"
+        description="The mailboxes you send from, the domains that vouch for them, and the warm-up that earns their reputation."
         meta={
           list.length > 0 || domains.length > 0 ? (
             <>
@@ -346,12 +359,12 @@ export function EmailAccountsPage() {
         }
         actions={
           <>
-            <button onClick={() => setShowExplainer(true)} className="icon-btn h-8 px-2.5 text-body whitespace-nowrap">
+            <button onClick={() => setShowExplainer(true)} className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-body text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]">
               <HelpCircle className="h-3.5 w-3.5" /> How it works
             </button>
             {tab === 'domains'
               ? <Button size="sm" onClick={() => setAddDomainOpen(true)}><Plus className="h-3.5 w-3.5" /> Add domain</Button>
-              : <Button size="sm" onClick={openAdd}><Plus className="h-3.5 w-3.5" /> Add mailbox</Button>}
+              : <Button size="sm" onClick={openAdd}><Plus className="h-3.5 w-3.5" /> Connect mailbox</Button>}
           </>
         }
       />
@@ -373,10 +386,9 @@ export function EmailAccountsPage() {
         </div>
       )}
 
-      {/* Guided setup — disappears once all three steps are done */}
-      {!setupComplete && (
-        <SetupProgress steps={setupSteps} onStep={(i) => setTab(stepTab[i])} />
-      )}
+      {/* The walk from nothing to ready — disappears once all three are done.
+          Hidden on an empty mailbox tab, where the empty state is step one. */}
+      {!setupComplete && !(tab === 'mailboxes' && list.length === 0) && <SetupGuide steps={setupSteps} />}
 
       {/* At-risk warning — the one thing worth surfacing unprompted */}
       {setupComplete && unauthedMailboxes > 0 && (
@@ -393,7 +405,7 @@ export function EmailAccountsPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-[var(--border-subtle)] mb-4">
+      <div className="flex items-center gap-1 overflow-x-auto border-b border-[var(--border-subtle)] mb-4">
         {tabs.map((t) => {
           const Icon = t.icon;
           const active = tab === t.id;
@@ -402,7 +414,7 @@ export function EmailAccountsPage() {
               key={t.id}
               onClick={() => setTab(t.id)}
               className={cn(
-                'relative flex items-center gap-1.5 h-9 px-3 text-strong font-medium transition-colors',
+                'relative flex flex-shrink-0 items-center gap-1.5 h-9 px-3 text-strong font-medium transition-colors',
                 active ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
               )}
             >
@@ -418,35 +430,37 @@ export function EmailAccountsPage() {
         })}
       </div>
 
-      {/* ── Readiness tab ── */}
-      {tab === 'readiness' && <ReadinessPanel />}
-
       {/* ── Mailboxes tab ── */}
       {tab === 'mailboxes' && (
         list.length === 0 ? (
-          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6">
-            <div className="text-center mb-5">
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] mb-3"><Mail className="h-5 w-5 text-[var(--indigo)]" /></span>
-              <p className="text-heading font-semibold text-[var(--text-primary)]">Connect your first mailbox</p>
-              <p className="text-body text-[var(--text-tertiary)] mt-1">Pick your provider — settings are pre-filled, you just add email and password.</p>
+          <div className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+            <div className="px-6 pb-6 pt-8 text-center">
+              <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--indigo-subtle)]"><Plug className="h-5 w-5 text-[var(--indigo)]" /></span>
+              <h2 className="mt-3 text-title font-semibold tracking-[-0.01em] text-[var(--text-primary)]">Connect the mailbox you send from</h2>
+              <p className="mx-auto mt-1 max-w-md text-body text-[var(--text-tertiary)]">
+                Pick your provider, add the password, and Sincerely tests sending and receiving before anything is saved. Two minutes, start to finish.
+              </p>
+              <div className="mx-auto mt-6 grid max-w-2xl grid-cols-1 gap-2.5 sm:grid-cols-3">
+                {HERO_PROVIDERS.map((p) => (
+                  <button
+                    key={p.title}
+                    onClick={() => openQuick(p.name ? SMTP_PRESETS.find((x) => x.name === p.name) || null : null)}
+                    className="group flex flex-col items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-5 text-center transition-all hover:-translate-y-0.5 hover:border-[rgba(91,91,245,0.3)] hover:shadow-[var(--shadow-md)]"
+                  >
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+                      {p.name ? <ProviderLogo name={p.name} className="h-6 w-6" /> : <Server className="h-5 w-5 text-[var(--indigo)]" />}
+                    </span>
+                    <span className="text-strong font-semibold text-[var(--text-primary)]">{p.title}</span>
+                    <span className="text-caption leading-snug text-[var(--text-tertiary)]">{p.blurb}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-xl mx-auto">
-              {QUICK_PROVIDERS.map((provider) => (
-                <button key={provider.preset.name} onClick={() => openQuick(provider.preset)} className="group surface flex items-center gap-2.5 p-3 hover:shadow-[var(--shadow-md)] hover:border-[rgba(91,91,245,0.25)] transition-all text-left">
-                  <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] shrink-0">{provider.icon}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-strong font-medium text-[var(--text-primary)] truncate">{provider.preset.name}</p>
-                    <p className="text-caption text-[var(--text-tertiary)] truncate">{provider.description}</p>
-                  </div>
-                  <ArrowRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] group-hover:text-[var(--indigo)] transition-colors shrink-0" />
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 px-6 py-3 text-caption text-[var(--text-tertiary)]">
+              <span className="inline-flex items-center gap-1.5"><Lock className="h-3 w-3" /> Passwords stored encrypted</span>
+              <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3 w-3" /> Tested before it is saved</span>
+              <span className="inline-flex items-center gap-1.5"><Mail className="h-3 w-3" /> {SMTP_PRESETS.length} providers recognised</span>
             </div>
-            <p className="text-center text-caption text-[var(--text-tertiary)] mt-4">
-              Different provider?{' '}
-              <button onClick={openAdd} className="text-[var(--indigo)] hover:underline font-medium">Connect any mailbox</button>
-              {' '}— {SMTP_PRESETS.length} providers auto-detected.
-            </p>
           </div>
         ) : (
           <>
@@ -471,24 +485,21 @@ export function EmailAccountsPage() {
                 progress={syncProgress}
                 domainVerified={(email) => !!matchDomain(domains, email)?.is_verified}
                 domainKnown={(email) => !!matchDomain(domains, email)}
+                onOpen={(a) => setOpenMailbox(a.id)}
                 onEdit={openEdit}
                 onTest={(a) => testMutation.mutate(a.id)}
                 onRepair={() => repairMutation.mutate()}
-                onWindow={(a, months) => windowMutation.mutate({ id: a.id, months })}
-                onAuthenticateDomain={(a) => {
-                  const dom = matchDomain(domains, a.email_address);
-                  if (dom) { goToDomain(dom.id); return; }
-                  setNewDomain(domainOf(a.email_address));
-                  setAddDomainOpen(true);
-                }}
-                onRemove={(a) => confirm(
-                  { title: `Disconnect ${a.email_address}?`, body: 'Campaigns sending from this mailbox will stop until you connect it again.', tone: 'danger', confirmLabel: 'Disconnect' },
-                  () => deleteMutation.mutate(a.id),
-                )}
+                onAuthenticateDomain={authenticateFor}
                 testingId={testingId}
                 repairing={repairMutation.isPending}
               />
             )}
+            <button
+              onClick={openAdd}
+              className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-default)] py-3 text-body font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--indigo)]/40 hover:bg-[var(--indigo-subtle)]/30 hover:text-[var(--indigo)]"
+            >
+              <Plus className="h-4 w-4" /> Connect another mailbox
+            </button>
           </>
         )
       )}
@@ -511,7 +522,7 @@ export function EmailAccountsPage() {
             <p className="text-body text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
               We generate the exact SPF, DKIM and DMARC records to paste into your DNS — the single biggest factor in reaching the inbox.
             </p>
-            <Button className="mt-4" onClick={() => setAddDomainOpen(true)}><Plus className="h-3.5 w-3.5" /> Add domain</Button>
+            <Button className="mt-4" onClick={() => { if (firstUnauthed) setNewDomain(domainOf(firstUnauthed.email_address)); setAddDomainOpen(true); }}><Plus className="h-3.5 w-3.5" /> Add domain</Button>
             <p className="text-caption text-[var(--text-tertiary)] mt-3">
               Not sure why this matters? <button onClick={() => setShowExplainer(true)} className="text-[var(--indigo)] hover:underline">2-minute explainer</button>
             </p>
@@ -555,6 +566,7 @@ export function EmailAccountsPage() {
                           );
                         }}
                         className="icon-btn h-7 w-7 hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
+                        title={`Remove ${domain.domain}`}
                       ><Trash2 className="h-3 w-3" /></button>
                       {expanded ? <ChevronDown className="h-4 w-4 text-[var(--text-tertiary)]" /> : <ChevronRight className="h-4 w-4 text-[var(--text-tertiary)]" />}
                     </div>
@@ -578,21 +590,44 @@ export function EmailAccountsPage() {
             icon={Flame}
             title="Connect a mailbox first"
             description="Warm-up builds sending reputation on your connected mailboxes."
-            actionLabel="Go to mailboxes"
-            onAction={() => setTab('mailboxes')}
+            actionLabel="Connect mailbox"
+            onAction={openAdd}
           />
         ) : (
           <WarmupPanel onAddMailbox={openAdd} />
         )
       )}
 
-      <SmtpAccountModal open={modalOpen} onClose={() => setModalOpen(false)} editAccount={editAccount} initialPreset={initialPreset} />
+      {/* ── Readiness tab ── */}
+      {tab === 'readiness' && <ReadinessPanel />}
+
+      <MailboxDrawer
+        account={modalOpen ? null : openMailbox}
+        progress={openMailbox ? syncProgress.find((p) => p.smtp_account_id === openMailbox.id) : undefined}
+        domain={openMailbox ? matchDomain(domains, openMailbox.email_address) : null}
+        onClose={() => setOpenMailbox(null)}
+        onEdit={openEdit}
+        onRemove={(a) => confirm(
+          { title: `Disconnect ${a.email_address}?`, body: 'Campaigns sending from this mailbox will stop until you connect it again.', tone: 'danger', confirmLabel: 'Disconnect' },
+          () => deleteMutation.mutate(a.id),
+        )}
+        onRepair={() => repairMutation.mutate()}
+        onAuthenticateDomain={authenticateFor}
+        repairing={repairMutation.isPending}
+      />
+
+      <SmtpAccountModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        editAccount={editAccount}
+        initialPreset={initialPreset}
+      />
 
       {/* Add domain modal */}
-      <Modal isOpen={addDomainOpen} onClose={() => { setAddDomainOpen(false); setNewDomain(''); }} title="Add a sending domain" size="md">
+      <Modal isOpen={addDomainOpen} onClose={() => { setAddDomainOpen(false); setNewDomain(''); }} title="Authenticate a sending domain" size="md">
         <form onSubmit={(e) => { e.preventDefault(); if (newDomain.trim()) addDomainMutation.mutate(newDomain.trim()); }} className="space-y-4">
-          <p className="text-body text-[var(--text-secondary)]">Enter the root domain you send from. We'll generate the exact SPF, DKIM and DMARC records to add to your DNS — then check them automatically.</p>
-          <Input label="Domain" value={newDomain} onChange={(e) => setNewDomain(e.target.value.replace(/^https?:\/\//, '').replace(/\/.*$/, ''))} placeholder="yourcompany.com" required autoFocus hint="Root domain, not a subdomain or email address" />
+          <p className="text-body text-[var(--text-secondary)]">Enter the domain you send from. We generate the exact SPF, DKIM and DMARC records to add at your DNS host, then check them for you automatically.</p>
+          <Input label="Domain" value={newDomain} onChange={(e) => setNewDomain(e.target.value.replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^.*@/, ''))} placeholder="yourcompany.com" required autoFocus hint="The part after the @ in your address" />
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="secondary" type="button" onClick={() => { setAddDomainOpen(false); setNewDomain(''); }}>Cancel</Button>
             <Button variant="primary" type="submit" disabled={addDomainMutation.isPending}>

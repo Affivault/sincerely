@@ -1,28 +1,58 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { smtpApi } from '../../api/smtp.api';
+import { domainApi } from '../../api/domain.api';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
+import { ProviderLogo } from '../../components/mailbox/ProviderLogo';
 import { cn } from '../../lib/utils';
 import {
-  CheckCircle2, XCircle, HelpCircle, Globe, Server, Loader2, Plug, Inbox,
+  CheckCircle2, XCircle, Globe, Server, Loader2, Plug, Inbox,
   Send, ShieldCheck, Signature, Gauge, Sparkles, Mail, MinusCircle,
-  Stethoscope, AlertTriangle, Circle, Eye, EyeOff, ChevronDown,
+  Stethoscope, AlertTriangle, Eye, EyeOff, ChevronDown, ArrowLeft, ArrowRight,
+  ExternalLink, KeyRound, Flame, Check, Search,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { SmtpAccount, CreateSmtpAccountInput, SmtpPreset, VerifyLegResult, MailboxDiagnostics, DiagStage, SetupSectionId, SetupField, SetupSummary } from '@lemlist/shared';
 import {
   SMTP_PRESETS, detectPresetFromEmail, PLACEHOLDER, isSenderMismatch,
   missingFields, mailboxLabel, serverSummary, sendingSummary, limitAdvice, sectionsToOpen,
+  providerGuide, isSendOnlyProvider, isFreeMailDomain,
 } from '@lemlist/shared';
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Connecting a mailbox, and changing one.
+
+   NEW MAILBOXES are a three-step walk, each step one decision:
+
+     1. Which address?     Type it, or pick the provider. Servers are
+                           found from the address while you type.
+     2. Sign in            The password - with the provider's own steps for
+                           getting the right KIND of password beside it,
+                           because that, not the server, is why most
+                           connections fail. Servers are a one-line summary
+                           that opens only when they need you.
+     3. Connect            One button that tests AND saves. Sending is
+                           proven with a probe to yourself, receiving by
+                           signing in to IMAP, and the mailbox is saved
+                           verified - or not saved at all, with the reason
+                           in plain words and the fix one click away.
+
+   Then a short finish: daily limit, warm-up, signature, the domain - all
+   with safe defaults, all optional.
+
+   SAVED MAILBOXES open as one scroll of sections (below), which is what
+   somebody coming back to change one thing wants: everything visible,
+   nothing to step through.
+   ═══════════════════════════════════════════════════════════════════════ */
 
 /** Map the MX check's provider hint onto our connection presets. */
 const HINT_TO_PRESET: Record<string, string> = {
-  'Google Workspace': 'Gmail',
+  'Google Workspace': 'Google Workspace',
   'Microsoft 365': 'Outlook / Microsoft 365',
   'Zoho Mail': 'Zoho Mail',
   'Fastmail': 'Fastmail',
@@ -33,9 +63,19 @@ const HINT_TO_PRESET: Record<string, string> = {
   'ProtonMail': 'ProtonMail Bridge',
 };
 
+/** The tiles on step one. Everything else is one search away. */
+const FEATURED = ['Gmail', 'Outlook / Microsoft 365', 'Zoho Mail', 'Yahoo Mail', 'iCloud Mail', 'Fastmail'];
+
 const FORM_ID = 'smtp-account-form';
 
 type Form = CreateSmtpAccountInput & { from_name?: string | null; imap_user?: string };
+type WizardStep = 'address' | 'signin' | 'connect' | 'done';
+const STEPS: { id: WizardStep; label: string }[] = [
+  { id: 'address', label: 'Address' },
+  { id: 'signin', label: 'Sign in' },
+  { id: 'connect', label: 'Connect' },
+  { id: 'done', label: 'Finish' },
+];
 
 const emptyForm: Form = {
   label: '',
@@ -54,9 +94,23 @@ const emptyForm: Form = {
   signature_auto: false,
 };
 
+/**
+ * The daily limit a NEW mailbox starts with.
+ *
+ * Presets carry the provider's own ceiling - Workspace 2,000, SendGrid
+ * 10,000 - which is what the account can technically send, not what cold
+ * outreach survives. Pre-filling it meant the form suggested a number that
+ * limitAdvice, one field below, then called dangerous. New mailboxes start
+ * at a level that advice calls safe; anyone can raise it knowingly.
+ */
+function safeDefaultLimit(preset: SmtpPreset): number {
+  return Math.min(preset.recommended_daily_limit || 200, 200);
+}
+
 export function presetToForm(preset: SmtpPreset): Form {
   return {
-    label: preset.name,
+    // Unnamed: a mailbox nobody named is called by its address, not its provider.
+    label: '',
     from_name: '',
     email_address: '',
     smtp_host: preset.smtp_host,
@@ -67,7 +121,7 @@ export function presetToForm(preset: SmtpPreset): Form {
     imap_host: preset.imap_host || undefined,
     imap_port: preset.imap_port || undefined,
     imap_secure: preset.imap_secure ?? undefined,
-    daily_send_limit: preset.recommended_daily_limit || 200,
+    daily_send_limit: safeDefaultLimit(preset),
     signature_html: '',
     signature_auto: false,
   };
@@ -80,17 +134,25 @@ type VerifyState = {
   message?: string;
 };
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 /** Encryption is derived from port + a secure flag. SSL=implicit TLS (465),
  *  STARTTLS/None = upgrade-or-plain (587/25). Kept simple: SSL vs STARTTLS. */
 function EncryptionRadios({ secure, onChange }: { secure: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div className="flex items-center gap-4 text-body">
-      <span className="text-[var(--text-tertiary)]">Encryption</span>
-      {[{ v: true, l: 'SSL' }, { v: false, l: 'TLS / STARTTLS' }].map((opt) => (
-        <label key={opt.l} className="flex items-center gap-1.5 cursor-pointer text-[var(--text-secondary)]">
-          <input type="radio" checked={secure === opt.v} onChange={() => onChange(opt.v)} className="accent-[var(--indigo)]" />
+    <div className="inline-flex items-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-0.5 text-caption">
+      {[{ v: true, l: 'SSL' }, { v: false, l: 'STARTTLS' }].map((opt) => (
+        <button
+          key={opt.l}
+          type="button"
+          onClick={() => onChange(opt.v)}
+          className={cn(
+            'h-6 rounded-md px-2.5 font-medium transition-colors',
+            secure === opt.v ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
+          )}
+        >
           {opt.l}
-        </label>
+        </button>
       ))}
     </div>
   );
@@ -127,11 +189,11 @@ function Disclosure({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex w-full items-start gap-2.5 px-3.5 py-2.5 text-left"
+        className="flex w-full items-start gap-2.5 px-3.5 py-3 text-left"
         data-section-toggle
       >
         <span className={cn(
-          'mt-px flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md',
+          'mt-px flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg',
           tone === 'ok'
             ? 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
             : 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
@@ -155,11 +217,11 @@ function Disclosure({
           )}
         </span>
         <ChevronDown className={cn(
-          'mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--text-tertiary)] transition-transform',
+          'mt-1 h-4 w-4 flex-shrink-0 text-[var(--text-tertiary)] transition-transform',
           open && 'rotate-180',
         )} />
       </button>
-      {open && <div className="border-t border-[var(--border-subtle)] px-3.5 py-3">{children}</div>}
+      {open && <div className="border-t border-[var(--border-subtle)] px-3.5 py-3.5">{children}</div>}
     </section>
   );
 }
@@ -172,23 +234,10 @@ function Group({ icon: Icon, title, subtitle, children }: {
     <div>
       <div className="mb-2 flex items-baseline gap-1.5">
         <Icon className="h-3 w-3 translate-y-px text-[var(--text-tertiary)]" />
-        <h4 className="text-caption font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{title}</h4>
+        <h4 className="text-caption font-semibold text-[var(--text-secondary)]">{title}</h4>
         {subtitle && <span className="text-caption text-[var(--text-tertiary)]">{subtitle}</span>}
       </div>
       {children}
-    </div>
-  );
-}
-
-function LegRow({ label, leg }: { label: string; leg?: VerifyLegResult }) {
-  if (!leg) return null;
-  const icon = leg.status === 'ok' ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-    : leg.status === 'skipped' ? <MinusCircle className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-    : <XCircle className="h-3.5 w-3.5 text-rose-500" />;
-  return (
-    <div className="flex items-start gap-2 text-body">
-      <span className="flex-shrink-0 mt-px">{icon}</span>
-      <span className="text-[var(--text-secondary)]"><span className="font-medium text-[var(--text-primary)]">{label}:</span> {leg.message}</span>
     </div>
   );
 }
@@ -256,27 +305,69 @@ function DiagLeg({ title, diag, relayHealthy }: {
   );
 }
 
+/** Where the wizard is, as dots joined by a line. */
+function Stepper({ step }: { step: WizardStep }) {
+  const at = STEPS.findIndex((s) => s.id === step);
+  return (
+    <ol className="mb-5 flex items-center gap-2" aria-label="Progress">
+      {STEPS.map((s, i) => {
+        const done = i < at;
+        const current = i === at;
+        return (
+          <li key={s.id} className="flex flex-1 items-center gap-2 last:flex-none">
+            <span className={cn(
+              'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-micro font-bold transition-colors',
+              done ? 'bg-emerald-500 text-white'
+                : current ? 'bg-[var(--indigo)] text-white ring-4 ring-[var(--indigo-subtle)]'
+                : 'border border-[var(--border-default)] text-[var(--text-muted)]',
+            )}>
+              {done ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : i + 1}
+            </span>
+            <span className={cn('hidden text-caption font-medium sm:inline', current ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]')}>{s.label}</span>
+            {i < STEPS.length - 1 && <span className={cn('h-px flex-1 transition-colors', done ? 'bg-emerald-500/60' : 'bg-[var(--border-subtle)]')} />}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/** A line of the live connection checklist. */
+function CheckLine({ state, label, detail }: { state: 'waiting' | 'running' | 'ok' | 'fail' | 'skipped'; label: string; detail?: string }) {
+  return (
+    <li className="flex items-start gap-3 py-2">
+      <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center">
+        {state === 'running' && <Loader2 className="h-4 w-4 animate-spin text-[var(--indigo)]" />}
+        {state === 'ok' && <CheckCircle2 className="h-5 w-5 text-emerald-500" />}
+        {state === 'fail' && <XCircle className="h-5 w-5 text-rose-500" />}
+        {state === 'skipped' && <MinusCircle className="h-5 w-5 text-[var(--text-muted)]" />}
+        {state === 'waiting' && <span className="h-2 w-2 rounded-full bg-[var(--border-strong)]" />}
+      </span>
+      <span className="min-w-0">
+        <span className={cn('block text-body font-medium', state === 'waiting' ? 'text-[var(--text-tertiary)]' : 'text-[var(--text-primary)]')}>{label}</span>
+        {detail && <span className={cn('block text-caption leading-snug', state === 'fail' ? 'text-rose-600 dark:text-rose-400' : 'text-[var(--text-tertiary)]')}>{detail}</span>}
+      </span>
+    </li>
+  );
+}
+
 /**
  * Connect / edit a sending mailbox.
  *
- * One scroll of three collapsible sections rather than three tabs. The tabs
- * split the two things you need in order to connect - the password and the
- * host - across two panels, so a check could fail for a reason sitting on a
- * panel you were not looking at, signalled by a small amber dot.
- *
- * What starts open is decided from the values by `sectionsToOpen`, under one
- * rule: nothing missing or broken is ever behind a closed header. A detected
- * Gmail account therefore opens as one short panel - address and password -
- * and a custom domain whose MX lookup found nothing opens with the server
- * fields already in front of you.
+ * New: a stepped walk (see the header). Saved: one scroll of collapsible
+ * sections, where what starts open is decided from the values by
+ * `sectionsToOpen`, under one rule: nothing missing or broken is ever
+ * behind a closed header.
  */
 export function SmtpAccountModal({
-  open, onClose, editAccount, initialPreset,
+  open, onClose, editAccount, initialPreset, onConnected,
 }: {
   open: boolean;
   onClose: () => void;
   editAccount?: SmtpAccount | null;
   initialPreset?: SmtpPreset | null;
+  /** Called with the new mailbox once it is connected. */
+  onConnected?: (account: SmtpAccount) => void;
 }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<Form>({ ...emptyForm });
@@ -286,6 +377,14 @@ export function SmtpAccountModal({
   const [replyToOn, setReplyToOn] = useState(false);
   const [openSections, setOpenSections] = useState<SetupSectionId[]>(['mailbox']);
   const [showPass, setShowPass] = useState(false);
+  const [step, setStep] = useState<WizardStep>('address');
+  const [providerSearch, setProviderSearch] = useState('');
+  const [connected, setConnected] = useState<SmtpAccount | null>(null);
+  const [warmupOn, setWarmupOn] = useState(true);
+  const [sigOpen, setSigOpen] = useState(false);
+  /* Refused for a reason that is not the connection - a plan limit, an
+     address already connected - so troubleshooting tips would mislead. */
+  const [refused, setRefused] = useState<string | null>(null);
   /*
    * Has the sign-in username been typed deliberately?
    *
@@ -310,6 +409,7 @@ export function SmtpAccountModal({
   const [diagnostics, setDiagnostics] = useState<MailboxDiagnostics | null>(null);
 
   const editId = editAccount?.id || null;
+  const wizard = !editId;
 
   /** Open a section. Never closes one — nothing may vanish under the cursor. */
   const reveal = useCallback((id: SetupSectionId) => {
@@ -325,6 +425,11 @@ export function SmtpAccountModal({
     setVerify({ status: 'idle' });
     setDiagnostics(null);
     setFlagged([]);
+    setConnected(null);
+    setWarmupOn(true);
+    setSigOpen(false);
+    setProviderSearch('');
+    setShowPass(false);
     setReplyToOn(!!editAccount?.reply_to);
     /*
      * A saved username that differs from the address is treated as
@@ -368,6 +473,7 @@ export function SmtpAccountModal({
       const seeded = presetToForm(initialPreset);
       setForm(seeded);
       setOpenSections(sectionsToOpen({ ...seeded, saved: false }));
+      setStep('address');
     } else {
       setActivePreset(null);
       setAutoDetected(false);
@@ -379,6 +485,7 @@ export function SmtpAccountModal({
        * fields that are about to fill themselves in.
        */
       setOpenSections(['mailbox']);
+      setStep('address');
     }
   }, [open, editAccount, initialPreset]);
 
@@ -394,6 +501,7 @@ export function SmtpAccountModal({
     setVerify({ status: 'idle' });
     if (preset) {
       setActivePreset(preset);
+      setAutoDetected(false);
       setForm((prev) => ({
         ...prev,
         smtp_host: preset.smtp_host,
@@ -402,8 +510,14 @@ export function SmtpAccountModal({
         imap_host: preset.imap_host || undefined,
         imap_port: preset.imap_port || undefined,
         imap_secure: preset.imap_secure ?? undefined,
-        daily_send_limit: preset.recommended_daily_limit || prev.daily_send_limit,
+        daily_send_limit: safeDefaultLimit(preset),
       }));
+      // SendGrid signs in as "apikey", Mailgun as a postmaster handle: a
+      // provider whose login is not the address gets the override opened.
+      if (preset.name === 'SendGrid') {
+        setUserEdited(true);
+        setForm((prev) => ({ ...prev, smtp_user: 'apikey' }));
+      }
     } else {
       setActivePreset(null);
     }
@@ -417,6 +531,7 @@ export function SmtpAccountModal({
   const mxTimer = useRef<ReturnType<typeof setTimeout>>();
   const mxCheckedDomain = useRef('');
   useEffect(() => () => clearTimeout(mxTimer.current), []);
+  useEffect(() => { if (open) { mxCheckedDomain.current = ''; setMxState({ status: 'idle', note: '' }); } }, [open]);
 
   const applyDetectedPreset = useCallback((preset: SmtpPreset, note: string) => {
     setActivePreset(preset);
@@ -424,17 +539,17 @@ export function SmtpAccountModal({
     setForm((prev) => ({
       ...prev,
       smtp_user: userEdited ? prev.smtp_user : (prev.email_address || prev.smtp_user),
-      label: prev.label || preset.name,
+      label: prev.label,
       smtp_host: preset.smtp_host,
       smtp_port: preset.smtp_port,
       smtp_secure: preset.smtp_secure,
       imap_host: preset.imap_host || undefined,
       imap_port: preset.imap_port || undefined,
       imap_secure: preset.imap_secure ?? undefined,
-      daily_send_limit: preset.recommended_daily_limit || prev.daily_send_limit,
+      daily_send_limit: safeDefaultLimit(preset),
     }));
     setMxState({ status: 'done', note });
-  }, []);
+  }, [userEdited]);
 
   const scheduleMxDetect = useCallback((email: string) => {
     clearTimeout(mxTimer.current);
@@ -451,7 +566,7 @@ export function SmtpAccountModal({
         const presetName = result.provider_hint ? HINT_TO_PRESET[result.provider_hint] : undefined;
         const preset = presetName ? SMTP_PRESETS.find((p) => p.name === presetName) : undefined;
         if (preset) {
-          applyDetectedPreset(preset, `Detected ${result.provider_hint} from ${domain}'s mail records — settings assigned.`);
+          applyDetectedPreset(preset, `${domain} uses ${result.provider_hint} - servers filled in for you.`);
         } else if (result.mx?.found) {
           /*
            * No preset for this provider, so ask where the mail servers
@@ -498,7 +613,7 @@ export function SmtpAccountModal({
       } catch {
         setMxState({ status: 'idle', note: '' });
       }
-    }, 650);
+    }, 550);
   }, [applyDetectedPreset, reveal]);
 
   /** Auto-detect provider from the email domain as the user types. */
@@ -521,15 +636,15 @@ export function SmtpAccountModal({
         setForm((prev) => ({
           ...prev,
           email_address: email,
-          smtp_user: email,
-          label: prev.label || detected.name,
+          smtp_user: userEdited ? prev.smtp_user : email,
+          label: prev.label,
           smtp_host: detected.smtp_host,
           smtp_port: detected.smtp_port,
           smtp_secure: detected.smtp_secure,
           imap_host: detected.imap_host || undefined,
           imap_port: detected.imap_port || undefined,
           imap_secure: detected.imap_secure ?? undefined,
-          daily_send_limit: detected.recommended_daily_limit || prev.daily_send_limit,
+          daily_send_limit: safeDefaultLimit(detected),
         }));
       } else {
         if (autoDetected) {
@@ -540,17 +655,77 @@ export function SmtpAccountModal({
         scheduleMxDetect(email);
       }
     }
-  }, [activePreset, autoDetected, editId, scheduleMxDetect]);
+  }, [activePreset, autoDetected, editId, scheduleMxDetect, userEdited]);
 
+  const payload = (): Form => {
+    const sig = (form.signature_html || '').replace(/<[^>]*>/g, '').trim();
+    return {
+      ...form,
+      label: mailboxLabel(form.label, form.email_address),
+      from_name: (form.from_name || '').trim() || null,
+      reply_to: (form.reply_to || '').trim() || null,
+      smtp_user: form.smtp_user || form.email_address,
+      signature_html: sig ? form.signature_html : null,
+      signature_auto: sig ? !!form.signature_auto : false,
+    };
+  };
+
+  /* Saved mailbox: save the sections as they stand. */
   const saveMutation = useMutation({
-    mutationFn: (input: Form) => (editId ? smtpApi.update(editId, input) : smtpApi.create(input)),
+    mutationFn: (input: Form) => smtpApi.update(editId!, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['smtp-accounts'] });
-      toast.success(editId ? 'Account updated' : 'Account connected');
+      queryClient.invalidateQueries({ queryKey: ['inbox-sync-progress'] });
+      toast.success('Changes saved');
       onClose();
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.error || err.message || 'Failed to save');
+    },
+  });
+
+  /*
+   * New mailbox: test and save in one step. The server proves sending (a
+   * probe to yourself) and receiving (an IMAP sign-in) and only saves a
+   * mailbox that sends - saved verified, so the list agrees with what this
+   * screen just said. `verified: false` is the explicit escape hatch for a
+   * network that blocks the probe but will be fine in practice.
+   */
+  const connectMutation = useMutation({
+    /*
+     * `sendingOnly`: sending passed and receiving did not. Rather than save
+     * an unverified mailbox that then fails its inbox sync every few
+     * minutes, it is saved without the incoming server - verified, honest
+     * about replies, and fixable later from its settings.
+     */
+    mutationFn: ({ verified, sendingOnly }: { verified: boolean; sendingOnly?: boolean }) =>
+      smtpApi.create(sendingOnly ? { ...payload(), imap_host: undefined, imap_port: undefined, imap_user: undefined } : payload(), { verify: verified }),
+    onMutate: () => { setVerify({ status: 'checking' }); setDiagnostics(null); setRefused(null); },
+    onSuccess: (account, { verified }) => {
+      setVerify(verified
+        // What was saved, not what the form held: "sending only" drops the incoming server.
+        ? { status: 'done', smtp: { ok: true, status: 'ok', message: 'Sending works.' }, imap: account.imap_host ? { ok: true, status: 'ok', message: 'Receiving works.' } : { ok: true, status: 'skipped', message: 'No incoming server set.' } }
+        : { status: 'idle' });
+      setConnected(account);
+      queryClient.invalidateQueries({ queryKey: ['smtp-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['inbox-sync-progress'] });
+      queryClient.invalidateQueries({ queryKey: ['readiness'] });
+      queryClient.invalidateQueries({ queryKey: ['setup-state'] });
+      onConnected?.(account);
+      setStep('done');
+    },
+    onError: (err: any) => {
+      const v = err.response?.data?.verification;
+      setRefused(!v && err.response?.status && err.response.status < 500 ? err.response.data?.error || 'That could not be connected.' : null);
+      if (v) {
+        setVerify({ status: 'done', smtp: v.smtp, imap: v.imap, message: v.message });
+      } else {
+        setVerify({
+          status: 'done',
+          smtp: { ok: false, status: 'fail', message: err.response?.data?.error || (err?.code === 'ECONNABORTED' ? 'The server took too long to answer. It may be slow or blocking the connection - run diagnostics to see where it stops.' : err.message) || 'Connection failed' },
+          message: err.response?.data?.error || 'Connection failed',
+        });
+      }
     },
   });
 
@@ -572,7 +747,10 @@ export function SmtpAccountModal({
       imap_user: form.imap_user || form.smtp_user || form.email_address,
     }),
     onMutate: () => { setVerify({ status: 'checking' }); setDiagnostics(null); },
-    onSuccess: (res) => setVerify({ status: 'done', smtp: res.smtp, imap: res.imap, message: res.message }),
+    onSuccess: (res) => {
+      setVerify({ status: 'done', smtp: res.smtp, imap: res.imap, message: res.message });
+      if (res.success) queryClient.invalidateQueries({ queryKey: ['smtp-accounts'] });
+    },
     onError: (err: any) => setVerify({
       status: 'done',
       smtp: { ok: false, status: 'fail', message: err.response?.data?.error || err.message || 'Connection failed' },
@@ -597,6 +775,29 @@ export function SmtpAccountModal({
     }),
     onSuccess: (res) => setDiagnostics(res),
     onError: (err: any) => toast.error(err.response?.data?.error || 'Could not run diagnostics'),
+  });
+
+  /* The finishing touches, applied to the mailbox just connected. */
+  const finishMutation = useMutation({
+    mutationFn: async () => {
+      if (!connected) return;
+      const p = payload();
+      await smtpApi.update(connected.id, {
+        daily_send_limit: p.daily_send_limit,
+        signature_html: p.signature_html,
+        signature_auto: p.signature_auto,
+      } as any);
+      if (warmupOn && !isSendOnlyProvider(activePreset?.name)) {
+        await smtpApi.setWarmup(connected.id, { enabled: true });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['smtp-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['warmup'] });
+      toast.success(`${connected?.email_address} is ready`);
+      onClose();
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Connected, but the finishing settings did not save - change them from the mailbox.'),
   });
 
   /*
@@ -635,6 +836,9 @@ export function SmtpAccountModal({
     // Every section holding a gap is opened, not just the first — a flagged
     // field behind a shut header is exactly what the tabs got wrong.
     for (const f of fields) reveal(f.section);
+    // In the walk, a gap on the address sends you back to the address.
+    if (wizard && fields.some((f) => f.key === 'email_address')) setStep('address');
+    else if (wizard) setStep('signin');
     toast.error(
       fields.length === 1
         ? `Add your ${fields[0].label} first`
@@ -643,26 +847,31 @@ export function SmtpAccountModal({
   };
 
   const handleCheck = () => {
-    if (verifyMutation.isPending) return;
+    if (verifyMutation.isPending || connectMutation.isPending) return;
     if (missing.length) { jumpTo(missing); return; }
     setFlagged([]);
+    if (wizard) { setStep('connect'); connectMutation.mutate({ verified: true }); return; }
     verifyMutation.mutate();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (wizard && step === 'address') { goToSignin(); return; }
+    if (wizard && step === 'done') { finishMutation.mutate(); return; }
     if (missing.length) { jumpTo(missing); return; }
     setFlagged([]);
-    const sig = (form.signature_html || '').replace(/<[^>]*>/g, '').trim();
-    saveMutation.mutate({
-      ...form,
-      label: mailboxLabel(form.label, form.email_address),
-      from_name: (form.from_name || '').trim() || null,
-      reply_to: (form.reply_to || '').trim() || null,
-      smtp_user: form.smtp_user || form.email_address,
-      signature_html: sig ? form.signature_html : null,
-      signature_auto: sig ? !!form.signature_auto : false,
-    });
+    if (wizard) { setStep('connect'); connectMutation.mutate({ verified: true }); return; }
+    saveMutation.mutate(payload());
+  };
+
+  const goToSignin = () => {
+    if (!EMAIL_RE.test(form.email_address.trim())) {
+      setFlagged(['email_address']);
+      toast.error('Enter the full email address you send from');
+      return;
+    }
+    setFlagged([]);
+    setStep('signin');
   };
 
   const err = (key: string, msg = 'Required') => (flagged.includes(key) ? msg : undefined);
@@ -670,9 +879,9 @@ export function SmtpAccountModal({
     missing.some((m) => m.section === id && flagged.includes(m.key));
   const isOpen = (id: SetupSectionId) => openSections.includes(id);
 
-  const isQuickMode = !!activePreset && !editId;
-  const passwordLabel = activePreset?.password_hint || 'Password';
-  const passwordPlaceholder = activePreset?.password_hint || (editId ? 'Leave blank to keep the saved password' : 'Enter password or app key');
+  const guide = providerGuide(activePreset?.name);
+  const passwordLabel = activePreset ? guide.secret : 'Password';
+  const passwordPlaceholder = editId ? 'Leave blank to keep the saved password' : (activePreset?.password_hint || 'Password or app password');
   /*
    * Signing in as one mailbox and sending as another.
    *
@@ -688,41 +897,704 @@ export function SmtpAccountModal({
    */
   const senderMismatch = isSenderMismatch(form.smtp_user, form.email_address);
 
+  const busy = verifyMutation.isPending || connectMutation.isPending;
   const verifyOk = verify.status === 'done' && verify.smtp?.ok && verify.imap?.status !== 'fail';
   const verifyFailed = verify.status === 'done' && !verifyOk;
+
+  const domain = (form.email_address.split('@')[1] || '').toLowerCase();
+  const { data: domains } = useQuery({
+    queryKey: ['domains'],
+    queryFn: domainApi.list,
+    enabled: open && step === 'done',
+    meta: { silentError: true },
+  });
+  const domainRow = (domains || []).find((d) => domain === d.domain.toLowerCase() || domain.endsWith(`.${d.domain.toLowerCase()}`));
+  // gmail.com and friends cannot be authenticated by their users; no domain step for them.
+  const freeMail = isFreeMailDomain(domain);
+
+  const presets = useMemo(() => {
+    const q = providerSearch.trim().toLowerCase();
+    return q ? SMTP_PRESETS.filter((p) => p.name.toLowerCase().includes(q)) : SMTP_PRESETS.filter((p) => !FEATURED.includes(p.name));
+  }, [providerSearch]);
+
+  /* ── The fields, as blocks both layouts share ─────────────────────── */
+
+  const passwordField = (
+    <div className="relative">
+      <Input
+        label={passwordLabel}
+        type={showPass ? 'text' : 'password'}
+        value={form.smtp_pass}
+        onChange={(e) => updateField('smtp_pass', e.target.value)}
+        placeholder={passwordPlaceholder}
+        autoComplete="new-password"
+        error={err('smtp_pass')}
+        hint={editId ? 'Saved password is used for tests and sends unless you type a new one' : undefined}
+        className="pr-8"
+        autoFocus={wizard && step === 'signin'}
+      />
+      <button
+        type="button"
+        onClick={() => setShowPass((v) => !v)}
+        tabIndex={-1}
+        aria-label={showPass ? 'Hide password' : 'Show password'}
+        className="absolute right-2.5 top-[27px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
+      >
+        {showPass ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+      </button>
+    </div>
+  );
+
+  const identityFields = (
+    <>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Input label="From name" value={form.from_name || ''} onChange={(e) => updateField('from_name', e.target.value)} placeholder={`e.g. ${PLACEHOLDER.senderName}`} hint="What recipients see in the From field" />
+        {/*
+          * Optional, and says so. It used to be required, which meant a
+          * custom domain - where no preset fills it in - could not be
+          * saved until somebody invented a name for a mailbox that
+          * already had a perfectly good one.
+          */}
+        <Input label="Internal name" value={form.label} onChange={(e) => updateField('label', e.target.value)} placeholder={form.email_address || `e.g. ${PLACEHOLDER.senderCompany} outreach`} hint="Only you see this. Defaults to the address." />
+      </div>
+
+      <button
+        type="button"
+        onClick={() => { setReplyToOn((v) => { if (v) updateField('reply_to', ''); return !v; }); }}
+        className="mt-3 inline-flex items-center gap-2 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+      >
+        <span className={cn('relative inline-flex h-[16px] w-7 items-center rounded-full transition-colors', replyToOn ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]')}>
+          <span className={cn('inline-block h-3 w-3 rounded-full bg-white shadow transition-transform', replyToOn ? 'translate-x-[13px]' : 'translate-x-[2px]')} />
+        </span>
+        Send replies to a different address
+      </button>
+      {replyToOn && (
+        <Input className="mt-2" type="email" value={form.reply_to || ''} onChange={(e) => updateField('reply_to', e.target.value)} placeholder="replies@company.com" hint="Replies are directed here instead of your From address" />
+      )}
+    </>
+  );
+
+  const serverFields = (
+    <>
+      <div className="mb-3">
+        {/*
+          * The preset select lives here, with the fields it writes. It
+          * used to sit under the sender fields, which it does not
+          * touch, on a different tab from the ones it does.
+          */}
+        <Select
+          label="Provider"
+          options={[{ value: '', label: 'Custom / enter servers manually' }, ...SMTP_PRESETS.map((p) => ({ value: p.name, label: p.name }))]}
+          value={activePreset?.name || ''}
+          onChange={(e) => applyPreset(e.target.value)}
+        />
+      </div>
+
+      <Group icon={Send} title="Outgoing" subtitle="SMTP - sends your campaigns">
+        <div className="grid grid-cols-[2fr_1fr] gap-3">
+          <Input label="Host" value={form.smtp_host} onChange={(e) => updateField('smtp_host', e.target.value)} placeholder="smtp.example.com" error={err('smtp_host')} />
+          <Input label="Port" type="number" value={String(form.smtp_port)} onChange={(e) => updateField('smtp_port', parseInt(e.target.value) || 0)} error={err('smtp_port')} />
+        </div>
+        {/*
+          * The sign-in is shown, not typed.
+          *
+          * A bare text field called "Username" sitting beside a
+          * password field, on a tab nobody revisits, is the ideal
+          * shape for a password manager to fill - and it filled it
+          * with a DIFFERENT mailbox on the same domain. The account
+          * holder typed one address into "From email" and never saw
+          * the other one get written here.
+          *
+          * For nearly every provider this value is the address, so
+          * showing it removes a field that can only go wrong. The
+          * override stays for the handful that use something else -
+          * SendGrid signs in as "apikey", Mailgun as a postmaster
+          * handle - but it has to be asked for.
+          */}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          {userEdited ? (
+            <div className="min-w-[220px] flex-1">
+              <Input
+                label="Sign-in username"
+                value={form.smtp_user}
+                onChange={(e) => updateField('smtp_user', e.target.value)}
+                placeholder={activePreset?.username_hint || 'Usually your email address'}
+                hint="Only change this if your provider signs in with something other than the address"
+                autoComplete="off"
+                data-1p-ignore
+                data-lpignore="true"
+                name="sincerely-smtp-login"
+              />
+            </div>
+          ) : (
+            <div className="min-w-0 flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2">
+              <p className="text-caption text-[var(--text-tertiary)]">Signs in as</p>
+              <p className="truncate text-body font-medium text-[var(--text-primary)]" data-signs-in-as>
+                {form.email_address || 'your email address'}
+              </p>
+              <button
+                type="button"
+                onClick={() => setUserEdited(true)}
+                className="mt-0.5 text-caption font-semibold text-[var(--indigo)] hover:underline"
+                data-override-login
+              >
+                Use a different username
+              </button>
+            </div>
+          )}
+          <EncryptionRadios secure={!!form.smtp_secure} onChange={(v) => updateField('smtp_secure', v)} />
+        </div>
+      </Group>
+
+      <div className="my-4 h-px bg-[var(--border-subtle)]" />
+
+      <Group icon={Inbox} title="Incoming" subtitle="IMAP - brings replies into Sincerely">
+        <div className="grid grid-cols-[2fr_1fr] gap-3">
+          <Input label="Host" value={form.imap_host || ''} onChange={(e) => updateField('imap_host', e.target.value || undefined)} placeholder="imap.example.com" />
+          <Input label="Port" type="number" value={String(form.imap_port || '')} onChange={(e) => updateField('imap_port', parseInt(e.target.value) || undefined)} placeholder="993" />
+        </div>
+        <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-[220px] flex-1">
+            <Input label="Username (if different)" value={form.imap_user || ''} onChange={(e) => updateField('imap_user', e.target.value)} placeholder="Defaults to the sign-in above" />
+          </div>
+          <div className="pb-1.5">
+            <EncryptionRadios secure={form.imap_secure !== false} onChange={(v) => updateField('imap_secure', v)} />
+          </div>
+        </div>
+        {/*
+          * Said where the empty field is, not only in the collapsed
+          * summary. A mailbox with no incoming server is the single
+          * commonest reason somebody opens this dialog a second time,
+          * having never seen a reply.
+          */}
+        {!(form.imap_host || '').trim() && (
+          <p className="mt-2.5 flex items-start gap-1.5 text-caption leading-snug text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
+            Without this, Sincerely can send from this address but will never see the replies — they stay in your provider's inbox only.
+          </p>
+        )}
+      </Group>
+    </>
+  );
+
+  const limitField = (
+    <Group icon={Gauge} title="Daily limit" subtitle="real campaign sends from this mailbox">
+      <div className="grid grid-cols-2 gap-3">
+        <Input
+          type="number"
+          min={0}
+          placeholder="0 = unlimited"
+          value={String(form.daily_send_limit ?? '')}
+          onChange={(e) => updateField('daily_send_limit', parseInt(e.target.value) || 0)}
+          error={limit.tone === 'danger' ? limit.note : undefined}
+          hint={
+            limit.tone !== 'ok' ? undefined
+              : Number(form.daily_send_limit) === 0 ? 'No daily cap on this mailbox'
+              : 'Warm-up ramps up to this over time'
+          }
+        />
+      </div>
+      {/*
+        * Guidance where the number is typed. The field was a bare
+        * input with nothing to say what a survivable figure looks
+        * like, which is how a new domain ends up set to 2,000 a day.
+        */}
+      {limit.tone === 'warning' && (
+        <p className="mt-2 flex items-start gap-1.5 text-caption leading-snug text-amber-700 dark:text-amber-400" data-limit-warning>
+          <AlertTriangle className="mt-px h-3 w-3 shrink-0" /> {limit.note}
+        </p>
+      )}
+    </Group>
+  );
+
+  const signatureField = (
+    <Group icon={Signature} title="Signature" subtitle="offered in the composer for this inbox">
+      <div className="flex items-center justify-end mb-1.5">
+        <button type="button" role="switch" aria-checked={!!form.signature_auto} onClick={() => updateField('signature_auto', !form.signature_auto)} className="flex items-center gap-2 text-caption font-medium text-[var(--text-secondary)]">
+          Always add to new emails
+          <span className={cn('relative inline-flex h-[18px] w-8 items-center rounded-full transition-colors', form.signature_auto ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]')}>
+            <span className={cn('inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform', form.signature_auto ? 'translate-x-[15px]' : 'translate-x-[2px]')} />
+          </span>
+        </button>
+      </div>
+      <RichTextEditor
+        key={`sig-${editId || connected?.id || 'new'}`}
+        initialContent={form.signature_html || ''}
+        onChange={(html, text) => updateField('signature_html', text.trim() ? html : '')}
+        minHeight="100px"
+        placeholder={`e.g. ${PLACEHOLDER.senderName} — Growth, ${PLACEHOLDER.senderCompany} · ${PLACEHOLDER.senderEmail}`}
+      />
+    </Group>
+  );
+
+  const mismatchWarning = (
+    <div className="rounded-lg border border-amber-500/30 bg-amber-500/8 px-3 py-2.5" data-sender-mismatch>
+      <p className="text-body font-medium text-[var(--text-primary)] flex items-center gap-1.5">
+        <AlertTriangle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+        This mailbox signs in as a different address
+      </p>
+      <p className="text-caption text-[var(--text-secondary)] mt-1 leading-relaxed">
+        Sending as <span className="font-medium text-[var(--text-primary)]">{form.email_address}</span>{' '}
+        but signing in as <span className="font-medium text-[var(--text-primary)]">{form.smtp_user}</span>.
+        Most providers reject that outright, and the ones that allow it need the
+        sender authorised first. Receiving is the quieter risk: those credentials
+        work, so this mailbox would read {form.smtp_user}&rsquo;s inbox instead of its own.
+      </p>
+      <button
+        type="button"
+        onClick={() => { setUserEdited(false); updateField('smtp_user', form.email_address); }}
+        className="mt-1.5 text-caption font-semibold text-[var(--indigo)] hover:underline"
+        data-fix-sender
+      >
+        Sign in as {form.email_address} instead
+      </button>
+    </div>
+  );
+
+  /*
+   * Diagnostics on demand, not only after a failed check.
+   *
+   * This used to appear solely when a check had run AND come back
+   * failed, so the one thing that explains a connection was locked
+   * behind the thing that could not explain itself - and if the
+   * check errored at the transport, or somebody simply wanted to
+   * know why a saved mailbox was quiet, there was no way in at all.
+   * There is nothing to protect here: it is four read-only probes.
+   */
+  const diagnosticsBlock = (
+    <>
+      {!diagnostics && form.smtp_host && (
+        <button
+          type="button"
+          onClick={() => diagnoseMutation.mutate()}
+          disabled={diagnoseMutation.isPending}
+          className="inline-flex items-center gap-1.5 text-caption font-semibold text-[var(--indigo)] hover:underline disabled:opacity-60"
+          data-run-diagnostics
+        >
+          {diagnoseMutation.isPending
+            ? <><Loader2 className="h-3 w-3 animate-spin" /> Pinpointing the failure…</>
+            : <><Stethoscope className="h-3 w-3" /> {verifyFailed ? 'Find out exactly why' : 'Run diagnostics'}</>}
+        </button>
+      )}
+
+      {/* Staged diagnosis — turns "timed out" into a specific, fixable cause */}
+      {diagnostics && (
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 p-3.5 space-y-3">
+          <div className="flex items-center gap-1.5">
+            <Stethoscope className="h-3.5 w-3.5 text-[var(--indigo)]" />
+            <p className="text-body font-semibold text-[var(--text-primary)]">Diagnosis</p>
+            <span className="flex-1" />
+            <button type="button" onClick={() => setDiagnostics(null)} className="text-caption text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">
+              Hide
+            </button>
+          </div>
+
+          {/*
+            * Both halves, always, and labelled.
+            *
+            * This used to show one unlabelled staircase for the SMTP host.
+            * When sending worked and receiving did not - which is the
+            * common case, and the reason anybody presses this button - it
+            * reported every stage green and answered a question nobody had
+            * asked.
+            */}
+          <DiagLeg title="Sending (SMTP)" diag={diagnostics.smtp} relayHealthy={diagnostics.smtp.relayHealthy} />
+          {diagnostics.imap
+            ? <DiagLeg title="Receiving (IMAP)" diag={diagnostics.imap} relayHealthy={null} />
+            : (
+              <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2.5">
+                <p className="text-body font-medium text-[var(--text-primary)]">Receiving (IMAP) — nothing to test</p>
+                <p className="text-caption text-[var(--text-secondary)] mt-1 leading-relaxed">
+                  No IMAP server is set on this mailbox, so replies cannot sync into the unibox.
+                  <button type="button" onClick={() => { reveal('servers'); if (wizard) setStep('signin'); }} className="ml-1 font-medium text-[var(--indigo)] hover:underline">
+                    Add one under Servers.
+                  </button>
+                </p>
+              </div>
+            )}
+        </div>
+      )}
+    </>
+  );
+
+  /* ── Wizard bodies ─────────────────────────────────────────────────── */
+
+  const addressStep = (
+    <div className="space-y-5">
+      <div>
+        <Input
+          label="Email address you send from"
+          type="email"
+          value={form.email_address}
+          onChange={(e) => handleEmailChange(e.target.value)}
+          placeholder={activePreset?.username_hint || 'you@company.com'}
+          error={err('email_address', 'Enter a full email address')}
+          autoComplete="off"
+          data-1p-ignore
+          data-lpignore="true"
+          name="sincerely-from-email"
+          autoFocus
+        />
+        <div className="mt-2 min-h-[20px]">
+          {mxState.status === 'checking' && (
+            <p className="flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
+              <Loader2 className="h-3 w-3 animate-spin" /> Looking up where {form.email_address.split('@')[1]} keeps its mail…
+            </p>
+          )}
+          {activePreset && autoDetected && (
+            <p className="flex items-center gap-1.5 text-caption text-emerald-700 dark:text-emerald-400">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {mxState.note || `Recognised ${activePreset.name} - servers filled in for you.`}
+            </p>
+          )}
+          {!autoDetected && mxState.status === 'done' && mxState.note && (
+            <p className="flex items-start gap-1.5 text-caption text-[var(--text-secondary)]">
+              <Sparkles className="mt-px h-3 w-3 shrink-0 text-[var(--indigo)]" /> {mxState.note}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-caption font-medium text-[var(--text-tertiary)]">Or pick your provider</p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {FEATURED.map((name) => {
+            const on = activePreset?.name === name;
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => applyPreset(name)}
+                className={cn(
+                  'flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all',
+                  on
+                    ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] shadow-[var(--shadow-sm)]'
+                    : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-default)] hover:shadow-[var(--shadow-sm)]',
+                )}
+              >
+                <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+                  <ProviderLogo name={name} />
+                </span>
+                <span className="min-w-0 truncate text-body font-medium text-[var(--text-primary)]">
+                  {name === 'Outlook / Microsoft 365' ? 'Microsoft' : name.replace(' Mail', '')}
+                </span>
+                {on && <Check className="ml-auto h-3.5 w-3.5 flex-shrink-0 text-[var(--indigo)]" strokeWidth={3} />}
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+          <div className="flex items-center gap-2 px-3 h-9 border-b border-[var(--border-subtle)]">
+            <Search className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+            <input
+              value={providerSearch}
+              onChange={(e) => setProviderSearch(e.target.value)}
+              placeholder="Other providers - SendGrid, Mailgun, Titan, Spacemail…"
+              className="flex-1 bg-transparent text-body text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none"
+            />
+          </div>
+          <div className="flex flex-wrap gap-1.5 p-2">
+            {presets.slice(0, 10).map((p) => (
+              <button
+                key={p.name}
+                type="button"
+                onClick={() => applyPreset(p.name)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-caption font-medium transition-colors',
+                  activePreset?.name === p.name
+                    ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                    : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                )}
+              >
+                <ProviderLogo name={p.name} className="h-4 w-4" /> {p.name}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => { applyPreset(''); reveal('servers'); }}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-caption font-medium transition-colors',
+                !activePreset ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'border-dashed border-[var(--border-default)] text-[var(--text-secondary)]',
+              )}
+            >
+              <Server className="h-3.5 w-3.5" /> Any other server (IMAP/SMTP)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const signinStep = (
+    <div className="space-y-4">
+      {/* Who we are signing in to, and how to get the right password. */}
+      <div className="flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 px-3.5 py-3">
+        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+          <ProviderLogo name={activePreset?.name} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-body font-semibold text-[var(--text-primary)]">{form.email_address}</p>
+          <p className="text-caption text-[var(--text-tertiary)]">{activePreset ? activePreset.name : 'Custom mail server'}</p>
+        </div>
+        <button type="button" onClick={() => setStep('address')} className="text-caption font-medium text-[var(--indigo)] hover:underline">Change</button>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
+        <div className="space-y-3">
+          {passwordField}
+          <Input label="From name" value={form.from_name || ''} onChange={(e) => updateField('from_name', e.target.value)} placeholder={`e.g. ${PLACEHOLDER.senderName}`} hint="What recipients see in the From field" />
+        </div>
+        <div className="rounded-xl border border-[var(--indigo)]/15 bg-[var(--indigo-subtle)]/40 p-3.5">
+          <p className="flex items-center gap-1.5 text-caption font-semibold text-[var(--text-primary)]">
+            <KeyRound className="h-3.5 w-3.5 text-[var(--indigo)]" /> Getting your {guide.secret.toLowerCase()}
+          </p>
+          <ol className="mt-2 space-y-1.5">
+            {guide.steps.map((s, i) => (
+              <li key={i} className="flex gap-2 text-caption leading-snug text-[var(--text-secondary)]">
+                <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[var(--bg-surface)] text-micro font-bold text-[var(--indigo)]">{i + 1}</span>
+                {s}
+              </li>
+            ))}
+          </ol>
+          {guide.link && (
+            <a href={guide.link.url} target="_blank" rel="noreferrer" className="mt-2.5 inline-flex items-center gap-1 text-caption font-semibold text-[var(--indigo)] hover:underline">
+              {guide.link.label} <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+          {guide.gotcha && (
+            <p className="mt-2 flex items-start gap-1.5 text-caption leading-snug text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="mt-px h-3 w-3 flex-shrink-0" /> {guide.gotcha}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Servers: one line when found, the full fields when they need you. */}
+      <Disclosure
+        icon={Server}
+        title="Servers"
+        summary={servers}
+        open={isOpen('servers')}
+        onToggle={() => toggleSection('servers')}
+        gap={sectionHasGap('servers')}
+      >
+        {serverFields}
+      </Disclosure>
+
+      {senderMismatch && (mismatchWarning)}
+    </div>
+  );
+
+  const connectStep = (() => {
+    const pending = connectMutation.isPending;
+    const smtp = verify.smtp;
+    const imap = verify.imap;
+    const failed = !pending && verifyFailed;
+    const smtpState = pending ? 'running' : smtp ? (smtp.ok ? 'ok' : 'fail') : 'waiting';
+    const imapState = pending ? (form.imap_host ? 'running' : 'skipped')
+      : imap ? (imap.status === 'ok' ? 'ok' : imap.status === 'skipped' ? 'skipped' : 'fail')
+      : smtp && !smtp.ok ? 'waiting' : 'waiting';
+    return (
+      <div className="space-y-4">
+        <div className={cn(
+          'rounded-2xl border px-4 py-3',
+          failed ? 'border-rose-500/30 bg-rose-500/[0.04]' : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50',
+        )}>
+          <ul className="divide-y divide-[var(--border-subtle)]">
+            <CheckLine
+              state={smtpState as any}
+              label={`Sending from ${form.email_address}`}
+              detail={pending ? `Signing in to ${form.smtp_host} and sending a test email to yourself…` : smtp?.message}
+            />
+            <CheckLine
+              state={imapState as any}
+              label="Receiving replies"
+              detail={pending ? (form.imap_host ? `Signing in to ${form.imap_host} to read your inbox…` : 'No incoming server - skipped.')
+                : imap ? imap.message
+                : smtp && !smtp.ok ? 'Tested once sending works.' : undefined}
+            />
+          </ul>
+        </div>
+
+        {failed && refused && (
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3">
+            <p className="text-body font-semibold text-[var(--text-primary)]">{refused}</p>
+            <Button type="button" size="sm" variant="secondary" className="mt-3" onClick={() => setStep('address')}>
+              <ArrowLeft className="h-3.5 w-3.5" /> Back
+            </Button>
+          </div>
+        )}
+        {failed && !refused && (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3">
+              <p className="text-body font-semibold text-[var(--text-primary)]">Nothing was saved. Here is what to try:</p>
+              <ul className="mt-1.5 list-disc space-y-1 pl-5 text-caption text-[var(--text-secondary)]">
+                {smtp && !smtp.ok && /password|auth|username|535|credential/i.test(smtp.message) && (
+                  <li>Check you pasted the {guide.secret.toLowerCase()}, not your normal password{guide.link ? ' - the steps are on the previous screen' : ''}.</li>
+                )}
+                {guide.gotcha && <li>{guide.gotcha}</li>}
+                <li>Make sure the servers and ports match what your provider publishes.</li>
+              </ul>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={() => { setStep('signin'); if (smtp?.ok && imap?.status === 'fail') reveal('servers'); }}>
+                  <ArrowLeft className="h-3.5 w-3.5" /> Back and fix
+                </Button>
+                <Button type="button" size="sm" onClick={() => connectMutation.mutate({ verified: true })}>
+                  <Plug className="h-3.5 w-3.5" /> Try again
+                </Button>
+                <span className="flex-1" />
+                {smtp?.ok && (
+                  <button type="button" onClick={() => connectMutation.mutate({ verified: true, sendingOnly: true })} className="text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)]" title="Save it without the incoming server. Replies will stay in your provider's inbox until you add one.">
+                    Connect for sending only
+                  </button>
+                )}
+              </div>
+            </div>
+            {diagnosticsBlock}
+          </div>
+        )}
+      </div>
+    );
+  })();
+
+  const doneStep = (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.06] px-4 py-3.5">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
+          <Check className="h-5 w-5" strokeWidth={3} />
+        </span>
+        <div className="min-w-0">
+          <p className="text-strong font-semibold text-[var(--text-primary)]">{form.email_address} is connected</p>
+          <p className="text-caption text-[var(--text-secondary)]">
+            {verify.imap?.status === 'ok' ? 'Sending and receiving both work.' : verify.smtp?.ok ? 'Sending works.' : 'Saved.'}
+            {' '}A few optional touches below - the defaults are safe.
+          </p>
+        </div>
+      </div>
+
+      {!isSendOnlyProvider(activePreset?.name) && (
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3">
+          <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400">
+            <Flame className="h-3.5 w-3.5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-body font-semibold text-[var(--text-primary)]">Warm it up <span className="font-normal text-[var(--text-tertiary)]">- recommended</span></span>
+            <span className="block text-caption text-[var(--text-secondary)]">Sends a few friendly emails a day between warm-up inboxes and ramps up slowly, so providers learn to trust this address before campaigns go out.</span>
+          </span>
+          <input type="checkbox" checked={warmupOn} onChange={(e) => setWarmupOn(e.target.checked)} className="mt-1 h-4 w-4 accent-[var(--indigo)]" />
+        </label>
+      )}
+
+      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3">
+        {limitField}
+      </div>
+
+      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+        <button type="button" onClick={() => setSigOpen((v) => !v)} className="flex w-full items-center gap-2 px-3.5 py-3 text-left">
+          <Signature className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+          <span className="flex-1 text-body font-semibold text-[var(--text-primary)]">Add a signature <span className="font-normal text-[var(--text-tertiary)]">- optional</span></span>
+          <ChevronDown className={cn('h-4 w-4 text-[var(--text-tertiary)] transition-transform', sigOpen && 'rotate-180')} />
+        </button>
+        {sigOpen && <div className="border-t border-[var(--border-subtle)] px-3.5 py-3">{signatureField}</div>}
+      </div>
+
+      {/* The domain: the biggest single thing left between this and the inbox. */}
+      {!freeMail && domain && (
+        domainRow?.is_verified ? (
+          <p className="flex items-center gap-1.5 text-caption text-emerald-700 dark:text-emerald-400">
+            <ShieldCheck className="h-3.5 w-3.5" /> {domain} is authenticated (SPF, DKIM, DMARC).
+          </p>
+        ) : (
+          <Link
+            to={`/email-accounts?tab=domains${domainRow ? `&domain=${domainRow.id}` : `&add=${encodeURIComponent(domain)}`}`}
+            onClick={onClose}
+            className="flex items-center gap-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.05] px-3.5 py-3 transition-colors hover:bg-amber-500/[0.09]"
+          >
+            <Globe className="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+            <span className="min-w-0 flex-1 text-caption text-[var(--text-secondary)]">
+              <span className="block text-body font-semibold text-[var(--text-primary)]">Next: authenticate {domain}</span>
+              {domainRow ? 'Its DNS records are not all in place yet.' : 'Three DNS records that decide whether you reach the inbox. We generate them for you.'}
+            </span>
+            <ArrowRight className="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+          </Link>
+        )
+      )}
+    </div>
+  );
+
+  /* ── Footer, per layout ────────────────────────────────────────────── */
+
+  const wizardFooter = (
+    <>
+      {step === 'signin' && (
+        <Button type="button" variant="secondary" onClick={() => setStep('address')} className="mr-auto">
+          <ArrowLeft className="h-3.5 w-3.5" /> Back
+        </Button>
+      )}
+      {step === 'done' ? (
+        <>
+          <Button type="button" variant="secondary" onClick={onClose} className="mr-auto">Skip for now</Button>
+          <Button type="submit" form={FORM_ID} disabled={finishMutation.isPending}>
+            {finishMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Finish
+          </Button>
+        </>
+      ) : step === 'connect' ? (
+        <Button type="button" variant="secondary" onClick={onClose} disabled={connectMutation.isPending}>Close</Button>
+      ) : (
+        <>
+          <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
+          <Button type="submit" form={FORM_ID}>
+            {step === 'address' ? <>Continue <ArrowRight className="h-3.5 w-3.5" /></> : <><Plug className="h-3.5 w-3.5" /> Connect mailbox</>}
+          </Button>
+        </>
+      )}
+    </>
+  );
+
+  const editFooter = (
+    <>
+      <button
+        type="button"
+        onClick={handleCheck}
+        disabled={busy}
+        className={cn(
+          'mr-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-body font-medium border transition-colors disabled:opacity-60',
+          verifyOk ? 'border-emerald-500/40 text-emerald-700 dark:text-emerald-400 bg-emerald-500/8 hover:bg-emerald-500/12'
+            : verifyFailed ? 'border-rose-500/40 text-rose-700 dark:text-rose-400 bg-rose-500/8 hover:bg-rose-500/12'
+            : 'border-[var(--border-default)] text-[var(--text-primary)] bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)]'
+        )}
+        title="Test sending (SMTP) and receiving (IMAP) with these settings"
+      >
+        {verifyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          : verifyOk ? <ShieldCheck className="h-3.5 w-3.5" />
+          : <Plug className="h-3.5 w-3.5" />}
+        {verifyMutation.isPending ? 'Testing…' : verifyOk ? 'Connection works' : verifyFailed ? 'Test again' : 'Test connection'}
+      </button>
+      <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
+      <Button variant="primary" type="submit" form={FORM_ID} disabled={saveMutation.isPending}>
+        {saveMutation.isPending ? 'Saving…' : 'Save changes'}
+      </Button>
+    </>
+  );
+
+  const title = editId
+    ? `Settings for ${editAccount!.email_address}`
+    : step === 'done' ? 'Connected' : 'Connect a mailbox';
+  const description = editId
+    ? 'Change how this mailbox signs in, sends and signs off. Test before saving if you change the connection.'
+    : step === 'address' ? 'Enter the address you send from. We find its servers for you.'
+    : step === 'signin' ? 'Paste its password. Sincerely tests everything before saving.'
+    : step === 'connect' ? (connectMutation.isPending ? 'Testing the connection…' : verifyFailed ? 'The test did not pass.' : 'Testing…')
+    : 'Optional finishing touches.';
 
   return (
     <Modal
       isOpen={open}
       onClose={onClose}
-      title={editId ? 'Email account settings' : isQuickMode ? `Connect ${activePreset!.name}` : 'Connect an email account'}
-      description={isQuickMode ? `${activePreset!.name} is pre-filled — just add your email and password.` : 'Add the address and its password. Everything else is filled in from your domain where we can.'}
-      size="xl"
-      footer={
-        <>
-          <button
-            type="button"
-            onClick={handleCheck}
-            disabled={verifyMutation.isPending}
-            className={cn(
-              'mr-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-body font-medium border transition-colors disabled:opacity-60',
-              verifyOk ? 'border-emerald-500/40 text-emerald-700 dark:text-emerald-400 bg-emerald-500/8 hover:bg-emerald-500/12'
-                : verifyFailed ? 'border-rose-500/40 text-rose-700 dark:text-rose-400 bg-rose-500/8 hover:bg-rose-500/12'
-                : 'border-[var(--border-default)] text-[var(--text-primary)] bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)]'
-            )}
-            title="Test sending (SMTP) and receiving (IMAP) with these settings"
-          >
-            {verifyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              : verifyOk ? <ShieldCheck className="h-3.5 w-3.5" />
-              : <Plug className="h-3.5 w-3.5" />}
-            {verifyMutation.isPending ? 'Checking…' : verifyOk ? 'Connection verified' : verifyFailed ? 'Test again' : 'Check connection'}
-          </button>
-          <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" type="submit" form={FORM_ID} disabled={saveMutation.isPending}>
-            {saveMutation.isPending ? 'Saving…' : editId ? 'Save changes' : 'Connect account'}
-          </Button>
-        </>
-      }
+      title={title}
+      description={description}
+      size={editId ? 'xl' : '2xl'}
+      footer={editId ? editFooter : wizardFooter}
     >
       {/*
         * autoComplete="off" on the form, and again per field.
@@ -743,402 +1615,92 @@ export function SmtpAccountModal({
         data-1p-ignore
         data-lpignore="true"
       >
-        {isQuickMode && activePreset!.password_hint && (
-          <div className="flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-caption text-[var(--text-tertiary)]">
-            <HelpCircle className="h-3.5 w-3.5 shrink-0" /> Password tip: {activePreset!.password_hint}
-          </div>
-        )}
-        {autoDetected && activePreset && !editId && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/8 border border-emerald-500/20 text-body text-emerald-700 dark:text-emerald-400">
-            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-            Auto-detected <span className="font-medium">{activePreset.name}</span> — server settings pre-filled.
-          </div>
-        )}
-
-        {/* ── 1. The mailbox ── */}
-        <Disclosure
-          icon={Mail}
-          title="The mailbox"
-          summary={{
-            text: form.email_address
-              ? `${form.email_address}${form.from_name ? ` — from "${form.from_name}"` : ''}`
-              : 'No address yet.',
-            tone: form.email_address ? 'ok' : 'empty',
-          }}
-          open={isOpen('mailbox')}
-          onToggle={() => toggleSection('mailbox')}
-          gap={sectionHasGap('mailbox')}
-        >
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Email address" type="email" value={form.email_address} onChange={(e) => handleEmailChange(e.target.value)} placeholder={activePreset?.username_hint || 'you@company.com'} error={err('email_address')} autoComplete="off" data-1p-ignore data-lpignore="true" name="sincerely-from-email" />
-            <div className="relative">
-              <Input
-                label={passwordLabel}
-                type={showPass ? 'text' : 'password'}
-                value={form.smtp_pass}
-                onChange={(e) => updateField('smtp_pass', e.target.value)}
-                placeholder={passwordPlaceholder}
-                autoComplete="new-password"
-                error={err('smtp_pass')}
-                hint={editId ? 'Saved password is used for tests and sends unless you type a new one' : undefined}
-                className="pr-8"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPass((v) => !v)}
-                tabIndex={-1}
-                aria-label={showPass ? 'Hide password' : 'Show password'}
-                className="absolute right-2.5 top-[27px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
-              >
-                {showPass ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              </button>
-            </div>
-          </div>
-
-          {/* MX-based auto-assignment for custom domains */}
-          {mxState.status === 'checking' && (
-            <p className="mt-2 flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
-              <Loader2 className="h-3 w-3 animate-spin" /> Looking up your domain's mail service to assign settings…
-            </p>
-          )}
-          {mxState.status === 'done' && mxState.note && (
-            <p className="mt-2 flex items-start gap-1.5 text-caption text-[var(--text-secondary)]">
-              <Sparkles className="h-3 w-3 text-[var(--indigo)] mt-px shrink-0" /> {mxState.note}
-            </p>
-          )}
-
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <Input label="From name" value={form.from_name || ''} onChange={(e) => updateField('from_name', e.target.value)} placeholder={`e.g. ${PLACEHOLDER.senderName}`} hint="What recipients see in the From field" />
-            {/*
-              * Optional, and says so. It used to be required, which meant a
-              * custom domain - where no preset fills it in - could not be
-              * saved until somebody invented a name for a mailbox that
-              * already had a perfectly good one.
-              */}
-            <Input label="Internal name" value={form.label} onChange={(e) => updateField('label', e.target.value)} placeholder={form.email_address || `e.g. ${PLACEHOLDER.senderCompany} outreach`} hint="Only you see this. Defaults to the address." />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => { setReplyToOn((v) => { if (v) updateField('reply_to', ''); return !v; }); }}
-            className="mt-2.5 inline-flex items-center gap-1.5 text-caption font-medium text-[var(--indigo)] hover:underline"
-          >
-            <span className={cn('relative inline-flex h-[16px] w-7 items-center rounded-full transition-colors', replyToOn ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]')}>
-              <span className={cn('inline-block h-3 w-3 rounded-full bg-white shadow transition-transform', replyToOn ? 'translate-x-[13px]' : 'translate-x-[2px]')} />
-            </span>
-            Set a different reply-to address
-          </button>
-          {replyToOn && (
-            <Input className="mt-2" type="email" value={form.reply_to || ''} onChange={(e) => updateField('reply_to', e.target.value)} placeholder="replies@company.com" hint="Replies are directed here instead of your From address" />
-          )}
-        </Disclosure>
-
-        {/* ── 2. Servers ── */}
-        <Disclosure
-          icon={Server}
-          title="Servers"
-          summary={servers}
-          open={isOpen('servers')}
-          onToggle={() => toggleSection('servers')}
-          gap={sectionHasGap('servers')}
-        >
-          {!editId && (
-            <div className="mb-3">
-              {/*
-                * The preset select lives here, with the fields it writes. It
-                * used to sit under the sender fields, which it does not
-                * touch, on a different tab from the ones it does.
-                */}
-              <Select
-                label="Provider"
-                options={[{ value: '', label: 'Custom / enter servers manually' }, ...SMTP_PRESETS.map((p) => ({ value: p.name, label: p.name }))]}
-                value={activePreset?.name || ''}
-                onChange={(e) => applyPreset(e.target.value)}
-              />
-            </div>
-          )}
-
-          <Group icon={Send} title="Outgoing" subtitle="— SMTP, used to send your campaigns">
-            <div className="grid grid-cols-[2fr_1fr] gap-3">
-              <Input label="Host" value={form.smtp_host} onChange={(e) => updateField('smtp_host', e.target.value)} placeholder="smtp.example.com" error={err('smtp_host')} />
-              <Input label="Port" type="number" value={String(form.smtp_port)} onChange={(e) => updateField('smtp_port', parseInt(e.target.value) || 0)} error={err('smtp_port')} />
-            </div>
-            {/*
-              * The sign-in is shown, not typed.
-              *
-              * A bare text field called "Username" sitting beside a
-              * password field, on a tab nobody revisits, is the ideal
-              * shape for a password manager to fill - and it filled it
-              * with a DIFFERENT mailbox on the same domain. The account
-              * holder typed one address into "From email" and never saw
-              * the other one get written here.
-              *
-              * For nearly every provider this value is the address, so
-              * showing it removes a field that can only go wrong. The
-              * override stays for the handful that use something else -
-              * SendGrid signs in as "apikey", Mailgun as a postmaster
-              * handle - but it has to be asked for.
-              */}
-            <div className="mt-3">
-              {userEdited ? (
-                <Input
-                  label="Sign-in username"
-                  value={form.smtp_user}
-                  onChange={(e) => updateField('smtp_user', e.target.value)}
-                  placeholder={activePreset?.username_hint || 'Usually your email address'}
-                  hint="Only change this if your provider signs in with something other than the address"
-                  autoComplete="off"
-                  data-1p-ignore
-                  data-lpignore="true"
-                  name="sincerely-smtp-login"
-                />
-              ) : (
-                <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2">
-                  <p className="text-caption text-[var(--text-tertiary)]">Signs in as</p>
-                  <p className="text-body font-medium text-[var(--text-primary)]" data-signs-in-as>
-                    {form.email_address || 'your email address'}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setUserEdited(true)}
-                    className="mt-1 text-caption font-semibold text-[var(--indigo)] hover:underline"
-                    data-override-login
-                  >
-                    Use a different username
-                  </button>
-                </div>
-              )}
-            </div>
-            <div className="mt-3">
-              <EncryptionRadios secure={!!form.smtp_secure} onChange={(v) => updateField('smtp_secure', v)} />
-            </div>
-          </Group>
-
-          <div className="my-3.5 h-px bg-[var(--border-subtle)]" />
-
-          <Group icon={Inbox} title="Incoming" subtitle="— IMAP, so replies reach your inbox">
-            <div className="grid grid-cols-[2fr_1fr] gap-3">
-              <Input label="Host" value={form.imap_host || ''} onChange={(e) => updateField('imap_host', e.target.value || undefined)} placeholder="imap.example.com" />
-              <Input label="Port" type="number" value={String(form.imap_port || '')} onChange={(e) => updateField('imap_port', parseInt(e.target.value) || undefined)} placeholder="993" />
-            </div>
-            <div className="grid grid-cols-2 gap-3 mt-3 items-end">
-              <Input label="Username (if different)" value={form.imap_user || ''} onChange={(e) => updateField('imap_user', e.target.value)} placeholder="Defaults to the sign-in above" />
-              <div className="pb-1.5">
-                <EncryptionRadios secure={form.imap_secure !== false} onChange={(v) => updateField('imap_secure', v)} />
-              </div>
-            </div>
-            {/*
-              * Said where the empty field is, not only in the collapsed
-              * summary. A mailbox with no incoming server is the single
-              * commonest reason somebody opens this dialog a second time,
-              * having never seen a reply.
-              */}
-            {!(form.imap_host || '').trim() && (
-              <p className="mt-2.5 flex items-start gap-1.5 text-caption leading-snug text-amber-700 dark:text-amber-400">
-                <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
-                Without this, Sincerely can send from this address but will never see the replies — they stay in your provider's inbox only.
-              </p>
-            )}
-          </Group>
-        </Disclosure>
-
-        {/* ── 3. Sending & signature ── */}
-        <Disclosure
-          icon={Gauge}
-          title="Sending &amp; signature"
-          summary={sending}
-          open={isOpen('sending')}
-          onToggle={() => toggleSection('sending')}
-          gap={false}
-        >
-          <Group icon={Gauge} title="Daily limit" subtitle="— real campaign sends from this mailbox">
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                type="number"
-                min={0}
-                placeholder="0 = unlimited"
-                value={String(form.daily_send_limit ?? '')}
-                onChange={(e) => updateField('daily_send_limit', parseInt(e.target.value) || 0)}
-                error={limit.tone === 'danger' ? limit.note : undefined}
-                hint={
-                  limit.tone !== 'ok' ? undefined
-                    : Number(form.daily_send_limit) === 0 ? 'No daily cap on this mailbox'
-                    : 'Warm-up ramps up to this over time'
-                }
-              />
-            </div>
-            {/*
-              * Guidance where the number is typed. The field was a bare
-              * input with nothing to say what a survivable figure looks
-              * like, which is how a new domain ends up set to 2,000 a day.
-              */}
-            {limit.tone === 'warning' && (
-              <p className="mt-2 flex items-start gap-1.5 text-caption leading-snug text-amber-700 dark:text-amber-400" data-limit-warning>
-                <AlertTriangle className="mt-px h-3 w-3 shrink-0" /> {limit.note}
-              </p>
-            )}
-          </Group>
-
-          <div className="my-3.5 h-px bg-[var(--border-subtle)]" />
-
-          <Group icon={Signature} title="Signature" subtitle="— offered in the composer for this inbox">
-            <div className="flex items-center justify-end mb-1.5">
-              <button type="button" role="switch" aria-checked={!!form.signature_auto} onClick={() => updateField('signature_auto', !form.signature_auto)} className="flex items-center gap-2 text-caption font-medium text-[var(--text-secondary)]">
-                Always add to new emails
-                <span className={cn('relative inline-flex h-[18px] w-8 items-center rounded-full transition-colors', form.signature_auto ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]')}>
-                  <span className={cn('inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform', form.signature_auto ? 'translate-x-[15px]' : 'translate-x-[2px]')} />
-                </span>
-              </button>
-            </div>
-            <RichTextEditor
-              key={`sig-${editId || 'new'}`}
-              initialContent={form.signature_html || ''}
-              onChange={(html, text) => updateField('signature_html', text.trim() ? html : '')}
-              minHeight="100px"
-              placeholder={`e.g. ${PLACEHOLDER.senderName} — Growth, ${PLACEHOLDER.senderCompany} · ${PLACEHOLDER.senderEmail}`}
-            />
-          </Group>
-        </Disclosure>
-
-        {/* ── Connection panel — always present, so the check is never a no-op ── */}
-        <div className={cn(
-          'rounded-xl border px-3.5 py-3 space-y-2',
-          verify.status === 'idle' && 'border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60',
-          verify.status === 'checking' && 'border-[var(--border-subtle)] bg-[var(--bg-elevated)]',
-          verifyOk && 'border-emerald-500/30 bg-emerald-500/8',
-          verifyFailed && 'border-rose-500/30 bg-rose-500/8',
-        )}>
-          {verify.status === 'idle' && (
-            missing.length ? (
-              <div className="flex items-start gap-2 text-body text-[var(--text-secondary)]">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-px" />
-                <span>
-                  Still needed before testing:{' '}
-                  {missing.map((m, i) => (
-                    <span key={m.key}>
-                      {i > 0 && ', '}
-                      <button type="button" onClick={() => { reveal(m.section); setFlagged([m.key]); }} className="font-medium text-[var(--indigo)] hover:underline">
-                        {m.label}
-                      </button>
-                    </span>
-                  ))}
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-start gap-2 text-body text-[var(--text-secondary)]">
-                <Circle className="h-3.5 w-3.5 text-[var(--text-muted)] shrink-0 mt-px" />
-                <span>
-                  Not tested yet — hit <span className="font-medium text-[var(--text-primary)]">Check connection</span> to send a probe email to yourself
-                  {form.imap_host ? ' and log into IMAP' : ''}.
-                </span>
-              </div>
-            )
-          )}
-
-          {verify.status === 'checking' && (
-            <div className="flex items-center gap-2 text-body text-[var(--text-secondary)]">
-              <Loader2 className="h-4 w-4 animate-spin" /> Testing SMTP{form.imap_host ? ' and IMAP' : ''}…
-            </div>
-          )}
-
-          {verify.status === 'done' && (
-            <div className="space-y-1.5">
-              <LegRow label="SMTP (sending)" leg={verify.smtp} />
-              <LegRow label="IMAP (receiving)" leg={verify.imap} />
-            </div>
-          )}
-
-          {senderMismatch && (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/8 px-3 py-2.5" data-sender-mismatch>
-              <p className="text-body font-medium text-[var(--text-primary)] flex items-center gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
-                This mailbox signs in as a different address
-              </p>
-              <p className="text-caption text-[var(--text-secondary)] mt-1 leading-relaxed">
-                Sending as <span className="font-medium text-[var(--text-primary)]">{form.email_address}</span>{' '}
-                but signing in as <span className="font-medium text-[var(--text-primary)]">{form.smtp_user}</span>.
-                Most providers reject that outright, and the ones that allow it need the
-                sender authorised first. Receiving is the quieter risk: those credentials
-                work, so this mailbox would read {form.smtp_user}&rsquo;s inbox instead of its own.
-              </p>
-              <button
-                type="button"
-                onClick={() => { setUserEdited(false); updateField('smtp_user', form.email_address); }}
-                className="mt-1.5 text-caption font-semibold text-[var(--indigo)] hover:underline"
-                data-fix-sender
-              >
-                Sign in as {form.email_address} instead
-              </button>
-            </div>
-          )}
-
-          {/*
-            * Diagnostics on demand, not only after a failed check.
-            *
-            * This used to appear solely when a check had run AND come back
-            * failed, so the one thing that explains a connection was locked
-            * behind the thing that could not explain itself - and if the
-            * check errored at the transport, or somebody simply wanted to
-            * know why a saved mailbox was quiet, there was no way in at all.
-            * There is nothing to protect here: it is four read-only probes.
-            */}
-          {!diagnostics && form.smtp_host && (
-            <button
-              type="button"
-              onClick={() => diagnoseMutation.mutate()}
-              disabled={diagnoseMutation.isPending}
-              className="mt-1 inline-flex items-center gap-1.5 text-caption font-semibold text-[var(--indigo)] hover:underline disabled:opacity-60"
-              data-run-diagnostics
+        {wizard ? (
+          <>
+            <Stepper step={step} />
+            {step === 'address' && addressStep}
+            {step === 'signin' && signinStep}
+            {step === 'connect' && connectStep}
+            {step === 'done' && doneStep}
+          </>
+        ) : (
+          <div className="space-y-2.5">
+            {/* ── 1. The mailbox ── */}
+            <Disclosure
+              icon={Mail}
+              title="The mailbox"
+              summary={{
+                text: form.email_address
+                  ? `${form.email_address}${form.from_name ? ` — from "${form.from_name}"` : ''}`
+                  : 'No address yet.',
+                tone: form.email_address ? 'ok' : 'empty',
+              }}
+              open={isOpen('mailbox')}
+              onToggle={() => toggleSection('mailbox')}
+              gap={sectionHasGap('mailbox')}
             >
-              {diagnoseMutation.isPending
-                ? <><Loader2 className="h-3 w-3 animate-spin" /> Pinpointing the failure…</>
-                : <><Stethoscope className="h-3 w-3" /> {verifyFailed ? 'Find out exactly why' : 'Run diagnostics'}</>}
-            </button>
-          )}
-        </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input label="Email address" type="email" value={form.email_address} onChange={(e) => handleEmailChange(e.target.value)} placeholder="you@company.com" error={err('email_address')} autoComplete="off" data-1p-ignore data-lpignore="true" name="sincerely-from-email" />
+                {passwordField}
+              </div>
+              <div className="mt-3">{identityFields}</div>
+            </Disclosure>
 
-        {/* Staged diagnosis — turns "timed out" into a specific, fixable cause */}
-        {diagnostics && (
-          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 p-3.5 space-y-3">
-            <div className="flex items-center gap-1.5">
-              <Stethoscope className="h-3.5 w-3.5 text-[var(--indigo)]" />
-              <p className="text-body font-semibold text-[var(--text-primary)]">Diagnosis</p>
-              <span className="flex-1" />
-              <button type="button" onClick={() => setDiagnostics(null)} className="text-caption text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">
-                Hide
-              </button>
-            </div>
+            {/* ── 2. Servers ── */}
+            <Disclosure
+              icon={Server}
+              title="Servers"
+              summary={servers}
+              open={isOpen('servers')}
+              onToggle={() => toggleSection('servers')}
+              gap={sectionHasGap('servers')}
+            >
+              {serverFields}
+            </Disclosure>
 
-            {/*
-              * Both halves, always, and labelled.
-              *
-              * This used to show one unlabelled staircase for the SMTP host.
-              * When sending worked and receiving did not - which is the
-              * common case, and the reason anybody presses this button - it
-              * reported every stage green and answered a question nobody had
-              * asked.
-              */}
-            <DiagLeg title="Sending (SMTP)" diag={diagnostics.smtp} relayHealthy={diagnostics.smtp.relayHealthy} />
-            {diagnostics.imap
-              ? <DiagLeg title="Receiving (IMAP)" diag={diagnostics.imap} relayHealthy={null} />
-              : (
-                <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2.5">
-                  <p className="text-body font-medium text-[var(--text-primary)]">Receiving (IMAP) — nothing to test</p>
-                  <p className="text-caption text-[var(--text-secondary)] mt-1 leading-relaxed">
-                    No IMAP server is set on this mailbox, so replies cannot sync into the unibox.
-                    <button type="button" onClick={() => reveal('servers')} className="ml-1 font-medium text-[var(--indigo)] hover:underline">
-                      Add one under Servers.
-                    </button>
-                  </p>
-                </div>
-              )}
+            {/* ── 3. Sending & signature ── */}
+            <Disclosure
+              icon={Gauge}
+              title="Sending &amp; signature"
+              summary={sending}
+              open={isOpen('sending')}
+              onToggle={() => toggleSection('sending')}
+              gap={false}
+            >
+              {limitField}
+              <div className="my-4 h-px bg-[var(--border-subtle)]" />
+              {signatureField}
+            </Disclosure>
+
+            {/* ── The test result, when there is one ── */}
+            {(verify.status !== 'idle' || senderMismatch || form.smtp_host) && (
+              <div className={cn(
+                'rounded-xl border px-3.5 py-2 space-y-2',
+                verifyOk ? 'border-emerald-500/30 bg-emerald-500/[0.05]'
+                  : verifyFailed ? 'border-rose-500/30 bg-rose-500/[0.05]'
+                  : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50',
+              )}>
+                {verify.status !== 'idle' && (
+                  <ul className="divide-y divide-[var(--border-subtle)]">
+                    <CheckLine state={verify.status === 'checking' ? 'running' : verify.smtp?.ok ? 'ok' : 'fail'} label="Sending (SMTP)" detail={verify.status === 'checking' ? 'Sending a test email to yourself…' : verify.smtp?.message} />
+                    <CheckLine
+                      state={verify.status === 'checking' ? (form.imap_host ? 'running' : 'skipped') : verify.imap?.status === 'ok' ? 'ok' : verify.imap?.status === 'skipped' ? 'skipped' : verify.imap ? 'fail' : 'waiting'}
+                      label="Receiving (IMAP)"
+                      detail={verify.status === 'checking' ? (form.imap_host ? 'Signing in to read the inbox…' : 'No incoming server set.') : verify.imap?.message}
+                    />
+                  </ul>
+                )}
+                {senderMismatch && (mismatchWarning)}
+                <div className="py-1">{diagnosticsBlock}</div>
+              </div>
+            )}
+
+            <p className="text-caption text-[var(--text-tertiary)] flex items-center gap-1 pt-1">
+              <Globe className="h-3 w-3" /> Sending from your own domain?{' '}
+              <Link to="/email-accounts?tab=domains" onClick={onClose} className="underline underline-offset-2 hover:text-[var(--text-secondary)]">Set up SPF, DKIM &amp; DMARC</Link> for better deliverability.
+            </p>
           </div>
         )}
-
-        <p className="text-caption text-[var(--text-tertiary)] flex items-center gap-1">
-          <Globe className="h-3 w-3" /> Sending from your own domain?{' '}
-          <Link to="/domains" className="underline underline-offset-2 hover:text-[var(--text-secondary)]">Set up SPF, DKIM &amp; DMARC</Link> for better deliverability.
-        </p>
       </form>
     </Modal>
   );
