@@ -108,8 +108,8 @@ export function scoreDeal(s: DealSignals, now = Date.now()): DealHealth {
   // Who holds the ball. The single most useful thing a pipeline can say.
   if (inboundT > outboundT && sinceIn !== null && sinceIn >= 1) {
     add(sinceIn >= 3 ? -30 : -15, `They wrote ${sinceIn === 1 ? 'yesterday' : `${sinceIn} days ago`} and are waiting on you`, 'reply');
-  } else if (outboundT >= inboundT && sinceOut !== null && s.last_inbound_at && sinceIn !== null && sinceIn >= 7) {
-    add(sinceIn >= 21 ? -30 : -15, `No reply in ${sinceIn} days since your last email`, 'follow_up');
+  } else if (outboundT >= inboundT && sinceOut !== null && s.last_inbound_at && sinceOut >= 7) {
+    add(sinceOut >= 21 ? -30 : -15, `No reply in ${sinceOut} days since your last email`, 'follow_up');
   } else if (!s.last_inbound_at && age >= 7) {
     add(-15, 'Nobody on their side has replied yet', 'follow_up');
   }

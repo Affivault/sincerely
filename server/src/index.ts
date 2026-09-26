@@ -9,6 +9,7 @@ import { startPlacementScheduler } from './jobs/schedulers/placement.scheduler.j
 import { startProspectRulesScheduler } from './jobs/schedulers/prospect-rules.scheduler.js';
 import { startAbPromoteScheduler } from './jobs/schedulers/ab-promote.scheduler.js';
 import { startBookingReminderScheduler } from './jobs/schedulers/booking-reminder.scheduler.js';
+import { startDomainReverifyScheduler } from './jobs/schedulers/domain-reverify.scheduler.js';
 
 const port = parseInt(env.PORT, 10);
 
@@ -100,6 +101,16 @@ const server = app.listen(port, () => {
     console.log('A/B auto-promote scheduler started');
   } catch (err: any) {
     console.warn('A/B auto-promote scheduler failed to start:', err.message);
+  }
+
+  // Re-check sending/tracking domains that are marked verified, so a DKIM
+  // rotation or an expired tracking-domain cert doesn't go unnoticed forever.
+  try {
+    const domainReverify = startDomainReverifyScheduler();
+    if (domainReverify) disposers.push(() => domainReverify.stop());
+    console.log('Domain re-verify scheduler started');
+  } catch (err: any) {
+    console.warn('Domain re-verify scheduler failed to start:', err.message);
   }
 });
 

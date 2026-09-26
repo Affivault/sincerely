@@ -81,9 +81,10 @@ export function BulkImportPage() {
     errorDetails: [], currentBatch: 0, totalBatches: 0,
   });
   const [completedResult, setCompletedResult] = useState<{
-    total: number; imported: number; errors: number;
+    total: number; attempted: number; imported: number; errors: number;
     errorDetails: { email: string; reason: string }[];
     durationMs: number;
+    cancelled: boolean;
   } | null>(null);
   const cancelRef = useRef(false);
   const [cancelRequested, setCancelRequested] = useState(false);
@@ -254,7 +255,7 @@ export function BulkImportPage() {
 
     if (total === 0) {
       setCompletedResult({
-        total: 0, imported: 0, errors: 0, errorDetails: [], durationMs: 0,
+        total: 0, attempted: 0, imported: 0, errors: 0, errorDetails: [], durationMs: 0, cancelled: false,
       });
       setStep('complete');
       return;
@@ -262,10 +263,12 @@ export function BulkImportPage() {
 
     let imported = 0;
     let errors = 0;
+    let attempted = 0;
+    let cancelled = false;
     const errorDetails: { email: string; reason: string }[] = [];
 
     for (let i = 0; i < total; i += BATCH_SIZE) {
-      if (cancelRef.current) break;
+      if (cancelRef.current) { cancelled = true; break; }
       const batch = mapped.slice(i, i + BATCH_SIZE);
       const batchNum = Math.floor(i / BATCH_SIZE) + 1;
       try {
@@ -287,9 +290,10 @@ export function BulkImportPage() {
           }
         }
       }
+      attempted = Math.min(i + BATCH_SIZE, total);
       setProgress({
         total,
-        processed: Math.min(i + BATCH_SIZE, total),
+        processed: attempted,
         imported, errors, errorDetails,
         currentBatch: batchNum,
         totalBatches,
@@ -300,10 +304,12 @@ export function BulkImportPage() {
 
     setCompletedResult({
       total,
+      attempted,
       imported,
       errors,
       errorDetails,
       durationMs: Date.now() - startedAt,
+      cancelled,
     });
     setStep('complete');
     queryClient.invalidateQueries({ queryKey: ['lists'] });
@@ -861,14 +867,18 @@ export function BulkImportPage() {
             </span>
             <div className="flex-1 min-w-0">
               <h2 className="text-heading font-semibold text-[var(--text-primary)]">
-                {completedResult.errors === 0
-                  ? `Imported ${completedResult.imported.toLocaleString()} contact${completedResult.imported === 1 ? '' : 's'}`
-                  : completedResult.imported > 0
-                    ? `Imported ${completedResult.imported.toLocaleString()} contacts with ${completedResult.errors.toLocaleString()} issue${completedResult.errors === 1 ? '' : 's'}`
-                    : 'Import failed — no contacts were added'}
+                {completedResult.cancelled
+                  ? `Cancelled — ${completedResult.imported.toLocaleString()} contact${completedResult.imported === 1 ? '' : 's'} imported before stopping`
+                  : completedResult.errors === 0
+                    ? `Imported ${completedResult.imported.toLocaleString()} contact${completedResult.imported === 1 ? '' : 's'}`
+                    : completedResult.imported > 0
+                      ? `Imported ${completedResult.imported.toLocaleString()} contacts with ${completedResult.errors.toLocaleString()} issue${completedResult.errors === 1 ? '' : 's'}`
+                      : 'Import failed — no contacts were added'}
               </h2>
               <p className="text-body text-[var(--text-secondary)] mt-1">
-                Processed {completedResult.total.toLocaleString()} rows in {(completedResult.durationMs / 1000).toFixed(1)} seconds
+                {completedResult.cancelled
+                  ? `Processed ${completedResult.attempted.toLocaleString()} of ${completedResult.total.toLocaleString()} rows before cancelling`
+                  : `Processed ${completedResult.total.toLocaleString()} rows`} in {(completedResult.durationMs / 1000).toFixed(1)} seconds
                 {(() => {
                   if (createdListName) return ` · Added to the new list "${createdListName}"`;
                   const list = targetListId ? (lists || []).find((l) => l.id === targetListId) : null;
@@ -901,10 +911,14 @@ export function BulkImportPage() {
             <div className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-4">
               <div className="flex items-center gap-1.5 mb-2">
                 <Users className="h-3.5 w-3.5 text-[var(--text-secondary)]" />
-                <span className="text-micro font-bold text-[var(--text-tertiary)]">Total rows</span>
+                <span className="text-micro font-bold text-[var(--text-tertiary)]">
+                  {completedResult.cancelled ? 'Rows attempted' : 'Total rows'}
+                </span>
               </div>
               <p className="text-hero font-semibold tabular text-[var(--text-primary)] tracking-[-0.02em] leading-none">
-                {completedResult.total.toLocaleString()}
+                {completedResult.cancelled
+                  ? `${completedResult.attempted.toLocaleString()} / ${completedResult.total.toLocaleString()}`
+                  : completedResult.total.toLocaleString()}
               </p>
             </div>
           </div>

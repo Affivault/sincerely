@@ -266,19 +266,49 @@ export function spin(text: string, seed: string): string {
   return out;
 }
 
-/** Every wording a template can produce, for the editor's variation count. */
+/**
+ * Every wording a template can produce, for the editor's variation count.
+ *
+ * Nested groups like `{Hi|{Hey|Hello}}` only branch inside the alternative
+ * that contains them - "Hi" doesn't gain the inner group's options - so this
+ * has to sum per-alternative rather than multiply every group's option count
+ * into one running total (which overcounts: 2x2=4 instead of the 3 strings
+ * the template can actually produce).
+ */
 export function countSpinVariants(text: string): number {
   if (!text) return 1;
-  let total = 1;
-  let out = text;
-  for (let guard = 0; guard < 500; guard++) {
-    const match = SPIN_PATTERN.exec(out);
-    if (!match) break;
-    total *= match[1].split('|').length;
-    if (total > 1e6) return 1e6;
-    out = out.slice(0, match.index) + match[1].split('|')[0] + out.slice(match.index + match[0].length);
+  const CAP = 1e6;
+  let i = 0;
+  const n = text.length;
+
+  function parseSequence(): number {
+    let count = 1;
+    while (i < n && text[i] !== '|' && text[i] !== '}') {
+      if (text[i] === '{') {
+        count = Math.min(count * parseGroup(), CAP);
+      } else {
+        i++;
+      }
+    }
+    return count;
   }
-  return total;
+
+  function parseGroup(): number {
+    i++; // consume '{'
+    let total = 0;
+    let alternatives = 0;
+    for (;;) {
+      total = Math.min(total + parseSequence(), CAP);
+      alternatives++;
+      if (i < n && text[i] === '|') { i++; continue; }
+      break;
+    }
+    if (i < n && text[i] === '}') i++;
+    // No top-level '|' means this was never a spin group in the first place.
+    return alternatives > 1 ? total : 1;
+  }
+
+  return parseSequence();
 }
 
 /**
