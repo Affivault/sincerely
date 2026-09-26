@@ -220,7 +220,9 @@ export function describeFailure(err: unknown): FailureDescription {
 export function failureToast(err: unknown, fallback?: string): string {
   const d = describeFailure(err);
   if (d.serverMessage) return d.serverMessage;
-  if (fallback && d.kind === 'unknown') return fallback;
+  // describeFailure is deliberately total and never actually returns 'unknown';
+  // 'server' is its generic catch-all, so that's the case a caller's fallback is for.
+  if (fallback && (d.kind === 'unknown' || d.kind === 'server')) return fallback;
   return `${d.title} — ${d.detail}`;
 }
 

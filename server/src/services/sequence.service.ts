@@ -57,22 +57,32 @@ function isWithinSendWindow(campaign: any, campaignContact?: any): boolean {
   const now = nowInTimezone(tz);
 
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const todayName = dayNames[now.weekday];
   const sendDays: string[] = campaign.send_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
-  if (!sendDays.includes(todayName)) return false;
 
   const windowStart = campaign.send_window_start || '00:00';
   const windowEnd = campaign.send_window_end || '23:59';
   const currentTime = `${String(now.hour).padStart(2, '0')}:${String(now.minute).padStart(2, '0')}`;
+
   if (windowStart <= windowEnd) {
-    // Normal same-day window (e.g. 09:00–17:00).
-    if (currentTime < windowStart || currentTime > windowEnd) return false;
-  } else {
-    // Overnight window that wraps past midnight (e.g. 22:00–06:00).
-    if (currentTime < windowStart && currentTime > windowEnd) return false;
+    // Normal same-day window (e.g. 09:00–17:00): today has to be an active day.
+    const todayName = dayNames[now.weekday];
+    if (!sendDays.includes(todayName)) return false;
+    return currentTime >= windowStart && currentTime <= windowEnd;
   }
 
-  return true;
+  // Overnight window that wraps past midnight (e.g. 22:00–06:00). The early
+  // hours (00:00–windowEnd) belong to the window opened on *yesterday's*
+  // calendar day, so the active-day check has to look at whichever day
+  // actually opened the window, not the day the clock currently reads.
+  if (currentTime <= windowEnd) {
+    const yesterdayName = dayNames[(now.weekday + 6) % 7];
+    return sendDays.includes(yesterdayName);
+  }
+  if (currentTime >= windowStart) {
+    const todayName = dayNames[now.weekday];
+    return sendDays.includes(todayName);
+  }
+  return false;
 }
 
 /**

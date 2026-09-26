@@ -86,6 +86,16 @@ function sortValue(d: Deal, key: SortKey): string | number {
 export function sortDeals(deals: Deal[], key: SortKey, dir: SortDir): Deal[] {
   const factor = dir === 'asc' ? 1 : -1;
   return [...deals].sort((a, b) => {
+    if (key === 'close') {
+      // Missing dates sort last regardless of direction - applying the
+      // asc/desc factor to the sentinel value would otherwise flip them to
+      // the front on a descending sort, which is the exact clumping the
+      // sentinel was meant to avoid.
+      const aMissing = !a.expected_close_date;
+      const bMissing = !b.expected_close_date;
+      if (aMissing !== bMissing) return aMissing ? 1 : -1;
+      if (aMissing && bMissing) return (a.title || '').localeCompare(b.title || '');
+    }
     const av = sortValue(a, key);
     const bv = sortValue(b, key);
     if (av === bv) return (a.title || '').localeCompare(b.title || '');

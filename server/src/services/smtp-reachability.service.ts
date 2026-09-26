@@ -39,23 +39,25 @@ const state = {
   /** When we concluded it was blocked, for the re-test window. */
   blockedAt: 0,
   lastReason: '',
+  /** A single re-test is currently in flight; don't let anyone else pile on. */
+  probing: false,
 };
 
 /**
  * True when a connection attempt would be a waste of time.
  *
  * Lets exactly one attempt through once the retry window has passed, so the
- * conclusion is re-tested rather than cached forever.
+ * conclusion is re-tested rather than cached forever. `state.available` stays
+ * `false` for everyone else while that one retest is outstanding — flipping it
+ * to `null` up front would have every concurrent caller read "not concluded
+ * blocked" and dial out too, turning "exactly one" into a burst.
  */
 export function shouldSkipSmtpProbe(): boolean {
   if (state.available !== false) return false;
-  if (Date.now() - state.blockedAt >= RETRY_AFTER_MS) {
-    // Re-test: clear the verdict so the next attempt really dials.
-    state.available = null;
-    state.consecutiveFailures = 0;
-    return false;
-  }
-  return true;
+  if (state.probing) return true;
+  if (Date.now() - state.blockedAt < RETRY_AFTER_MS) return true;
+  state.probing = true;
+  return false;
 }
 
 /**
@@ -66,6 +68,9 @@ export function shouldSkipSmtpProbe(): boolean {
  * @param reason Only used when unreachable, for the message shown to operators.
  */
 export function noteSmtpOutcome(reachable: boolean, reason = ''): void {
+  const wasProbing = state.probing;
+  state.probing = false;
+
   if (reachable) {
     state.available = true;
     state.consecutiveFailures = 0;
@@ -73,8 +78,16 @@ export function noteSmtpOutcome(reachable: boolean, reason = ''): void {
     return;
   }
 
-  state.consecutiveFailures += 1;
   state.lastReason = reason;
+  if (wasProbing) {
+    // The one allowed retest failed too - stay blocked and restart the cooldown.
+    state.consecutiveFailures = FAILURES_BEFORE_GIVING_UP;
+    state.available = false;
+    state.blockedAt = Date.now();
+    return;
+  }
+
+  state.consecutiveFailures += 1;
   if (state.consecutiveFailures >= FAILURES_BEFORE_GIVING_UP) {
     state.available = false;
     state.blockedAt = Date.now();
@@ -121,4 +134,5 @@ export function resetSmtpReachability(): void {
   state.consecutiveFailures = 0;
   state.blockedAt = 0;
   state.lastReason = '';
+  state.probing = false;
 }

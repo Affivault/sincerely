@@ -143,7 +143,7 @@ export function matchesDealQuery(
     if (q.closing === 'overdue') return close < today;
     if (close < today) return false;
     if (q.closing === 'this_week') {
-      const end = new Date(today); end.setDate(end.getDate() + (7 - end.getDay()));
+      const end = new Date(today); end.setDate(end.getDate() + (7 - end.getDay()) % 7);
       return close <= end;
     }
     if (q.closing === 'this_month') return close.getFullYear() === now.getFullYear() && close.getMonth() === now.getMonth();
