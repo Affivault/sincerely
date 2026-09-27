@@ -318,7 +318,16 @@ export function probeMailbox(mxHost: string, addresses: string[]): Promise<SmtpP
     };
 
     socket.setTimeout(SMTP_CONNECT_TIMEOUT_MS);
-    socket.on('timeout', () => finish(verdicts.size > 0, 'Mail server did not respond in time'));
+    socket.on('timeout', () => {
+      // Nothing was ever received: the port never answered, and unlike every
+      // later stage (which records its outcome the moment data arrives),
+      // that means noteSmtpOutcome hasn't fired yet for this attempt. Skipping
+      // it here left `probing` stuck true forever whenever this was the one
+      // allowed retest after a cooldown - silently disabling every future
+      // probe on this process.
+      if (stage === 'greeting') noteSmtpOutcome(false, 'Mail server did not respond in time');
+      finish(verdicts.size > 0, 'Mail server did not respond in time');
+    });
     socket.on('error', (err) => {
       noteSmtpOutcome(false, err.message);
       finish(false, `Could not reach the mail server: ${err.message}`);

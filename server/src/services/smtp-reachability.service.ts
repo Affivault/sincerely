@@ -128,6 +128,19 @@ export function outboundSmtpStatus(): {
   };
 }
 
+/**
+ * Release the one-retest-at-a-time slot without recording an outcome.
+ *
+ * For a probe that bailed out before it ever tried to talk to a mail server -
+ * e.g. no MX records to dial - so nothing was learned about whether port 25
+ * is reachable. Leaves `available`/`consecutiveFailures`/`blockedAt` alone;
+ * only clears `probing`, so a caller that skipped straight past `noteSmtpOutcome`
+ * doesn't leave the breaker stuck "blocked" forever.
+ */
+export function releaseSmtpProbeSlot(): void {
+  state.probing = false;
+}
+
 /** Reset, for tests. */
 export function resetSmtpReachability(): void {
   state.available = null;

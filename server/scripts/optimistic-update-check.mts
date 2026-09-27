@@ -183,8 +183,19 @@ console.log('\nthe helper does the three things that make this safe');
    * have already changed, and they all flicker back.
    */
   is('it reconciles only when the last mutation settles',
-     /isMutating\(\) <= 1/.test(helper),
+     /isMutating\(\{ mutationKey: scope \}\) <= 1/.test(helper),
      'a burst of clicks would flicker back to the old values');
+
+  /*
+   * An unscoped isMutating() counts every mutation in the whole app, not
+   * just ones touching this row's scope. Ticking a task while a reply gets
+   * starred elsewhere would see 2 in flight and skip reconciling the task -
+   * waiting on an invalidation of its own scope that something unrelated
+   * may never trigger.
+   */
+  is('and scopes that count to its own mutations, not the whole app',
+     /mutationKey: scope/.test(helper),
+     'a concurrent unrelated mutation would silently block reconciliation forever');
 }
 
 /* ── How it is used ───────────────────────────────────────────────────── */

@@ -19,6 +19,14 @@ import type { DcsVerificationResult } from '@lemlist/shared';
  */
 type Stage = 'idle' | 'pending' | 'pass' | 'fail' | 'skipped';
 
+/** "in 45s" / "in 3m" / "in 2h" — coarse is fine, this is a rough ETA, not a clock. */
+function formatRetryEta(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  return `${Math.round(minutes / 60)}h`;
+}
+
 function StageCell({ icon: Icon, label, state }: { icon: any; label: string; state: Stage }) {
   return (
     <div className="flex items-center gap-2">
@@ -116,6 +124,11 @@ export function VerificationPage() {
   const { data: stats, isLoading: statsLoading, isError: statsError } = useQuery({
     queryKey: ['verification-stats'],
     queryFn: verificationApi.getStats,
+    // The port-25 breaker retests itself automatically every 15 minutes -
+    // poll while it's blocked so the warning banner below clears on its own
+    // the moment mail servers become reachable again, instead of looking
+    // permanent until someone happens to reload the page.
+    refetchInterval: (query) => query.state.data?.smtp?.available === false ? 30_000 : false,
   });
 
   const verifyMut = useMutation({
@@ -170,7 +183,13 @@ export function VerificationPage() {
               Mailbox checks are not running on this server.
             </span>{' '}
             {stats.smtp.last_reason} Scores above 60 are only possible once a mail server can be
-            reached, so anything recorded at 100 before this was measured, not proven.
+            reached, so anything recorded at 100 before this was measured, not proven.{' '}
+            {stats.smtp.retry_after_seconds != null && (
+              <span className="text-[var(--text-tertiary)]">
+                Rechecking automatically in {formatRetryEta(stats.smtp.retry_after_seconds)} — this banner
+                clears itself once a connection gets through.
+              </span>
+            )}
           </div>
         </div>
       )}
