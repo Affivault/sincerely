@@ -137,7 +137,9 @@ export const prospectingService = {
       .maybeSingle();
     if (existing) {
       if (input.list_id && existing.contact_id) {
-        await listsService.addContacts(userId, input.list_id, [existing.contact_id]).catch(() => {});
+        await listsService.addContacts(userId, input.list_id, [existing.contact_id]).catch((err) => {
+          console.warn(`[Prospector] Could not add contact ${existing.contact_id} to list ${input.list_id}: ${err?.message || err}`);
+        });
       }
       return {
         found: !!existing.email,
@@ -293,7 +295,9 @@ export const prospectingService = {
     }
 
     if (input.list_id) {
-      await listsService.addContacts(userId, input.list_id, [contact.id]).catch(() => {});
+      await listsService.addContacts(userId, input.list_id, [contact.id]).catch((err) => {
+        console.warn(`[Prospector] Could not add contact ${contact.id} to list ${input.list_id}: ${err?.message || err}`);
+      });
     }
 
     return {

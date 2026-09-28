@@ -12,21 +12,24 @@ import type { WarmupAccountStatus, WarmupSummary } from '@lemlist/shared';
 
 function ConfigModal({ account, onClose }: { account: WarmupAccountStatus; onClose: () => void }) {
   const qc = useQueryClient();
-  const [target, setTarget] = useState(account.target || 40);
-  const [rampDays, setRampDays] = useState(account.ramp_days || 30);
-  const [startVolume, setStartVolume] = useState(account.start_volume || 4);
+  // Held as strings so a field can be cleared and retyped; coercing on every
+  // keystroke snapped an emptied field to 1 and turned "5" into "15".
+  const [target, setTarget] = useState(String(account.target || 40));
+  const [rampDays, setRampDays] = useState(String(account.ramp_days || 30));
+  const [startVolume, setStartVolume] = useState(String(account.start_volume || 4));
 
   // A ramp that targets fewer sends/day than it starts at isn't a ramp — it
   // would hold at `startVolume` for the whole ramp then drop the moment
   // warm-up "completes". Catch it here instead of letting it silently ship.
   const targetBelowStart = Number(target) < Number(startVolume);
+  const invalid = [target, rampDays, startVolume].some((v) => !(parseInt(v, 10) >= 1));
 
   const save = useMutation({
     mutationFn: () => smtpApi.setWarmup(account.id, {
       enabled: true,
-      warmup_daily_target: Number(target),
-      warmup_ramp_days: Number(rampDays),
-      warmup_start_volume: Number(startVolume),
+      warmup_daily_target: parseInt(target, 10),
+      warmup_ramp_days: parseInt(rampDays, 10),
+      warmup_start_volume: parseInt(startVolume, 10),
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['warmup'] });
@@ -44,23 +47,24 @@ function ConfigModal({ account, onClose }: { account: WarmupAccountStatus; onClo
           Warm-up ramps this mailbox's real sending volume up gradually while exchanging friendly emails with your other inboxes — building reputation so your campaigns land in the inbox, not spam.
         </p>
         <div className="grid grid-cols-3 gap-4">
-          <Input label="Start / day" type="number" value={String(startVolume)} onChange={(e) => setStartVolume(parseInt(e.target.value) || 1)} hint="Day 1" />
+          <Input label="Start / day" type="number" min={1} value={startVolume} onChange={(e) => setStartVolume(e.target.value)} hint="Day 1" />
           <Input
             label="Target / day"
             type="number"
-            value={String(target)}
-            onChange={(e) => setTarget(parseInt(e.target.value) || 1)}
+            min={1}
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
             hint={targetBelowStart ? undefined : 'Ramp goal'}
             error={targetBelowStart ? 'Target must be at least the start volume' : undefined}
           />
-          <Input label="Ramp days" type="number" value={String(rampDays)} onChange={(e) => setRampDays(parseInt(e.target.value) || 1)} hint="To reach target" />
+          <Input label="Ramp days" type="number" min={1} value={rampDays} onChange={(e) => setRampDays(e.target.value)} hint="To reach target" />
         </div>
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-muted)]/40 px-3 py-2.5 text-caption text-[var(--text-tertiary)]">
           Campaigns from this mailbox are capped to the current ramp allowance until warm-up completes, so it never spikes.
         </div>
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={() => save.mutate()} disabled={save.isPending || targetBelowStart}>{save.isPending ? 'Saving…' : account.warmup_mode ? 'Save changes' : 'Start warm-up'}</Button>
+          <Button variant="primary" onClick={() => save.mutate()} disabled={save.isPending || targetBelowStart || invalid}>{save.isPending ? 'Saving…' : account.warmup_mode ? 'Save changes' : 'Start warm-up'}</Button>
         </div>
       </div>
     </Modal>
