@@ -36,7 +36,10 @@ import {
  * away, which made it a thing to look at rather than a thing that
  * changed a decision.
  */
-const ROW_GRID = 'grid grid-cols-[minmax(200px,1fr)_72px_72px_72px_72px_72px_84px_170px_96px] items-center gap-x-3';
+/* Sized to fit beside the folder rail on a 1440px laptop (about 920px
+   free). At 1006px it scrolled sideways there, and the name column - the
+   one thing people read - was pinned to its minimum and truncated. */
+const ROW_GRID = 'grid grid-cols-[minmax(220px,1fr)_60px_60px_60px_60px_60px_76px_120px_88px] items-center gap-x-2.5';
 
 /* Sortable columns for the campaigns table */
 type SortKey = 'name' | 'sent' | 'open' | 'click' | 'reply' | 'bounce' | 'earned' | 'created';
@@ -342,9 +345,10 @@ export function CampaignsListPage() {
       )}
 
       {/* ── Two-column body: folder rail + content ── */}
-      <div className="grid grid-cols-[200px,1fr] gap-3">
-        {/* Folder rail */}
-        <aside className="panel-inset p-1.5 self-start sticky top-[56px] max-h-[calc(100vh-72px)] overflow-y-auto">
+      <div className="grid grid-cols-1 md:grid-cols-[200px,1fr] gap-3">
+        {/* Folder rail. Not on a phone, where it would sit above the list
+            and push every campaign below the fold. */}
+        <aside className="hidden md:block panel-inset p-1.5 self-start sticky top-[56px] max-h-[calc(100vh-72px)] overflow-y-auto">
           <div className="px-2 pt-1 pb-1.5 flex items-center justify-between">
             <span className="text-micro font-semibold text-[var(--text-tertiary)]">Folders</span>
             <button
@@ -419,8 +423,10 @@ export function CampaignsListPage() {
         {/* Main column */}
         <main className="min-w-0">
           {/* Status tabs + search row */}
-          <div className="flex items-center justify-between border-b border-[var(--border-subtle)] mb-3 pb-px">
-            <PageTabs tabs={statusTabs} value={statusFilter} onChange={setStatusFilter} />
+          <div className="flex flex-wrap-reverse items-center justify-between gap-2 border-b border-[var(--border-subtle)] mb-3 pb-px">
+            <div className="min-w-0 max-w-full overflow-x-auto scrollbar-none">
+              <PageTabs tabs={statusTabs} value={statusFilter} onChange={setStatusFilter} />
+            </div>
             <div className="relative mb-px">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />
               <input
@@ -472,11 +478,11 @@ export function CampaignsListPage() {
             ) : (
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
-                  {/* The grid's own minimum is 200 + 5x72 + 84 + 170 + 96 plus eight
-                        12px gaps = 1006px. Anything smaller here and the columns
+                  {/* The grid's own minimum is 220 + 5x60 + 76 + 120 + 88 plus eight
+                        10px gaps = 884px. Anything smaller here and the columns
                         overlap instead of scrolling, which is how a table loses a
                         column silently on a laptop. */}
-                  <div className="min-w-[1010px]">
+                  <div className="min-w-[890px]">
                     {/* Column header — click to sort */}
                     <div className={cn(ROW_GRID, 'px-4 h-10 border-b border-[var(--border-subtle)] bg-[var(--bg-muted)]/40')}>
                       {([
@@ -794,18 +800,17 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
       <div className="min-w-0 flex items-center gap-2.5">
         <span className={cn('h-1.5 w-1.5 rounded-full flex-shrink-0', STATUS_DOT[campaign.status] || 'bg-slate-400')} />
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className="text-strong font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">{campaign.name}</h3>
+          {/* The name has the line to itself. With the status badge and a red
+              bounce count beside it, a 250px column showed "Q3 Fintech o…" -
+              and the count flagged a healthy 1.3% as an alarm while the
+              Bounce column two inches away already said it properly. */}
+          <h3 className="text-strong font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">{campaign.name}</h3>
+          <div className="mt-1 flex min-w-0 items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
             <StatusBadge status={campaign.status} type="campaign" />
-            {bounced > 0 && (
-              <span className="inline-flex items-center gap-0.5 text-micro font-semibold text-rose-500 flex-shrink-0" title={`${bounced} bounces — check deliverability`}>
-                <AlertTriangle className="h-3 w-3" />{bounced}
-              </span>
-            )}
+            <span className="min-w-0 truncate">
+              {campaign.steps_count || 0} steps · {totalContacts.toLocaleString()} contacts · <span title={formatDate(campaign.created_at)}>{formatRelativeTime(campaign.created_at)}</span>
+            </span>
           </div>
-          <p className="text-caption text-[var(--text-tertiary)] truncate mt-0.5">
-            {campaign.steps_count || 0} steps · {totalContacts.toLocaleString()} contacts · <span title={formatDate(campaign.created_at)}>{formatRelativeTime(campaign.created_at)}</span>
-          </p>
         </div>
       </div>
 

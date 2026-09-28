@@ -1,6 +1,6 @@
 import { useDealHealth, DealHealthDot } from '../../components/crm/DealHealth';
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { crmApi } from '../../api/crm.api';
 import { ActivityModal, MeetingModal, ContactPicker, toDateInput } from '../../components/crm/CrmPrimitives';
@@ -651,6 +651,14 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToSta
 /* ─── Tasks panel ─────────────────────────────────── */
 export function DealsPage() {
   const [dealModal, setDealModal] = useState<Partial<Deal> | null | undefined>(undefined);
+  /* ?new=1 opens the new-deal form: "New deal" from Create or Cmd+K lands
+     on the form, not on the pipeline with the button still to find. */
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('new') !== '1') return;
+    setDealModal(null);
+    setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete('new'); return next; }, { replace: true });
+  }, [searchParams, setSearchParams]);
   const [taskModal, setTaskModal] = useState<Partial<CrmTask> | null | undefined>(undefined);
   const [eventModal, setEventModal] = useState<Partial<CrmEvent> | null | undefined>(undefined);
   const [query, setQuery] = useState('');
@@ -828,7 +836,7 @@ export function DealsPage() {
           </div>
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
-          <SearchInput value={query} onChange={setQuery} placeholder="Search deals, companies, leads…" className="hidden w-56 sm:block" />
+          <SearchInput value={query} onChange={setQuery} placeholder="Search deals, companies, leads…" className="w-full sm:w-72" />
           {deals.length > 0 && (
             <Button variant="secondary" onClick={() => navigate('/deals/insights')} title="Where deals die, why, and which sources are worth working">
               <BarChart3 className="h-4 w-4" /> Win / loss

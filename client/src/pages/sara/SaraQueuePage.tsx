@@ -29,7 +29,7 @@ import toast from 'react-hot-toast';
 import { Spinner } from '../../components/ui/Spinner';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
-import { formatDateTime } from '@lemlist/shared';
+import { formatDateTime, REPLY_INTENT_LABELS } from '@lemlist/shared';
 
 function relTime(iso?: string): string {
   if (!iso) return '';
@@ -54,14 +54,14 @@ function Kbd({ children }: { children: React.ReactNode }) {
 }
 
 const INTENT_CONFIG: Record<string, { label: string; icon: typeof Bot }> = {
-  interested: { label: 'Interested', icon: TrendingUp },
-  meeting: { label: 'Meeting', icon: Users },
-  objection: { label: 'Objection', icon: AlertTriangle },
-  not_now: { label: 'Not Now', icon: Clock },
-  unsubscribe: { label: 'Unsubscribe', icon: XCircle },
-  out_of_office: { label: 'Out of Office', icon: Clock },
-  bounce: { label: 'Bounce', icon: AlertTriangle },
-  other: { label: 'Other', icon: MessageSquare },
+  interested: { label: REPLY_INTENT_LABELS.interested.label, icon: TrendingUp },
+  meeting: { label: REPLY_INTENT_LABELS.meeting.label, icon: Users },
+  objection: { label: REPLY_INTENT_LABELS.objection.label, icon: AlertTriangle },
+  not_now: { label: REPLY_INTENT_LABELS.not_now.label, icon: Clock },
+  unsubscribe: { label: REPLY_INTENT_LABELS.unsubscribe.label, icon: XCircle },
+  out_of_office: { label: REPLY_INTENT_LABELS.out_of_office.label, icon: Clock },
+  bounce: { label: REPLY_INTENT_LABELS.bounce.label, icon: AlertTriangle },
+  other: { label: REPLY_INTENT_LABELS.other.label, icon: MessageSquare },
 };
 
 const STATUS_TABS = [

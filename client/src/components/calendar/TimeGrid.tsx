@@ -552,6 +552,11 @@ export function TimeGrid({
                   // second line; at exactly 30 there is, and 30 is the most
                   // common meeting length in the app.
                   const short = mins < 30;
+                  /* A half-hour block is about 28px: room for one line, not two.
+                     It used to try for two and cut the time line in half, so
+                     the most common meeting length showed half a timestamp.
+                     Like every calendar people know, it goes on one line. */
+                  const oneLine = mins < 45;
 
                   return (
                     <div
@@ -564,7 +569,8 @@ export function TimeGrid({
                       onClick={(e) => { e.stopPropagation(); if (!draftRef.current) onOpen(event); }}
                       title={`${event.title} · ${clockLabel(start)} · ${durationLabel(mins)}`}
                       className={cn(
-                        'group absolute z-[2] cursor-grab overflow-hidden rounded-md border-l-[3px] px-1.5 py-1 text-left transition-shadow active:cursor-grabbing',
+                        'group absolute z-[2] cursor-grab overflow-hidden rounded-md border-l-[3px] px-1.5 text-left transition-shadow active:cursor-grabbing',
+                        oneLine ? 'py-0.5' : 'py-1',
                         'hover:shadow-[0_2px_8px_rgba(0,0,0,0.12)]',
                         cancelled && 'opacity-60',
                         elsewhere && 'opacity-25',
@@ -583,9 +589,13 @@ export function TimeGrid({
                         'truncate text-caption font-semibold leading-tight text-[var(--text-primary)]',
                         cancelled && 'line-through',
                       )}>
+                        {/* Time first: a long title truncates, the time must not. */}
+                        {oneLine && !short && !d && (
+                          <span className="mr-1 font-medium tabular text-[var(--text-secondary)]">{clockLabel(start)}</span>
+                        )}
                         {event.title}
                       </p>
-                      {!short && (
+                      {!short && (!oneLine || d) && (
                         <p className="mt-0.5 flex items-center gap-1 truncate text-micro text-[var(--text-secondary)]">
                           {/* Mid-drag the times ARE the answer, so they replace
                               everything decorative rather than sitting beside

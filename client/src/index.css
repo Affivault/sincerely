@@ -270,6 +270,11 @@
 }
 
 @layer utilities {
+  /* A strip that scrolls sideways (tabs on a phone) without a scrollbar
+     drawn under it. Used for years before it was ever defined. */
+  .scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+
   .bg-app { background-color: var(--bg-app); }
   .bg-surface { background-color: var(--bg-surface); }
   .bg-elevated { background-color: var(--bg-elevated); }

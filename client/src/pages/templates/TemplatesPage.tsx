@@ -887,9 +887,9 @@ export function TemplatesPage() {
         }
       />
 
-      <div className="flex gap-4 items-start">
+      <div className="flex flex-col md:flex-row gap-4 md:items-start">
         {/* ── Library rail ── */}
-        <aside className="w-[300px] flex-shrink-0 space-y-3">
+        <aside className="w-full md:w-[300px] flex-shrink-0 space-y-3">
           {/* Type tabs */}
           <div className="flex items-center p-0.5 rounded-lg bg-[var(--bg-elevated)]">
             {([

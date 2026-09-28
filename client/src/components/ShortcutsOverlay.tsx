@@ -12,6 +12,11 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
   {
     title: 'Navigate',
     items: [
+      { keys: ['G', 'F'], label: 'Flow' },
+      { keys: ['G', 'R'], label: 'Replies' },
+      { keys: ['G', 'P'], label: 'Deals (pipeline)' },
+      { keys: ['G', 'O'], label: 'Contacts' },
+      { keys: ['G', 'M'], label: 'Calendar (meetings)' },
       { keys: ['G', 'D'], label: 'Dashboard' },
       { keys: ['G', 'C'], label: 'Campaigns' },
       { keys: ['G', 'I'], label: 'Unibox' },

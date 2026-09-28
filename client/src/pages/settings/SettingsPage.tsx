@@ -787,7 +787,7 @@ export function SettingsPage() {
                     <div>
                       <p className="text-strong font-medium text-[var(--text-primary)]">Smart Email Tagging</p>
                       <p className="text-body text-[var(--text-secondary)] mt-1 leading-relaxed">
-                        AI automatically tags incoming replies by intent &mdash; Interested, Meeting Booked,
+                        AI automatically tags incoming replies by intent &mdash; Interested, Wants a meeting,
                         Not Interested, Objection, Out of Office, Unsubscribe, and Bounce.
                         Filter your inbox by tag to quickly find the messages that matter most.
                       </p>

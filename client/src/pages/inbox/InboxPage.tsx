@@ -87,7 +87,7 @@ import {
 
 import {
   DEAL_STAGES, TRIAGE_DECISIONS, BULK_TRIAGE_LIMIT,
-  type DealStage, type TriageDecision, formatDate, formatDayMonth, formatFullDateTime, formatMonthYear, formatTime, formatWeekday, formatWeekdayDate, formatMoney, formatDayMonthTime } from '@lemlist/shared';
+  type DealStage, type TriageDecision, formatDate, formatDayMonth, formatFullDateTime, formatMonthYear, formatTime, formatWeekday, formatWeekdayDate, formatMoney, formatDayMonthTime, REPLY_INTENT_LABELS } from '@lemlist/shared';
 
 /* ─── Types ────────────────────────────────────────── */
 type Folder = 'inbox' | 'starred' | 'sent' | 'archived' | 'scheduled' | 'needs_triage';
@@ -327,14 +327,14 @@ const TRIAGE_PILL: Record<TriageDecision, { label: string; cls: string }> = {
 };
 
 const INTENT_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  interested: { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', label: 'Interested' },
-  meeting: { bg: 'bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400', label: 'Meeting Booked' },
-  objection: { bg: 'bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400', label: 'Objection' },
-  not_now: { bg: 'bg-slate-500/10', text: 'text-slate-500', label: 'Not Interested' },
-  unsubscribe: { bg: 'bg-red-500/10', text: 'text-red-500', label: 'Unsubscribe' },
-  out_of_office: { bg: 'bg-purple-500/10', text: 'text-purple-500', label: 'Out of Office' },
-  bounce: { bg: 'bg-red-500/10', text: 'text-red-500', label: 'Bounce' },
-  other: { bg: 'bg-slate-500/10', text: 'text-slate-500', label: 'Other' },
+  interested: { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', label: REPLY_INTENT_LABELS.interested.label },
+  meeting: { bg: 'bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400', label: REPLY_INTENT_LABELS.meeting.label },
+  objection: { bg: 'bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400', label: REPLY_INTENT_LABELS.objection.label },
+  not_now: { bg: 'bg-slate-500/10', text: 'text-slate-500', label: REPLY_INTENT_LABELS.not_now.label },
+  unsubscribe: { bg: 'bg-red-500/10', text: 'text-red-500', label: REPLY_INTENT_LABELS.unsubscribe.label },
+  out_of_office: { bg: 'bg-purple-500/10', text: 'text-purple-500', label: REPLY_INTENT_LABELS.out_of_office.label },
+  bounce: { bg: 'bg-red-500/10', text: 'text-red-500', label: REPLY_INTENT_LABELS.bounce.label },
+  other: { bg: 'bg-slate-500/10', text: 'text-slate-500', label: REPLY_INTENT_LABELS.other.label },
 };
 
 /** Solid hex per intent — used for sidebar dots where Tailwind classes don't fit. */
@@ -350,15 +350,9 @@ const INTENT_HEX: Record<string, string> = {
 };
 
 const TAG_OPTIONS = [
-  { value: 'all', label: 'All Tags' },
-  { value: 'interested', label: 'Interested' },
-  { value: 'meeting', label: 'Meeting Booked' },
-  { value: 'not_now', label: 'Not Interested' },
-  { value: 'objection', label: 'Objection' },
-  { value: 'out_of_office', label: 'Out of Office' },
-  { value: 'unsubscribe', label: 'Unsubscribe' },
-  { value: 'bounce', label: 'Bounce' },
-  { value: 'other', label: 'Other' },
+  { value: 'all', label: 'All tags' },
+  ...(['interested', 'meeting', 'not_now', 'objection', 'out_of_office', 'unsubscribe', 'bounce', 'other'] as const)
+    .map((value) => ({ value, label: REPLY_INTENT_LABELS[value].label })),
 ];
 
 /* Dot colors for the intent rows in the mail-nav rail */
@@ -2371,7 +2365,7 @@ export function InboxPage() {
     onError: () => toast.error('Failed to update tag'),
   });
 
-  // Tagging a conversation "Meeting Booked" drops a meeting onto the CRM
+  // Tagging a conversation "Wants a meeting" drops a meeting onto the CRM
   // calendar for tomorrow morning, linked to the contact — one less thing to
   // remember. Fired only when the intent is newly set to meeting.
   const bookMeetingMut = useMutation({
@@ -2900,6 +2894,18 @@ export function InboxPage() {
     }
   };
 
+  /* Arriving with ?view=needs (from the dashboard's "Need a reply", say)
+     opens that tab, rather than the whole inbox with the filter left for
+     the person to find. Read once, then dropped from the address. */
+  const viewParam = searchParams.get('view');
+  useEffect(() => {
+    const known: ViewId[] = ['inbox', 'unread', 'needs', 'hot', 'starred', 'sent', 'scheduled', 'archived', 'needs_triage'];
+    if (!viewParam || !known.includes(viewParam as ViewId)) return;
+    setView(viewParam as ViewId);
+    setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete('view'); return next; }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewParam]);
+
   return (
     <div className="overflow-hidden" style={{ height: 'calc(100vh - 56px)' }}>
       <div className="h-full flex flex-col bg-[var(--bg-app)]">
@@ -3283,11 +3289,12 @@ export function InboxPage() {
         ) : (
           <>
         {/* ── Command bar: view tabs + intent filter + search + actions ── */}
-        <div className="flex items-center gap-1 px-4 h-[50px] border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-shrink-0">
+        {/* On a phone the tabs take their own row; the controls sit under them. */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-1 px-3 sm:px-4 pb-2 sm:pb-0 sm:h-[50px] border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-shrink-0">
           {/* Only the tabs scroll. When the whole bar was one overflow
               container, adding a tab pushed Compose off the right edge of a
               1440px window — a primary action, gone, with nothing to say so. */}
-          <div className="flex items-center gap-1 h-full flex-1 min-w-0 overflow-x-auto scrollbar-none">
+          <div className="flex items-center gap-1 h-[46px] sm:h-full basis-full sm:basis-auto flex-1 min-w-0 overflow-x-auto scrollbar-none">
           {([
             { id: 'inbox' as const, label: 'Inbox', count: viewCounts.unread },
             // First after the inbox itself, because it is the question the
@@ -3328,7 +3335,7 @@ export function InboxPage() {
             value={tagFilter}
             onChange={e => { setTagFilter(e.target.value); setQuickFilter('all'); setSelectedId(null); }}
             className={cn(
-              'h-8 px-2 rounded-lg border text-body font-medium outline-none cursor-pointer transition-colors flex-shrink-0',
+              'hidden md:block h-8 px-2 rounded-lg border text-body font-medium outline-none cursor-pointer transition-colors flex-shrink-0',
               tagFilter !== 'all'
                 ? 'border-[rgba(91,91,245,0.4)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
                 : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
@@ -3337,14 +3344,14 @@ export function InboxPage() {
             {TAG_OPTIONS.map(t => <option key={t.value} value={t.value}>{t.value === 'all' ? 'All intents' : t.label}</option>)}
           </select>
 
-          <form onSubmit={handleSearch} className="flex-shrink-0">
+          <form onSubmit={handleSearch} className="flex-1 sm:flex-none min-w-0">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
               <input
                 value={searchInput}
                 onChange={e => setSearchInput(e.target.value)}
                 placeholder="Search…"
-                className="w-[180px] focus:w-[240px] pl-8 pr-7 h-8 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15 transition-all"
+                className="w-full sm:w-[180px] sm:focus:w-[240px] pl-8 pr-7 h-8 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15 transition-all"
               />
               {search && (
                 <button type="button" onClick={() => { setSearch(''); setSearchInput(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-[var(--bg-hover)]">
@@ -3509,7 +3516,7 @@ export function InboxPage() {
         ) : (
           <div className="flex-1 overflow-y-auto overflow-x-hidden bg-[var(--bg-surface)]">
             {/* Sticky column header — the grid identity */}
-            <div className="sticky top-0 z-[2] flex items-center gap-3 px-4 h-[30px] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] text-caption font-medium text-[var(--text-tertiary)]">
+            <div className="sticky top-0 z-[2] hidden sm:flex items-center gap-3 px-4 h-[30px] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] text-caption font-medium text-[var(--text-tertiary)]">
               {inTriageQueue && (
                 <input
                   type="checkbox"
@@ -3589,7 +3596,7 @@ export function InboxPage() {
                       onClick={() => selectMessage(msg)}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectMessage(msg); } }}
                       className={cn(
-                        'group w-full min-w-0 overflow-hidden text-left flex items-center gap-3 px-4 h-[40px] border-b border-[var(--border-subtle)] transition-colors cursor-pointer',
+                        'group w-full min-w-0 overflow-hidden text-left flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-1 px-4 py-2.5 sm:py-0 sm:h-[40px] border-b border-[var(--border-subtle)] transition-colors cursor-pointer',
                         isPicked ? 'bg-[var(--indigo-subtle)]/60' : isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]'
                       )}
                     >
@@ -3608,7 +3615,7 @@ export function InboxPage() {
                       )}
 
                       {/* Sender */}
-                      <span className="flex items-center gap-2.5 w-[220px] flex-shrink-0 min-w-0">
+                      <span className="flex items-center gap-2.5 flex-1 sm:flex-none sm:w-[220px] sm:flex-shrink-0 min-w-0">
                         <span className="relative flex-shrink-0">
                           {isOutbound ? (
                             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)] border border-[var(--border-subtle)]">
@@ -3646,12 +3653,14 @@ export function InboxPage() {
                       </span>
 
                       {/* Conversation: subject + snippet on one scannable line */}
-                      <span className="flex-1 min-w-0 flex items-baseline gap-2 overflow-hidden">
+                      {/* On a phone this drops to its own line under the sender,
+                          like every mail app, instead of three truncated letters. */}
+                      <span className="order-last sm:order-none basis-full sm:basis-auto flex-1 min-w-0 flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-2 overflow-hidden pl-[30px] sm:pl-0">
                         <span className={cn('min-w-0 flex-shrink truncate text-body', conv.hasUnread ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]')}>
                           {msg.subject || '(no subject)'}
                         </span>
                         {snippet && (
-                          <span className="flex-1 min-w-0 truncate text-body text-[var(--text-tertiary)] hidden sm:inline">— {snippet}</span>
+                          <span className="flex-1 min-w-0 truncate text-body text-[var(--text-tertiary)]"><span className="hidden sm:inline">— </span>{snippet}</span>
                         )}
                       </span>
 
