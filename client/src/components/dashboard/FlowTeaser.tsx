@@ -12,7 +12,8 @@ export function FlowTeaser() {
   const total = data ? data.items.length : 0;
   if (!data || total === 0) return null;
   const top = data.items[0];
-  const topLabel = top.reply ? `${top.reply.contact_name || top.reply.from_email} - ${top.why.toLowerCase()}`
+  const topLabel = top.mailbox ? `${top.mailbox.email_address} - ${top.why.toLowerCase()}`
+    : top.reply ? `${top.reply.contact_name || top.reply.from_email} - ${top.why.toLowerCase()}`
     : top.meeting ? `${top.meeting.title} - ${top.why.toLowerCase()}`
       : top.deal ? `${top.deal.title} - ${top.why}`
         : top.task ? top.task.title : '';

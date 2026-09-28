@@ -15,7 +15,7 @@ import { cn } from '../../lib/utils';
 import {
   Mail, Plus, Trash2, CheckCircle2, HelpCircle, ArrowRight, Globe, Search, Flame,
   ShieldCheck, ShieldAlert, ChevronDown, ChevronRight, AlertTriangle, RefreshCw, Gauge,
-  Lock, Plug, Server,
+  Lock, Plug, Server, FileUp,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { SmtpAccount, SmtpPreset, SendingDomain, InboxSyncProgress } from '@lemlist/shared';
@@ -29,6 +29,7 @@ import { MailboxList } from '../../components/delivery/MailboxList';
 import { MailboxDrawer } from '../../components/mailbox/MailboxDrawer';
 import { ProviderLogo } from '../../components/mailbox/ProviderLogo';
 import { EmptyState } from '../../components/shared/EmptyState';
+import { BulkConnect } from '../../components/mailbox/BulkConnect';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Email accounts.
@@ -180,6 +181,7 @@ export function EmailAccountsPage() {
   const [addDomainOpen, setAddDomainOpen] = useState(false);
   const [newDomain, setNewDomain] = useState('');
   const [showExplainer, setShowExplainer] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const { data: accounts, isLoading, isError: accountsError } = useQuery({ queryKey: ['smtp-accounts'], queryFn: smtpApi.list, meta: { silentError: true } });
   const { data: domainsData, isLoading: loadingDomains, isError: domainsError } = useQuery({ queryKey: ['domains'], queryFn: domainApi.list, meta: { silentError: true } });
@@ -460,6 +462,9 @@ export function EmailAccountsPage() {
               <span className="inline-flex items-center gap-1.5"><Lock className="h-3 w-3" /> Passwords stored encrypted</span>
               <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3 w-3" /> Tested before it is saved</span>
               <span className="inline-flex items-center gap-1.5"><Mail className="h-3 w-3" /> {SMTP_PRESETS.length} providers recognised</span>
+              <button onClick={() => setBulkOpen(true)} className="inline-flex items-center gap-1.5 font-medium text-[var(--indigo)] hover:underline">
+                <FileUp className="h-3 w-3" /> Connecting many? Import a CSV
+              </button>
             </div>
           </div>
         ) : (
@@ -494,12 +499,21 @@ export function EmailAccountsPage() {
                 repairing={repairMutation.isPending}
               />
             )}
-            <button
-              onClick={openAdd}
-              className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-default)] py-3 text-body font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--indigo)]/40 hover:bg-[var(--indigo-subtle)]/30 hover:text-[var(--indigo)]"
-            >
-              <Plus className="h-4 w-4" /> Connect another mailbox
-            </button>
+            <div className="mt-2.5 flex gap-2">
+              <button
+                onClick={openAdd}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-default)] py-3 text-body font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--indigo)]/40 hover:bg-[var(--indigo-subtle)]/30 hover:text-[var(--indigo)]"
+              >
+                <Plus className="h-4 w-4" /> Connect another mailbox
+              </button>
+              <button
+                onClick={() => setBulkOpen(true)}
+                title="Connect many mailboxes from a CSV"
+                className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-default)] px-4 py-3 text-body font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--indigo)]/40 hover:bg-[var(--indigo-subtle)]/30 hover:text-[var(--indigo)]"
+              >
+                <FileUp className="h-4 w-4" /> Import CSV
+              </button>
+            </div>
           </>
         )
       )}
@@ -622,6 +636,8 @@ export function EmailAccountsPage() {
         editAccount={editAccount}
         initialPreset={initialPreset}
       />
+
+      <BulkConnect open={bulkOpen} onClose={() => setBulkOpen(false)} existing={list} />
 
       {/* Add domain modal */}
       <Modal isOpen={addDomainOpen} onClose={() => { setAddDomainOpen(false); setNewDomain(''); }} title="Authenticate a sending domain" size="md">

@@ -5,6 +5,7 @@ import { encrypt, decrypt } from '../utils/encryption.js';
 import { sendViaSmtp, formatFromHeader, describeSmtpError } from './email-sender.service.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
 import { billingService } from './billing.service.js';
+import { guardImap } from '../utils/imap-guard.js';
 
 /** Log into IMAP to prove replies can be read. Bounded, never throws. */
 async function verifyImapLogin(opts: { host: string; port: number; secure: boolean; user: string; pass: string }):
@@ -18,7 +19,7 @@ async function verifyImapLogin(opts: { host: string; port: number; secure: boole
   // Resolve via DoH so broken host DNS doesn't hang the IMAP connect (same
   // reason SMTP sends time out on managed hosts).
   const ip = await resolveHostIp(opts.host).catch(() => null);
-  const client = new ImapFlow({
+  const client = guardImap(new ImapFlow({
     host: ip || opts.host,
     port: opts.port,
     secure: opts.secure,
@@ -29,7 +30,7 @@ async function verifyImapLogin(opts: { host: string; port: number; secure: boole
     connectionTimeout: 10000,
     greetingTimeout: 8000,
     socketTimeout: 12000,
-  });
+  }), 'verify');
   try {
     let timer: ReturnType<typeof setTimeout>;
     const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('IMAP connect timed out')), 12000); });
@@ -221,6 +222,8 @@ export const smtpService = {
     ];
     if (input.smtp_pass || CONNECTION_FIELDS.some((f) => f in updateData)) {
       updateData.last_inbox_sync_error = null;
+      // And the sending-side reason: a new password is the whole fix for it.
+      updateData.last_send_error = null;
     }
 
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -384,6 +387,13 @@ export const smtpService = {
         .update({ is_verified: true })
         .eq('id', input.account_id)
         .eq('user_id', userId);
+      // A passing test is the reconnect: forget why it last stopped.
+      await supabaseAdmin
+        .from('smtp_accounts')
+        .update({ last_send_error: null, last_send_error_at: null })
+        .eq('id', input.account_id)
+        .eq('user_id', userId)
+        .then(() => {}, () => {});
     }
     const message = success
       ? (imap.status === 'ok' ? 'Connection successful — sending and receiving both work.' : 'SMTP works — this mailbox can send.')

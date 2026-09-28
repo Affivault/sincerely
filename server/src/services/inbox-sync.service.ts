@@ -18,6 +18,7 @@ import { DEFAULT_SYNC_WINDOW_MONTHS, isSyncWindow } from '@lemlist/shared';
 import type { InboxSyncResult, SyncFolderRole, SyncWindowMonths } from '@lemlist/shared';
 import { repairImapHost } from './mailbox-repair.service.js';
 import { isSenderMismatch } from '@lemlist/shared';
+import { guardImap } from '../utils/imap-guard.js';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Reading a mailbox.
@@ -646,7 +647,7 @@ export const inboxSyncService = {
         const host = imapHostFor(raw);
         const ip = await resolveHostIp(host).catch(() => null);
 
-        client = new ImapFlow({
+        client = guardImap(new ImapFlow({
           host: ip || host,
           // The account's own port and TLS setting, not a hardcoded pair.
           // A provider on 143 with STARTTLS was unreachable purely because
@@ -657,7 +658,7 @@ export const inboxSyncService = {
           auth: { user: raw.imap_user || raw.smtp_user || raw.email_address, pass: password },
           logger: false,
           emitLogs: false,
-        });
+        }), 'sync');
 
         let connectTimeoutId: ReturnType<typeof setTimeout>;
         await Promise.race([

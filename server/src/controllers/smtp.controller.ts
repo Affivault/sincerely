@@ -178,6 +178,12 @@ export const smtpController = {
         .from('smtp_accounts')
         .update({ is_verified: true })
         .eq('id', account.id);
+      // A send that went through is a reconnect: forget why it last stopped.
+      await supabaseAdmin
+        .from('smtp_accounts')
+        .update({ last_send_error: null, last_send_error_at: null })
+        .eq('id', account.id)
+        .then(() => {}, () => {});
 
       console.log(`[TestEmail] Sent to ${to} via ${account.label || account.smtp_host}`);
       res.json({ success: true, message: `Test email sent to ${to} — check your inbox` });

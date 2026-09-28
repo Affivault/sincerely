@@ -13,7 +13,7 @@
 import type { DealHealth } from './deal-health.js';
 import type { ReplyUrgency } from './reply-queue.js';
 
-export type FlowKind = 'meeting' | 'reply' | 'deal' | 'task';
+export type FlowKind = 'mailbox' | 'meeting' | 'reply' | 'deal' | 'task';
 
 export interface FlowReply {
   message_id: string;
@@ -68,6 +68,15 @@ export interface FlowTask {
   overdue: boolean;
 }
 
+/** A mailbox that has stopped working - it blocks sending, so it tops the list. */
+export interface FlowMailbox {
+  account_id: string;
+  email_address: string;
+  /** 'sending' - sign-in refused on send; 'receiving' - inbox sync failing. */
+  broken: 'sending' | 'receiving';
+  reason: string;
+}
+
 export interface FlowItem {
   /** Stable across refreshes: `${kind}:${id}`. */
   key: string;
@@ -80,6 +89,7 @@ export interface FlowItem {
   deal?: FlowDeal;
   meeting?: FlowMeeting;
   task?: FlowTask;
+  mailbox?: FlowMailbox;
 }
 
 export interface FlowSummary {

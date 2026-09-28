@@ -88,13 +88,15 @@ export function MailboxDrawer({
   const identity = useRef({});
   const panelRef = useRef<HTMLElement>(null);
   const [test, setTest] = useState<{ ok: boolean; message: string } | null>(null);
+  const [testTo, setTestTo] = useState('');
+  const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null);
   const isTopmost = useCallback(() => openModals[openModals.length - 1] === identity.current, []);
   useFocusTrap(panelRef, !!account, { topmost: isTopmost });
 
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   const key = account?.id ?? null;
-  useEffect(() => { setTest(null); }, [key]);
+  useEffect(() => { setTest(null); setSendResult(null); }, [key]);
   useEffect(() => {
     if (!key) return;
     // Same overlay stack as Modal: the settings form opened from here takes
@@ -124,6 +126,20 @@ export function MailboxDrawer({
       message: err.response?.data?.error
         || (err?.code === 'ECONNABORTED' ? 'The mail server took too long to answer. It may be slow - try again in a moment.' : err.message || 'The test could not run'),
     }),
+  });
+
+  const sendTest = useMutation({
+    mutationFn: () => smtpApi.sendTestEmail(account!.id, {
+      to: testTo.trim(),
+      subject: `Test from ${account!.email_address}`,
+      body_html: `<p>Hi,</p><p>This is a test email from <strong>${account!.email_address}</strong>, sent through Sincerely.</p><p>If it reached your inbox, this mailbox is good to go.</p>`,
+    }),
+    onMutate: () => setSendResult(null),
+    onSuccess: (r) => {
+      setSendResult({ ok: !!r.success, message: r.message || (r.success ? 'Sent.' : r.error || 'It did not send.') });
+      qc.invalidateQueries({ queryKey: ['smtp-accounts'] });
+    },
+    onError: (err: any) => setSendResult({ ok: false, message: err.response?.data?.error || err.message || 'It did not send.' }),
   });
 
   const warmupMutation = useMutation({
@@ -156,6 +172,7 @@ export function MailboxDrawer({
     domain_verified: !!domain?.is_verified,
     domain_known: !!domain,
     warmup_mode: account.warmup_mode,
+    send_error: account.last_send_error ?? null,
   });
   const tone = TONE[state.tone];
   const score = mailboxScore(account);
@@ -163,7 +180,9 @@ export function MailboxDrawer({
   const provider = providerOf(account);
   const signature = (account.signature_html || '').replace(/<[^>]*>/g, '').trim();
 
-  const remedy = state.action === 'fix-connection'
+  const remedy = state.action === 'reconnect'
+    ? { label: 'Update password', run: () => onEdit(account), busy: false }
+    : state.action === 'fix-connection'
     ? { label: repairing ? 'Fixing…' : 'Fix this for me', run: onRepair, busy: repairing }
     : state.action === 'set-imap'
       ? { label: 'Add incoming server', run: () => onEdit(account), busy: false }
@@ -273,6 +292,38 @@ export function MailboxDrawer({
                 <Fact label="Signs in as" mono>{account.smtp_user}</Fact>
                 <Fact label="Password">Saved, encrypted</Fact>
               </dl>
+            </Section>
+
+            {/* A real email, to wherever you choose - the fastest way to see it land. */}
+            <Section icon={Send} title="Send a test email">
+              <form
+                onSubmit={(e) => { e.preventDefault(); if (testTo.trim()) sendTest.mutate(); }}
+                className="flex gap-2"
+              >
+                <input
+                  type="email"
+                  value={testTo}
+                  onChange={(e) => setTestTo(e.target.value)}
+                  placeholder="you@anywhere.com"
+                  className="h-8 min-w-0 flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 text-body text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={!testTo.trim() || sendTest.isPending}
+                  className="inline-flex h-8 flex-shrink-0 items-center gap-1.5 rounded-lg border border-[var(--border-default)] px-3 text-caption font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50"
+                >
+                  {sendTest.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />} Send
+                </button>
+              </form>
+              {sendResult && (
+                <p className={cn('mt-2 flex items-start gap-1.5 text-caption', sendResult.ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400')}>
+                  {sendResult.ok ? <CheckCircle2 className="mt-px h-3.5 w-3.5 flex-shrink-0" /> : <XCircle className="mt-px h-3.5 w-3.5 flex-shrink-0" />}
+                  {sendResult.message}
+                </p>
+              )}
+              <p className="mt-1.5 text-caption text-[var(--text-tertiary)]">
+                Want to know inbox or spam across providers? <Link to="/placement" onClick={onClose} className="font-medium text-[var(--indigo)] hover:underline">Run a placement test</Link>.
+              </p>
             </Section>
 
             {/* Sending */}

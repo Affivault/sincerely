@@ -31,7 +31,7 @@ export interface MailboxState {
   /** One sentence saying what it means, or empty when the label suffices. */
   detail: string;
   /** The single most useful thing to do next, or null when nothing is. */
-  action: null | 'fix-connection' | 'set-imap' | 'authenticate-domain' | 'verify';
+  action: null | 'fix-connection' | 'set-imap' | 'authenticate-domain' | 'verify' | 'reconnect';
 }
 
 export interface MailboxFacts {
@@ -46,6 +46,8 @@ export interface MailboxFacts {
   /** Whether a sending domain exists for this address at all. */
   domain_known?: boolean;
   warmup_mode?: boolean;
+  /** Why sending was last refused, when the mailbox was taken out of rotation. */
+  send_error?: string | null;
 }
 
 /**
@@ -78,6 +80,21 @@ export function resolveMailboxState(m: MailboxFacts): MailboxState {
       label: 'Not receiving',
       detail: failure,
       action: 'fix-connection',
+    };
+  }
+
+  /*
+   * Sending was refused mid-campaign and the mailbox was taken out of
+   * rotation. More specific than "not tested": it WAS working, and the fix
+   * is nearly always a new password.
+   */
+  const sendFailure = (m.send_error || '').trim();
+  if (!m.is_verified && sendFailure) {
+    return {
+      tone: 'broken',
+      label: 'Sign-in refused',
+      detail: `${sendFailure.replace(/\.?$/, '.')} Campaigns now send from your other mailboxes. Update the password to reconnect.`,
+      action: 'reconnect',
     };
   }
 

@@ -11,6 +11,7 @@ import { htmlToText } from './sequence.service.js';
 import { SaraStatus } from '@lemlist/shared';
 import { billingService } from './billing.service.js';
 import { inboxSyncService, imapHostFor } from './inbox-sync.service.js';
+import { guardImap } from '../utils/imap-guard.js';
 
 /** Reserve a monthly-quota slot before an interactive send; throws if over cap. */
 async function assertSendQuota(userId: string): Promise<void> {
@@ -110,14 +111,14 @@ async function syncArchiveToImap(
     }
 
     const imapIp = await resolveHostIp(imapHost).catch(() => null);
-    const client = new ImapFlow({
+    const client = guardImap(new ImapFlow({
       host: imapIp || imapHost,
       port: account.imap_port || 993,
       secure: account.imap_secure !== false,
       servername: imapHost,
       auth: { user: account.imap_user || account.smtp_user || account.email_address, pass: password },
       logger: false,
-    });
+    }), 'inbox');
 
     try {
       let connectTimeoutId: ReturnType<typeof setTimeout>;

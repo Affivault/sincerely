@@ -104,6 +104,7 @@ function Row({
     domain_verified: domainVerified,
     domain_known: domainKnown,
     warmup_mode: account.warmup_mode,
+    send_error: account.last_send_error ?? null,
   });
 
   const tone = TONE[state.tone];
@@ -116,7 +117,9 @@ function Row({
    * button for every situation is a row that has not decided anything -
    * and deciding is the entire job of the status above it.
    */
-  const remedy = state.action === 'fix-connection'
+  const remedy = state.action === 'reconnect'
+    ? { label: 'Reconnect', run: onEdit, disabled: false }
+    : state.action === 'fix-connection'
     ? { label: repairing ? 'Fixing…' : 'Fix this for me', run: onRepair, disabled: repairing }
     /*
      * No incoming server is not something the repair can guess - it
@@ -241,6 +244,7 @@ export function MailboxList(props: MailboxListProps) {
       domain_verified: domainVerified(a.email_address),
       domain_known: domainKnown(a.email_address),
       warmup_mode: a.warmup_mode,
+    send_error: a.last_send_error ?? null,
     });
     const sb = resolveMailboxState({
       is_active: b.is_active, is_verified: b.is_verified, imap_host: b.imap_host,
@@ -248,6 +252,7 @@ export function MailboxList(props: MailboxListProps) {
       domain_verified: domainVerified(b.email_address),
       domain_known: domainKnown(b.email_address),
       warmup_mode: b.warmup_mode,
+    send_error: b.last_send_error ?? null,
     });
     return rank[sa.tone] - rank[sb.tone];
   });
@@ -259,6 +264,7 @@ export function MailboxList(props: MailboxListProps) {
       domain_verified: domainVerified(a.email_address),
       domain_known: domainKnown(a.email_address),
       warmup_mode: a.warmup_mode,
+    send_error: a.last_send_error ?? null,
     });
     return s.tone === 'broken' || s.tone === 'warning';
   }).length;

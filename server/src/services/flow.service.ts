@@ -199,8 +199,28 @@ export async function buildFlow(userId: string): Promise<FlowSummary> {
     });
   }
 
+  /* ─── Mailboxes that stopped ─────────────────────────────────────── */
+  // select('*') so an install without migration 075 still answers.
+  const { data: boxes, error: boxErr } = await supabaseAdmin
+    .from('smtp_accounts').select('*').eq('user_id', userId).eq('is_active', true).eq('is_seed', false);
+  if (boxErr) console.error('[Flow] mailboxes:', boxErr.message);
+  for (const b of (boxes || []) as any[]) {
+    const sendErr = !b.is_verified && b.last_send_error ? String(b.last_send_error) : '';
+    const syncErr = b.last_inbox_sync_error && !String(b.last_inbox_sync_error).startsWith('Fixed automatically:')
+      ? String(b.last_inbox_sync_error) : '';
+    if (!sendErr && !syncErr) continue;
+    items.push({
+      key: `mailbox:${b.id}`,
+      kind: 'mailbox',
+      // Sending refused stops campaigns; nothing else on the list matters more.
+      rank: sendErr ? 97 : 74,
+      why: sendErr ? 'Sign-in refused - campaigns are sending from your other mailboxes' : 'Replies are not reaching Sincerely',
+      mailbox: { account_id: b.id, email_address: b.email_address, broken: sendErr ? 'sending' : 'receiving', reason: sendErr || syncErr },
+    });
+  }
+
   const sorted = sortFlow(items).slice(0, MAX_ITEMS);
-  const counts: Record<FlowKind, number> = { meeting: 0, reply: 0, deal: 0, task: 0 };
+  const counts: Record<FlowKind, number> = { mailbox: 0, meeting: 0, reply: 0, deal: 0, task: 0 };
   for (const i of items) counts[i.kind]++;
   return { items: sorted, counts, generated_at: new Date(now).toISOString() };
 }
