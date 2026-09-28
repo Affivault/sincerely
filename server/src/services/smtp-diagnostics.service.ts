@@ -4,6 +4,7 @@ import { env } from '../config/env.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
 import { describeSmtpError, postToRelay } from './email-sender.service.js';
 import type { DiagStage, SmtpDiagnostics, ImapDiagnostics, MailboxDiagnostics } from '@lemlist/shared';
+import { guardImap } from '../utils/imap-guard.js';
 
 /**
  * Staged SMTP connection diagnostics.
@@ -34,7 +35,7 @@ function probeTcp(host: string, port: number, timeoutMs: number): Promise<{ ok: 
     socket.setTimeout(timeoutMs);
     socket.once('connect', () => done({ ok: true }));
     socket.once('timeout', () => done({ ok: false, error: 'timed out', code: 'ETIMEDOUT' }));
-    socket.once('error', (err: any) => done({ ok: false, error: err.message, code: err.code }));
+    socket.on('error', (err: any) => done({ ok: false, error: err.message, code: err.code }));
     socket.connect(port, host);
   });
 }
@@ -213,12 +214,12 @@ async function diagnoseImap(input: {
   }
 
   t0 = Date.now();
-  const client = new ImapFlow({
+  const client = guardImap(new ImapFlow({
     host: ip, port, secure: input.secure, servername: host,
     auth: { user: input.user || '', pass: input.pass },
     logger: false,
     connectionTimeout: 9000, greetingTimeout: 7000, socketTimeout: 10000,
-  });
+  }), 'diagnostics');
 
   try {
     let timer: ReturnType<typeof setTimeout>;

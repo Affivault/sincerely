@@ -45,6 +45,9 @@ export interface SmtpAccount {
   signature_html: string | null;
   /** When true, the signature is added by default on every new compose/reply from this inbox. */
   signature_auto: boolean;
+  /** Why sending was last refused (migration 075). Cleared by a passing test. */
+  last_send_error?: string | null;
+  last_send_error_at?: string | null;
   created_at: string;
   updated_at: string;
 }

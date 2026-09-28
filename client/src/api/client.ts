@@ -36,6 +36,33 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     /*
+     * No response at all: the request never got an answer the browser could
+     * read - a dropped connection, a proxy 502 while the server restarts, a
+     * laptop waking from sleep. axios calls every one of these "Network
+     * Error", and nearly every handler in the app shows err.message, so that
+     * phrase was what people saw, with no hint of what to do.
+     *
+     * A read is safe to repeat, so it is retried once after a short pause -
+     * which is all a proxy blip or a restart needs. Writes are not retried
+     * (the server may have acted on them); they get a message that says
+     * what probably happened instead.
+     */
+    if (!error.response && error.config && !axios.isCancel(error)) {
+      const method = String(error.config.method || 'get').toLowerCase();
+      const timedOut = error.code === 'ECONNABORTED' || /timeout/i.test(error.message || '');
+      if (method === 'get' && !timedOut && !error.config._netRetry) {
+        error.config._netRetry = true;
+        await new Promise((r) => setTimeout(r, 800));
+        return apiClient(error.config);
+      }
+      error.message = timedOut
+        ? 'The server took too long to answer. It may be busy - try again in a moment.'
+        : typeof navigator !== 'undefined' && navigator.onLine === false
+          ? 'You appear to be offline. Check your connection and try again.'
+          : 'Could not reach Sincerely just now. Please try again - if it keeps happening, refresh the page.';
+    }
+
+    /*
      * Fold the server's reference id into the message the UI will show.
      * Failures that can't be explained get one, and it is the only thing that
      * ties what someone saw on screen to the line in the server log — without

@@ -140,3 +140,36 @@ async function shutdown(signal: string) {
 
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 process.on('SIGINT', () => void shutdown('SIGINT'));
+
+/*
+ * Keep-alive longer than the proxy in front of us.
+ *
+ * Node closes an idle keep-alive socket after 5 seconds by default. Render's
+ * proxy (like most load balancers) holds idle upstream connections open far
+ * longer, so it regularly sends the next request down a socket Node has just
+ * closed. That request gets a 502 from the proxy - no CORS headers, so the
+ * browser can only say "Network Error" - and it looks completely random,
+ * because it depends on how long the connection happened to sit idle.
+ * headersTimeout must stay above keepAliveTimeout or Node rejects the
+ * reused socket itself.
+ */
+server.keepAliveTimeout = 120_000;
+server.headersTimeout = 125_000;
+
+/*
+ * The last line of defence: one failed background job is not a reason to
+ * drop every request in flight.
+ *
+ * With nothing here, a promise rejected in a worker with no catch, or an
+ * 'error' emitted by a socket with no listener, ended the process. Render
+ * restarted it, and every open request in every browser failed together -
+ * the other half of the "random Network Error". These are logged loudly,
+ * with the stack, so the cause is fixed at its source rather than hidden;
+ * the process keeps serving meanwhile.
+ */
+process.on('unhandledRejection', (reason: any) => {
+  console.error('[process] Unhandled promise rejection (contained):', reason?.stack || reason);
+});
+process.on('uncaughtException', (err: any) => {
+  console.error('[process] Uncaught exception (contained):', err?.stack || err);
+});

@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { fireEvent } from './webhook.service.js';
 import { classifyReply } from './sara.service.js';
-import { sendCampaignEmail } from './email-sender.service.js';
+import { sendCampaignEmail, describeSmtpError } from './email-sender.service.js';
 import { suppressionService } from './suppression.service.js';
 import { billingService } from './billing.service.js';
 import { defaultBookingLinkUrl } from './booking.service.js';
@@ -650,6 +650,16 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
       if (kindReason) await recordStall(cc.campaign_id, kindReason);
     }
 
+    /*
+     * A refused sign-in is the mailbox's problem, not this contact's or this
+     * campaign's. Left in rotation, every campaign that picks it fails the
+     * same way until somebody notices. Take it out - sending falls to the
+     * other mailboxes - and keep the reason for the mailbox list to show.
+     */
+    if (failureKind === 'auth' && err.smtpAccountId) {
+      await markMailboxSignInRefused(err.smtpAccountId, describeSmtpError(err));
+    }
+
     // sendCampaignEmail annotates the error with the account it had already
     // reserved a warm-up/ramp slot on (once SMTP selection succeeded) —
     // give that back too so a failed send doesn't burn ramp capacity.
@@ -1255,6 +1265,23 @@ async function advanceToNextStep(
   } else {
     await markCompleted(campaignContactId);
   }
+}
+
+/**
+ * Take a mailbox whose password was refused out of rotation, and say why.
+ * The reason lives in a column from migration 075; without it the mailbox
+ * is still taken out, just without the message.
+ */
+export async function markMailboxSignInRefused(accountId: string, reason: string): Promise<void> {
+  const { error } = await supabaseAdmin.from('smtp_accounts').update({ is_verified: false }).eq('id', accountId);
+  if (error) { console.error(`[Sequence] Could not take mailbox ${accountId} out of rotation:`, error.message); return; }
+  const { error: noteErr } = await supabaseAdmin.from('smtp_accounts')
+    .update({ last_send_error: reason.slice(0, 500), last_send_error_at: new Date().toISOString() })
+    .eq('id', accountId);
+  if (noteErr && !/last_send_error/.test(noteErr.message)) {
+    console.error(`[Sequence] Could not record why mailbox ${accountId} stopped:`, noteErr.message);
+  }
+  console.warn(`[Sequence] Mailbox ${accountId} taken out of rotation: sign-in refused`);
 }
 
 /**

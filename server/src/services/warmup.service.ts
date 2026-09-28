@@ -10,6 +10,7 @@ import {
   rankPeers, poolQuality, POOL_QUALITY_NOTE,
   type WarmupSummary, type WarmupAccountStatus, type SetWarmupInput,
 } from '@lemlist/shared';
+import { guardImap } from '../utils/imap-guard.js';
 
 /* ─── Warm-up Engine ──────────────────────────────────────────────────
    Real warm-up has two jobs: (1) ramp a new mailbox's real-campaign volume
@@ -300,13 +301,13 @@ async function connectImap(account: any): Promise<any | null> {
   if (!host) return null;
   let password: string;
   try { password = decrypt(account.smtp_pass_encrypted); } catch { return null; }
-  const client = new ImapFlow({
+  const client = guardImap(new ImapFlow({
     host,
     port: account.imap_port || 993,
     secure: account.imap_secure !== false,
     auth: { user: account.imap_user || account.smtp_user || account.email_address, pass: password },
     logger: false,
-  });
+  }), 'warmup');
   let connectTimeoutId: ReturnType<typeof setTimeout>;
   const connectTimeout = new Promise<never>((_, reject) => {
     connectTimeoutId = setTimeout(() => reject(new Error('connect timeout')), 12000);

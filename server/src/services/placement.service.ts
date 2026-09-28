@@ -10,6 +10,7 @@ import {
   classifyFolder, seedProvider, placementSummary, PLACEMENT_WAIT_MS,
   type ProbePlacement, type MailProvider,
 } from '@lemlist/shared';
+import { guardImap } from '../utils/imap-guard.js';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Finding out where the mail actually landed.
@@ -440,7 +441,7 @@ async function findProbe(
   const host = imapHostFor(seed);
   const ip = await resolveHostIp(host).catch(() => null);
 
-  const client = new ImapFlow({
+  const client = guardImap(new ImapFlow({
     host: ip || host,
     port: seed.imap_port || 993,
     secure: seed.imap_secure !== false,
@@ -451,7 +452,7 @@ async function findProbe(
     },
     logger: false,
     emitLogs: false,
-  });
+  }), 'placement');
 
   let timeoutId: ReturnType<typeof setTimeout>;
   await Promise.race([

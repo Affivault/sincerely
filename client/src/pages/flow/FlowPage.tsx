@@ -19,7 +19,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
-  CalendarClock, CheckCircle2, Clock, Handshake, Inbox, Keyboard, ListChecks, Loader2,
+  CalendarClock, CheckCircle2, MailWarning, Plug, Clock, Handshake, Inbox, Keyboard, ListChecks, Loader2,
   MessageSquareReply, RefreshCw, Send, Sparkles, Sun, Video, Waves,
 } from 'lucide-react';
 import {
@@ -61,6 +61,7 @@ function writeSnoozed(map: Record<string, number>) {
 }
 
 const KIND_META: Record<FlowKind, { label: string; icon: typeof Inbox; tint: string }> = {
+  mailbox: { label: 'Mailboxes', icon: MailWarning, tint: 'text-rose-500' },
   meeting: { label: 'Meetings', icon: CalendarClock, tint: 'text-sky-500' },
   reply:   { label: 'Replies',  icon: MessageSquareReply, tint: 'text-[var(--indigo)]' },
   deal:    { label: 'Deals',    icon: Handshake, tint: 'text-amber-500' },
@@ -114,11 +115,11 @@ export function FlowPage() {
     !gone.has(i.key) && !snoozed[i.key] && (filter === 'all' || i.kind === filter)), [data, gone, snoozed, filter]);
 
   const counts = useMemo(() => {
-    const c: Record<FlowKind, number> = { meeting: 0, reply: 0, deal: 0, task: 0 };
+    const c: Record<FlowKind, number> = { mailbox: 0, meeting: 0, reply: 0, deal: 0, task: 0 };
     for (const i of data?.items || []) if (!gone.has(i.key) && !snoozed[i.key]) c[i.kind]++;
     return c;
   }, [data, gone, snoozed]);
-  const total = counts.meeting + counts.reply + counts.deal + counts.task;
+  const total = counts.mailbox + counts.meeting + counts.reply + counts.deal + counts.task;
 
   useEffect(() => { if (cursor >= items.length) setCursor(Math.max(0, items.length - 1)); }, [items.length, cursor]);
   const current = items[cursor];
@@ -178,7 +179,8 @@ export function FlowPage() {
   }, [hide, unhide, offer, qc, snooze]);
 
   const openItem = useCallback((item: FlowItem) => {
-    if (item.reply) navigate(`/inbox?message=${item.reply.message_id}`);
+    if (item.mailbox) navigate(`/email-accounts?mailbox=${item.mailbox.account_id}`);
+    else if (item.reply) navigate(`/inbox?message=${item.reply.message_id}`);
     else if (item.deal) navigate(`/deals/${item.deal.deal_id}`);
     else if (item.meeting?.deal_id) navigate(`/deals/${item.meeting.deal_id}`);
     else if (item.meeting) navigate('/calendar');
@@ -255,7 +257,7 @@ export function FlowPage() {
       <AwayCard />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        {(['all', 'meeting', 'reply', 'deal', 'task'] as const).map((k) => {
+        {(['all', ...(counts.mailbox > 0 ? ['mailbox' as const] : []), 'meeting', 'reply', 'deal', 'task'] as const).map((k) => {
           const n = k === 'all' ? total : counts[k];
           const Icon = k === 'all' ? Waves : KIND_META[k].icon;
           return (
@@ -382,6 +384,13 @@ function FlowCard({
     primaryLabel = m.needs_outcome ? 'Log outcome' : expanded ? 'Hide brief' : 'Prep';
     PrimaryIcon = m.needs_outcome ? CheckCircle2 : Sparkles;
     doneLabel = m.needs_outcome ? 'Log outcome' : 'Tomorrow';
+  } else if (item.mailbox) {
+    const mb = item.mailbox;
+    title = mb.email_address;
+    sub = <><span className="font-medium text-rose-600 dark:text-rose-400">{mb.broken === 'sending' ? 'Sign-in refused' : 'Not receiving'}</span> · {mb.reason}</>;
+    primaryLabel = mb.broken === 'sending' ? 'Reconnect' : 'Fix it';
+    PrimaryIcon = Plug;
+    doneLabel = 'Tomorrow';
   } else if (item.task) {
     const t = item.task;
     title = t.title;
@@ -443,7 +452,7 @@ function FlowCard({
           >
             Tomorrow<Kbd>s</Kbd>
           </button>
-          {item.kind !== 'deal' && !(item.meeting && !item.meeting.needs_outcome) && item.kind !== 'task' && (
+          {item.kind !== 'deal' && item.kind !== 'mailbox' && !(item.meeting && !item.meeting.needs_outcome) && item.kind !== 'task' && (
             <button
               onClick={onDone}
               className="hidden h-8 px-2.5 rounded-lg text-caption font-medium text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] sm:inline-flex sm:items-center"

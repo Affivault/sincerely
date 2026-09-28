@@ -317,5 +317,45 @@ console.log('\na mailbox is opened, not re-set-up, to be checked');
   is('the connect wizard is linkable', /searchParams\.get\('connect'\)/.test(page));
 }
 
+console.log('\na mailbox whose password stops working says so, everywhere');
+{
+  const refused = resolveMailboxState({ ...healthy, is_verified: false, send_error: '535 Authentication failed' } as any);
+  is('it reads as sign-in refused', refused.label === 'Sign-in refused' && refused.tone === 'broken');
+  is('with the server\'s reason', refused.detail.includes('535 Authentication failed'));
+  is('and one way back', refused.action === 'reconnect');
+  const seq = readFileSync(join(here, '../src/services/sequence.service.ts'), 'utf8');
+  is('an auth failure on send takes the mailbox out of rotation',
+     /failureKind === 'auth' && err\.smtpAccountId\) \{\s*await markMailboxSignInRefused/.test(seq));
+  const flow = readFileSync(join(here, '../src/services/flow.service.ts'), 'utf8');
+  is('and puts it at the top of Flow', /kind: 'mailbox'/.test(flow) && /sendErr \? 97/.test(flow));
+  const smtp = readFileSync(join(here, '../src/services/smtp.service.ts'), 'utf8');
+  is('a new password clears the reason', /last_send_error = null/.test(smtp));
+}
+
+console.log('\na mail server hiccup never takes the app down');
+{
+  const svc = join(here, '../src/services');
+  for (const f of ['warmup', 'inbox', 'smtp-diagnostics', 'smtp', 'inbox-sync', 'placement']) {
+    const src = readFileSync(join(svc, `${f}.service.ts`), 'utf8');
+    const made = (src.match(/new ImapFlow\(/g) || []).length;
+    const guarded = (src.match(/guardImap\(new ImapFlow\(/g) || []).length;
+    is(`${f}: every IMAP client has an error listener`, made > 0 && made === guarded, `${guarded} of ${made}`);
+  }
+  const index = readFileSync(join(here, '../src/index.ts'), 'utf8');
+  is('keep-alive outlasts the proxy in front', /keepAliveTimeout = 120_000/.test(index) && /headersTimeout = 125_000/.test(index));
+  is('a stray rejection is logged, not fatal', /process\.on\('unhandledRejection'/.test(index) && /process\.on\('uncaughtException'/.test(index));
+  const client = readFileSync(join(here, '../../client/src/api/client.ts'), 'utf8');
+  is('a dropped read is retried once', /_netRetry/.test(client));
+  is('and a bare "Network Error" is never shown', /Could not reach Sincerely just now/.test(client));
+}
+
+console.log('\nmany mailboxes connect at once, each tested');
+{
+  const bulk = readFileSync(join(here, '../../client/src/components/mailbox/BulkConnect.tsx'), 'utf8');
+  is('every row is tested before it is saved', /smtpApi\.create\([\s\S]*?\{ verify: true \}\)/.test(bulk));
+  is('the starting limit is capped', /Math\.min\(Math\.max\(1, Number\(pick\(r, 'daily_limit', 'limit'\)\) \|\| 50\), 200\)/.test(bulk));
+  is('mailboxes already connected are skipped', /Already connected/.test(bulk));
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 assert.equal(fail, 0, `${fail} mailbox UI check(s) failed`);
