@@ -13,10 +13,14 @@ import {
   Plus,
   Megaphone,
   Upload,
-  FileText,
-  CalendarClock,
+  Handshake,
+  UserPlus,
+  CalendarPlus,
+  AtSign,
   PanelLeftClose,
   PanelLeftOpen,
+  Menu,
+  X,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
@@ -38,7 +42,7 @@ export function Header() {
   const { user, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { openPalette } = useCommandPalette();
-  const { collapsed, toggle } = useSidebar();
+  const { collapsed, toggle, narrow, drawerOpen } = useSidebar();
   const { data: usage } = useQuery({ queryKey: ['billing', 'usage'], queryFn: billingApi.usage, staleTime: 60_000 });
   const [menuOpen, setMenuOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -61,38 +65,59 @@ export function Header() {
 
   useEffect(() => { setCreateOpen(false); setMenuOpen(false); }, [location.pathname]);
 
+  /* The things people make in a day, each landing on its form rather than
+     on a list with the button still to find. It offered a template and a
+     sending schedule, and no way to add a deal, a contact or a meeting -
+     in a CRM. */
   const createItems = [
     { label: 'New campaign', desc: 'Build an outbound sequence', icon: Megaphone, to: '/campaigns/new' },
+    { label: 'New deal', desc: 'Add an opportunity to the pipeline', icon: Handshake, to: '/deals?new=1' },
+    { label: 'Add contact', desc: 'Someone you work with', icon: UserPlus, to: '/contacts?new=1' },
+    { label: 'Book meeting', desc: 'Put a call on the calendar', icon: CalendarPlus, to: '/calendar?new=1' },
     { label: 'Import contacts', desc: 'Upload a CSV of leads', icon: Upload, to: '/contacts/import' },
-    { label: 'New template', desc: 'Reusable email content', icon: FileText, to: '/templates' },
-    { label: 'New schedule', desc: 'Sending window preset', icon: CalendarClock, to: '/schedules' },
+    { label: 'Connect mailbox', desc: 'Send from another address', icon: AtSign, to: '/email-accounts?connect=1' },
   ];
 
   return (
-    <header className="fixed top-0 inset-x-0 z-50 flex h-[56px] items-center border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/90 backdrop-blur-xl gap-3 pr-6">
-      {/* Logo zone — fixed, never collapses */}
-      <div className="flex items-center gap-2.5 h-full pl-5 pr-3 flex-shrink-0">
+    <header className="fixed top-0 inset-x-0 z-50 flex h-[56px] items-center border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/90 backdrop-blur-xl gap-2 sm:gap-3 pr-3 sm:pr-6">
+      {/* Logo zone — fixed, never collapses. On a narrow screen the menu
+          button comes first, where a thumb expects it. */}
+      <div className={cn('flex items-center h-full flex-shrink-0', narrow ? 'gap-1.5 pl-2 pr-1' : 'gap-2.5 pl-5 pr-3')}>
+        {narrow && (
+          <button
+            onClick={toggle}
+            aria-label={drawerOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={drawerOpen}
+            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+          >
+            {drawerOpen ? <X className="h-[18px] w-[18px]" /> : <Menu className="h-[18px] w-[18px]" />}
+          </button>
+        )}
         <span className="flex items-center overflow-hidden"><SincerelyLogo /></span>
-        <button
-          onClick={toggle}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="flex-shrink-0 p-1.5 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-        >
-          {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-        </button>
+        {!narrow && (
+          <button
+            onClick={toggle}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="flex-shrink-0 p-1.5 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+          >
+            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
+        )}
       </div>
 
-      {/* Search — opens the command palette */}
+      {/* Search — opens the command palette. An icon on a phone, where the
+          header has room for the essentials and nothing else. */}
       <button
         type="button"
         onClick={openPalette}
-        className="group relative flex items-center h-7 w-64 rounded-md border border-[var(--border-default)] bg-[var(--bg-inset)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)] transition-colors text-left"
+        aria-label="Search or jump to"
+        className="group relative hidden sm:flex items-center h-7 w-44 md:w-64 rounded-md border border-[var(--border-default)] bg-[var(--bg-inset)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)] transition-colors text-left"
       >
         <Search className="h-3.5 w-3.5 text-[var(--text-tertiary)] ml-2.5 flex-shrink-0" />
-        <span className="flex-1 px-2 text-body text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)] transition-colors">
+        <span className="flex-1 truncate px-2 text-body text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)] transition-colors">
           Search or jump to…
         </span>
-        <span className="flex items-center gap-0.5 mr-2 px-1 py-0.5 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-micro text-[var(--text-tertiary)] font-medium flex-shrink-0">
+        <span className="hidden md:flex items-center gap-0.5 mr-2 px-1 py-0.5 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-micro text-[var(--text-tertiary)] font-medium flex-shrink-0">
           <Command className="h-2.5 w-2.5" />
           <span>K</span>
         </span>
@@ -100,6 +125,14 @@ export function Header() {
 
       {/* Right controls */}
       <div className="flex items-center gap-1 ml-auto">
+        <button
+          type="button"
+          onClick={openPalette}
+          aria-label="Search"
+          className="flex sm:hidden h-9 w-9 items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+        >
+          <Search className="h-[17px] w-[17px]" />
+        </button>
         {/* Global quick-create */}
         <div className="relative mr-1.5">
           <button
@@ -107,7 +140,7 @@ export function Header() {
             className="flex items-center gap-1 h-7 pl-2 pr-1.5 rounded-md bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
           >
             <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
-            Create
+            <span className="hidden sm:inline">Create</span>
             <ChevronDown className={cn('h-3 w-3 opacity-80 transition-transform duration-150', createOpen && 'rotate-180')} />
           </button>
 
@@ -161,7 +194,7 @@ export function Header() {
           )}
         </button>
 
-        <div className="h-5 w-px bg-[var(--border-subtle)] mx-1.5" />
+        <div className="hidden sm:block h-5 w-px bg-[var(--border-subtle)] mx-1.5" />
 
         {/* User menu */}
         <div className="relative">

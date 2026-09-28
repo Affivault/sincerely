@@ -10,7 +10,7 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { AsyncPanel } from '../../components/ui/AsyncPanel';
 import { replyQueueApi, type QueuedReply, type QueueFilter } from '../../api/replyQueue.api';
 import { cn } from '../../lib/utils';
-import { replyStateLabel, waitLabel, type ReplyUrgency } from '@lemlist/shared';
+import { replyStateLabel, waitLabel, type ReplyUrgency, replyIntentLabel } from '@lemlist/shared';
 import { keepPrevious } from '../../lib/listQuery';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -42,14 +42,6 @@ const URGENCY: Record<ReplyUrgency, { dot: string; text: string; chip: string }>
   done:       { dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400', chip: 'bg-emerald-500/10 text-emerald-600' },
 };
 
-const INTENT_LABEL: Record<string, string> = {
-  meeting: 'Wants to book',
-  interested: 'Interested',
-  objection: 'Objection',
-  not_now: 'Not now',
-  other: 'Reply',
-};
-
 /** Common parking spots, as offsets. Absolute dates need a picker nobody wants mid-triage. */
 const SNOOZE_OPTIONS: Array<{ label: string; ms: number }> = [
   { label: 'Tomorrow', ms: 24 * 60 * 60 * 1000 },
@@ -75,7 +67,7 @@ function ReplyRow({ reply, onOpen, onClaim, onPark, busy }: {
   const [parkOpen, setParkOpen] = useState(false);
   const { openPeek } = usePeek();
   const u = URGENCY[reply.state.urgency];
-  const intent = INTENT_LABEL[reply.sara_intent || ''] || 'Reply';
+  const intent = replyIntentLabel(reply.sara_intent);
   const snippet = (reply.body_text || '').replace(/\s+/g, ' ').trim().slice(0, 160);
 
   return (

@@ -145,7 +145,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     // Create
     { id: 'new-campaign', label: 'New campaign', icon: Plus, group: 'Create', href: '/campaigns/new', keywords: 'create sequence add' },
     { id: 'import-contacts', label: 'Import contacts', icon: Users, group: 'Create', href: '/contacts/import', keywords: 'upload csv add leads' },
-    { id: 'new-deal', label: 'New deal', icon: Handshake, group: 'Create', href: '/deals', keywords: 'opportunity pipeline add' },
+    { id: 'new-deal', label: 'New deal', icon: Handshake, group: 'Create', href: '/deals?new=1', keywords: 'opportunity pipeline add' },
     // Actions
     {
       id: 'toggle-theme',
@@ -163,7 +163,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   const { data: results, isFetching } = useQuery({
     queryKey: ['search', trimmed],
-    queryFn: () => searchApi.query(trimmed),
+    // An answer without hits (a proxy page, an error body) is no results, not a crash.
+    queryFn: async () => { const r = await searchApi.query(trimmed); return { hits: Array.isArray(r?.hits) ? r.hits : [], took_ms: Number(r?.took_ms) || 0 }; },
     enabled: open && trimmed.length >= MIN_SEARCH_LENGTH,
     staleTime: 15_000,
     ...keepPrevious,

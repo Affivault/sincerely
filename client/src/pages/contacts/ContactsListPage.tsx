@@ -588,6 +588,12 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  // ?new=1 (Create > Add contact) opens the form on arrival.
+  useEffect(() => {
+    if (searchParams.get('new') !== '1') return;
+    setShowCreateModal(true);
+    setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete('new'); return next; }, { replace: true });
+  }, [searchParams, setSearchParams]);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showListModal, setShowListModal] = useState(false);
   const [showAddToListModal, setShowAddToListModal] = useState(false);
@@ -1175,7 +1181,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       ? lists.find((l) => l.id === activeListId)?.name || 'List'
       // The root of each page is named for the page, not for the table. On
       // /leads this is everyone you might pitch; on /contacts it is the CRM.
-      : listKind === 'lead' ? 'All Leads' : 'All Contacts';
+      : listKind === 'lead' ? 'All leads' : 'All contacts';
 
   /* ── Resizable columns ──────────────────────────────────────────────
      The table is fixed-layout with an explicit <colgroup>, so a dragged width
@@ -1446,7 +1452,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       <div className="flex gap-4 items-start" onClick={() => setListContextMenu(null)}>
         {/* Lists rail — collapsible so the table can use the full width */}
         {railCollapsed ? (
-          <aside className="flex-shrink-0">
+          <aside className="hidden md:block flex-shrink-0">
             <button
               onClick={toggleRail}
               title="Show lists"
@@ -1456,7 +1462,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             </button>
           </aside>
         ) : (
-        <aside className="w-56 flex-shrink-0">
+        <aside className="hidden md:block w-56 flex-shrink-0" /* not on a phone: beside the table it leaves the table no room */>
           <div className="sticky top-[60px] panel-inset p-1.5 space-y-0.5">
             <div className="flex items-center justify-between gap-1 px-1.5 pb-1.5 mb-0.5 border-b border-[var(--border-subtle)]">
               <span className="text-micro font-semibold text-[var(--text-tertiary)]">
@@ -1491,7 +1497,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             )}
           >
             <Users className="h-3.5 w-3.5 flex-shrink-0" />
-            <span className="flex-1 text-left">{listKind === 'lead' ? 'All Leads' : 'All Contacts'}</span>
+            <span className="flex-1 text-left">{listKind === 'lead' ? 'All leads' : 'All contacts'}</span>
             <span className={cn(
               "text-micro font-semibold tabular px-1.5 rounded",
               !activeListId ? "text-[var(--indigo)]" : "text-[var(--text-tertiary)]"

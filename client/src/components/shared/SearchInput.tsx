@@ -20,11 +20,14 @@ interface SearchInputProps {
 export function SearchInput({ value, onChange, placeholder = 'Search…', className, busy }: SearchInputProps) {
   return (
     <div className={cn('relative flex items-center', className)}>
+      {/* Centred by position, not by the flex parent: a caller that sets
+          `sm:block` on the wrapper (Deals did) turned the flex off and the
+          magnifier floated to the top corner. */}
       {/* In the magnifier's place, not beside it - the box must not change
           width or reflow on every keystroke. */}
       {busy
-        ? <Loader2 className="absolute left-2.5 h-3.5 w-3.5 animate-spin text-[var(--indigo)] pointer-events-none" data-search-busy />
-        : <Search className="absolute left-2.5 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />}
+        ? <Loader2 className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-[var(--indigo)] pointer-events-none" data-search-busy />
+        : <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />}
       <input
         type="text"
         value={value}
@@ -35,7 +38,7 @@ export function SearchInput({ value, onChange, placeholder = 'Search…', classN
       {value && (
         <button
           onClick={() => onChange('')}
-          className="absolute right-2 flex items-center justify-center h-4 w-4 rounded text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+          className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center h-4 w-4 rounded text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
         >
           <X className="h-3 w-3" />
         </button>

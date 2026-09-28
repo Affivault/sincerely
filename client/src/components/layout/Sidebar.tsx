@@ -399,7 +399,7 @@ function UsageCard({ collapsed }: { collapsed: boolean }) {
 /* ─── Sidebar ───────────────────────────────────────────────────── */
 export function Sidebar() {
   const { user, signOut: logout } = useAuth();
-  const { collapsed } = useSidebar();
+  const { collapsed, narrow, drawerOpen, setDrawerOpen } = useSidebar();
   const location = useLocation();
   const workspaceName = user?.email?.split('@')[0] || 'Workspace';
   const unreadCount = useUnreadCount();
@@ -435,13 +435,29 @@ export function Sidebar() {
     });
   };
 
+  // On a narrow screen the drawer is a way to get somewhere; once there, it goes.
+  useEffect(() => { setDrawerOpen(false); }, [location.pathname, setDrawerOpen]);
+
   const sectionProps = { collapsed, expandedGroups, onToggleGroup: handleToggleGroup };
 
   return (
+    <>
+    {narrow && (
+      <div
+        aria-hidden
+        onClick={() => setDrawerOpen(false)}
+        className={cn(
+          'fixed inset-0 top-[56px] z-40 bg-black/30 backdrop-blur-[1px] transition-opacity duration-200',
+          drawerOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
+        )}
+      />
+    )}
     <aside
       className={cn(
-        'fixed top-[56px] bottom-0 left-0 z-40 flex flex-col bg-[var(--bg-app)] border-r border-[var(--border-subtle)] transition-[width] duration-200 ease-out',
-        collapsed ? 'w-[52px]' : 'w-[240px]'
+        'fixed top-[56px] bottom-0 left-0 z-40 flex flex-col bg-[var(--bg-app)] border-r border-[var(--border-subtle)] transition-[width,transform,visibility] duration-200 ease-out',
+        narrow ? 'w-[264px] shadow-[var(--shadow-xl)]' : collapsed ? 'w-[52px]' : 'w-[240px]',
+        // Invisible as well as off-screen, so a closed drawer's links are out of the Tab order.
+        narrow && !drawerOpen && 'invisible -translate-x-full shadow-none',
       )}
     >
       {/* Navigation */}
@@ -508,5 +524,6 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   );
 }

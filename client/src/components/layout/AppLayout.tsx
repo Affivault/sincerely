@@ -47,6 +47,12 @@ const PAGE_TITLES: [prefix: string, name: string][] = [
 
 /* `g` then key → destination (Linear-style two-stroke navigation) */
 const GO_MAP: Record<string, string> = {
+  // Where most days are spent had no jump at all until these five.
+  f: '/flow',
+  r: '/replies',
+  p: '/deals',     // pipeline
+  o: '/contacts',  // contacts
+  m: '/calendar',  // meetings
   d: '/dashboard',
   c: '/campaigns',
   i: '/inbox',
@@ -76,7 +82,7 @@ const SEQUENCE_MS = 1400;
  */
 
 function AppContent() {
-  const { collapsed } = useSidebar();
+  const { collapsed, narrow } = useSidebar();
   const { open, closePalette, togglePalette } = useCommandPalette();
   const unreadCount = useUnreadCount();
   const location = useLocation();
@@ -260,7 +266,7 @@ function AppContent() {
       <Sidebar />
       <div className={cn(
         'transition-[padding] duration-200 pt-[56px]',
-        collapsed ? 'pl-[52px]' : 'pl-[240px]'
+        narrow ? 'pl-0' : collapsed ? 'pl-[52px]' : 'pl-[240px]'
       )}>
         {/* Generous workspace width — effectively full-bleed on laptops so data
             tables breathe, while capping ultrawide so forms stay readable.
@@ -269,7 +275,7 @@ function AppContent() {
         <main className={cn(
           location.pathname.startsWith('/inbox')
             ? 'max-w-none p-0'
-            : 'px-8 py-7 max-w-[1760px] mx-auto'
+            : 'px-4 py-5 sm:px-6 lg:px-8 lg:py-7 max-w-[1760px] mx-auto'
         )}>
           {!location.pathname.startsWith('/inbox') && <UpgradeNag />}
           {/* key on pathname so the fade-up replays on every route change */}

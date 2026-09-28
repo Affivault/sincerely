@@ -1,4 +1,5 @@
-import { lazy, Suspense } from 'react';
+import { Component, lazy, Suspense, type ReactNode } from 'react';
+import toast from 'react-hot-toast';
 import { usePeek } from '../peek/usePeek';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -25,6 +26,26 @@ import { usePeek } from '../peek/usePeek';
    login opens the palette from cache, exactly as before, and a visitor who
    never signs in never fetches any of it.
    ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Keeps a failing overlay to itself.
+ *
+ * These are mounted beside the page, not inside it, so the page's own
+ * boundary does not cover them - and a throw in any of them unmounted the
+ * whole app, leaving a blank screen. Typing a name into Cmd+K when search
+ * answered in an unexpected shape was enough. Now the overlay closes, says
+ * so, and everything behind it stays put. It remounts fresh when reopened.
+ */
+class OverlayBoundary extends Component<{ children: ReactNode; onFail?: () => void; name: string }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(err: unknown) {
+    console.error(`[${this.props.name}]`, err);
+    toast.error(`${this.props.name} hit a problem and closed. Try again.`);
+    this.props.onFail?.();
+  }
+  render() { return this.state.failed ? null : this.props.children; }
+}
 
 const loadPeek = () => import('../peek/PeekDrawer');
 const loadPalette = () => import('../CommandPalette');
@@ -69,32 +90,38 @@ export function warmOverlays(): void {
  * not.
  */
 export function PeekDrawer() {
-  const { target } = usePeek();
+  const { target, closePeek } = usePeek();
   if (!target) return null;
   // No fallback. A drawer that slides in a quarter of a second late is
   // better than a grey rectangle that slides in on time - and after the
   // idle warm-up this branch is reached with the chunk already in memory.
   return (
-    <Suspense fallback={null}>
-      <PeekDrawerImpl />
-    </Suspense>
+    <OverlayBoundary name="The preview" onFail={closePeek}>
+      <Suspense fallback={null}>
+        <PeekDrawerImpl />
+      </Suspense>
+    </OverlayBoundary>
   );
 }
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   if (!open) return null;
   return (
-    <Suspense fallback={null}>
-      <CommandPaletteImpl open={open} onClose={onClose} />
-    </Suspense>
+    <OverlayBoundary name="Search" onFail={onClose}>
+      <Suspense fallback={null}>
+        <CommandPaletteImpl open={open} onClose={onClose} />
+      </Suspense>
+    </OverlayBoundary>
   );
 }
 
 export function ShortcutsOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
   if (!open) return null;
   return (
-    <Suspense fallback={null}>
-      <ShortcutsOverlayImpl open={open} onClose={onClose} />
-    </Suspense>
+    <OverlayBoundary name="Shortcuts" onFail={onClose}>
+      <Suspense fallback={null}>
+        <ShortcutsOverlayImpl open={open} onClose={onClose} />
+      </Suspense>
+    </OverlayBoundary>
   );
 }

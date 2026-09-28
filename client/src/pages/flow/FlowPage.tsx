@@ -23,8 +23,7 @@ import {
   MessageSquareReply, RefreshCw, Send, Sparkles, Sun, Video, Waves,
 } from 'lucide-react';
 import {
-  DEAL_ACTION_LABEL, formatTime, type FlowItem, type FlowKind,
-} from '@lemlist/shared';
+  DEAL_ACTION_LABEL, formatTime, type FlowItem, type FlowKind, replyIntentLabel } from '@lemlist/shared';
 import { flowApi } from '../../api/flow.api';
 import { saraApi } from '../../api/sara.api';
 import { crmApi } from '../../api/crm.api';
@@ -66,11 +65,6 @@ const KIND_META: Record<FlowKind, { label: string; icon: typeof Inbox; tint: str
   reply:   { label: 'Replies',  icon: MessageSquareReply, tint: 'text-[var(--indigo)]' },
   deal:    { label: 'Deals',    icon: Handshake, tint: 'text-amber-500' },
   task:    { label: 'Tasks',    icon: ListChecks, tint: 'text-emerald-500' },
-};
-
-const INTENT_LABEL: Record<string, string> = {
-  interested: 'Interested', meeting: 'Wants a meeting', objection: 'Objection',
-  not_now: 'Not now', other: 'Reply', question: 'Question',
 };
 
 function money(v: number, currency: string): string {
@@ -334,9 +328,22 @@ export function FlowPage() {
   );
 }
 
-function Kbd({ children }: { children: React.ReactNode }) {
+/**
+ * A key hint, on the card the keys act on and nowhere else.
+ *
+ * Every card carried all of them, so a queue of ten said "Tomorrow s,
+ * Handled d, enter" ten times over - the page read as a keyboard legend.
+ * The keys only ever apply to the selected card, so that is where they show.
+ */
+function Kbd({ children, on }: { children: React.ReactNode; on: boolean }) {
+  if (!on) return null;
   return <kbd className="ml-1 hidden rounded border border-current/20 px-1 text-micro opacity-60 md:inline">{children}</kbd>;
 }
+
+/* The second-choice actions stay out of the way until the card is chosen or
+   pointed at - but only where a pointer can hover. On a touch screen there
+   is no hover to reveal them, so they are always shown. */
+const QUIET_UNTIL_CHOSEN = '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100';
 
 function FlowCard({
   item, selected, expanded, draft, editing, sending,
@@ -406,7 +413,7 @@ function FlowCard({
       data-key={item.key}
       onClick={onSelect}
       className={cn(
-        'rounded-xl border bg-[var(--bg-surface)] transition-all',
+        'group rounded-xl border bg-[var(--bg-surface)] transition-all',
         selected
           ? 'border-[var(--indigo)] shadow-[var(--shadow-md)] ring-2 ring-[var(--indigo-subtle)]'
           : 'border-[var(--border-subtle)] hover:border-[var(--border-default)]',
@@ -421,7 +428,7 @@ function FlowCard({
             <span className="truncate text-body font-semibold text-[var(--text-primary)]">{title}</span>
             {item.reply?.intent && (
               <span className="rounded-full bg-[var(--indigo-subtle)] px-1.5 py-0.5 text-micro font-semibold text-[var(--indigo)]">
-                {INTENT_LABEL[item.reply.intent] || item.reply.intent}
+                {replyIntentLabel(item.reply.intent)}
               </span>
             )}
             {item.deal && <DealHealthDot health={item.deal.health} withScore />}
@@ -447,18 +454,18 @@ function FlowCard({
         <div className="flex flex-shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={onSnooze}
-            className="hidden h-8 px-2.5 rounded-lg text-caption font-medium text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] sm:inline-flex sm:items-center"
+            className={cn('hidden h-8 px-2.5 rounded-lg text-caption font-medium text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] sm:inline-flex sm:items-center transition-opacity', !selected && QUIET_UNTIL_CHOSEN)}
             title="Not now - back tomorrow morning (s)"
           >
-            Tomorrow<Kbd>s</Kbd>
+            Tomorrow<Kbd on={selected}>s</Kbd>
           </button>
           {item.kind !== 'deal' && item.kind !== 'mailbox' && !(item.meeting && !item.meeting.needs_outcome) && item.kind !== 'task' && (
             <button
               onClick={onDone}
-              className="hidden h-8 px-2.5 rounded-lg text-caption font-medium text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] sm:inline-flex sm:items-center"
+              className={cn('hidden h-8 px-2.5 rounded-lg text-caption font-medium text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] sm:inline-flex sm:items-center transition-opacity', !selected && QUIET_UNTIL_CHOSEN)}
               title={item.kind === 'reply' ? 'Dealt with elsewhere - nobody is waiting (d)' : `${doneLabel} (d)`}
             >
-              {doneLabel}<Kbd>d</Kbd>
+              {doneLabel}<Kbd on={selected}>d</Kbd>
             </button>
           )}
           <button
@@ -467,7 +474,7 @@ function FlowCard({
             className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--indigo)] px-3 text-caption font-semibold text-white hover:opacity-90 disabled:opacity-60"
           >
             {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PrimaryIcon className="h-3.5 w-3.5" />}
-            {primaryLabel}<Kbd>enter</Kbd>
+            {primaryLabel}<Kbd on={selected}>enter</Kbd>
           </button>
         </div>
       </div>
@@ -522,7 +529,7 @@ function FlowCard({
           onClick={(e) => { e.stopPropagation(); onToggle(); }}
           className="w-full border-t border-[var(--border-subtle)] py-1.5 text-caption text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
         >
-          {item.meeting ? (item.meeting.needs_outcome ? 'Log how it went' : 'Show the brief') : 'Why is this here?'} <Kbd>space</Kbd>
+          {item.meeting ? (item.meeting.needs_outcome ? 'Log how it went' : 'Show the brief') : 'Why is this here?'} <Kbd on={selected}>space</Kbd>
         </button>
       )}
     </div>

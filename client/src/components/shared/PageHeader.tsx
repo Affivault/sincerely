@@ -38,14 +38,18 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        'relative -mx-6 -mt-5 mb-5 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden',
+        // Full-bleed: these cancel <main>'s padding at every width (px-4 /
+        // sm:px-6 / lg:px-8, py-5 / lg:py-7 in AppLayout). They were a fixed
+        // -mx-6 against a px-8 page, which left the band floating 8px in from
+        // both edges on desktop and hanging off the side on a phone.
+        'relative -mx-4 -mt-5 sm:-mx-6 lg:-mx-8 lg:-mt-7 mb-5 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden',
         className
       )}
     >
       {/* `decorate` retained for API compatibility; the glow wash was removed to
           keep headers calm and consistent across the app. */}
 
-      <div className="relative px-6 pt-5 pb-4">
+      <div className="relative px-4 sm:px-6 lg:px-8 pt-5 pb-4">
         {/* Breadcrumbs */}
         {breadcrumbs && breadcrumbs.length > 0 && (
           <nav className="flex items-center gap-1 mb-2 text-body text-[var(--text-tertiary)]">
@@ -69,10 +73,10 @@ export function PageHeader({
           </nav>
         )}
 
-        <div className="flex items-start gap-4">
+        <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
           {leading && <div className="flex-shrink-0 mt-1">{leading}</div>}
 
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-[min(100%,16rem)]">
             <h1 className="text-display font-semibold text-[var(--text-primary)] leading-[1.15] tracking-[-0.02em]">
               {title}
             </h1>
@@ -89,13 +93,13 @@ export function PageHeader({
           </div>
 
           {actions && (
-            <div className="flex-shrink-0 flex items-center gap-2">{actions}</div>
+            <div className="flex flex-wrap items-center gap-2">{actions}</div>
           )}
         </div>
 
         {/* Tabs row */}
         {tabs && (
-          <div className="mt-4 -mb-4 -mx-6 px-6 border-t border-[var(--border-subtle)]">
+          <div className="mt-4 -mb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 overflow-x-auto scrollbar-none border-t border-[var(--border-subtle)]">
             {tabs}
           </div>
         )}

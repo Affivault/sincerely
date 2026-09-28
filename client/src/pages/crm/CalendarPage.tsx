@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { crmApi } from '../../api/crm.api';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { cn } from '../../lib/utils';
@@ -168,6 +168,13 @@ export function CalendarPage() {
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [eventModal, setEventModal] = useState<{ event: Partial<CrmEvent> | null } | null>(null);
+  // ?new=1 (Create > Book meeting) opens the booking form at the next hour.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('new') !== '1') return;
+    setEventModal({ event: { starts_at: nextHour().toISOString() } as Partial<CrmEvent> });
+    setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete('new'); return next; }, { replace: true });
+  }, [searchParams, setSearchParams]);
   const [taskModal, setTaskModal] = useState<Partial<CrmTask> | null>(null);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [dragging, setDragging] = useState<Item | null>(null);

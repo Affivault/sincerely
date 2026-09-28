@@ -13,7 +13,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { SetupChecklist } from '../../components/setup/SetupChecklist';
 import { EmptyState, InlineEmpty } from '../../components/shared/EmptyState';
-import { rateReadout, averageRateReadout, rateBarWidth, type RateReadout, formatDayMonth } from '@lemlist/shared';
+import { rateReadout, averageRateReadout, rateBarWidth, type RateReadout, formatDayMonth, REPLY_INTENT_LABELS } from '@lemlist/shared';
 import { Avatar } from '../../components/shared/Avatar';
 import {
   Plus, Send, MailOpen, MousePointerClick, MessageSquare, Inbox,
@@ -87,13 +87,13 @@ const PERIODS = [
 
 /* Reply-intent chips for the live replies feed (mirrors inbox colors) */
 const INTENT_CHIP: Record<string, { label: string; cls: string }> = {
-  interested: { label: 'Interested', cls: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
-  meeting: { label: 'Meeting', cls: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
-  objection: { label: 'Objection', cls: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
-  not_now: { label: 'Not now', cls: 'bg-slate-500/10 text-slate-500' },
-  out_of_office: { label: 'OOO', cls: 'bg-purple-500/10 text-purple-500' },
-  unsubscribe: { label: 'Unsub', cls: 'bg-red-500/10 text-red-500' },
-  bounce: { label: 'Bounce', cls: 'bg-red-500/10 text-red-500' },
+  interested: { label: REPLY_INTENT_LABELS.interested.short, cls: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
+  meeting: { label: REPLY_INTENT_LABELS.meeting.short, cls: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
+  objection: { label: REPLY_INTENT_LABELS.objection.short, cls: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
+  not_now: { label: REPLY_INTENT_LABELS.not_now.short, cls: 'bg-slate-500/10 text-slate-500' },
+  out_of_office: { label: REPLY_INTENT_LABELS.out_of_office.short, cls: 'bg-purple-500/10 text-purple-500' },
+  unsubscribe: { label: REPLY_INTENT_LABELS.unsubscribe.short, cls: 'bg-red-500/10 text-red-500' },
+  bounce: { label: REPLY_INTENT_LABELS.bounce.short, cls: 'bg-red-500/10 text-red-500' },
 };
 
 /* ─── Segmented control ─────────────────────────────── */
@@ -512,9 +512,8 @@ export function DashboardPage() {
   // Prefer the name the user set in Settings; fall back to the email prefix.
   const settingsFirst = (userSettings?.first_name || '').trim();
   const settingsLast = (userSettings?.last_name || '').trim();
-  const name = settingsFirst || settingsLast
-    ? [settingsFirst, settingsLast].filter(Boolean).join(' ')
-    : (user?.email?.split('@')[0] || 'there');
+  // First name only: "Good afternoon, Alex", as a person would say it.
+  const name = settingsFirst || settingsLast || user?.email?.split('@')[0] || 'there';
 
   const verified = Number(s.verified_contacts) || 0;
   const bounced = Number(s.bounced_contacts) || 0;
@@ -573,7 +572,9 @@ export function DashboardPage() {
 
       {/* ── Row 1: work first — the attention queue + live replies ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <section className="panel lg:col-span-2 overflow-hidden">
+        {/* Its own height, not the row's: stretched to match the column
+            beside it, three rows sat on top of a tall empty white card. */}
+        <section className="panel lg:col-span-2 overflow-hidden lg:self-start">
           <Head
             title="Needs attention"
             desc="Everything waiting on you, in one queue"
@@ -587,16 +588,16 @@ export function DashboardPage() {
           ) : (
             <div className="divide-y divide-[var(--border-subtle)]">
               {needsReply > 0 && (
-                <AttentionRow icon={Reply} count={needsReply} label="Need a reply" sub="Interested, objections & meeting requests" to="/inbox" tone="warn" />
+                <AttentionRow icon={Reply} count={needsReply} label="Need a reply" sub="Interested, objections & meeting requests" to="/inbox?view=needs" tone="warn" />
               )}
               {hotLeads > 0 && (
-                <AttentionRow icon={Flame} count={hotLeads} label="Hot leads" sub="Interested or booked a meeting" to="/inbox" tone="hot" />
+                <AttentionRow icon={Flame} count={hotLeads} label="Hot leads" sub="Interested or asking to meet" to="/inbox?view=hot" tone="hot" />
               )}
               {unreadReplies > 0 && (
-                <AttentionRow icon={Inbox} count={unreadReplies} label="Unread replies" sub="Waiting in your unibox" to="/inbox" />
+                <AttentionRow icon={Inbox} count={unreadReplies} label="Unread replies" sub="Waiting in your unibox" to="/inbox?view=unread" />
               )}
               {scheduledCount > 0 && (
-                <AttentionRow icon={Clock} count={scheduledCount} label="Scheduled sends" sub="Queued from compose & replies" to="/inbox" />
+                <AttentionRow icon={Clock} count={scheduledCount} label="Scheduled sends" sub="Queued from compose & replies" to="/inbox?view=scheduled" />
               )}
               {!smtpBannerDismissed && unhealthySmtpAccounts.length > 0 && (
                 <AttentionRow

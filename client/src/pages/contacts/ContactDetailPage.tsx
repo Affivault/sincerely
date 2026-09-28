@@ -261,7 +261,7 @@ export function ContactDetailPage() {
       </button>
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3.5 min-w-0">
           <Avatar name={fullName || contact.email} email={contact.email} size="xl" />
           <div className="min-w-0">
@@ -303,7 +303,7 @@ export function ContactDetailPage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-2">
           {/*
             Offered only when it would actually work. The panel below states
             whether cold outreach can reach this person; a live button beside
