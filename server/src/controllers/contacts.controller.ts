@@ -59,13 +59,17 @@ export const contactsController = {
       }
       let columnMapping: Record<string, string> = {};
       try {
-        columnMapping = JSON.parse(req.body.columnMapping || '{}');
+        const parsed = JSON.parse(req.body.columnMapping || '{}');
+        // "null", "[]" or "5" are valid JSON but not a mapping; Object.entries
+        // on null would throw a 500 mid-import.
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object');
+        columnMapping = parsed;
       } catch {
         // Multer already wrote the upload to disk before this handler ran;
         // the service's own cleanup never runs on this early-return path,
         // so without this the temp file is orphaned permanently.
         fs.unlink(file.path, () => {});
-        res.status(400).json({ error: 'columnMapping must be valid JSON' });
+        res.status(400).json({ error: 'columnMapping must be a valid JSON object' });
         return;
       }
       const result = await contactsService.importCsv(req.userId!, file.path, columnMapping);
