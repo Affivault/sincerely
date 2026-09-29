@@ -13,12 +13,12 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { SetupChecklist } from '../../components/setup/SetupChecklist';
 import { EmptyState, InlineEmpty } from '../../components/shared/EmptyState';
-import { rateReadout, averageRateReadout, rateBarWidth, type RateReadout, formatDayMonth, REPLY_INTENT_LABELS } from '@lemlist/shared';
+import { rateReadout, averageRateReadout, rateBarWidth, type RateReadout, formatDayMonth, REPLY_INTENT_LABELS, senderLabel } from '@lemlist/shared';
 import { Avatar } from '../../components/shared/Avatar';
 import {
   Plus, Send, MailOpen, MousePointerClick, MessageSquare, Inbox,
   ChevronRight, ArrowUp, ArrowDown, Download, Megaphone, Activity,
-  AlertTriangle, Reply, Flame, Clock, CheckCircle2, X,
+  AlertTriangle, Reply, Flame, Clock, CheckCircle2, X, Sparkles,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -527,6 +527,13 @@ export function DashboardPage() {
   const unreadReplies = inboxCounts?.unread ?? unreadCount;
   const scheduledCount = Array.isArray(scheduledEmails) ? scheduledEmails.length : 0;
   const allClear = needsReply === 0 && unreadReplies === 0 && scheduledCount === 0 && hotLeads === 0;
+  /*
+   * Nothing has ever been sent: a chart of zeros, an empty leaderboard, a
+   * funnel of noughts and a deliverability score for mail that does not
+   * exist are four panels saying the same nothing. Until the first send the
+   * page is about getting there.
+   */
+  const everSent = campaigns.some((c) => Number(c.sent) > 0) || Number(s.total_sent) > 0;
 
   return (
     <div className="stagger pb-8 space-y-5">
@@ -555,10 +562,14 @@ export function DashboardPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Segmented options={PERIODS} value={period} onChange={setPeriodPersist} />
-          <button onClick={exportReport} disabled={exporting} className="btn-secondary disabled:opacity-50" title="Export CSV report">
-            <Download className="h-3.5 w-3.5" /> {exporting ? 'Exporting…' : 'Export'}
-          </button>
+          {everSent && (
+            <>
+              <Segmented options={PERIODS} value={period} onChange={setPeriodPersist} />
+              <button onClick={exportReport} disabled={exporting} className="btn-secondary disabled:opacity-50" title="Export CSV report">
+                <Download className="h-3.5 w-3.5" /> {exporting ? 'Exporting…' : 'Export'}
+              </button>
+            </>
+          )}
           <button className="btn-primary" onClick={() => navigate('/campaigns/new')}>
             <Plus className="h-3.5 w-3.5" /> New campaign
           </button>
@@ -569,6 +580,16 @@ export function DashboardPage() {
           five things that have to be true, in the order they depend on each
           other. It removes itself for good once they are. */}
       <SetupChecklist />
+
+      {/* Before the first send, the next step comes before everything else. */}
+      {!everSent && (
+        <FirstSendPanel
+          contacts={totalContacts}
+          verified={verified}
+          bounced={bounced}
+          onWrite={() => navigate('/campaigns/new?write=1')}
+        />
+      )}
 
       {/* ── Row 1: work first — the attention queue + live replies ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -635,12 +656,12 @@ export function DashboardPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <span className={cn('text-body truncate', msg.is_read ? 'text-[var(--text-secondary)]' : 'font-semibold text-[var(--text-primary)]')}>
-                          {msg.contact_name || msg.from_email?.split('@')[0] || 'Unknown'}
+                          {msg.contact_name || senderLabel(msg.from_email, msg.sender_name) || 'Unknown'}
                         </span>
                         <span className="text-caption text-[var(--text-tertiary)] flex-shrink-0 tabular">{timeAgo(msg.received_at)}</span>
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-                        <p className="text-caption text-[var(--text-tertiary)] truncate leading-tight flex-1">{msg.subject || '(no subject)'}</p>
+                        <p className="text-caption text-[var(--text-tertiary)] truncate leading-tight flex-1">{msg.relay_summary || msg.subject || '(no subject)'}</p>
                         {chip && (
                           <span className={cn('text-micro font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0', chip.cls)}>{chip.label}</span>
                         )}
@@ -660,6 +681,7 @@ export function DashboardPage() {
         </div>
       </div>
 
+      {everSent && (<>
       {/* ── Row 2: one performance module — metric strip drives the chart ── */}
       <section className={cn('panel overflow-hidden transition-opacity duration-300', refreshing && 'opacity-60')}>
         <div className="flex divide-x divide-[var(--border-subtle)] border-b border-[var(--border-subtle)]">
@@ -757,11 +779,69 @@ export function DashboardPage() {
               clicked={Number(s.total_clicked) || 0} replied={Number(s.total_replied) || 0} />
           </section>
           <section className="panel overflow-hidden">
-            <Head title="Inbox health" desc="Deliverability score" action={<MoreLink to="/verification" label="Details" />} />
+            {/* It scores the contacts, not a mailbox: "Inbox health 97" with
+                nothing sent was a claim about mail that did not exist. */}
+            <Head title="List quality" desc="How safe your contacts are to email" action={<MoreLink to="/verification" label="Details" />} />
             <InboxHealth score={Number(s.avg_dcs_score) || 0} verified={verified} bounced={bounced} suppressed={suppressed} />
           </section>
         </div>
       </div>
+      </>)}
     </div>
+  );
+}
+
+/**
+ * Before the first send: what the list looks like, and the one thing that
+ * gets it moving - a drafted sequence to edit.
+ */
+function FirstSendPanel({ contacts, verified, bounced, onWrite }: {
+  contacts: number; verified: number; bounced: number; onWrite: () => void;
+}) {
+  const safe = contacts > 0 ? Math.round((verified / contacts) * 100) : 0;
+  return (
+    <section className="panel overflow-hidden">
+      <div className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr]">
+        <div className="p-5 sm:p-6">
+          <p className="text-caption font-semibold uppercase tracking-wide text-[var(--indigo)]">Your first campaign</p>
+          <h2 className="mt-1.5 text-title font-semibold text-[var(--text-primary)] tracking-[-0.01em]">
+            {contacts > 0 ? 'Your leads are ready. Relay can draft the emails.' : 'Add a few leads, then Relay drafts the emails.'}
+          </h2>
+          <p className="mt-2 text-body text-[var(--text-secondary)] max-w-[52ch]">
+            Pick a list, say what you sell in a sentence or two, and you get a short sequence to read through and edit - with a personal first line for each lead when Claude is switched on. Nothing sends until you launch it.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button className="btn-primary" onClick={onWrite} disabled={contacts === 0}>
+              <Sparkles className="h-3.5 w-3.5" /> Write it with Relay
+            </button>
+            <Link to={contacts > 0 ? '/campaigns/new' : '/contacts'} className="btn-secondary">
+              {contacts > 0 ? 'Start from scratch' : 'Add leads'}
+            </Link>
+          </div>
+        </div>
+        <div className="border-t md:border-t-0 md:border-l border-[var(--border-subtle)] p-5 sm:p-6 bg-[var(--bg-muted)]/40">
+          <p className="text-caption font-semibold text-[var(--text-tertiary)]">Your list</p>
+          <dl className="mt-3 space-y-2.5">
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-body text-[var(--text-secondary)]">Leads</dt>
+              <dd className="text-strong font-semibold tabular text-[var(--text-primary)]">{contacts.toLocaleString()}</dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-body text-[var(--text-secondary)]">Safe to email</dt>
+              <dd className="text-strong font-semibold tabular text-[var(--text-primary)]">{verified.toLocaleString()}{contacts > 0 && <span className="ml-1 text-caption font-normal text-[var(--text-tertiary)]">{safe}%</span>}</dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-body text-[var(--text-secondary)]">Known bad addresses</dt>
+              <dd className="text-strong font-semibold tabular text-[var(--text-primary)]">{bounced.toLocaleString()}</dd>
+            </div>
+          </dl>
+          {contacts > 0 && verified < contacts && (
+            <Link to="/verification" className="mt-3 inline-flex items-center gap-1 text-caption font-medium text-[var(--indigo)] hover:underline">
+              Verify the rest before sending <ChevronRight className="h-3 w-3" />
+            </Link>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }

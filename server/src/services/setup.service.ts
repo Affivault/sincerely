@@ -80,11 +80,13 @@ export const setupService = {
         // Straight into the connect wizard while there is nothing to manage yet.
         href: activeMailboxes.length > 0 ? '/email-accounts' : '/email-accounts?connect=1',
         cta: 'Connect',
+        // "4 connected" beside "5 have not passed a test" read as a
+        // contradiction. They are two groups: ready, and not yet tested.
         progress: activeMailboxes.length > 0
-          ? `${activeMailboxes.length} connected`
+          ? `${activeMailboxes.length} ready to send`
           : null,
         warning: unverifiedMailboxes.length > 0
-          ? `${unverifiedMailboxes.length} mailbox${unverifiedMailboxes.length === 1 ? ' has' : 'es have'} not passed a connection test yet — run "Test" on ${unverifiedMailboxes.length === 1 ? 'it' : 'them'}.`
+          ? `${activeMailboxes.length > 0 ? `${unverifiedMailboxes.length} more` : unverifiedMailboxes.length} connected but not tested yet - run "Test" on ${unverifiedMailboxes.length === 1 ? 'it' : 'them'} before they can send.`
           : null,
       },
       {
@@ -121,8 +123,9 @@ export const setupService = {
         detail: 'One email is a message. A sequence with a couple of follow-ups is what actually gets replies.',
         done: campaignsWithSteps > 0,
         current: false,
-        href: '/campaigns/new',
-        cta: 'Build one',
+        // Straight into Relay's draft: a blank editor is where this stalls.
+        href: campaignsWithSteps > 0 ? '/campaigns' : '/campaigns/new?write=1',
+        cta: campaignsWithSteps > 0 ? 'Build one' : 'Write it with Relay',
         progress: campaignsWithSteps > 0
           ? `${campaignsWithSteps} campaign${campaignsWithSteps === 1 ? '' : 's'} ready`
           : campaignRows.length > 0

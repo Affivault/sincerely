@@ -69,8 +69,28 @@ const inbox = intents.map((intent, i) => {
     sara_action: 'reply', sara_status: intent === 'meeting' ? 'pending_review' : 'none', sara_reviewed_at: null, sara_reviewed_by: null,
     triage_decision: null, triaged_at: null, triage_ref: null, received_at: iso(now - (i * 5 + 1) * 3600000), created_at: iso(now - (i * 5 + 1) * 3600000),
     contact_name: `${c.first_name} ${c.last_name}`, campaign_name: 'Q3 Fintech outreach',
+    mail_kind: 'person', sender_name: `${c.first_name} ${c.last_name}`,
+    relay_summary: i < 3 ? ['Wants pricing for 50 seats before a call.', 'Asks for Thursday at 2pm.', 'Already uses a competitor; open to a comparison.'][i] : null,
+    relay_next_step: i < 3 ? ['Send pricing and offer two call times.', 'Send the invite for Thursday 2pm.', 'Share one line on how you differ.'][i] : null,
+    relay_engine: i < 3 ? 'ai' : null,
   };
 });
+
+// Mail: newsletters, notifications, receipts. Out of the inbox and every count.
+const otherMail = [
+  ['info@mc.gomarkets.com', 'GO Markets', 'From Nvidia earnings to an 80k Bitcoin surge', 'bulk',
+    'https://click.mc.gomarkets.com/?qs=ABB7InYiOjEsImQiOjQ5ODI9AAoAAAAABH_BeQ6aMQ https://click.mc.gomarkets.com/?qs=ABB7InYiOjEsImQiOjQ5OTZ9AAoAAAAABKn',
+    '<p>From Nvidia\'s earnings win to an 80k Bitcoin surge.</p><img src="https://t.example/p.gif" width="1" height="1"><a href="https://click.mc.gomarkets.com/x">Read more</a><p>You are receiving this email because you subscribed. <a href="https://click.mc.gomarkets.com/u">Unsubscribe</a> | Manage preferences</p>'],
+  ['notifications@github.com', 'GitHub', '[Affivault/sincerely] Full-app walkthrough fixes (PR #513)', 'notification', 'vercel[bot] left a comment.', null],
+  ['hello@spaceship.com', 'Spaceship', 'Spacemail Business subscription auto-renewed', 'transactional', 'Your order summary.', null],
+].map(([from, name, subject, kind, text, html], i) => ({
+  ...base, id: `om${i + 1}`, campaign_id: null, campaign_contact_id: null, contact_id: null, smtp_account_id: 'm1',
+  from_email: from, to_email: 'alex@affivault.com', subject, body_text: text, body_html: html, in_reply_to: null, message_id: `<om${i}@x>`,
+  is_read: i > 0, auto_reply_kind: null, sara_intent: null, sara_confidence: null, sara_draft_reply: null, sara_action: null, sara_status: 'none',
+  sara_reviewed_at: null, sara_reviewed_by: null, triage_decision: null, triaged_at: null, triage_ref: null,
+  received_at: iso(now - (i * 7 + 2) * 3600000), created_at: iso(now - (i * 7 + 2) * 3600000),
+  contact_name: null, campaign_name: null, mail_kind: kind, sender_name: name, relay_summary: null, relay_next_step: null, relay_engine: null,
+}));
 
 const stages = ['lead', 'qualified', 'proposal', 'proposal', 'qualified', 'lead', 'won', 'lost'];
 const deals = stages.map((stage, i) => {
@@ -130,19 +150,34 @@ function flow() {
   return { items, counts, generated_at: iso(now) };
 }
 
+// PRELAUNCH=1: an account that has never sent, for the pre-launch dashboard.
+const PRE = !!process.env.PRELAUNCH;
+
 function answer(method, path, q) {
+  if (method === 'POST' && /\/campaigns\/write-sequence$/.test(path)) {
+    return { name: 'ISA platforms - affiliate partnership', rationale: 'Leads with the partner economics.', engine: 'ai', leads: 58, personalized: 52, personalize_requested: true,
+      steps: [
+        { delay_days: 0, subject: 'partnering with {{company|your team}}', body_text: 'Hi {{first_name|there}},\n\n{{first_line}}\n\nWe run affiliate partnerships for UK investment platforms.', body_html: '<p>Hi {{first_name|there}},</p><p>{{first_line|Came across your team and had a quick idea worth sharing.}}</p><p>We run affiliate partnerships for UK investment platforms.</p>' },
+        { delay_days: 3, subject: 'Re: partnering with {{company|your team}}', body_text: 'Hi {{first_name|there}},\n\nOne more thing.', body_html: '<p>Hi {{first_name|there}},</p><p>One more thing.</p>' },
+        { delay_days: 4, subject: 'Re: partnering with {{company|your team}}', body_text: 'Hi {{first_name|there}},\n\nI will leave it here.', body_html: '<p>Hi {{first_name|there}},</p><p>I will leave it here.</p>' },
+      ] };
+  }
   if (method !== 'GET') return { success: true };
   const P = path.replace(/\/+$/, '');
   const seg = P.split('/');
   switch (P) {
     case '/billing/usage': return { plan: 'growth', planName: 'Growth', status: 'active', trialEndsAt: null, periodStart: ago(12).slice(0, 10), currentPeriodEnd: ahead(18), emailsSent: 1874, emailsLimit: 10000, inboxes: 3, inboxLimit: 10, features: { sara: true, abTesting: true }, hasBilling: true };
     case '/inbox/unread-count': return { count: 3 };
-    case '/inbox/counts': return { unread: 3, needs_triage: 5, intents: { interested: 3, meeting: 1, objection: 1, not_now: 1, out_of_office: 1, other: 1 } };
+    case '/inbox/counts': return { unread: 3, needs_triage: 5, intents: { interested: 3, meeting: 1, objection: 1, not_now: 1, out_of_office: 1, other: 1 }, other: otherMail.length, other_unread: 1, sorting: false };
+    case '/inbox/relay-status': return { ai: true, review: [{ message_id: 'msg2', contact_id: 'c2', email: contacts[1].email, name: `${contacts[1].first_name} ${contacts[1].last_name}`, company: contacts[1].company, subject: 'Re: Quick question', excerpt: 'Sounds good - Thursday works.', now_reads_as: 'meeting', received_at: ago(2) }] };
     case '/setup': return { steps: ['mailbox', 'domain', 'contacts', 'sequence', 'launch'].map((id) => ({ id, label: id, detail: '', done: true, current: false, href: '/', cta: 'Go', progress: null, warning: null })), done_count: 5, complete: true, fresh: false };
-    case '/analytics/overview': return { total_campaigns: 5, active_campaigns: 2, total_contacts: 1450, total_sent: 1252, total_opened: 651, total_clicked: 100, total_replied: 90, avg_open_rate: 52, avg_click_rate: 8, avg_reply_rate: 7.2, suppressed_count: 14, avg_dcs_score: 84, verified_contacts: 1320, bounced_contacts: 15, sent_change: 12, opened_change: 4, clicked_change: -2, replied_change: 18 };
+    case '/analytics/overview': if (PRE) return { total_campaigns: 0, active_campaigns: 0, total_contacts: 62, total_sent: 0, total_opened: 0, total_clicked: 0, total_replied: 0, avg_open_rate: 0, avg_click_rate: 0, avg_reply_rate: 0, suppressed_count: 0, avg_dcs_score: 97, verified_contacts: 60, bounced_contacts: 0, sent_change: null, opened_change: null, clicked_change: null, replied_change: null };
+      return { total_campaigns: 5, active_campaigns: 2, total_contacts: 1450, total_sent: 1252, total_opened: 651, total_clicked: 100, total_replied: 90, avg_open_rate: 52, avg_click_rate: 8, avg_reply_rate: 7.2, suppressed_count: 14, avg_dcs_score: 84, verified_contacts: 1320, bounced_contacts: 15, sent_change: 12, opened_change: 4, clicked_change: -2, replied_change: 18 };
     case '/analytics/trend': return trend;
-    case '/analytics/campaigns': return campaigns.map((c) => ({ id: c.id, name: c.name, status: c.status, created_at: c.created_at, sent: c.sent_count, opened: c.opened_count, clicked: c.clicked_count, replied: c.replied_count, bounced: c.bounced_count, open_rate: c.open_rate, click_rate: c.click_rate, reply_rate: c.reply_rate, bounce_rate: c.bounce_rate }));
-    case '/inbox': return page(q.get('folder') === 'sent' ? [] : inbox.filter((m) => !q.get('contact_id') || m.contact_id === q.get('contact_id')).slice(0, Number(q.get('limit')) || 50));
+    case '/analytics/campaigns': if (PRE) return []; return campaigns.map((c) => ({ id: c.id, name: c.name, status: c.status, created_at: c.created_at, sent: c.sent_count, opened: c.opened_count, clicked: c.clicked_count, replied: c.replied_count, bounced: c.bounced_count, open_rate: c.open_rate, click_rate: c.click_rate, reply_rate: c.reply_rate, bounce_rate: c.bounce_rate }));
+    case '/inbox': return page(q.get('folder') === 'sent' ? [] : q.get('folder') === 'other'
+      ? otherMail.filter((m) => !q.get('mail_kind') || m.mail_kind === q.get('mail_kind'))
+      : inbox.filter((m) => !q.get('contact_id') || m.contact_id === q.get('contact_id')).slice(0, Number(q.get('limit')) || 50));
     case '/inbox/scheduled': return [];
     case '/inbox/sync/progress': return mailboxes.map((b) => ({ smtp_account_id: b.id, email_address: b.email_address, window_months: 6, oldest_synced_at: ago(180), history_complete: true, stored: 412, last_synced_at: ago(0.01), last_error: null }));
     case '/smtp-accounts': return mailboxes;
@@ -167,8 +202,9 @@ function answer(method, path, q) {
   }
   if (/^\/campaigns\/cmp\d+$/.test(P)) { const c = campaigns.find((x) => x.id === seg[2]); return { ...c, steps: c.status === 'draft' ? [] : steps.map((st) => ({ ...st, campaign_id: c.id })) }; }
   if (/^\/contacts\/c\d+$/.test(P)) return contacts.find((x) => x.id === seg[2]);
-  if (/^\/inbox\/msg\d+$/.test(P)) return inbox.find((x) => x.id === seg[2]);
-  if (/^\/inbox\/msg\d+\/thread$/.test(P)) return [inbox.find((x) => x.id === seg[2])];
+  if (/^\/lists\/[^/]+\/contacts$/.test(P)) return { contact_ids: contacts.map((c) => c.id) };
+  if (/^\/inbox\/(msg|om)\d+$/.test(P)) return [...inbox, ...otherMail].find((x) => x.id === seg[2]);
+  if (/^\/inbox\/(msg|om)\d+\/thread$/.test(P)) return [[...inbox, ...otherMail].find((x) => x.id === seg[2])];
   return more(P, q, seg);
 }
 
@@ -289,4 +325,4 @@ function more(P, q, seg) {
   if (/^\/flow\/meetings\/e\d+\/brief$/.test(P)) return null;
   return undefined;
 }
-module.exports = { answer, contacts, campaigns, deals, inbox };
+module.exports = { answer, contacts, campaigns, deals, inbox, otherMail };

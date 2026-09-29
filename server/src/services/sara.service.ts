@@ -13,6 +13,8 @@ import { checkAndAutoCompleteCampaign } from './sequence.service.js';
 import { inboxService } from './inbox.service.js';
 import { defaultBookingLinkUrl } from './booking.service.js';
 import { pauseColleaguesAfterReply } from './account-pause.service.js';
+import { stripQuoted, htmlToText, NON_PERSON_KINDS } from '../utils/mail-kind.js';
+import { readReply, aiAvailable } from './ai.service.js';
 
 /**
  * Relay → CRM: when a reply is classified as interested/meeting, create a
@@ -116,29 +118,32 @@ const INTENT_PATTERNS: {
     intent: SaraIntent.OutOfOffice,
     patterns: [
       /out of (the )?office/i,
-      /on (vacation|leave|holiday|pto)/i,
-      /auto.?reply/i,
-      /automatic reply/i,
-      /will (be )?return/i,
-      /currently (away|unavailable|traveling)/i,
-      /limited access to email/i,
-      /away from/i,
+      /\bon (vacation|annual leave|leave|holiday|pto)\b/i,
+      /\bauto.?reply\b/i,
+      /\bautomatic reply\b/i,
+      /\bI will (be )?return(ing)? on\b/i,
+      /\bcurrently (away|unavailable|travell?ing)\b/i,
+      /\blimited access to (my )?e-?mail\b/i,
+      /\baway from (the office|my desk|email)\b/i,
     ],
     weight: 0.95,
   },
   {
     intent: SaraIntent.Unsubscribe,
     patterns: [
-      /\bunsubscribe\b/i,
+      // Only the person asking. The bare word "unsubscribe" is in the footer
+      // of nearly every bulk email - and of your own campaigns, which a real
+      // reply quotes - so it only counts as a request when it is the reply.
+      /^\W*(please\s+)?unsubscribe(\s+me)?\W*$/i,
+      /\b(please )?unsubscribe me\b/i,
+      /\b(remove|delete) me from (your|this|the)\b/i,
       /\bremove me\b/i,
-      /\bstop (emailing|contacting|sending)\b/i,
-      /\btake me off\b/i,
-      /\bdon'?t (contact|email|message) me\b/i,
-      /\bopt.?out\b/i,
-      /\bnot interested\b.*\b(stop|remove|don't)\b/i,
-      /\bdo not (contact|email)\b/i,
+      /\bstop (emailing|contacting|sending|messaging) (me|us)\b/i,
+      /\btake (me|us) off\b/i,
+      /\bdon'?t (contact|email|message) (me|us)\b/i,
+      /\bdo not (contact|email) (me|us)\b/i,
       /\bleave me alone\b/i,
-      /\bspam\b/i,
+      /\b(this is|stop) spam(ming)?\b/i,
     ],
     weight: 0.9,
   },
@@ -165,7 +170,7 @@ const INTENT_PATTERNS: {
       /\bsend (me )?(your |a )?(calendar|availability|calendly)\b/i,
       /\bfree (this|next) (week|monday|tuesday|wednesday|thursday|friday)\b/i,
       /\bwould love to (chat|talk|discuss|meet|connect)\b/i,
-      /\bavailable (for|to)\b/i,
+      /\b(I'?m|I am|we'?re|we are) available (for|to) (a )?(call|chat|meet)/i,
     ],
     weight: 0.85,
   },
@@ -266,7 +271,12 @@ export function classifyReply(
   bodyText: string,
   contactData?: { first_name?: string; company?: string }
 ): SaraClassificationResult {
-  const fullText = `${subject || ''} ${bodyText || ''}`;
+  // Only what they wrote. The quoted history below a reply is your own
+  // email, and matching it reads your campaign back to you.
+  const fresh = stripQuoted(bodyText || '').text;
+  // "Re: <your subject>" is your words too; a fresh subject is theirs.
+  const ownSubject = /^\s*(re|aw|sv|fw|fwd|tr)\s*:/i.test(subject || '');
+  const fullText = `${ownSubject ? '' : subject || ''} ${fresh}`;
   let bestMatch: { intent: SaraIntent; confidence: number; matchCount: number } | null = null;
 
   for (const rule of INTENT_PATTERNS) {
@@ -339,6 +349,87 @@ async function fillCalendarLink(text: string, userId: string | null | undefined)
     .trim();
 }
 
+/**
+ * What a reply means: Claude when it is configured, the keyword rules when
+ * it is not or does not answer. Either way only the new part of the reply
+ * is read - the quoted history is your own email.
+ */
+async function relayRead(message: any): Promise<SaraClassificationResult> {
+  const body = message.body_text || htmlToText(message.body_html || '');
+  const fresh = stripQuoted(body).text;
+  const contactData = message.contacts
+    ? { first_name: message.contacts.first_name, company: message.contacts.company }
+    : undefined;
+
+  if (aiAvailable() && fresh) {
+    const [settings, history, campaign, account] = await Promise.all([
+      message.user_id ? settingsService.get(message.user_id).catch(() => null) : null,
+      threadHistory(message),
+      message.campaign_id
+        ? supabaseAdmin.from('campaigns').select('name').eq('id', message.campaign_id).maybeSingle().then((r) => r.data?.name ?? null)
+        : null,
+      message.smtp_account_id
+        ? supabaseAdmin.from('smtp_accounts').select('from_name, label').eq('id', message.smtp_account_id).maybeSingle().then((r) => r.data)
+        : null,
+    ]);
+    const senderFirst = String((account as any)?.from_name || (account as any)?.label || '').trim().split(/\s+/)[0] || null;
+    const read = await readReply({
+      subject: message.subject || '',
+      freshText: fresh,
+      history,
+      contact: message.contacts ? { first_name: message.contacts.first_name, company: message.contacts.company } : null,
+      campaign,
+      offer: (settings as any)?.relay_offer || '',
+      tone: (settings as any)?.relay_tone || 'friendly',
+      senderFirstName: senderFirst,
+    });
+    if (read) {
+      const intent = read.intent as SaraIntent;
+      return {
+        intent,
+        confidence: read.confidence,
+        action: INTENT_ACTIONS[intent],
+        draft_reply: read.needs_reply && read.draft ? read.draft : null,
+        reasoning: read.summary,
+        summary: read.summary,
+        next_step: read.next_step,
+        engine: 'ai',
+      };
+    }
+  }
+
+  const ruled = classifyReply(message.subject || '', body, contactData);
+  return { ...ruled, summary: null, next_step: RULE_NEXT_STEP[ruled.intent as SaraIntent] ?? null, engine: 'rules' };
+}
+
+const RULE_NEXT_STEP: Partial<Record<SaraIntent, string>> = {
+  [SaraIntent.Interested]: 'Answer their question and suggest a call.',
+  [SaraIntent.Meeting]: 'Send your booking link or two times.',
+  [SaraIntent.Objection]: 'Acknowledge it; ask one question or let it rest.',
+  [SaraIntent.NotNow]: 'Set a follow-up for later.',
+  [SaraIntent.Unsubscribe]: 'Stop emailing them.',
+  [SaraIntent.OutOfOffice]: 'Wait until they are back.',
+  [SaraIntent.Bounce]: 'Check the address; it did not deliver.',
+};
+
+/** The conversation before this message, oldest first, quotes removed. */
+async function threadHistory(message: any): Promise<string> {
+  const other = (message.from_email || '').toLowerCase();
+  if (!other || !message.user_id) return '';
+  const { data } = await supabaseAdmin
+    .from('inbox_messages')
+    .select('direction, body_text, body_html, received_at')
+    .eq('user_id', message.user_id)
+    .or(`from_email.ilike."${other.replace(/"/g, '')}",to_email.ilike."${other.replace(/"/g, '')}"`)
+    .lt('received_at', message.received_at || new Date().toISOString())
+    .order('received_at', { ascending: false })
+    .limit(6);
+  return (data || [])
+    .reverse()
+    .map((m: any) => `${m.direction === 'outbound' ? 'We wrote' : 'They wrote'}: ${stripQuoted(m.body_text || htmlToText(m.body_html || '')).text.slice(0, 1200)}`)
+    .join('\n\n');
+}
+
 export async function processReply(messageId: string, requestingUserId?: string): Promise<SaraClassificationResult> {
   // Fetch the message with context
   const { data: message, error: msgError } = await supabaseAdmin
@@ -364,31 +455,40 @@ export async function processReply(messageId: string, requestingUserId?: string)
     };
   }
 
-  const contactData = message.contacts
-    ? { first_name: message.contacts.first_name, company: message.contacts.company }
-    : undefined;
+  // Mail is not a reply. A newsletter, a receipt or a GitHub notification
+  // has nobody to answer and nothing to decide, and the auto-actions below
+  // (unsubscribe, open a deal, pause the company) must never fire on one.
+  if (message.mail_kind && NON_PERSON_KINDS.includes(message.mail_kind)) {
+    return {
+      intent: SaraIntent.Other,
+      confidence: 0,
+      action: 'none',
+      draft_reply: null,
+      reasoning: 'Not a person - Relay only reads replies from people.',
+    };
+  }
 
-  // Classify
-  const result = classifyReply(
-    message.subject || '',
-    message.body_text || message.body_html || '',
-    contactData
-  );
+  const result = await relayRead(message);
   if (result.draft_reply) {
     result.draft_reply = await fillCalendarLink(result.draft_reply, message.user_id);
   }
 
-  // Store classification
-  await supabaseAdmin
+  // Store classification. The summary columns arrive with migration 076;
+  // before it, the classification itself must still be saved.
+  const base = {
+    sara_intent: result.intent,
+    sara_confidence: result.confidence,
+    sara_action: result.action,
+    sara_draft_reply: result.draft_reply,
+    sara_status: SaraStatus.PendingReview,
+  };
+  const { error: storeErr } = await supabaseAdmin
     .from('inbox_messages')
-    .update({
-      sara_intent: result.intent,
-      sara_confidence: result.confidence,
-      sara_action: result.action,
-      sara_draft_reply: result.draft_reply,
-      sara_status: SaraStatus.PendingReview,
-    })
+    .update({ ...base, relay_summary: result.summary ?? null, relay_next_step: result.next_step ?? null, relay_engine: result.engine ?? 'rules' })
     .eq('id', messageId);
+  if (storeErr && /relay_/.test(storeErr.message)) {
+    await supabaseAdmin.from('inbox_messages').update(base).eq('id', messageId);
+  }
 
   // Fire webhook for classification
   if (message.user_id) {
@@ -410,8 +510,12 @@ export async function processReply(messageId: string, requestingUserId?: string)
   // the UI but never actually consulted here. Only fetch settings when the
   // intent could actually trigger auto-execute, to avoid an extra lookup on
   // every single classified reply.
+  // Acting on its own is only safe when the reply is short enough to be
+  // unambiguous. A long email that mentions stopping is for a person to read.
+  const freshLength = stripQuoted(message.body_text || htmlToText(message.body_html || '')).text.length;
   const isAutoExecutableIntent =
-    (result.intent === SaraIntent.Unsubscribe || result.intent === SaraIntent.Bounce) && !!message.contact_id;
+    (result.intent === SaraIntent.Unsubscribe || result.intent === SaraIntent.Bounce) && !!message.contact_id
+    && (result.intent === SaraIntent.Bounce || freshLength <= 400);
   const saraSettings = isAutoExecutableIntent && message.user_id ? await settingsService.get(message.user_id) : null;
   const autoExecuteEnabled = saraSettings ? (saraSettings as any).sara_auto_execute !== false : true;
   const threshold = saraSettings && typeof (saraSettings as any).sara_confidence_threshold === 'number'

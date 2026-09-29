@@ -5,7 +5,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import Papa from 'papaparse';
 import { useDebounce } from '../../hooks/useDebounce';
 import { contactsApi, listsApi, tagsApi } from '../../api/contacts.api';
-import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL, formatDate, plural } from '@lemlist/shared';
+import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL, formatDate, plural, websiteFromEmail } from '@lemlist/shared';
 import type { Lifecycle, ListKind } from '@lemlist/shared';
 import { usePeek } from '../../components/peek/usePeek';
 import { useFillViewport } from '../../hooks/useFillViewport';
@@ -150,21 +150,48 @@ function tintFor(str: string): string {
   return MONO_TINTS[h % MONO_TINTS.length];
 }
 
-function CompanyCell({ company }: { company?: string | null }) {
+/**
+ * The company, with its logo when its site has one. The icon is fetched
+ * from the site's domain (never the lead's address), and a missing one
+ * falls back to initials without a broken-image flash.
+ */
+function CompanyCell({ company, website, email }: { company?: string | null; website?: string | null; email?: string | null }) {
+  const [logoFailed, setLogoFailed] = useState(false);
   if (!company) return <span className="text-body text-[var(--text-muted)]">—</span>;
   const tint = tintFor(company);
   const initials = company.trim().slice(0, 2).toUpperCase();
+  const domain = logoDomain(website, email);
   return (
     <span className="inline-flex items-center gap-2 min-w-0">
-      <span
-        className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md text-micro font-bold leading-none"
-        style={{ color: tint, background: `color-mix(in srgb, ${tint} 14%, transparent)` }}
-      >
-        {initials}
-      </span>
+      {domain && !logoFailed ? (
+        <img
+          src={`https://icons.duckduckgo.com/ip3/${domain}.ico`}
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setLogoFailed(true)}
+          onLoad={(e) => { if ((e.currentTarget.naturalWidth || 0) < 8) setLogoFailed(true); }}
+          className="h-5 w-5 flex-shrink-0 rounded-md bg-white object-contain p-[2px] border border-[var(--border-subtle)]"
+        />
+      ) : (
+        <span
+          className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md text-micro font-bold leading-none"
+          style={{ color: tint, background: `color-mix(in srgb, ${tint} 14%, transparent)` }}
+        >
+          {initials}
+        </span>
+      )}
       <span className="text-body text-[var(--text-secondary)] truncate">{company}</span>
     </span>
   );
+}
+
+function logoDomain(website?: string | null, email?: string | null): string | null {
+  if (website) {
+    try { return new URL(/^https?:/i.test(website) ? website : `https://${website}`).hostname.replace(/^www\./, ''); } catch { /* fall through */ }
+  }
+  const site = websiteFromEmail(email);
+  return site ? site.replace(/^https:\/\//, '') : null;
 }
 
 function CopyableEmail({ email }: { email: string }) {
@@ -536,7 +563,7 @@ const ALL_COLUMNS: ColumnDef[] = [
   ) },
   { id: 'status',      label: 'Status',    icon: ShieldCheck, sortKey: 'dcs_score',  render: (c) => <VerificationBadge c={c} /> },
   { id: 'lifecycle',   label: 'Stage',     icon: Sparkles,                           render: (c) => <LifecycleCell c={c} /> },
-  { id: 'company',     label: 'Company',   icon: Building2,   sortKey: 'company',    tdClass: 'max-w-[200px]', render: (c) => <CompanyCell company={c.company} /> },
+  { id: 'company',     label: 'Company',   icon: Building2,   sortKey: 'company',    tdClass: 'max-w-[200px]', render: (c) => <CompanyCell company={c.company} website={c.website} email={c.email} /> },
   { id: 'location',    label: 'Location',  icon: MapPin,                             tdClass: 'max-w-[200px]', render: (c) => <TextCell v={c.location} /> },
   { id: 'job_title',   label: 'Job title', icon: Briefcase,                          tdClass: 'max-w-[180px]', render: (c) => <TextCell v={c.job_title} /> },
   { id: 'phone',       label: 'Phone',     icon: Phone,                              render: (c) => <TextCell v={c.phone} mono /> },
@@ -1375,7 +1402,33 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     return ALL_COLUMNS.find((c) => c.id === id) || null;
   };
   // Columns to render, in the user's saved order (standard + custom unified).
-  const activeColumns = visibleColumns.map(resolveColumn).filter(Boolean) as { id: string; label: string; icon?: React.ElementType; sortKey?: ContactSortKey; render: (c: any) => React.ReactNode; tdClass?: string }[];
+  const chosenColumns = visibleColumns.map(resolveColumn).filter(Boolean) as { id: string; label: string; icon?: React.ElementType; sortKey?: ContactSortKey; render: (c: any) => React.ReactNode; tdClass?: string }[];
+  /*
+   * A column that is empty for every lead on the page is a stripe of dashes.
+   * Folded away until there is something in it - still chosen, still in the
+   * menu, one click to show. Only descriptive columns: email, status, stage
+   * and dates always stay, because their blankness means something.
+   */
+  const [showEmptyColumns, setShowEmptyColumns] = useState(false);
+  const emptyColumnIds = useMemo(() => {
+    const rows = (contactsData?.data || []) as any[];
+    if (rows.length < 3) return new Set<string>();
+    const foldable = ['company', 'location', 'job_title', 'phone', 'website', 'linkedin_url', 'tags', 'lists'];
+    const blank = (v: unknown) => v == null || v === '' || (Array.isArray(v) && v.length === 0);
+    const ids = new Set<string>();
+    for (const id of visibleColumns) {
+      if (id.startsWith('cf:')) {
+        const key = id.slice(3);
+        if (rows.every((c) => blank(c?.custom_fields?.[key]))) ids.add(id);
+      } else if (foldable.includes(id)) {
+        const field = id === 'company' ? null : id;
+        if (rows.every((c) => (field ? blank(c?.[field]) : blank(c?.company) && blank(c?.companies?.name)))) ids.add(id);
+      }
+    }
+    return ids;
+  }, [contactsData, visibleColumns]);
+  const activeColumns = showEmptyColumns ? chosenColumns : chosenColumns.filter((c) => !emptyColumnIds.has(c.id));
+  const foldedLabels = chosenColumns.filter((c) => emptyColumnIds.has(c.id)).map((c) => c.label);
   // Everything available to add, with a friendly label, minus what's shown.
   const availableColumns = [
     ...ALL_COLUMNS.map((c) => ({ id: c.id as string, label: c.label })),
@@ -1905,6 +1958,16 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               Columns
               <span className="text-micro tabular text-[var(--text-tertiary)]">{activeColumns.length}</span>
             </button>
+            {foldedLabels.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowEmptyColumns((v) => !v)}
+                className="hidden md:inline text-caption text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:underline ml-2"
+                title="Columns with nothing in them on this page"
+              >
+                {showEmptyColumns ? 'Hide empty columns' : `${foldedLabels.join(', ')} hidden - empty`}
+              </button>
+            )}
             {columnMenuOpen && (() => {
               const q = columnSearch.trim().toLowerCase();
               const shown = visibleColumns
@@ -2290,9 +2353,14 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                                   </Link>
                                   <LinkedInGlyph url={contact.linkedin_url} />
                                 </span>
-                                <p className="text-caption text-[var(--text-tertiary)] truncate leading-tight">
-                                  {contact.job_title || 'No title'}
-                                </p>
+                                {/* Their title, or that this is a shared inbox
+                                    (hello@, partnerships@) - never "No title"
+                                    on every row. */}
+                                {contact.job_title ? (
+                                  <p className="text-caption text-[var(--text-tertiary)] truncate leading-tight">{contact.job_title}</p>
+                                ) : (contact as any).is_role_address ? (
+                                  <p className="text-caption text-[var(--text-tertiary)] truncate leading-tight" title="A shared inbox read by a team, not one named person">Shared inbox</p>
+                                ) : null}
                               </div>
                             </div>
                           </td>

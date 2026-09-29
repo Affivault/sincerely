@@ -6,6 +6,7 @@
    line of counts, each of which opens the thing it counts.
    ═══════════════════════════════════════════════════════════════════════ */
 
+import { mailKindReady, PEOPLE_FILTER } from './mail-sort.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import type { AwaySummary } from '@lemlist/shared';
@@ -19,11 +20,12 @@ export async function awaySummary(userId: string, sinceRaw: unknown): Promise<Aw
   const since = new Date(Math.max(parsed, Date.now() - MAX_WINDOW_MS)).toISOString();
 
   const head = { count: 'exact' as const, head: true };
+  const people = (await mailKindReady()) ? PEOPLE_FILTER : 'id.not.is.null';
   const [replies, positive, meetings, created, won, bounces, completed] = await Promise.all([
     supabaseAdmin.from('inbox_messages').select('id', head).eq('user_id', userId)
-      .eq('direction', 'inbound').is('auto_reply_kind', null).gte('received_at', since),
+      .eq('direction', 'inbound').is('auto_reply_kind', null).or(people).gte('received_at', since),
     supabaseAdmin.from('inbox_messages').select('id', head).eq('user_id', userId)
-      .in('sara_intent', ['interested', 'meeting']).gte('received_at', since),
+      .in('sara_intent', ['interested', 'meeting']).or(people).gte('received_at', since),
     supabaseAdmin.from('crm_events').select('id', head).eq('user_id', userId).gte('created_at', since)
       .or('status.is.null,status.neq.cancelled'),
     supabaseAdmin.from('deals').select('id', head).eq('user_id', userId).gte('created_at', since),

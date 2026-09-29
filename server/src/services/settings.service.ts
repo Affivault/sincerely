@@ -26,6 +26,9 @@ export interface UserSettings {
   sara_auto_unsubscribe: boolean;
   sara_auto_bounce: boolean;
   sara_draft_replies: boolean;
+  /** What you sell, to whom, and why it works - Relay's drafts and the sequence writer start here. */
+  relay_offer: string;
+  relay_tone: 'friendly' | 'direct' | 'formal';
   ai_tagging_enabled: boolean;
   auto_verify_contacts: boolean;
   /** Relay auto-creates a CRM deal when a reply is interested/meeting */
@@ -63,6 +66,8 @@ const DEFAULTS: Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at
   sara_auto_unsubscribe: true,
   sara_auto_bounce: true,
   sara_draft_replies: true,
+  relay_offer: '',
+  relay_tone: 'friendly',
   ai_tagging_enabled: true,
   auto_verify_contacts: true,
   crm_auto_deals: true,

@@ -12,6 +12,7 @@ import { Avatar } from '../../components/shared/Avatar';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import { PLACEHOLDER } from '@lemlist/shared';
+import { RelayEngineNote } from '../../components/inbox/PeopleFirstNotices';
 import {
   User,
   Mail,
@@ -124,6 +125,9 @@ export function SettingsPage() {
   const [bounceThreshold, setBounceThreshold] = useState(8);
   const [domainLimit, setDomainLimit] = useState(5);
   const [autoVerifyContacts, setAutoVerifyContacts] = useState(true);
+  // What Relay's drafts and the sequence writer start from.
+  const [relayOffer, setRelayOffer] = useState('');
+  const [relayTone, setRelayTone] = useState<'friendly' | 'direct' | 'formal'>('friendly');
 
   // Password change
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -179,6 +183,8 @@ export function SettingsPage() {
       setBounceThreshold(Number((settings as any).bounce_guard_threshold ?? 8));
       setDomainLimit(Number((settings as any).domain_hourly_limit ?? 5));
       setAutoVerifyContacts((settings as any).auto_verify_contacts ?? true);
+      setRelayOffer((settings as any).relay_offer ?? '');
+      setRelayTone((settings as any).relay_tone ?? 'friendly');
       setHasChanges(false);
     }
   }, [settings]);
@@ -243,6 +249,8 @@ export function SettingsPage() {
       domain_hourly_limit: domainLimit,
       ai_tagging_enabled: aiTaggingEnabled,
       auto_verify_contacts: autoVerifyContacts,
+      relay_offer: relayOffer,
+      relay_tone: relayTone,
     });
   };
 
@@ -792,6 +800,46 @@ export function SettingsPage() {
                         Filter your inbox by tag to quickly find the messages that matter most.
                       </p>
                     </div>
+                  </div>
+                </div>
+
+                <RelayEngineNote />
+
+                {/* What Relay knows about you. Every draft and every sequence
+                    it writes starts here; without it, it can only be generic. */}
+                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 space-y-3">
+                  <div>
+                    <label htmlFor="relay-offer" className="text-strong font-semibold text-[var(--text-primary)]">What you sell</label>
+                    <p className="text-body text-[var(--text-tertiary)] mt-0.5">
+                      Who it is for, what it does for them, and any proof you are happy to have quoted. Relay uses this for reply drafts and for writing sequences.
+                    </p>
+                  </div>
+                  <textarea
+                    id="relay-offer"
+                    value={relayOffer}
+                    onChange={(e) => { setRelayOffer(e.target.value); markChanged(); }}
+                    rows={4}
+                    maxLength={2000}
+                    placeholder="e.g. We run affiliate partnerships for UK investment platforms. Partners get a dedicated manager and CPA up to 150 per funded account. Freetrade and Lightyear already work with us."
+                    className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 py-2 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15"
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-body font-medium text-[var(--text-secondary)]">How you sound</span>
+                    {(['friendly', 'direct', 'formal'] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => { setRelayTone(t); markChanged(); }}
+                        className={cn(
+                          'h-7 px-3 rounded-full text-caption font-medium border transition-colors',
+                          relayTone === t
+                            ? 'border-[rgba(91,91,245,0.4)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                            : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]',
+                        )}
+                      >
+                        {t === 'friendly' ? 'Friendly' : t === 'direct' ? 'Direct' : 'Formal'}
+                      </button>
+                    ))}
                   </div>
                 </div>
 

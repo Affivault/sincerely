@@ -1,3 +1,4 @@
+import { mailKindReady, PEOPLE_FILTER } from './mail-sort.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { selectInChunks } from '../utils/batch.js';
@@ -127,10 +128,13 @@ export const replyQueueService = {
   async queue(userId: string, opts: { filter?: 'all' | 'overdue' | 'mine' | 'unassigned' | 'parked' } = {}) {
     const since = new Date(Date.now() - QUEUE_WINDOW_DAYS * 86_400_000).toISOString();
 
+    // People only: a newsletter is never "waiting on your reply".
+    const peopleOnly = await mailKindReady();
     const { data, error } = await supabaseAdmin
       .from('inbox_messages')
       .select(QUEUE_COLUMNS)
       .eq('user_id', userId)
+      .or(peopleOnly ? PEOPLE_FILTER : 'id.not.is.null')
       /*
        * Outbound mail is our own; it is never waiting on us. Older rows
        * predate the column, so `is null` covers them rather than

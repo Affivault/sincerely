@@ -20,6 +20,20 @@ export interface InboxMessage {
    * 'out_of_office' or 'auto_reply'. These are never counted as replies.
    */
   auto_reply_kind: 'out_of_office' | 'auto_reply' | null;
+  /**
+   * Whether a person wrote this, or it is mail: a newsletter, a
+   * notification, a receipt, or something between your own mailboxes.
+   * Only people reach the inbox, the counts and Relay. Null on rows stored
+   * before this existed, until the backfill reaches them (treated as person).
+   */
+  mail_kind?: MailKind | null;
+  /** The name the sender's mail client sent ("GO Markets"), if any. */
+  sender_name?: string | null;
+  /** Relay's one-line read of the reply, and what to do next. */
+  relay_summary?: string | null;
+  relay_next_step?: string | null;
+  /** 'ai' when Claude read it, 'rules' when the keyword fallback did, 'manual' when a person tagged it. */
+  relay_engine?: 'ai' | 'rules' | 'manual' | null;
   // Relay fields
   sara_intent: SaraIntent | null;
   sara_confidence: number | null;
@@ -55,7 +69,19 @@ export interface SaraClassificationResult {
   action: string;
   draft_reply: string | null;
   reasoning: string;
+  summary?: string | null;
+  next_step?: string | null;
+  engine?: 'ai' | 'rules';
 }
+
+export type MailKind = 'person' | 'bulk' | 'notification' | 'transactional' | 'internal';
+
+export const MAIL_KIND_LABELS: Record<Exclude<MailKind, 'person'>, string> = {
+  bulk: 'Newsletters',
+  notification: 'Notifications',
+  transactional: 'Receipts',
+  internal: 'Your mailboxes',
+};
 
 export interface SaraReviewAction {
   message_id: string;
@@ -88,4 +114,23 @@ export interface InboxCounts {
   needs_triage: number;
   /** Count of inbox messages per Relay intent. Missing keys mean zero. */
   intents: Partial<Record<SaraIntent, number>>;
+  /** Newsletters, notifications, receipts: kept, but out of the inbox. */
+  other?: number;
+  other_unread?: number;
+  /** True while mail stored before sorting existed is being sorted. */
+  sorting?: boolean;
+}
+
+/** Someone Relay unsubscribed on a reading it has since changed its mind about. */
+export interface RelayReviewItem {
+  message_id: string;
+  contact_id: string;
+  email: string;
+  name: string | null;
+  company: string | null;
+  subject: string | null;
+  excerpt: string;
+  /** What the message reads as now: an intent, or a mail kind. */
+  now_reads_as: string | null;
+  received_at: string;
 }

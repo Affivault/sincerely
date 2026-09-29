@@ -15,7 +15,32 @@ import type {
   EnrolResult,
 } from '@lemlist/shared';
 
+export interface WrittenSequence {
+  name: string;
+  rationale: string;
+  engine: 'ai' | 'template';
+  steps: Array<{ delay_days: number; subject: string; body_html: string; body_text: string }>;
+  leads: number;
+  personalized: number;
+  personalize_requested: boolean;
+}
+
 export const campaignsApi = {
+  /** Relay drafts a sequence for a list. Saves nothing to a campaign. */
+  writeSequence: async (input: {
+    list_id?: string | null;
+    contact_ids?: string[];
+    offer?: string;
+    audience?: string;
+    goal?: string;
+    tone?: 'friendly' | 'direct' | 'formal';
+    steps?: number;
+    personalize?: boolean;
+  }) => {
+    const { data } = await apiClient.post<WrittenSequence>('/campaigns/write-sequence', input, { timeout: 180_000 });
+    return data;
+  },
+
   list: async (params?: { page?: number; limit?: number; status?: string; search?: string }) => {
     const { data } = await apiClient.get<PaginatedResponse<CampaignWithStats>>('/campaigns', { params });
     return data;

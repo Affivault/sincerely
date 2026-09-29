@@ -48,6 +48,11 @@ const envSchema = z.object({
   // Absent = the feature is simply off; everything else works unchanged.
   GOOGLE_CLIENT_ID: z.string().optional().default(''),
   GOOGLE_CLIENT_SECRET: z.string().optional().default(''),
+  // Relay reads replies, drafts answers and writes sequences with Claude
+  // when this is set. Absent = the keyword rules and built-in templates,
+  // which always work.
+  ANTHROPIC_API_KEY: z.string().optional().default(''),
+  RELAY_MODEL: z.string().optional().default('claude-opus-5-5'),
 });
 
 const parsed = envSchema.safeParse(process.env);

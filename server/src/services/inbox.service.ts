@@ -1,3 +1,7 @@
+import { settingsService } from './settings.service.js';
+import { aiAvailable, draftReply } from './ai.service.js';
+import { stripQuoted, htmlToText as plainFromHtml, NON_PERSON_KINDS } from '../utils/mail-kind.js';
+import { mailSortService, mailKindReady, PEOPLE_FILTER } from './mail-sort.service.js';
 import crypto from 'node:crypto';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
@@ -235,12 +239,15 @@ async function resolveContactEmail(userId: string, messageId: string): Promise<s
 
 export const inboxService = {
   async unreadCount(userId: string): Promise<number> {
-    const { count } = await supabaseAdmin
+    let q = supabaseAdmin
       .from('inbox_messages')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('is_read', false)
       .eq('is_archived', false);
+    // Unread newsletters are not something anybody is behind on.
+    if (await mailKindReady()) q = q.or(PEOPLE_FILTER);
+    const { count } = await q;
     return count || 0;
   },
 
@@ -249,9 +256,24 @@ export const inboxService = {
    * over the whole mailbox with exact head-counts (no rows transferred) so the
    * smart-view / tag badges stay accurate no matter how large the inbox grows.
    */
-  async counts(userId: string): Promise<{ unread: number; needs_triage: number; intents: Record<string, number> }> {
+  async counts(userId: string): Promise<{ unread: number; needs_triage: number; intents: Record<string, number>; other: number; other_unread: number; sorting: boolean }> {
     // Same folder predicate the list uses for "inbox": not archived (null or false).
     const INTENTS = ['interested', 'meeting', 'objection', 'not_now', 'unsubscribe', 'out_of_office', 'bounce'];
+
+    // Every count below is about people. Mail - newsletters, receipts,
+    // notifications - is counted once, on its own, as "Other mail".
+    const sorted = await mailKindReady();
+    const sorting = sorted ? mailSortService.ensure(userId) : false;
+    const people = <T extends { or: (f: string) => T }>(q: T): T => (sorted ? q.or(PEOPLE_FILTER) : q);
+
+    const otherQ = sorted
+      ? supabaseAdmin.from('inbox_messages').select('id', { count: 'exact', head: true })
+        .eq('user_id', userId).in('mail_kind', NON_PERSON_KINDS).or('is_archived.is.null,is_archived.eq.false')
+      : Promise.resolve({ count: 0 } as any);
+    const otherUnreadQ = sorted
+      ? supabaseAdmin.from('inbox_messages').select('id', { count: 'exact', head: true })
+        .eq('user_id', userId).in('mail_kind', NON_PERSON_KINDS).eq('is_read', false).or('is_archived.is.null,is_archived.eq.false')
+      : Promise.resolve({ count: 0 } as any);
 
     const unreadQ = supabaseAdmin
       .from('inbox_messages')
@@ -286,7 +308,9 @@ export const inboxService = {
         .eq('sara_intent', intent),
     );
 
-    const [unreadRes, needsTriageRes, ...intentRes] = await Promise.all([unreadQ, needsTriageQ, ...intentQs]);
+    const [otherRes, otherUnreadRes, unreadRes, needsTriageRes, ...intentRes] = await Promise.all([
+      otherQ, otherUnreadQ, people(unreadQ), people(needsTriageQ), ...intentQs.map((q) => people(q)),
+    ]);
 
     const intents: Record<string, number> = {};
     INTENTS.forEach((intent, i) => {
@@ -298,6 +322,9 @@ export const inboxService = {
       unread: unreadRes.count || 0,
       needs_triage: needsTriageRes.count || 0,
       intents,
+      other: otherRes.count || 0,
+      other_unread: otherUnreadRes.count || 0,
+      sorting,
     };
   },
 
@@ -312,6 +339,7 @@ export const inboxService = {
     search?: string;
     folder?: string;
     contact_email?: string;
+    mail_kind?: string;
   }) {
     const { page, limit, from, to } = getPagination(params);
 
@@ -329,8 +357,14 @@ export const inboxService = {
 
     // Folder-based filtering (skipped when scoped to a contact)
     const folder = params.folder || (params.contact_email ? 'all' : 'inbox');
+    const sorted = await mailKindReady();
     if (folder === 'inbox') {
       query = query.or('is_archived.is.null,is_archived.eq.false');
+      // People only. Mail has its own folder, below.
+      if (sorted && !params.contact_email) query = query.or(PEOPLE_FILTER);
+    } else if (folder === 'other') {
+      query = query.or('is_archived.is.null,is_archived.eq.false');
+      query = sorted ? query.in('mail_kind', params.mail_kind ? [params.mail_kind] : NON_PERSON_KINDS) : query.eq('id', '00000000-0000-0000-0000-000000000000');
     } else if (folder === 'starred') {
       query = query.eq('is_starred', true);
     } else if (folder === 'archived') {
@@ -361,7 +395,11 @@ export const inboxService = {
         .is('triage_decision', null)
         .is('auto_reply_kind', null)
         .or('is_archived.is.null,is_archived.eq.false');
+      if (sorted) query = query.or(PEOPLE_FILTER);
     }
+
+    // Hot leads, needs reply and the other intent views are about people.
+    if (params.sara_intent && sorted && folder !== 'other') query = query.or(PEOPLE_FILTER);
 
     if (params.is_read !== undefined) {
       query = query.eq('is_read', params.is_read);
@@ -496,6 +534,41 @@ export const inboxService = {
     }));
   },
 
+  /**
+   * Correct the sorting for a sender. Everything from them moves together,
+   * and a person moved back gets read by Relay - it never read them while
+   * they were filed as mail.
+   */
+  async setMailKind(userId: string, id: string, kind: string) {
+    const allowed = ['person', ...NON_PERSON_KINDS];
+    if (!allowed.includes(kind)) throw new AppError('Unknown kind', 400);
+    const { data: msg } = await supabaseAdmin
+      .from('inbox_messages').select('id, from_email, direction, to_email').eq('id', id).eq('user_id', userId).maybeSingle();
+    if (!msg) throw new AppError('Message not found', 404);
+    const sender = String(msg.direction === 'outbound' ? msg.to_email : msg.from_email || '').trim();
+    if (!sender) throw new AppError('This message has no sender', 400);
+    const pattern = sender.replace(/([%_\\])/g, '\\$1');
+    const { data: moved, error } = await supabaseAdmin
+      .from('inbox_messages')
+      .update({ mail_kind: kind })
+      .eq('user_id', userId)
+      .eq('direction', 'inbound')
+      .ilike('from_email', pattern)
+      .select('id, sara_intent');
+    if (error) throw new AppError(error.message, 500);
+    if (kind === 'person') {
+      const { processReply } = await import('./sara.service.js');
+      for (const m of (moved || []).filter((r: any) => !r.sara_intent).slice(0, 20)) {
+        processReply(m.id).catch(() => {});
+      }
+    } else if (moved?.length) {
+      await supabaseAdmin.from('inbox_messages')
+        .update({ sara_intent: null, sara_action: null, sara_draft_reply: null })
+        .in('id', (moved || []).map((r: any) => r.id));
+    }
+    return { moved: moved?.length || 0, kind };
+  },
+
   async markRead(userId: string, id: string) {
     const { error } = await supabaseAdmin
       .from('inbox_messages')
@@ -547,11 +620,16 @@ export const inboxService = {
     if (tag !== '' && !validTags.includes(tag)) {
       throw new AppError('Invalid tag value', 400);
     }
-    const { error } = await supabaseAdmin
+    // Marked as a person's decision, so nothing Relay re-reads later
+    // overwrites it. Before migration 076 there is no column to mark.
+    let { error } = await supabaseAdmin
       .from('inbox_messages')
-      .update({ sara_intent: tag || null })
+      .update({ sara_intent: tag || null, relay_engine: 'manual' })
       .eq('id', id)
       .eq('user_id', userId);
+    if (error && /relay_engine/.test(error.message)) {
+      ({ error } = await supabaseAdmin.from('inbox_messages').update({ sara_intent: tag || null }).eq('id', id).eq('user_id', userId));
+    }
     if (error) throw new AppError(error.message, 500);
     return { sara_intent: tag || null };
   },
@@ -1050,6 +1128,30 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
     const originalBody = msg.body_text || '';
     const subject = msg.subject || '';
     const promptLower = prompt.toLowerCase();
+
+    // Claude, when configured: the whole conversation, what you sell, and
+    // how you sound. The canned replies below are the fallback.
+    if (aiAvailable()) {
+      const thread = await this.getThread(userId, messageId).catch(() => [] as any[]);
+      const settings = await settingsService.get(userId).catch(() => null);
+      const account = msg.smtp_account_id
+        ? (await supabaseAdmin.from('smtp_accounts').select('from_name, label').eq('id', msg.smtp_account_id).maybeSingle()).data
+        : null;
+      const written = await draftReply({
+        instruction: prompt,
+        thread: thread.slice(-8).map((m: any) =>
+          `${m.direction === 'outbound' ? 'We wrote' : 'They wrote'} (${String(m.received_at || '').slice(0, 10)}): ${stripQuoted(m.body_text || plainFromHtml(m.body_html || '')).text.slice(0, 1500)}`,
+        ).join('\n\n'),
+        contact: msg.contacts ? { first_name: msg.contacts.first_name, company: msg.contacts.company } : null,
+        offer: (settings as any)?.relay_offer || '',
+        tone: (settings as any)?.relay_tone || 'friendly',
+        senderFirstName: String((account as any)?.from_name || (account as any)?.label || '').trim().split(/\s+/)[0] || null,
+      });
+      if (written) {
+        const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${textToHtml(written)}</div>`;
+        return { html, text: written };
+      }
+    }
 
     // Context-aware reply generation based on user prompt
     let replyText: string;

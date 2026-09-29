@@ -6,6 +6,9 @@ export const inboxRoutes = Router();
 // Static routes first (before parameterized /:id routes)
 inboxRoutes.get('/unread-count', inboxController.unreadCount);
 inboxRoutes.get('/counts', inboxController.counts);
+inboxRoutes.get('/relay-status', inboxController.relayStatus);
+inboxRoutes.post('/relay-review/:contactId/restore', inboxController.relayRestore);
+inboxRoutes.post('/relay-review/:contactId/dismiss', inboxController.relayDismiss);
 inboxRoutes.get('/', inboxController.list);
 inboxRoutes.get('/scheduled', inboxController.listScheduled);
 inboxRoutes.put('/mark-all-read', inboxController.markAllRead);
@@ -28,6 +31,7 @@ inboxRoutes.put('/:id/read', inboxController.markRead);
 inboxRoutes.put('/:id/unread', inboxController.markUnread);
 inboxRoutes.put('/:id/star', inboxController.toggleStar);
 inboxRoutes.put('/:id/tag', inboxController.setTag);
+inboxRoutes.put('/:id/mail-kind', inboxController.setMailKind);
 inboxRoutes.put('/:id/archive', inboxController.archive);
 inboxRoutes.put('/:id/unarchive', inboxController.unarchive);
 inboxRoutes.put('/:id/archive-thread', inboxController.archiveThread);
