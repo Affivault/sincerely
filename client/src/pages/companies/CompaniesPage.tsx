@@ -271,11 +271,7 @@ export function CompaniesPage() {
   return (
     <div>
       <PageHeader
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(99,102,241,0.18)]">
-            <Building2 className="h-4 w-4 text-[var(--indigo)]" />
-          </span>
-        }
+        icon={Building2}
         title="Companies"
         description={
           companies.length > 0

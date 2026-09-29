@@ -9,6 +9,7 @@ import { campaignsApi, type WrittenSequence } from '../../api/campaigns.api';
 import { settingsApi } from '../../api/settings.api';
 import { inboxApi } from '../../api/inbox.api';
 import { cn } from '../../lib/utils';
+import { Chip } from '../ui/Chip';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Write with Relay.
@@ -191,22 +192,5 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
       {hint && <p className="text-caption text-[var(--text-tertiary)] mb-1.5">{hint}</p>}
       <div className={hint ? '' : 'mt-1.5'}>{children}</div>
     </div>
-  );
-}
-
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'h-7 min-w-[28px] px-2.5 rounded-full text-caption font-medium border transition-colors',
-        active
-          ? 'border-[rgba(91,91,245,0.4)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
-          : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]',
-      )}
-    >
-      {children}
-    </button>
   );
 }

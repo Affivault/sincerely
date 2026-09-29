@@ -234,6 +234,7 @@ export function FlowPage() {
     <>
       <PageHeader
         contentClassName="mx-auto max-w-4xl"
+        icon={Waves}
         title="Flow"
         description={isLoading ? 'Gathering your day...' : total === 0
           ? `${greeting}. Nothing needs you right now.`

@@ -3,12 +3,14 @@ import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { crmApi } from '../../api/crm.api';
+import { PageHeader } from '../../components/shared/PageHeader';
 import { ActivityModal, MeetingModal, ContactPicker, toDateInput } from '../../components/crm/CrmPrimitives';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Spinner } from '../../components/ui/Spinner';
+import { SkeletonList } from '../../components/ui/Skeleton';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { Avatar } from '../../components/shared/Avatar';
 import { SearchInput } from '../../components/shared/SearchInput';
@@ -839,38 +841,28 @@ export function DealsPage() {
 
   return (
     <div>
-      {/* Header */}
-      {/* Stacks below `lg`: side by side, the title column was being squeezed
-          to about a hundred pixels and the strapline wrapped one word per
-          line down the side of the icon. */}
-      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-4">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--indigo-subtle)]">
-            <Handshake className="h-5 w-5 text-[var(--indigo)]" />
-          </span>
-          <div className="min-w-0">
-            <h1 className="text-title font-semibold tracking-[-0.01em] text-[var(--text-primary)]">Deals</h1>
-            <p className="text-body text-[var(--text-tertiary)]">
-              Your pipeline, synced with your leads. Activities and meetings have their own pages.
-            </p>
-          </div>
-        </div>
-        {/* Wraps on a phone: the search takes its own line and the buttons sit under it. */}
-        <div className="flex flex-wrap items-center gap-2">
-          <SearchInput value={query} onChange={setQuery} placeholder="Search deals, companies, leads…" className="w-full sm:w-72" />
-          {deals.length > 0 && (
-            <Button variant="secondary" onClick={() => navigate('/deals/insights')} title="Where deals die, why, and which sources are worth working">
-              <BarChart3 className="h-4 w-4" /> Win / loss
-            </Button>
-          )}
-          {deals.length > 0 && (
-            <Button variant="secondary" onClick={() => exportDealsCsv(visibleDeals)} title="Export the deals shown below as a CSV file">
-              <Download className="h-4 w-4" /> Export CSV
-            </Button>
-          )}
-          <Button variant="primary" onClick={() => setDealModal(null)}><Plus className="h-4 w-4" /> New deal</Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={Handshake}
+        title="Deals"
+        description="Every opportunity, from the first yes to signed."
+        actions={
+          // Wraps on a phone: the search takes its own line and the buttons sit under it.
+          <>
+            <SearchInput value={query} onChange={setQuery} placeholder="Search deals, companies, leads…" className="w-full sm:w-72" />
+            {deals.length > 0 && (
+              <Button variant="secondary" onClick={() => navigate('/deals/insights')} title="Where deals die, why, and which sources are worth working">
+                <BarChart3 className="h-4 w-4" /> Win / loss
+              </Button>
+            )}
+            {deals.length > 0 && (
+              <Button variant="secondary" onClick={() => exportDealsCsv(visibleDeals)} title="Export the deals shown below as a CSV file">
+                <Download className="h-4 w-4" /> Export CSV
+              </Button>
+            )}
+            <Button variant="primary" onClick={() => setDealModal(null)}><Plus className="h-4 w-4" /> New deal</Button>
+          </>
+        }
+      />
 
       {deals.length > 0 && (
         <PipelineHeader
@@ -929,7 +921,7 @@ export function DealsPage() {
 
       {/* Body */}
       {loading ? (
-        <div className="flex items-center justify-center py-24"><Spinner size="md" /></div>
+        <SkeletonList rows={6} />
       ) : deals.length === 0 ? (
         <EmptyBoard icon={Handshake} title="No deals yet" body="Add your first deal to start tracking your pipeline." action="New deal" onAction={() => setDealModal(null)} />
       ) : visibleDeals.length === 0 ? (

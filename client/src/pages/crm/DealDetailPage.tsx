@@ -19,6 +19,7 @@ import { DealJourney } from '../../components/crm/DealJourney';
 import { OutcomeDialog } from '../../components/crm/OutcomeDialog';
 import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
+import { PageSkeleton } from '../../components/ui/Skeleton';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { usePeek } from '../../components/peek/usePeek';
 import { cn } from '../../lib/utils';
@@ -141,7 +142,7 @@ export function DealDetailPage() {
   });
 
   if (isLoading) {
-    return <div className="flex items-center justify-center py-24"><Spinner size="md" /></div>;
+    return <PageSkeleton variant="detail" bleed={false} />;
   }
 
   if (isError || !data) {

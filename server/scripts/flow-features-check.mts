@@ -145,7 +145,7 @@ console.log('\nwiring');
   is('a positive reply pauses the company', /maybePauseCompany\(message, result\)/.test(srv('services/sara.service.ts')));
   is('a paused enrolment keeps its campaign from completing', /\['pending', 'active', 'paused'\]/.test(srv('services/sequence.service.ts')));
   is('free mail is never treated as a company', /isFreeMailDomain\(domain\)/.test(srv('services/account-pause.service.ts')));
-  is('Flow is routed and in the sidebar', /path="\/flow"/.test(cli('App.tsx')) && /href: '\/flow'/.test(cli('components/layout/Sidebar.tsx')));
+  is('Flow is routed and in the sidebar', /path="\/flow"/.test(cli('App.tsx')) && /href: '\/flow'/.test(cli('lib/sections.ts')));
   is('nothing user-facing still says SARA', !/SARA/.test(cli('pages/inbox/InboxPage.tsx')) && !/SARA/.test(cli('pages/settings/SettingsPage.tsx')));
 }
 

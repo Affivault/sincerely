@@ -170,7 +170,7 @@ function AddStepMenu({ onAdd, showAbove }: AddStepMenuProps) {
             showAbove ? "bottom-full mb-2" : "top-full mt-2"
           )}>
             <p className="px-3 pb-1.5 pt-1.5 text-micro font-bold text-[var(--text-tertiary)] uppercase tracking-[0.08em]">
-              Add Step
+              Add step
             </p>
             {[
               { type: StepType.Email, icon: Mail, label: 'Email Step', desc: 'Send a personalised email', accent: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[rgba(91,91,245,0.18)]' },
@@ -556,7 +556,7 @@ function FlowNode({
               {step.step_type === 'condition' && isEditing && (
                 <div className="mt-3 p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-subtle)] space-y-3">
                   <div>
-                    <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Condition Field</label>
+                    <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Condition field</label>
                     <select
                       value={step.condition_field || ''}
                       onChange={(e) => onUpdate({ condition_field: (e.target.value || undefined) as ConditionField | undefined })}
@@ -619,7 +619,7 @@ function FlowNode({
               {step.step_type === 'webhook_wait' && isEditing && (
                 <div className="mt-3 p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-subtle)] space-y-3">
                   <div>
-                    <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Webhook Event</label>
+                    <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Webhook event</label>
                     <input
                       type="text"
                       value={step.webhook_event || ''}
@@ -875,7 +875,7 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)] mb-3">
           <Sparkles className="h-6 w-6 text-[var(--indigo)]" strokeWidth={1.5} />
         </div>
-        <p className="text-heading font-semibold text-[var(--text-primary)] mb-1">Campaign Start</p>
+        <p className="text-heading font-semibold text-[var(--text-primary)] mb-1">Campaign start</p>
         <p className="text-body text-[var(--text-tertiary)] mb-5">Add your first step to begin building the sequence</p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-w-2xl">
@@ -933,7 +933,7 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
       <div className="flex flex-col items-center gap-1.5 mb-1">
         <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--indigo)] text-white text-caption font-bold shadow-[0_2px_6px_rgba(91,91,245,0.3)]">
           <Sparkles className="h-3 w-3" />
-          Campaign Start
+          Campaign start
         </div>
         {emailCount > 0 && (
           <p className="text-caption text-[var(--text-tertiary)]">
@@ -986,7 +986,7 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
       <div className="flex justify-center mt-1">
         <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-tertiary)] text-caption font-bold border border-[var(--border-subtle)]">
           <Flag className="h-3 w-3" />
-          Campaign End
+          Campaign end
         </div>
       </div>
     </div>

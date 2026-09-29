@@ -1440,11 +1440,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     <div>
       {/* Full-width page header */}
       <PageHeader
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(99,102,241,0.18)]">
-            <Users className="h-4 w-4 text-[var(--indigo)]" />
-          </span>
-        }
+        icon={Users}
         title={
           !activeListId || isUnlistedView ? currentListName : titleRenaming ? (
             <form
@@ -1518,14 +1514,14 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             <button
               onClick={toggleRail}
               title="Show lists"
-              className="sticky top-[60px] flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-tertiary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)] transition-colors"
+              className="sticky top-[calc(var(--chrome-h,56px)+4px)] flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-tertiary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)] transition-colors"
             >
               <PanelLeftOpen className="h-4 w-4" />
             </button>
           </aside>
         ) : (
         <aside className="hidden md:block w-56 flex-shrink-0" /* not on a phone: beside the table it leaves the table no room */>
-          <div className="sticky top-[60px] panel-inset p-1.5 space-y-0.5">
+          <div className="sticky top-[calc(var(--chrome-h,56px)+4px)] panel-inset p-1.5 space-y-0.5">
             <div className="flex items-center justify-between gap-1 px-1.5 pb-1.5 mb-0.5 border-b border-[var(--border-subtle)]">
               <span className="text-micro font-semibold text-[var(--text-tertiary)]">
                 {listKind === 'lead' ? 'Lead lists' : 'Contact lists'}
@@ -2554,7 +2550,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           <div className="relative bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl w-full max-w-lg shadow-xl animate-slide-up">
             <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--border-subtle)]">
               <div>
-                <h2 className="text-title font-semibold text-[var(--text-primary)]">Import Contacts</h2>
+                <h2 className="text-title font-semibold text-[var(--text-primary)]">Import contacts</h2>
                 <p className="text-strong text-[var(--text-tertiary)] mt-0.5">
                   Upload a CSV file and map columns to contact fields
                 </p>
@@ -2599,7 +2595,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                     "text-strong font-medium",
                     csvHeaders.length > 0 ? "text-[var(--text-primary)]" : "text-[var(--text-tertiary)]"
                   )}>
-                    Map Fields
+                    Map fields
                   </span>
                 </div>
               </div>
@@ -2644,7 +2640,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               {csvHeaders.length > 0 && (
                 <div className="space-y-2.5 max-h-52 overflow-y-auto pr-1">
                   <p className="text-body font-semibold text-[var(--text-tertiary)] mb-1">
-                    Column Mapping
+                    Column mapping
                   </p>
                   {csvHeaders.map((header) => (
                     <div
@@ -2662,10 +2658,10 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                       >
                         <option value="">Skip this column</option>
                         <option value="email">Email</option>
-                        <option value="first_name">First Name</option>
-                        <option value="last_name">Last Name</option>
+                        <option value="first_name">First name</option>
+                        <option value="last_name">Last name</option>
                         <option value="company">Company</option>
-                        <option value="job_title">Job Title</option>
+                        <option value="job_title">Job title</option>
                         <option value="phone">Phone</option>
                       </select>
                       {columnMapping[header] && (
@@ -2698,7 +2694,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                   ) : (
                     <>
                       <Upload className="h-4 w-4" />
-                      Import Contacts
+                      Import contacts
                     </>
                   )}
                 </button>

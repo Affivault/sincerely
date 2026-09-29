@@ -1,53 +1,28 @@
 import { type ReactNode } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '../../lib/utils';
-import {
-  Settings, Users, CreditCard, AtSign, Clock,
-  Ban, ShieldCheck, Code2, type LucideIcon,
-} from 'lucide-react';
+import { SETTINGS_GROUPS, locate } from '../../lib/sections';
+import { InsetHeaderContext } from './PageHeader';
+import { useActiveIntoView } from '../../hooks/useActiveIntoView';
 
 /**
- * Unified settings workspace — every admin surface (general, team, billing,
- * sending infra, data hygiene, developer) shares one shell with a persistent
- * grouped nav, so configuration feels like a single place instead of
- * scattered pages. Routes stay unchanged; pages opt in by wrapping.
+ * Unified settings workspace — everything you set up once (workspace,
+ * sending and deliverability, data hygiene, connections) shares one shell
+ * with a persistent grouped nav. AppLayout applies it to every settings
+ * route, so no page can forget to; the groups come from lib/sections.
  */
-const GROUPS: { label: string; items: { to: string; label: string; icon: LucideIcon }[] }[] = [
-  {
-    label: 'Workspace',
-    items: [
-      { to: '/settings', label: 'General', icon: Settings },
-      { to: '/team', label: 'Team', icon: Users },
-      { to: '/billing', label: 'Billing & usage', icon: CreditCard },
-    ],
-  },
-  {
-    label: 'Sending',
-    items: [
-      { to: '/email-accounts', label: 'Email accounts', icon: AtSign },
-      { to: '/schedules', label: 'Schedules', icon: Clock },
-    ],
-  },
-  {
-    label: 'Data',
-    items: [
-      { to: '/suppression', label: 'Suppression list', icon: Ban },
-      { to: '/verification', label: 'Verification', icon: ShieldCheck },
-    ],
-  },
-  {
-    label: 'Developer',
-    items: [
-      { to: '/developer', label: 'API & webhooks', icon: Code2 },
-    ],
-  },
-];
+const GROUPS = SETTINGS_GROUPS;
 
 export function SettingsShell({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  // One answer for "which item is this page", shared with the sidebar - so
+  // the mailbox guide lights up Email accounts, not nothing.
+  const current = locate(pathname).settings?.href ?? (pathname.startsWith('/smtp-accounts') ? '/email-accounts' : null);
+  const strip = useActiveIntoView<HTMLElement>(current);
   return (
     <div className="flex gap-8 items-start">
       {/* Grouped settings nav — persistent across every admin page */}
-      <aside className="hidden lg:block w-[216px] flex-shrink-0 sticky top-[72px]">
+      <aside className="hidden lg:block w-[216px] flex-shrink-0 sticky top-[calc(var(--chrome-h,56px)+16px)]">
         <h2 className="px-2.5 mb-4 text-title font-semibold text-[var(--text-primary)] tracking-[-0.015em]">Settings</h2>
         <nav className="space-y-5">
           {GROUPS.map((g) => (
@@ -56,20 +31,20 @@ export function SettingsShell({ children }: { children: ReactNode }) {
               <div className="space-y-0.5">
                 {g.items.map((it) => (
                   <NavLink
-                    key={it.to}
-                    to={it.to}
-                    className={({ isActive }) => cn(
+                    key={it.href}
+                    to={it.href}
+                    className={() => cn(
                       'relative flex items-center gap-2.5 h-[30px] px-2.5 rounded-lg text-body font-medium border transition-colors',
-                      isActive
+                      current === it.href
                         // Raised-card active state — same language as the app sidebar
                         ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] border-[var(--border-subtle)] shadow-[0_1px_2px_rgba(27,27,31,0.05)]'
                         : 'border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
                     )}
                   >
-                    {({ isActive }) => (
+                    {() => (
                       <>
                         <it.icon
-                          className={cn('h-[15px] w-[15px] flex-shrink-0', isActive ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')}
+                          className={cn('h-[15px] w-[15px] flex-shrink-0', current === it.href ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')}
                           strokeWidth={1.75}
                         />
                         <span className="truncate">{it.label}</span>
@@ -88,14 +63,15 @@ export function SettingsShell({ children }: { children: ReactNode }) {
             same links as one scrolling strip. The menu was simply hidden
             there, so on a phone or tablet the only way from General to Team
             was back out through the app menu. */}
-        <nav className="lg:hidden -mx-4 sm:-mx-6 mb-4 flex gap-1.5 overflow-x-auto scrollbar-none px-4 sm:px-6 pb-1" aria-label="Settings">
+        <nav ref={strip} className="lg:hidden -mx-4 sm:-mx-6 mb-4 flex gap-1.5 overflow-x-auto scrollbar-none px-4 sm:px-6 pb-1" aria-label="Settings">
           {GROUPS.flatMap((g) => g.items).map((it) => (
             <NavLink
-              key={it.to}
-              to={it.to}
-              className={({ isActive }) => cn(
+              key={it.href}
+              to={it.href}
+              aria-current={current === it.href ? 'page' : undefined}
+              className={() => cn(
                 'inline-flex h-8 flex-shrink-0 items-center gap-1.5 rounded-full border px-3 text-body font-medium transition-colors',
-                isActive
+                current === it.href
                   ? 'border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(27,27,31,0.05)]'
                   : 'border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]',
               )}
@@ -105,7 +81,7 @@ export function SettingsShell({ children }: { children: ReactNode }) {
             </NavLink>
           ))}
         </nav>
-        {children}
+        <InsetHeaderContext.Provider value={true}>{children}</InsetHeaderContext.Provider>
       </div>
     </div>
   );

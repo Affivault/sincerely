@@ -291,12 +291,8 @@ export function DeveloperPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo)]">
-            <Code2 className="h-4 w-4 text-white" />
-          </span>
-        }
-        title="Developer"
+        icon={Code2}
+        title="API & webhooks"
         description="Webhooks, API keys, and integrations"
         meta={
           <>
@@ -325,7 +321,7 @@ export function DeveloperPage() {
           )}
         >
           <Key className="h-3.5 w-3.5" />
-          API Keys
+          API keys
         </button>
       </div>
 
@@ -339,7 +335,7 @@ export function DeveloperPage() {
               className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:opacity-90 transition-all shadow-[var(--glow-indigo)]"
             >
               <Plus className="h-3.5 w-3.5" />
-              Add Webhook
+              Add webhook
             </button>
           </div>
 
@@ -371,7 +367,7 @@ export function DeveloperPage() {
           {showCreateWebhook && (
             <div className="rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)] p-4 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-strong font-medium text-[var(--text-primary)]">New Webhook Endpoint</h3>
+                <h3 className="text-strong font-medium text-[var(--text-primary)]">New webhook endpoint</h3>
                 <button onClick={() => setShowCreateWebhook(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X className="h-4 w-4" /></button>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -414,7 +410,7 @@ export function DeveloperPage() {
                 className="flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-strong font-medium text-white disabled:opacity-50 hover:bg-[var(--indigo-hover)] transition-colors"
               >
                 <Plus className="h-4 w-4" />
-                Create Webhook
+                Create webhook
               </button>
             </div>
           )}
@@ -577,7 +573,7 @@ export function DeveloperPage() {
               className="flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-strong font-medium text-white hover:bg-[var(--indigo-hover)] transition-colors"
             >
               <Plus className="h-4 w-4" />
-              Create Key
+              Create key
             </button>
             </div>
           </div>
@@ -630,7 +626,7 @@ export function DeveloperPage() {
                 <p className="text-strong font-medium text-[var(--text-primary)]">Or paste a key by hand</p>
                 <ol className="mt-2 space-y-1.5 text-strong text-[var(--text-secondary)] list-decimal list-inside">
                   <li>
-                    Press <span className="font-medium text-[var(--text-primary)]">Create Key</span> above and
+                    Press <span className="font-medium text-[var(--text-primary)]">Create key</span> above and
                     give it a name like "Chrome extension".
                   </li>
                   <li>
@@ -703,7 +699,7 @@ export function DeveloperPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-body text-[var(--text-tertiary)] mb-1 block">Key Name</label>
+                  <label className="text-body text-[var(--text-tertiary)] mb-1 block">Key name</label>
                   <input type="text" value={keyName} onChange={(e) => setKeyName(e.target.value)} placeholder="e.g. Production CRM" className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--text-primary)]" />
                 </div>
                 <div>
@@ -724,7 +720,7 @@ export function DeveloperPage() {
                 className="flex items-center gap-2 rounded-md bg-[var(--indigo)] px-4 py-2 text-strong font-medium text-white disabled:opacity-50 hover:bg-[var(--indigo-hover)] transition-colors"
               >
                 <Key className="h-4 w-4" />
-                Generate Key
+                Generate key
               </button>
             </div>
           )}

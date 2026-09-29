@@ -365,7 +365,7 @@ console.log('\nand the screen says what it cannot tell you');
      /data-seed-coverage/.test(page) && /MIN_SEEDS_FOR_RATE/.test(page));
 
   is('the page is routed', /path="\/placement"/.test(cli('App.tsx')));
-  is('and reachable from the nav', /href: '\/placement'/.test(cli('components/layout/Sidebar.tsx')));
+  is('and reachable from the nav', /href: '\/placement'/.test(cli('lib/sections.ts')));
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

@@ -10,7 +10,6 @@ import { Input } from '../../components/ui/Input';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { PageHeader } from '../../components/shared/PageHeader';
-import { SettingsShell } from '../../components/shared/SettingsShell';
 import { Card } from '../../components/shared/Card';
 import { cn } from '../../lib/utils';
 import { formatDate } from '@lemlist/shared';
@@ -159,16 +158,11 @@ export function SuppressionPage() {
   const totalPages = data?.total_pages || 1;
 
   return (
-    <SettingsShell>
+    <>
     <div>
       <PageHeader
-        className="!mx-0 !mt-0 rounded-xl border border-[var(--border-subtle)]"
         decorate
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/8 border border-rose-500/15">
-            <ShieldOff className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-          </span>
-        }
+        icon={ShieldOff}
         title="Suppression list"
         description="Emails on this list will never receive campaign messages — bounces, unsubscribes and complaints are added automatically."
         meta={data?.total !== undefined ? <span className="tabular">{data.total.toLocaleString()} suppressed</span> : undefined}
@@ -370,6 +364,6 @@ export function SuppressionPage() {
         </Modal>
       )}
     </div>
-    </SettingsShell>
+    </>
   );
 }

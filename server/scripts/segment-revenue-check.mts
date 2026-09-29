@@ -374,7 +374,7 @@ console.log('\nand the segments screen says what it cannot tell you');
      'the assertion must survive the sentence being re-wrapped');
 
   is('the page is routed', /path="\/analytics\/segments"/.test(cli('App.tsx')));
-  is('and reachable', /href: '\/analytics\/segments'/.test(cli('components/layout/Sidebar.tsx')));
+  is('and reachable', /href: '\/analytics\/segments'/.test(cli('lib/sections.ts')));
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

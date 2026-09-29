@@ -18,7 +18,7 @@ import {
 import { cn } from '../../lib/utils';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { StatCard } from '../../components/shared/StatCard';
-import { Spinner } from '../../components/ui/Spinner';
+import { SkeletonList } from '../../components/ui/Skeleton';
 
 function getHealthColor(score: number): string {
   if (score >= 80) return 'text-emerald-400';
@@ -52,11 +52,7 @@ export function SseDashboardPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo)]">
-            <Shield className="h-4 w-4 text-white" />
-          </span>
-        }
+        icon={Shield}
         title="Sender health"
         description="How each mailbox is holding up, and which one sends next."
         meta={
@@ -82,9 +78,7 @@ export function SseDashboardPage() {
 
       {/* Account Cards */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Spinner size="lg" />
-        </div>
+        <SkeletonList rows={3} />
       ) : isError ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--bg-elevated)] mb-4">

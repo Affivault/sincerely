@@ -15,6 +15,7 @@ import {
   DEAL_STAGES, isColdEmailable, LIFECYCLE_LABEL,
   type Deal, type CrmEvent, type Lifecycle, formatDayMonth, formatDate, formatDateTime, plural } from '@lemlist/shared';
 import { Spinner } from '../../components/ui/Spinner';
+import { PageSkeleton } from '../../components/ui/Skeleton';
 import { InlineEdit } from '../../components/ui/InlineEdit';
 import { Modal } from '../../components/ui/Modal';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
@@ -192,13 +193,7 @@ export function ContactDetailPage() {
     return <div className="text-center py-12 text-[var(--text-secondary)]">Invalid contact URL.</div>;
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Spinner size="lg" />
-      </div>
-    );
-  }
+  if (isLoading) return <PageSkeleton variant="detail" bleed={false} />;
 
   if (!contact) {
     return <div className="text-center text-[var(--text-secondary)]">Contact not found</div>;

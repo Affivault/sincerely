@@ -6,7 +6,7 @@ import { MAIL_KIND_LABELS, type MailKind } from '@lemlist/shared';
 import { inboxApi } from '../../api/inbox.api';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
-import { cn } from '../../lib/utils';
+import { Chip } from '../ui/Chip';
 
 /* ═══════════════════════════════════════════════════════════════════════
    The strips above the Unibox list that go with the people-first inbox:
@@ -40,18 +40,9 @@ export function InboxNotices({
         <div className="flex flex-wrap items-center gap-1.5 px-4 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]">
           <Newspaper className="h-3.5 w-3.5 text-[var(--text-tertiary)] mr-0.5" />
           {(['all', ...Object.keys(MAIL_KIND_LABELS)] as Array<'all' | OtherKind>).map((k) => (
-            <button
-              key={k}
-              onClick={() => onMailKind(k)}
-              className={cn(
-                'h-7 px-2.5 rounded-full text-caption font-medium border transition-colors',
-                mailKindFilter === k
-                  ? 'border-[rgba(91,91,245,0.4)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
-                  : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]',
-              )}
-            >
+            <Chip key={k} active={mailKindFilter === k} onClick={() => onMailKind(k)}>
               {k === 'all' ? 'All' : MAIL_KIND_LABELS[k]}
-            </button>
+            </Chip>
           ))}
           <span className="ml-auto hidden md:inline text-caption text-[var(--text-tertiary)]">
             Kept out of your inbox and every count. Relay never reads it. Someone in here who is a real person? Open it and choose "This is a person".

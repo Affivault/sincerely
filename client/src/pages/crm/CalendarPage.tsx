@@ -473,11 +473,7 @@ export function CalendarPage() {
   return (
     <div>
       <PageHeader
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(99,102,241,0.18)]">
-            <CalendarDays className="h-4 w-4 text-[var(--indigo)]" />
-          </span>
-        }
+        icon={CalendarDays}
         title="Calendar"
         description={
           upcomingCount > 0

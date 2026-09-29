@@ -403,7 +403,7 @@ console.log('\nand the screen leads somewhere');
      /clock stops when you actually reply, not when you triage/.test(page));
 
   is('the page is routed', /path="\/replies"/.test(cli('App.tsx')));
-  is('and reachable', /href: '\/replies'/.test(cli('components/layout/Sidebar.tsx')));
+  is('and reachable', /href: '\/replies'/.test(cli('lib/sections.ts')));
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

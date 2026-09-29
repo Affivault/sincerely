@@ -1,3 +1,4 @@
+import { PageHeader } from '../../components/shared/PageHeader';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -366,17 +367,20 @@ export function BulkImportPage() {
   const currentStepIdx = stepConfig.findIndex((s) => s.id === step);
 
   return (
-    <div className="space-y-5 max-w-4xl">
-      {/* ── Top: back + step indicator ──────────────────────────── */}
-      <div className="flex items-center justify-between gap-4">
-        <button
-          onClick={() => navigate('/contacts')}
-          className="flex items-center gap-1.5 px-2 h-7 rounded-md text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-          disabled={step === 'importing'}
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Contacts
-        </button>
+    <>
+      <PageHeader
+        icon={Upload}
+        // No way back mid-import: leaving would orphan the batches in flight.
+        breadcrumbs={step === 'importing' ? undefined : [{ label: 'Contacts', href: '/contacts' }, { label: 'Import' }]}
+        title="Import contacts"
+        description={
+          step === 'upload' ? 'Upload a CSV of your leads - columns are detected automatically.'
+            : step === 'map' ? 'Check each column goes to the right field, then start the import.'
+              : step === 'importing' ? 'Your contacts are being added in batches.'
+                : 'All done. Here is what happened.'
+        }
+        contentClassName="max-w-4xl"
+        actions={
         <div className="flex items-center gap-1.5">
           {stepConfig.map((s, i) => {
             const Icon = s.icon;
@@ -414,26 +418,9 @@ export function BulkImportPage() {
             );
           })}
         </div>
-      </div>
-
-      {/* ── Hero ────────────────────────────────────────────────── */}
-      <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo)] shadow-[var(--glow-indigo)]">
-          <Upload className="h-4 w-4 text-white" />
-        </span>
-        <div>
-          <h1 className="text-display font-semibold text-[var(--text-primary)] leading-[1.15] tracking-[-0.02em]">
-            Import contacts from CSV
-          </h1>
-          <p className="text-strong text-[var(--text-secondary)] mt-0.5">
-            {step === 'upload'    && 'Upload a CSV file with your leads — we\'ll detect columns automatically.'}
-            {step === 'map'       && 'Match each CSV column to the right contact field, then start the import.'}
-            {step === 'importing' && 'Hang tight — your contacts are being added in batches.'}
-            {step === 'complete'  && 'All done. Here\'s what happened.'}
-          </p>
-        </div>
-      </div>
-
+        }
+      />
+    <div className="space-y-5 max-w-4xl">
       {/* ════════════════════════════════════════════════════════ */}
       {/* STEP 1 — Upload                                          */}
       {/* ════════════════════════════════════════════════════════ */}
@@ -972,5 +959,6 @@ export function BulkImportPage() {
         </div>
       )}
     </div>
+    </>
   );
 }

@@ -253,12 +253,8 @@ export function RepliesPage() {
       <PageHeader
         /* The standard full-width header: this card style is for pages inside the settings shell. */
         decorate
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-[rgba(91,91,245,0.18)] bg-[var(--indigo-subtle)]">
-            <MessageSquare className="h-4 w-4 text-[var(--indigo)]" />
-          </span>
-        }
-        title="Replies"
+        icon={MessageSquare}
+        title="Reply queue"
         description="What you owe people, hardest first. A request to book outranks an objection, however long the objection has waited."
         meta={
           counts ? (

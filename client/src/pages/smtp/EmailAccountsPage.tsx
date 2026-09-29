@@ -341,11 +341,7 @@ export function EmailAccountsPage() {
       <PageHeader
         /* The standard full-width header: this card style is for pages inside the settings shell. */
         decorate
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
-            <Mail className="h-4 w-4 text-[var(--indigo)]" />
-          </span>
-        }
+        icon={Mail}
         title="Email accounts"
         description="The mailboxes you send from, the domains that vouch for them, and the warm-up that earns their reputation."
         meta={

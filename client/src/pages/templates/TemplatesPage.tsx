@@ -380,7 +380,7 @@ function EmailEditorModal({
 
           <div>
             <div className="flex items-center justify-between mb-1.5 gap-2">
-              <label className="text-strong font-medium text-[var(--text-primary)]">Email Body</label>
+              <label className="text-strong font-medium text-[var(--text-primary)]">Email body</label>
               <div className="flex items-center gap-1 flex-wrap justify-end">
                 {mergeTags.map(tag => (
                   <button
@@ -422,7 +422,7 @@ function EmailEditorModal({
         {showPreview && (
           <div className="w-[380px] shrink-0 sticky top-0 self-start space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-body font-medium text-[var(--text-secondary)]">Live Preview</span>
+              <span className="text-body font-medium text-[var(--text-secondary)]">Live preview</span>
               <button onClick={() => setShowPreview(false)} className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)]">
                 <X className="h-3 w-3" />
               </button>
@@ -534,7 +534,7 @@ function SequenceEditorModal({
               className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-body text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
-              Add Step
+              Add step
             </button>
           </div>
         </div>
@@ -582,7 +582,7 @@ function SequenceEditorModal({
 
             <div>
               <div className="flex items-center justify-between mb-1.5 gap-2">
-                <label className="text-strong font-medium text-[var(--text-primary)]">Email Body</label>
+                <label className="text-strong font-medium text-[var(--text-primary)]">Email body</label>
                 <div className="flex items-center gap-1 flex-wrap justify-end">
                   {['first_name', 'company', 'sender_name'].map(tag => (
                     <button
@@ -875,11 +875,7 @@ export function TemplatesPage() {
   return (
     <div>
       <PageHeader
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
-            <FileText className="h-4 w-4 text-[var(--indigo)]" />
-          </span>
-        }
+        icon={FileText}
         title="Templates"
         description="Your library of reusable emails and full campaign sequences — previewed live, one click from a campaign."
         meta={

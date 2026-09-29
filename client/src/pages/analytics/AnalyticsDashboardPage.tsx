@@ -543,7 +543,7 @@ function DeliverabilitySection({
       <div className="p-5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
         <h4 className="text-body font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-1.5">
           <ShieldOff className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-          Suppression Breakdown
+          Suppression breakdown
         </h4>
         {(deliverability?.suppression_by_reason || []).some((r) => r.value > 0) ? (
           <div className="space-y-3">
@@ -956,11 +956,7 @@ export function AnalyticsDashboardPage() {
       {/* Header */}
       <PageHeader
         decorate
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
-            <BarChart3 className="h-4 w-4 text-[var(--indigo)]" />
-          </span>
-        }
+        icon={BarChart3}
         title="Analytics"
         description="Deep performance intelligence across every campaign, contact, and sequence step."
         meta={
@@ -1018,7 +1014,7 @@ export function AnalyticsDashboardPage() {
           )}
         >
           <BarChart3 className="h-3.5 w-3.5" />
-          Portfolio Overview
+          All campaigns
         </button>
         <button
           onClick={() => setMode('campaign')}
@@ -1030,7 +1026,7 @@ export function AnalyticsDashboardPage() {
           )}
         >
           <Eye className="h-3.5 w-3.5" />
-          Campaign Deep Dive
+          One campaign
           {selectedCampaign && (
             <span className="text-micro font-semibold bg-[var(--indigo-subtle)] text-[var(--indigo)] px-1.5 py-0.5 rounded-full">
               {selectedCampaign.name.slice(0, 14)}{selectedCampaign.name.length > 14 ? '…' : ''}
@@ -1102,7 +1098,7 @@ export function AnalyticsDashboardPage() {
             <div className="col-span-2 p-5 panel">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-strong font-semibold text-[var(--text-primary)]">Performance Trend</h3>
+                  <h3 className="text-strong font-semibold text-[var(--text-primary)]">Performance over time</h3>
                   <p className="text-caption text-[var(--text-secondary)] mt-0.5">All metrics over the last {days} days</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -1136,7 +1132,7 @@ export function AnalyticsDashboardPage() {
             </div>
 
             <div className="p-5 panel">
-              <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-1">Engagement Mix</h3>
+              <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-1">Engagement mix</h3>
               <p className="text-caption text-[var(--text-secondary)] mb-3">Distribution across activities</p>
               {pieData.length > 0 ? (
                 <>
@@ -1182,7 +1178,7 @@ export function AnalyticsDashboardPage() {
             <div className="panel overflow-hidden">
               <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
                 <div>
-                  <h3 className="text-strong font-semibold text-[var(--text-primary)]">Campaign Leaderboard</h3>
+                  <h3 className="text-strong font-semibold text-[var(--text-primary)]">Campaign leaderboard</h3>
                   <p className="text-caption text-[var(--text-secondary)] mt-0.5">Click any row to deep-dive into that campaign</p>
                 </div>
                 <span className="text-caption text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-2 py-0.5 rounded-full">
@@ -1201,7 +1197,7 @@ export function AnalyticsDashboardPage() {
                   <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--indigo-subtle)]">
                     <Activity className="h-3 w-3 text-[var(--indigo)]" />
                   </span>
-                  Deliverability Health
+                  Deliverability health
                 </h3>
                 <p className="text-caption text-[var(--text-secondary)] mt-0.5">DCS scores, contact quality and suppression breakdown</p>
               </div>
@@ -1333,10 +1329,10 @@ export function AnalyticsDashboardPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                     {[
                       { label: 'Sent', value: campaignStats.sent, sub: undefined, color: '#6366F1', icon: Send },
-                      { label: 'Open Rate', value: fmtPct(campaignStats.open_rate), sub: fmtNum(campaignStats.opened) + ' opens', color: '#10B981', icon: Mail },
-                      { label: 'Click Rate', value: fmtPct(campaignStats.click_rate), sub: fmtNum(campaignStats.clicked) + ' clicks', color: '#F59E0B', icon: MousePointerClick },
-                      { label: 'Reply Rate', value: fmtPct(campaignStats.reply_rate), sub: fmtNum(campaignStats.replied) + ' replies', color: '#EC4899', icon: MessageSquare },
-                      { label: 'Bounce Rate', value: fmtPct(campaignStats.bounce_rate), sub: fmtNum(campaignStats.bounced) + ' bounced', color: '#EF4444', icon: AlertTriangle },
+                      { label: 'Open rate', value: fmtPct(campaignStats.open_rate), sub: fmtNum(campaignStats.opened) + ' opens', color: '#10B981', icon: Mail },
+                      { label: 'Click rate', value: fmtPct(campaignStats.click_rate), sub: fmtNum(campaignStats.clicked) + ' clicks', color: '#F59E0B', icon: MousePointerClick },
+                      { label: 'Reply rate', value: fmtPct(campaignStats.reply_rate), sub: fmtNum(campaignStats.replied) + ' replies', color: '#EC4899', icon: MessageSquare },
+                      { label: 'Bounce rate', value: fmtPct(campaignStats.bounce_rate), sub: fmtNum(campaignStats.bounced) + ' bounced', color: '#EF4444', icon: AlertTriangle },
                     ].map(({ label, value, sub, color, icon: Icon }) => (
                       <div key={label} className="p-4 panel hover:border-[var(--border-default)] transition-all">
                         <div className="flex items-center justify-center h-7 w-7 rounded-lg mb-3" style={{ backgroundColor: `${color}18` }}>
@@ -1389,7 +1385,7 @@ export function AnalyticsDashboardPage() {
                 <div className="space-y-4">
                   {campaignStats && (
                     <div className="p-6 panel">
-                      <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-1">Overall Engagement Funnel</h3>
+                      <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-1">Engagement funnel</h3>
                       <p className="text-caption text-[var(--text-secondary)] mb-5">Contact journey from send to reply across all steps</p>
                       <FunnelViz
                         sent={campaignStats.sent}
@@ -1576,7 +1572,7 @@ export function AnalyticsDashboardPage() {
                   ) : (
                     <div className="panel overflow-hidden">
                       <div className="px-5 py-3.5 border-b border-[var(--border-subtle)]">
-                        <h3 className="text-strong font-semibold text-[var(--text-primary)]">Contact Performance</h3>
+                        <h3 className="text-strong font-semibold text-[var(--text-primary)]">Contact performance</h3>
                         <p className="text-caption text-[var(--text-secondary)] mt-0.5">
                           Engagement scores, activity counts and deliverability for each contact
                         </p>
@@ -1603,7 +1599,7 @@ export function AnalyticsDashboardPage() {
                   ) : (
                     <div className="p-5 panel">
                       <div className="mb-4">
-                        <h3 className="text-strong font-semibold text-[var(--text-primary)]">Engagement Heatmap</h3>
+                        <h3 className="text-strong font-semibold text-[var(--text-primary)]">When people engage</h3>
                         <p className="text-caption text-[var(--text-secondary)] mt-0.5">
                           Combined opens, clicks and replies by day of week and hour of day (contact's local time)
                         </p>
