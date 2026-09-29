@@ -91,7 +91,7 @@ console.log('\nlayout that holds at every width');
   is('a header band can span the page while its content lines up with a narrow column', /contentClassName\?: string/.test(ph));
   is('Flow uses it', /contentClassName="mx-auto max-w-4xl"/.test(readC('pages/flow/FlowPage.tsx')));
   is('the campaign builder cancels the page padding at every width', /-mx-4 -my-5 sm:-mx-6 lg:-mx-8 lg:-my-7/.test(readC('pages/campaigns/CampaignCreatePage.tsx')));
-  is('settings can be moved between on a phone', /<nav className="lg:hidden/.test(readC('components/shared/SettingsShell.tsx')));
+  is('settings can be moved between on a phone', /<nav ref=\{strip\} className="lg:hidden/.test(readC('components/shared/SettingsShell.tsx')));
   is('the calendar opens on one day on a phone', /matchMedia\?\.\('\(max-width: 639\.98px\)'\)\.matches \? 'day' : 'week'/.test(readC('pages/crm/CalendarPage.tsx')));
   const ie = readC('components/ui/InlineEdit.tsx');
   is('an inline-editable value is one line tall', /multiline \? 'block w-full' : 'inline-flex max-w-full items-center'/.test(ie));

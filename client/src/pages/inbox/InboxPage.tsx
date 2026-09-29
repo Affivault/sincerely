@@ -1866,7 +1866,7 @@ function ScheduledEmailsPanel({ onCancel, onReschedule }: {
       <div className="max-w-3xl mx-auto px-6 py-6 space-y-3">
         <div className="flex items-center gap-2 mb-4">
           <Clock className="h-5 w-5 text-[var(--indigo)]" />
-          <h2 className="text-title font-semibold text-[var(--text-primary)]">Scheduled Emails</h2>
+          <h2 className="text-title font-semibold text-[var(--text-primary)]">Scheduled emails</h2>
           <span className="text-body font-medium px-2 py-0.5 rounded-full bg-[var(--indigo)]/10 text-[var(--indigo)]">{emails.length}</span>
         </div>
         {emails.map((email: any) => {
@@ -2165,6 +2165,7 @@ export function InboxPage() {
   const [folder, setFolder] = useState<Folder>('inbox');
   const [tagFilter, setTagFilter] = useState('all');
   /** Within Other mail: all of it, or one kind. */
+  const [moreOpen, setMoreOpen] = useState(false);
   const [mailKindFilter, setMailKindFilter] = useState<'all' | Exclude<MailKind, 'person'>>('all');
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [showContext, setShowContext] = useState(true);
@@ -2962,7 +2963,7 @@ export function InboxPage() {
   }, [viewParam]);
 
   return (
-    <div className="overflow-hidden" style={{ height: 'calc(100vh - 56px)' }}>
+    <div className="overflow-hidden" style={{ height: 'calc(100vh - var(--chrome-h, 56px))' }}>
       <div className="h-full flex flex-col bg-[var(--bg-app)]">
 
         {currentMsg && folder !== 'scheduled' ? (
@@ -3080,7 +3081,7 @@ export function InboxPage() {
                                   className="w-full flex items-center gap-2 px-3 py-2 text-body text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-subtle)]"
                                 >
                                   <X className="h-3 w-3" />
-                                  Remove Tag
+                                  Remove tag
                                 </button>
                               )}
                               {TAG_OPTIONS.filter(t => t.value !== 'all').map(opt => {
@@ -3363,7 +3364,8 @@ export function InboxPage() {
               1440px window — a primary action, gone, with nothing to say so. */}
           <div className="flex items-center gap-1 h-[46px] sm:h-full basis-full sm:basis-auto flex-1 min-w-0 overflow-x-auto scrollbar-none">
           {([
-            { id: 'inbox' as const, label: 'Inbox', count: viewCounts.unread },
+            // "All", not "Inbox": the place above is already called Inbox.
+            { id: 'inbox' as const, label: 'All', count: viewCounts.unread },
             // First after the inbox itself, because it is the question the
             // inbox is for: what have I not decided about yet?
             { id: 'needs_triage' as const, label: 'Needs triage', count: viewCounts.needs_triage },
@@ -3371,13 +3373,8 @@ export function InboxPage() {
             { id: 'hot' as const, label: 'Hot leads', count: viewCounts.hot },
             { id: 'unread' as const, label: 'Unread', count: undefined },
             // Newsletters, notifications and receipts: kept, one click away,
-            // and out of every count. Early in the strip so it is findable
-            // at laptop widths, where the tail of this row scrolls.
+            // and out of every count.
             { id: 'other' as const, label: 'Other mail', count: countsData?.other_unread || undefined, muted: true },
-            { id: 'scheduled' as const, label: 'Scheduled', count: undefined },
-            { id: 'starred' as const, label: 'Starred', count: undefined },
-            { id: 'sent' as const, label: 'Sent', count: undefined },
-            { id: 'archived' as const, label: 'Archived', count: undefined },
           ] as Array<{ id: ViewId; label: string; count: number | undefined; muted?: boolean }>).map(tabItem => {
             const isActive = activeView === tabItem.id;
             return (
@@ -3400,6 +3397,57 @@ export function InboxPage() {
               </button>
             );
           })}
+          </div>
+
+          {/* The folders you open now and then, behind one button - so the
+              row never runs off the edge and pushes Compose away. */}
+          <div className="relative flex-shrink-0 self-stretch flex items-stretch">
+            {(() => {
+              const MORE: Array<{ id: ViewId; label: string }> = [
+                { id: 'scheduled', label: 'Scheduled' },
+                { id: 'starred', label: 'Starred' },
+                { id: 'sent', label: 'Sent' },
+                { id: 'archived', label: 'Archived' },
+              ];
+              const current = MORE.find((m) => m.id === activeView);
+              return (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setMoreOpen((o) => !o)}
+                    aria-expanded={moreOpen}
+                    className={cn(
+                      'relative flex items-center gap-1 h-[46px] sm:h-full px-3 text-strong font-medium whitespace-nowrap transition-colors',
+                      current ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
+                    )}
+                  >
+                    {current ? current.label : 'More'}
+                    <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', moreOpen && 'rotate-180')} />
+                    <span className={cn('absolute left-2 right-2 bottom-0 h-[2px] rounded-t-full transition-opacity', current ? 'bg-[var(--indigo)] opacity-100' : 'opacity-0')} />
+                  </button>
+                  {moreOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
+                      <div className="absolute left-0 top-full mt-1 z-50 w-44 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] p-1 shadow-[var(--shadow-xl)] animate-slide-in">
+                        {MORE.map((m) => (
+                          <button
+                            key={m.id}
+                            onClick={() => { setMoreOpen(false); setView(m.id); }}
+                            className={cn(
+                              'w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-body text-left transition-colors',
+                              activeView === m.id ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] font-medium' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+                            )}
+                          >
+                            {m.label}
+                            {activeView === m.id && <Check className="h-3.5 w-3.5" />}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </div>
 
           <select
@@ -3440,7 +3488,7 @@ export function InboxPage() {
           <button
             onClick={() => setShowHistory((v) => !v)}
             title="How far back each mailbox is kept"
-            className={cn('icon-btn flex-shrink-0', showHistory && 'text-[var(--indigo)]')}
+            className={cn('icon-btn flex-shrink-0 max-sm:!hidden', showHistory && 'text-[var(--indigo)]')}
           >
             <HistoryIcon className="h-3.5 w-3.5" />
           </button>
@@ -3463,7 +3511,7 @@ export function InboxPage() {
             }}
             disabled={markAllReadMut.isPending}
             title="Mark all read (entire mailbox)"
-            className="icon-btn flex-shrink-0"
+            className="icon-btn flex-shrink-0 max-sm:!hidden"
           >
             <CheckCheck className="h-4 w-4" />
           </button>

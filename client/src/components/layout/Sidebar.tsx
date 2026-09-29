@@ -1,15 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import {
-  Crosshair,
-  MessageSquare,
-  Target,
-  LayoutDashboard, Waves, Users, Megaphone, Inbox, BarChart3, Settings,
-  FileText, Webhook, LogOut, CalendarClock, Layers, Blocks,
-  ChevronRight, Wrench, Clock, ArrowUpRight, Handshake, AtSign, Radar, ShieldCheck, Sparkles,
-  CalendarDays, ListTodo, Building2, Linkedin, Contact2, Banknote, Link2,
-} from 'lucide-react';
+import { LogOut, ArrowUpRight, ShieldCheck } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
 import { useSidebar } from '../../context/SidebarContext';
@@ -17,157 +9,12 @@ import { SetupNudge } from '../setup/SetupNudge';
 import { useUnreadCount } from '../../hooks/useUnreadCount';
 import { billingApi } from '../../api/billing.api';
 import { isUnlimited, ADMIN_EMAILS } from '@lemlist/shared';
+import { SECTIONS, SETTINGS_ICON, locate, isSettingsPath } from '../../lib/sections';
 
-/* ─── Nav shape ─────────────────────────────────────────────────── */
-type NavLeaf = {
-  kind?: 'leaf'; name: string; href: string; icon: React.ElementType; match?: string[];
-  /** Match the path exactly, for a route that is the prefix of a sibling. */
-  exact?: boolean;
-};
-type NavGroup = {
-  kind: 'group'; name: string; href: string; icon: React.ElementType; id: string;
-  children: NavLeaf[];
-  /** Extra routes that belong to this group but aren't a child row. */
-  match?: string[];
-};
-type NavItem = NavLeaf | NavGroup;
-
-const isGroup = (item: NavItem): item is NavGroup => (item as NavGroup).kind === 'group';
-
-/* ─── Nav definitions ───────────────────────────────────────────────
-   Organised, not hidden.
-
-   The old sidebar listed every page at one flat level, which made the rail a
-   table of contents rather than a map: fourteen equal rows, no sense of what
-   belonged with what. The fix is grouping — Templates and Schedules sit under
-   Campaigns, Companies and Prospector beside Leads — but grouping earns
-   its keep by giving structure, not by taking pages off the screen. So the
-   groups start open: everything you had is still visible, just gathered under
-   the thing it belongs to. Collapsing is a choice you make, not a default you
-   have to undo. */
-
-const primaryNav: NavItem[] = [
-  /* Everything that needs a decision today, in one ranked list. First,
-     because it is where a day starts. */
-  { name: 'Flow',      href: '/flow',      icon: Waves },
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Unibox',    href: '/inbox',     icon: Inbox },
-  /* What you owe people, hardest first. Beside the unibox because it is
-     the same subject, separate from it because reading mail and working a
-     queue are different jobs. */
-  { name: 'Replies',   href: '/replies',   icon: MessageSquare },
-  {
-    kind: 'group', id: 'campaigns',
-    name: 'Campaigns', href: '/campaigns', icon: Megaphone,
-    children: [
-      { name: 'All campaigns',  href: '/campaigns',      icon: Layers },
-      { name: 'Templates',      href: '/templates',      icon: FileText },
-      { name: 'Schedules',      href: '/schedules',      icon: CalendarClock },
-      { name: 'Email accounts', href: '/email-accounts', icon: AtSign },
-      /* The only thing here that can say whether any of the rest is
-         working: where the mail actually landed. */
-      { name: 'Placement',      href: '/placement',      icon: Target },
-      { name: 'Analytics',      href: '/analytics',      icon: BarChart3, exact: true },
-      // The join between outreach and revenue, and the reason for owning both.
-      { name: 'Revenue',        href: '/analytics/revenue', icon: Banknote },
-      /* The other half of the loop: not which campaign earned, but what
-         the people who bought had in common. It is what decides the next
-         list, and it needs both halves of the product to answer. */
-      { name: 'What closes',    href: '/analytics/segments', icon: Crosshair },
-    ],
-  },
-  /* Everything to do with people you are pitching.
-
-     Lead lists, the companies behind them, and the tool that finds more. The
-     inbox sits here too: a lead that arrives is still a lead, and putting it
-     anywhere else would mean going to two places to do one job. */
-  {
-    kind: 'group', id: 'leads',
-    name: 'Leads', href: '/leads', icon: Users,
-    children: [
-      { name: 'Lead lists',  href: '/leads',        icon: Users, exact: true },
-      { name: 'Leads inbox', href: '/leads/inbox',  icon: Sparkles },
-      { name: 'Companies',   href: '/companies',    icon: Building2 },
-      { name: 'Prospector',  href: '/prospector',   icon: Radar },
-    ],
-  },
-  /* The CRM, and its own destination rather than a child of Leads.
-
-     Same screen, different half of the business: these are the people you
-     have relationships with, and no campaign can reach them. Making it a row
-     under Leads would say the opposite - that contacts are a kind of lead -
-     which is the confusion this whole split exists to end. */
-  { name: 'Contacts', href: '/contacts', icon: Contact2, match: ['/contacts'] },
-  /* Deals stays its own destination — a pipeline is somewhere you go, not a
-     page you find inside something else. */
-  { name: 'Deals', href: '/deals', icon: Handshake, match: ['/deals', '/crm'] },
-  {
-    kind: 'group', id: 'calendar',
-    name: 'Calendar', href: '/calendar', icon: CalendarDays,
-    children: [
-      { name: 'Calendar',     href: '/calendar', icon: CalendarDays, exact: true },
-      { name: 'Availability', href: '/calendar/availability', icon: Clock },
-      { name: 'Booking links', href: '/calendar/links', icon: Link2 },
-      { name: 'Activities',   href: '/tasks',    icon: ListTodo },
-    ],
-  },
-];
-
-/* Every route that lives inside the settings workspace (SettingsShell owns
-   the detail nav there — the app sidebar shows a single entry for all of it). */
-const SETTINGS_ROUTES = ['/settings', '/team', '/billing', '/domains', '/suppression', '/verification'];
-
-/* Utility rows: needed occasionally, never the reason you opened the app. */
-const utilityNav: NavItem[] = [
-  {
-    kind: 'group', id: 'tools',
-    name: 'Tools', href: '/integrations', icon: Wrench,
-    children: [
-      { name: 'LinkedIn',     href: '/linkedin',     icon: Linkedin },
-      { name: 'Integrations', href: '/integrations', icon: Blocks },
-      { name: 'Webhooks',     href: '/developer',    icon: Webhook },
-      { name: 'Toolkit',      href: '/toolkit',      icon: Wrench },
-    ],
-  },
-  { name: 'Settings', href: '/settings', icon: Settings, match: SETTINGS_ROUTES },
-];
-
-/* Owner-only console — rendered only for the admin account; the server
-   independently 404s everyone else, so this is purely cosmetic gating. */
-const adminNav: NavItem[] = [
-  { name: 'Admin', href: '/admin', icon: ShieldCheck },
-];
-
-const ALL_GROUPS: NavGroup[] = [...primaryNav, ...utilityNav].filter(isGroup);
-
-/* Open on first run. Grouping is meant to organise the rail, not hide it —
-   every page you work in stays on screen, indented under the thing it belongs
-   to, and collapsing is yours to do rather than mine to assume. Tools stays
-   shut because it isn't why anyone opens the app. */
-const DEFAULT_EXPANDED = primaryNav.filter(isGroup).map((g) => g.id);
-
-/* Versioned, and it has to be bumped whenever a group id changes.
-
-   A saved list names the groups someone chose to keep open. Rename an id and
-   that list no longer mentions it, so a group nobody has an opinion about
-   renders shut — which is how a rename silently collapses a section for every
-   existing user. v1 fell into it, v2 and v3 each moved this group's id again
-   (leads → contacts → leads, as the split was worked out), and each move
-   needs its own key or the fix does not reach anybody who has used the app. */
-const EXPANDED_KEY = 'sidebar.expandedGroups.v4';
-
-function routeMatches(pathname: string, route: string): boolean {
-  return pathname === route || pathname.startsWith(route + '/');
-}
-
-/** Every route a group owns: its children plus anything declared in `match`. */
-function groupRoutes(group: NavGroup): string[] {
-  return [...group.children.map((c) => c.href), ...(group.match || [])];
-}
-
-function isGroupActive(group: NavGroup, pathname: string): boolean {
-  return groupRoutes(group).some((r) => routeMatches(pathname, r));
-}
+/* ─── Nav ────────────────────────────────────────────────────────────
+   Six places and Settings - see lib/sections.ts for why, and for the one
+   definition every surface reads. A place's own pages are tabs in the bar
+   under the header, so the rail never grows and never needs opening. */
 
 /* ─── Row styling (the Attio look) ──────────────────────────────────
    Inactive rows are quiet text on the gray rail. The ACTIVE row is a
@@ -180,49 +27,28 @@ const rowInactive =
 const rowActive =
   'bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-subtle)] shadow-[0_1px_2px_rgba(16,16,20,0.05),0_0_0_0.5px_rgba(16,16,20,0.02)]';
 
-function useIsActive(item: NavLeaf): boolean {
-  const location = useLocation();
-  const routes = item.match || [item.href];
-  // Prefix matching is right for /contacts owning /contacts/:id, but wrong
-  // for a route that is the prefix of a sibling — those opt into `exact`.
-  return item.exact
-    ? routes.includes(location.pathname)
-    : routes.some((r) => routeMatches(location.pathname, r));
-}
-
-/* ─── NavLeafItem ───────────────────────────────────────────────── */
-function NavLeafItem({ item, collapsed, badge, nested }: {
-  item: NavLeaf; collapsed: boolean; badge?: number; nested?: boolean;
+/* ─── NavRow ────────────────────────────────────────────────────── */
+function NavRow({ name, href, icon: Icon, active, collapsed, badge, hint }: {
+  name: string; href: string; icon: React.ElementType; active: boolean; collapsed: boolean; badge?: number; hint?: string;
 }) {
-  const isActive = useIsActive(item);
-  const Icon = item.icon;
-
   return (
     <NavLink
-      to={item.href}
-      title={collapsed ? item.name : undefined}
+      to={href}
+      title={collapsed ? name : hint}
+      aria-current={active ? 'page' : undefined}
       className={cn(
         rowBase,
-        collapsed ? 'justify-center h-8 w-8 mx-auto' : nested ? 'h-[28px] gap-2 px-2' : 'h-[30px] gap-2.5 px-2',
-        isActive ? rowActive : rowInactive,
+        collapsed ? 'justify-center h-8 w-8 mx-auto' : 'h-[32px] gap-2.5 px-2',
+        active ? rowActive : rowInactive,
       )}
     >
-      {!nested && (
-        <Icon
-          className={cn('h-[15px] w-[15px] flex-shrink-0 transition-colors', isActive ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]')}
-          strokeWidth={1.75}
-        />
-      )}
-
+      <Icon
+        className={cn('h-[16px] w-[16px] flex-shrink-0 transition-colors', active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]')}
+        strokeWidth={1.75}
+      />
       {!collapsed && (
-        <span className={cn(
-          'flex-1 truncate leading-none',
-          nested ? 'text-body font-medium' : 'text-strong font-medium',
-        )}>
-          {item.name}
-        </span>
+        <span className="flex-1 truncate leading-none text-strong font-medium">{name}</span>
       )}
-
       {badge != null && badge > 0 && (
         collapsed ? (
           <span className="absolute -top-1 -right-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[var(--indigo)] text-white text-micro font-bold px-0.5 leading-none ring-2 ring-[var(--bg-app)]">
@@ -231,129 +57,13 @@ function NavLeafItem({ item, collapsed, badge, nested }: {
         ) : (
           <span className={cn(
             'ml-auto flex h-[17px] min-w-[17px] items-center justify-center rounded-md text-micro font-semibold px-1 leading-none tabular-nums',
-            isActive
-              ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
-              : 'bg-[var(--bg-active)] text-[var(--text-secondary)]',
+            active ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-active)] text-[var(--text-secondary)]',
           )}>
             {badge > 99 ? '99+' : badge}
           </span>
         )
       )}
     </NavLink>
-  );
-}
-
-/* ─── NavGroupItem ──────────────────────────────────────────────── */
-function NavGroupItem({ item, collapsed, expanded, onToggle }: {
-  item: NavGroup; collapsed: boolean; expanded: boolean; onToggle: () => void;
-}) {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const isParentActive = isGroupActive(item, location.pathname);
-  const Icon = item.icon;
-
-  /* With the children hidden the parent is the only thing on screen that can
-     say where you are, so it takes the raised card. Expanded, it stays quiet
-     and lets the active child carry it. */
-  const showActiveCard = isParentActive && (collapsed || !expanded);
-
-  return (
-    <div>
-      <div
-        role="button"
-        tabIndex={0}
-        aria-expanded={collapsed ? undefined : expanded}
-        onClick={() => (collapsed ? navigate(item.href) : onToggle())}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); collapsed ? navigate(item.href) : onToggle(); } }}
-        title={collapsed ? item.name : undefined}
-        className={cn(
-          rowBase, 'cursor-pointer',
-          collapsed ? 'justify-center h-8 w-8 mx-auto' : 'h-[30px] gap-2.5 px-2',
-          showActiveCard ? rowActive : rowInactive,
-          !collapsed && isParentActive && 'text-[var(--text-primary)]',
-        )}
-      >
-        <Icon
-          className={cn('h-[15px] w-[15px] flex-shrink-0 transition-colors', isParentActive ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]')}
-          strokeWidth={1.75}
-        />
-
-        {!collapsed && (
-          <>
-            <span className="flex-1 text-strong font-medium truncate leading-none">{item.name}</span>
-            <ChevronRight
-              className={cn(
-                /* Always faintly there: the whole nav now depends on people
-                   realising these rows open. */
-                'h-3.5 w-3.5 flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
-                'opacity-50 group-hover:opacity-100',
-                expanded && 'rotate-90 opacity-100',
-              )}
-              strokeWidth={2}
-            />
-          </>
-        )}
-      </div>
-
-      {/* Children hang off a tree rail — Attio/Linear-style indentation. */}
-      <div
-        className={cn(
-          'grid transition-[grid-template-rows] duration-200 ease-out',
-          !collapsed && expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
-        )}
-      >
-        <div className="overflow-hidden">
-          <div className="mt-0.5 ml-[15px] pl-[9px] border-l border-[var(--border-default)] space-y-px pb-0.5">
-            {item.children.map((child) => (
-              <NavLeafItem key={child.href} item={child} collapsed={false} nested />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── NavSection ────────────────────────────────────────────────── */
-function NavSection({ title, items, collapsed, badges, expandedGroups, onToggleGroup }: {
-  title?: string;
-  items: NavItem[];
-  collapsed: boolean;
-  badges?: Record<string, number>;
-  expandedGroups: Set<string>;
-  onToggleGroup: (id: string) => void;
-}) {
-  return (
-    <div>
-      {title && !collapsed && (
-        <div className="px-2 mt-5 mb-1">
-          <span className="text-micro font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">{title}</span>
-        </div>
-      )}
-      {title && collapsed && (
-        <div className="my-3 mx-auto w-4 h-px bg-[var(--border-default)]" />
-      )}
-      <div className="space-y-px">
-        {items.map((item) =>
-          isGroup(item) ? (
-            <NavGroupItem
-              key={item.id}
-              item={item}
-              collapsed={collapsed}
-              expanded={expandedGroups.has(item.id)}
-              onToggle={() => onToggleGroup(item.id)}
-            />
-          ) : (
-            <NavLeafItem
-              key={item.href}
-              item={item}
-              collapsed={collapsed}
-              badge={badges?.[item.href]}
-            />
-          )
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -404,41 +114,12 @@ export function Sidebar() {
   const workspaceName = user?.email?.split('@')[0] || 'Workspace';
   const unreadCount = useUnreadCount();
 
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem(EXPANDED_KEY);
-      if (saved) return new Set<string>(JSON.parse(saved));
-    } catch { /* fall through to the default */ }
-    return new Set<string>(DEFAULT_EXPANDED);
-  });
-
-  // Navigating into a group's territory opens it, so the child you landed on
-  // is visible and its siblings are one glance away. Runs on route change
-  // only, so collapsing a group while sitting inside it stays collapsed.
-  useEffect(() => {
-    const active = ALL_GROUPS.find((g) => isGroupActive(g, location.pathname));
-    if (!active) return;
-    setExpandedGroups((prev) => {
-      if (prev.has(active.id)) return prev;
-      const next = new Set(prev);
-      next.add(active.id);
-      return next;
-    });
-  }, [location.pathname]);
-
-  const handleToggleGroup = (id: string) => {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      try { localStorage.setItem(EXPANDED_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
-      return next;
-    });
-  };
-
   // On a narrow screen the drawer is a way to get somewhere; once there, it goes.
   useEffect(() => { setDrawerOpen(false); }, [location.pathname, setDrawerOpen]);
 
-  const sectionProps = { collapsed, expandedGroups, onToggleGroup: handleToggleGroup };
+  const here = locate(location.pathname);
+  const inSettings = isSettingsPath(location.pathname);
+  const isAdmin = !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
 
   return (
     <>
@@ -465,19 +146,27 @@ export function Sidebar() {
         'flex-1 py-3 overflow-y-auto overflow-x-hidden',
         collapsed ? 'px-2' : 'px-2.5'
       )}>
-        <NavSection items={primaryNav} badges={{ '/inbox': unreadCount }} {...sectionProps} />
+        <div className="space-y-0.5">
+          {SECTIONS.map((sec) => (
+            <NavRow
+              key={sec.id}
+              name={sec.name}
+              href={sec.href}
+              icon={sec.icon}
+              active={here.section?.id === sec.id}
+              collapsed={collapsed}
+              badge={sec.id === 'inbox' ? unreadCount : undefined}
+              hint={sec.tabs.map((t) => t.label).join(' · ')}
+            />
+          ))}
+        </div>
 
-        {/* The utility rows sit below a rule rather than under a heading —
-            they're a footnote to the nav, not a sixth department. */}
-        <div className={cn(
-          collapsed ? 'mt-3 pt-3' : 'mt-4 pt-3',
-          'border-t border-[var(--border-subtle)]',
-        )}>
-          <NavSection items={utilityNav} {...sectionProps} />
-          {!!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase()) && (
-            <div className="mt-px">
-              <NavSection items={adminNav} {...sectionProps} />
-            </div>
+        {/* Settings sits below a rule: it is where you set things up, not
+            where the work happens. */}
+        <div className={cn(collapsed ? 'mt-3 pt-3' : 'mt-4 pt-3', 'border-t border-[var(--border-subtle)] space-y-0.5')}>
+          <NavRow name="Settings" href="/settings" icon={SETTINGS_ICON} active={inSettings} collapsed={collapsed} hint="Mailboxes, deliverability, data, connections, team and billing" />
+          {isAdmin && (
+            <NavRow name="Admin" href="/admin" icon={ShieldCheck} active={location.pathname.startsWith('/admin')} collapsed={collapsed} />
           )}
         </div>
       </nav>

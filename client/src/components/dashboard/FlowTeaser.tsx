@@ -32,7 +32,7 @@ export function FlowTeaser() {
         <span className="block truncate text-caption text-[var(--text-secondary)]">First up: {topLabel}</span>
       </span>
       <span className="inline-flex flex-shrink-0 items-center gap-1 text-caption font-semibold text-[var(--indigo)]">
-        Start Flow <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+        Start flow <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
       </span>
     </Link>
   );

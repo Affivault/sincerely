@@ -171,11 +171,7 @@ export function IntegrationsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo)]">
-            <Blocks className="h-4 w-4 text-white" />
-          </span>
-        }
+        icon={Blocks}
         title="Integrations"
         description="Connect Sincerely to the tools your team already lives in"
         meta={

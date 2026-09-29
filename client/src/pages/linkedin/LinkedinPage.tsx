@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { linkedinApi, type LinkedinSettings } from '../../api/linkedin.api';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { Spinner } from '../../components/ui/Spinner';
+import { PageSkeleton } from '../../components/ui/Skeleton';
 import { cn } from '../../lib/utils';
 import { Linkedin, ShieldCheck, Clock, Gauge, AlertTriangle, ExternalLink, Play, Pause } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -106,7 +107,7 @@ export function LinkedinPage() {
     );
   }
 
-  if (isLoading || !data) return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>;
+  if (isLoading || !data) return <PageSkeleton variant="panels" />;
 
   const s = { ...data.settings, ...draft };
   const set = (patch: Partial<LinkedinSettings>) => setDraft((d) => ({ ...d, ...patch }));
@@ -117,11 +118,7 @@ export function LinkedinPage() {
     <>
       <PageHeader
         contentClassName="max-w-4xl"
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/10 border border-sky-500/20">
-            <Linkedin className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-          </span>
-        }
+        icon={Linkedin}
         title="LinkedIn"
         description="Runs the LinkedIn steps of your campaigns in your own browser"
         actions={

@@ -11,6 +11,7 @@ import { Modal } from '../../components/ui/Modal';
 import { Spinner } from '../../components/ui/Spinner';
 import { Avatar } from '../../components/shared/Avatar';
 import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
+import { PageHeader } from '../../components/shared/PageHeader';
 import { cn } from '../../lib/utils';
 import {
   Radar, Search, MapPin, Building2, Briefcase, Users, Sparkles,
@@ -291,18 +292,11 @@ export function ProspectorPage() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--indigo-subtle)]">
-            <Radar className="h-5 w-5 text-[var(--indigo)]" />
-          </span>
-          <div>
-            <h1 className="text-title font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Prospector</h1>
-            <p className="text-body text-[var(--text-tertiary)]">Search 100M+ B2B profiles, reveal verified emails, and drop them straight into your contact lists.</p>
-          </div>
-        </div>
-        {credits && (
+      <PageHeader
+        icon={Radar}
+        title="Prospector"
+        description="Search 100M+ B2B profiles, reveal verified emails, and drop them straight into your lists."
+        actions={credits && (
           <CreditsMeter
             allowance={credits.allowance}
             planRemaining={credits.plan_remaining}
@@ -310,7 +304,7 @@ export function ProspectorPage() {
             onBuy={() => setBuyOpen(true)}
           />
         )}
-      </div>
+      />
 
       {/* Status fetch failed — the credits meter and provider banner below silently
           don't render on error, so surface it explicitly instead of looking fine. */}

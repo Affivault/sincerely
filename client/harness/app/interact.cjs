@@ -51,7 +51,7 @@ const step = async (page, log, name, fn) => {
   await step(page, log, 'schedule-new', async () => { await go('/schedules'); await page.getByRole('button', { name: /New schedule/ }).first().click(); });
   await step(page, log, 'placement-run', async () => { await go('/placement'); await page.getByRole('button', { name: /Run a test/ }).first().click(); });
   await step(page, log, 'team-invite', async () => { await go('/team'); await page.getByRole('button', { name: /Invite member/ }).first().click(); });
-  await step(page, log, 'webhook-new', async () => { await go('/developer'); await page.getByRole('button', { name: /Add Webhook/ }).first().click(); });
+  await step(page, log, 'webhook-new', async () => { await go('/developer'); await page.getByRole('button', { name: /Add webhook/i }).first().click(); });
   await step(page, log, 'company-new', async () => { await go('/companies'); await page.getByRole('button', { name: /New company/ }).first().click(); });
   await step(page, log, 'lead-qualify', async () => { await go('/leads/inbox'); await page.getByRole('button', { name: /Qualify/ }).first().click(); });
   await step(page, log, 'inbox-people', async () => { await go('/inbox'); });

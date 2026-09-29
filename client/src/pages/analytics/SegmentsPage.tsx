@@ -152,12 +152,8 @@ export function SegmentsPage() {
       <PageHeader
         /* The standard full-width header: this card style is for pages inside the settings shell. */
         decorate
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-[rgba(91,91,245,0.18)] bg-[var(--indigo-subtle)]">
-            <Target className="h-4 w-4 text-[var(--indigo)]" />
-          </span>
-        }
-        title="What actually closes"
+        icon={Target}
+        title="What closes"
         description="Not who replies — who buys. Everyone you reached, grouped by what they have in common, against what each group actually earned."
         actions={
           <Link to="/analytics/revenue" className="btn-secondary">

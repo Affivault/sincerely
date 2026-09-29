@@ -10,9 +10,11 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Spinner } from '../../components/ui/Spinner';
+import { SkeletonList } from '../../components/ui/Skeleton';
 import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { Avatar } from '../../components/shared/Avatar';
 import { SearchInput } from '../../components/shared/SearchInput';
+import { PageHeader } from '../../components/shared/PageHeader';
 import { usePeek } from '../../components/peek/usePeek';
 import { cn } from '../../lib/utils';
 import {
@@ -250,32 +252,26 @@ export function LeadsPage() {
 
   return (
     <div>
-      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--indigo-subtle)]">
-            <Inbox className="h-5 w-5 text-[var(--indigo)]" />
-          </span>
-          <div className="min-w-0">
-            <h1 className="text-title font-semibold tracking-[-0.01em] text-[var(--text-primary)]">Leads</h1>
-            <p className="text-body text-[var(--text-tertiary)]">
-              People worth a look, held out of the pipeline until you decide they are real.
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
-          <SearchInput value={query} onChange={setQuery} placeholder="Search leads…" className="hidden w-56 sm:block" />
-          {visible.length > 0 && (
-            <button
-              type="button"
-              onClick={() => exportLeadsCsv(visible)}
-              className="btn-secondary"
-              title="Export the leads shown below as a CSV file"
-            >
-              <Download className="h-3.5 w-3.5" /> Export CSV
-            </button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        icon={Inbox}
+        title="Leads inbox"
+        description="People worth a look, held out of the pipeline until you decide they are real."
+        actions={
+          <>
+            <SearchInput value={query} onChange={setQuery} placeholder="Search leads…" className="hidden w-56 sm:block" />
+            {visible.length > 0 && (
+              <button
+                type="button"
+                onClick={() => exportLeadsCsv(visible)}
+                className="btn-secondary"
+                title="Export the leads shown below as a CSV file"
+              >
+                <Download className="h-3.5 w-3.5" /> Export CSV
+              </button>
+            )}
+          </>
+        }
+      />
 
       {/* The funnel. Rate is over decided leads only — including open ones
           would make it fall every time somebody adds a lead. */}
@@ -337,7 +333,7 @@ export function LeadsPage() {
 
       <Refreshing active={stale}>
         {isLoading ? (
-          <div className="flex items-center justify-center py-24"><Spinner size="md" /></div>
+          <SkeletonList rows={5} />
         ) : visible.length === 0 ? (
           <EmptyState
             icon={Sparkles}

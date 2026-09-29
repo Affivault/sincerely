@@ -27,11 +27,7 @@ export function ToolkitPage() {
     <div>
       <PageHeader
         decorate
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
-            <Wrench className="h-4 w-4 text-[var(--indigo)]" />
-          </span>
-        }
+        icon={Wrench}
         title="Toolkit"
         description="Email health tools, verification, domain monitoring, and deliverability utilities."
       />
@@ -76,7 +72,7 @@ export function ToolkitPage() {
           icon={ShieldCheck}
           iconColor="#10B981"
           iconBg="bg-emerald-500/10"
-          title="Email Verification"
+          title="Email verification"
           description="Verify email addresses before sending. Check syntax, DNS, and mailbox existence to protect your sender reputation."
           badge="Via settings"
           onClick={() => navigate('/verification')}
@@ -91,7 +87,7 @@ export function ToolkitPage() {
           icon={ShieldOff}
           iconColor="#6366F1"
           iconBg="bg-[rgba(99,102,241,0.1)]"
-          title="Suppression List"
+          title="Suppression list"
           description="Manage your suppression list to prevent emails from being sent to opted-out, complained, or bounced contacts."
           onClick={() => navigate('/suppression')}
           stats={deliverability?.suppression_by_reason.filter((r) => r.value > 0).map((r) => ({
@@ -103,7 +99,7 @@ export function ToolkitPage() {
           icon={Globe}
           iconColor="#06B6D4"
           iconBg="bg-cyan-500/10"
-          title="Domain Management"
+          title="Domains"
           description="Monitor your sending domains, check DKIM/SPF/DMARC status, and manage custom tracking domains."
           onClick={() => navigate('/email-accounts?tab=domains')}
         />
@@ -121,7 +117,7 @@ export function ToolkitPage() {
           icon={Thermometer}
           iconColor="#F59E0B"
           iconBg="bg-amber-500/10"
-          title="Warm-up Status"
+          title="Warm-up status"
           description="Track your email account warm-up progress. Good warm-up leads to better inbox placement rates."
           onClick={() => navigate('/email-accounts?tab=warmup')}
         />
@@ -130,7 +126,7 @@ export function ToolkitPage() {
           icon={BarChart3}
           iconColor="#6366F1"
           iconBg="bg-[rgba(99,102,241,0.1)]"
-          title="Deliverability Report"
+          title="Deliverability report"
           description="Get a full breakdown of your sending health — bounce rates, open rates by domain, and reputation signals."
           onClick={() => navigate('/analytics')}
         />

@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { teamApi } from '../../api/team.api';
 import { Spinner } from '../../components/ui/Spinner';
+import { PageSkeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { PageHeader } from '../../components/shared/PageHeader';
-import { SettingsShell } from '../../components/shared/SettingsShell';
 import { Avatar } from '../../components/shared/Avatar';
 import { cn } from '../../lib/utils';
 import { formatDate } from '@lemlist/shared';
@@ -134,11 +134,11 @@ export function TeamPage() {
 
   const isOwner = org?.owner_id === user?.id;
 
-  if (orgLoading) return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>;
+  if (orgLoading) return <PageSkeleton variant="list" bleed={false} />;
 
   if (orgError) {
     return (
-      <SettingsShell>
+      <>
         <div>
           <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-20 px-8 flex flex-col items-center justify-center text-center">
             <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 mb-5">
@@ -154,20 +154,15 @@ export function TeamPage() {
             </button>
           </div>
         </div>
-      </SettingsShell>
+      </>
     );
   }
 
   return (
-    <SettingsShell>
+    <>
     <div>
       <PageHeader
-        className="!mx-0 !mt-0 rounded-xl border border-[var(--border-subtle)]"
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
-            <Users className="h-4 w-4 text-[var(--indigo)]" />
-          </span>
-        }
+        icon={Users}
         title="Team"
         description="Manage your organisation members and invite collaborators."
         meta={
@@ -388,6 +383,6 @@ export function TeamPage() {
         </Modal>
       )}
     </div>
-    </SettingsShell>
+    </>
   );
 }

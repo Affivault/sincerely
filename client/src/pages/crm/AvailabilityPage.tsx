@@ -385,12 +385,8 @@ export function AvailabilityPage() {
   return (
     <div>
       <PageHeader
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(99,102,241,0.18)]">
-            <Clock className="h-4 w-4 text-[var(--indigo)]" />
-          </span>
-        }
-        title="When people may book you"
+        icon={Clock}
+        title="Availability"
         description={describeWeek(windows)}
         actions={
           dirty ? (

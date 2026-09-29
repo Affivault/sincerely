@@ -1,7 +1,14 @@
-import { type ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, type LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
+
+/**
+ * Inside a framed workspace (Settings, with its menu beside the page) a
+ * header cannot run edge to edge - it would slide under the menu. The frame
+ * says so once, and every page header inside it sits in the column instead.
+ */
+export const InsetHeaderContext = createContext(false);
 
 export interface Breadcrumb {
   label: string;
@@ -14,8 +21,14 @@ interface PageHeaderProps {
   breadcrumbs?: Breadcrumb[];
   /** Right-side actions (buttons, menus) */
   actions?: ReactNode;
-  /** Left-side leading element (icon, avatar, badge) */
+  /** Left-side leading element (avatar, badge) - for an icon, use `icon`. */
   leading?: ReactNode;
+  /**
+   * The page's icon, drawn in the one standard chip. Pages each drew their
+   * own: 36px or 40px, pale or solid indigo, green, rose, sky - the same
+   * idea in six styles, which is most of why pages felt unrelated.
+   */
+  icon?: LucideIcon;
   /** Add the signature dot grid + soft brand glow behind the title area */
   decorate?: boolean;
   /** Tabs or sub-nav row rendered below the title */
@@ -38,26 +51,31 @@ export function PageHeader({
   breadcrumbs,
   actions,
   leading,
+  icon: Icon,
   tabs,
   meta,
   className,
   contentClassName,
 }: PageHeaderProps) {
+  const inset = useContext(InsetHeaderContext);
   return (
     <header
       className={cn(
-        // Full-bleed: these cancel <main>'s padding at every width (px-4 /
-        // sm:px-6 / lg:px-8, py-5 / lg:py-7 in AppLayout). They were a fixed
-        // -mx-6 against a px-8 page, which left the band floating 8px in from
-        // both edges on desktop and hanging off the side on a phone.
-        'relative -mx-4 -mt-5 sm:-mx-6 lg:-mx-8 lg:-mt-7 mb-5 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden',
+        inset
+          // In the settings column: the same title block, without the band.
+          ? 'relative mb-5 pb-4 border-b border-[var(--border-subtle)]'
+          // Full-bleed: these cancel <main>'s padding at every width (px-4 /
+          // sm:px-6 / lg:px-8, py-5 / lg:py-7 in AppLayout). They were a fixed
+          // -mx-6 against a px-8 page, which left the band floating 8px in from
+          // both edges on desktop and hanging off the side on a phone.
+          : 'relative -mx-4 -mt-5 sm:-mx-6 lg:-mx-8 lg:-mt-7 mb-5 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden',
         className
       )}
     >
       {/* `decorate` retained for API compatibility; the glow wash was removed to
           keep headers calm and consistent across the app. */}
 
-      <div className="relative px-4 sm:px-6 lg:px-8 pt-5 pb-4">
+      <div className={cn('relative', inset ? '' : 'px-4 sm:px-6 lg:px-8 pt-5 pb-4')}>
         <div className={contentClassName}>
         {/* Breadcrumbs */}
         {breadcrumbs && breadcrumbs.length > 0 && (
@@ -83,7 +101,11 @@ export function PageHeader({
         )}
 
         <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
-          {leading && <div className="flex-shrink-0 mt-1">{leading}</div>}
+          {(Icon || leading) && (
+            <div className="flex-shrink-0 mt-1">
+              {Icon ? <PageIcon icon={Icon} /> : leading}
+            </div>
+          )}
 
           <div className="flex-1 min-w-[min(100%,16rem)]">
             <h1 className="text-display font-semibold text-[var(--text-primary)] leading-[1.15] tracking-[-0.02em]">
@@ -109,11 +131,20 @@ export function PageHeader({
         </div>
         {/* Tabs row */}
         {tabs && (
-          <div className="mt-4 -mb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 overflow-x-auto scrollbar-none border-t border-[var(--border-subtle)]">
+          <div className={cn('mt-4 overflow-x-auto scrollbar-none border-t border-[var(--border-subtle)]', inset ? '-mb-4' : '-mb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8')}>
             <div className={contentClassName}>{tabs}</div>
           </div>
         )}
       </div>
     </header>
+  );
+}
+
+/** The standard page icon chip. Exported for the few headers that draw their own title. */
+export function PageIcon({ icon: Icon, className }: { icon: LucideIcon; className?: string }) {
+  return (
+    <span className={cn('flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]', className)}>
+      <Icon className="h-4 w-4 text-[var(--indigo)]" strokeWidth={1.9} />
+    </span>
   );
 }

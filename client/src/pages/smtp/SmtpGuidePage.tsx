@@ -1,6 +1,7 @@
+import { PageHeader } from '../../components/shared/PageHeader';
+import { Chip } from '../../components/ui/Chip';
 import { Link } from 'react-router-dom';
 import {
-  ArrowLeft,
   Mail,
   Server,
   Key,
@@ -13,6 +14,7 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronRight,
+  BookOpen,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
@@ -270,10 +272,10 @@ function DnsCheckResult({ result }: { result: any }) {
 
   return (
     <div className="space-y-2">
-      <Item label="MX Records" found={result.mx.found} detail={result.mx.found ? result.mx.records.map((r: any) => `${r.exchange} (priority ${r.priority})`).join(', ') : 'No MX records found'} />
-      <Item label="SPF Record" found={result.spf.found} detail={result.spf.found ? result.spf.record : 'No SPF record — add a TXT record starting with v=spf1'} />
+      <Item label="MX records" found={result.mx.found} detail={result.mx.found ? result.mx.records.map((r: any) => `${r.exchange} (priority ${r.priority})`).join(', ') : 'No MX records found'} />
+      <Item label="SPF record" found={result.spf.found} detail={result.spf.found ? result.spf.record : 'No SPF record — add a TXT record starting with v=spf1'} />
       <Item label="DKIM Record" found={result.dkim.found} detail={result.dkim.note} />
-      <Item label="DMARC Policy" found={result.dmarc.found} detail={result.dmarc.found ? `${result.dmarc.record} (policy: ${result.dmarc.policy})` : 'No DMARC record — add TXT at _dmarc.yourdomain.com'} />
+      <Item label="DMARC policy" found={result.dmarc.found} detail={result.dmarc.found ? `${result.dmarc.record} (policy: ${result.dmarc.policy})` : 'No DMARC record — add TXT at _dmarc.yourdomain.com'} />
       {result.provider_hint && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-elevated border border-subtle">
           <Search className="h-4 w-4 text-secondary" />
@@ -296,26 +298,23 @@ export function SmtpGuidePage() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div>
-        <Link to="/email-accounts" className="inline-flex items-center gap-1.5 text-strong text-secondary hover:text-primary mb-4 transition-colors">
-          <ArrowLeft className="h-4 w-4" />
-          Back to SMTP Accounts
-        </Link>
-        <h1 className="text-display font-semibold text-primary">SMTP Connection Guide</h1>
-        <p className="text-strong text-secondary mt-1">Complete guide for connecting your email provider to Sincerely, including DNS setup for custom domains.</p>
-      </div>
+      <PageHeader
+        icon={BookOpen}
+        breadcrumbs={[{ label: 'Email accounts', href: '/email-accounts' }, { label: 'Connection guide' }]}
+        title="Connection guide"
+        description="How to connect each email provider, and the DNS records that decide whether your mail reaches the inbox."
+      />
 
       {/* What You'll Need */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-lg border border-subtle bg-surface p-4">
           <Server className="h-5 w-5 text-primary mb-3" />
-          <h3 className="text-strong font-medium text-primary mb-1">SMTP Host</h3>
+          <h3 className="text-strong font-medium text-primary mb-1">SMTP host</h3>
           <p className="text-body text-secondary">Server address for outgoing mail</p>
         </div>
         <div className="rounded-lg border border-subtle bg-surface p-4">
           <Globe className="h-5 w-5 text-primary mb-3" />
-          <h3 className="text-strong font-medium text-primary mb-1">Port & Security</h3>
+          <h3 className="text-strong font-medium text-primary mb-1">Port and security</h3>
           <p className="text-body text-secondary">587 (TLS) or 465 (SSL)</p>
         </div>
         <div className="rounded-lg border border-subtle bg-surface p-4">
@@ -325,7 +324,7 @@ export function SmtpGuidePage() {
         </div>
         <div className="rounded-lg border border-subtle bg-surface p-4">
           <Shield className="h-5 w-5 text-primary mb-3" />
-          <h3 className="text-strong font-medium text-primary mb-1">DNS Records</h3>
+          <h3 className="text-strong font-medium text-primary mb-1">DNS records</h3>
           <p className="text-body text-secondary">SPF, DKIM, DMARC for deliverability</p>
         </div>
       </div>
@@ -341,8 +340,8 @@ export function SmtpGuidePage() {
               <Shield className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h2 className="text-strong font-medium text-primary">Domain DNS Checker</h2>
-              <p className="text-strong text-secondary">Verify SPF, DKIM, DMARC records for your sending domain</p>
+              <h2 className="text-strong font-medium text-primary">Check a domain</h2>
+              <p className="text-strong text-secondary">See whether SPF, DKIM and DMARC are set up for your sending domain</p>
             </div>
           </div>
           {showDns ? <ChevronDown className="h-5 w-5 text-tertiary" /> : <ChevronRight className="h-5 w-5 text-tertiary" />}
@@ -364,7 +363,7 @@ export function SmtpGuidePage() {
                 disabled={!domainInput || checkDomainMutation.isPending}
               >
                 <Search className="h-4 w-4" />
-                {checkDomainMutation.isPending ? 'Checking...' : 'Check DNS'}
+                {checkDomainMutation.isPending ? 'Checking…' : 'Check DNS'}
               </Button>
             </div>
 
@@ -393,20 +392,17 @@ export function SmtpGuidePage() {
 
       {/* Provider Selection */}
       <div>
-        <h2 className="text-strong font-medium text-secondary mb-3">Choose Your Provider</h2>
+        <h2 className="text-strong font-medium text-secondary mb-3">Choose your provider</h2>
         <div className="flex flex-wrap gap-2 mb-4">
           {providers.map((provider) => (
-            <button
+            <Chip
               key={provider.name}
+              size="md"
+              active={selectedProvider.name === provider.name}
               onClick={() => setSelectedProvider(provider)}
-              className={`px-3 py-1.5 rounded-md text-strong font-medium transition-colors ${
-                selectedProvider.name === provider.name
-                  ? 'bg-[var(--text-primary)] text-[var(--bg-app)]'
-                  : 'bg-surface border border-subtle text-secondary hover:text-primary hover:bg-hover'
-              }`}
             >
               {provider.name}
-            </button>
+            </Chip>
           ))}
         </div>
 
@@ -420,7 +416,7 @@ export function SmtpGuidePage() {
               </div>
               {selectedProvider.requires_domain_setup && (
                 <span className="px-2 py-1 text-body font-medium rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                  Domain Setup Required
+                  Domain setup required
                 </span>
               )}
             </div>
@@ -429,10 +425,10 @@ export function SmtpGuidePage() {
           <div className="p-5 space-y-4">
             {/* Connection Details */}
             <div>
-              <h4 className="text-body font-medium text-secondary mb-3">Connection Details</h4>
+              <h4 className="text-body font-medium text-secondary mb-3">Connection details</h4>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <div className="rounded-md bg-elevated p-3 border border-subtle">
-                  <p className="text-body text-tertiary mb-1">SMTP Host</p>
+                  <p className="text-body text-tertiary mb-1">SMTP host</p>
                   <div className="flex items-center justify-between">
                     <code className="text-strong text-primary">{selectedProvider.host}</code>
                     <CopyButton text={selectedProvider.host} />
@@ -456,7 +452,7 @@ export function SmtpGuidePage() {
               </div>
               {selectedProvider.daily_limit && (
                 <div className="mt-3 rounded-md bg-elevated p-3 border border-subtle">
-                  <p className="text-body text-tertiary">Recommended Daily Send Limit</p>
+                  <p className="text-body text-tertiary">Recommended daily limit</p>
                   <p className="text-strong text-primary font-medium">{selectedProvider.daily_limit}</p>
                 </div>
               )}
@@ -464,7 +460,7 @@ export function SmtpGuidePage() {
 
             {/* SMTP Setup Steps */}
             <div>
-              <h4 className="text-body font-medium text-secondary mb-3">SMTP Setup Steps</h4>
+              <h4 className="text-body font-medium text-secondary mb-3">Setup steps</h4>
               <div className="space-y-2">
                 {selectedProvider.steps.map((step, index) => (
                   <div key={index} className="flex items-start gap-3 p-3 rounded-md bg-elevated border border-subtle">
@@ -502,7 +498,7 @@ export function SmtpGuidePage() {
             {/* Links */}
             {selectedProvider.links && selectedProvider.links.length > 0 && (
               <div>
-                <h4 className="text-body font-medium text-secondary mb-3">Useful Links</h4>
+                <h4 className="text-body font-medium text-secondary mb-3">Useful links</h4>
                 <div className="flex flex-wrap gap-2">
                   {selectedProvider.links.map((link, i) => (
                     <a
@@ -528,7 +524,7 @@ export function SmtpGuidePage() {
         <div className="flex items-start gap-3">
           <AlertCircle className="h-5 w-5 text-primary flex-shrink-0" />
           <div>
-            <h3 className="text-strong font-medium text-primary mb-2">Deliverability Tips</h3>
+            <h3 className="text-strong font-medium text-primary mb-2">Deliverability tips</h3>
             <ul className="space-y-1.5 text-strong text-secondary">
               <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 flex-shrink-0 mt-0.5" />Always set up SPF, DKIM, and DMARC records for custom domains</li>
               <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 flex-shrink-0 mt-0.5" />Use app-specific passwords instead of your main account password</li>

@@ -110,12 +110,8 @@ export function RevenuePage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-            <Banknote className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-          </span>
-        }
-        title="Revenue by campaign"
+        icon={Banknote}
+        title="Revenue"
         description="What your outreach earned, not just what it sent."
         actions={sorted.length > 0 && (
           <Button variant="secondary" onClick={() => exportRevenueCsv(sorted)} title="Export the table below as a CSV file">

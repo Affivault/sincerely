@@ -91,12 +91,8 @@ export function SchedulesPage() {
     <div>
       <PageHeader
         decorate
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
-            <CalendarClock className="h-4 w-4 text-[var(--indigo)]" />
-          </span>
-        }
-        title="Sending schedules"
+        icon={CalendarClock}
+        title="Schedules"
         description="Reusable send-time windows. Set one as default to apply automatically to new campaigns."
         meta={schedules.length > 0 ? <span className="tabular">{schedules.length} schedule{schedules.length === 1 ? '' : 's'}</span> : undefined}
         actions={

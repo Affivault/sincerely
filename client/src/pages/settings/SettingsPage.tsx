@@ -7,12 +7,12 @@ import { settingsApi, type UserSettings } from '../../api/settings.api';
 import { Button } from '../../components/ui/Button';
 import { Toggle } from '../../components/ui/Toggle';
 import { PageHeader } from '../../components/shared/PageHeader';
-import { SettingsShell } from '../../components/shared/SettingsShell';
 import { Avatar } from '../../components/shared/Avatar';
 import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import { PLACEHOLDER } from '@lemlist/shared';
 import { RelayEngineNote } from '../../components/inbox/PeopleFirstNotices';
+import { Chip } from '../../components/ui/Chip';
 import {
   User,
   Mail,
@@ -325,15 +325,10 @@ export function SettingsPage() {
   }
 
   return (
-    <SettingsShell>
+    <>
     <div>
       <PageHeader
-        className="!mx-0 !mt-0 rounded-xl border border-[var(--border-subtle)]"
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
-            <SettingsIcon className="h-4 w-4 text-[var(--indigo)]" />
-          </span>
-        }
+        icon={SettingsIcon}
         title="General"
         description="Your profile, account, notifications and AI preferences."
         meta={user?.email ? <><Mail className="h-3 w-3" /> <span>{user.email}</span></> : undefined}
@@ -501,7 +496,7 @@ export function SettingsPage() {
                     </div>
                   </div>
                   <Button variant="secondary" size="sm" onClick={() => setShowPasswordModal(true)}>
-                    Change Password
+                    Change password
                   </Button>
                 </div>
 
@@ -639,7 +634,7 @@ export function SettingsPage() {
                     {!showDeleteModal ? (
                       <Button variant="danger" size="sm" onClick={() => setShowDeleteModal(true)}>
                         <Trash2 className="h-3.5 w-3.5" />
-                        Delete Account
+                        Delete account
                       </Button>
                     ) : (
                       <div className="space-y-3 p-4 rounded-lg bg-[var(--bg-surface)] border border-[var(--error)]/30">
@@ -753,7 +748,7 @@ export function SettingsPage() {
 
                 <div>
                   <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">
-                    Default Email Signature
+                    Default email signature
                   </label>
                   <textarea
                     value={defaultSignature}
@@ -826,19 +821,9 @@ export function SettingsPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-body font-medium text-[var(--text-secondary)]">How you sound</span>
                     {(['friendly', 'direct', 'formal'] as const).map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => { setRelayTone(t); markChanged(); }}
-                        className={cn(
-                          'h-7 px-3 rounded-full text-caption font-medium border transition-colors',
-                          relayTone === t
-                            ? 'border-[rgba(91,91,245,0.4)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
-                            : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]',
-                        )}
-                      >
+                      <Chip key={t} active={relayTone === t} onClick={() => { setRelayTone(t); markChanged(); }}>
                         {t === 'friendly' ? 'Friendly' : t === 'direct' ? 'Direct' : 'Formal'}
-                      </button>
+                      </Chip>
                     ))}
                   </div>
                 </div>
@@ -872,7 +857,7 @@ export function SettingsPage() {
                       <div className="px-1">
                         <h3 className="text-strong font-semibold text-[var(--text-primary)] flex items-center gap-2">
                           <Zap className="h-4 w-4 text-[var(--c-indigo)]" />
-                          Auto Actions
+                          Auto actions
                         </h3>
                         <p className="text-body text-[var(--text-tertiary)] mt-1">
                           Actions that are automatically performed for high-confidence tags
@@ -1003,7 +988,7 @@ export function SettingsPage() {
                 ) : (
                   <>
                     <Save className="h-4 w-4" />
-                    Save Changes
+                    Save changes
                   </>
                 )}
               </button>
@@ -1011,7 +996,7 @@ export function SettingsPage() {
           </div>
       </div>
     </div>
-    </SettingsShell>
+    </>
   );
 }
 

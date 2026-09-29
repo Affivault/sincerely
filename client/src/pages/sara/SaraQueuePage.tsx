@@ -190,11 +190,7 @@ export function SaraQueuePage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo)]">
-            <Bot className="h-4 w-4 text-white" />
-          </span>
-        }
+        icon={Bot}
         title="Relay"
         description="Smart Autonomous Reply Agent — AI-powered email responses"
         meta={stats?.pending_review ? (

@@ -1,17 +1,17 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   DEAL_STAGES, OPEN_STAGES, annualRecurring, dealValue, medianDaysPerStage,
   outcomesByStage, performanceBySource, reasonBreakdown, plural, sourceLabel } from '@lemlist/shared';
 import type { DealStage } from '@lemlist/shared';
 import { crmApi } from '../../api/crm.api';
-import { Spinner } from '../../components/ui/Spinner';
+import { SkeletonList } from '../../components/ui/Skeleton';
 import { cn } from '../../lib/utils';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
+import { PageHeader } from '../../components/shared/PageHeader';
 import {
-  ArrowLeft, BarChart3, Clock, ThumbsDown, ThumbsUp, TrendingUp, Trophy,
+  BarChart3, Clock, ThumbsDown, ThumbsUp, TrendingUp, Trophy,
 } from 'lucide-react';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -138,26 +138,11 @@ export function DealInsightsPage() {
 
   return (
     <div>
-      <Link
-        to="/deals"
-        className="group mb-3 inline-flex items-center gap-1.5 text-body font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]"
-      >
-        <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
-        Pipeline
-      </Link>
-
-      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--indigo-subtle)]">
-            <BarChart3 className="h-5 w-5 text-[var(--indigo)]" />
-          </span>
-          <div>
-            <h1 className="text-title font-semibold tracking-[-0.01em] text-[var(--text-primary)]">Win / loss</h1>
-            <p className="text-body text-[var(--text-tertiary)]">
-              Where deals die, why, how long they take, and which sources are worth the effort.
-            </p>
-          </div>
-        </div>
+      <PageHeader
+        icon={BarChart3}
+        title="Win / loss"
+        description="Where deals die, why, how long they take, and which sources are worth the effort."
+        actions={
         <div className="flex flex-shrink-0 items-center gap-1 rounded-lg border border-[var(--border-subtle)] p-0.5">
           {WINDOWS.map((w) => (
             <button
@@ -175,11 +160,12 @@ export function DealInsightsPage() {
             </button>
           ))}
         </div>
-      </div>
+        }
+      />
 
       <Refreshing active={stale}>
         {isLoading ? (
-          <div className="flex items-center justify-center py-24"><Spinner size="md" /></div>
+          <SkeletonList rows={5} />
         ) : isError || !analysis ? (
           <div className="panel py-16 text-center">
             <p className="text-strong font-medium text-[var(--text-primary)]">Could not load the analysis</p>

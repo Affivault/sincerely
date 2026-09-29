@@ -1,3 +1,4 @@
+import { SECTIONS } from '../lib/sections';
 import { useEffect, useRef } from 'react';
 import { X, Keyboard } from 'lucide-react';
 import { CALENDAR_SHORTCUTS } from '@lemlist/shared';
@@ -10,20 +11,21 @@ interface ShortcutsOverlayProps {
 
 const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = [
   {
-    title: 'Navigate',
+    // The six places first, from the same definition as the sidebar.
+    title: 'Go to',
+    items: [
+      ...SECTIONS.map((sec) => ({ keys: ['G', sec.goKey.toUpperCase()], label: sec.name })),
+      { keys: ['G', 'S'], label: 'Settings' },
+    ],
+  },
+  {
+    title: 'Jump straight to',
     items: [
       { keys: ['G', 'F'], label: 'Flow' },
-      { keys: ['G', 'R'], label: 'Replies' },
-      { keys: ['G', 'P'], label: 'Deals (pipeline)' },
-      { keys: ['G', 'O'], label: 'Contacts' },
-      { keys: ['G', 'M'], label: 'Calendar (meetings)' },
-      { keys: ['G', 'D'], label: 'Dashboard' },
-      { keys: ['G', 'C'], label: 'Campaigns' },
-      { keys: ['G', 'I'], label: 'Unibox' },
-      { keys: ['G', 'A'], label: 'Analytics' },
-      { keys: ['G', 'L'], label: 'Lead lists' },
+      { keys: ['G', 'R'], label: 'Reply queue' },
+      { keys: ['G', 'M'], label: 'Calendar' },
+      { keys: ['G', 'L'], label: 'Leads' },
       { keys: ['G', 'T'], label: 'Templates' },
-      { keys: ['G', 'S'], label: 'Settings' },
     ],
   },
   {

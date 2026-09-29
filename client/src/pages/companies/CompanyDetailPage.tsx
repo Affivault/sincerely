@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { companiesApi } from '../../api/companies.api';
 import { crmApi } from '../../api/crm.api';
 import { Spinner } from '../../components/ui/Spinner';
+import { PageSkeleton } from '../../components/ui/Skeleton';
 import { InlineEdit, InlineSelect } from '../../components/ui/InlineEdit';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { Avatar } from '../../components/shared/Avatar';
@@ -209,7 +210,7 @@ export function CompanyDetailPage() {
   }, [activity]);
 
   if (!id) return <div className="text-center py-12 text-[var(--text-secondary)]">Invalid company URL.</div>;
-  if (isLoading) return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>;
+  if (isLoading) return <PageSkeleton variant="detail" bleed={false} />;
   if (!data) return <div className="text-center text-[var(--text-secondary)]">Company not found</div>;
 
   const { company, contacts, deals } = data;

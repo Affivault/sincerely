@@ -538,11 +538,7 @@ export function PlacementPage() {
       <PageHeader
         /* The standard full-width header: this card style is for pages inside the settings shell. */
         decorate
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-[rgba(91,91,245,0.18)] bg-[var(--indigo-subtle)]">
-            <Target className="h-4 w-4 text-[var(--indigo)]" />
-          </span>
-        }
+        icon={Target}
         title="Inbox placement"
         description="Send a real message to mailboxes you control, then read them to find out which folder it landed in."
         meta={

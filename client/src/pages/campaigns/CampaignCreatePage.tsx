@@ -954,7 +954,7 @@ export function CampaignCreatePage() {
   // The wrapper cancels <main>'s padding at every width (see AppLayout) so the
   // builder fills the screen; a fixed -mx-8 overflowed a phone by 16px.
   return (
-    <div className="-mx-4 -my-5 sm:-mx-6 lg:-mx-8 lg:-my-7 flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
+    <div className="-mx-4 -my-5 sm:-mx-6 lg:-mx-8 lg:-my-7 flex flex-col" style={{ height: 'calc(100vh - var(--chrome-h, 56px))' }}>
       {/*
         * Offered, never restored silently.
         *
@@ -1724,7 +1724,7 @@ export function CampaignCreatePage() {
 
                         {/* A/B Subject Testing */}
                         <ABSection
-                          title="A/B Subject Testing"
+                          title="A/B test the subject"
                           variantA={steps[editingStep].subject || ''}
                           variantB={(steps[editingStep] as any).subject_b || ''}
                           onChangeB={(val) => setSteps(steps.map((s, i) => i === editingStep ? ({ ...s, subject_b: val } as any) : s))}
@@ -1735,7 +1735,7 @@ export function CampaignCreatePage() {
 
                         {/* A/B Body Testing */}
                         <ABSection
-                          title="A/B Body Testing"
+                          title="A/B test the body"
                           variantA={(steps[editingStep].body_html || '').replace(/<[^>]*>/g, '').slice(0, 100) + ((steps[editingStep].body_html || '').length > 100 ? '…' : '')}
                           variantB={(steps[editingStep] as any).body_html_b || ''}
                           onChangeB={(val) => setSteps(steps.map((s, i) => i === editingStep ? ({ ...s, body_html_b: val } as any) : s))}

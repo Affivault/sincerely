@@ -347,7 +347,7 @@ export function CampaignsListPage() {
       <div className="grid grid-cols-1 md:grid-cols-[200px,1fr] gap-3">
         {/* Folder rail. Not on a phone, where it would sit above the list
             and push every campaign below the fold. */}
-        <aside className="hidden md:block panel-inset p-1.5 self-start sticky top-[56px] max-h-[calc(100vh-72px)] overflow-y-auto">
+        <aside className="hidden md:block panel-inset p-1.5 self-start sticky top-[calc(var(--chrome-h,56px)+8px)] max-h-[calc(100vh-var(--chrome-h,56px)-16px)] overflow-y-auto">
           <div className="px-2 pt-1 pb-1.5 flex items-center justify-between">
             <span className="text-micro font-semibold text-[var(--text-tertiary)]">Folders</span>
             <button

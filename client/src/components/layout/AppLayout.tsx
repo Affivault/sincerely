@@ -17,37 +17,14 @@ import { listenForRouteIntent } from '../../lib/prefetch';
 import { holdKeySequence, isModalOpen, isTypingTarget, releaseKeySequence } from '../../lib/keyboard';
 import { warmRichTextEditor } from '../ui/RichTextEditor';
 import { cn } from '../../lib/utils';
-
-/* Route → page name, used for document titles (wayfinding) */
-const PAGE_TITLES: [prefix: string, name: string][] = [
-  ['/dashboard', 'Dashboard'],
-  ['/campaigns', 'Campaigns'],
-  ['/inbox', 'Unibox'],
-  ['/deals', 'Deals'],
-  ['/companies', 'Companies'],
-  ['/calendar', 'Calendar'],
-  ['/tasks', 'Activities'],
-  ['/crm', 'Deals'],
-  ['/analytics', 'Analytics'],
-  ['/templates', 'Templates'],
-  ['/schedules', 'Schedules'],
-  ['/leads/inbox', 'Leads inbox'],
-  ['/leads', 'Lead lists'],
-  ['/contacts', 'Contacts'],
-  ['/email-accounts', 'Email accounts'],
-  ['/suppression', 'Suppression'],
-  ['/verification', 'Verification'],
-  ['/team', 'Team'],
-  ['/developer', 'Webhooks'],
-  ['/linkedin', 'LinkedIn'],
-  ['/integrations', 'Integrations'],
-  ['/toolkit', 'Toolkit'],
-  ['/settings', 'Settings'],
-];
+import { SECTIONS, locate, isSettingsPath, pageTitle } from '../../lib/sections';
+import { SectionBar, SECTION_BAR_H } from './SectionBar';
+import { SettingsShell } from '../shared/SettingsShell';
 
 /* `g` then key → destination (Linear-style two-stroke navigation) */
 const GO_MAP: Record<string, string> = {
-  // Where most days are spent had no jump at all until these five.
+  // The six places first (see lib/sections), then the pages people jump to most.
+  ...Object.fromEntries(SECTIONS.map((s) => [s.goKey, s.href])),
   f: '/flow',
   r: '/replies',
   p: '/deals',     // pipeline
@@ -88,6 +65,11 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const here = locate(location.pathname);
+  const inSettings = isSettingsPath(location.pathname);
+  // A place with one page needs no tabs.
+  const showBar = !!here.section && here.section.tabs.length > 1;
+  const fullBleed = location.pathname.startsWith('/inbox');
   const goPending = useRef<number | null>(null);
   const prevUnreadRef = useRef<number>(0);
   const originalFaviconHrefRef = useRef<string | null>(null);
@@ -120,7 +102,7 @@ function AppContent() {
 
   // Wayfinding — document title tracks the current page
   useEffect(() => {
-    const page = PAGE_TITLES.find(([prefix]) => location.pathname.startsWith(prefix))?.[1];
+    const page = pageTitle(location.pathname);
     const badge = unreadCount > 0 ? ` (${unreadCount})` : '';
     document.title = `${page ? `${page} · ` : ''}Sincerely${badge}`;
     return () => { document.title = 'Sincerely'; };
@@ -264,24 +246,34 @@ function AppContent() {
       {/* Full-width top bar — holds the logo + sidebar toggle, never collapses */}
       <Header />
       <Sidebar />
-      <div className={cn(
-        'transition-[padding] duration-200 pt-[56px]',
-        narrow ? 'pl-0' : collapsed ? 'pl-[52px]' : 'pl-[240px]'
-      )}>
+      <div
+        className={cn(
+          'transition-[padding] duration-200 pt-[56px]',
+          narrow ? 'pl-0' : collapsed ? 'pl-[52px]' : 'pl-[240px]'
+        )}
+        // Everything above the page: the header, and the section bar when
+        // there is one. Full-height surfaces (the Unibox, the campaign
+        // builder) and sticky rails size themselves from this.
+        style={{ ['--chrome-h' as string]: `${56 + (showBar ? SECTION_BAR_H : 0)}px` }}
+      >
+        {showBar && here.section && <SectionBar section={here.section} active={here.tab} />}
         {/* Generous workspace width — effectively full-bleed on laptops so data
             tables breathe, while capping ultrawide so forms stay readable.
             The Unibox is a full-viewport app surface: no padding, no max-width,
             no promo banner — it owns every pixel below the header. */}
         <main className={cn(
-          location.pathname.startsWith('/inbox')
+          fullBleed
             ? 'max-w-none p-0'
             : 'px-4 py-5 sm:px-6 lg:px-8 lg:py-7 max-w-[1760px] mx-auto'
         )}>
-          {!location.pathname.startsWith('/inbox') && <UpgradeNag />}
+          {!fullBleed && <UpgradeNag />}
           {/* key on pathname so the fade-up replays on every route change */}
           <div key={location.pathname} className="route-fade">
             <ErrorBoundary>
-              <Outlet />
+              {/* Every settings page shares the settings menu. It was
+                  wrapped page by page, so Email accounts, Schedules and
+                  Webhooks - all listed in it - dropped it when opened. */}
+              {inSettings ? <SettingsShell><Outlet /></SettingsShell> : <Outlet />}
             </ErrorBoundary>
           </div>
         </main>

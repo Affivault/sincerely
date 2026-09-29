@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { SettingsShell } from '../../components/shared/SettingsShell';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { verificationApi } from '../../api/verification.api';
@@ -174,16 +173,11 @@ export function VerificationPage() {
   const avgScore = Math.round(stats?.avg_score || 0);
 
   return (
-    <SettingsShell>
+    <>
     <div className="space-y-5">
       {/* The one settings page that opened on a search box with no name. */}
       <PageHeader
-        className="!mx-0 !mt-0 !mb-0 rounded-xl border border-[var(--border-subtle)]"
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-            <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-          </span>
-        }
+        icon={ShieldCheck}
         title="Verification"
         description="Check addresses before you send to them. Every contact gets a score from 0 to 100 for how likely a message is to arrive."
         meta={stats ? <span className="tabular">{stats.verified.toLocaleString()} of {stats.total.toLocaleString()} checked</span> : undefined}
@@ -430,6 +424,6 @@ export function VerificationPage() {
         </div>
       )}
     </div>
-    </SettingsShell>
+    </>
   );
 }

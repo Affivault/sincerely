@@ -170,6 +170,11 @@ export default function App() {
           {/* Today briefly lived here and the dashboard was pushed to /overview.
               Kept as a redirect so bookmarks and old links still land. */}
           <Route path="/dashboard/overview" element={<Navigate to="/dashboard" replace />} />
+          {/* The six places by name (lib/sections), for links and typing. */}
+          <Route path="/home"               element={<Navigate to="/dashboard" replace />} />
+          <Route path="/people"             element={<Navigate to="/contacts" replace />} />
+          <Route path="/pipeline"           element={<Navigate to="/deals" replace />} />
+          <Route path="/insights"           element={<Navigate to="/analytics" replace />} />
           {/*
             One component, two pages. /leads is the outreach side - lead
             lists, the people campaigns send to. /contacts is the CRM, and

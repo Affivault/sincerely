@@ -58,14 +58,14 @@ export class ErrorBoundary extends Component<Props, State> {
                 className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-strong text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Go Back
+                Go back
               </button>
               <button
                 onClick={this.handleReset}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--text-primary)] text-[var(--bg-app)] text-strong font-medium hover:opacity-90 transition-opacity"
               >
                 <RefreshCw className="h-4 w-4" />
-                Try Again
+                Try again
               </button>
             </div>
           </div>

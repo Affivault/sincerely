@@ -3,13 +3,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  LayoutDashboard, Waves, Users, Megaphone, Inbox, BarChart3, Settings,
-  FileText, Webhook, Send, Globe, ShieldOff, ShieldCheck, UserPlus,
-  CalendarClock, Wrench, Plus, Search, Sun, Moon, LogOut, CornerDownLeft, Blocks,
+  Users, Megaphone, Inbox, FileText, Plus, Search, Sun, Moon, LogOut, CornerDownLeft,
   ArrowUp, ArrowDown, Handshake, ListTodo, CalendarDays, Phone, Mail,
-  CheckSquare, Loader2, Building2, Radar, Linkedin, type LucideIcon,
+  CheckSquare, Loader2, Building2, type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { SECTIONS, SETTINGS_TABS } from '../lib/sections';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useDebounce } from '../hooks/useDebounce';
@@ -119,30 +118,15 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   const staticItems = useMemo<CommandItem[]>(() => [
     // Navigate
-    { id: 'nav-flow', label: 'Flow', icon: Waves, group: 'Navigate', href: '/flow', keywords: 'today queue next focus work decide todo priorities' },
-    { id: 'nav-dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Navigate', href: '/dashboard', keywords: 'home overview performance stats numbers' },
-    { id: 'nav-inbox', label: 'Unibox', icon: Inbox, group: 'Navigate', href: '/inbox', keywords: 'messages replies email' },
-    { id: 'nav-deals', label: 'Deals', icon: Handshake, group: 'Navigate', href: '/deals', keywords: 'pipeline crm opportunities' },
-    { id: 'nav-calendar', label: 'Calendar', icon: CalendarDays, group: 'Navigate', href: '/calendar', keywords: 'meetings schedule diary' },
-    { id: 'nav-tasks', label: 'Activities', icon: ListTodo, group: 'Navigate', href: '/tasks', keywords: 'tasks todo follow-ups calls' },
-    { id: 'nav-campaigns', label: 'Campaigns', icon: Megaphone, group: 'Navigate', href: '/campaigns', keywords: 'sequences outreach' },
-    { id: 'nav-analytics', label: 'Analytics', icon: BarChart3, group: 'Navigate', href: '/analytics', keywords: 'stats reports metrics' },
-    { id: 'nav-templates', label: 'Templates', icon: FileText, group: 'Navigate', href: '/templates', keywords: 'emails snippets' },
-    { id: 'nav-schedules', label: 'Schedules', icon: CalendarClock, group: 'Navigate', href: '/schedules', keywords: 'sending times' },
-    { id: 'nav-leads', label: 'Lead lists', icon: Users, group: 'Navigate', href: '/leads', keywords: 'leads prospects outreach audience lists cold' },
-    { id: 'nav-contacts', label: 'Contacts', icon: Users, group: 'Navigate', href: '/contacts', keywords: 'contacts crm customers relationships people lists' },
-    { id: 'nav-companies', label: 'Companies', icon: Building2, group: 'Navigate', href: '/companies', keywords: 'accounts organisations organizations firms' },
-    { id: 'nav-prospector', label: 'Prospector', icon: Radar, group: 'Navigate', href: '/prospector', keywords: 'find leads search database discover' },
-    { id: 'nav-smtp', label: 'Email accounts', icon: Send, group: 'Navigate', href: '/email-accounts', keywords: 'mailbox sender smtp' },
-    { id: 'nav-domains', label: 'Domains & DNS', icon: Globe, group: 'Navigate', href: '/email-accounts', keywords: 'dns spf dkim deliverability authentication' },
-    { id: 'nav-verification', label: 'Verification', icon: ShieldCheck, group: 'Navigate', href: '/verification', keywords: 'validate dcs score' },
-    { id: 'nav-suppression', label: 'Suppression', icon: ShieldOff, group: 'Navigate', href: '/suppression', keywords: 'blocklist unsubscribe' },
-    { id: 'nav-linkedin', label: 'LinkedIn', icon: Linkedin, group: 'Navigate', href: '/linkedin', keywords: 'connect invite outreach social extension agent' },
-    { id: 'nav-integrations', label: 'Integrations', icon: Blocks, group: 'Navigate', href: '/integrations', keywords: 'slack discord telegram zapier make hubspot pipedrive connect apps' },
-    { id: 'nav-webhooks', label: 'Webhooks', icon: Webhook, group: 'Navigate', href: '/developer', keywords: 'api developer events' },
-    { id: 'nav-toolkit', label: 'Toolkit', icon: Wrench, group: 'Navigate', href: '/toolkit', keywords: 'tools utilities' },
-    { id: 'nav-team', label: 'Team', icon: UserPlus, group: 'Navigate', href: '/team', keywords: 'members invite seats' },
-    { id: 'nav-settings', label: 'Settings', icon: Settings, group: 'Navigate', href: '/settings', keywords: 'preferences account' },
+    // Every page, from the one definition the sidebar and section bar use,
+    // so the palette cannot list a page the app no longer has - or miss one.
+    ...SECTIONS.flatMap((sec) => sec.tabs.map((t) => ({
+      id: `nav-${t.href}`, label: t.label, meta: t.label === sec.name ? null : sec.name,
+      icon: t.icon, group: 'Navigate', href: t.href, keywords: `${sec.name} ${t.keywords || ''}`,
+    }))),
+    ...SETTINGS_TABS.map((t) => ({
+      id: `nav-${t.href}`, label: t.label, meta: 'Settings', icon: t.icon, group: 'Navigate', href: t.href, keywords: `settings ${t.keywords || ''}`,
+    })),
     // Create
     { id: 'new-campaign', label: 'New campaign', icon: Plus, group: 'Create', href: '/campaigns/new', keywords: 'create sequence add' },
     { id: 'import-contacts', label: 'Import contacts', icon: Users, group: 'Create', href: '/contacts/import', keywords: 'upload csv add leads' },

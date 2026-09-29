@@ -9,6 +9,7 @@ import { campaignsApi } from '../../api/campaigns.api';
 import { analyticsApi, type AbTestStep } from '../../api/analytics.api';
 import { stepHasVariantB, abStatusLine, type AbStatus, formatDate, formatDateTime } from '@lemlist/shared';
 import { Spinner } from '../../components/ui/Spinner';
+import { PageSkeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
@@ -240,13 +241,7 @@ export function CampaignDetailPage() {
     });
   }, [campaignContacts?.data, contactSearch, contactStatusFilter]);
 
-  if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Spinner size="lg" />
-      </div>
-    );
-  }
+  if (isLoading) return <PageSkeleton variant="detail" bleed={false} />;
 
   if (!campaign) {
     return <div className="text-center text-secondary">Campaign not found</div>;
@@ -462,7 +457,7 @@ export function CampaignDetailPage() {
 
           <div className="panel overflow-hidden">
             <div className="px-5 py-3.5 border-b border-[var(--border-subtle)]">
-              <h3 className="text-strong font-semibold text-[var(--text-primary)] tracking-[-0.005em]">Campaign Settings</h3>
+              <h3 className="text-strong font-semibold text-[var(--text-primary)] tracking-[-0.005em]">Campaign settings</h3>
             </div>
             <dl className="divide-y divide-[var(--border-subtle)]">
               {[
@@ -593,7 +588,7 @@ export function CampaignDetailPage() {
                   className="ml-auto flex items-center gap-1.5 h-8 px-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 text-body font-medium hover:bg-amber-100 disabled:opacity-50 transition-colors dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60"
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${retryErrorsMutation.isPending ? 'animate-spin' : ''}`} />
-                  Retry Errors
+                  Retry errors
                 </button>
               )}
             </div>
@@ -622,7 +617,7 @@ export function CampaignDetailPage() {
                     <th className="px-4 py-2.5 text-left text-micro font-medium text-[var(--text-tertiary)]">Contact</th>
                     <th className="px-4 py-2.5 text-left text-micro font-medium text-[var(--text-tertiary)]">Status</th>
                     <th className="px-4 py-2.5 text-left text-micro font-medium text-[var(--text-tertiary)]">Progress</th>
-                    <th className="px-4 py-2.5 text-left text-micro font-medium text-[var(--text-tertiary)]">Next Send</th>
+                    <th className="px-4 py-2.5 text-left text-micro font-medium text-[var(--text-tertiary)]">Next send</th>
                     <th className="px-4 py-2.5 text-left text-micro font-medium text-[var(--text-tertiary)]">Error</th>
                   </tr>
                 </thead>
@@ -737,7 +732,7 @@ function ContactProgressCard({ campaign }: { campaign: any }) {
   return (
     <div className="panel p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-strong font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Contact Progress</h3>
+        <h3 className="text-strong font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Contact progress</h3>
         <span className="text-body text-[var(--text-secondary)]">{total} total</span>
       </div>
 

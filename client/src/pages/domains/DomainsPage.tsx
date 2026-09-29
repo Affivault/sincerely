@@ -10,7 +10,6 @@ import { Modal } from '../../components/ui/Modal';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { PageHeader } from '../../components/shared/PageHeader';
-import { SettingsShell } from '../../components/shared/SettingsShell';
 import { Card } from '../../components/shared/Card';
 import { StatCard } from '../../components/shared/StatCard';
 import { cn } from '../../lib/utils';
@@ -534,7 +533,7 @@ export function DomainsPage() {
 
   if (isError) {
     return (
-      <SettingsShell>
+      <>
         <EmptyState
           icon={AlertTriangle}
           title="Couldn't load your domains"
@@ -542,7 +541,7 @@ export function DomainsPage() {
           actionLabel="Retry"
           onAction={() => queryClient.invalidateQueries({ queryKey: ['domains'] })}
         />
-      </SettingsShell>
+      </>
     );
   }
 
@@ -551,16 +550,12 @@ export function DomainsPage() {
   const verifiedPct = totalDomains > 0 ? Math.round((verifiedDomains / totalDomains) * 100) : 0;
 
   return (
-    <SettingsShell>
+    <>
     <div>
       <PageHeader
         className="!mx-0 !mt-0 rounded-xl border border-[var(--border-subtle)]"
         decorate
-        leading={
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
-            <Globe className="h-4 w-4 text-[var(--indigo)]" />
-          </span>
-        }
+        icon={Globe}
         title="Sending domains"
         description="Verify SPF, DKIM and DMARC records to improve deliverability and protect your brand."
         meta={
@@ -765,13 +760,13 @@ export function DomainsPage() {
                   setExpandedId(addResult.domain.id);
                 }}
               >
-                View Domain Details
+                View domain details
               </Button>
             </div>
           </div>
         )}
       </Modal>
     </div>
-    </SettingsShell>
+    </>
   );
 }
