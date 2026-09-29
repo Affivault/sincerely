@@ -5,7 +5,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import Papa from 'papaparse';
 import { useDebounce } from '../../hooks/useDebounce';
 import { contactsApi, listsApi, tagsApi } from '../../api/contacts.api';
-import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL, formatDate } from '@lemlist/shared';
+import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL, formatDate, plural } from '@lemlist/shared';
 import type { Lifecycle, ListKind } from '@lemlist/shared';
 import { usePeek } from '../../components/peek/usePeek';
 import { useFillViewport } from '../../hooks/useFillViewport';
@@ -75,6 +75,7 @@ import {
   Clock,
   Activity,
   Sparkles,
+  UserPlus,
 } from 'lucide-react';
 
 type ContactSortKey = 'first_name' | 'email' | 'company' | 'dcs_score' | 'created_at';
@@ -494,6 +495,14 @@ interface ColumnDef {
 const CONTACT_COL_ID = '__contact__';
 const CONTACT_COL_DEFAULT_W = 260;
 const DEFAULT_COL_W = 160;
+/**
+ * Starting widths sized to what each column holds. One width for all of them
+ * cut most addresses to "maud@northb…" while a status column had room for a
+ * sentence - and a filler column sat empty at the end of the row.
+ */
+const COL_DEFAULT_W: Record<string, number> = {
+  email: 240, status: 120, lifecycle: 120, company: 180, location: 170, added: 120,
+};
 const MIN_COL_W = 88;
 const MAX_COL_W = 640;
 const GUTTER_W = 44;
@@ -840,7 +849,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
-      toast.success(`Deleted ${result.deleted} contacts`);
+      toast.success(`Deleted ${plural(result.deleted, 'contact')}`);
       setSelectedContacts(new Set());
     },
   });
@@ -994,7 +1003,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
-      toast.success(`Imported ${result.imported} contacts`);
+      toast.success(`Imported ${plural(result.imported, 'contact')}`);
       setShowImportModal(false);
       setImportFile(null);
       setCsvHeaders([]);
@@ -1192,7 +1201,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     try { return JSON.parse(localStorage.getItem('contacts.colWidths') || '{}'); } catch { return {}; }
   });
   const widthOf = (id: string) =>
-    colWidths[id] ?? (id === CONTACT_COL_ID ? CONTACT_COL_DEFAULT_W : DEFAULT_COL_W);
+    colWidths[id] ?? (id === CONTACT_COL_ID ? CONTACT_COL_DEFAULT_W : COL_DEFAULT_W[id] ?? DEFAULT_COL_W);
 
   // Holds the active drag gesture's listeners so they can be torn down if the
   // table unmounts mid-resize (route change, browser back/forward) — without
@@ -2421,7 +2430,15 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             >
               {/* Live identity preview */}
               <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
-                <Avatar name={previewName || form.email || 'New'} email={form.email} size="lg" />
+                {/* Initials once there is something to take them from - before
+                    that, "New" gave an avatar reading "NE". */}
+                {previewName || form.email ? (
+                  <Avatar name={previewName || form.email} email={form.email} size="lg" />
+                ) : (
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-dashed border-[var(--border-default)] text-[var(--text-muted)]">
+                    <UserPlus className="h-4 w-4" />
+                  </span>
+                )}
                 <div className="min-w-0">
                   <p className="text-strong font-semibold text-[var(--text-primary)] truncate">
                     {previewName || 'New contact'}

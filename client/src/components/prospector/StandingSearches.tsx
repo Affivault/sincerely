@@ -1,3 +1,4 @@
+import { campaignStatusLabel } from '@lemlist/shared';
 /* ═══════════════════════════════════════════════════════════════════════
    Standing searches: a search that keeps working after you close the tab.
 
@@ -171,7 +172,7 @@ export function StandingSearches() {
                 <option value="">Contacts only</option>
                 {live.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 {r.campaign && !live.some((c: any) => c.id === r.campaign!.id) && (
-                  <option value={r.campaign.id} disabled>{r.campaign.name} ({r.campaign.status})</option>
+                  <option value={r.campaign.id} disabled>{r.campaign.name} ({campaignStatusLabel(r.campaign.status).toLowerCase()})</option>
                 )}
               </select>
               <button className="icon-btn h-8 w-8" title="Run now" disabled={run.isPending} onClick={() => run.mutate(r.id)}>

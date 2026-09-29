@@ -20,6 +20,9 @@ export interface QueuedReply {
   snooze_note: string | null;
   /** Open pipeline value on the contact behind this reply. */
   deal_value: number | null;
+  /** The contact's name and company, when the sender is a known contact. */
+  contact_name?: string | null;
+  company?: string | null;
   state: ReplyState;
   /** What to do first. Higher sorts earlier. */
   priority: number;

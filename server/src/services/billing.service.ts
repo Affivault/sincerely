@@ -6,8 +6,7 @@ import {
   type PlanLimits,
   type PlanFeatures,
   type SubscriptionStatus,
-  type UsageSummary,
-} from '@lemlist/shared';
+  type UsageSummary, plural } from '@lemlist/shared';
 
 // New users (and anyone without an active/trialing subscription) sit on the
 // restrictive Free plan until they subscribe.
@@ -76,7 +75,7 @@ export const billingService = {
     const current = await this.countInboxes(userId);
     if (current >= limits.maxInboxes) {
       throw new AppError(
-        `Your plan allows up to ${limits.maxInboxes} sending inbox(es). Upgrade your plan to connect more.`,
+        `Your plan allows up to ${plural(limits.maxInboxes, 'sending inbox', 'sending inboxes')}. Upgrade your plan to connect more.`,
         403,
         'UPGRADE_REQUIRED',
       );

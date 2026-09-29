@@ -7,7 +7,7 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
-import { valuePerReply, formatMoney } from '@lemlist/shared';
+import { valuePerReply, formatMoney, plural } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -152,7 +152,7 @@ export function RevenuePage() {
           <Stat
             icon={Info} label="Deals attributed"
             value={totals.deals.toLocaleString()}
-            sub={`${sorted.filter((r) => r.won > 0).length} campaign(s) have closed one`}
+            sub={(() => { const n = sorted.filter((r) => r.won > 0).length; return `${plural(n, 'campaign')} ${n === 1 ? 'has' : 'have'} closed one`; })()}
           />
         </div>
       )}

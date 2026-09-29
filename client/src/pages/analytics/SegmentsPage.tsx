@@ -8,8 +8,7 @@ import { segmentsApi } from '../../api/segments.api';
 import { cn } from '../../lib/utils';
 import {
   DIMENSION_LABELS, MIN_CLOSED_FOR_RATE, LIFT_THRESHOLD,
-  type SegmentDimension, type SegmentRow, type SegmentReport,
-} from '@lemlist/shared';
+  type SegmentDimension, type SegmentRow, type SegmentReport, formatMoney } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    What the people who buy have in common.
@@ -36,10 +35,13 @@ import {
 
 const DIMENSIONS = Object.keys(DIMENSION_LABELS) as SegmentDimension[];
 
+/*
+ * Compact money in the app's currency. This was a hand-rolled "£12k" -
+ * pounds, on figures the Deals and Revenue pages show in dollars, so the
+ * same deal read as two currencies depending on the screen.
+ */
 function money(n: number): string {
-  if (n >= 1_000_000) return `£${(n / 1_000_000).toFixed(1)}m`;
-  if (n >= 1000) return `£${Math.round(n / 1000)}k`;
-  return `£${Math.round(n)}`;
+  return formatMoney(n, undefined, { compact: true });
 }
 
 function Row({ row, dimension }: { row: SegmentRow; dimension: SegmentDimension }) {
@@ -148,7 +150,7 @@ export function SegmentsPage() {
   return (
     <div className="stagger space-y-5 pb-8">
       <PageHeader
-        className="!mx-0 !mt-0 rounded-xl border border-[var(--border-subtle)]"
+        /* The standard full-width header: this card style is for pages inside the settings shell. */
         decorate
         leading={
           <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-[rgba(91,91,245,0.18)] bg-[var(--indigo-subtle)]">

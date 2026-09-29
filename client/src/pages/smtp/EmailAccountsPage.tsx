@@ -339,7 +339,7 @@ export function EmailAccountsPage() {
   return (
     <div>
       <PageHeader
-        className="!mx-0 !mt-0 rounded-xl border border-[var(--border-subtle)]"
+        /* The standard full-width header: this card style is for pages inside the settings shell. */
         decorate
         leading={
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">

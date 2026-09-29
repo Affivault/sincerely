@@ -18,7 +18,7 @@ import { campaignsApi } from '../../api/campaigns.api';
 import { cn } from '../../lib/utils';
 import {
   placementByProvider, placementAdvice, PROVIDER_LABELS, MIN_SEEDS_FOR_RATE,
-  type PlacementSummary, type ProbePlacement, type PlacementVerdict, formatDateTime } from '@lemlist/shared';
+  type PlacementSummary, type ProbePlacement, type PlacementVerdict, formatDateTime, formatDayMonthTime } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Where the mail actually landed.
@@ -206,7 +206,7 @@ function TestDetail({ detail, onRefresh, refreshing }: {
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-strong font-semibold text-[var(--text-primary)]">{detail.test.subject}</h3>
             <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
-              Sent {new Date(detail.test.started_at).toLocaleString()}
+              Sent {formatDayMonthTime(detail.test.started_at)}
               {detail.test.completed_at ? ' · finished' : ''}
             </p>
           </div>
@@ -536,7 +536,7 @@ export function PlacementPage() {
   return (
     <div className="stagger space-y-5 pb-8">
       <PageHeader
-        className="!mx-0 !mt-0 rounded-xl border border-[var(--border-subtle)]"
+        /* The standard full-width header: this card style is for pages inside the settings shell. */
         decorate
         leading={
           <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-[rgba(91,91,245,0.18)] bg-[var(--indigo-subtle)]">

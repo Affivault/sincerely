@@ -60,6 +60,29 @@ type QueueRow = ReplyFacts & {
  * whole page rather than per row - forty replies would otherwise be forty
  * round trips to move a few of them up a list.
  */
+/**
+ * Who each reply is from, by name. The queue showed bare addresses - the one
+ * list of replies in the app that did - so "maud@northbeam.io" had to be
+ * read and decoded where every other screen said "Maud Grevstad, Northbeam".
+ */
+async function peopleByContact(
+  userId: string, contactIds: string[],
+): Promise<Map<string, { name: string | null; company: string | null }>> {
+  const out = new Map<string, { name: string | null; company: string | null }>();
+  if (contactIds.length === 0) return out;
+  const data = await selectInChunks(contactIds.slice(0, MAX_ROWS), (slice) =>
+    supabaseAdmin
+      .from('contacts')
+      .select('id, first_name, last_name, company')
+      .eq('user_id', userId)
+      .in('id', slice)).catch(() => [] as any[]);
+  for (const c of data) {
+    const name = [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || null;
+    out.set(c.id as string, { name, company: c.company || null });
+  }
+  return out;
+}
+
 async function dealValueByContact(
   userId: string, contactIds: string[],
 ): Promise<Map<string, number>> {
@@ -124,7 +147,10 @@ export const replyQueueService = {
 
     const rows = (data || []) as unknown as QueueRow[];
     const contactIds = [...new Set(rows.map((r) => r.contact_id).filter(Boolean) as string[])];
-    const values = await dealValueByContact(userId, contactIds);
+    const [values, people] = await Promise.all([
+      dealValueByContact(userId, contactIds),
+      peopleByContact(userId, contactIds),
+    ]);
 
     const now = Date.now();
     const enriched = rows.map((row) => {
@@ -132,9 +158,12 @@ export const replyQueueService = {
         ...row,
         deal_value: row.contact_id ? values.get(row.contact_id) ?? null : null,
       };
+      const person = row.contact_id ? people.get(row.contact_id) : undefined;
       return {
         ...row,
         deal_value: facts.deal_value,
+        contact_name: person?.name ?? null,
+        company: person?.company ?? null,
         state: replyState(facts, now),
         priority: replyPriority(facts, now),
       };

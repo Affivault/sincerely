@@ -231,8 +231,9 @@ export function FlowPage() {
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <>
       <PageHeader
+        contentClassName="mx-auto max-w-4xl"
         title="Flow"
         description={isLoading ? 'Gathering your day...' : total === 0
           ? `${greeting}. Nothing needs you right now.`
@@ -248,6 +249,7 @@ export function FlowPage() {
         }
       />
 
+      <div className="mx-auto max-w-4xl">
       <AwayCard />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -324,7 +326,8 @@ export function FlowPage() {
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 

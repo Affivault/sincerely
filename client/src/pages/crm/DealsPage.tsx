@@ -229,12 +229,32 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
     }));
   };
 
+  const [showShape, setShowShape] = useState(false);
+
   return (
-    <Modal isOpen onClose={onClose} title={editing ? 'Edit deal' : 'New deal'} size="md">
-      <form onSubmit={(e) => { e.preventDefault(); if (form.title.trim()) save.mutate(); }} className="space-y-4">
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={editing ? 'Edit deal' : 'New deal'}
+      size="md"
+      // Pinned, not at the end of the form: the form is taller than most
+      // screens, and "Add deal" sat below the fold with nothing to say so.
+      footer={
+        <>
+          {editing ? (
+            <button type="button" onClick={() => confirm({ title: `Delete "${form.title}"?`, body: 'The deal and its history go. Linked contacts and companies stay.', tone: 'danger' }, () => del.mutate())} className="mr-auto flex items-center gap-1.5 text-body font-medium text-rose-500 hover:text-rose-600 transition-colors">
+              <Trash2 className="h-3.5 w-3.5" /> Delete
+            </button>
+          ) : null}
+          <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" type="submit" form="deal-form" disabled={save.isPending || !form.title.trim()}>{save.isPending ? 'Saving…' : editing ? 'Save' : 'Add deal'}</Button>
+        </>
+      }
+    >
+      <form id="deal-form" onSubmit={(e) => { e.preventDefault(); if (form.title.trim()) save.mutate(); }} className="space-y-4">
         <Input label="Deal name" value={form.title} onChange={e => set('title', e.target.value)} placeholder={`e.g. ${PLACEHOLDER.company} — annual plan`} required autoFocus />
         <ContactPicker
-          label="Lead"
+          label="Contact"
           contactId={form.contact_id || null}
           contactName={form.contact_name || ''}
           contactEmail={form.contact_email || null}
@@ -248,6 +268,54 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
           <Input label="Close date" type="date" value={form.expected_close_date || ''} onChange={e => set('expected_close_date', e.target.value)} />
         </div>
 
+        {!shaped && (
+          <Input
+            label="Deal value (USD)"
+            type="number"
+            min="0"
+            value={String(form.value ?? 0)}
+            onChange={e => set('value', e.target.value)}
+          />
+        )}
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <Input
+              label="Win probability"
+              type="number"
+              min="0"
+              max="100"
+              value={(form as any).probability ?? ''}
+              onChange={e => set('probability', e.target.value)}
+              placeholder={String(STAGE_PROBABILITY[form.stage])}
+            />
+            <p className="mt-1 text-caption text-[var(--text-tertiary)]">
+              Leave blank for the stage default ({STAGE_PROBABILITY[form.stage]}%).
+            </p>
+          </div>
+          <div className="col-span-2 flex items-end pb-[26px]">
+            <p className="text-body text-[var(--text-secondary)]">
+              Weighted at{' '}
+              <span className="font-semibold tabular-nums text-[var(--text-primary)]">
+                {fmtMoney(
+                  (effectiveValue *
+                    ((form as any).probability === '' || (form as any).probability == null
+                      ? STAGE_PROBABILITY[form.stage]
+                      : Number((form as any).probability) || 0)) / 100,
+                )}
+              </span>{' '}
+              in the forecast.
+            </p>
+          </div>
+        </div>
+        {/* The recurring / one-off breakdown, for the deals that need one -
+            behind a toggle, after the value, so the one number most deals
+            are sits where people look for it. Open when the deal has one. */}
+        {!showShape && !shaped ? (
+          <button type="button" onClick={() => setShowShape(true)} className="text-body font-medium text-[var(--indigo)] hover:underline">
+            + Recurring or one-off parts
+          </button>
+        ) : (
+          <>
         {/* The commercial shape.
 
             A single "value" cannot tell a three-year retainer apart from a
@@ -325,59 +393,11 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
           </div>
         </div>
 
-        {!shaped && (
-          <Input
-            label="Deal value (USD)"
-            type="number"
-            min="0"
-            value={String(form.value ?? 0)}
-            onChange={e => set('value', e.target.value)}
-          />
+          </>
         )}
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <Input
-              label="Win probability"
-              type="number"
-              min="0"
-              max="100"
-              value={(form as any).probability ?? ''}
-              onChange={e => set('probability', e.target.value)}
-              placeholder={String(STAGE_PROBABILITY[form.stage])}
-            />
-            <p className="mt-1 text-caption text-[var(--text-tertiary)]">
-              Leave blank for the stage default ({STAGE_PROBABILITY[form.stage]}%).
-            </p>
-          </div>
-          <div className="col-span-2 flex items-end pb-[26px]">
-            <p className="text-body text-[var(--text-secondary)]">
-              Weighted at{' '}
-              <span className="font-semibold tabular-nums text-[var(--text-primary)]">
-                {fmtMoney(
-                  (effectiveValue *
-                    ((form as any).probability === '' || (form as any).probability == null
-                      ? STAGE_PROBABILITY[form.stage]
-                      : Number((form as any).probability) || 0)) / 100,
-                )}
-              </span>{' '}
-              in the forecast.
-            </p>
-          </div>
-        </div>
         <div>
           <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Notes</label>
           <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Context, next steps…" className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-strong text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]" />
-        </div>
-        <div className="flex items-center justify-between pt-2">
-          {editing ? (
-            <button type="button" onClick={() => confirm({ title: `Delete "${form.title}"?`, body: 'The deal and its history go. Linked contacts and companies stay.', tone: 'danger' }, () => del.mutate())} className="flex items-center gap-1.5 text-body font-medium text-rose-500 hover:text-rose-600 transition-colors">
-              <Trash2 className="h-3.5 w-3.5" /> Delete
-            </button>
-          ) : <span />}
-          <div className="flex gap-2">
-            <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
-            <Button variant="primary" type="submit" disabled={save.isPending || !form.title.trim()}>{save.isPending ? 'Saving…' : editing ? 'Save' : 'Add deal'}</Button>
-          </div>
         </div>
       </form>
     </Modal>
@@ -569,7 +589,7 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToSta
                         {rot.rotting && (
                           <span
                             title={`No movement for ${rot.days} days — ${stage.label.toLowerCase()} deals are expected to move within ${rot.limit}`}
-                            className="ml-auto inline-flex flex-shrink-0 items-center gap-0.5 rounded-full bg-rose-500/10 px-1.5 py-0.5 text-micro font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400"
+                            className="ml-auto inline-flex flex-shrink-0 items-center gap-0.5 rounded-full bg-rose-500/10 px-1.5 py-0.5 text-micro font-semibold tabular-nums text-rose-600 dark:text-rose-400"
                           >
                             <Clock className="h-2.5 w-2.5" />{rot.days}d
                           </span>
@@ -835,7 +855,8 @@ export function DealsPage() {
             </p>
           </div>
         </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
+        {/* Wraps on a phone: the search takes its own line and the buttons sit under it. */}
+        <div className="flex flex-wrap items-center gap-2">
           <SearchInput value={query} onChange={setQuery} placeholder="Search deals, companies, leads…" className="w-full sm:w-72" />
           {deals.length > 0 && (
             <Button variant="secondary" onClick={() => navigate('/deals/insights')} title="Where deals die, why, and which sources are worth working">

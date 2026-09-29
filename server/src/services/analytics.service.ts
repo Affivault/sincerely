@@ -142,19 +142,26 @@ export const analyticsService = {
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId);
 
-    const { data: contactMetrics } = await supabaseAdmin
-      .from('contacts')
-      .select('dcs_score, is_bounced')
-      .eq('user_id', userId);
-
-    const dcsScores = (contactMetrics || [])
-      .map((c: any) => c.dcs_score)
-      .filter((s: any) => s !== null && s !== undefined && Number.isFinite(Number(s)));
+    /*
+     * Counted, not fetched. These read every contact row and counted them in
+     * JS, and PostgREST hands back at most 1,000 rows to a plain select - so
+     * past 1,000 contacts the verified and bounced figures, and the average
+     * score, silently described only the first thousand.
+     */
+    const contactCount = (build: (q: any) => any) =>
+      build(supabaseAdmin.from('contacts').select('id', { count: 'exact', head: true }).eq('user_id', userId))
+        .then(({ count }: { count: number | null }) => count || 0);
+    const [verifiedContacts, bouncedContacts, scoreRows] = await Promise.all([
+      contactCount((q) => q.gte('dcs_score', 60)),
+      contactCount((q) => q.eq('is_bounced', true)),
+      fetchAllRows<{ dcs_score: number }>((from, to) =>
+        supabaseAdmin.from('contacts').select('dcs_score').eq('user_id', userId)
+          .not('dcs_score', 'is', null).order('id').range(from, to)),
+    ]);
+    const dcsScores = scoreRows.map((c) => Number(c.dcs_score)).filter((n) => Number.isFinite(n));
     const avgDcsScore = dcsScores.length > 0
-      ? Math.round(dcsScores.reduce((a: number, b: number) => a + Number(b), 0) / dcsScores.length)
+      ? Math.round(dcsScores.reduce((a, b) => a + b, 0) / dcsScores.length)
       : 0;
-    const verifiedContacts = (contactMetrics || []).filter((c: any) => Number(c.dcs_score) >= 60).length;
-    const bouncedContacts = (contactMetrics || []).filter((c: any) => c.is_bounced).length;
 
     return {
       total_campaigns: totalCampaigns || 0,
@@ -179,27 +186,21 @@ export const analyticsService = {
   },
 
   async deliverability(userId: string) {
-    const { data: contacts } = await supabaseAdmin
-      .from('contacts')
-      .select('dcs_score, is_bounced')
-      .eq('user_id', userId);
-
-    const list = contacts || [];
-    const high = list.filter((c: any) => Number(c.dcs_score) >= 80).length;
-    const medium = list.filter((c: any) => Number(c.dcs_score) >= 50 && Number(c.dcs_score) < 80).length;
-    const low = list.filter((c: any) => c.dcs_score !== null && Number(c.dcs_score) < 50).length;
-    const unscored = list.filter((c: any) => c.dcs_score === null || c.dcs_score === undefined).length;
-    const bounced = list.filter((c: any) => c.is_bounced).length;
-
-    const { data: suppressionRows } = await supabaseAdmin
-      .from('suppression_list')
-      .select('reason')
-      .eq('user_id', userId);
-
-    const reasonCounts: Record<string, number> = { unsubscribed: 0, bounced: 0, complained: 0, manual: 0 };
-    for (const row of suppressionRows || []) {
-      if (row.reason in reasonCounts) reasonCounts[row.reason]++;
-    }
+    // Exact counts for the same reason as overview(): a plain select stops
+    // at 1,000 rows, and these bands used to be counted from one.
+    const count = (table: string, build: (q: any) => any) =>
+      build(supabaseAdmin.from(table).select('id', { count: 'exact', head: true }).eq('user_id', userId))
+        .then(({ count: n }: { count: number | null }) => n || 0);
+    const [high, medium, low, unscored, bounced, ...reasons] = await Promise.all([
+      count('contacts', (q) => q.gte('dcs_score', 80)),
+      count('contacts', (q) => q.gte('dcs_score', 50).lt('dcs_score', 80)),
+      count('contacts', (q) => q.lt('dcs_score', 50)),
+      count('contacts', (q) => q.is('dcs_score', null)),
+      count('contacts', (q) => q.eq('is_bounced', true)),
+      ...(['unsubscribed', 'bounced', 'complained', 'manual'] as const).map((reason) =>
+        count('suppression_list', (q) => q.eq('reason', reason))),
+    ]);
+    const reasonCounts = { unsubscribed: reasons[0], bounced: reasons[1], complained: reasons[2], manual: reasons[3] };
 
     return {
       dcs_distribution: [

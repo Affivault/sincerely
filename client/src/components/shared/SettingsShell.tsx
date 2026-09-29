@@ -83,7 +83,30 @@ export function SettingsShell({ children }: { children: ReactNode }) {
         </nav>
       </aside>
 
-      <div className="flex-1 min-w-0">{children}</div>
+      <div className="flex-1 min-w-0">
+        {/* Below the width where the grouped menu fits beside the page, the
+            same links as one scrolling strip. The menu was simply hidden
+            there, so on a phone or tablet the only way from General to Team
+            was back out through the app menu. */}
+        <nav className="lg:hidden -mx-4 sm:-mx-6 mb-4 flex gap-1.5 overflow-x-auto scrollbar-none px-4 sm:px-6 pb-1" aria-label="Settings">
+          {GROUPS.flatMap((g) => g.items).map((it) => (
+            <NavLink
+              key={it.to}
+              to={it.to}
+              className={({ isActive }) => cn(
+                'inline-flex h-8 flex-shrink-0 items-center gap-1.5 rounded-full border px-3 text-body font-medium transition-colors',
+                isActive
+                  ? 'border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(27,27,31,0.05)]'
+                  : 'border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]',
+              )}
+            >
+              <it.icon className="h-3.5 w-3.5" strokeWidth={1.75} />
+              {it.label}
+            </NavLink>
+          ))}
+        </nav>
+        {children}
+      </div>
     </div>
   );
 }

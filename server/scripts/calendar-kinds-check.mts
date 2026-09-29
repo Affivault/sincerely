@@ -302,8 +302,12 @@ console.log('\nand the small ones');
    * midnight - so the button offered a meeting at midnight exactly when
    * somebody was most likely to be tidying up their evening.
    */
+  // Midnight is one case of the wider rule now: any next hour before 8:00
+  // becomes 9:00, and after 18:00 the next day at 9:00 - 1am and 10pm were
+  // offered as readily as midnight was.
   is('"Book meeting" late at night does not offer midnight',
-     /if \(at\.getDate\(\) !== today\) at\.setHours\(9, 0, 0, 0\);/.test(page),
+     /if \(hour < 8\) at\.setHours\(9, 0, 0, 0\);/.test(page)
+       && /else if \(hour > 18\) \{ at\.setDate\(at\.getDate\(\) \+ 1\); at\.setHours\(9, 0, 0, 0\); \}/.test(page),
      'at 23:20 the button booked tomorrow at 00:00');
 
   is('and it is the next whole hour the rest of the time',

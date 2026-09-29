@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js';
-import { MIN_SEARCH_LENGTH, type SearchHit, type SearchResults } from '@lemlist/shared';
+import { MIN_SEARCH_LENGTH, type SearchHit, type SearchResults, campaignStatusLabel } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Universal search.
@@ -182,7 +182,7 @@ export const searchService = {
     }
 
     for (const c of campaigns) {
-      hits.push({ id: c.id, type: 'campaign', title: c.name, subtitle: c.status, meta: null, href: `/campaigns/${c.id}` });
+      hits.push({ id: c.id, type: 'campaign', title: c.name, subtitle: campaignStatusLabel(c.status), meta: null, href: `/campaigns/${c.id}` });
     }
 
     for (const l of lists) {

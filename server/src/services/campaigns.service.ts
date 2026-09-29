@@ -49,6 +49,15 @@ interface ListParams {
   search?: string;
 }
 
+/** The parts of a step that are read at send time and nothing else depends on. */
+export const LIVE_EDITABLE_STEP_FIELDS = new Set(['subject', 'subject_b', 'body_html', 'body_html_b', 'body_text', 'linkedin_note']);
+
+function sameValue(a: unknown, b: unknown): boolean {
+  if ((a === null || a === undefined || a === '') && (b === null || b === undefined || b === '')) return true;
+  if (typeof a === 'number' || typeof b === 'number') return Number(a) === Number(b);
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 export const campaignsService = {
   /**
    * Verify the campaign belongs to this user before delegating to a sub-resource
@@ -86,6 +95,63 @@ export const campaignsService = {
     if (data.status !== 'draft') {
       throw new AppError('Can only edit steps while the campaign is in draft status', 400);
     }
+  },
+
+  /**
+   * What may change on a step of a campaign that has already launched.
+   *
+   * The wording, and nothing else. Everything assertEditableSteps protects -
+   * which steps exist, their order, their delays and branches - is what the
+   * contacts part-way through the sequence are standing on. The words are
+   * not: a step's copy is read at the moment it is sent, so fixing a typo in
+   * step 3 changes what the people who have not reached step 3 will get, and
+   * nothing else. Every tool people move from lets them do this; being unable
+   * to correct a live campaign's spelling without cancelling it was the
+   * single worst thing about running one here.
+   *
+   * Returns the patch to apply. Draft campaigns get the whole input back.
+   * Launched ones get only the wording, and a structural field that is sent
+   * but unchanged is let through silently so a client may send the whole
+   * step back; one that would actually change is refused, by name.
+   */
+  async editableStepPatch(userId: string, campaignId: string, stepId: string, input: Record<string, any>): Promise<Record<string, any>> {
+    const { data: campaign, error } = await supabaseAdmin
+      .from('campaigns')
+      .select('id, status')
+      .eq('id', campaignId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error) throw new AppError(error.message, 500);
+    if (!campaign) throw new AppError('Campaign not found', 404);
+    if (campaign.status === 'draft') return input;
+    if (campaign.status === 'completed' || campaign.status === 'cancelled') {
+      throw new AppError('This campaign has finished, so there is nothing left to send with new wording.', 400);
+    }
+
+    const { data: step, error: stepErr } = await supabaseAdmin
+      .from('campaign_steps')
+      .select('*')
+      .eq('id', stepId)
+      .eq('campaign_id', campaignId)
+      .maybeSingle();
+    if (stepErr) throw new AppError(stepErr.message, 500);
+    if (!step) throw new AppError('Step not found', 404);
+
+    const patch: Record<string, any> = {};
+    const refused: string[] = [];
+    for (const [key, value] of Object.entries(input || {})) {
+      if (value === undefined) continue;
+      if (LIVE_EDITABLE_STEP_FIELDS.has(key)) { patch[key] = value; continue; }
+      if (key in step && !sameValue(step[key], value)) refused.push(key);
+    }
+    if (refused.length > 0) {
+      throw new AppError(
+        `Only the wording of a step can change once a campaign has launched - not ${refused.join(', ')}. ` +
+        'People are part-way through this sequence. Duplicate the campaign to change its shape.',
+        400,
+      );
+    }
+    return patch;
   },
 
   /**

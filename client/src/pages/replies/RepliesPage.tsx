@@ -10,7 +10,7 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { AsyncPanel } from '../../components/ui/AsyncPanel';
 import { replyQueueApi, type QueuedReply, type QueueFilter } from '../../api/replyQueue.api';
 import { cn } from '../../lib/utils';
-import { replyStateLabel, waitLabel, type ReplyUrgency, replyIntentLabel } from '@lemlist/shared';
+import { replyStateLabel, waitLabel, type ReplyUrgency, replyIntentLabel, formatMoney } from '@lemlist/shared';
 import { keepPrevious } from '../../lib/listQuery';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -50,9 +50,13 @@ const SNOOZE_OPTIONS: Array<{ label: string; ms: number }> = [
   { label: 'In a month', ms: 30 * 24 * 60 * 60 * 1000 },
 ];
 
+/*
+ * Compact money in the app's currency. This was a hand-rolled "£12k" -
+ * pounds, on figures the Deals and Revenue pages show in dollars, so the
+ * same deal read as two currencies depending on the screen.
+ */
 function money(n: number): string {
-  if (n >= 1000) return `£${Math.round(n / 1000)}k`;
-  return `£${Math.round(n)}`;
+  return formatMoney(n, undefined, { compact: true });
 }
 
 /* ── One reply ────────────────────────────────────────────────────────── */
@@ -71,15 +75,20 @@ function ReplyRow({ reply, onOpen, onClaim, onPark, busy }: {
   const snippet = (reply.body_text || '').replace(/\s+/g, ' ').trim().slice(0, 160);
 
   return (
-    <div className="group relative flex items-start gap-3 border-b border-[var(--border-subtle)] px-4 py-3 last:border-0 transition-colors hover:bg-[var(--bg-hover)]">
+    <div className="group relative flex flex-wrap sm:flex-nowrap items-start gap-x-3 gap-y-2 border-b border-[var(--border-subtle)] px-4 py-3 last:border-0 transition-colors hover:bg-[var(--bg-hover)]">
       {/* Urgency, as one mark rather than a colour on everything. */}
       <span className={cn('mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full', u.dot)} />
 
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className="truncate text-strong font-semibold text-[var(--text-primary)]">
-            {reply.from_email}
+          {/* The person, then the company - the address is the fallback,
+              not the headline. Every other list of replies leads with a name. */}
+          <span className="truncate text-strong font-semibold text-[var(--text-primary)]" title={reply.from_email}>
+            {reply.contact_name || reply.from_email}
           </span>
+          {reply.company && (
+            <span className="truncate text-caption font-medium text-[var(--text-secondary)]">{reply.company}</span>
+          )}
           <span className="text-caption font-medium text-[var(--text-tertiary)]">{intent}</span>
 
           {/* What is on the table. A reply against an open deal is a
@@ -111,13 +120,15 @@ function ReplyRow({ reply, onOpen, onClaim, onPark, busy }: {
         </p>
       </button>
 
-      <div className="flex shrink-0 items-center gap-1.5">
+      {/* Under the reply on a phone, beside it where there is room: side by
+          side, the buttons kept their width and left the reply 90px. */}
+      <div className="flex w-full sm:w-auto shrink-0 items-center gap-1.5 pl-[18px] sm:pl-0">
         {reply.contact_id && (
           <button
             type="button"
             onClick={() => openPeek('contact', reply.contact_id!)}
             title="Peek at who this is - deal, sequences, history"
-            className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-caption font-medium text-[var(--text-tertiary)] opacity-0 transition-opacity hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] group-hover:opacity-100 focus:opacity-100"
+            className="hidden sm:inline-flex h-7 items-center gap-1 rounded-lg px-2 text-caption font-medium text-[var(--text-tertiary)] opacity-0 transition-opacity hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] group-hover:opacity-100 focus:opacity-100"
           >
             <Eye className="h-3.5 w-3.5" /> Peek
           </button>
@@ -240,7 +251,7 @@ export function RepliesPage() {
   return (
     <div className="stagger space-y-5 pb-8">
       <PageHeader
-        className="!mx-0 !mt-0 rounded-xl border border-[var(--border-subtle)]"
+        /* The standard full-width header: this card style is for pages inside the settings shell. */
         decorate
         leading={
           <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-[rgba(91,91,245,0.18)] bg-[var(--indigo-subtle)]">

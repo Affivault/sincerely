@@ -114,8 +114,9 @@ export function LinkedinPage() {
   const pausedNow = !!s.paused_until && new Date(s.paused_until) > new Date();
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <>
       <PageHeader
+        contentClassName="max-w-4xl"
         leading={
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/10 border border-sky-500/20">
             <Linkedin className="h-4 w-4 text-sky-600 dark:text-sky-400" />
@@ -132,6 +133,7 @@ export function LinkedinPage() {
           </button>
         }
       />
+      <div className="space-y-4 max-w-4xl">
 
       {/* Where it stands right now */}
       <div className="panel px-4 py-3 flex items-center gap-3 flex-wrap">
@@ -304,5 +306,6 @@ export function LinkedinPage() {
         </div>
       )}
     </div>
+    </>
   );
 }

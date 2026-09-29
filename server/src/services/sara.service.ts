@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { textToParagraphs } from '../utils/html.js';
-import { SaraIntent, SaraAction, SaraStatus } from '@lemlist/shared';
+import { SaraIntent, SaraAction, SaraStatus, plural } from '@lemlist/shared';
 import type { SaraClassificationResult, SaraQueueStats } from '@lemlist/shared';
 import { fireEvent } from './webhook.service.js';
 import { suppressionService } from './suppression.service.js';
@@ -305,7 +305,7 @@ export function classifyReply(
   }
 
   const reasoning = bestMatch
-    ? `Matched ${bestMatch.matchCount} pattern(s) for "${intent}" with ${(confidence * 100).toFixed(0)}% confidence`
+    ? `Matched ${plural(bestMatch.matchCount, 'pattern')} for "${intent}" with ${(confidence * 100).toFixed(0)}% confidence`
     : 'No strong patterns detected - flagged for human review';
 
   return { intent, confidence, action, draft_reply: draftReply ?? null, reasoning };

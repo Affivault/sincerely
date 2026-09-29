@@ -61,7 +61,7 @@ function StepRow({ step, widest }: { step: SequenceStepPerformance; widest: numb
             <p className="min-w-0 flex-1 truncate text-body font-medium text-[var(--text-primary)]">
               {step.subject}
             </p>
-            <span className={cn('flex-shrink-0 rounded-full px-2 py-0.5 text-micro font-bold uppercase tracking-wider', style.chip)}>
+            <span className={cn('flex-shrink-0 rounded-full px-2 py-0.5 text-micro font-semibold', style.chip)}>
               {STEP_VERDICT_LABELS[step.verdict]}
             </span>
           </div>

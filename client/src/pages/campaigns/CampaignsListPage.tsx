@@ -45,9 +45,8 @@ const ROW_GRID = 'grid grid-cols-[minmax(220px,1fr)_60px_60px_60px_60px_60px_76p
 type SortKey = 'name' | 'sent' | 'open' | 'click' | 'reply' | 'bounce' | 'earned' | 'created';
 /** Compact money, for a 84px column. */
 export function fmtMoney(n: number): string {
-  if (n >= 1_000_000) return `£${(n / 1_000_000).toFixed(1)}m`;
-  if (n >= 1000) return `£${Math.round(n / 1000)}k`;
-  return `£${Math.round(n)}`;
+  // In the app's currency; this printed pounds beside dollar figures elsewhere.
+  return formatMoney(n, undefined, { compact: true });
 }
 
 function sortValue(c: any, key: SortKey): number | string {
@@ -70,7 +69,7 @@ function sortValue(c: any, key: SortKey): number | string {
 }
 import toast from 'react-hot-toast';
 import type { CampaignWithStats } from '@lemlist/shared';
-import { rateReadout, rateBarWidth, formatDate } from '@lemlist/shared';
+import { rateReadout, rateBarWidth, formatDate, formatMoney } from '@lemlist/shared';
 import { analyticsApi } from '../../api/analytics.api';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
@@ -527,7 +526,10 @@ export function CampaignsListPage() {
                             launchBusy={preflight.isLaunching(campaign.id)}
                             pauseBusy={pauseMut.isPending && pauseMut.variables === campaign.id}
                             resumeBusy={resumeMut.isPending && resumeMut.variables === campaign.id}
-                            onEdit={()   => navigate(`/campaigns/${campaign.id}/edit`)}
+                            // Only a draft opens the builder. A launched one opens on its
+                            // sequence, where the wording can still be fixed - it used to
+                            // open the builder, which bounced straight back with an error.
+                            onEdit={()   => navigate(campaign.status === 'draft' ? `/campaigns/${campaign.id}/edit` : `/campaigns/${campaign.id}?tab=sequence`)}
                             onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setContextMenuFor({ id: campaign.id, name: campaign.name, x: e.clientX, y: e.clientY }); }}
                             dragging={draggingCampaignId === campaign.id}
                             onDragStart={() => setDraggingCampaignId(campaign.id)}

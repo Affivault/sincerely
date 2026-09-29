@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { webhookApi } from '../../api/webhook.api';
 import { apikeyApi } from '../../api/apikey.api';
-import { WebhookEventType, type WebhookDelivery, formatDateTime } from '@lemlist/shared';
+import { WebhookEventType, type WebhookDelivery, formatDateTime, plural } from '@lemlist/shared';
 import {
   Code2,
   Webhook,
@@ -200,7 +200,7 @@ export function DeveloperPage() {
           toast.error('Connected, but that key is read-only, so adding people will fail.');
         } else if (typeof event.data.listCount === 'number') {
           setExtensionConnected(true);
-          toast.success(`Extension connected — ${event.data.listCount} list(s) visible.`);
+          toast.success(`Extension connected — ${plural(Number(event.data.listCount) || 0, 'list')} visible.`);
         } else {
           setExtensionConnected(true);
           toast.success('Extension connected');
