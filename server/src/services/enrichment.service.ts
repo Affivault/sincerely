@@ -87,7 +87,9 @@ async function enrichAll(userId: string): Promise<number> {
         const site = websiteFromEmail(c.email);
         if (site) patch.website = site;
       }
-      await supabaseAdmin.from('contacts').update(patch).eq('id', c.id).eq('user_id', userId);
+      const { error: upErr } = await supabaseAdmin.from('contacts').update(patch).eq('id', c.id).eq('user_id', userId);
+      // A row that will not save would be re-read on every pass; stop instead.
+      if (upErr) return done;
 
       // Link to the company record for their domain, when they have none.
       const domain = registrableDomain(emailDomain(c.email));

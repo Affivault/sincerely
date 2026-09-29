@@ -124,7 +124,25 @@ export const prospectRulesService = {
   },
 };
 
+const runningRules = new Set<string>();
+
 export async function runRule(rule: ProspectRule): Promise<ProspectRuleRunResult> {
+  // A manual run overlapping a scheduled sweep would each spend the daily cap.
+  if (runningRules.has(rule.id)) {
+    return {
+      at: new Date().toISOString(), searched: 0, revealed: 0, no_email: 0,
+      failed_verification: 0, enrolled: 0, skipped: {}, stopped: 'error', error: 'Already running',
+    };
+  }
+  runningRules.add(rule.id);
+  try {
+    return await runRuleUnlocked(rule);
+  } finally {
+    runningRules.delete(rule.id);
+  }
+}
+
+async function runRuleUnlocked(rule: ProspectRule): Promise<ProspectRuleRunResult> {
   const result: ProspectRuleRunResult = {
     at: new Date().toISOString(), searched: 0, revealed: 0, no_email: 0,
     failed_verification: 0, enrolled: 0, skipped: {}, stopped: 'exhausted',

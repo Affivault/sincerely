@@ -34,6 +34,7 @@ import { usePeek } from '../../components/peek/usePeek';
 import { DealHealthDot, ACTION_ICON } from '../../components/crm/DealHealth';
 import { MeetingBrief, MeetingOutcome } from '../../components/flow/MeetingBrief';
 import { AwayCard } from '../../components/flow/AwayCard';
+import { acceptsShortcut } from '../../lib/keyboard';
 import { cn, formatRelativeTime, formatTimeUntil } from '../../lib/utils';
 
 /* ─── "Not now": hidden until tomorrow morning, per browser ────────────── */
@@ -77,12 +78,6 @@ function waited(ms: number): string {
   if (h < 1) return 'just now';
   if (h < 48) return `${h}h waiting`;
   return `${Math.floor(h / 24)}d waiting`;
-}
-
-function isTyping(el: EventTarget | null): boolean {
-  const t = el as HTMLElement | null;
-  if (!t) return false;
-  return t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable;
 }
 
 export function FlowPage() {
@@ -198,7 +193,7 @@ export function FlowPage() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!acceptsShortcut(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
       if (!current && !['r'].includes(e.key)) return;
       switch (e.key) {
         case 'j': case 'ArrowDown': e.preventDefault(); setCursor((c) => Math.min(items.length - 1, c + 1)); break;

@@ -123,6 +123,7 @@ export function MailKindBar({ messageId, kind }: { messageId: string; kind: Mail
         ? `Moved to your inbox${res.moved > 1 ? ` (${res.moved} messages)` : ''} - Relay will read it`
         : `Moved to Other mail${res.moved > 1 ? ` (${res.moved} messages)` : ''}`);
       qc.invalidateQueries({ queryKey: ['inbox'] });
+      qc.invalidateQueries({ queryKey: ['inbox-unread-count'] });
     },
     onError: () => toast.error('Could not move it'),
   });
