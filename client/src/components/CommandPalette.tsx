@@ -264,7 +264,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       group: 'Answer',
       peek: { type: 'deal' as const, id: d.id },
     }))];
-  }, [intent, allDeals, dealHealth, runCommand]);
+  }, [intent, allDeals, dealHealth, runCommand.mutate]);
 
   const hitItems = useMemo<CommandItem[]>(() => {
     if (trimmed.length < MIN_SEARCH_LENGTH) return [];
@@ -294,7 +294,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       group: 'Create',
       run: () => createQuick.mutate(),
     }];
-  }, [quickAdd, createQuick]);
+  }, [quickAdd, createQuick.mutate]);
 
   // Re-read on every open, not just once — a peek opened elsewhere since the
   // palette last opened should still show up.

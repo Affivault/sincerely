@@ -172,7 +172,9 @@ export const mailSortService = {
     const { data: contact } = await supabaseAdmin
       .from('contacts').select('id, email').eq('id', contactId).eq('user_id', userId).maybeSingle();
     if (!contact) throw new AppError('Contact not found', 404);
-    await supabaseAdmin.from('contacts').update({ is_unsubscribed: false }).eq('id', contactId);
+    const { error: restoreErr } = await supabaseAdmin.from('contacts')
+      .update({ is_unsubscribed: false }).eq('id', contactId).eq('user_id', userId);
+    if (restoreErr) throw new AppError(restoreErr.message, 500);
     if (contact.email) await suppressionService.remove(userId, contact.email).catch(() => {});
     await supabaseAdmin.from('inbox_messages').update({ relay_previous_intent: null })
       .eq('user_id', userId).eq('contact_id', contactId).not('relay_previous_intent', 'is', null);

@@ -157,8 +157,16 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
     enabled: !!id,
   });
 
-  if (isLoading || !contact) {
+  if (isLoading) {
     return <div className="flex items-center justify-center py-20"><Spinner size="md" /></div>;
+  }
+  if (!contact) {
+    return (
+      <div className="px-4 py-16 text-center">
+        <p className="text-strong font-medium text-[var(--text-primary)]">That contact no longer exists</p>
+        <button onClick={onClose} className="mt-2 text-body text-[var(--indigo)] hover:underline">Close</button>
+      </div>
+    );
   }
 
   const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ');

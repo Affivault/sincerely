@@ -63,7 +63,9 @@ function firstSentence(text: string): string {
 /** A sequence without Claude: short, honest, built from the user's own words. */
 function templateSequence(offer: string, steps: number, usesFirstLines: boolean, sender: string | null): { name: string; steps: Array<{ delay_days: number; subject: string; body: string }>; rationale: string } {
   const pitch = firstSentence(offer);
-  const rest = offer.trim().slice(pitch.length).trim();
+  const trimmed = offer.trim();
+  const firstMatch = /^(.+?[.!?])(\s|$)/s.exec(trimmed);
+  const rest = firstMatch ? trimmed.slice(firstMatch[1].length).trim() : '';
   const sign = sender ? `\n\n${sender}` : '';
   const opener = usesFirstLines ? '{{first_line}}\n\n' : '';
   const all = [
@@ -98,7 +100,7 @@ function templateSequence(offer: string, steps: number, usesFirstLines: boolean,
 export const sequenceWriterService = {
   async write(userId: string, input: WriteSequenceInput) {
     const settings: any = await settingsService.get(userId);
-    const offer = String(input.offer ?? settings.relay_offer ?? '').trim();
+    const offer = String(input.offer || settings.relay_offer || '').trim().slice(0, 2000);
     if (offer.length < 20) {
       throw new AppError('Tell Relay what you sell in a sentence or two - who it is for and what it does for them.', 400);
     }

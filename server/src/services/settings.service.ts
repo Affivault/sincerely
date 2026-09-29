@@ -148,6 +148,10 @@ export const settingsService = {
     for (const [key, value] of Object.entries(updates as Record<string, any>)) {
       if (UPDATABLE_KEYS.has(key)) filtered[key] = value;
     }
+    if ('relay_tone' in filtered && !['friendly', 'direct', 'formal'].includes(filtered.relay_tone)) {
+      throw new AppError('relay_tone must be friendly, direct or formal', 400);
+    }
+    if ('relay_offer' in filtered) filtered.relay_offer = String(filtered.relay_offer ?? '').slice(0, 2000);
     if (Object.keys(filtered).length === 0) return settingsService.get(userId);
 
     // The name and company behind {{sender_*}} may have just changed, and so
