@@ -86,7 +86,12 @@ export function InlineEdit({
         onClick={() => setEditing(true)}
         aria-label={ariaLabel ? `Edit ${ariaLabel}` : 'Edit'}
         className={cn(
-          'group/ie relative w-full text-left rounded-md px-1.5 py-0.5 -mx-1.5 transition-colors',
+          'group/ie relative text-left rounded-md px-1.5 py-0.5 -mx-1.5 transition-colors',
+          // One line, text then pencil, as wide as the text. As inline flow at
+          // full width, a value filling the row pushed the (invisible) pencil
+          // onto a second line, so every field was a line taller than its
+          // text - most visibly the gap under a contact's name on their page.
+          multiline ? 'block w-full' : 'inline-flex max-w-full items-center',
           'hover:bg-[var(--bg-hover)] focus-visible:bg-[var(--bg-hover)] focus:outline-none',
           className,
         )}
@@ -96,12 +101,12 @@ export function InlineEdit({
         <span className={cn(
           !textClassName && 'text-body',
           shown ? textClassName || 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)] italic',
-          multiline ? 'whitespace-pre-wrap' : 'inline-block max-w-full truncate align-middle',
+          multiline ? 'whitespace-pre-wrap' : 'min-w-0 truncate',
           textClassName,
         )}>
           {shown || placeholder}
         </span>
-        <Pencil className="inline-block ml-1.5 h-2.5 w-2.5 align-middle text-[var(--text-muted)] opacity-0 group-hover/ie:opacity-100 transition-opacity" />
+        <Pencil className="inline-block flex-shrink-0 ml-1.5 h-2.5 w-2.5 align-middle text-[var(--text-muted)] opacity-0 group-hover/ie:opacity-100 transition-opacity" />
       </button>
     );
   }

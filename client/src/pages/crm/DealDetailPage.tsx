@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DEAL_LABELS, DEAL_STAGES, daysInStage, hasEconomics, isOpen, nextStep,
-  probabilityOf, revenueSplit, rotOf, weightedValue, formatDayMonth, formatMoney, parseDay } from '@lemlist/shared';
+  probabilityOf, revenueSplit, rotOf, weightedValue, formatDayMonth, formatMoney, parseDay, sourceLabel } from '@lemlist/shared';
 import type {
   CrmEvent, CrmTask, Deal, DealLabel, DealStage,
 } from '@lemlist/shared';
@@ -253,7 +253,7 @@ export function DealDetailPage() {
                 </button>
               )}
               <span className="font-semibold text-[var(--text-primary)]">{money(deal.value, deal.currency)}</span>
-              {deal.source && <span>via {deal.source}</span>}
+              {deal.source && <span>via {sourceLabel(deal.source).replace(/^A reply$/, 'a reply')}</span>}
             </div>
           </div>
         </div>
@@ -431,7 +431,7 @@ export function DealDetailPage() {
               <Field label="Expected close" value={close.text} tone={close.tone} />
               <Field label="In stage" value={spellDays(daysInStage(deal))} tone={rot.rotting ? 'text-rose-500' : undefined} />
               <Field label="Deal age" value={spellDays(Math.floor((Date.now() - new Date(deal.created_at).getTime()) / 86_400_000))} />
-              {deal.source && <Field label="Source" value={deal.source} />}
+              {deal.source && <Field label="Source" value={sourceLabel(deal.source)} />}
               {deal.outcome_reason && (
                 <Field
                   label={deal.stage === 'won' ? 'Won because' : 'Lost because'}

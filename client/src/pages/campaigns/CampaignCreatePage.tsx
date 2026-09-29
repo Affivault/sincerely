@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useDraftRecovery, useUnsavedChangesWarning } from '../../hooks/useDraftRecovery';
-import { draftAgeLabel, firstBlocker } from '@lemlist/shared';
+import { draftAgeLabel, firstBlocker, plural } from '@lemlist/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
 import { PersonalizationPanel, TimezoneCoverageNote, countGaps, shouldPauseLaunch } from '../../components/campaigns/PersonalizationPanel';
@@ -429,7 +429,7 @@ export function CampaignCreatePage() {
         return Array.from(set);
       });
       const listName = (allLists || []).find((l: any) => l.id === listId)?.name || 'list';
-      toast.success(`Added ${contactIds.length} contacts from "${listName}"`);
+      toast.success(`Added ${plural(contactIds.length, 'contact')} from "${listName}"`);
     } catch {
       toast.error('Failed to load list contacts');
     }
@@ -926,8 +926,10 @@ export function CampaignCreatePage() {
   const totalIssues = sectionIssues[0].length + sectionIssues[1].length + sectionIssues[2].length;
   const isReady = totalIssues === 0 && steps.length > 0 && selectedContactIds.length > 0 && !!campaignForm.name && !!campaignForm.smtp_account_id;
 
+  // The wrapper cancels <main>'s padding at every width (see AppLayout) so the
+  // builder fills the screen; a fixed -mx-8 overflowed a phone by 16px.
   return (
-    <div className="-mx-8 -my-6 flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
+    <div className="-mx-4 -my-5 sm:-mx-6 lg:-mx-8 lg:-my-7 flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
       {/*
         * Offered, never restored silently.
         *
@@ -968,7 +970,9 @@ export function CampaignCreatePage() {
       )}
 
       {/* ── Top bar ──────────────────────────────────────────── */}
-      <header className="flex-shrink-0 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-5 py-2.5 flex items-center gap-3">
+      {/* Wraps on a phone: the name drops to its own full-width line under the
+          back link and the actions, instead of all of it being cut off. */}
+      <header className="flex-shrink-0 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 sm:px-5 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
         <button
           onClick={() => navigate('/campaigns')}
           className="flex items-center gap-1.5 px-2 h-7 rounded-md text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors flex-shrink-0"
@@ -976,8 +980,8 @@ export function CampaignCreatePage() {
           <ArrowLeft className="h-3.5 w-3.5" />
           Campaigns
         </button>
-        <div className="h-5 w-px bg-[var(--border-subtle)]" />
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)] flex-shrink-0">
+        <div className="hidden sm:block h-5 w-px bg-[var(--border-subtle)]" />
+        <span className="hidden sm:flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)] flex-shrink-0">
           <Rocket className="h-3.5 w-3.5 text-[var(--indigo)]" />
         </span>
         <input
@@ -985,7 +989,7 @@ export function CampaignCreatePage() {
           value={campaignForm.name}
           onChange={(e) => setCampaignForm({ ...campaignForm, name: e.target.value })}
           placeholder={isEdit ? 'Edit campaign…' : 'Untitled campaign — give it a name'}
-          className="flex-1 max-w-md min-w-0 bg-transparent border-0 text-heading font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] placeholder:font-normal outline-none focus:bg-[var(--bg-elevated)] rounded-md px-2 h-7 transition-colors"
+          className="order-last basis-full sm:order-none sm:basis-auto flex-1 max-w-md min-w-0 bg-transparent border-0 text-heading font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] placeholder:font-normal outline-none focus:bg-[var(--bg-elevated)] rounded-md px-2 h-7 transition-colors"
         />
         <div className="flex-1" />
 
@@ -1007,7 +1011,7 @@ export function CampaignCreatePage() {
           className="inline-flex items-center gap-1.5 px-2.5 h-7 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] text-body font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-40 transition-all"
         >
           <Save className="h-3.5 w-3.5" />
-          {createCampaignMutation.isPending ? 'Saving…' : 'Save draft'}
+          <span className="hidden sm:inline">{createCampaignMutation.isPending ? 'Saving…' : 'Save draft'}</span>
         </button>
         <button
           /*
@@ -1040,7 +1044,7 @@ export function CampaignCreatePage() {
       </header>
 
       {/* ── Wizard progress stepper ──────────────────────────── */}
-      <div className="flex-shrink-0 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-6 py-3">
+      <div className="flex-shrink-0 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 sm:px-6 py-3">
         <div className="flex items-center max-w-3xl mx-auto">
           {WIZARD_STEPS.map((ws, i) => {
             const Icon = ws.icon;
@@ -1080,7 +1084,7 @@ export function CampaignCreatePage() {
                   </div>
                 </button>
                 {!isLast && (
-                  <div className="flex-1 h-px mx-4 bg-gradient-to-r from-[var(--border-subtle)] via-[var(--border-subtle)] to-[var(--border-subtle)] relative">
+                  <div className="flex-1 h-px mx-2 sm:mx-4 bg-gradient-to-r from-[var(--border-subtle)] via-[var(--border-subtle)] to-[var(--border-subtle)] relative">
                     {completed && (
                       <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/40 to-[var(--border-subtle)]" />
                     )}
@@ -1095,7 +1099,10 @@ export function CampaignCreatePage() {
       {/* ── Body: sidebar + content ─────────────────────────── */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
-        <aside className="w-60 flex-shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-app)] overflow-y-auto p-3">
+        {/* Beside the form only where there is room for both. On a phone the
+            issue count in the top bar says the same, and the form gets the
+            whole width instead of 120 pixels. */}
+        <aside className="hidden lg:block w-60 flex-shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-app)] overflow-y-auto p-3">
 
           {/* Pre-flight checks */}
           <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3 mb-3">

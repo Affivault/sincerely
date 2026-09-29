@@ -1,0 +1,58 @@
+// Drives the interactions people actually do and screenshots each state.
+const { open, B } = require('./drive.cjs');
+const OUT = process.env.OUT || '/tmp';
+const w = Number(process.argv[2]) || 1440;
+const only = process.argv.slice(3);
+const step = async (page, log, name, fn) => {
+  if (only.length && !only.includes(name)) return;
+  log.errors.length = 0;
+  try { await fn(); } catch (e) { console.log(`!! ${name}: ${e.message.split('\n')[0]}`); }
+  await page.waitForTimeout(600);
+  const over = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+  await page.screenshot({ path: `${OUT}/i${w}_${name}.png` });
+  const errs = log.errors.filter((e) => !/ERR_CERT|Failed to load resource|DevTools/.test(e));
+  console.log(`== ${name} overflow=${over}${errs.length ? '  ERR ' + errs[0].split('\n')[0].slice(0, 200) : ''}`);
+};
+(async () => {
+  const { browser, page, log } = await open({ viewport: { width: w, height: w < 500 ? 844 : 900 } });
+  const go = async (r) => { await page.goto(B + r, { waitUntil: 'networkidle' }); await page.waitForTimeout(500); };
+  await step(page, log, 'new-deal', async () => { await go('/deals?new=1'); });
+  await step(page, log, 'add-contact', async () => { await go('/contacts?new=1'); });
+  await step(page, log, 'book-meeting', async () => { await go('/calendar?new=1'); });
+  await step(page, log, 'connect-mailbox', async () => { await go('/email-accounts?connect=1'); });
+  await step(page, log, 'bulk-connect', async () => { await go('/email-accounts'); await page.getByRole('button', { name: /Import CSV/ }).first().click(); });
+  await step(page, log, 'mailbox-drawer', async () => { await go('/email-accounts?mailbox=m1'); });
+  await step(page, log, 'compose', async () => { await go('/inbox'); await page.getByRole('button', { name: /Compose/ }).first().click(); });
+  await step(page, log, 'thread-reply', async () => { await go('/inbox'); await page.locator('text=Maud Grevstad').first().click(); await page.waitForTimeout(400); await page.getByRole('button', { name: /^Reply$/ }).first().click(); });
+  await step(page, log, 'peek-contact', async () => { await go('/contacts?peek=contact:c1'); });
+  await step(page, log, 'peek-deal', async () => { await go('/deals?peek=deal:d1'); });
+  await step(page, log, 'cmdk-results', async () => { await go('/dashboard'); await page.keyboard.press('Control+k'); await page.keyboard.type('north'); await page.waitForTimeout(700); });
+  await step(page, log, 'shortcuts', async () => { await go('/dashboard'); await page.keyboard.press('?'); });
+  await step(page, log, 'create-menu', async () => { await go('/dashboard'); await page.locator('header button:has-text("Create"), header button:has(svg.lucide-plus)').first().click(); });
+  await step(page, log, 'flow-expand', async () => { await go('/flow'); await page.keyboard.press('j'); await page.keyboard.press(' '); });
+  await step(page, log, 'meeting-brief', async () => { await go('/flow'); await page.keyboard.press(' '); });
+  await step(page, log, 'task-new', async () => { await go('/tasks'); await page.getByRole('button', { name: /Schedule activity/ }).first().click(); });
+  await step(page, log, 'campaign-sequence', async () => { await go('/campaigns/new'); await page.locator('text=Sequence').first().click(); });
+  await step(page, log, 'campaign-audience', async () => { await go('/campaigns/new'); await page.locator('text=Audience').first().click(); });
+  await step(page, log, 'campaign-review', async () => { await go('/campaigns/new'); await page.locator('text=Review').first().click(); });
+  await step(page, log, 'campaign-seq-tab', async () => { await go('/campaigns/cmp1'); await page.locator('button:has-text("Sequence")').first().click(); });
+  await step(page, log, 'campaign-contacts-tab', async () => { await go('/campaigns/cmp1'); await page.locator('button:has-text("Contacts (")').first().click(); });
+  await step(page, log, 'contact-email-tab', async () => { await go('/contacts/c1'); await page.locator('button:has-text("Email")').first().click(); });
+  await step(page, log, 'deal-edit', async () => { await go('/deals/d1'); await page.getByRole('button', { name: /^Edit$/ }).first().click(); });
+  await step(page, log, 'deals-table', async () => { await go('/deals'); await page.locator('button:has-text("Table")').first().click(); });
+  await step(page, log, 'calendar-event', async () => { await go('/calendar'); await page.locator('[data-event="e1"]').first().click(); });
+  await step(page, log, 'user-menu', async () => { await go('/dashboard'); await page.locator('header button:has(div.rounded-full)').last().click(); });
+  await step(page, log, 'replies-snooze', async () => { await go('/replies'); await page.locator('button:has-text("Park")').first().click(); });
+  await step(page, log, 'triage-queue', async () => { await go('/inbox'); await page.locator('button:has-text("Needs triage")').first().click(); });
+  await step(page, log, 'settings-account', async () => { await go('/settings'); await page.locator('button:has-text("Account")').first().click(); });
+  await step(page, log, 'settings-ai', async () => { await go('/settings'); await page.locator('button:has-text("AI features")').first().click(); });
+  await step(page, log, 'booking-link-new', async () => { await go('/calendar/links'); await page.getByRole('button', { name: /New link/ }).first().click(); });
+  await step(page, log, 'template-new', async () => { await go('/templates'); await page.getByRole('button', { name: /New email template/ }).first().click(); });
+  await step(page, log, 'schedule-new', async () => { await go('/schedules'); await page.getByRole('button', { name: /New schedule/ }).first().click(); });
+  await step(page, log, 'placement-run', async () => { await go('/placement'); await page.getByRole('button', { name: /Run a test/ }).first().click(); });
+  await step(page, log, 'team-invite', async () => { await go('/team'); await page.getByRole('button', { name: /Invite member/ }).first().click(); });
+  await step(page, log, 'webhook-new', async () => { await go('/developer'); await page.getByRole('button', { name: /Add Webhook/ }).first().click(); });
+  await step(page, log, 'company-new', async () => { await go('/companies'); await page.getByRole('button', { name: /New company/ }).first().click(); });
+  await step(page, log, 'lead-qualify', async () => { await go('/leads/inbox'); await page.getByRole('button', { name: /Qualify/ }).first().click(); });
+  await browser.close();
+})();

@@ -159,8 +159,10 @@ export const campaignsController = {
 
   async updateStep(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      await campaignsService.assertEditableSteps(req.userId!, req.params.id);
-      const step = await campaignStepsService.update(req.params.id, req.params.stepId, req.body);
+      // A launched campaign's steps can still have their wording fixed; see
+      // editableStepPatch for what is allowed and why.
+      const patch = await campaignsService.editableStepPatch(req.userId!, req.params.id, req.params.stepId, req.body);
+      const step = await campaignStepsService.update(req.params.id, req.params.stepId, patch);
       res.json(step);
     } catch (err) { next(err); }
   },

@@ -58,3 +58,4 @@ export * from './forecast.js';
 export * from './buying-committee.js';
 export * from './mailbox-providers.js';
 export * from './reply-intent.js';
+export * from './plural.js';

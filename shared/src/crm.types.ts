@@ -289,6 +289,47 @@ export const DEAL_STAGES: { id: DealStage; label: string }[] = [
   { id: 'lost', label: 'Lost' },
 ];
 
+/** "Qualified", not "qualified": a stage in words, wherever one is shown. */
+export function dealStageLabel(stage: string | null | undefined): string {
+  if (!stage) return '';
+  return DEAL_STAGES.find((s) => s.id === stage)?.label || stage.charAt(0).toUpperCase() + stage.slice(1).replace(/_/g, ' ');
+}
+
+/**
+ * Where a deal, lead or contact came from, in words.
+ *
+ * Sources are stored as keys, and several screens printed them raw -
+ * "via sara_auto" (under a name the assistant no longer has), "reply",
+ * "csv_import". A source a person typed themselves is shown as typed.
+ */
+const SOURCE_LABELS: Record<string, string> = {
+  sara_auto: 'Relay, from a reply',
+  reply: 'A reply',
+  booking_link: 'Booking link',
+  csv_import: 'CSV import',
+  prospector: 'Prospector',
+  manual: 'Added by hand',
+  detected: 'Spotted in the inbox',
+  api: 'API',
+  campaign: 'Campaign',
+  linkedin: 'LinkedIn',
+  extension: 'Browser extension',
+};
+export function sourceLabel(source: string | null | undefined): string {
+  const s = (source || '').trim();
+  if (!s) return 'Unattributed';
+  if (SOURCE_LABELS[s]) return SOURCE_LABELS[s];
+  // A key someone else's integration wrote ("hub_spot_sync"): readable, not raw.
+  if (/^[a-z0-9]+(_[a-z0-9]+)+$/.test(s)) return (s.charAt(0).toUpperCase() + s.slice(1)).replace(/_/g, ' ');
+  return s;
+}
+
+/** A campaign's status in words - "Running", "Paused" - for text rather than a badge. */
+export function campaignStatusLabel(status: string | null | undefined): string {
+  if (!status) return '';
+  return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
+}
+
 
 /* ── Notes ──────────────────────────────────────────────────────────────
    A note hangs off a contact, a deal, or both. Pinned notes float to the top

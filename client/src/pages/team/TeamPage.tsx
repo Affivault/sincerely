@@ -139,7 +139,7 @@ export function TeamPage() {
   if (orgError) {
     return (
       <SettingsShell>
-        <div className="max-w-3xl">
+        <div>
           <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-20 px-8 flex flex-col items-center justify-center text-center">
             <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 mb-5">
               <XCircle className="h-7 w-7 text-red-600 dark:text-red-400" strokeWidth={1.5} />
@@ -160,7 +160,7 @@ export function TeamPage() {
 
   return (
     <SettingsShell>
-    <div className="max-w-3xl">
+    <div>
       <PageHeader
         className="!mx-0 !mt-0 rounded-xl border border-[var(--border-subtle)]"
         leading={

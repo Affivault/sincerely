@@ -4,7 +4,7 @@ import { ArrowLeft, Banknote, TrendingUp, Reply, Handshake, AlertTriangle } from
 import { analyticsApi, type StepRevenueRow, type AttributedDealRow } from '../../api/analytics.api';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/shared/EmptyState';
-import { ATTRIBUTION_LABEL, type Attribution, formatMoney } from '@lemlist/shared';
+import { ATTRIBUTION_LABEL, type Attribution, formatMoney, plural } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -157,7 +157,7 @@ export function CampaignRevenuePage() {
               sub={totals.strong_won_value < totals.won_value
                 ? `${money(totals.strong_won_value)} on strong evidence`
                 : 'All on strong evidence'} />
-        <Stat label="Weighted pipeline" value={money(totals.weighted_open)} sub={`${totals.open} deal(s) still open`} />
+        <Stat label="Weighted pipeline" value={money(totals.weighted_open)} sub={`${plural(totals.open, 'deal')} still open`} />
         <Stat label="Value per reply" value={totals.value_per_reply === null ? '—' : money(totals.value_per_reply)}
               sub={totals.replied > 0 ? `${totals.replied} repl${totals.replied === 1 ? 'y' : 'ies'}` : 'No replies yet'} />
         <Stat label="Win rate" value={pct(totals.win_rate)} sub={`${totals.won} won · ${totals.lost} lost`} />
@@ -220,7 +220,7 @@ export function CampaignRevenuePage() {
                   <td className="py-2.5 pl-4 pr-3" colSpan={4}>
                     <span className="text-body font-medium text-[var(--text-tertiary)]">Step not recorded</span>
                     <p className="text-caption text-[var(--text-muted)]">
-                      {unrecorded.deals} deal(s) credited to this campaign but not to one of its steps.
+                      {plural(unrecorded.deals, 'deal')} credited to this campaign but not to one of its steps.
                     </p>
                   </td>
                   <td />

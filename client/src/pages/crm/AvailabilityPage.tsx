@@ -9,7 +9,7 @@ import {
 import {
   WEEKDAY_NAMES, SLOT_INTERVALS, minuteLabel, parseMinuteLabel, describeWeek,
   DEFAULT_SCHEDULING_PREFS, durationLabel, firstBlocker,
-  type AvailabilityWindow, type SchedulingPrefs, formatTime, formatWeekdayDate } from '@lemlist/shared';
+  type AvailabilityWindow, type SchedulingPrefs, formatTime, formatWeekdayDate, plural } from '@lemlist/shared';
 import { availabilityApi, type AvailabilityResponse } from '../../api/calendar.api';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { WeekPainter, weekProblem } from '../../components/calendar/WeekPainter';
@@ -372,7 +372,11 @@ export function AvailabilityPage() {
 
   const zones = useMemo(() => {
     try {
-      return (Intl as any).supportedValuesOf?.('timeZone') as string[] ?? [prefs.timezone];
+      // The saved zone is always offered: several browsers leave "UTC" out
+      // of this list, and a select without its value shows the first entry.
+      const all = (Intl as any).supportedValuesOf?.('timeZone') as string[] | undefined;
+      if (!all) return [prefs.timezone];
+      return all.includes(prefs.timezone) ? all : [prefs.timezone, ...all];
     } catch {
       return [prefs.timezone];
     }
@@ -575,7 +579,7 @@ export function AvailabilityPage() {
                   onChange={(e) => savePrefs.mutate({ slot_interval_minutes: Number(e.target.value) })}
                   className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
                 >
-                  {SLOT_INTERVALS.map((m) => <option key={m} value={m}>{durationLabel(m)}</option>)}
+                  {withCurrent([...SLOT_INTERVALS], prefs.slot_interval_minutes).map((m) => <option key={m} value={m}>{durationLabel(m)}</option>)}
                 </select>
               </Field>
 
@@ -588,7 +592,7 @@ export function AvailabilityPage() {
                   className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
                 >
                   <option value="">No limit</option>
-                  {[1, 2, 3, 4, 5, 6, 8, 10].map((n) => <option key={n} value={n}>{n} a day</option>)}
+                  {withCurrent([1, 2, 3, 4, 5, 6, 8, 10], prefs.max_bookings_per_day).map((n) => <option key={n} value={n}>{n} a day</option>)}
                 </select>
               </Field>
 
@@ -598,7 +602,7 @@ export function AvailabilityPage() {
                   onChange={(e) => savePrefs.mutate({ booking_horizon_days: Number(e.target.value) })}
                   className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
                 >
-                  {[7, 14, 30, 60, 90, 180, 365].map((d) => <option key={d} value={d}>{d} days ahead</option>)}
+                  {withCurrent([7, 14, 30, 60, 90, 180, 365], prefs.booking_horizon_days).map((d) => <option key={d} value={d}>{plural(d, 'day')} ahead</option>)}
                 </select>
               </Field>
             </div>
@@ -691,6 +695,19 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
+/**
+ * The preset choices, plus the value actually saved if it is not one of them.
+ *
+ * A select whose value is not among its options shows its FIRST option -
+ * so a horizon of 21 days (the server takes anything from 1 to 365) read
+ * as "7 days ahead" here, and saving any other rule on the page would not
+ * change that, but anyone reading it was told the wrong thing.
+ */
+function withCurrent(options: number[], current: number | null | undefined): number[] {
+  if (current === null || current === undefined || options.includes(current)) return options;
+  return [...options, current].sort((a, b) => a - b);
+}
+
 function Minutes({ value, options, onChange }: {
   value: number; options: number[]; onChange: (n: number) => void;
 }) {
@@ -700,7 +717,7 @@ function Minutes({ value, options, onChange }: {
       onChange={(e) => onChange(Number(e.target.value))}
       className="h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
     >
-      {options.map((m) => (
+      {withCurrent(options, value).map((m) => (
         <option key={m} value={m}>{m === 0 ? 'None' : durationLabel(m)}</option>
       ))}
     </select>

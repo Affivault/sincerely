@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  DEAL_LABELS, LEAD_ARCHIVE_REASONS, LEAD_STALE_DAYS, leadIsStale, summariseLeads, formatMoney } from '@lemlist/shared';
+  DEAL_LABELS, LEAD_ARCHIVE_REASONS, LEAD_STALE_DAYS, leadIsStale, summariseLeads, formatMoney, sourceLabel } from '@lemlist/shared';
 import type { DealLabel, Lead, LeadStatus } from '@lemlist/shared';
 import { leadsApi } from '../../api/leads.api';
 import { Modal } from '../../components/ui/Modal';
@@ -366,16 +366,16 @@ export function LeadsPage() {
                       <span className="flex flex-wrap items-center gap-1.5">
                         <span className="truncate text-body font-medium text-[var(--text-primary)]">{lead.title}</span>
                         {lead.label && (
-                          <span className={cn('rounded-full px-1.5 py-0.5 text-micro font-bold uppercase', LABEL_TONE[lead.label])}>
+                          <span className={cn('rounded-full px-1.5 py-0.5 text-micro font-semibold capitalize', LABEL_TONE[lead.label])}>
                             {lead.label}
                           </span>
                         )}
                         {stale && (
                           <span
                             title={`Open for more than ${LEAD_STALE_DAYS} days — somebody answered and nobody answered back`}
-                            className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-micro font-bold uppercase text-amber-700 dark:text-amber-400"
+                            className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-micro font-semibold text-amber-700 dark:text-amber-400"
                           >
-                            <Clock className="h-2.5 w-2.5" /> waiting
+                            <Clock className="h-2.5 w-2.5" /> Waiting
                           </span>
                         )}
                       </span>
@@ -386,7 +386,7 @@ export function LeadsPage() {
                             <Briefcase className="h-2.5 w-2.5 flex-shrink-0" />{lead.contact.job_title}
                           </span>
                         )}
-                        {lead.source && <span className="truncate">via {lead.source}</span>}
+                        {lead.source && <span className="truncate">via {sourceLabel(lead.source).replace(/^A reply$/, 'a reply')}</span>}
                         <span>{ageLabel(lead.created_at)}</span>
                       </span>
                     </span>

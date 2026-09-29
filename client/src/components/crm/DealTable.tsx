@@ -1,6 +1,6 @@
 import { useDealHealth, DealHealthDot } from './DealHealth';
 import { useMemo, useState } from 'react';
-import { DEAL_STAGES, probabilityOf, rotOf, weightedValue, formatDayMonth, formatMoney, parseDay } from '@lemlist/shared';
+import { DEAL_STAGES, probabilityOf, rotOf, weightedValue, formatDayMonth, formatMoney, parseDay, dealStageLabel } from '@lemlist/shared';
 import type { Deal, DealStage } from '@lemlist/shared';
 import { Avatar } from '../shared/Avatar';
 import { Checkbox } from '../ui/Checkbox';
@@ -194,7 +194,7 @@ export function DealTable({
               </th>
               <Th label="Deal" sortKey="title" active={sortKey} dir={sortDir} onSort={onSort} />
               <Th label="Company" sortKey="company" active={sortKey} dir={sortDir} onSort={onSort} width="18%" />
-              <Th label="Lead" sortKey="lead" active={sortKey} dir={sortDir} onSort={onSort} width="16%" />
+              <Th label="Contact" sortKey="lead" active={sortKey} dir={sortDir} onSort={onSort} width="16%" />
               <Th label="Stage" sortKey="stage" active={sortKey} dir={sortDir} onSort={onSort} width="130px" />
               <Th label="Value" sortKey="value" active={sortKey} dir={sortDir} onSort={onSort} align="right" width="105px" />
               <Th label="Weighted" sortKey="weighted" active={sortKey} dir={sortDir} onSort={onSort} align="right" width="110px" />
@@ -229,7 +229,7 @@ export function DealTable({
                       </span>
                       {rot.rotting && (
                         <span
-                          title={`No movement for ${rot.days} days — ${d.stage} deals are expected to move within ${rot.limit}`}
+                          title={`No movement for ${rot.days} days — ${dealStageLabel(d.stage)} deals are expected to move within ${rot.limit}`}
                           className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-rose-500/10 px-1.5 py-0.5 text-micro font-semibold text-rose-600 dark:text-rose-400"
                         >
                           <Clock className="h-2.5 w-2.5" /> Stalled

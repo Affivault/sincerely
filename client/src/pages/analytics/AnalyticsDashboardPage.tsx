@@ -28,7 +28,7 @@ import { SequenceStepsPanel } from '../../components/analytics/SequenceStepsPane
 import toast from 'react-hot-toast';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
-import { formatDateTime, formatDayMonth } from '@lemlist/shared';
+import { formatDateTime, formatDayMonth, campaignStatusLabel } from '@lemlist/shared';
 import {
   LineChart, Line,
   BarChart, Bar,
@@ -1282,7 +1282,7 @@ export function AnalyticsDashboardPage() {
                       <h2 className="text-heading font-bold text-[var(--text-primary)]">{selectedCampaign.name}</h2>
                       <div className="flex items-center gap-2 mt-0.5">
                         <Badge variant={selectedCampaign.status === 'running' ? 'success' : selectedCampaign.status === 'paused' ? 'warning' : 'default'}>
-                          {selectedCampaign.status}
+                          {campaignStatusLabel(selectedCampaign.status)}
                         </Badge>
                         <span className="text-caption text-[var(--text-tertiary)]">{fmtNum(selectedCampaign.sent)} total emails sent</span>
                         <span className="sep-dot text-[var(--text-tertiary)]" />

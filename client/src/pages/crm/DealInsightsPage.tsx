@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   DEAL_STAGES, OPEN_STAGES, annualRecurring, dealValue, medianDaysPerStage,
-  outcomesByStage, performanceBySource, reasonBreakdown,
-} from '@lemlist/shared';
+  outcomesByStage, performanceBySource, reasonBreakdown, plural, sourceLabel } from '@lemlist/shared';
 import type { DealStage } from '@lemlist/shared';
 import { crmApi } from '../../api/crm.api';
 import { Spinner } from '../../components/ui/Spinner';
@@ -223,7 +222,7 @@ export function DealInsightsPage() {
                   {money(analysis.lostValue)}
                 </p>
                 <p className="mt-1.5 text-caption text-[var(--text-muted)]">
-                  {analysis.closedCount - analysis.wonCount} deals
+                  {plural(analysis.closedCount - analysis.wonCount, 'deal')}
                 </p>
               </div>
               <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-3">
@@ -298,7 +297,7 @@ export function DealInsightsPage() {
                           <div className="mb-1 flex items-baseline justify-between gap-2">
                             <span className="text-body font-medium text-[var(--text-primary)]">{stageLabel(stage)}</span>
                             <span className="text-caption tabular-nums text-[var(--text-tertiary)]">
-                              {d === undefined ? '—' : `${d} days`}
+                              {d === undefined ? '—' : plural(d, 'day')}
                             </span>
                           </div>
                           <div className="h-1.5 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
@@ -380,7 +379,7 @@ export function DealInsightsPage() {
                   <tbody>
                     {analysis.sources.map((row) => (
                       <tr key={row.source} className="border-b border-[var(--border-subtle)] last:border-0">
-                        <td className="px-2 py-2 text-body font-medium text-[var(--text-primary)]">{row.source}</td>
+                        <td className="px-2 py-2 text-body font-medium text-[var(--text-primary)]">{sourceLabel(row.source)}</td>
                         <td className="px-2 py-2 text-right text-body tabular-nums text-[var(--text-tertiary)]">{row.open}</td>
                         <td className="px-2 py-2 text-right text-body tabular-nums text-emerald-600 dark:text-emerald-400">{row.won}</td>
                         <td className="px-2 py-2 text-right text-body tabular-nums text-rose-500">{row.lost}</td>

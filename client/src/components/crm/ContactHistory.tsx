@@ -19,7 +19,7 @@ import {
 import toast from 'react-hot-toast';
 import type { CrmNote, CrmTask, CrmEvent } from '@lemlist/shared';
 import { useOptimisticRow } from '../../lib/optimistic';
-import { formatDate, formatDayMonth, formatLongDate, formatTime, formatWeekday, formatMoney } from '@lemlist/shared';
+import { formatDate, formatDayMonth, formatLongDate, formatTime, formatWeekday, formatMoney, sourceLabel } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    The history of a relationship.
@@ -790,10 +790,7 @@ export function ContactOrigin({ source, importSource, importedAt, createdAt }: {
     );
   }
 
-  const label = source === 'csv_import' ? 'CSV import'
-    : source === 'manual' ? 'Added manually'
-    : source === 'api' ? 'API'
-    : source || 'Unknown';
+  const label = source ? sourceLabel(source) : 'Unknown';
 
   return (
     <p className="text-caption text-[var(--text-tertiary)]">

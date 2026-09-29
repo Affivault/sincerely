@@ -56,12 +56,12 @@ export type TemplateCategory =
   | 'custom';
 
 export const TEMPLATE_CATEGORIES: { value: TemplateCategory; label: string }[] = [
-  { value: 'cold_outreach', label: 'Cold Outreach' },
-  { value: 'follow_up', label: 'Follow-Up' },
+  { value: 'cold_outreach', label: 'Cold outreach' },
+  { value: 'follow_up', label: 'Follow-up' },
   { value: 'introduction', label: 'Introduction' },
-  { value: 'meeting_request', label: 'Meeting Request' },
+  { value: 'meeting_request', label: 'Meeting request' },
   { value: 'nurture', label: 'Nurture' },
-  { value: 're_engagement', label: 'Re-Engagement' },
+  { value: 're_engagement', label: 'Re-engagement' },
   { value: 'custom', label: 'Custom' },
 ];
 

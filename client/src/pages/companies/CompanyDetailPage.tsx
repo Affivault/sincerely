@@ -75,7 +75,7 @@ function InfoRow({ icon: Icon, label, value, onSave, href, type }: {
           <span className="min-w-0 flex-1">
             <InlineEdit
               value={value}
-              placeholder={`Add ${label.toLowerCase()}`}
+              placeholder={`Add ${/^[A-Z][a-z]/.test(label) && !/^LinkedIn/.test(label) ? label.charAt(0).toLowerCase() + label.slice(1) : label}`}
               ariaLabel={label.toLowerCase()}
               type={type}
               textClassName="text-strong text-[var(--text-primary)]"

@@ -13,7 +13,7 @@ import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
 import { ContactHistory, ContactOrigin } from '../../components/crm/ContactHistory';
 import {
   DEAL_STAGES, isColdEmailable, LIFECYCLE_LABEL,
-  type Deal, type CrmEvent, type Lifecycle, formatDayMonth, formatDate, formatDateTime } from '@lemlist/shared';
+  type Deal, type CrmEvent, type Lifecycle, formatDayMonth, formatDate, formatDateTime, plural } from '@lemlist/shared';
 import { Spinner } from '../../components/ui/Spinner';
 import { InlineEdit } from '../../components/ui/InlineEdit';
 import { Modal } from '../../components/ui/Modal';
@@ -360,7 +360,7 @@ export function ContactDetailPage() {
       {/* Relationship stat strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Last contact', value: relTime(lastContactIso), sub: `${emails.length} emails` },
+          { label: 'Last contact', value: relTime(lastContactIso), sub: plural(emails.length, 'email') },
           { label: 'Received', value: String(receivedCount), sub: `${sentCount} sent` },
           { label: 'Opens · replies', value: `${opens} · ${replies}`, sub: 'engagement' },
           { label: 'Open pipeline', value: money(pipelineValue), sub: `${openDeals.length} deal${openDeals.length === 1 ? '' : 's'}` },
@@ -421,7 +421,7 @@ export function ContactDetailPage() {
           </div>
 
           <div className="card p-4">
-            <h2 className="text-caption font-bold text-[var(--text-tertiary)] mb-3">Contact Info</h2>
+            <h2 className="text-caption font-bold text-[var(--text-tertiary)] mb-3">Contact info</h2>
             <div className="space-y-2.5">
               {/* Every field renders whether or not it's filled — you can't type
                   into a row the UI hides because it's empty. */}
@@ -456,7 +456,7 @@ export function ContactDetailPage() {
               ) : (
                 <InfoRow icon={Building2} label="Company" value={contact.company} onSave={field('company')} />
               )}
-              <InfoRow icon={Briefcase} label="Job Title" value={contact.job_title} onSave={field('job_title')} />
+              <InfoRow icon={Briefcase} label="Job title" value={contact.job_title} onSave={field('job_title')} />
               <InfoRow icon={Phone} label="Phone" value={contact.phone} onSave={field('phone')} />
               <InfoRow icon={Linkedin} label="LinkedIn" value={contact.linkedin_url} isLink onSave={field('linkedin_url')} />
               <InfoRow icon={Globe} label="Website" value={contact.website} isLink onSave={field('website')} />
@@ -755,7 +755,7 @@ function InfoRow({
             <span className="min-w-0 flex-1">
               <InlineEdit
                 value={value}
-                placeholder={`Add ${label.toLowerCase()}`}
+                placeholder={`Add ${/^[A-Z][a-z]/.test(label) && !/^LinkedIn/.test(label) ? label.charAt(0).toLowerCase() + label.slice(1) : label}`}
                 ariaLabel={label.toLowerCase()}
                 type={isLink ? 'url' : 'text'}
                 textClassName="text-strong text-[var(--text-primary)]"

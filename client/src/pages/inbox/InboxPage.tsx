@@ -326,6 +326,15 @@ const TRIAGE_PILL: Record<TriageDecision, { label: string; cls: string }> = {
   not_interested: { label: 'Passed', cls: 'bg-rose-500/10 text-rose-600 dark:text-rose-400' },
 };
 
+/** What Relay recommends doing with a reply, as a sentence. */
+const RELAY_ACTION_TEXT: Record<string, string> = {
+  reply: 'Worth an answer - Relay suggests replying.',
+  unsubscribe: 'They asked to stop hearing from you - Relay suggests unsubscribing them.',
+  stop_sequence: 'Relay suggests stopping the sequence for this person.',
+  archive: 'Nothing to answer - Relay suggests archiving it.',
+  escalate: 'Relay flagged this one for a person to look at.',
+};
+
 const INTENT_COLORS: Record<string, { bg: string; text: string; label: string }> = {
   interested: { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', label: REPLY_INTENT_LABELS.interested.label },
   meeting: { bg: 'bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400', label: REPLY_INTENT_LABELS.meeting.label },
@@ -398,7 +407,9 @@ function SenderSelect({ accounts, value, onChange }: {
       >
         {accounts.map(a => (
           <option key={a.id} value={a.id}>
-            {a.label ? `${a.label} (${a.email_address})` : a.email_address}
+            {/* The label is often the address itself; "x (x)" said it twice
+                and truncated to half of the second copy. */}
+            {a.label && a.label.trim().toLowerCase() !== a.email_address.toLowerCase() ? `${a.label} (${a.email_address})` : a.email_address}
           </option>
         ))}
       </select>
@@ -1689,15 +1700,19 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
           first, and only a pursued lead becomes a deal. Inbound only —
           there is nothing to decide about something you sent. */}
       {msg.direction !== 'outbound' && (
-        <ReplyTriage
-          messageId={msg.id}
-          contactId={msg.contact_id}
-          // What the server already says this reply is. Without it a reload
-          // put an answered thread back at the start, offering to decide it
-          // a second time.
-          decision={msg.triage_decision}
-          leadId={msg.triage_ref}
-        />
+        // Inset like every other section of the rail; unwrapped, its border
+        // ran into the window edge.
+        <div className="px-3.5 pb-4">
+          <ReplyTriage
+            messageId={msg.id}
+            contactId={msg.contact_id}
+            // What the server already says this reply is. Without it a reload
+            // put an answered thread back at the start, offering to decide it
+            // a second time.
+            decision={msg.triage_decision}
+            leadId={msg.triage_ref}
+          />
+        </div>
       )}
 
       <ThreadDealPanel msg={msg} />
@@ -2090,7 +2105,10 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
             )}
           </div>
           <p className="mt-1.5 text-body text-[var(--text-secondary)] leading-snug">
-            {msg.sara_action || (hasDraft ? 'Relay drafted a reply for this conversation.' : 'Relay reviewed this reply and tagged its intent.')}
+            {/* The action is a key ("reply", "stop_sequence"); this printed it
+                raw as the card's only sentence. Said as a recommendation. */}
+            {(msg.sara_action && RELAY_ACTION_TEXT[msg.sara_action])
+              || (hasDraft ? 'Relay drafted a reply for this conversation.' : 'Relay reviewed this reply and tagged its intent.')}
           </p>
         </div>
       </div>
@@ -2965,20 +2983,22 @@ export function InboxPage() {
             <div className="flex-1 flex min-h-0">
               <div className="flex-1 min-w-0 flex flex-col">
                 <div className="flex-1 overflow-y-auto bg-[var(--bg-app)]">
-                  <div className="max-w-[860px] mx-auto px-8 pt-8 pb-6">
+                  <div className="max-w-[860px] mx-auto px-4 pt-5 sm:px-8 sm:pt-8 pb-6">
                     {/* Conversation hero — who, what, and the intent tag */}
                     <div className="flex items-start gap-4">
                       <span className="hidden sm:inline-flex rounded-full ring-4 ring-[var(--bg-surface)] shadow-[var(--shadow-sm)] flex-shrink-0">
                         <Avatar name={threadContactName || undefined} email={threadContactEmail || undefined} size="lg" />
                       </span>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
+                        {/* The tag drops under the subject on a phone; beside it, the
+                            subject was squeezed into a column four lines tall. */}
+                        <div className="flex flex-wrap sm:flex-nowrap items-start justify-between gap-x-3 gap-y-2">
+                          <div className="min-w-0 basis-full sm:basis-auto">
                             <div className="flex items-baseline gap-2 min-w-0">
                               <h2 className="text-heading font-semibold text-[var(--text-primary)] truncate">{threadContactName || 'Unknown sender'}</h2>
                               {threadContactEmail && <span className="text-body text-[var(--text-tertiary)] truncate hidden md:inline">{threadContactEmail}</span>}
                             </div>
-                            <h1 className="mt-1 text-display font-semibold text-[var(--text-primary)] leading-snug tracking-[-0.02em]">
+                            <h1 className="mt-1 text-title sm:text-display font-semibold text-[var(--text-primary)] leading-snug tracking-[-0.02em]">
                               {threadSubject || '(no subject)'}
                             </h1>
                             <div className="mt-1.5 flex items-center gap-2 text-body text-[var(--text-tertiary)] flex-wrap">
@@ -3102,8 +3122,10 @@ export function InboxPage() {
 
                 {/* ── Composer dock — sits inside the thread's message column so it flows with the emails above ── */}
                 <div className="flex-shrink-0 bg-[var(--bg-app)] pt-1 pb-5">
-                  <div className="max-w-[860px] mx-auto px-8">
-                  <div className="pl-12">
+                  <div className="max-w-[860px] mx-auto px-3 sm:px-8">
+                  {/* The indent lines the composer up with the messages; on a phone it
+                      only took 48px from the one box that needs every one of them. */}
+                  <div className="sm:pl-12">
                   {replyMode ? (
                     <div
                       ref={replyComposerRef}
@@ -3199,9 +3221,11 @@ export function InboxPage() {
                       )}
 
                       {/* Action bar — Discard left, Schedule + Send anchored right */}
-                      <div className="flex items-center justify-between gap-2 px-4 py-3 border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/30 flex-shrink-0">
+                      {/* Tighter on a phone: with full labels the three buttons
+                          overlapped - Discard under Schedule, Send reply wrapped. */}
+                      <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-3 border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/30 flex-shrink-0">
                         <div className="flex items-center gap-1 min-w-0">
-                          <button onClick={() => setReplyMode(null)} className="h-9 px-3 rounded-lg text-strong font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">Discard</button>
+                          <button onClick={() => setReplyMode(null)} className="h-9 px-2 sm:px-3 rounded-lg text-strong font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">Discard</button>
                           <SignatureButton available={replySig.available} on={replySig.on} onToggle={replySig.toggle} />
                         </div>
                         <div className="flex items-center gap-2">
@@ -3218,7 +3242,7 @@ export function InboxPage() {
                                 title="Schedule send"
                               >
                                 <CalendarClock className="h-3.5 w-3.5" />
-                                <span>Schedule</span>
+                                <span className="hidden sm:inline">Schedule</span>
                                 <ChevronDown className={`h-3 w-3 transition-transform ${showReplySchedule ? 'rotate-180' : ''}`} />
                               </button>
                               {showReplySchedule && (
@@ -3248,7 +3272,7 @@ export function InboxPage() {
                             disabled={
                               (replyMode === 'reply' ? replyEditor.isEmpty || replyMut.isPending : !forwardTo.trim() || forwardMut.isPending)
                             }
-                            className="flex items-center gap-2 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-strong font-semibold hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
+                            className="flex items-center gap-2 h-9 px-3 sm:px-4 rounded-lg bg-[var(--indigo)] text-white text-strong font-semibold whitespace-nowrap hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
                           >
                             <Send className="h-3.5 w-3.5" />
                             {replyMut.isPending || forwardMut.isPending ? 'Sending…' : replyMode === 'reply' ? 'Send reply' : 'Forward'}

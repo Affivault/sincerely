@@ -23,6 +23,13 @@ interface PageHeaderProps {
   /** Extra metadata row (eg "Updated 2h ago · 42 contacts") */
   meta?: ReactNode;
   className?: string;
+  /**
+   * Width for what is inside the band, when the page below is narrower
+   * than the screen (Flow reads best at max-w-4xl). The band itself still
+   * runs edge to edge; wrapping the whole header in the narrow container
+   * instead left a white strip that stopped partway across the page.
+   */
+  contentClassName?: string;
 }
 
 export function PageHeader({
@@ -34,6 +41,7 @@ export function PageHeader({
   tabs,
   meta,
   className,
+  contentClassName,
 }: PageHeaderProps) {
   return (
     <header
@@ -50,6 +58,7 @@ export function PageHeader({
           keep headers calm and consistent across the app. */}
 
       <div className="relative px-4 sm:px-6 lg:px-8 pt-5 pb-4">
+        <div className={contentClassName}>
         {/* Breadcrumbs */}
         {breadcrumbs && breadcrumbs.length > 0 && (
           <nav className="flex items-center gap-1 mb-2 text-body text-[var(--text-tertiary)]">
@@ -97,10 +106,11 @@ export function PageHeader({
           )}
         </div>
 
+        </div>
         {/* Tabs row */}
         {tabs && (
           <div className="mt-4 -mb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 overflow-x-auto scrollbar-none border-t border-[var(--border-subtle)]">
-            {tabs}
+            <div className={contentClassName}>{tabs}</div>
           </div>
         )}
       </div>

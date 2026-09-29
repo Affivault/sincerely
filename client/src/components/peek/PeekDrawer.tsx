@@ -20,7 +20,7 @@ import {
   Handshake, ArrowRight, Users, MapPin, Factory, Copy, Check,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { DEAL_STAGES, type DealStage, formatLongDate, formatMoney } from '@lemlist/shared';
+import { DEAL_STAGES, type DealStage, formatLongDate, formatMoney, dealStageLabel } from '@lemlist/shared';
 import { OutcomeDialog } from '../crm/OutcomeDialog';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { StandingStrip } from './StandingStrip';
@@ -596,7 +596,7 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
               >
                 <span className="flex-1 min-w-0">
                   <span className="block text-body font-medium text-[var(--text-primary)] truncate">{d.title}</span>
-                  <span className="block text-caption text-[var(--text-tertiary)] capitalize">{d.stage}</span>
+                  <span className="block text-caption text-[var(--text-tertiary)]">{dealStageLabel(d.stage)}</span>
                 </span>
                 <span className="text-body font-semibold tabular text-[var(--text-primary)] flex-shrink-0">
                   {formatMoney(d.value, d.currency)}

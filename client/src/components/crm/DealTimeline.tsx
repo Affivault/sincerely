@@ -238,7 +238,9 @@ export function DealTimeline({
         icon: Icon, tone: t.is_done
           ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
           : 'bg-[var(--indigo-subtle)] text-[var(--indigo)]',
-        title: t.title, meta: t.due_date ? dueLabel(t.due_date).text : null, task: t,
+        // The day heading and the time column already say when; repeating
+        // "Tomorrow, 12:32 AM" underneath said it twice. Only lateness is new.
+        title: t.title, meta: !t.is_done && t.due_date && dueLabel(t.due_date).tone === 'over' ? 'Overdue' : null, task: t,
       });
     }
 
@@ -248,7 +250,11 @@ export function DealTimeline({
         icon: e.type === 'call' ? Users : CalendarPlus,
         tone: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
         title: e.title,
-        meta: `${formatTime(new Date(e.starts_at))}${e.location ? ` · ${e.location}` : ''}`,
+        // Length and place - the start time is in the time column already.
+        meta: [
+          e.ends_at ? `${Math.max(1, Math.round((new Date(e.ends_at).getTime() - new Date(e.starts_at).getTime()) / 60_000))} min` : null,
+          e.location,
+        ].filter(Boolean).join(' · ') || null,
       });
     }
 

@@ -70,7 +70,7 @@ const tabs: TabConfig[] = [
   { id: 'account', label: 'Account', icon: Shield },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'preferences', label: 'Preferences', icon: Palette },
-  { id: 'ai', label: 'AI Features', icon: Sparkles },
+  { id: 'ai', label: 'AI features', icon: Sparkles },
 ];
 
 const TAB_IDS = tabs.map((t) => t.id);
@@ -363,13 +363,13 @@ export function SettingsPage() {
       </div>
 
       {/* Content */}
-      <div className="min-w-0 max-w-3xl">
+      <div className="min-w-0">
           <div className="card p-5">
             {/* ═══ Profile Tab ═══ */}
             {activeTab === 'profile' && (
               <div className="space-y-4">
                 <div>
-                  <h2 className="text-heading font-semibold text-[var(--text-primary)]">Profile Information</h2>
+                  <h2 className="text-heading font-semibold text-[var(--text-primary)]">Profile information</h2>
                   <p className="text-strong text-[var(--text-secondary)] mt-1">Update your personal details</p>
                 </div>
 
@@ -389,7 +389,7 @@ export function SettingsPage() {
 
                 <div className="grid grid-cols-2 gap-5">
                   <div>
-                    <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">First Name</label>
+                    <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">First name</label>
                     <input
                       type="text"
                       value={firstName}
@@ -399,7 +399,7 @@ export function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Last Name</label>
+                    <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Last name</label>
                     <input
                       type="text"
                       value={lastName}
@@ -422,7 +422,7 @@ export function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Job Title</label>
+                    <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Job title</label>
                     <input
                       type="text"
                       value={jobTitle}
@@ -477,7 +477,7 @@ export function SettingsPage() {
             {activeTab === 'account' && (
               <div className="space-y-4">
                 <div>
-                  <h2 className="text-heading font-semibold text-[var(--text-primary)]">Account Security</h2>
+                  <h2 className="text-heading font-semibold text-[var(--text-primary)]">Account security</h2>
                   <p className="text-strong text-[var(--text-secondary)] mt-1">Manage your password and security settings</p>
                 </div>
 
@@ -500,9 +500,9 @@ export function SettingsPage() {
                 {/* Password Modal */}
                 {showPasswordModal && (
                   <div className="p-5 rounded-xl bg-[var(--bg-surface)] space-y-4" style={{ border: '2px solid rgba(99,102,241,0.25)' }}>
-                    <h3 className="text-strong font-semibold text-[var(--text-primary)]">Change Password</h3>
+                    <h3 className="text-strong font-semibold text-[var(--text-primary)]">Change password</h3>
                     <div>
-                      <label className="block text-body font-medium text-[var(--text-secondary)] mb-1.5">Current Password</label>
+                      <label className="block text-body font-medium text-[var(--text-secondary)] mb-1.5">Current password</label>
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={currentPassword}
@@ -512,7 +512,7 @@ export function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-body font-medium text-[var(--text-secondary)] mb-1.5">New Password</label>
+                      <label className="block text-body font-medium text-[var(--text-secondary)] mb-1.5">New password</label>
                       <div className="relative">
                         <input
                           type={showPassword ? 'text' : 'password'}
@@ -549,7 +549,7 @@ export function SettingsPage() {
                       )}
                     </div>
                     <div>
-                      <label className="block text-body font-medium text-[var(--text-secondary)] mb-1.5">Confirm Password</label>
+                      <label className="block text-body font-medium text-[var(--text-secondary)] mb-1.5">Confirm password</label>
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={confirmPassword}
@@ -606,7 +606,7 @@ export function SettingsPage() {
 
                 {/* Connected accounts */}
                 <div className="pt-6 border-t border-[var(--border-subtle)]">
-                  <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-4">Connected Accounts</h3>
+                  <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-4">Connected accounts</h3>
                   <div className="flex items-center justify-between p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[var(--border-default)] transition-colors">
                     <div className="flex items-center gap-3">
                       <svg className="h-5 w-5" viewBox="0 0 24 24">
@@ -623,7 +623,7 @@ export function SettingsPage() {
 
                 {/* Danger Zone */}
                 <div className="pt-6 border-t border-[var(--border-subtle)]">
-                  <h3 className="text-strong font-semibold text-[var(--error)] mb-4">Danger Zone</h3>
+                  <h3 className="text-strong font-semibold text-[var(--error)] mb-4">Danger zone</h3>
                   <div className="p-5 border border-[var(--error)]/20 rounded-xl bg-[var(--error-bg)]">
                     <p className="text-strong text-[var(--text-secondary)] mb-4">
                       Once you delete your account, there is no going back. All your campaigns, contacts, SMTP accounts, and data will be permanently removed.
@@ -684,25 +684,25 @@ export function SettingsPage() {
 
                 <div className="space-y-3">
                   <ToggleSetting
-                    label="Email Notifications"
+                    label="Email notifications"
                     description="Receive email notifications for important updates"
                     checked={emailNotifications}
                     onChange={(v) => { setEmailNotifications(v); markChanged(); }}
                   />
                   <ToggleSetting
-                    label="Campaign Alerts"
+                    label="Campaign alerts"
                     description="Get notified when campaigns start, pause, or complete"
                     checked={campaignAlerts}
                     onChange={(v) => { setCampaignAlerts(v); markChanged(); }}
                   />
                   <ToggleSetting
-                    label="Reply Notifications"
+                    label="Reply notifications"
                     description="Receive instant notifications when contacts reply"
                     checked={replyNotifications}
                     onChange={(v) => { setReplyNotifications(v); markChanged(); }}
                   />
                   <ToggleSetting
-                    label="Weekly Digest"
+                    label="Weekly digest"
                     description="Receive a weekly summary of your campaign performance"
                     checked={weeklyDigest}
                     onChange={(v) => { setWeeklyDigest(v); markChanged(); }}
@@ -775,7 +775,7 @@ export function SettingsPage() {
             {activeTab === 'ai' && (
               <div className="space-y-4">
                 <div>
-                  <h2 className="text-heading font-semibold text-[var(--text-primary)]">AI Features</h2>
+                  <h2 className="text-heading font-semibold text-[var(--text-primary)]">AI features</h2>
                   <p className="text-strong text-[var(--text-secondary)] mt-1">
                     Configure intelligent email tagging and AI-powered reply assistance
                   </p>
@@ -785,7 +785,7 @@ export function SettingsPage() {
                   <div className="flex items-start gap-3">
                     <Sparkles className="h-5 w-5 text-[var(--indigo)] mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="text-strong font-medium text-[var(--text-primary)]">Smart Email Tagging</p>
+                      <p className="text-strong font-medium text-[var(--text-primary)]">Smart email tagging</p>
                       <p className="text-body text-[var(--text-secondary)] mt-1 leading-relaxed">
                         AI automatically tags incoming replies by intent &mdash; Interested, Wants a meeting,
                         Not Interested, Objection, Out of Office, Unsubscribe, and Bounce.

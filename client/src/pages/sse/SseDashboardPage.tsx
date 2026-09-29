@@ -57,8 +57,8 @@ export function SseDashboardPage() {
             <Shield className="h-4 w-4 text-white" />
           </span>
         }
-        title="Smart-Sharding Engine"
-        description="Sender reputation health and rotation management"
+        title="Sender health"
+        description="How each mailbox is holding up, and which one sends next."
         meta={
           <>
             <span className={cn('h-1.5 w-1.5 rounded-full', availableAccounts === totalAccounts ? 'bg-emerald-500' : 'bg-amber-400')} />
@@ -74,10 +74,10 @@ export function SseDashboardPage() {
 
       {/* KPI strip */}
       <div className="grid grid-cols-4 gap-3">
-        <StatCard label="Total Senders" value={totalAccounts} icon={Server} accent="slate" />
+        <StatCard label="Total senders" value={totalAccounts} icon={Server} accent="slate" />
         <StatCard label="Available" value={availableAccounts} icon={CheckCircle2} accent="emerald" hint={`${totalAccounts > 0 ? Math.round((availableAccounts/totalAccounts)*100) : 0}% of total`} />
-        <StatCard label="Avg Health" value={avgHealth} icon={Activity} accent={avgHealth >= 80 ? 'emerald' : avgHealth >= 60 ? 'amber' : 'rose'} />
-        <StatCard label="Warming Up" value={warmupCount} icon={Flame} accent="amber" />
+        <StatCard label="Average health" value={avgHealth} icon={Activity} accent={avgHealth >= 80 ? 'emerald' : avgHealth >= 60 ? 'amber' : 'rose'} />
+        <StatCard label="Warming up" value={warmupCount} icon={Flame} accent="amber" />
       </div>
 
       {/* Account Cards */}
@@ -124,8 +124,11 @@ export function SseDashboardPage() {
                   <Mail className={cn('h-5 w-5', account.is_available ? 'text-emerald-400' : 'text-red-400')} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-strong font-semibold text-[var(--text-primary)] truncate">{account.label}</h3>
-                  <p className="text-body text-[var(--text-secondary)] truncate">{account.email_address}</p>
+                  <h3 className="text-strong font-semibold text-[var(--text-primary)] truncate">{account.label || account.email_address}</h3>
+                  {/* Only when it says something the heading did not. */}
+                  {account.label && account.label.toLowerCase() !== account.email_address.toLowerCase() && (
+                    <p className="text-body text-[var(--text-secondary)] truncate">{account.email_address}</p>
+                  )}
                 </div>
                 {account.warmup_mode && (
                   <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400">
@@ -151,7 +154,7 @@ export function SseDashboardPage() {
               <div className="p-4 space-y-3">
                 {/* Health Score */}
                 <div className="flex items-center justify-between">
-                  <span className="text-body text-[var(--text-secondary)]">Health Score</span>
+                  <span className="text-body text-[var(--text-secondary)]">Health score</span>
                   <div className="flex items-center gap-2">
                     <div className="w-32 h-2 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
                       <div
@@ -170,7 +173,7 @@ export function SseDashboardPage() {
 
                 {/* Send Utilization */}
                 <div className="flex items-center justify-between">
-                  <span className="text-body text-[var(--text-secondary)]">Daily Utilization</span>
+                  <span className="text-body text-[var(--text-secondary)]">Used today</span>
                   <div className="flex items-center gap-2">
                     <div className="w-32 h-2 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
                       <div
@@ -186,7 +189,7 @@ export function SseDashboardPage() {
 
                 {/* Bounce Rate */}
                 <div className="flex items-center justify-between">
-                  <span className="text-body text-[var(--text-secondary)]">Bounce Rate (7d)</span>
+                  <span className="text-body text-[var(--text-secondary)]">Bounce rate, 7 days</span>
                   <div className="flex items-center gap-1">
                     {account.bounce_rate_7d > 5 ? (
                       <TrendingUp className="h-3.5 w-3.5 text-red-400" />
@@ -212,19 +215,19 @@ export function SseDashboardPage() {
       <div className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-4">
         <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
           <Zap className="h-4 w-4 text-[var(--text-secondary)]" />
-          How Smart-Sharding Works
+          How sender rotation works
         </h3>
         <div className="grid grid-cols-3 gap-4 text-strong text-[var(--text-secondary)]">
           <div>
-            <p className="font-medium text-[var(--text-secondary)] mb-1">1. Score Calculation</p>
+            <p className="font-medium text-[var(--text-secondary)] mb-1">1. How each sender is scored</p>
             <p>Each sender is scored using a weighted formula: (health x 0.6) + (remaining capacity x 0.4).</p>
           </div>
           <div>
-            <p className="font-medium text-[var(--text-secondary)] mb-1">2. Automatic Rotation</p>
+            <p className="font-medium text-[var(--text-secondary)] mb-1">2. Who sends next</p>
             <p>The highest-scoring sender is selected for each email. Exhausted accounts are skipped automatically.</p>
           </div>
           <div>
-            <p className="font-medium text-[var(--text-secondary)] mb-1">3. Health Recovery</p>
+            <p className="font-medium text-[var(--text-secondary)] mb-1">3. How health recovers</p>
             <p>Health scores recover with opens (+1) and degrade on bounces (-5). Daily counts reset at midnight.</p>
           </div>
         </div>

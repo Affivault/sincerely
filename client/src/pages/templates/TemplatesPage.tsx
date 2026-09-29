@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { templateApi } from '../../api/template.api';
+import { smtpApi } from '../../api/smtp.api';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -40,13 +41,17 @@ import type {
   CreateEmailTemplateInput,
   CreateSequenceTemplateInput,
 } from '@lemlist/shared';
-import { TEMPLATE_CATEGORIES, formatDayMonth, draftAgeLabel } from '@lemlist/shared';
+import { TEMPLATE_CATEGORIES, formatDayMonth, draftAgeLabel, plural } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import { useDraftRecovery } from '../../hooks/useDraftRecovery';
 
 // ─── Email Preview Component ────────────────────────────────────────
 
 function EmailPreview({ subject, bodyHtml, compact }: { subject: string; bodyHtml: string; compact?: boolean }) {
+  // From the mailbox this would really go out from, when there is one -
+  // shared with every other screen that lists mailboxes, so no extra request.
+  const { data: mailboxes } = useQuery({ queryKey: ['smtp-accounts'], queryFn: smtpApi.list, staleTime: 60_000 });
+  const fromAddress = mailboxes?.find((m) => m.is_active)?.email_address;
   const sampleData: Record<string, string> = {
     first_name: 'Alex',
     last_name: 'Johnson',
@@ -82,11 +87,11 @@ function EmailPreview({ subject, bodyHtml, compact }: { subject: string; bodyHtm
         <div className={`${compact ? 'text-micro' : 'text-body'} text-[#6b7280] space-y-0.5`}>
           <div className="flex items-center gap-2">
             <span className="font-medium text-[#374151] w-10">From:</span>
-            <span>{sampleData.sender_name}@yourcompany.com</span>
+            <span>{fromAddress || `${sampleData.sender_name.toLowerCase()}@yourcompany.com`}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="font-medium text-[#374151] w-10">To:</span>
-            <span>{sampleData.first_name}@{sampleData.company.toLowerCase().replace(/\s/g, '')}.com</span>
+            <span>{sampleData.first_name.toLowerCase()}@{sampleData.company.toLowerCase().replace(/\s/g, '')}.com</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="font-medium text-[#374151] w-10 shrink-0">Subj:</span>
@@ -170,9 +175,13 @@ const CATEGORY_COLORS: Record<TemplateCategory, string> = {
 };
 
 function CategoryBadge({ category }: { category: TemplateCategory }) {
-  const label = TEMPLATE_CATEGORIES.find(c => c.value === category)?.label || category;
+  // A category this list does not know (an older or imported template) was
+  // shown as its raw key with no colour classes at all - unreadable on the
+  // dark theme. It reads as its words, styled as a custom one.
+  const label = TEMPLATE_CATEGORIES.find(c => c.value === category)?.label
+    || (String(category || 'custom').charAt(0).toUpperCase() + String(category || 'custom').slice(1)).replace(/_/g, ' ');
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-micro font-semibold rounded-full ${CATEGORY_COLORS[category]}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 text-micro font-semibold rounded-full ${CATEGORY_COLORS[category] || CATEGORY_COLORS.custom}`}>
       {label}
     </span>
   );
@@ -976,10 +985,10 @@ export function TemplatesPage() {
                   <TemplateListRow
                     key={t.id}
                     title={t.name}
-                    snippet={t.description || `${steps.length} steps`}
+                    snippet={t.description || plural(steps.length, 'step')}
                     category={t.category}
                     isPreset={t.is_preset}
-                    meta={`${steps.length} emails · ${relTime(t.updated_at || t.created_at)}`}
+                    meta={`${plural(steps.length, 'email')} · ${relTime(t.updated_at || t.created_at)}`}
                     active={effectiveId === t.id}
                     onClick={() => setSelectedId(t.id)}
                   />

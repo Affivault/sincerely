@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { SettingsShell } from '../../components/shared/SettingsShell';
+import { PageHeader } from '../../components/shared/PageHeader';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { verificationApi } from '../../api/verification.api';
 import { Spinner } from '../../components/ui/Spinner';
@@ -107,6 +108,22 @@ function HealthGauge({ score, size = 160 }: { score: number; size?: number }) {
   );
 }
 
+/**
+ * One colour per score band, by the band's lower bound.
+ *
+ * The server's bands are 90-100, 70-89, 50-69 and 0-49. This used to test
+ * the label's first digit for "80" or "9", so 70-89 - mostly good scores -
+ * fell in with 50-69 and the bar showed two neighbouring blocks in the same
+ * amber, with nothing to tell them apart.
+ */
+function bandTone(range: string): string {
+  const low = parseInt(range, 10);
+  if (low >= 90) return 'bg-emerald-600';
+  if (low >= 70) return 'bg-emerald-400';
+  if (low >= 50) return 'bg-amber-500';
+  return 'bg-rose-500';
+}
+
 export function VerificationPage() {
   const queryClient = useQueryClient();
   const [emailInput, setEmailInput] = useState('');
@@ -159,6 +176,18 @@ export function VerificationPage() {
   return (
     <SettingsShell>
     <div className="space-y-5">
+      {/* The one settings page that opened on a search box with no name. */}
+      <PageHeader
+        className="!mx-0 !mt-0 !mb-0 rounded-xl border border-[var(--border-subtle)]"
+        leading={
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+            <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          </span>
+        }
+        title="Verification"
+        description="Check addresses before you send to them. Every contact gets a score from 0 to 100 for how likely a message is to arrive."
+        meta={stats ? <span className="tabular">{stats.verified.toLocaleString()} of {stats.total.toLocaleString()} checked</span> : undefined}
+      />
       {/* Said once, plainly: without outbound port 25 the mailbox check cannot
           run, and a score of 60 is the ceiling. Better here than left to be
           inferred from a column of identical numbers. */}
@@ -291,16 +320,12 @@ export function VerificationPage() {
                   {stats.score_distribution.map((bucket) => {
                     const pct = stats.total > 0 ? (bucket.count / stats.total) * 100 : 0;
                     if (pct === 0) return null;
-                    const isGood = bucket.range.startsWith('80') || bucket.range.startsWith('9') || bucket.range === '100';
-                    const isMid = bucket.range.startsWith('5') || bucket.range.startsWith('6') || bucket.range.startsWith('7');
                     return (
                       <div
                         key={bucket.range}
                         className={cn(
                           'group relative h-full transition-all hover:opacity-90 cursor-help',
-                          isGood ? 'bg-emerald-500'
-                            : isMid ? 'bg-amber-500'
-                            : 'bg-rose-500'
+                          bandTone(bucket.range),
                         )}
                         style={{ width: `${pct}%` }}
                         title={`${bucket.range}: ${bucket.count} (${Math.round(pct)}%)`}
@@ -319,14 +344,9 @@ export function VerificationPage() {
                 <div className="flex flex-wrap gap-x-4 gap-y-1.5">
                   {stats.score_distribution.map((bucket) => {
                     const pct = stats.total > 0 ? Math.round((bucket.count / stats.total) * 100) : 0;
-                    const isGood = bucket.range.startsWith('80') || bucket.range.startsWith('9') || bucket.range === '100';
-                    const isMid = bucket.range.startsWith('5') || bucket.range.startsWith('6') || bucket.range.startsWith('7');
                     return (
                       <div key={bucket.range} className="flex items-center gap-1.5">
-                        <span className={cn(
-                          'w-2 h-2 rounded-sm',
-                          isGood ? 'bg-emerald-500' : isMid ? 'bg-amber-500' : 'bg-rose-500'
-                        )} />
+                        <span className={cn('w-2 h-2 rounded-sm', bandTone(bucket.range))} />
                         <span className="text-caption font-mono text-[var(--text-tertiary)]">{bucket.range}</span>
                         <span className="text-caption font-semibold tabular text-[var(--text-secondary)]">{bucket.count}</span>
                         <span className="text-micro tabular text-[var(--text-tertiary)]">({pct}%)</span>

@@ -2,7 +2,8 @@ import { StepOutcomesPanel } from '../../components/campaigns/StepOutcomesPanel'
 import { ForecastPanel } from '../../components/campaigns/ForecastPanel';
 import { usePeek } from '../../components/peek/usePeek';
 import { useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { StepWordingEditor } from '../../components/campaigns/StepWordingEditor';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
 import { analyticsApi, type AbTestStep } from '../../api/analytics.api';
@@ -67,7 +68,14 @@ export function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  // ?tab=sequence lands on a tab directly - how "Edit" on a launched
+  // campaign in the list gets somewhere useful rather than an error.
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<TabId>(
+    initialTab === 'sequence' || initialTab === 'contacts' ? initialTab : 'overview',
+  );
+  const [editingStep, setEditingStep] = useState<{ step: CampaignStep; index: number } | null>(null);
   const [contactSearch, setContactSearch] = useState('');
   const [contactStatusFilter, setContactStatusFilter] = useState('');
 
@@ -271,11 +279,12 @@ export function CampaignDetailPage() {
         Campaigns
       </button>
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
+      {/* Header - the actions wrap under the name on a phone rather than
+          squeezing it to "Q3 Fintech o…". */}
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+        <div className="min-w-0 flex-1 basis-64">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-title font-semibold text-[var(--text-primary)] truncate">{campaign.name}</h1>
+            <h1 className="text-title font-semibold text-[var(--text-primary)] break-words">{campaign.name}</h1>
             <StatusBadge status={campaign.status} type="campaign" />
           </div>
           <p className="mt-0.5 text-body text-[var(--text-secondary)]">
@@ -288,7 +297,7 @@ export function CampaignDetailPage() {
             )}
           </p>
         </div>
-        <div className="flex gap-2 flex-shrink-0">
+        <div className="flex flex-wrap gap-2">
           <button title="Clone campaign" onClick={() => cloneMutation.mutate()} disabled={cloneMutation.isPending} className="icon-btn disabled:opacity-50 disabled:pointer-events-none">
             <Copy className="h-3.5 w-3.5" />
           </button>
@@ -477,6 +486,10 @@ export function CampaignDetailPage() {
         </div>
       )}
 
+      {editingStep && id && (
+        <StepWordingEditor campaignId={id} step={editingStep.step} index={editingStep.index} onClose={() => setEditingStep(null)} />
+      )}
+
       {/* Sequence Tab */}
       {activeTab === 'sequence' && (
         <div className="space-y-3">
@@ -485,7 +498,13 @@ export function CampaignDetailPage() {
           ) : (
             <>
               {campaign.steps.map((step: CampaignStep, index: number) => (
-                <SequenceStepCard key={step.id} step={step} index={index} ab={abByStep.get(step.id) ?? null} />
+                <SequenceStepCard
+                  key={step.id}
+                  step={step}
+                  index={index}
+                  ab={abByStep.get(step.id) ?? null}
+                  onEditWording={['running', 'paused', 'scheduled'].includes(campaign.status) ? () => setEditingStep({ step, index }) : undefined}
+                />
               ))}
 
               {/* Which of those steps is actually earning. Here rather than
@@ -779,8 +798,10 @@ const STEP_CFG: Record<string, { accent: string; iconColor: string; iconBg: stri
   webhook_wait:{ accent: 'bg-emerald-500',  iconColor: 'text-emerald-500', iconBg: 'bg-emerald-500/10'          },
 };
 
-function SequenceStepCard({ step, index, ab }: {
+function SequenceStepCard({ step, index, ab, onEditWording }: {
   step: CampaignStep; index: number; ab?: AbStatus | null;
+  /** Set on a launched campaign: the wording can still change, the shape cannot. */
+  onEditWording?: () => void;
 }) {
   const cfg = STEP_CFG[step.step_type] || STEP_CFG.email;
 
@@ -838,6 +859,17 @@ function SequenceStepCard({ step, index, ab }: {
               </div>
             )}
           </div>
+        )}
+
+        {step.step_type === 'email' && onEditWording && (
+          <button
+            type="button"
+            onClick={onEditWording}
+            title="Fix the subject or body - people who have not reached this step get the new version"
+            className="inline-flex h-7 flex-shrink-0 items-center gap-1.5 rounded-md border border-[var(--border-subtle)] px-2.5 text-caption font-medium text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]"
+          >
+            <Pencil className="h-3 w-3" /> Edit wording
+          </button>
         )}
 
         {step.step_type === 'delay' && (

@@ -1,3 +1,4 @@
+import { takeTypedAhead } from '../context/CommandPaletteContext';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -352,7 +353,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   useEffect(() => {
     if (open) {
-      setQuery('');
+      // Starts with whatever was typed while it loaded, not blank.
+      setQuery(takeTypedAhead());
       setActive(0);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
@@ -432,6 +434,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             : <Search className="h-4 w-4 text-[var(--text-tertiary)] flex-shrink-0" strokeWidth={2} />}
           <input
             ref={inputRef}
+            data-palette-input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search people, deals, emails… or type “call ada tomorrow 3pm”"

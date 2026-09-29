@@ -22,8 +22,25 @@ export function isTypingTarget(el: EventTarget | null): boolean {
  * inside a modal would otherwise let `n` navigate away and discard whatever
  * the modal was holding.
  */
+/**
+ * An overlay that has been asked for but may not be on screen yet.
+ *
+ * The command palette is loaded on demand, so for the moment between
+ * Cmd+K and its chunk arriving there is no dialog in the DOM for the check
+ * below to find. Anyone who pressed Cmd+K and started typing at once had
+ * those first letters taken as shortcuts - "north" began with n, which is
+ * New campaign, and the page navigated away under the palette.
+ */
+let overlayRequested = false;
+export function markOverlayRequested(open: boolean): void {
+  overlayRequested = open;
+}
+export function isOverlayRequested(): boolean {
+  return overlayRequested;
+}
+
 export function isModalOpen(): boolean {
-  return document.querySelector('[role="dialog"]') !== null;
+  return overlayRequested || document.querySelector('[role="dialog"]') !== null;
 }
 
 /* ── Multi-stroke sequences ───────────────────────────────────────────── */

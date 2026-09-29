@@ -54,10 +54,18 @@ const NO_KIND = 'none';
  */
 function nextHour(): Date {
   const at = new Date();
-  const today = at.getDate();
   at.setMinutes(0, 0, 0);
   at.setHours(at.getHours() + 1);
-  if (at.getDate() !== today) at.setHours(9, 0, 0, 0);
+  /*
+   * The next WORKING hour. The midnight case above was fixed, but pressing
+   * Book meeting at 1am still offered 2am, and at 9pm offered 10pm - a time
+   * nobody books a call for. Outside 8:00-18:00, or at a weekend, it offers
+   * the next weekday at 9:00 instead.
+   */
+  const hour = at.getHours();
+  if (hour < 8) at.setHours(9, 0, 0, 0);
+  else if (hour > 18) { at.setDate(at.getDate() + 1); at.setHours(9, 0, 0, 0); }
+  while (at.getDay() === 0 || at.getDay() === 6) { at.setDate(at.getDate() + 1); at.setHours(9, 0, 0, 0); }
   return at;
 }
 
@@ -163,7 +171,9 @@ export function CalendarPage() {
    * Week, not month. A month grid answers "what is the shape of my month";
    * a week answers "what am I doing", which is why anybody opens this.
    */
-  const [view, setView] = useState<View>('week');
+  // A day on a phone: seven 40px columns cannot show a meeting's name.
+  const [view, setView] = useState<View>(() =>
+    typeof window !== 'undefined' && window.matchMedia?.('(max-width: 639.98px)').matches ? 'day' : 'week');
   /** Kinds of meeting hidden from the grid. Local, not stored. */
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
