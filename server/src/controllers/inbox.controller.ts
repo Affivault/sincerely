@@ -1,3 +1,5 @@
+import { aiAvailable } from '../services/ai.service.js';
+import { mailSortService } from '../services/mail-sort.service.js';
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { triageService } from '../services/triage.service.js';
@@ -23,6 +25,28 @@ export const inboxController = {
     try {
       const result = await inboxService.list(req.userId!, req.query as any);
       res.json(result);
+    } catch (err) { next(err); }
+  },
+
+  /** Whether Relay reads with Claude, and people it may have wrongly unsubscribed. */
+  async relayStatus(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json({ ai: aiAvailable(), review: await mailSortService.relayReview(req.userId!) });
+    } catch (err) { next(err); }
+  },
+
+  async relayRestore(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await mailSortService.restore(req.userId!, req.params.contactId)); } catch (err) { next(err); }
+  },
+
+  async relayDismiss(req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(await mailSortService.dismiss(req.userId!, req.params.contactId)); } catch (err) { next(err); }
+  },
+
+  /** "This is a person" / "This is mail" - applies to everything from that sender. */
+  async setMailKind(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      res.json(await inboxService.setMailKind(req.userId!, req.params.id, String(req.body?.kind || '')));
     } catch (err) { next(err); }
   },
 

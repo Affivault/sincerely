@@ -3,7 +3,8 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useDraftRecovery, useUnsavedChangesWarning } from '../../hooks/useDraftRecovery';
 import { draftAgeLabel, firstBlocker, plural } from '@lemlist/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { campaignsApi } from '../../api/campaigns.api';
+import { campaignsApi, type WrittenSequence } from '../../api/campaigns.api';
+import { WriteWithRelay } from '../../components/campaigns/WriteWithRelay';
 import { PersonalizationPanel, TimezoneCoverageNote, countGaps, shouldPauseLaunch } from '../../components/campaigns/PersonalizationPanel';
 import { ReadinessSummary } from '../../components/delivery/ReadinessPanel';
 import { previewPersonalization, countSpinVariants, PLACEHOLDER } from '@lemlist/shared';
@@ -352,6 +353,10 @@ export function CampaignCreatePage() {
   });
 
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  // Relay drafts the sequence. Opened from the builder, or arriving with
+  // ?write=1 from the dashboard's "Build a sequence" step.
+  const [showWriter, setShowWriter] = useState(() => new URLSearchParams(window.location.search).get('write') === '1');
+  const [writerListId, setWriterListId] = useState<string | null>(null);
 
   const expandDayCode = (code: string): string => {
     const map: Record<string, string> = {
@@ -434,6 +439,26 @@ export function CampaignCreatePage() {
       toast.error('Failed to load list contacts');
     }
     setAddingListId(null);
+  };
+
+  /** A written sequence, as builder steps: each email after the first waits its delay. */
+  const applyWritten = (seq: WrittenSequence, listId: string | null) => {
+    const flow: FlowStep[] = [];
+    seq.steps.forEach((st, i) => {
+      if (i > 0 && st.delay_days > 0) {
+        flow.push({ step_type: StepType.Delay, step_order: flow.length, delay_days: st.delay_days, delay_hours: 0, _clientKey: `relay-delay-${i}-${Date.now()}` });
+      }
+      flow.push({ step_type: StepType.Email, step_order: flow.length, subject: st.subject, body_html: st.body_html, body_text: st.body_text, _clientKey: `relay-email-${i}-${Date.now()}` });
+    });
+    setSteps(flow);
+    setEditingStep(null);
+    setCampaignForm((f) => ({ ...f, name: f.name || seq.name }));
+    // Show what was written, not the settings form it was written from.
+    setWizardStep(1);
+    if (listId) {
+      setWriterListId(listId);
+      addListContacts(listId);
+    }
   };
 
   const { data: campaignContacts } = useQuery({
@@ -1544,6 +1569,12 @@ export function CampaignCreatePage() {
                       <p className="text-caption text-[var(--text-tertiary)] mt-0.5">Build the email flow your contacts will experience</p>
                     </div>
                     <div className="flex items-center gap-3 text-caption text-[var(--text-tertiary)]">
+                      <button
+                        onClick={() => setShowWriter(true)}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-[var(--indigo-subtle)] text-[var(--indigo)] font-semibold hover:bg-[var(--indigo)] hover:text-white transition-colors"
+                      >
+                        <Sparkles className="h-3 w-3" /> Write with Relay
+                      </button>
                       {sequenceTemplates.length > 0 && (
                         <button
                           onClick={() => setShowTemplatePicker(true)}
@@ -1563,6 +1594,20 @@ export function CampaignCreatePage() {
                     </div>
                   </div>
                   <div className="flex-1 p-4 min-h-[420px] overflow-y-auto bg-[var(--bg-app)]/40">
+                    {/* An empty sequence is where first campaigns stall - offer
+                        the draft before the blank canvas. */}
+                    {emailSteps.length === 0 && (
+                      <button
+                        onClick={() => setShowWriter(true)}
+                        className="mb-4 w-full flex items-center gap-3 rounded-xl border border-[rgba(91,91,245,0.3)] bg-[var(--indigo-subtle)] px-4 py-3 text-left hover:border-[var(--indigo)] transition-colors"
+                      >
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--indigo)] text-white flex-shrink-0"><Sparkles className="h-4 w-4" /></span>
+                        <span className="min-w-0">
+                          <span className="block text-body font-semibold text-[var(--text-primary)]">Let Relay write the first draft</span>
+                          <span className="block text-caption text-[var(--text-secondary)]">Pick a list and say what you sell - you get a short sequence to edit, not a blank page.</span>
+                        </span>
+                      </button>
+                    )}
                     <FlowBuilder
                       steps={steps}
                       onStepsChange={setSteps}
@@ -2638,6 +2683,15 @@ export function CampaignCreatePage() {
           </div>
         </div>
       )}
+
+      <WriteWithRelay
+        isOpen={showWriter}
+        onClose={() => setShowWriter(false)}
+        lists={(allLists || []) as any}
+        defaultListId={writerListId}
+        hasSteps={emailSteps.length > 0}
+        onWritten={applyWritten}
+      />
 
       {/* The readiness summary further up this page is information; this is
           the decision. It only appears because the server refused. */}

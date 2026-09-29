@@ -1,3 +1,4 @@
+import { enrichmentService } from './enrichment.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
@@ -88,6 +89,8 @@ async function ownedContactIds(userId: string, contactIds: string[]): Promise<st
 export const contactsService = {
   async list(userId: string, params: ListParams) {
     const { page, limit, from, to } = getPagination(params);
+    // Anything added without a company or website gets what its address says.
+    enrichmentService.ensure(userId);
 
     /*
      * List and tag filters are joins, not id lists.
@@ -393,6 +396,7 @@ export const contactsService = {
     }
 
     fireEvent(userId, 'contact.created', { contact: data }).catch(() => {});
+    enrichmentService.ensure(userId);
     return data;
   },
 
@@ -596,6 +600,7 @@ export const contactsService = {
     // Failures = rows we tried to upsert (after collapsing duplicates) but
     // didn't get back. Duplicates collapsed in-batch are not failures —
     // they're legitimate consolidations the user expects.
+    enrichmentService.ensure(userId);
     const upsertFailures = Math.max(0, uniqueValid.length - importedRows.length);
     return {
       total,

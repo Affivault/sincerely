@@ -33,6 +33,9 @@ export interface UserSettings {
   bounce_guard_threshold: number;
   /** Most sends to one recipient company per hour. 0 = no limit. */
   domain_hourly_limit: number;
+  /** What you sell - Relay's drafts and the sequence writer start here. */
+  relay_offer?: string;
+  relay_tone?: 'friendly' | 'direct' | 'formal';
   created_at: string;
   updated_at: string;
 }

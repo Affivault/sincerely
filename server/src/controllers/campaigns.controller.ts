@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { campaignsService } from '../services/campaigns.service.js';
+import { sequenceWriterService } from '../services/sequence-writer.service.js';
 import { campaignStepsService } from '../services/campaign-steps.service.js';
 import { campaignContactsService } from '../services/campaign-contacts.service.js';
 import { resumePausedContacts } from '../services/account-pause.service.js';
@@ -15,7 +16,29 @@ import { getInboundWebhookToken } from '../utils/inbound-webhook-token.js';
 import { env } from '../config/env.js';
 import { previewWithSampleData, htmlToText } from '../services/sequence.service.js';
 
+/* Writing with Claude costs money per call; a stuck button or a loop should
+   not. Twenty drafts an hour is far beyond anyone iterating by hand. */
+const writeLog = new Map<string, number[]>();
+function allowWrite(userId: string): boolean {
+  const now = Date.now();
+  const recent = (writeLog.get(userId) || []).filter((t) => now - t < 3_600_000);
+  if (recent.length >= 20) { writeLog.set(userId, recent); return false; }
+  recent.push(now);
+  writeLog.set(userId, recent);
+  return true;
+}
+
 export const campaignsController = {
+  async writeSequence(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (!allowWrite(req.userId!)) {
+        res.status(429).json({ error: 'Relay has written 20 sequences in the last hour - give it a few minutes.' });
+        return;
+      }
+      res.json(await sequenceWriterService.write(req.userId!, req.body || {}));
+    } catch (err) { next(err); }
+  },
+
   // Campaign CRUD
   async list(req: AuthRequest, res: Response, next: NextFunction) {
     try {

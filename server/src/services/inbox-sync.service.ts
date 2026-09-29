@@ -3,6 +3,7 @@ import { promoteToContact } from './lifecycle.service.js';
 import { decrypt } from '../utils/encryption.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
 import { detectAutoReply } from '../utils/auto-reply.js';
+import { classifyMailKind, type MailKind } from '../utils/mail-kind.js';
 import { processReply } from './sara.service.js';
 import { fireEvent } from './webhook.service.js';
 import { markReplied, stopOtherCampaignsForContact } from './sequence.service.js';
@@ -208,6 +209,8 @@ interface IngestContext {
   folder: string;
   role: SyncFolderRole;
   aiTaggingOn: boolean;
+  /** Every connected mailbox's address, lowercased - mail between them is internal. */
+  ownAddresses: Set<string>;
   simpleParser: (source: any) => Promise<any>;
 }
 
@@ -307,6 +310,36 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
     }
   }
 
+  /*
+   * Person or mail. Decided once, here, from the headers bulk senders are
+   * required to set - they are gone after this, since only the body is
+   * stored. Somebody you know, or have written to, is always a person.
+   */
+  let mailKind: MailKind | null = null;
+  if (!outbound) {
+    let known = !!contactId || !!matchedActivity;
+    if (!known && counterparty) {
+      const { count } = await supabaseAdmin
+        .from('inbox_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('direction', 'outbound')
+        // Exact matches only - an ILIKE here would be a scan per message.
+        .in('to_email', [...new Set([counterparty, (fromEmail || '').trim()])]);
+      known = (count || 0) > 0;
+    }
+    mailKind = classifyMailKind({
+      headers: parsedHeaders,
+      fromEmail,
+      fromName: envelope.from?.[0]?.name || null,
+      subject,
+      bodyText,
+      bodyHtml,
+      known,
+      own: !!counterparty && ctx.ownAddresses.has(counterparty),
+    }).kind;
+  }
+
   const row: any = {
     user_id: userId,
     smtp_account_id: account.id,
@@ -324,6 +357,8 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
     imap_uid: msg.uid || null,
     imap_folder: folder,
     auto_reply_kind: autoReply.kind,
+    mail_kind: mailKind,
+    sender_name: (outbound ? envelope.to?.[0]?.name : envelope.from?.[0]?.name) || null,
   };
   // Whoever this is with, whether or not a campaign was involved.
   if (contactId) row.contact_id = contactId;
@@ -342,8 +377,17 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
   // A database without migration 043 has no auto_reply_kind column. Losing
   // every inbound message because a migration is pending would be far worse
   // than losing the classification.
+  // Likewise migration 076 (mail_kind, sender_name).
+  if (insErr && /mail_kind|sender_name/.test(insErr.message)) {
+    const { mail_kind: _k, sender_name: _n, ...withoutSort } = row;
+    ({ data: saved, error: insErr } = await supabaseAdmin
+      .from('inbox_messages')
+      .insert(withoutSort)
+      .select('id')
+      .maybeSingle());
+  }
   if (insErr && /auto_reply_kind/.test(insErr.message)) {
-    const { auto_reply_kind: _dropped, ...withoutKind } = row;
+    const { auto_reply_kind: _dropped, mail_kind: _k2, sender_name: _n2, ...withoutKind } = row;
     ({ data: saved, error: insErr } = await supabaseAdmin
       .from('inbox_messages')
       .insert(withoutKind)
@@ -418,7 +462,7 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
     }
   }
 
-  if (!outbound && ctx.aiTaggingOn && !autoReply.kind) {
+  if (!outbound && ctx.aiTaggingOn && !autoReply.kind && (!mailKind || mailKind === 'person')) {
     processReply(saved.id).catch((e: any) => {
       console.warn('[InboxSync] AI tag failed for', saved.id, ':', e?.message || String(e));
     });
@@ -596,6 +640,8 @@ export const inboxSyncService = {
     }
 
     const aiTaggingOn = await isAiTaggingEnabled(userId);
+    const { data: ownRows } = await supabaseAdmin.from('smtp_accounts').select('email_address').eq('user_id', userId);
+    const ownAddresses = new Set((ownRows || []).map((r: any) => String(r.email_address || '').toLowerCase()).filter(Boolean));
     const errors: string[] = [];
     let totalNew = 0;
     let totalBackfilled = 0;
@@ -687,7 +733,7 @@ export const inboxSyncService = {
           const state = await loadFolderState(raw.id, target.path, target.role);
           const mailbox = await client.mailboxOpen(target.path);
           const ctx: IngestContext = {
-            account: raw, folder: target.path, role: target.role, aiTaggingOn, simpleParser,
+            account: raw, folder: target.path, role: target.role, aiTaggingOn, ownAddresses, simpleParser,
           };
 
           /* ---- new mail ---- */

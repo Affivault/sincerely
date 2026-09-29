@@ -24,6 +24,7 @@ import { acceptsShortcut } from '../../lib/keyboard';
 import toast from 'react-hot-toast';
 import { MailHistoryPanel } from '../../components/inbox/MailHistoryPanel';
 import { ReplyActions } from '../../components/inbox/ReplyActions';
+import { InboxNotices, MailKindBar } from '../../components/inbox/PeopleFirstNotices';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
 import { useOptimisticRow } from '../../lib/optimistic';
@@ -83,14 +84,17 @@ import {
   // Aliased: the bare name collides with the DOM's own History interface,
   // which resolves first and fails as a JSX component.
   History as HistoryIcon,
+  ArrowRight,
 } from 'lucide-react';
 
 import {
   DEAL_STAGES, TRIAGE_DECISIONS, BULK_TRIAGE_LIMIT,
-  type DealStage, type TriageDecision, formatDate, formatDayMonth, formatFullDateTime, formatMonthYear, formatTime, formatWeekday, formatWeekdayDate, formatMoney, formatDayMonthTime, REPLY_INTENT_LABELS } from '@lemlist/shared';
+  type DealStage, type TriageDecision, formatDate, formatDayMonth, formatFullDateTime, formatMonthYear, formatTime, formatWeekday, formatWeekdayDate, formatMoney, formatDayMonthTime, REPLY_INTENT_LABELS,
+  previewText, senderLabel as sharedSenderLabel, companyFromEmail as sharedCompanyFromEmail,
+  MAIL_KIND_LABELS, type MailKind } from '@lemlist/shared';
 
 /* ─── Types ────────────────────────────────────────── */
-type Folder = 'inbox' | 'starred' | 'sent' | 'archived' | 'scheduled' | 'needs_triage';
+type Folder = 'inbox' | 'starred' | 'sent' | 'archived' | 'scheduled' | 'needs_triage' | 'other';
 
 interface ConversationThread {
   contactEmail: string;
@@ -121,6 +125,13 @@ interface Message {
   is_read: boolean;
   /** Set when a machine sent it — never counted as a reply. */
   auto_reply_kind?: 'out_of_office' | 'auto_reply' | null;
+  /** Person, or mail (newsletter, notification, receipt, your own mailboxes). */
+  mail_kind?: MailKind | null;
+  /** The name their mail client sent, e.g. "GO Markets". */
+  sender_name?: string | null;
+  relay_summary?: string | null;
+  relay_next_step?: string | null;
+  relay_engine?: 'ai' | 'rules' | 'manual' | null;
   is_starred?: boolean;
   is_archived?: boolean;
   direction?: string;
@@ -165,7 +176,14 @@ function senderInitial(msg: Message): string {
 }
 
 function senderName(msg: Message): string {
-  return msg.contact_name || msg.from_email?.split('@')[0] || 'Unknown';
+  // "info" and "notifications" told nobody anything. The name their mail
+  // client sent, or the company behind the domain, does.
+  return msg.contact_name || sharedSenderLabel(msg.from_email, msg.sender_name) || 'Unknown';
+}
+
+/** True when this is mail rather than a person writing. */
+function isMail(msg: { mail_kind?: MailKind | null }): boolean {
+  return !!msg.mail_kind && msg.mail_kind !== 'person';
 }
 
 /** Strip HTML tags and decode common entities for plain-text snippet */
@@ -186,10 +204,9 @@ function stripHtml(str: string): string {
 }
 
 function msgSnippet(msg: Message): string {
-  const raw = msg.body_text || msg.body_html || '';
-  const text = stripHtml(raw);
-  // Empty string (not a placeholder) so rows can simply omit the line.
-  return text.slice(0, 120).trim();
+  // Their words: no quoted history, no wall of tracking links. Empty string
+  // (not a placeholder) so rows can simply omit the line.
+  return stripHtml(previewText(msg.body_text, msg.body_html, 160)).slice(0, 140).trim();
 }
 
 /** "Today" / "Yesterday" / "Monday" / "Mon, Jun 12" — for timeline day separators. */
@@ -209,15 +226,9 @@ function baseSubject(s: string | null | undefined): string {
   return (s || '').replace(/^((re|fwd?|fw)\s*:\s*)+/i, '').trim().toLowerCase();
 }
 
-/** Guess a company name from a work-email domain; null for free providers. */
-function companyFromEmail(email?: string | null): string | null {
-  const domain = email?.split('@')[1]?.toLowerCase();
-  if (!domain) return null;
-  const free = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com', 'aol.com', 'proton.me', 'protonmail.com', 'live.com', 'msn.com', 'gmx.com', 'mail.com'];
-  if (free.includes(domain)) return null;
-  const name = domain.split('.')[0];
-  return name ? name.charAt(0).toUpperCase() + name.slice(1) : null;
-}
+/** A company name from a work-email domain; null for free providers. Reads
+    past sending subdomains, so info@mc.gomarkets.com is not "Mc". */
+const companyFromEmail = sharedCompanyFromEmail;
 
 /* ─── Email signatures ─────────────────────────────── */
 /** True when a signature HTML string carries any real content. */
@@ -1640,8 +1651,10 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
   onCopyEmail: () => void;
 }) {
   const email = msg.direction === 'outbound' ? (msg.contact_email || msg.to_email) : (msg.contact_email || msg.from_email);
-  const name = msg.contact_name || (email ? email.split('@')[0] : 'Contact');
-  const company = companyFromEmail(email);
+  const name = msg.contact_name || sharedSenderLabel(email, msg.direction === 'outbound' ? null : msg.sender_name) || 'Contact';
+  // Mail from a company is signed with its name ("GO Markets"); the domain
+  // is the fallback. Never the sending subdomain.
+  const company = (isMail(msg) && msg.sender_name && !msg.sender_name.includes('@') ? msg.sender_name : null) || companyFromEmail(email);
   const intent = msg.sara_intent && msg.sara_intent !== 'scheduled' ? (INTENT_COLORS[msg.sara_intent] || INTENT_COLORS.other) : null;
   // Only link to the lead record when the message is matched to a real contact.
   const contactHref = msg.contact_id ? `/contacts/${msg.contact_id}` : null;
@@ -1698,8 +1711,9 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
       {/* ── Deal — made here, where the conversation earns it ── */}
       {/* The decision comes before the deal: a reply is triaged into a lead
           first, and only a pursued lead becomes a deal. Inbound only —
-          there is nothing to decide about something you sent. */}
-      {msg.direction !== 'outbound' && (
+          there is nothing to decide about something you sent, or about a
+          newsletter. */}
+      {msg.direction !== 'outbound' && !isMail(msg) && (
         // Inset like every other section of the rail; unwrapped, its border
         // ran into the window edge.
         <div className="px-3.5 pb-4">
@@ -2081,6 +2095,7 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
     ? Math.round(msg.sara_confidence <= 1 ? msg.sara_confidence * 100 : msg.sara_confidence)
     : null;
   const hasDraft = !!msg.sara_draft_reply;
+  if (isMail(msg)) return null;
   if (!intent && !hasDraft && !msg.sara_action) return null;
 
   return (
@@ -2092,6 +2107,9 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-body font-semibold text-[var(--text-primary)]">Relay analysis</span>
+            {msg.relay_engine === 'ai' && (
+              <span className="text-micro font-medium text-[var(--text-tertiary)]" title="Read by Claude">Read by Claude</span>
+            )}
             {info && (
               <span className={cn('text-micro font-semibold px-1.5 py-0.5 rounded-full', info.bg, info.text)}>{info.label}</span>
             )}
@@ -2104,12 +2122,25 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
               </span>
             )}
           </div>
-          <p className="mt-1.5 text-body text-[var(--text-secondary)] leading-snug">
-            {/* The action is a key ("reply", "stop_sequence"); this printed it
-                raw as the card's only sentence. Said as a recommendation. */}
-            {(msg.sara_action && RELAY_ACTION_TEXT[msg.sara_action])
-              || (hasDraft ? 'Relay drafted a reply for this conversation.' : 'Relay reviewed this reply and tagged its intent.')}
-          </p>
+          {msg.relay_summary ? (
+            <>
+              <p className="mt-1.5 text-body text-[var(--text-primary)] leading-snug">{msg.relay_summary}</p>
+              {msg.relay_next_step && (
+                <p className="mt-1 flex items-center gap-1.5 text-body text-[var(--text-secondary)]">
+                  <ArrowRight className="h-3 w-3 text-[var(--indigo)] flex-shrink-0" />
+                  {msg.relay_next_step}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="mt-1.5 text-body text-[var(--text-secondary)] leading-snug">
+              {/* The action is a key ("reply", "stop_sequence"); this printed it
+                  raw as the card's only sentence. Said as a recommendation. */}
+              {msg.relay_next_step
+                || (msg.sara_action && RELAY_ACTION_TEXT[msg.sara_action])
+                || (hasDraft ? 'Relay drafted a reply for this conversation.' : 'Relay reviewed this reply and tagged its intent.')}
+            </p>
+          )}
         </div>
       </div>
       {hasDraft && (
@@ -2133,6 +2164,8 @@ export function InboxPage() {
   const qc = useQueryClient();
   const [folder, setFolder] = useState<Folder>('inbox');
   const [tagFilter, setTagFilter] = useState('all');
+  /** Within Other mail: all of it, or one kind. */
+  const [mailKindFilter, setMailKindFilter] = useState<'all' | Exclude<MailKind, 'person'>>('all');
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [showContext, setShowContext] = useState(true);
   const [search, setSearch] = useState('');
@@ -2214,11 +2247,12 @@ export function InboxPage() {
 
   /* ── Queries ── */
   const { data: messagesData, isLoading, isFetching, isPlaceholderData: stale } = useQuery({
-    queryKey: ['inbox', folder, tagFilter, search, messageLimit],
+    queryKey: ['inbox', folder, tagFilter, search, messageLimit, mailKindFilter],
     queryFn: () => inboxApi.list({
       limit: messageLimit,
       folder: folder === 'scheduled' ? 'inbox' : folder,
-      sara_intent: tagFilter !== 'all' ? tagFilter : undefined,
+      mail_kind: folder === 'other' && mailKindFilter !== 'all' ? mailKindFilter : undefined,
+      sara_intent: tagFilter !== 'all' && folder !== 'other' ? tagFilter : undefined,
       search: search || undefined,
     }),
     enabled: folder !== 'scheduled',
@@ -2882,7 +2916,9 @@ export function InboxPage() {
     ? (currentMsg.direction === 'outbound' ? (currentMsg.contact_email || currentMsg.to_email) : (currentMsg.contact_email || currentMsg.from_email))
     : null;
   const threadContactName = currentMsg
-    ? (currentMsg.contact_name || (threadContactEmail ? threadContactEmail.split('@')[0] : 'Contact'))
+    ? (currentMsg.contact_name
+      || sharedSenderLabel(threadContactEmail, currentMsg.direction === 'outbound' ? null : currentMsg.sender_name)
+      || 'Contact')
     : null;
 
   const copyContactEmail = useCallback(() => {
@@ -2893,7 +2929,7 @@ export function InboxPage() {
   }, [threadContactEmail]);
 
   /* ── View model: one tab strip drives folder + smart-view state ── */
-  type ViewId = 'inbox' | 'unread' | 'needs' | 'hot' | 'starred' | 'sent' | 'scheduled' | 'archived' | 'needs_triage';
+  type ViewId = 'inbox' | 'unread' | 'needs' | 'hot' | 'starred' | 'sent' | 'scheduled' | 'archived' | 'needs_triage' | 'other';
   const activeView: ViewId =
     folder === 'inbox'
       ? (unreadOnly ? 'unread' : quickFilter === 'needs_reply' ? 'needs' : quickFilter === 'hot' ? 'hot' : 'inbox')
@@ -2901,6 +2937,7 @@ export function InboxPage() {
   const setView = (v: ViewId) => {
     setSelectedId(null);
     setTagFilter('all');
+    setMailKindFilter('all');
     if (v === 'inbox' || v === 'unread' || v === 'needs' || v === 'hot') {
       setFolder('inbox');
       setUnreadOnly(v === 'unread');
@@ -2917,7 +2954,7 @@ export function InboxPage() {
      the person to find. Read once, then dropped from the address. */
   const viewParam = searchParams.get('view');
   useEffect(() => {
-    const known: ViewId[] = ['inbox', 'unread', 'needs', 'hot', 'starred', 'sent', 'scheduled', 'archived', 'needs_triage'];
+    const known: ViewId[] = ['inbox', 'unread', 'needs', 'hot', 'starred', 'sent', 'scheduled', 'archived', 'needs_triage', 'other'];
     if (!viewParam || !known.includes(viewParam as ViewId)) return;
     setView(viewParam as ViewId);
     setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete('view'); return next; }, { replace: true });
@@ -3087,7 +3124,12 @@ export function InboxPage() {
                         mean five steps in another part of the app — so mostly
                         nobody did, and the pipeline stopped matching reality.
                         Inbound only: our own outgoing mail is not a signal. */}
-                    {currentMsg.direction !== 'outbound' && threadContactEmail && (
+                    {/* Mail says what it is and offers the way back to the
+                        inbox; nothing below is for a newsletter. */}
+                    {currentMsg.direction !== 'outbound' && isMail(currentMsg) && (
+                      <div className="mt-4"><MailKindBar messageId={currentMsg.id} kind={currentMsg.mail_kind} /></div>
+                    )}
+                    {currentMsg.direction !== 'outbound' && threadContactEmail && !isMail(currentMsg) && (
                       <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 px-3 py-2">
                         <span className="text-caption font-semibold text-[var(--text-tertiary)]">
                           Take this further
@@ -3103,6 +3145,7 @@ export function InboxPage() {
                             company: null,
                           }}
                         />
+                        <span className="ml-auto"><MailKindBar messageId={currentMsg.id} kind={currentMsg.mail_kind} /></span>
                       </div>
                     )}
 
@@ -3327,11 +3370,15 @@ export function InboxPage() {
             { id: 'needs' as const, label: 'Needs reply', count: viewCounts.needs_reply },
             { id: 'hot' as const, label: 'Hot leads', count: viewCounts.hot },
             { id: 'unread' as const, label: 'Unread', count: undefined },
+            // Newsletters, notifications and receipts: kept, one click away,
+            // and out of every count. Early in the strip so it is findable
+            // at laptop widths, where the tail of this row scrolls.
+            { id: 'other' as const, label: 'Other mail', count: countsData?.other_unread || undefined, muted: true },
             { id: 'scheduled' as const, label: 'Scheduled', count: undefined },
             { id: 'starred' as const, label: 'Starred', count: undefined },
             { id: 'sent' as const, label: 'Sent', count: undefined },
             { id: 'archived' as const, label: 'Archived', count: undefined },
-          ]).map(tabItem => {
+          ] as Array<{ id: ViewId; label: string; count: number | undefined; muted?: boolean }>).map(tabItem => {
             const isActive = activeView === tabItem.id;
             return (
               <button
@@ -3346,8 +3393,8 @@ export function InboxPage() {
                 {tabItem.count != null && tabItem.count > 0 && (
                   <span className={cn(
                     'flex h-[17px] min-w-[17px] items-center justify-center rounded-md px-1 text-micro font-semibold tabular',
-                    isActive ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
-                  )}>{tabItem.count}</span>
+                    isActive && !tabItem.muted ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
+                  )}>{tabItem.count > 999 ? '999+' : tabItem.count}</span>
                 )}
                 <span className={cn('absolute left-2 right-2 bottom-0 h-[2px] rounded-t-full transition-opacity', isActive ? 'bg-[var(--indigo)] opacity-100' : 'opacity-0')} />
               </button>
@@ -3530,6 +3577,13 @@ export function InboxPage() {
         )}
 
         {/* ── Full-width conversation table ── */}
+        <InboxNotices
+          folder={folder}
+          sorting={!!countsData?.sorting}
+          mailKindFilter={mailKindFilter}
+          onMailKind={(k) => { setMailKindFilter(k); setSelectedId(null); }}
+        />
+
         {folder === 'scheduled' ? (
           <div className="flex-1 min-h-0 flex bg-[var(--bg-surface)]">
             <ScheduledEmailsPanel
@@ -3608,8 +3662,8 @@ export function InboxPage() {
                   const isSelected = msg.id === selectedId;
                   const isOutbound = msg.direction === 'outbound';
                   const intent = msg.sara_intent && msg.sara_intent !== 'scheduled' ? (INTENT_COLORS[msg.sara_intent] || INTENT_COLORS.other) : null;
-                  const displayName = isOutbound ? `To: ${msg.to_email?.split('@')[0]}` : (conv.contactName || senderName(msg));
-                  const avatarSeed = isOutbound ? (msg.to_email || '') : (conv.contactName || msg.from_email || '');
+                  const displayName = isOutbound ? `To: ${sharedSenderLabel(msg.to_email, msg.sender_name) || msg.to_email}` : (conv.contactName || senderName(msg));
+                  const avatarSeed = isOutbound ? (msg.to_email || '') : (conv.contactName || senderName(msg) || msg.from_email || '');
                   const snippet = msgSnippet(msg);
                   const isPicked = picked.has(msg.id);
                   return (
@@ -3663,7 +3717,7 @@ export function InboxPage() {
                             thread — it just isn't someone answering you, and a
                             row that looks like a reply and isn't is how a
                             fortnight of annual leave got counted as interest. */}
-                        {msg.auto_reply_kind && (
+                        {msg.auto_reply_kind && !isMail(msg) && (
                           <span
                             className="inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-tertiary)] flex-shrink-0"
                             title={msg.auto_reply_kind === 'out_of_office'
@@ -3683,9 +3737,17 @@ export function InboxPage() {
                         <span className={cn('min-w-0 flex-shrink truncate text-body', conv.hasUnread ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]')}>
                           {msg.subject || '(no subject)'}
                         </span>
-                        {snippet && (
+                        {/* Relay's one line, when it has read them, says more
+                            than the first 140 characters of the email do. */}
+                        {msg.relay_summary && !isMail(msg) ? (
+                          <span className="flex-1 min-w-0 truncate text-body text-[var(--text-secondary)]" title={snippet || undefined}>
+                            <span className="hidden sm:inline text-[var(--text-tertiary)]">— </span>
+                            <Sparkles className="inline h-3 w-3 -mt-0.5 mr-1 text-[var(--indigo)]" />
+                            {msg.relay_summary}
+                          </span>
+                        ) : snippet ? (
                           <span className="flex-1 min-w-0 truncate text-body text-[var(--text-tertiary)]"><span className="hidden sm:inline">— </span>{snippet}</span>
-                        )}
+                        ) : null}
                       </span>
 
                       {/* Intent — or, once somebody has decided, what they
@@ -3700,6 +3762,10 @@ export function InboxPage() {
                           )}>
                             <Check className="h-2.5 w-2.5" />
                             {TRIAGE_PILL[msg.triage_decision].label}
+                          </span>
+                        ) : isMail(msg) ? (
+                          <span className="inline-flex items-center text-micro font-semibold px-1.5 py-0.5 rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">
+                            {MAIL_KIND_LABELS[msg.mail_kind as Exclude<MailKind, 'person'>] || 'Mail'}
                           </span>
                         ) : intent ? (
                           <span className={cn('inline-flex items-center gap-1 text-micro font-semibold px-1.5 py-0.5 rounded-md', intent.bg, intent.text)}>

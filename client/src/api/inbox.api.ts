@@ -1,5 +1,6 @@
 import { apiClient } from './client';
 import type { BulkTriageResult, TriageInput, TriageResult } from '@lemlist/shared';
+import type { MailKind, RelayReviewItem } from '@lemlist/shared';
 import type { InboxMessage, InboxMessageWithContext, InboxCounts, PaginatedResponse, InboxSyncResult, InboxSyncProgress } from '@lemlist/shared';
 
 export const inboxApi = {
@@ -61,8 +62,32 @@ export const inboxApi = {
     sara_intent?: string;
     search?: string;
     contact_email?: string;
+    /** With folder 'other': just newsletters, notifications, receipts... */
+    mail_kind?: string;
   }) => {
     const { data } = await apiClient.get<PaginatedResponse<InboxMessageWithContext>>('/inbox', { params });
+    return data;
+  },
+
+  /** Whether Relay reads with Claude, and anyone it may have wrongly unsubscribed. */
+  relayStatus: async () => {
+    const { data } = await apiClient.get<{ ai: boolean; review: RelayReviewItem[] }>('/inbox/relay-status');
+    return data;
+  },
+
+  relayRestore: async (contactId: string) => {
+    const { data } = await apiClient.post<{ restored: boolean }>(`/inbox/relay-review/${contactId}/restore`);
+    return data;
+  },
+
+  relayDismiss: async (contactId: string) => {
+    const { data } = await apiClient.post<{ dismissed: boolean }>(`/inbox/relay-review/${contactId}/dismiss`);
+    return data;
+  },
+
+  /** File a sender as a person, or as mail. Moves everything from them. */
+  setMailKind: async (id: string, kind: MailKind) => {
+    const { data } = await apiClient.put<{ moved: number; kind: MailKind }>(`/inbox/${id}/mail-kind`, { kind });
     return data;
   },
 

@@ -54,5 +54,17 @@ const step = async (page, log, name, fn) => {
   await step(page, log, 'webhook-new', async () => { await go('/developer'); await page.getByRole('button', { name: /Add Webhook/ }).first().click(); });
   await step(page, log, 'company-new', async () => { await go('/companies'); await page.getByRole('button', { name: /New company/ }).first().click(); });
   await step(page, log, 'lead-qualify', async () => { await go('/leads/inbox'); await page.getByRole('button', { name: /Qualify/ }).first().click(); });
+  await step(page, log, 'inbox-people', async () => { await go('/inbox'); });
+  await step(page, log, 'inbox-other', async () => { await go('/inbox?view=other'); });
+  await step(page, log, 'other-thread', async () => { await go('/inbox?view=other'); await page.locator('text=GO Markets').first().click(); await page.waitForTimeout(600); });
+  await step(page, log, 'relay-review', async () => { await go('/inbox'); await page.getByRole('button', { name: /^Review$/ }).first().click(); });
+  await step(page, log, 'write-relay', async () => { await go('/campaigns/new?write=1'); });
+  await step(page, log, 'write-relay-done', async () => {
+    await go('/campaigns/new?write=1');
+    await page.locator('textarea').first().fill('We run affiliate partnerships for UK investment platforms, with a dedicated manager and CPA per funded account.');
+    await page.getByRole('button', { name: /Write the sequence/ }).first().click();
+    await page.waitForTimeout(800);
+  });
+  await step(page, log, 'settings-relay', async () => { await go('/settings?tab=ai'); });
   await browser.close();
 })();

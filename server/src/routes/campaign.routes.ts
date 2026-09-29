@@ -5,6 +5,8 @@ export const campaignRoutes = Router();
 
 // Campaign CRUD
 campaignRoutes.get('/', campaignsController.list);
+// Relay drafts a sequence for a list (returns a draft; saves nothing to a campaign).
+campaignRoutes.post('/write-sequence', campaignsController.writeSequence);
 campaignRoutes.get('/:id', campaignsController.get);
 campaignRoutes.post('/', campaignsController.create);
 campaignRoutes.put('/:id', campaignsController.update);
