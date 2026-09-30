@@ -349,8 +349,28 @@ function more(P, q, seg) {
     const i = Number(seg[2].slice(2)) - 1; const c = contacts[i] || contacts[0];
     return { contacts: [{ id: c.id, email: c.email, first_name: c.first_name, last_name: c.last_name }], messages: inbox.filter((m) => m.contact_id === c.id).map((m) => ({ id: m.id, subject: m.subject, from_email: m.from_email, to_email: m.to_email, contact_email: c.email, contact_name: m.contact_name, direction: 'inbound', received_at: m.received_at, body_text: m.body_text })), notes: [], tasks: tasks.filter((t) => t.contact_id === c.id), events: events.filter((e) => e.contact_id === c.id) };
   }
-  if (/^\/crm\/contact\/c\d+\/summary$/.test(P)) return { deals: deals.filter((d) => d.contact_id === seg[3]), tasks: tasks.filter((t) => t.contact_id === seg[3]), events: events.filter((e) => e.contact_id === seg[3]), notes: seg[3] === 'c1' ? notes : [] };
-  if (/^\/analytics\/contacts\/c\d+\/timeline$/.test(P)) return [];
+  if (/^\/crm\/contact\/c\d+\/summary$/.test(P)) {
+    const own = deals.filter((d) => d.contact_id === seg[3]);
+    return {
+      deals: own, tasks: tasks.filter((t) => t.contact_id === seg[3]), events: events.filter((e) => e.contact_id === seg[3]), notes: seg[3] === 'c1' ? notes : [],
+      stage_events: own.flatMap((d, i) => [
+        { id: `se-${d.id}-0`, deal_id: d.id, from_stage: null, to_stage: 'lead', reason: null, changed_at: ago(12 + i) },
+        ...(d.stage !== 'lead' ? [{ id: `se-${d.id}-1`, deal_id: d.id, from_stage: 'lead', to_stage: d.stage, reason: d.stage === 'lost' ? 'Went with a competitor' : null, changed_at: ago(3 + i) }] : []),
+      ]),
+    };
+  }
+  if (/^\/analytics\/contacts\/c\d+\/timeline$/.test(P)) {
+    const cmp = { campaign_id: 'cp1', campaign_name: 'UK brokers - Q4' };
+    return [
+      { id: 't1', activity_type: 'sent', ...cmp, step_order: 0, step_subject: 'Quick question about your partner program', metadata: {}, occurred_at: ago(14) },
+      { id: 't2', activity_type: 'opened', ...cmp, step_order: 0, step_subject: 'Quick question about your partner program', metadata: {}, occurred_at: ago(13.8) },
+      { id: 't3', activity_type: 'opened', ...cmp, step_order: 0, step_subject: 'Quick question about your partner program', metadata: {}, occurred_at: ago(13.2) },
+      { id: 't4', activity_type: 'opened', ...cmp, step_order: 0, step_subject: 'Quick question about your partner program', metadata: {}, occurred_at: ago(11) },
+      { id: 't5', activity_type: 'clicked', ...cmp, step_order: 0, step_subject: 'Quick question about your partner program', metadata: { url: 'https://affivault.com/partners' }, occurred_at: ago(11) },
+      { id: 't6', activity_type: 'sent', ...cmp, step_order: 1, step_subject: 'Re: Quick question about your partner program', metadata: {}, occurred_at: ago(10) },
+      ...(seg[3] === 'c2' ? [{ id: 't7', activity_type: 'bounced', ...cmp, step_order: 1, step_subject: null, metadata: { source: 'notice', bounce_kind: 'address', reason: 'user unknown' }, occurred_at: ago(9.9) }] : []),
+    ].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
+  }
   if (/^\/lists\/contact\/c\d+$/.test(P)) return [];
   if (/^\/contacts\/c\d+\/campaigns$/.test(P)) return [];
   if (/^\/flow\/meetings\/e\d+\/brief$/.test(P)) return null;

@@ -11,10 +11,10 @@ import { DealModal } from '../crm/DealsPage';
 import { MeetingModal } from '../../components/crm/CrmPrimitives';
 import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
 import { ContactHistory, ContactOrigin } from '../../components/crm/ContactHistory';
+import { WhereWeAre } from '../../components/crm/WhereWeAre';
 import {
   DEAL_STAGES, isColdEmailable, LIFECYCLE_LABEL,
-  type Deal, type CrmEvent, type Lifecycle, formatDayMonth, formatDate, formatDateTime, plural } from '@lemlist/shared';
-import { Spinner } from '../../components/ui/Spinner';
+  type Deal, type CrmEvent, type Lifecycle, formatDate } from '@lemlist/shared';
 import { PageSkeleton } from '../../components/ui/Skeleton';
 import { InlineEdit } from '../../components/ui/InlineEdit';
 import { Modal } from '../../components/ui/Modal';
@@ -41,7 +41,6 @@ import {
   Copy,
   CalendarPlus,
   ArrowUpRight,
-  ArrowDownLeft,
   Ban,
   ExternalLink,
   Sparkles, Megaphone,
@@ -220,28 +219,9 @@ export function ContactDetailPage() {
   const crmLists = memberLists.filter((l: any) => l.kind === 'contact');
   const stage = ((contact?.lifecycle || 'prospect') as Lifecycle);
 
-  // Relationship stats derived from the email history, deals, and activity feed.
+  // Newest first, for the history and the "where we are" strip.
   const sortedEmails = [...emails].sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime());
-  const receivedCount = emails.filter((m) => m.direction !== 'outbound').length;
-  const sentCount = emails.length - receivedCount;
   const activity = (timeline || []) as any[];
-  const opens = activity.filter((a) => a.activity_type === 'opened').length;
-  // Every campaign 'replied' activity is recorded alongside an inbound inbox_messages
-  // row for the same event, so receivedCount alone already covers all replies —
-  // adding the activity count on top would double-count them.
-  const replies = receivedCount;
-  const openDeals = (contactDeals || []).filter((d) => d.stage !== 'lost' && d.stage !== 'won');
-  const pipelineValue = openDeals.reduce((s, d) => s + (d.value || 0), 0);
-  const lastContactIso = sortedEmails[0]?.received_at || activity[0]?.occurred_at || null;
-  const relTime = (iso: string | null) => {
-    if (!iso) return 'Never';
-    const diff = Date.now() - new Date(iso).getTime();
-    const d = Math.floor(diff / 86400000);
-    if (d < 1) { const h = Math.floor(diff / 3600000); return h < 1 ? 'Just now' : `${h}h ago`; }
-    if (d < 30) return `${d}d ago`;
-    return formatDayMonth(new Date(iso));
-  };
-  const money = (v: number) => `$${Math.round(v || 0).toLocaleString()}`;
   // contact_id is what puts the meeting on this profile's history — the
   // server can also match on email, but don't rely on that when we know it.
   const eventPrefill = { contact_id: contact.id, contact_name: fullName || contact.email, contact_email: contact.email };
@@ -350,21 +330,14 @@ export function ContactDetailPage() {
         </div>
       </div>
 
-      {/* Relationship stat strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: 'Last contact', value: relTime(lastContactIso), sub: plural(emails.length, 'email') },
-          { label: 'Received', value: String(receivedCount), sub: `${sentCount} sent` },
-          { label: 'Opens · replies', value: `${opens} · ${replies}`, sub: 'engagement' },
-          { label: 'Open pipeline', value: money(pipelineValue), sub: `${openDeals.length} deal${openDeals.length === 1 ? '' : 's'}` },
-        ].map((s) => (
-          <div key={s.label} className="card px-3.5 py-3">
-            <p className="text-caption font-medium text-[var(--text-tertiary)]">{s.label}</p>
-            <p className="mt-1 text-title font-semibold text-[var(--text-primary)] tabular leading-none truncate">{s.value}</p>
-            <p className="mt-1.5 text-caption text-[var(--text-muted)]">{s.sub}</p>
-          </div>
-        ))}
-      </div>
+      {/* Where things stand with this person, before anything is read. */}
+      <WhereWeAre
+        contactId={contact.id}
+        emails={sortedEmails}
+        activity={activity}
+        onBookMeeting={() => setEventModal({ ...eventPrefill, type: 'meeting' })}
+        onNewDeal={() => setDealModal({ contact_name: fullName || contact.email, contact_email: contact.email, contact_id: contact.id, company: contact.company || null })}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Contact Info */}

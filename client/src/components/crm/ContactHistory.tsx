@@ -19,7 +19,7 @@ import {
 import toast from 'react-hot-toast';
 import type { CrmNote, CrmTask, CrmEvent } from '@lemlist/shared';
 import { useOptimisticRow } from '../../lib/optimistic';
-import { formatDate, formatDayMonth, formatLongDate, formatTime, formatWeekday, formatMoney, sourceLabel } from '@lemlist/shared';
+import { formatDate, formatDayMonth, formatLongDate, formatTime, formatWeekday, formatMoney, sourceLabel, campaignStory, stageMoveTitle, dealStageLabel } from '@lemlist/shared';
 
 /* ═══════════════════════════════════════════════════════════════════════
    The history of a relationship.
@@ -34,7 +34,7 @@ import { formatDate, formatDayMonth, formatLongDate, formatTime, formatWeekday, 
 type Entry = {
   id: string;
   at: Date;
-  kind: 'email_out' | 'email_in' | 'note' | 'task' | 'event' | 'campaign';
+  kind: 'email_out' | 'email_in' | 'note' | 'task' | 'event' | 'campaign' | 'deal';
   title: string;
   detail?: string | null;
   meta?: string | null;
@@ -45,6 +45,8 @@ type Entry = {
   event?: CrmEvent;
   /** The raw inbox message, so the row can expand to the full body. */
   email?: any;
+  /** A deal milestone links to its deal. */
+  dealId?: string;
 };
 
 const CAMPAIGN_ICON: Record<string, typeof Mail> = {
@@ -265,7 +267,7 @@ export function ContactHistory({
   const [activityModal, setActivityModal] = useState<Partial<CrmTask> | null>(null);
   const [activityOpen, setActivityOpen] = useState(false);
   const [meetingModal, setMeetingModal] = useState<Partial<CrmEvent> | null>(null);
-  const [filter, setFilter] = useState<'all' | 'notes' | 'emails' | 'meetings' | 'campaign'>('all');
+  const [filter, setFilter] = useState<'all' | 'notes' | 'emails' | 'meetings' | 'campaign' | 'deals'>('all');
   const [compose, setCompose] = useState<ComposeTab>('note');
   const [openEmail, setOpenEmail] = useState<string | null>(null);
 
@@ -279,6 +281,7 @@ export function ContactHistory({
   const tasks = summary?.tasks || [];
   const events = summary?.events || [];
   const deals = summary?.deals || [];
+  const stageEvents = summary?.stage_events || [];
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['contact-crm', contactId] });
@@ -349,19 +352,43 @@ export function ContactHistory({
       });
     }
 
-    for (const a of campaignActivity) {
-      const at = new Date(a.occurred_at);
+    // Sequence events as sentences - which step of which campaign, opens
+    // and clicks folded into one line each, a bounce with its reason.
+    for (const r of campaignStory(campaignActivity)) {
+      const at = new Date(r.at);
       if (Number.isNaN(at.getTime())) continue;
-      // Replies are already represented by the inbound email itself.
-      if (a.activity_type === 'replied') continue;
       out.push({
-        id: `act-${a.id || `${a.activity_type}-${a.occurred_at}`}`,
+        id: r.id,
         at,
         kind: 'campaign',
-        title: `Campaign email ${a.activity_type}`,
-        detail: a.campaign_name || a.subject || null,
-        icon: CAMPAIGN_ICON[a.activity_type] || Send,
-        tone: CAMPAIGN_TONE[a.activity_type] || CAMPAIGN_TONE.sent,
+        title: r.title,
+        detail: r.detail,
+        meta: r.first_at ? `first ${formatDayMonth(new Date(r.first_at))}` : null,
+        icon: CAMPAIGN_ICON[r.type] || Send,
+        tone: CAMPAIGN_TONE[r.type] || CAMPAIGN_TONE.sent,
+      });
+    }
+
+    // What happened to the business with them: every deal's moves.
+    const dealTitle = new Map(deals.map((d: any) => [d.id, d]));
+    for (const e of stageEvents) {
+      const at = new Date(e.changed_at);
+      const d: any = dealTitle.get(e.deal_id);
+      if (Number.isNaN(at.getTime()) || !d) continue;
+      const won = e.to_stage === 'won';
+      const lost = e.to_stage === 'lost';
+      out.push({
+        id: `stage-${e.id}`,
+        at,
+        kind: 'deal',
+        title: stageMoveTitle(e, d.title),
+        detail: e.reason || null,
+        meta: won && d.value ? formatMoney(d.value, d.currency || 'USD') : !e.from_stage ? dealStageLabel(e.to_stage) : null,
+        icon: Handshake,
+        tone: won ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+          : lost ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+          : 'bg-[var(--indigo-subtle)] text-[var(--indigo)]',
+        dealId: e.deal_id,
       });
     }
 
@@ -422,13 +449,14 @@ export function ContactHistory({
        */
       .filter((e) => !gone.hidden(e.id.replace(/^(note|task|event)-/, '')))
       .sort((a, b) => b.at.getTime() - a.at.getTime());
-  }, [emails, campaignActivity, notes, tasks, events, contactName, contactEmail, gone]);
+  }, [emails, campaignActivity, notes, tasks, events, deals, stageEvents, contactName, contactEmail, gone]);
 
   const visible = useMemo(() => {
     if (filter === 'all') return entries;
     if (filter === 'notes') return entries.filter((e) => e.kind === 'note');
     if (filter === 'emails') return entries.filter((e) => e.kind === 'email_in' || e.kind === 'email_out');
     if (filter === 'campaign') return entries.filter((e) => e.kind === 'campaign');
+    if (filter === 'deals') return entries.filter((e) => e.kind === 'deal');
     return entries.filter((e) => e.kind === 'event' || e.kind === 'task');
   }, [entries, filter]);
 
@@ -628,19 +656,20 @@ export function ContactHistory({
 
       {/* ── The stream ── */}
       <div className="card p-0 overflow-hidden">
-        <div className="flex items-center gap-1 px-3 h-10 border-b border-[var(--border-subtle)]">
+        <div className="flex items-center gap-1 px-3 h-10 border-b border-[var(--border-subtle)] overflow-x-auto">
           {([
             { id: 'all' as const, label: 'Everything', n: entries.length },
             { id: 'emails' as const, label: 'Emails', n: entries.filter((e) => e.kind === 'email_in' || e.kind === 'email_out').length },
             { id: 'notes' as const, label: 'Notes', n: entries.filter((e) => e.kind === 'note').length },
             { id: 'meetings' as const, label: 'Calls & meetings', n: entries.filter((e) => e.kind === 'event' || e.kind === 'task').length },
             { id: 'campaign' as const, label: 'Campaign', n: entries.filter((e) => e.kind === 'campaign').length },
+            { id: 'deals' as const, label: 'Deals', n: entries.filter((e) => e.kind === 'deal').length },
           ]).map((f) => (
             <button
               key={f.id}
               onClick={() => setFilter(f.id)}
               className={cn(
-                'h-7 px-2.5 rounded-md text-body font-medium transition-colors',
+                'h-7 flex-shrink-0 whitespace-nowrap px-2.5 rounded-md text-body font-medium transition-colors',
                 filter === f.id
                   ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
                   : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]',
@@ -661,7 +690,7 @@ export function ContactHistory({
               {filter === 'all' ? 'Nothing has happened yet' : 'Nothing of this kind yet'}
             </p>
             <p className="text-caption text-[var(--text-tertiary)] mt-0.5 max-w-xs">
-              Emails, notes, calls and meetings with this person all collect here as a single history.
+              Emails, campaign steps, notes, calls, meetings and deal moves with this person all collect here as a single history.
             </p>
           </div>
         ) : (
@@ -693,7 +722,9 @@ export function ContactHistory({
                           'text-body font-medium text-[var(--text-primary)] min-w-0',
                           e.kind === 'note' ? 'truncate' : 'truncate',
                         )}>
-                          {e.title}
+                          {e.dealId ? (
+                            <Link to={`/deals/${e.dealId}`} className="hover:text-[var(--indigo)] hover:underline">{e.title}</Link>
+                          ) : e.title}
                         </p>
                         <span className="text-micro tabular text-[var(--text-muted)] flex-shrink-0 ml-auto">{timeOf(e.at)}</span>
                       </div>

@@ -53,6 +53,9 @@ export interface ContactActivityItem {
   activity_type: ActivityType;
   campaign_name: string;
   step_subject: string | null;
+  /** Zero-based position of the step in its sequence, when known. */
+  step_order?: number | null;
+  campaign_id?: string;
   metadata: Record<string, unknown>;
   occurred_at: string;
 }
