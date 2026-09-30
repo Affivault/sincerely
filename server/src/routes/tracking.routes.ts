@@ -293,7 +293,11 @@ async function performUnsubscribe(campaignContactId: string, stepId: string | nu
           .eq('id', cc.contact_id)
           .single();
         if (contactRow?.email) {
-          suppressionService.add(userId, contactRow.email, 'unsubscribed').catch(() => {});
+          // Logged, not swallowed: the contact flag above still stops every
+          // campaign, but a missing suppression row is worth knowing about.
+          suppressionService.add(userId, contactRow.email, 'unsubscribed').catch((e: any) => {
+            console.error(`[Unsubscribe] Could not add ${contactRow.email} to the suppression list: ${e?.message || e}`);
+          });
         }
 
         fireEvent(userId, 'lead.unsubscribed', {

@@ -172,6 +172,18 @@ console.log('\nrunning out of mailboxes is a wait, not a loss');
   is('rather than marked error', !/status: 'error'/.test(stall));
 }
 
+console.log('\na bad minute is retried, not fatal');
+{
+  const seq = src('services/sequence.service.ts');
+  is('4xx and dropped connections are retried', /if \(isRetryable\(failureKind, err\)\)/.test(seq) && /kind === 'transient'/.test(seq));
+  is('three times, further apart each time', /TRANSIENT_RETRY_MS = \[15 \* 60_000, 60 \* 60_000, 4 \* 60 \* 60_000\]/.test(seq));
+  is('counted per step, so the cap holds', /\.eq\('step_id', step\.id\)\s*\.eq\('activity_type', 'deferred'\)/.test(seq));
+  is('the claim is put back for the retry', /current_step_order: cc\.current_step_order, next_send_at: retryAt/.test(seq));
+  is('the longest-waiting contacts go first', /\.order\('next_send_at', \{ ascending: true \}\)\s*\.limit\(50\)/.test(seq));
+  is('a suppressed address stops with its real reason',
+     /suppressed === 'bounced' \? 'bounced'/.test(seq) && /reasonFor\(cc\.campaigns\.user_id/.test(seq));
+}
+
 console.log('\nproviders that push back are paused');
 {
   is('gmail and googlemail are one provider', receivingProvider('a@googlemail.com') === 'gmail.com' && receivingProvider('b@gmail.com') === 'gmail.com');

@@ -51,7 +51,7 @@ type Entry = {
 
 const CAMPAIGN_ICON: Record<string, typeof Mail> = {
   sent: Send, delivered: Mail, opened: Mail, clicked: MousePointerClick,
-  replied: MessageSquare, bounced: AlertTriangle, error: AlertTriangle,
+  replied: MessageSquare, bounced: AlertTriangle, error: AlertTriangle, deferred: Clock,
 };
 
 const CAMPAIGN_TONE: Record<string, string> = {
@@ -62,6 +62,7 @@ const CAMPAIGN_TONE: Record<string, string> = {
   replied: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
   bounced: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
   error: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+  deferred: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
 };
 
 type ComposeTab = 'note' | 'email' | 'activity' | 'meeting';

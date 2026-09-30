@@ -108,10 +108,12 @@ export function campaignStory(items: CampaignActivityLike[]): CampaignStoryRow[]
       : t === 'skipped' ? `${step} skipped`
       : t === 'auto_reply' ? 'Automatic reply'
       : t === 'error' ? `${step} could not be sent`
+      : t === 'deferred' ? `${step} delayed`
       : `${step} ${t.replace(/_/g, ' ')}`;
     const detail = t === 'bounced' ? [bounceWhy(m), where(a)].filter(Boolean).join(' ')
       : t === 'skipped' && typeof m.reason === 'string' ? `${m.reason}${where(a) ? ` · ${where(a)}` : ''}`
       : t === 'error' && typeof m.error === 'string' ? m.error.slice(0, 200)
+      : t === 'deferred' ? `Their server asked to try again later, so it will${typeof m.attempt === 'number' ? ` (retry ${m.attempt} of 3)` : ''}.`
       : where(a);
     rows.push({
       id: `act-${a.id || `${t}-${a.occurred_at}`}`,

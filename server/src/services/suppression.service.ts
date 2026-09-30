@@ -118,13 +118,19 @@ export const suppressionService = {
    * receive it, which is a legal matter rather than a UX one.
    */
   async isSuppressed(userId: string, email: string): Promise<boolean> {
+    return (await this.reasonFor(userId, email)) !== null;
+  },
+
+  /** Why an address is on the list, or null when it is not. Throws on a failed lookup. */
+  async reasonFor(userId: string, email: string): Promise<SuppressionReason | null> {
     const { data, error } = await supabaseAdmin
       .from('suppression_list')
-      .select('id')
+      .select('reason')
       .eq('user_id', userId)
       .eq('email', email.toLowerCase().trim())
       .maybeSingle();
     if (error) throw new AppError(`Could not check the suppression list: ${error.message}`, 503);
-    return !!data;
+    if (!data) return null;
+    return ((data as any).reason || 'manual') as SuppressionReason;
   },
 };
