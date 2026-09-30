@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
-import { warmupAllowance, emailDomain, isSendable } from '@lemlist/shared';
+import { warmupAllowance, autopilotAllowance, emailDomain, isSendable } from '@lemlist/shared';
 import type { CampaignHealth, CampaignIssue, CampaignReach, SmtpAccount } from '@lemlist/shared';
 import * as bounceGuard from './bounce-guard.service.js';
 
@@ -34,7 +34,9 @@ import * as bounceGuard from './bounce-guard.service.js';
  * `sends_today` has already exhausted.
  */
 function remainingToday(a: SmtpAccount): number | null {
-  const allowance = warmupAllowance(a);
+  // Resting mailboxes send nothing today, whatever their cap says.
+  const { sendable, limit: allowance } = autopilotAllowance(a);
+  if (!sendable) return 0;
   if (allowance === 0) return null; // 0 means unlimited, everywhere in this codebase
   return Math.max(0, allowance - (a.sends_today || 0));
 }

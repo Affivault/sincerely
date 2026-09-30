@@ -198,6 +198,24 @@ function richEvent(eventType: string, data: Record<string, any>, ctx?: EventCont
       return { headline: `🔗 Link clicked${who ? ` by ${who.split(' <')[0]}` : ''}`, facts, color: INDIGO };
     case 'email.bounced':
       return { headline: '📛 Email bounced', facts, color: RED };
+    case 'autopilot.action': {
+      if (data.detail) facts.push(['Why', String(data.detail)]);
+      const calm = ['recovered', 'full_speed', 'release', 'recovery_step'].includes(String(data.kind));
+      return {
+        headline: `🛡️ Autopilot: ${data.title || 'deliverability action'}`,
+        facts,
+        link: { label: 'Open autopilot', url: appUrl('/email-accounts?tab=autopilot') },
+        color: calm ? GREEN : AMBER,
+      };
+    }
+    case 'autopilot.weekly':
+      if (data.detail) facts.push(['Summary', String(data.detail)]);
+      return {
+        headline: `🛡️ ${data.title || 'Your autopilot week'}`,
+        facts,
+        link: { label: 'Open autopilot', url: appUrl('/email-accounts?tab=autopilot') },
+        color: INDIGO,
+      };
     case 'campaign.launched':
       return {
         headline: `🚀 Campaign launched: ${data.campaign?.name || ctx?.campaignName || ''}`.trim(),

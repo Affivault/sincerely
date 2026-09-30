@@ -6,6 +6,7 @@ import { startInboxScheduler } from './jobs/schedulers/inbox.scheduler.js';
 import { startSseMaintenanceScheduler } from './jobs/schedulers/sse-maintenance.scheduler.js';
 import { startWarmupScheduler } from './jobs/schedulers/warmup.scheduler.js';
 import { startPlacementScheduler } from './jobs/schedulers/placement.scheduler.js';
+import { startAutopilotScheduler } from './jobs/schedulers/autopilot.scheduler.js';
 import { startProspectRulesScheduler } from './jobs/schedulers/prospect-rules.scheduler.js';
 import { startAbPromoteScheduler } from './jobs/schedulers/ab-promote.scheduler.js';
 import { startBookingReminderScheduler } from './jobs/schedulers/booking-reminder.scheduler.js';
@@ -65,6 +66,16 @@ const server = app.listen(port, () => {
     console.log('Warm-up scheduler started');
   } catch (err: any) {
     console.warn('Warm-up scheduler failed to start:', err.message);
+  }
+
+  // Deliverability autopilot: read bounce notices, rest and recover
+  // mailboxes, pause providers that push back (cross-tenant).
+  try {
+    const autopilot = startAutopilotScheduler();
+    if (autopilot) disposers.push(() => autopilot.stop());
+    console.log('Autopilot scheduler started');
+  } catch (err: any) {
+    console.warn('Autopilot scheduler failed to start:', err.message);
   }
 
   // Inbox placement: look for the seed probes of any test still running.

@@ -69,6 +69,10 @@ export enum WebhookEventType {
   SaraReplyApproved = 'sara.reply_approved',
   AccountHealthDropped = 'account.health_dropped',
   LeadDataRefreshed = 'lead.data_refreshed',
+  /** The deliverability autopilot rested, slowed, recovered or paused something. */
+  AutopilotAction = 'autopilot.action',
+  /** Once a week: what the autopilot did. */
+  AutopilotWeekly = 'autopilot.weekly',
 }
 
 export enum ContactCampaignStatus {

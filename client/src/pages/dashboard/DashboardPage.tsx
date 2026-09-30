@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { TodayPanel } from '../../components/dashboard/TodayPanel';
 import { FlowTeaser } from '../../components/dashboard/FlowTeaser';
 import { AwayCard } from '../../components/flow/AwayCard';
+import { AutopilotNote } from '../../components/dashboard/AutopilotNote';
 import { analyticsApi, type TrendDataPoint } from '../../api/analytics.api';
 import { inboxApi } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
@@ -539,6 +540,8 @@ export function DashboardPage() {
     <div className="stagger pb-8 space-y-5">
       {/* What changed since the last visit, once per return. */}
       <AwayCard />
+      {/* What the deliverability autopilot is doing, only when it is doing something. */}
+      <AutopilotNote />
       {/* ── Header ── */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
