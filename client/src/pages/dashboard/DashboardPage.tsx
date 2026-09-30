@@ -4,6 +4,7 @@ import { TodayPanel } from '../../components/dashboard/TodayPanel';
 import { FlowTeaser } from '../../components/dashboard/FlowTeaser';
 import { AwayCard } from '../../components/flow/AwayCard';
 import { AutopilotNote } from '../../components/dashboard/AutopilotNote';
+import { SystemNote } from '../../components/dashboard/SystemNote';
 import { analyticsApi, type TrendDataPoint } from '../../api/analytics.api';
 import { inboxApi } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
@@ -541,6 +542,8 @@ export function DashboardPage() {
       {/* What changed since the last visit, once per return. */}
       <AwayCard />
       {/* What the deliverability autopilot is doing, only when it is doing something. */}
+      {/* Something has stopped - shown only when it has. */}
+      <SystemNote />
       <AutopilotNote />
       {/* ── Header ── */}
       <header className="flex flex-wrap items-end justify-between gap-4">

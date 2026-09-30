@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../../config/supabase.js';
 import { domainService } from '../../services/domain.service.js';
 import { trackingDomainService } from '../../services/tracking-domain.service.js';
+import { beat } from '../../utils/heartbeat.js';
 
 /**
  * Re-checks sending domains and tracking domains that are currently marked
@@ -100,7 +101,7 @@ export function startDomainReverifyScheduler() {
     }
   };
 
-  timer = setInterval(tick, SWEEP_MS);
+  timer = setInterval(() => beat('domain_reverify', tick), SWEEP_MS);
   // Not on boot: every instance re-verifying everything on a deploy would
   // be a burst of DNS/HTTPS probes for domains nobody asked to re-check yet.
   return {

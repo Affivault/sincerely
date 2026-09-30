@@ -26,6 +26,7 @@ const DashboardPage       = lazyRoute('/dashboard', () => import('./pages/dashbo
 const FlowPage            = lazyRoute('/flow', () => import('./pages/flow/FlowPage'), m => m.FlowPage);
 const CampaignRevenuePage  = lazyRoute('/analytics/revenue/:id', () => import('./pages/analytics/CampaignRevenuePage'), m => m.CampaignRevenuePage);
 const PlacementPage        = lazyRoute('/placement', () => import('./pages/placement/PlacementPage'), m => m.PlacementPage);
+const SystemStatusPage     = lazyRoute('/system', () => import('./pages/system/SystemStatusPage'), m => m.SystemStatusPage);
 const RepliesPage          = lazyRoute('/replies', () => import('./pages/replies/RepliesPage'), m => m.RepliesPage);
 const SegmentsPage         = lazyRoute('/analytics/segments', () => import('./pages/analytics/SegmentsPage'), m => m.SegmentsPage);
 const RevenuePage          = lazyRoute('/analytics/revenue', () => import('./pages/analytics/RevenuePage'), m => m.RevenuePage);
@@ -193,6 +194,7 @@ export default function App() {
           <Route path="/smtp-accounts"      element={<Navigate to="/email-accounts" replace />} />
           <Route path="/smtp-accounts/guide" element={<SmtpGuidePage />} />
           <Route path="/placement"          element={<PlacementPage />} />
+          <Route path="/system"             element={<SystemStatusPage />} />
           <Route path="/replies"            element={<RepliesPage />} />
           <Route path="/domains"            element={<Navigate to="/email-accounts" replace />} />
           <Route path="/analytics"          element={<AnalyticsDashboardPage />} />

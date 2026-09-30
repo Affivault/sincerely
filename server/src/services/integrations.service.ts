@@ -208,6 +208,16 @@ function richEvent(eventType: string, data: Record<string, any>, ctx?: EventCont
         color: calm ? GREEN : AMBER,
       };
     }
+    case 'system.attention':
+      if (data.detail) facts.push(['What', String(data.detail)]);
+      return {
+        headline: `${data.level === 'down' ? '🔴' : '🟠'} ${data.title || 'Something needs a look'}`,
+        facts,
+        link: { label: 'Open system status', url: appUrl(data.href || '/system') },
+        color: data.level === 'down' ? RED : AMBER,
+      };
+    case 'system.resolved':
+      return { headline: `✅ Resolved: ${data.title || 'an earlier issue'}`, facts, color: GREEN };
     case 'autopilot.weekly':
       if (data.detail) facts.push(['Summary', String(data.detail)]);
       return {

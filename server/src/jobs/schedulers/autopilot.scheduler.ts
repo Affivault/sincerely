@@ -1,4 +1,5 @@
 import { runAutopilot, sweepBounceNotices } from '../../services/autopilot.service.js';
+import { beat } from '../../utils/heartbeat.js';
 
 /**
  * The deliverability autopilot's heartbeat.
@@ -41,8 +42,8 @@ async function tick() {
 export function startAutopilotScheduler() {
   console.log('[Autopilot] Scheduler started (every 10 minutes)');
   // Shortly after boot rather than at it, so startup is not slowed.
-  setTimeout(tick, 30_000);
-  timer = setInterval(tick, TICK_MS);
+  setTimeout(() => beat('autopilot', tick), 30_000);
+  timer = setInterval(() => beat('autopilot', tick), TICK_MS);
   return {
     stop: () => {
       if (timer) {

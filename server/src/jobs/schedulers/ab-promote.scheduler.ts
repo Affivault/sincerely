@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../../config/supabase.js';
 import { analyticsService } from '../../services/analytics.service.js';
 import { campaignsService } from '../../services/campaigns.service.js';
+import { beat } from '../../utils/heartbeat.js';
 
 /**
  * A/B auto-promote.
@@ -75,7 +76,7 @@ async function tick() {
 
 export function startAbPromoteScheduler() {
   if (timer) return { stop: () => {} };
-  timer = setInterval(tick, SWEEP_MS);
+  timer = setInterval(() => beat('ab_promote', tick), SWEEP_MS);
   // Not on boot: a deploy restarting several instances at once would have
   // them all sweep together, and there is nothing time-critical here.
   return {

@@ -73,6 +73,10 @@ export enum WebhookEventType {
   AutopilotAction = 'autopilot.action',
   /** Once a week: what the autopilot did. */
   AutopilotWeekly = 'autopilot.weekly',
+  /** Something has quietly stopped: a job, a mailbox, a campaign. Sent once per issue. */
+  SystemAttention = 'system.attention',
+  /** ...and cleared. */
+  SystemResolved = 'system.resolved',
 }
 
 export enum ContactCampaignStatus {

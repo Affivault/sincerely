@@ -1,5 +1,6 @@
 import { processDueSteps, processWebhookTimeouts, promoteDueScheduledCampaigns } from '../../services/sequence.service.js';
 import { processScheduledEmails } from '../../services/inbox.service.js';
+import { beat } from '../../utils/heartbeat.js';
 
 /**
  * Sequence Worker
@@ -56,10 +57,10 @@ export function startSequenceWorker() {
   console.log('[Sequence] Worker started (30s interval)');
 
   // Run immediately on start
-  tick();
+  beat('sending', tick);
 
   // Then run every 30 seconds
-  intervalId = setInterval(tick, 30000);
+  intervalId = setInterval(() => beat('sending', tick), 30000);
 
   return {
     stop: () => {

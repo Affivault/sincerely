@@ -1,5 +1,6 @@
 import { resetDailySendCounts, recalculateBounceRates } from '../../services/sse.service.js';
 import { autopilotReady } from '../../services/autopilot.service.js';
+import { beat } from '../../utils/heartbeat.js';
 
 /**
  * SSE Maintenance Scheduler
@@ -48,8 +49,8 @@ async function tick() {
 export function startSseMaintenanceScheduler() {
   console.log('[SSE Maintenance] Scheduler started (hourly interval)');
 
-  tick();
-  intervalId = setInterval(tick, 60 * 60 * 1000);
+  beat('sse_maintenance', tick);
+  intervalId = setInterval(() => beat('sse_maintenance', tick), 60 * 60 * 1000);
 
   return {
     stop: () => {
