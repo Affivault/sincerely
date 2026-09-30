@@ -131,7 +131,37 @@ const mailboxes = ['alex@affivault.com', 'alex@affivault.io', 'partners@affivaul
   smtp_user: e, imap_host: 'imap.gmail.com', imap_port: 993, imap_secure: true, imap_user: e, daily_send_limit: 50, sends_today: 12 + i * 7,
   is_active: true, is_verified: true, is_seed: false, last_tested_at: ago(1), warmup_enabled: i === 2, last_inbox_sync_at: ago(0.01), last_inbox_sync_error: null,
   health_score: 92 - i * 4, signature_html: null, signature_auto: true, total_sent: 1200 - i * 300, warmup_mode: i === 2,
+  // CALM=1: every mailbox at full speed, for the quiet-state screenshots.
+  autopilot_state: process.env.CALM ? 'active' : ['active', 'resting', 'recovering'][i],
+  autopilot_reason: process.env.CALM ? null : [null, '3 receiving servers refused it as a sender in the last 7 days', 'coming back gradually after a rest'][i],
+  autopilot_rest_until: !process.env.CALM && i === 1 ? ahead(1.3) : null,
+  autopilot_recovery_day: i === 2 ? 1 : 0,
 }));
+
+const autopilotStatus = () => {
+  const calm = !!process.env.CALM;
+  return {
+    ready: !process.env.NO_AUTOPILOT, enabled: true, last_run_at: ago(0.003),
+    mailboxes: mailboxes.map((m, i) => ({
+      id: m.id, label: m.label, email_address: m.email_address,
+      state: m.autopilot_state, reason: m.autopilot_reason, since: ago(i === 1 ? 0.7 : 1.5), rest_until: m.autopilot_rest_until,
+      share: calm ? 1 : [1, 0, 0.5][i],
+      evidence: calm ? { sent: 212 - i * 40, bounced: 3, blocked: 0 } : [{ sent: 312, bounced: 6, blocked: 0 }, { sent: 140, bounced: 9, blocked: 3 }, { sent: 18, bounced: 0, blocked: 0 }][i],
+    })),
+    holds: calm ? [] : [{ provider: 'outlook.com', held_until: ahead(0.3), reason: '4 of 38 sends to outlook.com were refused in the last day' }],
+    events: calm ? [
+      { id: 'e0', kind: 'weekly', title: 'A quiet week: every mailbox stayed healthy', detail: 'Nothing bounced or was refused enough to act on.', smtp_account_id: null, provider: null, created_at: ago(2) },
+    ] : [
+      { id: 'e1', kind: 'hold', title: 'Paused sending to outlook.com for 12 hours', detail: '4 of 38 sends to outlook.com were refused in the last day. Sending more into a wall teaches outlook.com to block you for longer - those emails wait and go out when the pause ends.', smtp_account_id: null, provider: 'outlook.com', created_at: ago(0.2) },
+      { id: 'e2', kind: 'rest', title: 'Rested alex@affivault.io for 2 days', detail: '3 receiving servers refused it as a sender in the last 7 days. Its campaigns keep sending through your other mailboxes.', smtp_account_id: 'm2', provider: null, created_at: ago(0.7) },
+      { id: 'e3', kind: 'bounces_found', title: 'Found 14 bounces in delivery notices', detail: 'Returned-mail notices that used to sit unread in Other mail. Those addresses have left their sequences, and each bounce now counts against the mailbox that sent it.', smtp_account_id: null, provider: null, created_at: ago(0.71) },
+      { id: 'e4', kind: 'recovery_step', title: 'partners@affivault.com is up to 50% of its volume', detail: 'Recovery continuing, nothing bouncing.', smtp_account_id: 'm3', provider: null, created_at: ago(0.5) },
+      { id: 'e5', kind: 'recovering', title: 'partners@affivault.com is back, at a quarter of its usual volume', detail: 'The rest is over. It ramps back up over 3 days, and goes straight back to rest if the bouncing starts again.', smtp_account_id: 'm3', provider: null, created_at: ago(1.5) },
+      { id: 'e6', kind: 'weekly', title: 'This week the autopilot rested 1 mailbox, caught 14 bounces from returned-mail notices', detail: 'Your campaigns kept sending through the healthy mailboxes throughout.', smtp_account_id: null, provider: null, created_at: ago(3) },
+    ],
+    week: calm ? { rests: 0, slowdowns: 0, recoveries: 0, holds: 0, bounces_found: 0, rested_hours: 0 } : { rests: 2, slowdowns: 1, recoveries: 1, holds: 1, bounces_found: 14, rested_hours: 96 },
+  };
+};
 
 const trend = Array.from({ length: 30 }, (_, i) => {
   const s = 30 + Math.round(20 * Math.sin(i / 3) + i);
@@ -181,6 +211,7 @@ function answer(method, path, q) {
     case '/inbox/scheduled': return [];
     case '/inbox/sync/progress': return mailboxes.map((b) => ({ smtp_account_id: b.id, email_address: b.email_address, window_months: 6, oldest_synced_at: ago(180), history_complete: true, stored: 412, last_synced_at: ago(0.01), last_error: null }));
     case '/smtp-accounts': return mailboxes;
+    case '/autopilot': return autopilotStatus();
     case '/settings': return { ...base, id: 's1', first_name: 'Alex', last_name: 'Morgan', company: 'AffiVault', job_title: 'CEO', timezone: 'Europe/London', email_notifications: true, campaign_alerts: true, reply_notifications: true, weekly_digest: true, default_signature: '', theme: 'light', sara_enabled: true, sara_auto_classify: true, sara_auto_execute: false, sara_confidence_threshold: 0.8, sara_auto_unsubscribe: true, sara_auto_bounce: true, sara_draft_replies: true, ai_tagging_enabled: true, auto_verify_contacts: true, crm_auto_deals: true, stop_all_campaigns_on_reply: true, pause_company_on_reply: false, bounce_guard_enabled: true, bounce_guard_threshold: 5, domain_hourly_limit: 20 };
     case '/contacts': return { ...page(contacts), total: 1450, total_pages: 58, limit: 25 };
     case '/contacts/stats': return { total: 1450, verified: 1320, unverified: 110, bounced: 15, unsubscribed: 5 };

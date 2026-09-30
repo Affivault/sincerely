@@ -2,7 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { settingsService } from './settings.service.js';
 import { trackingDomainService } from './tracking-domain.service.js';
 import { MIN_SENDS_BEFORE_GUARD } from './bounce-guard.service.js';
-import { warmupAllowance, warmupDayNumber, emailDomain, isFreeMailDomain, worseStatus, isSendable } from '@lemlist/shared';
+import { warmupAllowance, autopilotAllowance, warmupDayNumber, emailDomain, isFreeMailDomain, worseStatus, isSendable } from '@lemlist/shared';
 import type {
   ReadinessCheck, ReadinessReport, ReadinessStatus, SmtpAccount,
 } from '@lemlist/shared';
@@ -406,7 +406,10 @@ function capacityCheck(accounts: SmtpAccount[]): { check: ReadinessCheck; remain
   let ceiling = 0;
   let remaining = 0;
   for (const a of usable) {
-    const limit = warmupAllowance(a);
+    // What the sender will actually allow today: a resting mailbox gives
+    // nothing, a slowed or recovering one gives its share.
+    const { sendable, limit } = autopilotAllowance(a);
+    if (!sendable) continue;
     if (limit <= 0) { uncapped = true; continue; }
     ceiling += limit;
     remaining += Math.max(0, limit - a.sends_today);
@@ -480,6 +483,10 @@ function safeguardCheck(settings: any, campaigns: any[]): ReadinessCheck {
   const facts = [
     { label: 'Bounce limit', value: enabled ? `${threshold}%` : 'off' },
     { label: 'Per-company throttle', value: throttle > 0 ? `${throttle}/hour` : 'off' },
+    // Undefined before migration 077, when there is no autopilot to report.
+    ...(settings && settings.autopilot_enabled !== undefined
+      ? [{ label: 'Autopilot', value: settings.autopilot_enabled === false ? 'off' : 'on' }]
+      : []),
   ];
 
   if (!enabled) {

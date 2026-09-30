@@ -41,6 +41,15 @@ export interface SmtpAccount {
   warmup_ramp_days: number;
   /** Warm-up emails sent to peer inboxes today (separate from campaign sends_today). */
   warmup_sent_today: number;
+  /* Deliverability autopilot (migration 077). Absent on older databases,
+     which read as 'active'. */
+  autopilot_state?: 'active' | 'slowed' | 'resting' | 'recovering';
+  autopilot_reason?: string | null;
+  autopilot_since?: string | null;
+  autopilot_rest_until?: string | null;
+  autopilot_recovery_day?: number;
+  autopilot_evidence_from?: string | null;
+  autopilot_last_rest_at?: string | null;
   /** HTML signature for this inbox, surfaced in the composer. */
   signature_html: string | null;
   /** When true, the signature is added by default on every new compose/reply from this inbox. */

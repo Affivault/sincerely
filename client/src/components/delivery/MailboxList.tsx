@@ -1,8 +1,8 @@
-import { cn } from '../../lib/utils';
+import { cn, formatTimeUntil } from '../../lib/utils';
 import { AlertTriangle, Check, ChevronRight } from 'lucide-react';
 import type { SmtpAccount, InboxSyncProgress } from '@lemlist/shared';
 import {
-  resolveMailboxState, mailboxScore, formatDailyLimit, warmupAllowance,
+  resolveMailboxState, mailboxScore, formatDailyLimit, autopilotAllowance, AUTOPILOT_STATE_LABELS,
   detectPresetFromEmail, SMTP_PRESETS,
 } from '@lemlist/shared';
 import { ProviderLogo } from '../mailbox/ProviderLogo';
@@ -109,7 +109,10 @@ function Row({
 
   const tone = TONE[state.tone];
   const score = mailboxScore(account);
-  const limit = warmupAllowance(account);
+  // What it may send today: its warm-up ramp, then the autopilot's share.
+  const allowance = autopilotAllowance(account);
+  const limit = allowance.limit;
+  const pilot = account.autopilot_state && account.autopilot_state !== 'active' ? account.autopilot_state : null;
   const name = account.from_name || account.label;
 
   /*
@@ -162,6 +165,21 @@ function Row({
                   {name}
                 </span>
               )}
+              {pilot && (
+                <span
+                  className={cn(
+                    'inline-flex h-[18px] flex-shrink-0 items-center self-center rounded px-1.5 text-micro font-bold',
+                    pilot === 'resting' ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
+                      : pilot === 'slowed' ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                        : 'bg-[var(--indigo-subtle)] text-[var(--indigo)]',
+                  )}
+                  title={account.autopilot_reason || undefined}
+                  data-autopilot-pill={pilot}
+                >
+                  Autopilot: {AUTOPILOT_STATE_LABELS[pilot].toLowerCase()}
+                  {pilot === 'resting' && account.autopilot_rest_until ? `, back ${formatTimeUntil(account.autopilot_rest_until)}` : ''}
+                </span>
+              )}
             </span>
             <span className={cn('mt-0.5 block truncate text-body', tone.text)}>
               <span className="font-medium">{state.label}</span>
@@ -178,7 +196,7 @@ function Row({
           <span className="hidden flex-shrink-0 items-center gap-5 text-right sm:flex">
             <span className="w-16">
               <span className="block text-body tabular text-[var(--text-secondary)]">
-                {account.sends_today}<span className="text-[var(--text-muted)]">/{formatDailyLimit(limit)}</span>
+                {account.sends_today}<span className="text-[var(--text-muted)]">/{allowance.sendable ? formatDailyLimit(limit) : '0'}</span>
               </span>
               <span className="block text-micro text-[var(--text-muted)]">today</span>
             </span>

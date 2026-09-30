@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import type { SmtpAccount, SmtpAccountHealthSummary, SseSelectionResult } from '@lemlist/shared';
-import { warmupAllowance } from '@lemlist/shared';
+import { autopilotAllowance } from '@lemlist/shared';
 
 /**
  * SSE - Smart-Sharding Engine
@@ -64,23 +64,30 @@ export async function selectBestSender(
 
   // Filter accounts that still have capacity (limit=0 means unlimited).
   // While a mailbox is warming up, its cap is the ramped allowance, not the
-  // full daily limit — this is what protects a new inbox's reputation.
-  const available = accounts.filter((a: SmtpAccount) => {
-    const limit = warmupAllowance(a);
+  // full daily limit — this is what protects a new inbox's reputation. The
+  // autopilot then takes its share: nothing while a mailbox rests, a part
+  // of it while slowed or recovering, so the rest moves to healthy ones.
+  const now = new Date();
+  const allowed = accounts.filter((a: SmtpAccount) => autopilotAllowance(a, now).sendable);
+  const available = allowed.filter((a: SmtpAccount) => {
+    const limit = autopilotAllowance(a, now).limit;
     return limit === 0 || a.sends_today < limit;
   });
 
   if (available.length === 0) {
+    const resting = accounts.length - allowed.length;
     return {
       account: null,
-      reason: 'All accounts have reached their daily sending limit',
+      reason: resting === accounts.length
+        ? 'Every mailbox this campaign can use is resting after bounces. Sending resumes as soon as one comes back.'
+        : 'All accounts have reached their daily sending limit',
       all_exhausted: true,
     };
   }
 
   // Score each account: higher is better
   const scored = available.map((a: SmtpAccount) => {
-    const limit = warmupAllowance(a);
+    const limit = autopilotAllowance(a, now).limit;
     const healthComponent = a.health_score * HEALTH_WEIGHT;
     // limit=0 means unlimited — treat as fully available (100% capacity remaining)
     const utilizationComponent = (limit === 0 ? 100 : (1 - a.sends_today / limit) * 100) * UTILIZATION_WEIGHT;
@@ -95,7 +102,7 @@ export async function selectBestSender(
     const best = scored[0];
     return {
       account: best.account,
-      reason: `Selected ${best.account.label} (score: ${best.score.toFixed(1)}, health: ${best.account.health_score}, utilization: ${best.account.sends_today}/${warmupAllowance(best.account)})`,
+      reason: `Selected ${best.account.label} (score: ${best.score.toFixed(1)}, health: ${best.account.health_score}, utilization: ${best.account.sends_today}/${autopilotAllowance(best.account, now).limit})`,
       all_exhausted: false,
     };
   }
@@ -107,7 +114,7 @@ export async function selectBestSender(
   // the read and the reserve, so fall through to the next-best candidate on
   // a lost race instead of over-sending on the account the snapshot said was fine.
   for (const candidate of scored) {
-    const limit = warmupAllowance(candidate.account);
+    const limit = autopilotAllowance(candidate.account, now).limit;
     if (!(await reserveWarmupSend(candidate.account.id, limit))) continue;
     return {
       account: candidate.account,
@@ -318,8 +325,9 @@ export async function getHealthDashboard(
 
   if (!accounts) return [];
 
+  const now = new Date();
   return accounts.map((a: SmtpAccount) => {
-    const limit = warmupAllowance(a);
+    const { sendable, limit } = autopilotAllowance(a, now);
     return {
       id: a.id,
       label: a.label,
@@ -330,7 +338,7 @@ export async function getHealthDashboard(
       utilization_pct: limit > 0 ? Math.round((a.sends_today / limit) * 100) : 0,
       bounce_rate_7d: a.bounce_rate_7d,
       warmup_mode: a.warmup_mode,
-      is_available: a.is_active && a.is_verified && (limit === 0 || a.sends_today < limit),
+      is_available: a.is_active && a.is_verified && sendable && (limit === 0 || a.sends_today < limit),
     };
   });
 }

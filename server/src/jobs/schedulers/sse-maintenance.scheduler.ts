@@ -1,4 +1,5 @@
 import { resetDailySendCounts, recalculateBounceRates } from '../../services/sse.service.js';
+import { autopilotReady } from '../../services/autopilot.service.js';
 
 /**
  * SSE Maintenance Scheduler
@@ -32,7 +33,9 @@ async function tick() {
   }
 
   try {
-    await recalculateBounceRates();
+    // Once the autopilot is running it keeps bounce_rate_7d to a real
+    // seven days; this lifetime approximation would overwrite it hourly.
+    if (!(await autopilotReady())) await recalculateBounceRates();
   } catch (err: any) {
     console.error('[SSE Maintenance] recalculateBounceRates failed:', err.message);
   }

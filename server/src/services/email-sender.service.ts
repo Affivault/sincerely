@@ -7,7 +7,7 @@ import { resolveHostIp } from '../utils/dns-doh.js';
 import { fireEvent } from './webhook.service.js';
 import * as sse from './sse.service.js';
 import { checkAndAutoCompleteCampaign, htmlToText } from './sequence.service.js';
-import { warmupAllowance } from '@lemlist/shared';
+import { autopilotAllowance } from '@lemlist/shared';
 import { renderMergeTags, spin } from '@lemlist/shared';
 import { personaliseBookingLinks } from '../utils/booking-token.js';
 import { settingsService } from './settings.service.js';
@@ -458,8 +458,11 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
       // A seed mailbox receives placement probes and never sends.
       .eq('is_seed', false)
       .maybeSingle();
-    if (fallback) {
-      const limit = warmupAllowance(fallback);
+    // A mailbox the autopilot is resting is off limits here too - a
+    // fallback that could reach it would undo the rest.
+    const fallbackAllowance = fallback ? autopilotAllowance(fallback) : null;
+    if (fallback && fallbackAllowance?.sendable) {
+      const limit = fallbackAllowance.limit;
       // Reserve atomically rather than check-then-use — a concurrent
       // processDueSteps() run could otherwise claim the same last slot.
       if (await sse.reserveWarmupSend(fallback.id, limit)) {
@@ -492,7 +495,9 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
     // filtering by a stale sends_today snapshot, so a concurrent
     // processDueSteps() run can't grab the same last slot on this mailbox.
     for (const acc of candidates || []) {
-      const limit = warmupAllowance(acc);
+      const allowance = autopilotAllowance(acc);
+      if (!allowance.sendable) continue;
+      const limit = allowance.limit;
       if (await sse.reserveWarmupSend(acc.id, limit)) {
         smtpAccount = acc;
         console.log(`[EmailSender] Last resort SMTP: ${smtpAccount.label || smtpAccount.id}`);

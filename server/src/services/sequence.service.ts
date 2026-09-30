@@ -11,8 +11,9 @@ import { renderMergeTags, personalize, previewPersonalization, SENDER_TAGS, LINK
 import { settingsService } from './settings.service.js';
 import { guardAfterBounce } from './bounce-guard.service.js';
 import * as domainThrottle from './domain-throttle.service.js';
+import { providerHeldUntil } from './autopilot.service.js';
 import { isLinkedinStep, inferTimezone } from '@lemlist/shared';
-import { stepHasVariantB, assignVariant } from '@lemlist/shared';
+import { stepHasVariantB, assignVariant, classifyRejection } from '@lemlist/shared';
 import { classifySendFailure, stallReasonFor } from '../utils/send-failure.js';
 
 /**
@@ -193,6 +194,9 @@ async function ensureContactTimezone(campaignContactId: string, contact: any): P
  * only stamped the first time so the page can say how long it has been stuck
  * rather than resetting the clock every thirty seconds.
  */
+/** How long a contact waits when no mailbox could take it. */
+const STALL_RETRY_MS = 60 * 60_000;
+
 async function recordStall(campaignId: string, reason: string | null): Promise<void> {
   try {
     if (reason === null) {
@@ -513,6 +517,21 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     return;
   }
 
+  // A receiving provider the autopilot has paused (it started refusing this
+  // account's mail): wait for the pause to end rather than send more into
+  // the refusal. Fails open - see providerHeldUntil.
+  const heldUntil = ownerId ? await providerHeldUntil(ownerId, cc.contacts.email) : null;
+  if (heldUntil) {
+    if (ownerId) await billingService.refundEmailQuota(ownerId);
+    if (dailyLimit > 0) await refundCampaignDailySend(cc.campaign_id, dailyPeriodStart);
+    await supabaseAdmin
+      .from('campaign_contacts')
+      .update({ next_send_at: heldUntil.toISOString() })
+      .eq('id', cc.id);
+    console.log(`[Sequence] Contact ${cc.id} deferred to ${heldUntil.toISOString()} - autopilot pause on their provider`);
+    return;
+  }
+
   // Don't let a company-sorted list land thirty messages at acme.com inside a
   // minute — the burst a receiving gateway is built to notice, which gets the
   // sending domain flagged at exactly the organisation you most wanted to
@@ -642,6 +661,23 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
 
     if (err.stallReason) {
       await recordStall(cc.campaign_id, err.stallReason);
+      /*
+       * Nothing could send it - every mailbox at its cap, resting, or none
+       * set up. That is the account's state, not this contact's, and it
+       * passes: counters reset at midnight, a rested mailbox comes back, a
+       * mailbox gets connected. This used to fall through to the error
+       * branch below and mark the contact 'error' for good, so a campaign
+       * that outran its mailboxes for one afternoon quietly dropped every
+       * contact that came due that afternoon. Put the claim back and try
+       * again in an hour.
+       */
+      const retryAt = new Date(Date.now() + STALL_RETRY_MS).toISOString();
+      await supabaseAdmin
+        .from('campaign_contacts')
+        .update({ current_step_order: cc.current_step_order, next_send_at: retryAt })
+        .eq('id', cc.id)
+        .eq('status', 'active');
+      return;
     } else {
       // Stale mailbox credentials fail every send identically. Say so on the
       // campaign page rather than letting it grind through the whole list
@@ -665,15 +701,23 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     // give that back too so a failed send doesn't burn ramp capacity.
     if (err.smtpAccountId) sse.refundWarmupSend(err.smtpAccountId).catch(() => {});
 
+    // A dead address, or a receiving server refusing the *sender* (5.7.x,
+    // "blocked", "spam")? The second says nothing about the contact, whose
+    // address is fine - marking them bounced would lose a real person for
+    // good over the mailbox's reputation. Either way this enrolment stops.
+    const rejection = isBounce ? classifyRejection(`${err.response || ''} ${err.message || ''}`) : null;
+
     if (isBounce) {
       await supabaseAdmin
         .from('campaign_contacts')
         .update({ status: 'bounced', next_send_at: null })
         .eq('id', cc.id);
-      await supabaseAdmin
-        .from('contacts')
-        .update({ is_bounced: true })
-        .eq('id', cc.contact_id);
+      if (rejection === 'address') {
+        await supabaseAdmin
+          .from('contacts')
+          .update({ is_bounced: true })
+          .eq('id', cc.contact_id);
+      }
 
       // Use the account that actually attempted the send (annotated by sendCampaignEmail).
       // Fall back to campaign.smtp_account_id only if SSE didn't annotate the error.
@@ -703,7 +747,15 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
         contact_id: cc.contact_id,
         step_id: step.id,
         activity_type: isBounce ? 'bounced' : 'error',
-        metadata: { error: err.message, code: err.code || err.responseCode, to: cc.contacts.email },
+        metadata: {
+          error: err.message,
+          code: err.code || err.responseCode,
+          to: cc.contacts.email,
+          // Which mailbox it was, and which kind of refusal - the evidence
+          // the deliverability autopilot judges each mailbox on.
+          ...(err.smtpAccountId ? { smtp_account_id: err.smtpAccountId } : {}),
+          ...(rejection ? { bounce_kind: rejection, source: 'smtp' } : {}),
+        },
       });
 
     // For non-bounce errors, mark the contact as 'error' so the campaign can

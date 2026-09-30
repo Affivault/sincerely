@@ -25,6 +25,8 @@ import { WarmupPanel } from './WarmupPanel';
 import { StatusBadge, DomainDetailPanel } from '../domains/DomainsPage';
 import { TrackingDomainPanel } from '../../components/domains/TrackingDomainPanel';
 import { ReadinessPanel } from '../../components/delivery/ReadinessPanel';
+import { AutopilotPanel } from '../../components/delivery/AutopilotPanel';
+import { autopilotApi } from '../../api/autopilot.api';
 import { MailboxList } from '../../components/delivery/MailboxList';
 import { MailboxDrawer } from '../../components/mailbox/MailboxDrawer';
 import { ProviderLogo } from '../../components/mailbox/ProviderLogo';
@@ -147,8 +149,8 @@ function SetupGuide({
 }
 
 /* ─── Page ───────────────────────────────────────────── */
-type Tab = 'mailboxes' | 'domains' | 'warmup' | 'readiness';
-const VALID_TABS: Tab[] = ['mailboxes', 'domains', 'warmup', 'readiness'];
+type Tab = 'mailboxes' | 'domains' | 'warmup' | 'autopilot' | 'readiness';
+const VALID_TABS: Tab[] = ['mailboxes', 'domains', 'warmup', 'autopilot', 'readiness'];
 
 export function EmailAccountsPage() {
   const confirm = useConfirm();
@@ -185,6 +187,16 @@ export function EmailAccountsPage() {
 
   const { data: accounts, isLoading, isError: accountsError } = useQuery({ queryKey: ['smtp-accounts'], queryFn: smtpApi.list, meta: { silentError: true } });
   const { data: domainsData, isLoading: loadingDomains, isError: domainsError } = useQuery({ queryKey: ['domains'], queryFn: domainApi.list, meta: { silentError: true } });
+
+  // A dot on the tab when the autopilot is holding a mailbox back, so a
+  // rest is noticed without opening the tab to look for one.
+  const { data: autopilot } = useQuery({
+    queryKey: ['autopilot'],
+    queryFn: autopilotApi.status,
+    staleTime: 60_000,
+    meta: { silentError: true },
+  });
+  const autopilotHeldBack = (autopilot?.mailboxes || []).filter((m) => m.state !== 'active').length;
   /*
    * Sync progress is what makes a row honest. Without it the list can only
    * report stored flags - which is exactly how three mailboxes showed
@@ -333,6 +345,7 @@ export function EmailAccountsPage() {
     { id: 'mailboxes', label: 'Mailboxes', icon: Mail, count: list.length },
     { id: 'domains', label: 'Domains', icon: Globe, count: domains.length, alert: domains.length > 0 && authedDomains < domains.length },
     { id: 'warmup', label: 'Warm-up', icon: Flame, count: warmingCount },
+    { id: 'autopilot', label: 'Autopilot', icon: ShieldCheck, alert: autopilotHeldBack > 0 },
     { id: 'readiness', label: 'Readiness check', icon: Gauge },
   ];
 
@@ -609,6 +622,7 @@ export function EmailAccountsPage() {
       )}
 
       {/* ── Readiness tab ── */}
+      {tab === 'autopilot' && <AutopilotPanel />}
       {tab === 'readiness' && <ReadinessPanel />}
 
       <MailboxDrawer

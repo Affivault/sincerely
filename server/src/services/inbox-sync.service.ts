@@ -5,6 +5,8 @@ import { resolveHostIp } from '../utils/dns-doh.js';
 import { detectAutoReply } from '../utils/auto-reply.js';
 import { classifyMailKind, type MailKind } from '../utils/mail-kind.js';
 import { processReply } from './sara.service.js';
+import { intakeBounceNotice, markBounceChecked } from './bounce-intake.service.js';
+import { looksLikeBounceNotice } from '@lemlist/shared';
 import { fireEvent } from './webhook.service.js';
 import { markReplied, stopOtherCampaignsForContact } from './sequence.service.js';
 import {
@@ -285,8 +287,16 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
     if (known) contactId = known.id;
   }
 
+  /*
+   * A delivery notice is not an answer. Some carry the original message's
+   * id in In-Reply-To, which matched it to the send below and recorded the
+   * bounce as the prospect replying - stopping the sequence for the wrong
+   * reason and counting a dead address in the reply rate.
+   */
+  const bounceNotice = !outbound && looksLikeBounceNotice({ fromEmail, subject, bodyText });
+
   let matchedActivity: any = null;
-  if (!outbound) {
+  if (!outbound && !bounceNotice) {
     if (inReplyTo) {
       const { data } = await supabaseAdmin
         .from('campaign_activities')
@@ -462,7 +472,22 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
     }
   }
 
-  if (!outbound && ctx.aiTaggingOn && !autoReply.kind && (!mailKind || mailKind === 'person')) {
+  // Read it as a bounce now, so the sequence stops before its next send
+  // rather than at the autopilot's next sweep.
+  if (bounceNotice) {
+    await intakeBounceNotice({
+      id: saved.id,
+      user_id: userId,
+      smtp_account_id: account.id,
+      from_email: fromEmail,
+      subject,
+      body_text: bodyText,
+      received_at: row.received_at,
+    }, account.email_address);
+    await markBounceChecked([saved.id]);
+  }
+
+  if (!outbound && !bounceNotice && ctx.aiTaggingOn && !autoReply.kind && (!mailKind || mailKind === 'person')) {
     processReply(saved.id).catch((e: any) => {
       console.warn('[InboxSync] AI tag failed for', saved.id, ':', e?.message || String(e));
     });
