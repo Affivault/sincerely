@@ -60,9 +60,16 @@ export function WriteWithRelay({
     }),
     onSuccess: (seq) => {
       onWritten(seq, listId || null);
-      const parts = [`Relay wrote ${plural(seq.steps.length, 'email')}`];
-      if (seq.personalized) parts.push(`and a first line for ${plural(seq.personalized, 'lead')}`);
-      toast.success(`${parts.join(' ')}. Read them through before you launch.`);
+      if (relay?.ai && seq.engine === 'template') {
+        // Claude was expected but did not write it: it did not answer, or
+        // this month's AI allowance is used up. Say so rather than pass a
+        // template off as a written sequence.
+        toast(`Claude did not write this one - it may be busy, or this month's AI allowance is used up (Settings, AI). Relay filled in its plain ${plural(seq.steps.length, 'email')} instead.`);
+      } else {
+        const parts = [`Relay wrote ${plural(seq.steps.length, 'email')}`];
+        if (seq.personalized) parts.push(`and a first line for ${plural(seq.personalized, 'lead')}`);
+        toast.success(`${parts.join(' ')}. Read them through before you launch.`);
+      }
       onClose();
     },
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Relay could not write the sequence. Try again in a moment.'),

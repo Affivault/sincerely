@@ -1138,6 +1138,7 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
         ? (await supabaseAdmin.from('smtp_accounts').select('from_name, label').eq('id', msg.smtp_account_id).maybeSingle()).data
         : null;
       const written = await draftReply({
+        userId,
         instruction: prompt,
         thread: thread.slice(-8).map((m: any) =>
           `${m.direction === 'outbound' ? 'We wrote' : 'They wrote'} (${String(m.received_at || '').slice(0, 10)}): ${stripQuoted(m.body_text || plainFromHtml(m.body_html || '')).text.slice(0, 1500)}`,

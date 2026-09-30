@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { textToParagraphs } from '../utils/html.js';
-import { SaraIntent, SaraAction, SaraStatus, plural } from '@lemlist/shared';
+import { SaraIntent, SaraAction, SaraStatus, plural, freshEnoughForAi } from '@lemlist/shared';
 import type { SaraClassificationResult, SaraQueueStats } from '@lemlist/shared';
 import { fireEvent } from './webhook.service.js';
 import { suppressionService } from './suppression.service.js';
@@ -361,7 +361,9 @@ async function relayRead(message: any): Promise<SaraClassificationResult> {
     ? { first_name: message.contacts.first_name, company: message.contacts.company }
     : undefined;
 
-  if (aiAvailable() && fresh) {
+  // Old mail is read by the rules: a six-month inbox backfill would
+  // otherwise send every historical reply to Claude (shared/ai-usage).
+  if (aiAvailable() && fresh && message.user_id && freshEnoughForAi(message.received_at)) {
     const [settings, history, campaign, account] = await Promise.all([
       message.user_id ? settingsService.get(message.user_id).catch(() => null) : null,
       threadHistory(message),
@@ -374,6 +376,7 @@ async function relayRead(message: any): Promise<SaraClassificationResult> {
     ]);
     const senderFirst = String((account as any)?.from_name || (account as any)?.label || '').trim().split(/\s+/)[0] || null;
     const read = await readReply({
+      userId: message.user_id,
       subject: message.subject || '',
       freshText: fresh,
       history,

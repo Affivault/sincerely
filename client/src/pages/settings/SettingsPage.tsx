@@ -12,6 +12,7 @@ import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import { PLACEHOLDER } from '@lemlist/shared';
 import { RelayEngineNote } from '../../components/inbox/PeopleFirstNotices';
+import { AiUsageCard } from '../../components/settings/AiUsageCard';
 import { Chip } from '../../components/ui/Chip';
 import {
   User,
@@ -799,6 +800,7 @@ export function SettingsPage() {
                 </div>
 
                 <RelayEngineNote />
+                <AiUsageCard />
 
                 {/* What Relay knows about you. Every draft and every sequence
                     it writes starts here; without it, it can only be generic. */}

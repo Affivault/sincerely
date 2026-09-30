@@ -8,7 +8,7 @@ import { cn } from '../../lib/utils';
  * indigo on another, square here and round there. One chip, one "chosen".
  */
 export function Chip({
-  active, onClick, children, className, size = 'sm', title,
+  active, onClick, children, className, size = 'sm', title, disabled,
 }: {
   active: boolean;
   onClick: () => void;
@@ -16,15 +16,17 @@ export function Chip({
   className?: string;
   size?: 'sm' | 'md';
   title?: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       title={title}
+      disabled={disabled}
       aria-pressed={active}
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full font-medium border transition-colors whitespace-nowrap',
+        'inline-flex items-center gap-1.5 rounded-full font-medium border transition-colors whitespace-nowrap disabled:opacity-50',
         size === 'sm' ? 'h-7 px-2.5 text-caption' : 'h-8 px-3 text-body',
         active
           ? 'border-[rgba(91,91,245,0.4)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
