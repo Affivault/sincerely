@@ -18,6 +18,7 @@ const TICK_MS = 10 * 60 * 1000;
 /** Notice batches per tick - enough to clear a backlog within the hour. */
 const SWEEP_BATCHES = 4;
 
+let kickoff: ReturnType<typeof setTimeout> | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
 let running = false;
 
@@ -42,10 +43,11 @@ async function tick() {
 export function startAutopilotScheduler() {
   console.log('[Autopilot] Scheduler started (every 10 minutes)');
   // Shortly after boot rather than at it, so startup is not slowed.
-  setTimeout(() => beat('autopilot', tick), 30_000);
+  kickoff = setTimeout(() => beat('autopilot', tick), 30_000);
   timer = setInterval(() => beat('autopilot', tick), TICK_MS);
   return {
     stop: () => {
+      if (kickoff) { clearTimeout(kickoff); kickoff = null; }
       if (timer) {
         clearInterval(timer);
         timer = null;

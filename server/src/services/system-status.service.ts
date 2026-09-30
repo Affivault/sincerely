@@ -245,6 +245,11 @@ export async function runWatchdog(): Promise<{ users: number; raised: number; cl
     .from('smtp_accounts').select('user_id').eq('is_active', true).eq('is_seed', false);
   if (error) throw new Error(`watchdog accounts: ${error.message}`);
   for (const r of rows || []) users.add((r as any).user_id);
+  // An account that has since lost every active mailbox still has alerts
+  // that can only be cleared by visiting it, or they stay open forever.
+  const { data: openRows } = await supabaseAdmin
+    .from('system_alerts').select('user_id').is('resolved_at', null);
+  for (const r of openRows || []) users.add((r as any).user_id);
 
   let raised = 0, cleared = 0;
   for (const userId of users) {
