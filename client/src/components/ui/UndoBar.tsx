@@ -234,10 +234,25 @@ export function usePendingRemoval() {
     });
   }, [ctx, defer]);
 
+  /* Several rows as one action - one bar, one undo, one countdown. Queued
+     separately, each new entry would force the previous one through, so
+     "undo" after a bulk delete would bring back only the last row. */
+  const removeMany = useCallback((ids: string[], label: string, commit: () => Promise<unknown>) => {
+    if (ids.length === 0) return;
+    ids.forEach((id) => ctx?.hide(id));
+    defer({
+      id: `batch:${ids.join(',')}`,
+      label,
+      commit,
+      revert: () => { ids.forEach((id) => ctx?.unhide(id)); },
+    });
+  }, [ctx, defer]);
+
   const hiddenIds = ctx?.hidden;
   return useMemo(() => ({
     hidden: (id: string) => !!hiddenIds?.has(id),
     remove,
+    removeMany,
     restore,
-  }), [hiddenIds, remove, restore]);
+  }), [hiddenIds, remove, removeMany, restore]);
 }

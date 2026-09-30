@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { webhookApi } from '../../api/webhook.api';
 import { apikeyApi } from '../../api/apikey.api';
@@ -85,11 +86,14 @@ export function DeveloperPage() {
     window.history.replaceState(window.history.state, '', url.toString());
   }, [tab]);
 
-  const { data: endpoints, isLoading: loadingEndpoints } = useQuery({
+  const { data: allEndpoints, isLoading: loadingEndpoints } = useQuery({
     queryKey: ['webhook-endpoints'],
     queryFn: webhookApi.listEndpoints,
     enabled: tab === 'webhooks',
   });
+  // An endpoint being deleted leaves the list while the undo bar runs.
+  const gone = usePendingRemoval();
+  const endpoints = allEndpoints?.filter((ep) => !gone.hidden(ep.id));
 
   const { data: deliveries } = useQuery({
     queryKey: ['webhook-deliveries', showDeliveries],
@@ -143,9 +147,7 @@ export function DeveloperPage() {
     mutationFn: webhookApi.deleteEndpoint,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['webhook-endpoints'] });
-      toast.success('Webhook deleted');
     },
-    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to delete webhook'),
   });
 
   const testEndpointMutation = useMutation({
@@ -482,10 +484,8 @@ export function DeveloperPage() {
                       <Clock className="h-3 w-3" /> Logs
                     </button>
                     <button
-                      onClick={() => confirm(
-                        { title: `Delete the endpoint "${ep.label}"?`, body: 'Sincerely stops posting events to it. Its delivery log goes too.', tone: 'danger' },
-                        () => deleteEndpointMutation.mutate(ep.id),
-                      )}
+                      onClick={() => gone.remove(ep.id, `Deleted the "${ep.label}" webhook`, () => deleteEndpointMutation.mutateAsync(ep.id))}
+                      title="Delete webhook"
                       className="icon-btn hover:text-rose-500 hover:bg-rose-500/10"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

@@ -1,11 +1,13 @@
 import { useCallback, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
-import type { ReadinessReport } from '@lemlist/shared';
+import { readinessApi } from '../../api/readiness.api';
+import { launchGate, type ReadinessReport } from '@lemlist/shared';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { CheckRow } from '../delivery/ReadinessPanel';
-import { AlertTriangle, Rocket, ShieldAlert } from 'lucide-react';
+import { InlineFix, inlineReplacesLink } from './InlineFix';
+import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, Rocket, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -122,57 +124,102 @@ export function PreflightDialog({
   onClose: () => void;
   onProceed: () => void;
 }) {
-  const { report, kind } = refusal;
-  const blocked = kind === 'blocked';
+  const qc = useQueryClient();
+  /* The report the server refused with, then whatever a re-read says after
+     an inline fix. The gate is the same shared rule the server applies, so
+     "clear" here means the next launch goes through. */
+  const [report, setReport] = useState<ReadinessReport>(refusal.report);
+  const [checking, setChecking] = useState(false);
+  const [rechecked, setRechecked] = useState(false);
+  const { gate, blocking, warning } = launchGate(report);
+  const blocked = gate === 'blocked';
+  const clear = gate === 'clear';
+
+  const recheck = useCallback(async () => {
+    setChecking(true);
+    try {
+      const next = await readinessApi.get();
+      setReport(next);
+      setRechecked(true);
+      qc.setQueryData(['readiness'], next);
+    } catch {
+      // A failed re-read changes nothing; the rows stay as they were.
+    } finally {
+      setChecking(false);
+    }
+  }, [qc]);
 
   // Only what is wrong. A launch dialog is not the place to read eleven
   // passing checks — the panel on the email accounts page is for that.
-  const problems = report.checks.filter((c) => (blocked ? c.status === 'fail' : c.status !== 'pass'));
+  // Blocked shows the blockers first, then what will still need a nod.
+  const problems = blocked ? [...blocking, ...warning] : warning;
+  const summary = rechecked ? report.summary : refusal.report.summary;
 
   return (
     <Modal
       isOpen
       onClose={onClose}
       size="lg"
-      title={blocked ? 'This campaign cannot send yet' : 'Launch anyway?'}
+      title={clear ? 'Ready to launch' : blocked ? 'This campaign cannot send yet' : 'Launch anyway?'}
       description={campaignName ? `Before launching ${campaignName}.` : undefined}
       footer={
         <div className="flex items-center justify-end gap-2">
+          {!clear && (
+            <Button variant="ghost" onClick={recheck} disabled={busy || checking} className="mr-auto">
+              {checking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Check again
+            </Button>
+          )}
           <Button variant="secondary" onClick={onClose} disabled={busy}>
             {blocked ? 'Close' : 'Not yet'}
           </Button>
           {!blocked && (
-            <Button onClick={onProceed} disabled={busy}>
-              {busy ? 'Launching…' : 'Launch anyway'}
+            <Button onClick={onProceed} disabled={busy || checking}>
+              {busy ? 'Launching…' : clear ? 'Launch' : 'Launch anyway'}
             </Button>
           )}
         </div>
       }
     >
       <div className="space-y-3.5">
-        <div
-          className={cnBanner(blocked)}
-        >
-          {blocked
-            ? <ShieldAlert className="mt-px h-4 w-4 flex-shrink-0" />
-            : <AlertTriangle className="mt-px h-4 w-4 flex-shrink-0" />}
-          <div className="min-w-0">
-            <p className="text-body font-semibold leading-snug">{report.summary}</p>
-            <p className="mt-1 text-caption leading-relaxed opacity-90">
-              {blocked
-                ? 'These have to be fixed first — with them unresolved nothing goes out at all, so there is nothing to override.'
-                : 'This will send. These are the costs of sending it as things stand, so you are choosing them knowingly rather than finding out from the bounce rate.'}
-            </p>
+        {clear ? (
+          <div className="flex items-start gap-2.5 rounded-xl px-3.5 py-3 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+            <CheckCircle2 className="mt-px h-4 w-4 flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-body font-semibold leading-snug">Everything that stood in the way is fixed.</p>
+              <p className="mt-1 text-caption leading-relaxed opacity-90">Nothing left to decide - launch when you are ready.</p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className={cnBanner(blocked)}>
+            {blocked
+              ? <ShieldAlert className="mt-px h-4 w-4 flex-shrink-0" />
+              : <AlertTriangle className="mt-px h-4 w-4 flex-shrink-0" />}
+            <div className="min-w-0">
+              <p className="text-body font-semibold leading-snug">{summary}</p>
+              <p className="mt-1 text-caption leading-relaxed opacity-90">
+                {blocked
+                  ? 'These have to be fixed first — with them unresolved nothing goes out at all, so there is nothing to override. Most can be fixed right here.'
+                  : 'This will send. These are the costs of sending it as things stand, so you are choosing them knowingly rather than finding out from the bounce rate.'}
+              </p>
+            </div>
+          </div>
+        )}
 
-        <ul className="rounded-xl border border-[var(--border-subtle)] overflow-hidden">
-          {problems.map((check) => (
-            <CheckRow key={check.id} check={check} />
-          ))}
-        </ul>
+        {problems.length > 0 && (
+          <ul className="rounded-xl border border-[var(--border-subtle)] overflow-hidden">
+            {problems.map((check) => (
+              <CheckRow
+                key={check.id}
+                check={check}
+                action={<InlineFix check={check} onFixed={recheck} />}
+                hideLink={inlineReplacesLink(check)}
+              />
+            ))}
+          </ul>
+        )}
 
-        {!blocked && (
+        {!blocked && !clear && (
           <p className="flex items-start gap-1.5 text-caption leading-relaxed text-[var(--text-tertiary)]">
             <Rocket className="mt-px h-3 w-3 flex-shrink-0" />
             Fixing these later still helps — the checks are re-read on every launch, and a domain that

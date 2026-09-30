@@ -109,7 +109,7 @@ function mailboxCheck(accounts: SmtpAccount[]): ReadinessCheck {
       id: 'mailboxes', group: 'identity', label: 'Sending mailbox', status: 'fail',
       headline: 'No mailbox connected.',
       detail: 'Nothing can send until at least one mailbox is connected and verified.',
-      fix,
+      fix: { label: 'Connect a mailbox', href: fix.href, inline: 'connect_mailbox' },
     });
   }
   if (usable.length === 0) {
@@ -120,7 +120,9 @@ function mailboxCheck(accounts: SmtpAccount[]): ReadinessCheck {
       id: 'mailboxes', group: 'identity', label: 'Sending mailbox', status: 'fail',
       headline: `${plural(accounts.length, 'mailbox', 'mailboxes')} connected, but ${why}.`,
       detail: 'Run "Test" on the mailbox — a campaign will stall on its first send otherwise.',
-      fix,
+      fix: accounts.some((a) => !a.is_verified)
+        ? { label: 'Test them now', href: fix.href, inline: 'test_mailboxes' }
+        : fix,
       facts: [{ label: 'Connected', value: String(accounts.length) }],
     });
   }
@@ -134,7 +136,7 @@ function mailboxCheck(accounts: SmtpAccount[]): ReadinessCheck {
     detail: status === 'warn'
       ? 'Everything runs through one mailbox — if it gets throttled, every campaign stops at once. A second one spreads the volume.'
       : null,
-    fix: status === 'warn' ? { label: 'Add a mailbox', href: '/email-accounts?tab=mailboxes' } : null,
+    fix: status === 'warn' ? { label: 'Add a mailbox', href: '/email-accounts?tab=mailboxes', inline: 'connect_mailbox' } : null,
     facts: [
       { label: 'Ready', value: String(usable.length) },
       ...(accounts.length > usable.length
@@ -145,7 +147,9 @@ function mailboxCheck(accounts: SmtpAccount[]): ReadinessCheck {
 }
 
 function domainAuthCheck(accounts: SmtpAccount[], domains: any[]): ReadinessCheck {
-  const fix = { label: 'Fix DNS', href: '/email-accounts?tab=domains' };
+  // DNS is changed at the registrar, not here - but the second half of the
+  // fix, re-reading the records once they are in, can happen in place.
+  const fix = { label: 'Fix DNS', href: '/email-accounts?tab=domains', inline: 'recheck_domains' as const };
   const usable = accounts.filter(isSendable);
 
   // Only the domains actually being sent from matter. A domain added and
@@ -239,7 +243,7 @@ function trackingCheck(tracking: any): ReadinessCheck {
       detail: tracking.last_error
         ? `Last check: ${tracking.last_error}. Links stay on the shared host until it passes.`
         : 'Links stay on the shared host until DNS and HTTPS both pass.',
-      fix: { label: 'Verify it', href: '/email-accounts?tab=domains' },
+      fix: { label: 'Verify it', href: '/email-accounts?tab=domains', inline: 'verify_tracking' },
     });
   }
   return check({
@@ -483,7 +487,7 @@ function safeguardCheck(settings: any, campaigns: any[]): ReadinessCheck {
       id: 'safeguards', group: 'safeguards', label: 'Automatic protection', status: 'warn',
       headline: 'The bounce guard is switched off.',
       detail: 'Nothing will stop a campaign that starts bouncing heavily. Domain reputation is the one thing a cold-email mistake does not give back.',
-      fix, facts,
+      fix: { label: 'Turn it on', href: fix.href, inline: 'enable_bounce_guard' }, facts,
     });
   }
   if (autoPaused.length > 0) {

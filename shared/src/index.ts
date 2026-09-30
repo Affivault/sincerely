@@ -61,3 +61,4 @@ export * from './reply-intent.js';
 export * from './plural.js';
 export * from './company-from-email.js';
 export * from './reply-text.js';
+export * from './import-mapping.js';
