@@ -192,6 +192,14 @@ function answer(method, path, q) {
         { delay_days: 4, subject: 'Re: partnering with {{company|your team}}', body_text: 'Hi {{first_name|there}},\n\nI will leave it here.', body_html: '<p>Hi {{first_name|there}},</p><p>I will leave it here.</p>' },
       ] };
   }
+  if (method === 'POST' && path === '/system/self-test') {
+    return { results: [
+      { id: 'database', label: 'Database', ok: true, detail: 'Answered in 41 ms.' },
+      { id: 'mailbox:m1', label: 'alex@affivault.com', ok: true, detail: 'Signed in, sent a test to itself, and read its inbox.' },
+      { id: 'mailbox:m2', label: 'alex@affivault.io', ok: false, detail: 'IMAP: login refused - check the app password.' },
+      { id: 'job:sending', label: 'Sending', ok: true, detail: 'Running - last finished 12:04 UTC.' },
+    ] };
+  }
   if (method !== 'GET') return { success: true };
   const P = path.replace(/\/+$/, '');
   const seg = P.split('/');
@@ -212,6 +220,27 @@ function answer(method, path, q) {
     case '/inbox/sync/progress': return mailboxes.map((b) => ({ smtp_account_id: b.id, email_address: b.email_address, window_months: 6, oldest_synced_at: ago(180), history_complete: true, stored: 412, last_synced_at: ago(0.01), last_error: null }));
     case '/smtp-accounts': return mailboxes;
     case '/autopilot': return autopilotStatus();
+    case '/system/status': {
+      const ok = !!process.env.CALM;
+      const job = (id, label, what, core, health, every) => ({ id, label, what, core, health, every_ms: every, last_ok_at: ago(health === 'ok' ? 0.001 : 0.05), last_error: health === 'failing' ? 'IMAP connect timeout' : null });
+      return {
+        persisted: true, level: ok ? 'ok' : 'attention', checked_at: ago(0.0005),
+        headline: ok ? 'Everything is running.' : '3 things need a look - starting with: replies to alex@affivault.io are not coming in',
+        jobs: [
+          job('sending', 'Sending', 'Campaign emails go out on schedule', true, 'ok', 30000),
+          job('inbox', 'Inbox sync', 'Replies arrive in the inbox and stop sequences', true, 'ok', 300000),
+          job('autopilot', 'Deliverability autopilot', 'Struggling mailboxes are rested; bounce notices are read', true, 'ok', 600000),
+          job('warmup_send', 'Warm-up sending', 'Warm-up mail builds new mailboxes a reputation', true, 'ok', 720000),
+          job('placement', 'Inbox placement', 'Placement tests find their probe emails', false, ok ? 'ok' : 'late', 120000),
+          job('verification', 'Email verification', 'Queued addresses are verified', false, 'ok', 20000),
+        ],
+        issues: ok ? [] : [
+          { key: 'mailbox-sync-error:m2', level: 'attention', title: 'Replies to alex@affivault.io are not coming in', detail: 'The last inbox sync failed: IMAP login refused. Replies are not being read and sequences will not stop for them.', href: '/email-accounts?mailbox=m2', since: ago(0.08) },
+          { key: 'campaign-stalled:cp1', level: 'attention', title: '"UK brokers - Q4" is not sending', detail: 'All accounts have reached their daily sending limit', href: '/campaigns/cp1', since: ago(0.1) },
+          { key: 'sending-backlog', level: 'attention', title: '42 emails are more than 30 minutes late', detail: 'They are due but have not gone out.', href: '/campaigns', since: null },
+        ],
+      };
+    }
     case '/settings': return { ...base, id: 's1', first_name: 'Alex', last_name: 'Morgan', company: 'AffiVault', job_title: 'CEO', timezone: 'Europe/London', email_notifications: true, campaign_alerts: true, reply_notifications: true, weekly_digest: true, default_signature: '', theme: 'light', sara_enabled: true, sara_auto_classify: true, sara_auto_execute: false, sara_confidence_threshold: 0.8, sara_auto_unsubscribe: true, sara_auto_bounce: true, sara_draft_replies: true, ai_tagging_enabled: true, auto_verify_contacts: true, crm_auto_deals: true, stop_all_campaigns_on_reply: true, pause_company_on_reply: false, bounce_guard_enabled: true, bounce_guard_threshold: 5, domain_hourly_limit: 20 };
     case '/contacts': return { ...page(contacts), total: 1450, total_pages: 58, limit: 25 };
     case '/contacts/stats': return { total: 1450, verified: 1320, unverified: 110, bounced: 15, unsubscribed: 5 };

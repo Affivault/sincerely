@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../../config/supabase.js';
 import { inboxSyncService } from '../../services/inbox-sync.service.js';
+import { beat } from '../../utils/heartbeat.js';
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -54,8 +55,8 @@ export function startInboxScheduler() {
 
   // Run immediately then on interval — replies should catch up promptly
   // after a deploy, not wait a full cycle.
-  tick();
-  const intervalId = setInterval(tick, SYNC_INTERVAL_MS);
+  beat('inbox', tick);
+  const intervalId = setInterval(() => beat('inbox', tick), SYNC_INTERVAL_MS);
 
   return {
     stop: () => {

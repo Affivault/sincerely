@@ -1,4 +1,5 @@
 import { warmupService } from '../../services/warmup.service.js';
+import { beat } from '../../utils/heartbeat.js';
 
 /**
  * Warm-up Scheduler
@@ -47,10 +48,10 @@ async function engageTick() {
 export function startWarmupScheduler() {
   console.log('[Warmup] Scheduler started (send 12m / engage 10m)');
   // Stagger the kickoffs so send and engage don't fire together at boot.
-  const k1 = setTimeout(sendTick, 60 * 1000);
-  const k2 = setTimeout(engageTick, 3 * 60 * 1000);
-  sendId = setInterval(sendTick, SEND_MS);
-  engageId = setInterval(engageTick, ENGAGE_MS);
+  const k1 = setTimeout(() => beat('warmup_send', sendTick), 60 * 1000);
+  const k2 = setTimeout(() => beat('warmup_engage', engageTick), 3 * 60 * 1000);
+  sendId = setInterval(() => beat('warmup_send', sendTick), SEND_MS);
+  engageId = setInterval(() => beat('warmup_engage', engageTick), ENGAGE_MS);
 
   return {
     stop: () => {

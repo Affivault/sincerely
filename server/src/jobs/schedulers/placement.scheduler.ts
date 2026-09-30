@@ -1,4 +1,5 @@
 import { placementService } from '../../services/placement.service.js';
+import { beat } from '../../utils/heartbeat.js';
 
 /**
  * Looking for the probes.
@@ -59,7 +60,7 @@ export function startPlacementScheduler() {
     }
   };
 
-  timer = setInterval(tick, SWEEP_MS);
+  timer = setInterval(() => beat('placement', tick), SWEEP_MS);
   // Not on boot: a restart during a deploy would have every instance
   // sweeping at once. The first tick is one interval away.
   return {

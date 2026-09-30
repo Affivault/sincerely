@@ -1,4 +1,5 @@
 import { runDueRules } from '../../services/prospect-rules.service.js';
+import { beat } from '../../utils/heartbeat.js';
 
 /**
  * Standing searches. Cross-tenant, so a scheduler and never a route.
@@ -23,7 +24,7 @@ async function tick() {
 
 export function startProspectRulesScheduler() {
   if (timer) return { stop: () => {} };
-  timer = setInterval(tick, SWEEP_MS);
+  timer = setInterval(() => beat('standing_searches', tick), SWEEP_MS);
   return {
     stop: () => {
       if (timer) clearInterval(timer);

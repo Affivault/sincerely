@@ -7,6 +7,7 @@ import { startSseMaintenanceScheduler } from './jobs/schedulers/sse-maintenance.
 import { startWarmupScheduler } from './jobs/schedulers/warmup.scheduler.js';
 import { startPlacementScheduler } from './jobs/schedulers/placement.scheduler.js';
 import { startAutopilotScheduler } from './jobs/schedulers/autopilot.scheduler.js';
+import { startWatchdogScheduler } from './jobs/schedulers/watchdog.scheduler.js';
 import { startProspectRulesScheduler } from './jobs/schedulers/prospect-rules.scheduler.js';
 import { startAbPromoteScheduler } from './jobs/schedulers/ab-promote.scheduler.js';
 import { startBookingReminderScheduler } from './jobs/schedulers/booking-reminder.scheduler.js';
@@ -76,6 +77,15 @@ const server = app.listen(port, () => {
     console.log('Autopilot scheduler started');
   } catch (err: any) {
     console.warn('Autopilot scheduler failed to start:', err.message);
+  }
+
+  // Watchdog: notice what has quietly stopped and say so once (cross-tenant).
+  try {
+    const watchdog = startWatchdogScheduler();
+    if (watchdog) disposers.push(() => watchdog.stop());
+    console.log('Watchdog scheduler started');
+  } catch (err: any) {
+    console.warn('Watchdog scheduler failed to start:', err.message);
   }
 
   // Inbox placement: look for the seed probes of any test still running.

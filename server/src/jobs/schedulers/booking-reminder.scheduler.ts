@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../../config/supabase.js';
 import { bookingMail } from '../../services/booking-mail.service.js';
 import { availabilityService } from '../../services/calendar.service.js';
 import { organiserName } from '../../services/booking.service.js';
+import { beat } from '../../utils/heartbeat.js';
 
 /**
  * The nudge before a booked meeting.
@@ -129,7 +130,7 @@ async function tick() {
 
 export function startBookingReminderScheduler() {
   if (timer) return { stop: () => {} };
-  timer = setInterval(tick, SWEEP_MS);
+  timer = setInterval(() => beat('booking_reminders', tick), SWEEP_MS);
   return {
     stop: () => {
       if (timer) clearInterval(timer);

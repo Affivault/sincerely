@@ -1,4 +1,5 @@
 import { autoVerifyPending } from '../../services/verification.service.js';
+import { beat } from '../../utils/heartbeat.js';
 
 /**
  * Verification Worker
@@ -30,8 +31,8 @@ async function tick() {
 
 export function startVerificationWorker() {
   console.log('[Verify] Auto-verification worker started (20s interval)');
-  tick();
-  intervalId = setInterval(tick, TICK_MS);
+  beat('verification', tick);
+  intervalId = setInterval(() => beat('verification', tick), TICK_MS);
   return {
     stop: () => {
       if (intervalId) {

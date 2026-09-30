@@ -30,7 +30,7 @@ import {
   Waves, LayoutDashboard, MessageSquare, Sparkles, Layers, FileText, CalendarClock,
   Contact2, Building2, Radar, CalendarDays, ListTodo, Link2, Clock, Banknote, Crosshair,
   LineChart, Users as TeamIcon, CreditCard, AtSign, Activity, Target, Ban, ShieldCheck,
-  Blocks, Linkedin, Code2, Wrench, BookOpen, type LucideIcon,
+  Blocks, Linkedin, Code2, Wrench, BookOpen, HeartPulse, type LucideIcon,
 } from 'lucide-react';
 
 export interface SectionTab {
@@ -118,6 +118,7 @@ export const SETTINGS_GROUPS: { label: string; items: SectionTab[] }[] = [
       { label: 'General', href: '/settings', icon: SettingsIcon, keywords: 'preferences account profile ai relay' },
       { label: 'Team', href: '/team', icon: TeamIcon, keywords: 'members invite seats' },
       { label: 'Billing & usage', href: '/billing', icon: CreditCard, keywords: 'plan invoices upgrade' },
+      { label: 'System status', href: '/system', icon: HeartPulse, keywords: 'status health running jobs outage stuck alerts' },
     ],
   },
   {
