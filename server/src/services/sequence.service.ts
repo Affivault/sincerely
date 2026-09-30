@@ -194,6 +194,17 @@ async function ensureContactTimezone(campaignContactId: string, contact: any): P
  * only stamped the first time so the page can say how long it has been stuck
  * rather than resetting the clock every thirty seconds.
  */
+/** Waits before each retry of a temporary failure; then it is an error. */
+const TRANSIENT_RETRY_MS = [15 * 60_000, 60 * 60_000, 4 * 60 * 60_000];
+
+/** Connection-level failures that say nothing about the recipient. */
+const NETWORK_CODES = new Set(['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'ESOCKET', 'ECONNECTION', 'EDNS', 'EAI_AGAIN', 'ENOTFOUND']);
+
+function isRetryable(kind: string, err: any): boolean {
+  if (kind === 'transient') return true;
+  return kind === 'unknown' && NETWORK_CODES.has(String(err?.code || ''));
+}
+
 /** How long a contact waits when no mailbox could take it. */
 const STALL_RETRY_MS = 60 * 60_000;
 
@@ -304,18 +315,25 @@ async function _processNextStepInner(campaignContactId: string): Promise<void> {
    * stops while the reason lives only in a server log is the failure mode
    * this codebase keeps rediscovering.
    */
-  let suppressed: boolean;
+  let suppressed: Awaited<ReturnType<typeof suppressionService.reasonFor>>;
   try {
-    suppressed = await suppressionService.isSuppressed(cc.campaigns.user_id, cc.contacts.email);
+    suppressed = await suppressionService.reasonFor(cc.campaigns.user_id, cc.contacts.email);
   } catch (err: any) {
     await recordStall(cc.campaign_id, 'The suppression list could not be checked, so sending is paused until it can be. Nothing has been sent that should not have been.');
     console.error(`[Sequence] Suppression check failed for ${cc.contacts.email}, holding the send: ${err?.message || err}`);
     return;
   }
   if (suppressed) {
+    // Stopped for the reason it is on the list. Everything used to be
+    // filed as 'unsubscribed', so a bounced address - and every one the
+    // bounce-notice reader now adds - inflated the unsubscribe rate of
+    // whichever campaign next reached it.
+    const status = suppressed === 'bounced' ? 'bounced'
+      : suppressed === 'unsubscribed' || suppressed === 'complained' ? 'unsubscribed'
+        : 'suppressed';
     await supabaseAdmin
       .from('campaign_contacts')
-      .update({ status: 'unsubscribed', next_send_at: null })
+      .update({ status, next_send_at: null })
       .eq('id', campaignContactId);
     checkAndAutoCompleteCampaign(cc.campaign_id).catch(() => {});
     return;
@@ -700,6 +718,49 @@ async function processEmailStep(cc: any, step: any): Promise<void> {
     // reserved a warm-up/ramp slot on (once SMTP selection succeeded) —
     // give that back too so a failed send doesn't burn ramp capacity.
     if (err.smtpAccountId) sse.refundWarmupSend(err.smtpAccountId).catch(() => {});
+
+    /*
+     * "Try again later" is what it says. A 4xx - greylisting, a receiving
+     * server over its rate, "mailbox temporarily unavailable" - and a
+     * dropped connection are how mail normally behaves on a bad minute, and
+     * every mail server retries them. This one marked the contact 'error'
+     * and dropped them from the campaign on the first one. Now: three more
+     * attempts, further apart each time, then the error as before.
+     */
+    if (isRetryable(failureKind, err)) {
+      const { count: tries } = await supabaseAdmin
+        .from('campaign_activities')
+        .select('id', { count: 'exact', head: true })
+        .eq('campaign_contact_id', cc.id)
+        .eq('step_id', step.id)
+        .eq('activity_type', 'deferred');
+      const attempt = (tries || 0) + 1;
+      if (attempt <= TRANSIENT_RETRY_MS.length) {
+        const retryAt = new Date(Date.now() + TRANSIENT_RETRY_MS[attempt - 1]).toISOString();
+        await supabaseAdmin.from('campaign_activities').insert({
+          campaign_id: cc.campaign_id,
+          campaign_contact_id: cc.id,
+          contact_id: cc.contact_id,
+          step_id: step.id,
+          activity_type: 'deferred',
+          metadata: {
+            error: String(err.message || '').slice(0, 300),
+            code: err.code || err.responseCode || null,
+            attempt,
+            retry_at: retryAt,
+            to: cc.contacts.email,
+            ...(err.smtpAccountId ? { smtp_account_id: err.smtpAccountId } : {}),
+          },
+        });
+        await supabaseAdmin
+          .from('campaign_contacts')
+          .update({ current_step_order: cc.current_step_order, next_send_at: retryAt })
+          .eq('id', cc.id)
+          .eq('status', 'active');
+        console.log(`[Sequence] Temporary failure for ${cc.contacts.email} - retry ${attempt} at ${retryAt}`);
+        return;
+      }
+    }
 
     // A dead address, or a receiving server refusing the *sender* (5.7.x,
     // "blocked", "spam")? The second says nothing about the contact, whose
@@ -1264,6 +1325,10 @@ export async function processDueSteps(): Promise<number> {
     .eq('campaigns.status', 'running')
     .not('next_send_at', 'is', null)
     .lte('next_send_at', new Date().toISOString())
+    // Longest-waiting first. Without an order the database returns whichever
+    // fifty it likes, and under a backlog the same late contacts can lose
+    // that lottery poll after poll while newer ones go out.
+    .order('next_send_at', { ascending: true })
     .limit(50);
 
   if (dueError) {
