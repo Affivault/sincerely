@@ -164,7 +164,7 @@ function JobRow({ job }: { job: StatusJob }) {
         <p className="text-body font-medium text-[var(--text-primary)]">{job.label}</p>
         <p className="truncate text-caption text-[var(--text-tertiary)]">{job.what}</p>
         {job.last_error && job.health !== 'ok' && (
-          <p className="truncate text-caption text-rose-600 dark:text-rose-400">{job.last_error}</p>
+          <p className="line-clamp-3 break-words text-caption text-rose-600 dark:text-rose-400" title={job.last_error}>{job.last_error}</p>
         )}
       </div>
       <div className="text-right">
