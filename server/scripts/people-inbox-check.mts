@@ -81,7 +81,7 @@ console.log('\nwired through');
   const sara = src('services/sara.service.ts');
   is('Relay skips mail entirely, before any auto-action', /NON_PERSON_KINDS\.includes\(message\.mail_kind\)/.test(sara));
   is('auto-unsubscribe needs a short, unambiguous reply', /freshLength <= 400/.test(sara));
-  is('Claude reads first, rules are the fallback', /if \(aiAvailable\(\) && fresh\)/.test(sara) && /const ruled = classifyReply/.test(sara));
+  is('Claude reads first, rules are the fallback', /if \(aiAvailable\(\) && fresh[ )&]/.test(sara) && /const ruled = classifyReply/.test(sara));
   const inbox = src('services/inbox.service.ts');
   is('inbox counts are about people', /people\(unreadQ\), people\(needsTriageQ\)/.test(inbox));
   is('Other mail has its own folder', /folder === 'other'/.test(inbox));

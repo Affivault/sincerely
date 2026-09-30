@@ -231,6 +231,22 @@ function answer(method, path, q) {
     case '/inbox/sync/progress': return mailboxes.map((b) => ({ smtp_account_id: b.id, email_address: b.email_address, window_months: 6, oldest_synced_at: ago(180), history_complete: true, stored: 412, last_synced_at: ago(0.01), last_error: null }));
     case '/smtp-accounts': return mailboxes;
     case '/autopilot': return autopilotStatus();
+    case '/ai/usage': {
+      // AI=near / AI=reached to see the warnings.
+      const used = process.env.AI === 'reached' ? 5_000_000 : process.env.AI === 'near' ? 4_300_000 : 1_840_000;
+      const rows = [
+        { feature: 'read_reply', calls: 412, input_tokens: Math.round(used * 0.62), output_tokens: Math.round(used * 0.08) },
+        { feature: 'draft_reply', calls: 37, input_tokens: Math.round(used * 0.1), output_tokens: Math.round(used * 0.04) },
+        { feature: 'write_sequence', calls: 4, input_tokens: Math.round(used * 0.02), output_tokens: Math.round(used * 0.02) },
+        { feature: 'first_lines', calls: 16, input_tokens: Math.round(used * 0.08), output_tokens: Math.round(used * 0.04) },
+      ];
+      return {
+        available: true, persisted: true, month: '2026-09', resets_at: '2026-10-01T00:00:00.000Z',
+        used_tokens: used, calls: 469, cap_tokens: 5_000_000, ceiling_tokens: 5_000_000, cap_is_custom: false,
+        state: process.env.AI === 'reached' ? 'reached' : process.env.AI === 'near' ? 'near' : 'ok',
+        by_feature: rows, cost_usd: 14.2, fresh_days: 14,
+      };
+    }
     case '/system/status': {
       const ok = !!process.env.CALM;
       const job = (id, label, what, core, health, every) => ({ id, label, what, core, health, every_ms: every, last_ok_at: ago(health === 'ok' ? 0.001 : 0.05), last_error: health === 'failing' ? 'IMAP connect timeout' : null });
