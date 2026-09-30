@@ -795,7 +795,10 @@ export const publicBookingService = {
            */
           await supabaseAdmin.from('deals')
             .update({
-              ...(shouldAdvance ? { stage } : {}),
+              // stage_changed_at with the stage, always: rot detection reads
+              // it, and the stage-history trigger dates the move by it - left
+              // alone, a deal advanced today looked stalled since last month.
+              ...(shouldAdvance ? { stage, stage_changed_at: new Date().toISOString() } : {}),
               ...(existing.attribution ? {} : attribution),
             })
             .eq('id', existing.id);

@@ -11,6 +11,7 @@ import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { useLaunchPreflight } from '../../components/campaigns/LaunchPreflight';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { StatusBadge } from '../../components/shared/StatusBadge';
@@ -88,7 +89,6 @@ const STATUS_TABS = [
 const FOLDER_COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EC4899', '#06B6D4', '#8B5CF6', '#EF4444', '#84CC16'];
 
 export function CampaignsListPage() {
-  const confirm = useConfirm();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
@@ -143,7 +143,10 @@ export function CampaignsListPage() {
   const preflight = useLaunchPreflight();
   const pauseMut   = useMutation({ mutationFn: campaignsApi.pause,  onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Paused'); }, onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to pause') });
   const resumeMut  = useMutation({ mutationFn: campaignsApi.resume, onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Resumed'); }, onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to resume') });
-  const deleteMut  = useMutation({ mutationFn: campaignsApi.delete, onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Deleted'); }, onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to delete') });
+  // Deletes wait behind the undo bar; the row leaves at once. Errors come
+  // back through the bar, which puts the row back and says why.
+  const deleteMut  = useMutation({ mutationFn: campaignsApi.delete, onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); } });
+  const gone = usePendingRemoval();
   const cloneMut   = useMutation({ mutationFn: campaignsApi.clone,  onSuccess: (c) => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Cloned'); navigate(`/campaigns/${c.id}`); } });
 
   const moveMut = useMutation({
@@ -172,7 +175,10 @@ export function CampaignsListPage() {
     [revenueRows],
   );
 
-  const allCampaigns: CampaignWithStats[] = (campaignsResp?.data || []) as any;
+  const allCampaigns: CampaignWithStats[] = useMemo(
+    () => ((campaignsResp?.data || []) as any[]).filter((c) => !gone.hidden(c.id)),
+    [campaignsResp, gone],
+  );
   const allStatusesCampaigns: CampaignWithStats[] = (allStatusesResp?.data || []) as any;
 
   // Column sorting
@@ -588,10 +594,11 @@ export function CampaignsListPage() {
             <Copy className="h-3.5 w-3.5" /> Duplicate
           </button>
           <button
-            onClick={() => confirm(
-              { title: `Delete "${contextMenuFor.name}"?`, body: 'The sequence, its schedule and its stats go with it. Contacts stay in their lists.', tone: 'danger' },
-              () => { deleteMut.mutate(contextMenuFor.id); setContextMenuFor(null); },
-            )}
+            onClick={() => {
+              const { id, name } = contextMenuFor;
+              setContextMenuFor(null);
+              gone.remove(id, `Deleted "${name}"`, () => deleteMut.mutateAsync(id));
+            }}
             className="w-full text-left px-3 py-2 text-strong text-red-500 hover:bg-red-500/10 flex items-center gap-2"
           >
             <Trash2 className="h-3.5 w-3.5" /> Delete

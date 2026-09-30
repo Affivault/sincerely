@@ -11,7 +11,7 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Spinner } from '../../components/ui/Spinner';
 import { SkeletonList } from '../../components/ui/Skeleton';
-import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { Avatar } from '../../components/shared/Avatar';
 import { SearchInput } from '../../components/shared/SearchInput';
 import { usePeek } from '../../components/peek/usePeek';
@@ -152,8 +152,7 @@ const EVENT_META: Record<EventType, { label: string; icon: typeof Phone; dot: st
 
 /* ─── Lead picker ─────────────────────────────────── */
 /* ─── Deal modal ──────────────────────────────────── */
-export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClose: () => void }) {
-  const confirm = useConfirm();
+export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | null; onClose: () => void; onDeleted?: () => void }) {
   const qc = useQueryClient();
   const editing = !!deal?.id;
   const [form, setForm] = useState<CreateDealInput & { stage: DealStage }>({
@@ -202,11 +201,19 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm'] }); toast.success(editing ? 'Deal updated' : 'Deal added'); onClose(); },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save deal'),
   });
-  const del = useMutation({
-    mutationFn: () => crmApi.deleteDeal(deal!.id!),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm'] }); toast.success('Deal deleted'); onClose(); },
-    onError: () => toast.error('Failed to delete'),
-  });
+  // Deleting is deferred behind the undo bar rather than asked about: the
+  // modal closes, the card leaves the board, and the request goes a few
+  // seconds later unless they take it back.
+  const gone = usePendingRemoval();
+  const deleteDeal = () => {
+    const id = deal!.id!;
+    gone.remove(id, `Deleted "${form.title || 'deal'}"`, async () => {
+      await crmApi.deleteDeal(id);
+      qc.invalidateQueries({ queryKey: ['crm'] });
+    });
+    onClose();
+    onDeleted?.();
+  };
 
   /* The shape as the shared arithmetic wants it, so the figure shown while
      typing is the same one the server will compute and store. */
@@ -244,7 +251,7 @@ export function DealModal({ deal, onClose }: { deal: Partial<Deal> | null; onClo
       footer={
         <>
           {editing ? (
-            <button type="button" onClick={() => confirm({ title: `Delete "${form.title}"?`, body: 'The deal and its history go. Linked contacts and companies stay.', tone: 'danger' }, () => del.mutate())} className="mr-auto flex items-center gap-1.5 text-body font-medium text-rose-500 hover:text-rose-600 transition-colors">
+            <button type="button" onClick={deleteDeal} className="mr-auto flex items-center gap-1.5 text-body font-medium text-rose-500 hover:text-rose-600 transition-colors">
               <Trash2 className="h-3.5 w-3.5" /> Delete
             </button>
           ) : null}
@@ -705,13 +712,16 @@ export function DealsPage() {
   const qc = useQueryClient();
   const { openPeek } = usePeek();
   const navigate = useNavigate();
-  const confirm = useConfirm();
 
   const dealsQ = useQuery({ queryKey: ['crm', 'deals'], queryFn: () => crmApi.listDeals() });
   const tasksQ = useQuery({ queryKey: ['crm', 'tasks'], queryFn: () => crmApi.listTasks() });
   const eventsQ = useQuery({ queryKey: ['crm', 'events'], queryFn: () => crmApi.listEvents() });
 
-  const deals = dealsQ.data || [];
+  const gone = usePendingRemoval();
+  const deals = useMemo(
+    () => (dealsQ.data || []).filter((d) => !gone.hidden(d.id)),
+    [dealsQ.data, gone],
+  );
   const tasks = tasksQ.data || [];
   const events = eventsQ.data || [];
 
@@ -796,28 +806,20 @@ export function DealsPage() {
   const bulkDelete = () => {
     const ids = [...selected];
     if (ids.length === 0) return;
-    confirm(
-      {
-        title: `Delete ${ids.length} deal${ids.length === 1 ? '' : 's'}?`,
-        body: 'Their activities and meetings stay, but lose the link back to the deal. This cannot be undone.',
-        tone: 'danger',
-      },
-      async () => {
-        // allSettled, not all: one failing delete shouldn't report the whole
-        // batch as failed and strand the selection on deals already gone.
-        const results = await Promise.allSettled(ids.map((id) => crmApi.deleteDeal(id)));
-        const failedCount = results.filter((r) => r.status === 'rejected').length;
-        setSelected(new Set());
-        refresh();
-        if (failedCount === 0) {
-          toast.success('Deleted');
-        } else if (failedCount === ids.length) {
-          toast.error('Could not delete those deals');
-        } else {
-          toast.error(`${failedCount} of ${ids.length} deal${ids.length === 1 ? '' : 's'} failed to delete`);
-        }
-      },
-    );
+    setSelected(new Set());
+    gone.removeMany(ids, `Deleted ${ids.length} deal${ids.length === 1 ? '' : 's'}`, async () => {
+      // allSettled, not all: one failing delete shouldn't report the whole
+      // batch as failed. Throwing puts every row back; the refetch then
+      // drops the ones that did go.
+      const results = await Promise.allSettled(ids.map((id) => crmApi.deleteDeal(id)));
+      refresh();
+      const failedCount = results.filter((r) => r.status === 'rejected').length;
+      if (failedCount > 0) {
+        throw new Error(failedCount === ids.length
+          ? 'Could not delete those deals'
+          : `${failedCount} of ${ids.length} deal${ids.length === 1 ? '' : 's'} failed to delete`);
+      }
+    });
   };
 
   const openCompany = (d: Deal) => {

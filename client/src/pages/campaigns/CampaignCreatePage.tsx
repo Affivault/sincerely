@@ -7,7 +7,7 @@ import { campaignsApi, type WrittenSequence } from '../../api/campaigns.api';
 import { WriteWithRelay } from '../../components/campaigns/WriteWithRelay';
 import { PersonalizationPanel, TimezoneCoverageNote, countGaps, shouldPauseLaunch } from '../../components/campaigns/PersonalizationPanel';
 import { ReadinessSummary } from '../../components/delivery/ReadinessPanel';
-import { previewPersonalization, countSpinVariants, PLACEHOLDER } from '@lemlist/shared';
+import { previewPersonalization, countSpinVariants, PLACEHOLDER, blankTagsFor, TAG_LABELS } from '@lemlist/shared';
 import { smtpApi } from '../../api/smtp.api';
 import { contactsApi, listsApi } from '../../api/contacts.api';
 import { sendingSchedulesApi, type SendingSchedule } from '../../api/sending-schedules.api';
@@ -29,7 +29,7 @@ import { cn } from '../../lib/utils';
 import { parseDatetimeLocalInTimezone, formatDatetimeLocalInTimezone } from '../../lib/timezone';
 import {
   ArrowLeft, Mail, Clock, Save, Users, Check, Settings, Layers, UserPlus,
-  CheckCircle2, Search, Building2, ChevronRight, SkipForward, Gauge, Shield,
+  CheckCircle2, Search, Building2, ChevronLeft, ChevronRight, SkipForward, Gauge, Shield,
   Eye, MousePointerClick, MessageSquare, Send, AlertTriangle, Rocket,
   RotateCcw, Plus, FolderOpen, ListPlus, Sparkles, Loader2, X, Timer,
   Zap, FileText, TrendingUp, ShieldCheck, Brain, Wand2, CalendarClock,
@@ -38,7 +38,7 @@ import {
   History,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { StepType, formatDailyLimit } from '@lemlist/shared';
+import { StepType, formatDailyLimit, warmupAllowance } from '@lemlist/shared';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
 import { blockedProps, BLOCKED_CLASS } from '../../lib/blockedAction';
@@ -46,6 +46,10 @@ import type {
   CreateCampaignInput, CreateStepInput, CampaignStep, SmtpAccount, ContactWithTags,
   PersonalizationAudit,
 } from '@lemlist/shared';
+
+const BROWSER_TZ = (() => {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; }
+})();
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -179,7 +183,9 @@ export function CampaignCreatePage() {
 
   const [campaignForm, setCampaignForm] = useState<CreateCampaignInput>({
     name: '',
-    timezone: 'UTC',
+    // Where the person building it is, not Greenwich: "9 to 5" in UTC is
+    // the middle of the night for half the people who never change it.
+    timezone: BROWSER_TZ,
     send_window_start: '09:00',
     send_window_end: '17:00',
     send_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
@@ -335,6 +341,13 @@ export function CampaignCreatePage() {
     return contactPool.filter((c: any) => selected.has(c.id));
   }, [contactPool, selectedContactIds]);
 
+  // Who the preview says it is from: the chosen mailbox, else the first in
+  // the rotation - never "Your Name", which no recipient will ever see.
+  const previewSender = useMemo(() => {
+    const byId = (id?: string | null) => (id ? smtpAccounts?.find((a: any) => a.id === id) : undefined);
+    return (byId(campaignForm.smtp_account_id) || byId(senderPoolIds[0]) || null) as any;
+  }, [smtpAccounts, campaignForm.smtp_account_id, senderPoolIds]);
+
   const { data: allLists } = useQuery({
     queryKey: ['lists'],
     // Lead lists only: a campaign audience is cold outreach by definition,
@@ -386,7 +399,7 @@ export function CampaignCreatePage() {
             JSON.stringify(prev.send_days) === JSON.stringify(['monday', 'tuesday', 'wednesday', 'thursday', 'friday']);
           return {
             ...prev,
-            timezone: prev.timezone === 'UTC' ? def.timezone : prev.timezone,
+            timezone: prev.timezone === BROWSER_TZ ? def.timezone : prev.timezone,
             send_window_start: prev.send_window_start === '09:00' ? def.send_window_start : prev.send_window_start,
             send_window_end:   prev.send_window_end   === '17:00' ? def.send_window_end   : prev.send_window_end,
             send_days: isDefaultSendDays ? (def.send_days || []).map(expandDayCode) : prev.send_days,
@@ -593,6 +606,65 @@ export function CampaignCreatePage() {
       setSenderPoolIds(existingSenderPool);
     }
   }, [existingSenderPool]);
+
+  /* ═══════════════════════════════════════════════════════════════════
+     Sensible from the first second.
+
+     A new campaign started with no mailbox chosen, no rotation, and a flat
+     50 a day - three decisions everyone made the same way, by hand, every
+     time. They are made here from what the account already knows: every
+     healthy mailbox rotates, the healthiest one leads, and the daily limit
+     is what those mailboxes can actually send between them.
+
+     Only for a new campaign, only once, and only over values nobody has
+     touched - a restored draft or a choice already made is never
+     overwritten. The note under the section says what was picked.
+     ═══════════════════════════════════════════════════════════════════ */
+  const [smartDefaults, setSmartDefaults] = useState<{ mailboxes: number; limit: number | null } | null>(null);
+  const smartApplied = useRef(false);
+  useEffect(() => {
+    if (isEdit || smartApplied.current || !smtpAccounts || draft.decision.restore) return;
+    smartApplied.current = true;
+    const healthy = (smtpAccounts as SmtpAccount[])
+      .filter((a) => a.is_active && a.is_verified && (a.health_score ?? 100) >= 50)
+      .sort((a, b) => (b.health_score ?? 0) - (a.health_score ?? 0));
+    if (healthy.length === 0) return;
+    // What each can send today, warm-up ramp included. Zero is uncapped,
+    // which has no number to add up, so the limit is then left alone.
+    const allowances = healthy.map((a) => warmupAllowance(a));
+    const combined = allowances.every((l) => l > 0) ? allowances.reduce((sum, l) => sum + l, 0) : null;
+
+    // Read from this render: the effect runs once, the first time the
+    // mailboxes arrive, so these are the values as they stand right now.
+    const pickLead = !campaignForm.smtp_account_id;
+    const pickLimit = !!combined && campaignForm.daily_limit === 50;
+    const pickPool = senderPoolIds.length === 0 && healthy.length > 1;
+    if (!pickLead && !pickLimit && !pickPool) return;
+
+    setCampaignForm((f) => ({
+      ...f,
+      ...(pickLead && !f.smtp_account_id ? { smtp_account_id: healthy[0].id } : {}),
+      ...(pickLimit && f.daily_limit === 50 ? { daily_limit: combined! } : {}),
+    }));
+    if (pickPool) setSenderPoolIds((prev) => (prev.length > 0 ? prev : healthy.map((a) => a.id)));
+    setSmartDefaults({ mailboxes: healthy.length, limit: pickLimit ? combined : null });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, smtpAccounts, draft.decision.restore]);
+
+  /* Arriving from an import or a list with ?list=<id>: that list is the
+     audience, and its name is a fine first name for the campaign. */
+  const listParamApplied = useRef(false);
+  useEffect(() => {
+    if (isEdit || listParamApplied.current || !allLists) return;
+    const listId = new URLSearchParams(window.location.search).get('list');
+    if (!listId) return;
+    listParamApplied.current = true;
+    const list = (allLists as any[]).find((l) => l.id === listId);
+    if (!list) return;
+    setCampaignForm((f) => ({ ...f, name: f.name || list.name }));
+    addListContacts(listId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, allLists]);
 
   const [launching, setLaunching] = useState(false);
   const [showLaunchConfirm, setShowLaunchConfirm] = useState(false);
@@ -1243,7 +1315,7 @@ export function CampaignCreatePage() {
                         <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-px" />
                         <p className="text-caption text-amber-700 dark:text-amber-400">
                           No sending accounts yet.{' '}
-                          <Link to="/settings/smtp" className="font-semibold underline">Add one to continue</Link>.
+                          <Link to="/email-accounts" className="font-semibold underline">Add one to continue</Link>.
                         </p>
                       </div>
                     )}
@@ -1299,6 +1371,19 @@ export function CampaignCreatePage() {
                         })}
                       </div>
                     </div>
+                  )}
+
+                  {smartDefaults && (
+                    <p className="flex items-start gap-1.5 text-caption text-[var(--text-tertiary)]" data-smart-defaults>
+                      <Sparkles className="h-3 w-3 mt-0.5 flex-shrink-0 text-[var(--indigo)]" />
+                      <span>
+                        Set up for you: {smartDefaults.mailboxes > 1
+                          ? `sends rotate across your ${smartDefaults.mailboxes} healthy mailboxes`
+                          : 'sends from your healthiest mailbox'}
+                        {smartDefaults.limit ? `, up to ${smartDefaults.limit.toLocaleString()} a day - what they can send between them` : ''}
+                        , on {BROWSER_TZ.replace(/_/g, ' ')} time. Change anything.
+                      </span>
+                    </p>
                   )}
                 </div>
               </SectionCard>
@@ -1708,8 +1793,9 @@ export function CampaignCreatePage() {
                           <RecipientPreview
                             subject={steps[editingStep].subject || '(no subject)'}
                             bodyHtml={steps[editingStep].body_html || ''}
-                            fromName={smtpAccounts?.find((a: any) => a.id === campaignForm.smtp_account_id)?.label || 'Your Name'}
-                            fromEmail={smtpAccounts?.find((a: any) => a.id === campaignForm.smtp_account_id)?.email_address || 'you@example.com'}
+                            fromName={previewSender?.from_name || previewSender?.label || PLACEHOLDER.senderName}
+                            fromEmail={previewSender?.email_address || PLACEHOLDER.senderEmail}
+                            people={selectedContactsPreview}
                           />
                         )}
 
@@ -2881,38 +2967,77 @@ function CapacityChart({ totalSends, dailyCapacity, sendDays, estDays }: {
 
 /* ─── Recipient Preview ──────────────────────────────────────── */
 
-function RecipientPreview({ subject, bodyHtml, fromName, fromEmail }: {
+function RecipientPreview({ subject, bodyHtml, fromName, fromEmail, people = [] }: {
   subject: string;
   bodyHtml: string;
   fromName: string;
   fromEmail: string;
+  /** The audience so far. Empty means sample data. */
+  people?: any[];
 }) {
   // Was a third renderer with its own sample names and its own idea of what
   // a tag meant — it showed `[pain_point]` where the sender shipped raw
   // braces. Both now run the one renderer in `shared`, so this preview is
   // the email, not an impression of it.
+  //
+  // And it renders as someone who is actually getting it. A made-up Alex
+  // Morgan has every field filled in; the real audience does not, and the
+  // only way to see "Hi ," before it ships is to read it as them.
   const [variation, setVariation] = useState(0);
-  const seed = `preview-${variation}`;
-  const previewHtml = previewPersonalization(bodyHtml || '', { spinSeed: seed });
-  const previewSubject = previewPersonalization(subject || '', { spinSeed: seed });
+  const [who, setWho] = useState(0);
+  const person = people.length > 0 ? people[who % people.length] : null;
+  const seed = `preview-${person?.id ?? 'sample'}-${variation}`;
+  const previewHtml = previewPersonalization(bodyHtml || '', { spinSeed: seed, contact: person ?? undefined });
+  const previewSubject = previewPersonalization(subject || '', { spinSeed: seed, contact: person ?? undefined });
   const variants = Math.max(countSpinVariants(subject || ''), countSpinVariants(bodyHtml || ''));
+  const personName = person
+    ? [person.first_name, person.last_name].filter(Boolean).join(' ') || person.email
+    : PLACEHOLDER.contactName;
+  const blanks = person ? blankTagsFor(`${subject}\n${bodyHtml}`, person) : [];
+
+  // How many of the audience would get a blank somewhere - the number that
+  // decides whether a fallback is worth writing.
+  const blankShare = useMemo(() => {
+    if (people.length === 0) return 0;
+    const text = `${subject}\n${bodyHtml}`;
+    return people.filter((p) => blankTagsFor(text, p).length > 0).length;
+  }, [people, subject, bodyHtml]);
+
+  const step = (d: number) => setWho((w) => (w + d + people.length) % people.length);
 
   return (
     <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)]">
         <Eye className="h-3 w-3 text-[var(--indigo)]" />
-        <span className="text-micro font-bold text-[var(--text-secondary)]">Inbox preview</span>
-        {variants > 1 ? (
-          <button
-            onClick={() => setVariation((v) => v + 1)}
-            className="ml-auto text-micro text-[var(--indigo)] hover:underline"
-            title={`Spintax makes ${variants.toLocaleString()} wordings of this email`}
-          >
-            1 of {variants.toLocaleString()} wordings — show another
-          </button>
-        ) : (
-          <span className="ml-auto text-micro text-[var(--text-tertiary)]">sample data</span>
-        )}
+        <span className="text-micro font-bold text-[var(--text-secondary)]">
+          {person ? 'As they will see it' : 'Inbox preview'}
+        </span>
+        <div className="ml-auto flex items-center gap-2">
+          {variants > 1 && (
+            <button
+              onClick={() => setVariation((v) => v + 1)}
+              className="text-micro text-[var(--indigo)] hover:underline"
+              title={`Spintax makes ${variants.toLocaleString()} wordings of this email`}
+            >
+              {variants.toLocaleString()} wordings — another
+            </button>
+          )}
+          {people.length > 1 ? (
+            <span className="inline-flex items-center gap-0.5" data-preview-person>
+              <button onClick={() => step(-1)} className="icon-btn h-5 w-5" title="Previous person" aria-label="Previous person">
+                <ChevronLeft className="h-3 w-3" />
+              </button>
+              <span className="text-micro tabular text-[var(--text-tertiary)]">
+                {(who % people.length) + 1} of {people.length.toLocaleString()}
+              </span>
+              <button onClick={() => step(1)} className="icon-btn h-5 w-5" title="Next person" aria-label="Next person">
+                <ChevronRight className="h-3 w-3" />
+              </button>
+            </span>
+          ) : !person && (
+            <span className="text-micro text-[var(--text-tertiary)]">sample data — add people to see it as them</span>
+          )}
+        </div>
       </div>
 
       <div className="bg-white text-gray-900 px-3.5 py-2.5 border-b border-gray-200">
@@ -2924,7 +3049,7 @@ function RecipientPreview({ subject, bodyHtml, fromName, fromEmail }: {
               <span className="font-semibold">{fromName}</span>{' '}
               <span className="text-gray-500">&lt;{fromEmail}&gt;</span>
             </div>
-            <div className="text-micro text-gray-500">to {PLACEHOLDER.contactName} — now</div>
+            <div className="text-micro text-gray-500 truncate">to {personName}{person?.company ? ` · ${person.company}` : ''} — now</div>
           </div>
         </div>
       </div>
@@ -2946,6 +3071,20 @@ function RecipientPreview({ subject, bodyHtml, fromName, fromEmail }: {
         }}
         title="Recipient inbox preview"
       />
+      {(blanks.length > 0 || blankShare > 0) && (
+        <div className="flex items-start gap-2 px-3 py-2 border-t border-[var(--border-subtle)] bg-amber-500/8 text-caption text-amber-700 dark:text-amber-400" data-preview-blanks>
+          <AlertTriangle className="h-3.5 w-3.5 mt-px flex-shrink-0" />
+          <span>
+            {blanks.length > 0 && (
+              <>{personName} has no {blanks.map((b) => TAG_LABELS[b]?.toLowerCase() || b).join(' or ')}, so that spot is blank for them. </>
+            )}
+            {blankShare > 0 && (
+              <>{blankShare.toLocaleString()} of {people.length.toLocaleString()} would get a gap. </>
+            )}
+            Give the tag a fallback, like <code className="font-mono">{`{{${blanks[0] || 'first_name'}|there}}`}</code>.
+          </span>
+        </div>
+      )}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { fireEvent } from './webhook.service.js';
 import { processDueSteps } from './sequence.service.js';
 import { settingsService } from './settings.service.js';
 import { readinessService } from './readiness.service.js';
-import { extractTags, TAG_LABELS, TAG_SOURCE_FIELD, SENDER_TAGS, LINK_TAGS } from '@lemlist/shared';
+import { extractTags, TAG_LABELS, TAG_SOURCE_FIELD, SENDER_TAGS, LINK_TAGS, launchGate } from '@lemlist/shared';
 import type { PersonalizationAudit, PersonalizationTag, TimezoneCoverage } from '@lemlist/shared';
 
 /**
@@ -635,11 +635,9 @@ export const campaignsService = {
        * are serious enough to stop and read; neither is unfixable by the
        * person pressing the button, so they are asked to acknowledge them.
        */
-      const ACKNOWLEDGEABLE = new Set(['bounce_rate', 'capacity']);
-      const blocking = report.checks.filter((c) => c.status === 'fail' && !ACKNOWLEDGEABLE.has(c.id));
-      const warning = report.checks.filter(
-        (c) => c.status === 'warn' || (c.status === 'fail' && ACKNOWLEDGEABLE.has(c.id)),
-      );
+      // The rule itself lives in shared, so the preflight dialog re-reading
+      // the report after an inline fix reaches the same answer.
+      const { blocking, warning } = launchGate(report);
 
       if (blocking.length > 0) {
         throw new AppError(

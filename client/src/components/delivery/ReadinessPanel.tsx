@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { readinessApi } from '../../api/readiness.api';
+import { InlineFix, inlineReplacesLink } from '../campaigns/InlineFix';
 import type { ReadinessCheck, ReadinessReport, ReadinessStatus } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import { formatTime } from '@lemlist/shared';
@@ -93,7 +94,13 @@ export function StatusDot({ status, className }: { status: ReadinessStatus; clas
   );
 }
 
-export function CheckRow({ check }: { check: ReadinessCheck }) {
+export function CheckRow({ check, action, hideLink = false }: {
+  check: ReadinessCheck;
+  /** Done in place, ahead of the link - see the launch preflight. */
+  action?: ReactNode;
+  /** When the action is the whole fix, the link beside it is noise. */
+  hideLink?: boolean;
+}) {
   return (
     <li className="flex items-start gap-2.5 px-3.5 py-2.5 border-b border-[var(--border-subtle)] last:border-0">
       <StatusDot status={check.status} className="mt-[3px]" />
@@ -115,7 +122,8 @@ export function CheckRow({ check }: { check: ReadinessCheck }) {
           </div>
         )}
       </div>
-      {check.fix && (
+      {action}
+      {check.fix && !hideLink && (
         <Link
           to={check.fix.href}
           className="mt-[1px] inline-flex flex-shrink-0 items-center gap-1 rounded-md px-2 py-1 text-caption font-semibold text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
@@ -209,7 +217,7 @@ export function ReadinessPanel() {
           <button
             onClick={() => qc.invalidateQueries({ queryKey: ['readiness'] })}
             disabled={isFetching}
-            className="icon-btn h-7 px-2 text-caption flex-shrink-0"
+            className="icon-btn !w-auto h-7 px-2 gap-1 whitespace-nowrap text-caption flex-shrink-0"
             title="Re-run every check"
           >
             <RefreshCw className={cn('h-3 w-3', isFetching && 'animate-spin')} />
@@ -230,7 +238,16 @@ export function ReadinessPanel() {
         */}
       {attention.length > 0 && (
         <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
-          <ul>{attention.map((c) => <CheckRow key={c.id} check={c} />)}</ul>
+          <ul>
+            {attention.map((c) => (
+              <CheckRow
+                key={c.id}
+                check={c}
+                action={<InlineFix check={c} onFixed={() => qc.invalidateQueries({ queryKey: ['readiness'] })} />}
+                hideLink={inlineReplacesLink(c)}
+              />
+            ))}
+          </ul>
         </div>
       )}
 

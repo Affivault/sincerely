@@ -518,7 +518,13 @@ export function MeetingModal({
       };
       return editing ? crmApi.updateEvent(event!.id!, payload) : crmApi.createEvent(payload);
     },
-    onSuccess: () => { invalidate(); toast.success(editing ? 'Meeting updated' : 'Meeting booked'); onClose(); },
+    onSuccess: (saved: any) => {
+      invalidate();
+      toast.success(saved?.advanced_deal
+        ? `Meeting booked - "${saved.advanced_deal.title}" moved to Qualified`
+        : editing ? 'Meeting updated' : 'Meeting booked');
+      onClose();
+    },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Could not save'),
   });
 

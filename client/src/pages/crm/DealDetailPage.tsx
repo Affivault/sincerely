@@ -20,7 +20,7 @@ import { OutcomeDialog } from '../../components/crm/OutcomeDialog';
 import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
 import { PageSkeleton } from '../../components/ui/Skeleton';
-import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { usePeek } from '../../components/peek/usePeek';
 import { cn } from '../../lib/utils';
 import {
@@ -93,7 +93,6 @@ export function DealDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const confirm = useConfirm();
   const { openPeek } = usePeek();
 
   const [editing, setEditing] = useState(false);
@@ -135,11 +134,15 @@ export function DealDetailPage() {
     onError: () => toast.error('Could not set that label'),
   });
 
-  const del = useMutation({
-    mutationFn: () => crmApi.deleteDeal(id!),
-    onSuccess: () => { invalidate(); toast.success('Deal deleted'); navigate('/deals'); },
-    onError: () => toast.error('Could not delete that deal'),
-  });
+  // Back to the board at once; the delete goes when the undo bar runs out.
+  const gone = usePendingRemoval();
+  const deleteDeal = (title: string) => {
+    gone.remove(id!, `Deleted "${title}"`, async () => {
+      await crmApi.deleteDeal(id!);
+      invalidate();
+    });
+    navigate('/deals');
+  };
 
   if (isLoading) {
     return <PageSkeleton variant="detail" bleed={false} />;
@@ -283,14 +286,7 @@ export function DealDetailPage() {
           </Button>
           <button
             type="button"
-            onClick={() => confirm(
-              {
-                title: `Delete "${deal.title}"?`,
-                body: 'The deal, its notes and its stage history go. Contacts, companies, activities and meetings stay.',
-                tone: 'danger',
-              },
-              () => del.mutate(),
-            )}
+            onClick={() => deleteDeal(deal.title)}
             className="icon-btn h-9 w-9 hover:text-rose-500"
             title="Delete this deal"
           >
@@ -479,7 +475,7 @@ export function DealDetailPage() {
           onConfirm={(reason) => { const stage = outcome; setOutcome(null); move.mutate({ stage, reason }); }}
         />
       )}
-      {editing && <DealModal deal={deal as Partial<Deal>} onClose={() => setEditing(false)} />}
+      {editing && <DealModal deal={deal as Partial<Deal>} onClose={() => setEditing(false)} onDeleted={() => navigate('/deals')} />}
       {taskModal !== undefined && <ActivityModal task={taskModal} onClose={() => setTaskModal(undefined)} />}
       {eventModal !== undefined && <MeetingModal event={eventModal} onClose={() => setEventModal(undefined)} />}
     </div>

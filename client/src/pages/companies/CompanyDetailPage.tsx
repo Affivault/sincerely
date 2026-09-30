@@ -1,13 +1,13 @@
 import { BuyingCommitteeStrip } from '../../components/crm/BuyingCommittee';
 import { useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { companiesApi } from '../../api/companies.api';
 import { crmApi } from '../../api/crm.api';
 import { Spinner } from '../../components/ui/Spinner';
 import { PageSkeleton } from '../../components/ui/Skeleton';
 import { InlineEdit, InlineSelect } from '../../components/ui/InlineEdit';
-import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { Avatar } from '../../components/shared/Avatar';
 import { QuickCompose } from '../../components/shared/QuickCompose';
 import { usePeek } from '../../components/peek/usePeek';
@@ -102,7 +102,6 @@ function InfoRow({ icon: Icon, label, value, onSave, href, type }: {
 }
 
 export function CompanyDetailPage() {
-  const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -134,15 +133,15 @@ export function CompanyDetailPage() {
   };
   const field = (key: string) => (next: string) => save({ [key]: next || null });
 
-  const remove = useMutation({
-    mutationFn: () => companiesApi.remove(id!),
-    onSuccess: () => {
+  // Back to the list at once; the delete goes when the undo bar runs out.
+  const gone = usePendingRemoval();
+  const removeCompany = (name: string) => {
+    gone.remove(id!, `Deleted ${name} - its people and deals were kept`, async () => {
+      await companiesApi.remove(id!);
       qc.invalidateQueries({ queryKey: ['companies'] });
-      toast.success('Company deleted — its people and deals were kept');
-      navigate('/companies');
-    },
-    onError: () => toast.error('Could not delete that company'),
-  });
+    });
+    navigate('/companies');
+  };
 
   /* One stream, ordered by when it happened, whoever it was with. */
   const stream = useMemo<StreamItem[]>(() => {
@@ -256,16 +255,7 @@ export function CompanyDetailPage() {
             </a>
           )}
           <button
-            onClick={() => {
-              confirm(
-                {
-                  title: `Delete ${company.name}?`,
-                  body: 'Its people and deals are kept — only the account record goes.',
-                  tone: 'danger',
-                },
-                () => remove.mutate(),
-              );
-            }}
+            onClick={() => removeCompany(company.name)}
             className="icon-btn h-8 w-8 hover:text-[var(--error)]"
             title="Delete company"
           >

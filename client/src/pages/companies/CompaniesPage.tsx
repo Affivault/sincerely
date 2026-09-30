@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { companiesApi } from '../../api/companies.api';
@@ -242,9 +243,12 @@ export function CompaniesPage() {
     setSortDir(numeric ? 'desc' : 'asc');
   };
 
+  // A company deleted from its own page stays out of this list while the
+  // undo bar counts down.
+  const gone = usePendingRemoval();
   const rows = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1;
-    return [...companies].sort((a: any, b: any) => {
+    return companies.filter((c: any) => !gone.hidden(c.id)).sort((a: any, b: any) => {
       if (sortBy === 'created_at') {
         return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
       }
@@ -258,7 +262,7 @@ export function CompaniesPage() {
       if (!bv) return -1;
       return String(av).localeCompare(String(bv)) * dir;
     });
-  }, [companies, sortBy, sortDir]);
+  }, [companies, sortBy, sortDir, gone]);
 
   const totalOpen = useMemo(
     () => companies.reduce((s: number, c: any) => s + (Number(c.open_value) || 0), 0),

@@ -19,6 +19,7 @@ import { Checkbox } from '../../components/ui/Checkbox';
 import { Modal } from '../../components/ui/Modal';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { useUndoable } from '../../hooks/useUndoable';
+import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { AddToCampaignModal } from '../../components/shared/AddToCampaignModal';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
@@ -603,7 +604,6 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
    * come and go with the list you are in.
    */
   const { ref: gridRef, height: gridHeight } = useFillViewport<HTMLDivElement>({ min: 280 });
-  const confirm = useConfirm();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { openPeek } = usePeek();
@@ -807,7 +807,6 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       // Its members are unlisted again, so both the table and the
       // "Not in Lists" count are now stale.
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      toast.success('List moved to trash');
       setListContextMenu(null);
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to trash list'),
@@ -867,17 +866,18 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
-      toast.success('Contact deleted');
     },
   });
 
   const bulkDeleteMutation = useMutation({
     mutationFn: (ids: string[]) => contactsApi.bulkDelete(ids),
-    onSuccess: (result) => {
+    onSuccess: (result, ids) => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
-      toast.success(`Deleted ${plural(result.deleted, 'contact')}`);
-      setSelectedContacts(new Set());
+      // The undo bar already said it; only a short count is news.
+      if (result.deleted < ids.length) {
+        toast.error(`${plural(ids.length - result.deleted, 'contact')} could not be deleted`);
+      }
     },
   });
 
@@ -899,6 +899,21 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
    */
   const runUndoable = useUndoable();
   const CONTACT_KEYS = [['contacts'], ['contact-stats'], ['tags']];
+
+  /* Deleting a contact waits behind the undo bar; the row leaves at once.
+     Trashing a list is already reversible on the server, so it runs now and
+     the bar's undo restores it - no dialog either way. */
+  const gone = usePendingRemoval();
+  const trashList = (listId: string) => {
+    setListContextMenu(null);
+    const name = ((lists || []) as any[]).find((l) => l.id === listId)?.name || 'List';
+    return runUndoable({
+      run: () => trashListMut.mutateAsync(listId),
+      undo: () => listFoldersApi.restoreList(listId),
+      describe: () => `"${name}" moved to trash`,
+      invalidate: [['lists'], ['list-folders'], ['contacts']],
+    });
+  };
 
   const applyTags = (tagIds: string[], removing: boolean) => {
     const ids = Array.from(selectedContacts);
@@ -1142,7 +1157,10 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     });
   };
 
-  const contacts = contactsData?.data || [];
+  const contacts = useMemo(
+    () => (contactsData?.data || []).filter((c: any) => !gone.hidden(c.id)),
+    [contactsData, gone],
+  );
   const totalPages = contactsData?.total_pages || 1;
   const totalContacts = contactsData?.total || 0;
   /*
@@ -1780,14 +1798,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
 
           <div className="border-t border-[var(--border-subtle)] my-1" />
           <button
-            onClick={() => confirm(
-              {
-                title: 'Move this list to trash?',
-                body: 'The contacts inside are kept — only the list goes. You can restore it from Trash.',
-                confirmLabel: 'Move to trash',
-              },
-              () => trashListMut.mutate(listContextMenu.listId),
-            )}
+            onClick={() => trashList(listContextMenu.listId)}
             className="w-full text-left px-3 py-2 text-strong text-red-500 hover:bg-red-500/10 flex items-center gap-2"
           >
             <Trash2 className="h-3.5 w-3.5" /> Move to trash
@@ -2114,14 +2125,11 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 </button>
               )}
               <button
-                onClick={() => confirm(
-                  {
-                    title: `Delete ${selectedContacts.size} ${selectedContacts.size === 1 ? 'contact' : 'contacts'}?`,
-                    body: 'Their notes, activity and place in every campaign go with them.',
-                    tone: 'danger',
-                  },
-                  () => bulkDeleteMutation.mutate(Array.from(selectedContacts)),
-                )}
+                onClick={() => {
+                  const ids = Array.from(selectedContacts);
+                  setSelectedContacts(new Set());
+                  gone.removeMany(ids, `Deleted ${plural(ids.length, 'contact')}`, () => bulkDeleteMutation.mutateAsync(ids));
+                }}
                 className="btn-danger text-strong h-8 rounded-lg"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -2382,9 +2390,10 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                                 <Pencil className="h-3.5 w-3.5" />
                               </button>
                               <button
-                                onClick={() => confirm(
-                                  { title: 'Delete this contact?', body: 'Their notes, activity and place in every campaign go with them.', tone: 'danger' },
-                                  () => deleteMutation.mutate(contact.id),
+                                onClick={() => gone.remove(
+                                  contact.id,
+                                  `Deleted ${contact.email}`,
+                                  () => deleteMutation.mutateAsync(contact.id),
                                 )}
                                 className="icon-btn hover:text-rose-500 hover:bg-rose-500/10"
                                 title="Delete"

@@ -398,10 +398,12 @@ export const PLACEHOLDER = {
  */
 export function previewPersonalization(
   text: string,
-  opts?: { sender?: SenderIdentity | null; spinSeed?: string },
+  opts?: { sender?: SenderIdentity | null; spinSeed?: string; contact?: any },
 ): string {
   return personalize(text || '', {
-    contact: SAMPLE_PREVIEW_CONTACT,
+    // A real person from the audience when there is one: the preview that
+    // matters is the email Ada gets, not the one a made-up Alex would.
+    contact: opts?.contact ?? SAMPLE_PREVIEW_CONTACT,
     sender: opts?.sender ?? SAMPLE_PREVIEW_SENDER,
     spinSeed: opts?.spinSeed ?? 'preview',
     defer: LINK_TAGS,
@@ -445,3 +447,22 @@ export const TAG_SOURCE_FIELD: Record<string, string> = {
   city: 'location',
   country: 'location',
 };
+
+/**
+ * The tags in some copy that would come out blank for this contact - no
+ * value on the record and no `{{tag | fallback}}` to fall back on. Sender
+ * and link tags are the send path's to fill, so they are never gaps here.
+ *
+ * Reads through the one renderer, so "blank" means exactly what the send
+ * would produce, custom fields and all.
+ */
+export function blankTagsFor(text: string, contact: any): string[] {
+  const out: string[] = [];
+  for (const { name, hasFallback } of extractTags(text || '')) {
+    if (hasFallback) continue;
+    if (SENDER_TAGS.includes(name) || LINK_TAGS.includes(name) || name === 'booking_link') continue;
+    const rendered = renderMergeTags(`{{${name}}}`, { contact, defer: LINK_TAGS });
+    if (!rendered.trim()) out.push(name);
+  }
+  return out;
+}

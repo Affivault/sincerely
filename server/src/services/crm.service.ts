@@ -233,6 +233,59 @@ async function assertOwned(userId: string, table: string, id: string, label: str
  * Keep deals in sync with the contacts base: when a deal carries an email but
  * no linked lead, attach the matching contact (and backfill name/company).
  */
+/**
+ * A meeting put in the diary moves the deal it is about.
+ *
+ * Booking links already did this; a meeting added by hand - from the deal,
+ * the contact, the calendar - did not, so the one event that most reliably
+ * means a conversation is real left the board saying "Lead" until somebody
+ * remembered to drag it. Now it is the same rule wherever the meeting came
+ * from: link it to the person's open deal when it names none, and move a
+ * deal still at Lead to Qualified. Only forward, never back; never a closed
+ * deal; never more than one step.
+ *
+ * Best-effort by design: the meeting is what was asked for, and a failure
+ * here must not take it down.
+ */
+async function advanceDealForMeeting(
+  userId: string,
+  event: { id: string; deal_id?: string | null; contact_id?: string | null },
+): Promise<{ deal_id: string; title: string } | null> {
+  try {
+    let deal: { id: string; stage: string; title: string } | null = null;
+    if (event.deal_id) {
+      const { data } = await supabaseAdmin.from('deals')
+        .select('id, stage, title').eq('id', event.deal_id).eq('user_id', userId).maybeSingle();
+      deal = data;
+    } else if (event.contact_id) {
+      // Only when there is exactly one open deal: with two, which one this
+      // meeting is about is a guess, and a wrong link is worse than none.
+      const { data } = await supabaseAdmin.from('deals')
+        .select('id, stage, title')
+        .eq('user_id', userId)
+        .eq('contact_id', event.contact_id)
+        .not('stage', 'in', '(won,lost)')
+        .limit(2);
+      if (data && data.length === 1) {
+        deal = data[0];
+        await supabaseAdmin.from('crm_events').update({ deal_id: deal.id }).eq('id', event.id).eq('user_id', userId);
+      }
+    }
+    if (!deal || deal.stage !== 'lead') return null;
+    const { data: moved } = await supabaseAdmin.from('deals')
+      .update({ stage: 'qualified', stage_changed_at: new Date().toISOString() })
+      .eq('id', deal.id)
+      .eq('user_id', userId)
+      // Guarded on the stage it was read at, so a concurrent move wins.
+      .eq('stage', 'lead')
+      .select('id');
+    return moved && moved.length > 0 ? { deal_id: deal.id, title: deal.title } : null;
+  } catch (err: any) {
+    console.error(`[CRM] Could not advance the deal for meeting ${event.id}: ${err?.message || err}`);
+    return null;
+  }
+}
+
 async function autoLinkContact(userId: string, input: Record<string, any>) {
   if (input.contact_id || !input.contact_email) return;
   const pattern = String(input.contact_email).replace(/([%_\\])/g, '\\$1');
@@ -720,6 +773,13 @@ export const crmService = {
     if (error) throw new AppError(error.message, 500);
     // Booking time with somebody is engagement by any reasonable reading.
     if (input.contact_id) promoteToContact(userId, [input.contact_id], 'meeting').catch(() => {});
+    // Awaited so the response carries the deal link it made, and the board
+    // the client refetches next already shows the move.
+    if ((input.type ?? 'meeting') === 'meeting') {
+      const advanced = await advanceDealForMeeting(userId, { id: (data as any).id, deal_id: input.deal_id, contact_id: input.contact_id });
+      // Said back so the person sees the board move rather than finding it.
+      if (advanced) return { ...data, advanced_deal: advanced };
+    }
     return data;
   },
 

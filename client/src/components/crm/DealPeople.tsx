@@ -6,7 +6,7 @@ import type { Deal, DealParticipant } from '@lemlist/shared';
 import { crmApi } from '../../api/crm.api';
 import { contactsApi } from '../../api/contacts.api';
 import { Avatar } from '../shared/Avatar';
-import { useConfirm } from '../ui/ConfirmDialog';
+import { usePendingRemoval } from '../ui/UndoBar';
 import { usePeek } from '../peek/usePeek';
 import { cn } from '../../lib/utils';
 import {
@@ -298,15 +298,18 @@ function PersonRow({
 /* ── The panel ────────────────────────────────────────────────────────── */
 
 export function DealPeople({
-  deal, participants, onEmail,
+  deal, participants: allParticipants, onEmail,
 }: {
   deal: Deal;
   participants: DealParticipant[];
   onEmail?: (email: string, name: string) => void;
 }) {
   const qc = useQueryClient();
-  const confirm = useConfirm();
   const [adding, setAdding] = useState(false);
+  // Unlinking someone is a link, not a record: it leaves at once and the
+  // undo bar brings it back.
+  const gone = usePendingRemoval();
+  const participants = allParticipants.filter((p) => !gone.hidden(p.id));
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['crm'] });
 
@@ -319,8 +322,7 @@ export function DealPeople({
 
   const remove = useMutation({
     mutationFn: (id: string) => crmApi.removeParticipant(deal.id, id),
-    onSuccess: () => { invalidate(); toast.success('Removed from the deal'); },
-    onError: () => toast.error('Could not remove them'),
+    onSuccess: invalidate,
   });
 
   const primaryId = deal.contact_id || deal.contact?.id || null;
@@ -387,16 +389,7 @@ export function DealPeople({
           role={p.role}
           onRole={(role) => setRole.mutate({ id: p.id, role })}
           onEmail={onEmail && p.contact?.email ? () => onEmail(p.contact!.email, fullName(p.contact)) : undefined}
-          onRemove={() =>
-            confirm(
-              {
-                title: `Remove ${fullName(p.contact)} from this deal?`,
-                body: 'Their contact record and history stay exactly as they are. Only the link to this deal goes.',
-                tone: 'danger',
-              },
-              () => remove.mutate(p.id),
-            )
-          }
+          onRemove={() => gone.remove(p.id, `${fullName(p.contact)} removed from the deal`, () => remove.mutateAsync(p.id))}
         />
       ))}
 

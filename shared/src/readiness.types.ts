@@ -38,6 +38,13 @@ export interface ReadinessFact {
   value: string;
 }
 
+export type InlineFixKind =
+  | 'connect_mailbox'
+  | 'test_mailboxes'
+  | 'recheck_domains'
+  | 'verify_tracking'
+  | 'enable_bounce_guard';
+
 export interface ReadinessCheck {
   id: string;
   group: ReadinessGroup;
@@ -47,8 +54,13 @@ export interface ReadinessCheck {
   headline: string;
   /** What to do about it. Null on a pass, where there is nothing to do. */
   detail: string | null;
-  /** Where to go to fix it. */
-  fix: { label: string; href: string } | null;
+  /**
+   * Where to go to fix it - and, when the fix is one action that needs
+   * nothing from the person but the click, which one. The launch dialog
+   * runs those in place instead of sending someone away from the button
+   * they were about to press.
+   */
+  fix: { label: string; href: string; inline?: InlineFixKind } | null;
   /** Supporting numbers, shown beside the check. */
   facts: ReadinessFact[];
 }
@@ -81,4 +93,39 @@ export function worseStatus(a: ReadinessStatus, b: ReadinessStatus): ReadinessSt
   // unknown ranks with pass: it cannot make a send riskier, only less certain.
   const rank: Record<ReadinessStatus, number> = { unknown: 0, pass: 0, warn: 1, fail: 2 };
   return rank[a] >= rank[b] ? a : b;
+}
+
+/**
+ * Which failed checks a launch may proceed past once acknowledged.
+ *
+ * The account's lifetime bounce rate only falls by sending more, so walling
+ * off every launch on it would be a deadlock; "today's allowance is used
+ * up" is true of a launch that will simply queue until the counters reset.
+ * Both deserve to be read, neither is unfixable by the person launching.
+ */
+export const LAUNCH_ACKNOWLEDGEABLE: ReadonlySet<string> = new Set(['bounce_rate', 'capacity']);
+
+export type LaunchGate = 'clear' | 'risky' | 'blocked';
+
+/**
+ * What a launch does with this report: go, ask once, or refuse. The server
+ * enforces it; the preflight dialog uses the same rule to re-read the
+ * report after an inline fix, so the two can never disagree about whether
+ * the fix was enough.
+ */
+export function launchGate(report: Pick<ReadinessReport, 'verdict' | 'checks'>): {
+  gate: LaunchGate;
+  blocking: ReadinessCheck[];
+  warning: ReadinessCheck[];
+} {
+  if (report.verdict === 'ready') return { gate: 'clear', blocking: [], warning: [] };
+  const blocking = report.checks.filter((c) => c.status === 'fail' && !LAUNCH_ACKNOWLEDGEABLE.has(c.id));
+  const warning = report.checks.filter(
+    (c) => c.status === 'warn' || (c.status === 'fail' && LAUNCH_ACKNOWLEDGEABLE.has(c.id)),
+  );
+  return {
+    gate: blocking.length > 0 ? 'blocked' : warning.length > 0 ? 'risky' : 'clear',
+    blocking,
+    warning,
+  };
 }

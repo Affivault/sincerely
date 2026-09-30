@@ -19,6 +19,7 @@ import { PageSkeleton } from '../../components/ui/Skeleton';
 import { InlineEdit } from '../../components/ui/InlineEdit';
 import { Modal } from '../../components/ui/Modal';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/shared/Avatar';
 import { cn } from '../../lib/utils';
@@ -121,16 +122,17 @@ export function ContactDetailPage() {
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not create that lead'),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: () => contactsApi.delete(id!),
-    onSuccess: () => {
+  // Back to the list at once; the delete goes when the undo bar runs out,
+  // and the list hides the row meanwhile.
+  const gone = usePendingRemoval();
+  const deleteContact = (email: string) => {
+    gone.remove(id!, `Deleted ${email}`, async () => {
+      await contactsApi.delete(id!);
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
-      toast.success('Contact deleted');
-      navigate('/contacts');
-    },
-    onError: (e: any) => toast.error(e?.response?.data?.error || 'Failed to delete contact'),
-  });
+    });
+    navigate('/contacts');
+  };
 
   const addToListMutation = useMutation({
     mutationFn: (listId: string) => listsApi.addContacts(listId, [id!]),
@@ -339,12 +341,8 @@ export function ContactDetailPage() {
             <Ban className="h-3.5 w-3.5" />
           </button>
           <button
-            onClick={() => confirm(
-              { title: 'Delete this contact?', body: 'Their notes, activity and place in every campaign go with them.', tone: 'danger' },
-              () => deleteMutation.mutate(),
-            )}
-            disabled={deleteMutation.isPending}
-            className="icon-btn hover:text-rose-500 hover:bg-rose-500/10 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => deleteContact(contact.email)}
+            className="icon-btn hover:text-rose-500 hover:bg-rose-500/10 flex-shrink-0"
             title="Delete contact"
           >
             <Trash2 className="h-3.5 w-3.5" />

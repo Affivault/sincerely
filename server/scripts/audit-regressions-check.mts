@@ -11,6 +11,7 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 import { readFileSync } from 'node:fs';
+import { launchGate } from '@lemlist/shared';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -63,8 +64,14 @@ console.log('\nlaunch is the only way to start a campaign');
     campaigns.indexOf(']);', campaigns.indexOf('const UPDATABLE_CAMPAIGN_FIELDS')),
   );
   is('status is not a writable field', !/'status'/.test(list), list);
-  is('a lifetime bounce rate does not wall off every future launch',
-     /ACKNOWLEDGEABLE = new Set\(\['bounce_rate', 'capacity'\]\)/.test(campaigns));
+  is('the launch gate is the shared rule', /launchGate\(report\)/.test(campaigns));
+  const failing = (id: string) => ({
+    verdict: 'blocked' as const,
+    checks: [{ id, group: 'reputation' as const, label: id, status: 'fail' as const, headline: '', detail: null, fix: null, facts: [] }],
+  });
+  is('a lifetime bounce rate does not wall off every future launch', launchGate(failing('bounce_rate')).gate === 'risky');
+  is('nor does a used-up daily allowance', launchGate(failing('capacity')).gate === 'risky');
+  is('an unauthenticated domain still does', launchGate(failing('domain_auth')).gate === 'blocked');
 }
 
 console.log('\na restart does not hand out a second day of sending');

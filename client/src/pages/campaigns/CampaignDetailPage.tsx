@@ -13,6 +13,7 @@ import { PageSkeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { PersonalizationPanel, TimezoneCoverageNote } from '../../components/campaigns/PersonalizationPanel';
 import { CampaignHealthStrip } from '../../components/campaigns/CampaignHealthStrip';
 import { useLaunchPreflight } from '../../components/campaigns/LaunchPreflight';
@@ -217,15 +218,15 @@ export function CampaignDetailPage() {
     onError: (err: any) => toast.error(err.response?.data?.error || 'Could not resume'),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: () => campaignsApi.delete(id!),
-    onSuccess: () => {
+  // Back to the list at once; the delete goes when the undo bar runs out.
+  const gone = usePendingRemoval();
+  const deleteCampaign = (name: string) => {
+    gone.remove(id!, `Deleted "${name}"`, async () => {
+      await campaignsApi.delete(id!);
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
-      toast.success('Campaign deleted');
-      navigate('/campaigns');
-    },
-    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to delete campaign'),
-  });
+    });
+    navigate('/campaigns');
+  };
 
   const filteredContacts = useMemo(() => {
     const all = campaignContacts?.data ?? [];
@@ -331,12 +332,8 @@ export function CampaignDetailPage() {
           )}
           {(campaign.status === 'draft' || campaign.status === 'completed' || campaign.status === 'cancelled') && (
             <button
-              onClick={() => confirm(
-                { title: 'Delete this campaign?', body: 'The sequence, its schedule and its stats go with it. Contacts stay in their lists.', tone: 'danger' },
-                () => deleteMutation.mutate(),
-              )}
-              disabled={deleteMutation.isPending}
-              className="icon-btn hover:text-rose-500 hover:bg-rose-500/10 disabled:opacity-50 disabled:pointer-events-none"
+              onClick={() => deleteCampaign(campaign.name)}
+              className="icon-btn hover:text-rose-500 hover:bg-rose-500/10"
               title="Delete"
             >
               <Trash2 className="h-3.5 w-3.5" />
