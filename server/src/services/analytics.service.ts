@@ -447,7 +447,7 @@ export const analyticsService = {
 
     const { data, error } = await supabaseAdmin
       .from('campaign_activities')
-      .select('id, activity_type, metadata, occurred_at, campaign_id, step_id, campaigns(name), campaign_steps(subject)')
+      .select('id, activity_type, metadata, occurred_at, campaign_id, step_id, campaigns(name), campaign_steps(subject, step_order)')
       .eq('contact_id', contactId)
       .order('occurred_at', { ascending: false })
       .limit(100);
@@ -459,6 +459,10 @@ export const analyticsService = {
       activity_type: a.activity_type,
       campaign_name: a.campaigns?.name || 'Unknown',
       step_subject: a.campaign_steps?.subject || null,
+      // So the timeline can say "step 2 of Q4 brokers" rather than
+      // "campaign email sent" for every one of a sequence's emails.
+      step_order: typeof a.campaign_steps?.step_order === 'number' ? a.campaign_steps.step_order : null,
+      campaign_id: a.campaign_id,
       metadata: a.metadata,
       occurred_at: a.occurred_at,
     }));

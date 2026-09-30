@@ -1050,6 +1050,25 @@ export const crmService = {
       else byId.set(deal.id, deal);
     }
 
-    return { deals: [...byId.values()], tasks, events, notes };
+    /*
+     * Every move those deals made - opened, qualified, won, lost - so the
+     * person's history says what happened to the business with them, not
+     * only what was said. Best-effort: a database without the stage history
+     * (migration 051) still gets its profile.
+     */
+    const dealIds = [...byId.keys()];
+    let stageEvents: any[] = [];
+    if (dealIds.length) {
+      const { data, error } = await supabaseAdmin
+        .from('deal_stage_events')
+        .select('id, deal_id, from_stage, to_stage, reason, changed_at')
+        .eq('user_id', userId)
+        .in('deal_id', dealIds)
+        .order('changed_at', { ascending: false })
+        .limit(200);
+      if (!error) stageEvents = data || [];
+    }
+
+    return { deals: [...byId.values()], tasks, events, notes, stage_events: stageEvents };
   },
 };

@@ -369,6 +369,8 @@ export interface ContactCrmSummary {
   tasks: CrmTask[];
   events: CrmEvent[];
   notes: CrmNote[];
+  /** Every stage move of those deals, newest first. Absent on older servers. */
+  stage_events?: DealStageEvent[];
 }
 
 /** Everything the deal page renders, fetched in one request. */
