@@ -60,7 +60,7 @@ export const SECTIONS: Section[] = [
   {
     id: 'home', name: 'Home', href: '/dashboard', icon: Home, goKey: 'h',
     tabs: [
-      { label: 'Overview', href: '/dashboard', icon: LayoutDashboard, keywords: 'dashboard home performance stats numbers' },
+      { label: 'Overview', href: '/dashboard', icon: LayoutDashboard, match: ['/start'], keywords: 'dashboard home performance stats numbers get started setup onboarding' },
       { label: 'Flow', href: '/flow', icon: Waves, keywords: 'today queue next focus work decide todo priorities' },
     ],
   },

@@ -183,6 +183,11 @@ function flow() {
 // PRELAUNCH=1: an account that has never sent, for the pre-launch dashboard.
 const PRE = !!process.env.PRELAUNCH;
 
+const dnsRecords = [
+  { id: 'spf', label: 'SPF', type: 'TXT', host: '@', value: 'v=spf1 include:_spf.google.com ~all', purpose: 'Says which servers may send for you', status: 'missing' },
+  { id: 'dkim', label: 'DKIM', type: 'TXT', host: 'google._domainkey', value: 'v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2x', purpose: 'Signs each email', status: 'missing' },
+  { id: 'dmarc', label: 'DMARC', type: 'TXT', host: '_dmarc', value: 'v=DMARC1; p=none; rua=mailto:dmarc@affivault.com', purpose: 'Tells receivers what to do with failures', status: 'verified' },
+];
 function answer(method, path, q) {
   if (method === 'POST' && /\/campaigns\/write-sequence$/.test(path)) {
     return { name: 'ISA platforms - affiliate partnership', rationale: 'Leads with the partner economics.', engine: 'ai', leads: 58, personalized: 52, personalize_requested: true,
@@ -192,6 +197,8 @@ function answer(method, path, q) {
         { delay_days: 4, subject: 'Re: partnering with {{company|your team}}', body_text: 'Hi {{first_name|there}},\n\nI will leave it here.', body_html: '<p>Hi {{first_name|there}},</p><p>I will leave it here.</p>' },
       ] };
   }
+  if (method === 'POST' && path === '/domains') return { domain: { id: 'dom2', domain: 'affivault.io' }, dns: {}, records: dnsRecords };
+  if (method === 'POST' && /^\/domains\/[^/]+\/verify$/.test(path)) return { domain: {}, dns: {}, records: dnsRecords };
   if (method === 'POST' && path === '/system/self-test') {
     return { results: [
       { id: 'database', label: 'Database', ok: true, detail: 'Answered in 41 ms.' },
@@ -208,7 +215,11 @@ function answer(method, path, q) {
     case '/inbox/unread-count': return { count: 3 };
     case '/inbox/counts': return { unread: 3, needs_triage: 5, intents: { interested: 3, meeting: 1, objection: 1, not_now: 1, out_of_office: 1, other: 1 }, other: otherMail.length, other_unread: 1, sorting: false };
     case '/inbox/relay-status': return { ai: true, review: [{ message_id: 'msg2', contact_id: 'c2', email: contacts[1].email, name: `${contacts[1].first_name} ${contacts[1].last_name}`, company: contacts[1].company, subject: 'Re: Quick question', excerpt: 'Sounds good - Thursday works.', now_reads_as: 'meeting', received_at: ago(2) }] };
-    case '/setup': return { steps: ['mailbox', 'domain', 'contacts', 'sequence', 'launch'].map((id) => ({ id, label: id, detail: '', done: true, current: false, href: '/', cta: 'Go', progress: null, warning: null })), done_count: 5, complete: true, fresh: false };
+    case '/setup': {
+      // PRELAUNCH: mailbox and contacts done, the rest to do.
+      const doneIds = PRE ? ['mailbox', 'contacts'] : ['mailbox', 'domain', 'contacts', 'sequence', 'launch'];
+      return { steps: ['mailbox', 'domain', 'contacts', 'sequence', 'launch'].map((id) => ({ id, label: id, detail: '', done: doneIds.includes(id), current: false, href: '/', cta: 'Go', progress: null, warning: null })), done_count: doneIds.length, complete: !PRE, fresh: PRE };
+    }
     case '/analytics/overview': if (PRE) return { total_campaigns: 0, active_campaigns: 0, total_contacts: 62, total_sent: 0, total_opened: 0, total_clicked: 0, total_replied: 0, avg_open_rate: 0, avg_click_rate: 0, avg_reply_rate: 0, suppressed_count: 0, avg_dcs_score: 97, verified_contacts: 60, bounced_contacts: 0, sent_change: null, opened_change: null, clicked_change: null, replied_change: null };
       return { total_campaigns: 5, active_campaigns: 2, total_contacts: 1450, total_sent: 1252, total_opened: 651, total_clicked: 100, total_replied: 90, avg_open_rate: 52, avg_click_rate: 8, avg_reply_rate: 7.2, suppressed_count: 14, avg_dcs_score: 84, verified_contacts: 1320, bounced_contacts: 15, sent_change: 12, opened_change: 4, clicked_change: -2, replied_change: 18 };
     case '/analytics/trend': return trend;
@@ -258,7 +269,7 @@ function answer(method, path, q) {
     case '/crm/notes': return [];
     case '/flow': return flow();
     case '/companies': return contacts.map((c, i) => ({ ...base, id: c.company_id, name: c.company, domain: c.email.split('@')[1], industry: 'Financial services', size: '51-200', contact_count: 1 + (i % 3), deal_count: i < 8 ? 1 : 0 }));
-    case '/domains': return [{ ...base, id: 'dom1', domain: 'affivault.com', spf_status: 'verified', dkim_status: 'verified', dmarc_status: 'verified', status: 'verified', last_checked_at: ago(1) }];
+    case '/domains': return [{ ...base, id: 'dom1', domain: 'affivault.com', is_verified: !PRE, spf_ok: !PRE, dkim_ok: !PRE, dmarc_ok: false, spf_status: 'verified', dkim_status: 'verified', dmarc_status: 'verified', status: 'verified', last_checked_at: ago(1) }];
   }
   if (/^\/campaigns\/cmp\d+$/.test(P)) { const c = campaigns.find((x) => x.id === seg[2]); return { ...c, steps: c.status === 'draft' ? [] : steps.map((st) => ({ ...st, campaign_id: c.id })) }; }
   if (/^\/contacts\/c\d+$/.test(P)) return contacts.find((x) => x.id === seg[2]);
@@ -388,6 +399,7 @@ function more(P, q, seg) {
       ]),
     };
   }
+  if (/^\/domains\/[^/]+\/records$/.test(P)) return { domain: {}, dns: {}, records: dnsRecords };
   if (/^\/analytics\/contacts\/c\d+\/timeline$/.test(P)) {
     const cmp = { campaign_id: 'cp1', campaign_name: 'UK brokers - Q4' };
     return [

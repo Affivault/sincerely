@@ -141,9 +141,15 @@ export function SetupChecklist() {
                 : 'A few things are still outstanding — each one is something a campaign will otherwise trip over.'}
             </p>
           </div>
-          <span className="flex-shrink-0 text-caption font-semibold tabular-nums text-[var(--text-tertiary)]">
-            {data.done_count}/{data.steps.length}
-          </span>
+          <div className="flex flex-shrink-0 items-center gap-3">
+            <span className="text-caption font-semibold tabular-nums text-[var(--text-tertiary)]">
+              {data.done_count}/{data.steps.length}
+            </span>
+            {/* The same steps, walked on one page and mostly done in place. */}
+            <Link to="/start" className="inline-flex items-center gap-1 rounded-lg bg-[var(--indigo)] px-2.5 h-7 text-caption font-semibold text-white hover:bg-[var(--indigo-hover)]" data-guided-start>
+              Guided setup <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
         </div>
 
         <div className="mt-3 h-1 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
