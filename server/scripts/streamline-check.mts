@@ -205,5 +205,19 @@ console.log('\nthe pipeline moves itself');
   is('so does a booking that advances a deal', /\{ stage, stage_changed_at: new Date\(\)\.toISOString\(\) \}/.test(booking));
 }
 
+console.log('\nfirst login to first campaign, on one page');
+{
+  const start = client('pages/start/StartPage.tsx');
+  is('a mailbox is connected in place', /<SmtpAccountModal/.test(start));
+  is('DNS records are shown to copy, with a check again', /domainApi\.getRecords/.test(start) && /domainApi\.verify/.test(start) && /CopyField/.test(start));
+  is('a CSV imports in place when its columns are certain', /planImport\(headers, rows\)/.test(start) && /if \(!plan\.confident\)/.test(start) && /contactsApi\.bulkCreate/.test(start));
+  is('a doubtful file goes to the full importer', /navigate\('\/contacts\/import'\)/.test(start));
+  is('Relay writes for the chosen list', /\/campaigns\/new\?write=1\$\{q\}/.test(start));
+  is('the account\'s own setup check has the last word', /stepDone\('domain'\) \|\|/.test(start));
+  is('the builder\'s writer starts on that list', /useState<string \| null>\(\(\) => new URLSearchParams\(window\.location\.search\)\.get\('list'\)\)/.test(client('pages/campaigns/CampaignCreatePage.tsx')));
+  is('the checklist on Home leads to it', /to="\/start"/.test(client('components/setup/SetupChecklist.tsx')));
+  is('it belongs to Home', /match: \['\/start'\]/.test(client('lib/sections.ts')));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

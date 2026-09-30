@@ -369,7 +369,9 @@ export function CampaignCreatePage() {
   // Relay drafts the sequence. Opened from the builder, or arriving with
   // ?write=1 from the dashboard's "Build a sequence" step.
   const [showWriter, setShowWriter] = useState(() => new URLSearchParams(window.location.search).get('write') === '1');
-  const [writerListId, setWriterListId] = useState<string | null>(null);
+  // Arriving with ?list= (from an import or the guided start), the writer
+  // opens already pointed at that list rather than asking again.
+  const [writerListId, setWriterListId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('list'));
 
   const expandDayCode = (code: string): string => {
     const map: Record<string, string> = {
