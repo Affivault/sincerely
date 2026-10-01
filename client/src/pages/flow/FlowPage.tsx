@@ -124,15 +124,26 @@ export function FlowPage() {
 
   const snooze = useCallback((item: FlowItem) => {
     const until = tomorrowMorning();
-    if (item.kind === 'reply' && item.reply) {
-      replyQueueApi.snooze(item.reply.message_id, until.toISOString(), 'Not now, from Flow').catch(() => {});
-    } else if (item.kind === 'task' && item.task) {
-      crmApi.updateTask(item.task.task_id, { due_date: until.toISOString() }).catch(() => {});
-    }
-    const next = { ...readSnoozed(), [item.key]: until.getTime() };
+    const before = readSnoozed();
+    const next = { ...before, [item.key]: until.getTime() };
     writeSnoozed(next);
     setSnoozed(next);
     toast.success('Back tomorrow morning');
+    // The local snooze is instant; if the server refuses, put the item back
+    // rather than pretend it is gone while it stays due everywhere else.
+    let saved: Promise<unknown> | null = null;
+    if (item.kind === 'reply' && item.reply) {
+      saved = replyQueueApi.snooze(item.reply.message_id, until.toISOString(), 'Not now, from Flow');
+    } else if (item.kind === 'task' && item.task) {
+      saved = crmApi.updateTask(item.task.task_id, { due_date: until.toISOString() });
+    }
+    saved?.catch(() => {
+      const current = { ...readSnoozed() };
+      delete current[item.key];
+      writeSnoozed(current);
+      setSnoozed(current);
+      toast.error("Couldn't snooze that. It's back in your list.");
+    });
   }, []);
 
   const sendDraft = useMutation({

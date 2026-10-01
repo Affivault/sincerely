@@ -374,7 +374,7 @@ export function BookPage() {
         <div className="mt-6 md:mt-0">
           <MonthGrid
             month={month}
-            onMonth={setMonth}
+            onMonth={(m) => { setMonth(m); setChosenDay(null); setChosenSlot(null); }}
             zone={zone}
             byDay={byDay}
             chosen={chosenDay}

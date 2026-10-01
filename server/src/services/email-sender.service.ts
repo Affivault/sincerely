@@ -764,7 +764,8 @@ export async function sendCampaignEmail(params: SendEmailParams): Promise<void> 
       const { error: completeError } = await supabaseAdmin
         .from('campaign_contacts')
         .update({ status: 'completed', completed_at: new Date().toISOString() })
-        .eq('id', campaignContactId);
+        .eq('id', campaignContactId)
+        .in('status', ['pending', 'active']);
       if (completeError) console.error(`[EmailSender] Sent OK but failed to complete contact ${campaignContactId}: ${completeError.message}`);
 
       // Flip the campaign itself to completed once every contact has finished, and

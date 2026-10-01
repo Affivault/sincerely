@@ -44,8 +44,11 @@ function pushToTomorrow(dueDate: string): Date {
 
 function bucketTasks(tasks: CrmTask[]): Bucket[] {
   const today = startOfDay(new Date());
-  const tomorrow = new Date(today.getTime() + 86_400_000);
-  const weekEnd = new Date(today.getTime() + 7 * 86_400_000);
+  // Calendar arithmetic, not +24h: a clock-change day is 23 or 25 hours long.
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const weekEnd = new Date(today);
+  weekEnd.setDate(weekEnd.getDate() + 7);
 
   const open = tasks.filter((t) => !t.is_done);
   const overdue: CrmTask[] = [];

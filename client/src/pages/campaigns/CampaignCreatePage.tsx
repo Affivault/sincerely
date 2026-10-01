@@ -784,6 +784,12 @@ export function CampaignCreatePage() {
       } catch (err: any) {
         queryClient.invalidateQueries({ queryKey: ['campaigns'] });
         toast.error(err.response?.data?.error || 'Campaign saved, but some changes failed to apply');
+        // The row exists now. Staying on /campaigns/new would make the next
+        // Save create a second campaign, so carry on as an edit of this one.
+        if (!isEdit) {
+          draft.clear();
+          navigate(`/campaigns/${campaignId}/edit`, { replace: true });
+        }
       }
     },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to save'),

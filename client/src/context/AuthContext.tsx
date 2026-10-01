@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { type Session, type User, type Provider } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { readPersistedUser } from '../lib/persistedSession';
@@ -45,6 +45,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(!optimisticUser);
 
+  const lastUserId = useRef<string | null>(null);
+
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -61,6 +63,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Signed in again: an expiry from here on is an interruption worth
       // coming back from, not a deliberate exit.
       if (session?.user) clearSignedOutOnPurpose();
+      // Query keys aren't scoped by user, so a sign-out elsewhere (another tab,
+      // a revoked session) or a switch of account must not leave the last
+      // user's cache behind for the next one.
+      const nextId = session?.user?.id ?? null;
+      if (_event === 'SIGNED_OUT' || (lastUserId.current && nextId && nextId !== lastUserId.current)) {
+        queryClient.clear();
+      }
+      lastUserId.current = nextId;
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);

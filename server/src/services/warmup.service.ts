@@ -369,16 +369,22 @@ async function runEngagementTick(maxAccounts = 15): Promise<{ opened: number; re
         if (remaining.size === 0) break;
         try { await client.mailboxOpen(folder.path); } catch { continue; }
         let scanned = 0;
+        // Collect first, act after: ImapFlow queues any command issued while a
+        // fetch is still being iterated behind that fetch, which is waiting on
+        // this loop, so flagging or moving mid-iteration deadlocks the tick.
+        const hits: Array<{ uid: number; token: string }> = [];
         for await (const msg of client.fetch({ since }, { envelope: true, uid: true })) {
           if (scanned++ > 800 || remaining.size === 0) break; // bound work on busy inboxes
           const token = tokenFromMessageId(msg.envelope?.messageId || '');
-          if (!token) continue;
-          const row = tokenToRow.get(token);
-          if (!row) continue;
+          if (!token || !tokenToRow.has(token) || !remaining.has(token)) continue;
           remaining.delete(token);
-          try { await client.messageFlagsAdd(String(msg.uid), ['\\Seen'], { uid: true }); } catch { /* ignore */ }
+          hits.push({ uid: msg.uid, token });
+        }
+        for (const { uid, token } of hits) {
+          const row = tokenToRow.get(token);
+          try { await client.messageFlagsAdd(String(uid), ['\\Seen'], { uid: true }); } catch { /* ignore */ }
           if (folder.spam) {
-            try { await client.messageMove(String(msg.uid), 'INBOX', { uid: true }); row._rescued = true; } catch { /* ignore */ }
+            try { await client.messageMove(String(uid), 'INBOX', { uid: true }); row._rescued = true; } catch { /* ignore */ }
           }
           row._opened = true;
         }
