@@ -133,7 +133,6 @@ export const sequenceWriterService = {
     const personalize = !!input.personalize && ai && leads.length > 0;
     const written = ai
       ? await writeSequence({
-        userId,
         offer,
         audience: String(input.audience || '').slice(0, 500),
         goal: String(input.goal || '').slice(0, 300),
@@ -153,7 +152,7 @@ export const sequenceWriterService = {
       for (let i = 0; i < batch.length; i += 25) {
         const slice = batch.slice(i, i + 25);
         const lines = await firstLines({
-          userId, offer, tone,
+          offer, tone,
           leads: slice.map((l) => ({ id: l.id, first_name: l.first_name, company: l.company, title: l.job_title, website: l.website, email: l.email })),
         });
         if (!lines) break;
