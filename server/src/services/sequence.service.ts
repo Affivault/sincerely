@@ -1236,6 +1236,7 @@ export async function processWebhookTimeouts(): Promise<number> {
       .from('campaign_contacts')
       .select('id, campaign_id, current_step_order')
       .not('waiting_for_webhook', 'is', null)
+      .eq('status', 'active')
       .lt('webhook_wait_until', new Date().toISOString());
 
     if (error || !timedOut || timedOut.length === 0) return 0;
@@ -1485,8 +1486,11 @@ async function markCompleted(campaignContactId: string): Promise<void> {
       completed_at: new Date().toISOString(),
     })
     .eq('id', campaignContactId)
+    // Never overwrite an outcome (replied, bounced, unsubscribed...) that landed
+    // while this contact was waiting or mid-send.
+    .in('status', ['pending', 'active'])
     .select('campaign_id')
-    .single();
+    .maybeSingle();
 
   if (updateErr) {
     console.error(`[Sequence] Failed to mark contact ${campaignContactId} completed:`, updateErr.message);

@@ -283,7 +283,7 @@ function EmailEditorModal({
   isOpen: boolean;
   onClose: () => void;
   initial?: Partial<CreateEmailTemplateInput>;
-  onSave: (data: CreateEmailTemplateInput) => void;
+  onSave: (data: CreateEmailTemplateInput, onSaved: () => void) => void;
   saving: boolean;
 }) {
   const [name, setName] = useState(initial?.name || '');
@@ -411,8 +411,9 @@ function EmailEditorModal({
             <Button variant="secondary" onClick={onClose}>Cancel</Button>
             {/* The draft is the safety net, not the record. Once the
                 template is genuinely saved it has to go, or it would be
-                offered back over the saved version next time. */}
-            <Button variant="primary" onClick={() => { draft.clear(); onSave({ name, subject, body_html: bodyHtml, category }); }} disabled={saving || !name || !subject}>
+                offered back over the saved version next time. A failed
+                save must keep it, so it is cleared on success only. */}
+            <Button variant="primary" onClick={() => onSave({ name, subject, body_html: bodyHtml, category }, draft.clear)} disabled={saving || !name || !subject}>
               {saving ? 'Saving...' : 'Save Template'}
             </Button>
           </div>
@@ -777,6 +778,7 @@ export function TemplatesPage() {
         : templateApi.createEmail(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['templates'] });
       toast.success(editEmailData?.id ? 'Template updated' : 'Template created');
       setShowEmailEditor(false);
       setEditEmailData(null);
@@ -791,6 +793,7 @@ export function TemplatesPage() {
         : templateApi.createSequence(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sequence-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['templates'] });
       toast.success(editSequenceData?.id ? 'Sequence updated' : 'Sequence created');
       setShowSequenceEditor(false);
       setEditSequenceData(null);
@@ -801,20 +804,24 @@ export function TemplatesPage() {
   const deleteEmailMut = useMutation({
     mutationFn: templateApi.deleteEmail,
     // No success toast: the undo bar already said so, six seconds earlier.
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['email-templates'] }); setSelectedId(null); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['email-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['templates'] }); setSelectedId(null); },
   });
   const duplicateEmailMut = useMutation({
     mutationFn: templateApi.duplicateEmail,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['email-templates'] }); toast.success('Duplicated'); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['email-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['templates'] }); toast.success('Duplicated'); },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to duplicate'),
   });
   const deleteSequenceMut = useMutation({
     mutationFn: templateApi.deleteSequence,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['sequence-templates'] }); setSelectedId(null); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['sequence-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['templates'] }); setSelectedId(null); },
   });
   const duplicateSequenceMut = useMutation({
     mutationFn: templateApi.duplicateSequence,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['sequence-templates'] }); toast.success('Duplicated'); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['sequence-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['templates'] }); toast.success('Duplicated'); },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to duplicate'),
   });
 
@@ -1088,7 +1095,7 @@ export function TemplatesPage() {
           isOpen={showEmailEditor}
           onClose={() => { setShowEmailEditor(false); setEditEmailData(null); }}
           initial={editEmailData?.initial}
-          onSave={data => createEmailMut.mutate(data)}
+          onSave={(data, onSaved) => createEmailMut.mutate(data, { onSuccess: onSaved })}
           saving={createEmailMut.isPending}
         />
       )}
