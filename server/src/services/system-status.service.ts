@@ -23,6 +23,7 @@ import {
 import { readBeats } from '../utils/heartbeat.js';
 import { smtpService } from './smtp.service.js';
 import { fireEvent } from './webhook.service.js';
+import { replyCheckService } from './reply-check.service.js';
 
 const MIN = 60_000;
 /** Replies older than this, on a mailbox that should be syncing, is a stall. */
@@ -138,7 +139,39 @@ async function accountIssues(userId: string, now = Date.now()): Promise<StatusIs
     });
   }
 
+  // Replies proven not to stop sequences. Two failures in a row, so one
+  // slow delivery is never reported as a broken loop.
+  const rc = await replyCheckService.last(userId).catch(() => null);
+  const r = rc?.result;
+  if (r && !r.ok && !r.skipped && rc!.consecutive_failures >= 2) {
+    issues.push({
+      key: 'reply-check',
+      level: r.failed_at === 'sent' || r.failed_at === 'replied' ? 'attention' : 'down',
+      title: r.failed_at === 'sent' || r.failed_at === 'replied'
+        ? 'The reply check could not send its emails'
+        : 'Replies may not be stopping sequences',
+      detail: r.detail,
+      href: '/system',
+      since: rc!.last_ok_at,
+    });
+  }
+
   return issues;
+}
+
+async function replyCheckStatus(userId: string): Promise<SystemStatus['reply_check']> {
+  const [rc, persisted, setting] = await Promise.all([
+    replyCheckService.last(userId).catch(() => null),
+    replyCheckService.ready().catch(() => false),
+    supabaseAdmin.from('user_settings').select('reply_check_daily').eq('user_id', userId).maybeSingle(),
+  ]);
+  return {
+    last: rc?.result ?? null,
+    last_ok_at: rc?.last_ok_at ?? null,
+    daily: setting.error ? true : (setting.data as any)?.reply_check_daily !== false,
+    running: replyCheckService.isRunning(userId),
+    persisted,
+  };
 }
 
 function jobIssues(list: StatusJob[]): StatusIssue[] {
@@ -166,11 +199,11 @@ function headlineFor(level: SystemStatus['level'], issues: StatusIssue[]): strin
 export const systemStatusService = {
   async status(userId: string): Promise<SystemStatus> {
     const now = Date.now();
-    const [{ list, persisted }, mine] = await Promise.all([jobs(now), accountIssues(userId, now)]);
+    const [{ list, persisted }, mine, replyCheck] = await Promise.all([jobs(now), accountIssues(userId, now), replyCheckStatus(userId)]);
     const issues = [...jobIssues(list), ...mine]
       .sort((a, b) => (a.level === b.level ? 0 : a.level === 'down' ? -1 : 1));
     const level = overallLevel(list, issues);
-    return { persisted, level, headline: headlineFor(level, issues), jobs: list, issues, checked_at: new Date(now).toISOString() };
+    return { persisted, level, headline: headlineFor(level, issues), jobs: list, issues, checked_at: new Date(now).toISOString(), reply_check: replyCheck };
   },
 
   /**

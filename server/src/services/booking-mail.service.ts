@@ -89,7 +89,7 @@ const LOCATION_LABEL: Record<string, string> = {
  * spam - and because replying to it should reach a person. Null when there
  * is no usable mailbox, which the caller reports rather than hides.
  */
-async function senderFor(userId: string): Promise<{
+export async function senderFor(userId: string): Promise<{
   host: string; port: number; secure: boolean; user: string; pass: string;
   from: string; address: string;
 } | null> {

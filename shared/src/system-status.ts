@@ -14,10 +14,12 @@
    tick, not a problem - a status page that cries wolf is one nobody reads.
    ═══════════════════════════════════════════════════════════════════════ */
 
+import type { ReplyCheckResult } from './reply-check.js';
+
 export type JobId =
   | 'sending' | 'inbox' | 'autopilot' | 'warmup_send' | 'warmup_engage' | 'verification'
   | 'booking_reminders' | 'placement' | 'standing_searches' | 'ab_promote'
-  | 'sse_maintenance' | 'domain_reverify' | 'watchdog';
+  | 'sse_maintenance' | 'domain_reverify' | 'watchdog' | 'digest' | 'reply_check';
 
 export interface JobDef {
   id: JobId;
@@ -45,6 +47,8 @@ export const JOBS: JobDef[] = [
   { id: 'sse_maintenance', label: 'Daily counters', what: 'Mailbox send counters reset each day', everyMs: H, core: false },
   { id: 'domain_reverify', label: 'Domain re-checks', what: 'Sending domains are re-checked for DNS changes', everyMs: 6 * H, core: false },
   { id: 'watchdog', label: 'Watchdog', what: 'Problems are noticed and you are told', everyMs: 5 * M, core: false },
+  { id: 'digest', label: 'Weekly digest', what: 'Monday\'s summary email goes out', everyMs: 30 * M, core: false },
+  { id: 'reply_check', label: 'Daily reply check', what: 'Proves once a day that a reply stops a sequence', everyMs: H, core: false },
 ];
 
 export const JOB_BY_ID: Record<JobId, JobDef> = Object.fromEntries(JOBS.map((j) => [j.id, j])) as Record<JobId, JobDef>;
@@ -119,6 +123,18 @@ export interface SystemStatus {
   jobs: StatusJob[];
   issues: StatusIssue[];
   checked_at: string;
+  /** Whether a reply really stops a sequence, as last proven (shared/reply-check). */
+  reply_check: ReplyCheckStatus;
+}
+
+export interface ReplyCheckStatus {
+  last: ReplyCheckResult | null;
+  last_ok_at: string | null;
+  /** The account's automatic daily check is on. */
+  daily: boolean;
+  running: boolean;
+  /** False until migration 079: results are not kept and the daily check does not run. */
+  persisted: boolean;
 }
 
 export function overallLevel(jobs: StatusJob[], issues: StatusIssue[]): StatusLevel {

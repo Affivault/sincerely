@@ -1,3 +1,4 @@
+import { REPLY_CHECK_CAMPAIGN_NAME } from '@lemlist/shared';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { getPagination, formatPaginatedResponse } from '../utils/pagination.js';
@@ -179,7 +180,9 @@ export const campaignsService = {
     let query = supabaseAdmin
       .from('campaigns')
       .select('*', { count: 'exact' })
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      // A running reply check's placeholder (shared/reply-check).
+      .neq('name', REPLY_CHECK_CAMPAIGN_NAME);
 
     if (params.status) {
       query = query.eq('status', params.status);

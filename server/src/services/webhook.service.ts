@@ -366,6 +366,13 @@ export async function fireEvent(
     console.error('[Webhook] Integration dispatch error:', err?.message ?? String(err));
   });
 
+  // And to the account owner by email, when their Notifications settings
+  // ask for it (shared/notify). Imported late: the sender pulls in the
+  // mail stack, which must not load with every module that fires events.
+  import('./notify.service.js')
+    .then((m) => m.notifyForEvent(userId, eventType, data))
+    .catch((err) => console.error('[Notify] Dispatch error:', err?.message ?? String(err)));
+
   // Find active endpoints subscribed to this event
   const { data: endpoints, error: endpointsError } = await supabaseAdmin
     .from('webhook_endpoints')

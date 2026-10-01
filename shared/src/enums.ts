@@ -64,6 +64,8 @@ export enum WebhookEventType {
   EmailClicked = 'email.clicked',
   EmailReplied = 'email.replied',
   EmailBounced = 'email.bounced',
+  /** A recipient reported an email as spam (feedback loop). */
+  EmailComplained = 'email.complained',
   LeadUnsubscribed = 'lead.unsubscribed',
   SaraIntentClassified = 'sara.intent_classified',
   SaraReplyApproved = 'sara.reply_approved',

@@ -10,6 +10,7 @@ import {
   type AutopilotEventKind, type AutopilotMailbox, type AutopilotState,
 } from '@lemlist/shared';
 import { autopilotApi } from '../../api/autopilot.api';
+import { ComplaintsCard } from './ComplaintsCard';
 import { Toggle } from '../ui/Toggle';
 import { cn, formatRelativeTime, formatTimeUntil } from '../../lib/utils';
 
@@ -197,6 +198,8 @@ export function AutopilotPanel() {
         </div>
       )}
 
+      <ComplaintsCard />
+
       {/* What it did, in words. */}
       <div className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]" data-autopilot-log>
         <div className="border-b border-[var(--border-subtle)] px-4 py-3">
@@ -245,6 +248,7 @@ export function AutopilotPanel() {
             <li><span className="font-semibold text-[var(--text-primary)]">Recover</span> - back at {AUTOPILOT.RECOVERY_STEPS.map((s) => `${s * 100}%`).join(', ')}, then full, a day at a time - judged only on what it sends after the rest.</li>
             <li><span className="font-semibold text-[var(--text-primary)]">Domain</span> - two mailboxes on one domain refused as senders rests the rest of that domain's mailboxes too.</li>
             <li><span className="font-semibold text-[var(--text-primary)]">Providers</span> - {AUTOPILOT.HOLD_BLOCKS} or more refusals from one provider in a day (and at least {AUTOPILOT.HOLD_SHARE * 100}% of sends there) pauses mail to it for {AUTOPILOT.HOLD_HOURS} hours, {AUTOPILOT.HOLD_HOURS_REPEAT} if it happens again that week.</li>
+            <li><span className="font-semibold text-[var(--text-primary)]">Spam complaints</span> - where a feedback loop reports one, the person is suppressed and their sequences stop; the first complaint slows the mailbox that sent it, a second within {AUTOPILOT.WINDOW_DAYS} days rests it.</li>
             <li><span className="font-semibold text-[var(--text-primary)]">Bounce notices</span> - returned-mail emails are read, and each bounce stops that address, counts against the mailbox that sent it, and is checked by the bounce guard.</li>
           </ul>
         )}

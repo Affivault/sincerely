@@ -198,6 +198,15 @@ function richEvent(eventType: string, data: Record<string, any>, ctx?: EventCont
       return { headline: `🔗 Link clicked${who ? ` by ${who.split(' <')[0]}` : ''}`, facts, color: INDIGO };
     case 'email.bounced':
       return { headline: '📛 Email bounced', facts, color: RED };
+    case 'email.complained':
+      if (data.email) facts.push(['Who', String(data.email)]);
+      if (data.provider) facts.push(['Reported by', String(data.provider)]);
+      return {
+        headline: '🚫 Marked as spam - suppressed and every sequence to them stopped',
+        facts,
+        link: { label: 'Open autopilot', url: appUrl('/email-accounts?tab=autopilot') },
+        color: RED,
+      };
     case 'autopilot.action': {
       if (data.detail) facts.push(['Why', String(data.detail)]);
       const calm = ['recovered', 'full_speed', 'release', 'recovery_step'].includes(String(data.kind));

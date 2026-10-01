@@ -25,6 +25,11 @@ const NOTIFY_EVENTS: string[] = [
   E.LeadUnsubscribed,
   E.SaraIntentClassified,
   E.ContactCreated,
+  E.EmailComplained,
+  E.SystemAttention,
+  E.SystemResolved,
+  E.AutopilotAction,
+  E.AutopilotWeekly,
 ];
 
 /** High-signal defaults — replies and campaign lifecycle, not every open. */
@@ -34,6 +39,10 @@ const NOTIFY_DEFAULTS: string[] = [
   E.CampaignLaunched,
   E.CampaignCompleted,
   E.SaraIntentClassified,
+  // Something has stopped, and when it clears: what the watchdog is for.
+  E.SystemAttention,
+  E.SystemResolved,
+  E.EmailComplained,
 ];
 
 /** Events a CRM sync can act on (they carry a contact_id). */

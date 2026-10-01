@@ -3,6 +3,7 @@ import type { Response, NextFunction } from 'express';
 import type { AuthRequest } from '../middleware/auth.middleware.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { autopilotService } from '../services/autopilot.service.js';
+import { complaintsFor } from '../services/complaint-intake.service.js';
 
 /** The deliverability autopilot: what it is doing, and the three overrides. */
 export const autopilotRoutes = Router();
@@ -32,5 +33,12 @@ autopilotRoutes.delete('/holds/:provider', async (req: AuthRequest, res: Respons
   try {
     await autopilotService.releaseHold(req.userId!, String(req.params.provider).toLowerCase());
     res.json({ released: true });
+  } catch (err) { next(err); }
+});
+
+/** Spam complaints in the last 30 days, newest first, against what was sent. */
+autopilotRoutes.get('/complaints', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json(await complaintsFor(req.userId!));
   } catch (err) { next(err); }
 });
