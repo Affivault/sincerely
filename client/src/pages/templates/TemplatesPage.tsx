@@ -413,7 +413,7 @@ function EmailEditorModal({
                 template is genuinely saved it has to go, or it would be
                 offered back over the saved version next time. A failed
                 save must keep it, so it is cleared on success only. */}
-            <Button variant="primary" onClick={() => onSave({ name, subject, body_html: bodyHtml, category }, draft.clear)} disabled={saving || !name || !subject}>
+            <Button variant="primary" onClick={() => onSave({ name, subject, body_html: bodyHtml, category }, () => draft.clear())} disabled={saving || !name || !subject}>
               {saving ? 'Saving...' : 'Save Template'}
             </Button>
           </div>
