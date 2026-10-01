@@ -12,6 +12,7 @@ import { cn } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import { PLACEHOLDER } from '@lemlist/shared';
 import { RelayEngineNote } from '../../components/inbox/PeopleFirstNotices';
+import { NotificationTryOut } from '../../components/settings/NotificationTryOut';
 import { Chip } from '../../components/ui/Chip';
 import {
   User,
@@ -682,35 +683,39 @@ export function SettingsPage() {
               <div className="space-y-4">
                 <div>
                   <h2 className="text-heading font-semibold text-[var(--text-primary)]">Notifications</h2>
-                  <p className="text-strong text-[var(--text-secondary)] mt-1">Choose what notifications you receive</p>
+                  <p className="text-strong text-[var(--text-secondary)] mt-1">
+                    Emails about your own account. They come from your first connected mailbox to the address you sign in with.
+                  </p>
                 </div>
 
                 <div className="space-y-3">
                   <ToggleSetting
-                    label="Email notifications"
-                    description="Receive email notifications for important updates"
+                    label="Something needs attention"
+                    description="A mailbox that cannot send, replies that stopped syncing, every mailbox resting, a spam complaint, or a reply check that failed. One email when it starts, nothing more until something new happens."
                     checked={emailNotifications}
                     onChange={(v) => { setEmailNotifications(v); markChanged(); }}
                   />
                   <ToggleSetting
                     label="Campaign alerts"
-                    description="Get notified when campaigns start, pause, or complete"
+                    description="When something happens to a campaign without you: the bounce guard pauses it, or it finishes. Never for your own launch, pause or resume."
                     checked={campaignAlerts}
                     onChange={(v) => { setCampaignAlerts(v); markChanged(); }}
                   />
                   <ToggleSetting
                     label="Reply notifications"
-                    description="Receive instant notifications when contacts reply"
+                    description="An email for each reply from a prospect, with what they said. At most 20 an hour, so a busy morning does not bury you."
                     checked={replyNotifications}
                     onChange={(v) => { setReplyNotifications(v); markChanged(); }}
                   />
                   <ToggleSetting
                     label="Weekly digest"
-                    description="Receive a weekly summary of your campaign performance"
+                    description="Monday at 8am in your time zone: what went out, who replied, meetings booked, what bounced, and anything that needs a look."
                     checked={weeklyDigest}
                     onChange={(v) => { setWeeklyDigest(v); markChanged(); }}
                   />
                 </div>
+
+                <NotificationTryOut />
               </div>
             )}
 

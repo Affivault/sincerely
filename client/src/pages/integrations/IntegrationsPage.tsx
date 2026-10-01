@@ -70,12 +70,18 @@ const EVENT_LABELS: Record<string, string> = {
   'lead.unsubscribed': 'Lead unsubscribed',
   'sara.intent_classified': 'Relay classified a reply',
   'contact.created': 'Contact created',
+  'email.complained': 'Marked as spam',
+  'system.attention': 'Something needs attention',
+  'system.resolved': 'A problem cleared',
+  'autopilot.action': 'Autopilot rested or slowed a mailbox',
+  'autopilot.weekly': 'Autopilot weekly summary',
 };
 
 /* Curated event selections — one click instead of ticking boxes. */
 const EVENT_PRESETS: { label: string; events: string[] }[] = [
   { label: '🏆 Just the wins', events: ['email.replied', 'sara.intent_classified', 'campaign.completed'] },
   { label: '📣 Campaign pulse', events: ['campaign.launched', 'campaign.paused', 'campaign.completed', 'email.bounced'] },
+  { label: '🚨 Problems only', events: ['system.attention', 'system.resolved', 'email.complained', 'autopilot.action'] },
   { label: '🔍 Everything', events: Object.keys(EVENT_LABELS) },
 ];
 

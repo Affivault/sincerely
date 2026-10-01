@@ -3,10 +3,12 @@ import { promoteToContact } from './lifecycle.service.js';
 import { decrypt } from '../utils/encryption.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
 import { detectAutoReply } from '../utils/auto-reply.js';
-import { classifyMailKind, type MailKind } from '../utils/mail-kind.js';
+import { classifyMailKind, stripQuoted, type MailKind } from '../utils/mail-kind.js';
 import { processReply } from './sara.service.js';
 import { intakeBounceNotice, markBounceChecked } from './bounce-intake.service.js';
-import { looksLikeBounceNotice } from '@lemlist/shared';
+import { looksLikeBounceNotice, parseComplaintReport, SYSTEM_MAIL_HEADER, readSystemMailHeader, replyCheckTokenIn } from '@lemlist/shared';
+import { noteReplyCheck } from '../utils/reply-check-notes.js';
+import { intakeComplaint } from './complaint-intake.service.js';
 import { fireEvent } from './webhook.service.js';
 import { markReplied, stopOtherCampaignsForContact } from './sequence.service.js';
 import {
@@ -222,6 +224,101 @@ interface IngestContext {
  * Returns whether a row was created, so a run can report what it actually
  * added rather than what it looked at.
  */
+/**
+ * The send a reply answers: by its In-Reply-To first, then the newest live
+ * enrolment of the person writing. Shared by every reply and by the reply
+ * check, which proves exactly this path.
+ */
+async function matchSend(userId: string, inReplyTo: string, contactId: string | null): Promise<any> {
+  if (inReplyTo) {
+    const { data } = await supabaseAdmin
+      .from('campaign_activities')
+      .select('campaign_id, campaign_contact_id, contact_id, step_id, campaigns!inner(user_id)')
+      .eq('activity_type', 'sent')
+      .eq('message_id', inReplyTo)
+      .eq('campaigns.user_id', userId)
+      .maybeSingle();
+    if (data) return data;
+  }
+  if (contactId) {
+    const { data: cc } = await supabaseAdmin
+      .from('campaign_contacts')
+      .select('id, campaign_id, contact_id')
+      .eq('contact_id', contactId)
+      .in('status', ['active', 'completed'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (cc) return { campaign_id: cc.campaign_id, campaign_contact_id: cc.id, contact_id: cc.contact_id };
+  }
+  return null;
+}
+
+/** Record the reply against its send and stop the sequence it answers. */
+async function recordReplyAndStop(userId: string, matched: any, m: {
+  messageId: string; fromEmail: string; subject: string; inboxMessageId: string | null;
+  autoReply: { kind: string | null; reason: string | null };
+}): Promise<boolean> {
+  const { error: actErr } = await supabaseAdmin.from('campaign_activities').insert({
+    campaign_id: matched.campaign_id,
+    campaign_contact_id: matched.campaign_contact_id,
+    contact_id: matched.contact_id,
+    step_id: matched.step_id || null,
+    activity_type: m.autoReply.kind ? 'auto_reply' : 'replied',
+    message_id: m.messageId || null,
+    metadata: {
+      from: m.fromEmail,
+      subject: m.subject,
+      inbox_message_id: m.inboxMessageId,
+      ...(m.autoReply.kind ? { auto_reply_kind: m.autoReply.kind, auto_reply_reason: m.autoReply.reason } : {}),
+    },
+  });
+  if (actErr) console.error('[InboxSync] Failed to record inbound activity:', actErr.message);
+  if (m.autoReply.kind) return false;
+
+  const { data: enrolment } = await supabaseAdmin
+    .from('campaign_contacts')
+    .select('id, campaigns!inner(stop_on_reply)')
+    .eq('id', matched.campaign_contact_id)
+    .maybeSingle();
+  if (!enrolment || (enrolment as any).campaigns?.stop_on_reply === false) return false;
+  const stopped = await markReplied(matched.campaign_contact_id);
+  await stopOtherCampaignsForContact(userId, matched.contact_id, matched.campaign_contact_id);
+  return stopped;
+}
+
+/**
+ * Mail the platform sent itself - a reply check, a notification - is never
+ * stored and never read as a reply. A reply check's answer is the one
+ * exception to "never acted on": it goes through the same matching and
+ * stopping as any reply, against the check's own placeholder enrolment,
+ * and reports what happened. Returns true when the message was system mail.
+ */
+async function handleSystemMail(msg: { parsedHeaders: unknown; subject: string; inReplyTo: string; messageId: string; fromEmail: string; bodyText: string; outbound: boolean; userId: string; accountId: string }): Promise<boolean> {
+  const header = msg.parsedHeaders instanceof Map ? msg.parsedHeaders.get(SYSTEM_MAIL_HEADER.toLowerCase()) : null;
+  const tagged = readSystemMailHeader(header);
+  const token = tagged?.kind === 'reply-check' ? tagged.token : replyCheckTokenIn(msg.subject);
+  if (!tagged && !token) return false;
+  if (msg.outbound || !token) return true;
+
+  // A bounce or an out-of-office about the check is not an answer to it.
+  if (looksLikeBounceNotice({ fromEmail: msg.fromEmail, subject: msg.subject, bodyText: msg.bodyText })) {
+    noteReplyCheck(token, { accountId: msg.accountId, kind: 'bounced' });
+    return true;
+  }
+  const autoReply = detectAutoReply(msg.parsedHeaders, msg.subject, msg.bodyText);
+  if (autoReply.kind || !msg.inReplyTo) {
+    noteReplyCheck(token, { accountId: msg.accountId, kind: autoReply.kind ? 'auto_reply' : 'original' });
+    return true;
+  }
+  const matched = await matchSend(msg.userId, msg.inReplyTo, null);
+  const stopped = matched
+    ? await recordReplyAndStop(msg.userId, matched, { messageId: msg.messageId, fromEmail: msg.fromEmail, subject: msg.subject, inboxMessageId: null, autoReply })
+    : false;
+  noteReplyCheck(token, { accountId: msg.accountId, kind: 'reply', matched: !!matched, stopped });
+  return true;
+}
+
 async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
   const envelope = msg.envelope;
   if (!envelope) return false;
@@ -239,11 +336,18 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
   let bodyText = '';
   let bodyHtml: string | undefined;
   let parsedHeaders: unknown = null;
+  // A feedback-loop report carries its findings in attached parts.
+  let reportText = '';
   try {
     const parsed = await ctx.simpleParser(msg.source || '');
     bodyText = parsed.text || '';
     bodyHtml = parsed.html || undefined;
     parsedHeaders = parsed.headers;
+    for (const a of parsed.attachments || []) {
+      if (/^(message\/(feedback-report|rfc822)|text\/rfc822-headers)$/i.test(a.contentType || '') && a.content) {
+        reportText += `\n${a.content.toString('utf8').slice(0, 200_000)}`;
+      }
+    }
   } catch {
     const src = typeof msg.source === 'string' ? msg.source : (msg.source || '').toString();
     const bodyStart = src.indexOf('\r\n\r\n');
@@ -257,6 +361,10 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
    * answering — which is exactly the kind of thing that quietly corrupts a
    * reply rate.
    */
+  if (await handleSystemMail({ parsedHeaders, subject, inReplyTo, messageId, fromEmail, bodyText, outbound, userId, accountId: account.id })) {
+    return false;
+  }
+
   const autoReply = outbound ? { kind: null as string | null, reason: '' } : detectAutoReply(parsedHeaders, subject, bodyText);
 
   /*
@@ -295,30 +403,18 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
    */
   const bounceNotice = !outbound && looksLikeBounceNotice({ fromEmail, subject, bodyText });
 
-  let matchedActivity: any = null;
-  if (!outbound && !bounceNotice) {
-    if (inReplyTo) {
-      const { data } = await supabaseAdmin
-        .from('campaign_activities')
-        .select('campaign_id, campaign_contact_id, contact_id, step_id, campaigns!inner(user_id)')
-        .eq('activity_type', 'sent')
-        .eq('message_id', inReplyTo)
-        .eq('campaigns.user_id', userId)
-        .maybeSingle();
-      matchedActivity = data;
-    }
-    if (!matchedActivity && contactId) {
-      const { data: cc } = await supabaseAdmin
-        .from('campaign_contacts')
-        .select('id, campaign_id, contact_id')
-        .eq('contact_id', contactId)
-        .in('status', ['active', 'completed'])
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (cc) matchedActivity = { campaign_id: cc.campaign_id, campaign_contact_id: cc.id, contact_id: cc.contact_id };
-    }
-  }
+  // Somebody pressed "Report spam". Not an answer either: it is read as a
+  // complaint after the message is stored (services/complaint-intake).
+  const contentType = parsedHeaders instanceof Map ? (parsedHeaders.get('content-type') as any) : null;
+  const complaint = outbound || bounceNotice ? null : parseComplaintReport({
+    fromEmail,
+    subject,
+    contentType: typeof contentType === 'string' ? contentType : contentType?.value
+      ? `${contentType.value}; ${Object.entries(contentType.params || {}).map(([k, v]) => `${k}=${v}`).join('; ')}` : null,
+    text: `${bodyText}\n${reportText}`,
+  });
+
+  const matchedActivity: any = !outbound && !bounceNotice && !complaint ? await matchSend(userId, inReplyTo, contactId) : null;
 
   /*
    * Person or mail. Decided once, here, from the headers bulk senders are
@@ -348,6 +444,8 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
       known,
       own: !!counterparty && ctx.ownAddresses.has(counterparty),
     }).kind;
+    // A spam report is a notice about mail, never a person writing.
+    if (complaint) mailKind = 'notification';
   }
 
   const row: any = {
@@ -427,34 +525,11 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
   }
 
   if (!outbound && matchedActivity) {
-    const { error: actErr } = await supabaseAdmin.from('campaign_activities').insert({
-      campaign_id: matchedActivity.campaign_id,
-      campaign_contact_id: matchedActivity.campaign_contact_id,
-      contact_id: matchedActivity.contact_id,
-      step_id: matchedActivity.step_id || null,
-      activity_type: autoReply.kind ? 'auto_reply' : 'replied',
-      message_id: messageId || null,
-      metadata: {
-        from: fromEmail,
-        subject,
-        inbox_message_id: saved.id,
-        ...(autoReply.kind ? { auto_reply_kind: autoReply.kind, auto_reply_reason: autoReply.reason } : {}),
-      },
+    await recordReplyAndStop(userId, matchedActivity, {
+      messageId, fromEmail, subject, inboxMessageId: saved.id, autoReply,
     });
-    if (actErr) console.error('[InboxSync] Failed to record inbound activity:', actErr.message);
 
     if (!autoReply.kind) {
-      const { data: enrolment } = await supabaseAdmin
-        .from('campaign_contacts')
-        .select('id, campaigns!inner(stop_on_reply)')
-        .eq('id', matchedActivity.campaign_contact_id)
-        .maybeSingle();
-
-      if (enrolment && (enrolment as any).campaigns?.stop_on_reply !== false) {
-        await markReplied(matchedActivity.campaign_contact_id);
-        await stopOtherCampaignsForContact(userId, matchedActivity.contact_id, matchedActivity.campaign_contact_id);
-      }
-
       /*
        * A real reply is the moment a scraped stranger becomes somebody you
        * know, so the CRM should say so immediately rather than after a
@@ -467,7 +542,11 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
         campaign_id: matchedActivity.campaign_id,
         contact_id: matchedActivity.contact_id,
         from: fromEmail,
+        from_name: envelope.from?.[0]?.name || null,
         subject,
+        message_id: messageId || null,
+        // The new part only, so the notification quotes them, not you.
+        excerpt: stripQuoted(bodyText || '').text.trim().slice(0, 400) || null,
       }).catch(() => {});
     }
   }
@@ -487,7 +566,11 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
     await markBounceChecked([saved.id]);
   }
 
-  if (!outbound && !bounceNotice && ctx.aiTaggingOn && !autoReply.kind && (!mailKind || mailKind === 'person')) {
+  if (complaint) {
+    await intakeComplaint(userId, complaint, saved.id);
+  }
+
+  if (!outbound && !bounceNotice && !complaint && ctx.aiTaggingOn && !autoReply.kind && (!mailKind || mailKind === 'person')) {
     processReply(saved.id).catch((e: any) => {
       console.warn('[InboxSync] AI tag failed for', saved.id, ':', e?.message || String(e));
     });
@@ -636,12 +719,15 @@ export const inboxSyncService = {
    * were reversed a six-month backfill would hold today's replies back for
    * as long as it took to finish.
    */
-  async syncInbox(userId: string): Promise<InboxSyncResult> {
-    const { data: accounts, error: dbError } = await supabaseAdmin
+  async syncInbox(userId: string, opts: { accountIds?: string[] } = {}): Promise<InboxSyncResult> {
+    let accountsQuery = supabaseAdmin
       .from('smtp_accounts')
       .select('id, user_id, smtp_host, smtp_user, imap_host, imap_port, imap_secure, imap_user, smtp_pass_encrypted, email_address, last_inbox_sync_at, inbox_sync_months')
       .eq('user_id', userId)
       .eq('is_active', true);
+    // The reply check reads just the mailbox it is waiting on.
+    if (opts.accountIds?.length) accountsQuery = accountsQuery.in('id', opts.accountIds);
+    const { data: accounts, error: dbError } = await accountsQuery;
 
     if (dbError) {
       console.error('[InboxSync] DB error fetching accounts:', dbError.message);

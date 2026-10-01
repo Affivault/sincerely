@@ -8,6 +8,8 @@ import { startWarmupScheduler } from './jobs/schedulers/warmup.scheduler.js';
 import { startPlacementScheduler } from './jobs/schedulers/placement.scheduler.js';
 import { startAutopilotScheduler } from './jobs/schedulers/autopilot.scheduler.js';
 import { startWatchdogScheduler } from './jobs/schedulers/watchdog.scheduler.js';
+import { startReplyCheckScheduler } from './jobs/schedulers/reply-check.scheduler.js';
+import { startDigestScheduler } from './jobs/schedulers/digest.scheduler.js';
 import { startProspectRulesScheduler } from './jobs/schedulers/prospect-rules.scheduler.js';
 import { startAbPromoteScheduler } from './jobs/schedulers/ab-promote.scheduler.js';
 import { startBookingReminderScheduler } from './jobs/schedulers/booking-reminder.scheduler.js';
@@ -86,6 +88,24 @@ const server = app.listen(port, () => {
     console.log('Watchdog scheduler started');
   } catch (err: any) {
     console.warn('Watchdog scheduler failed to start:', err.message);
+  }
+
+  // Once a day, prove a reply stops a sequence on each account's mailboxes.
+  try {
+    const replyCheck = startReplyCheckScheduler();
+    if (replyCheck) disposers.push(() => replyCheck.stop());
+    console.log('Reply check scheduler started');
+  } catch (err: any) {
+    console.warn('Reply check scheduler failed to start:', err.message);
+  }
+
+  // Monday's weekly digest, in each account's own time zone.
+  try {
+    const digest = startDigestScheduler();
+    if (digest) disposers.push(() => digest.stop());
+    console.log('Digest scheduler started');
+  } catch (err: any) {
+    console.warn('Digest scheduler failed to start:', err.message);
   }
 
   // Inbox placement: look for the seed probes of any test still running.

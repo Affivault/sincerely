@@ -18,6 +18,9 @@
                  from here, so the bounces that sent it to rest cannot send
                  it straight back.
 
+   Spam complaints count too, where a feedback loop reports them: the
+   first slows a mailbox, a second within the week rests it.
+
    And one rule about the people receiving: a provider (gmail.com,
    outlook.com, a company's domain) that starts refusing your mail is
    paused for a few hours rather than sent more of the same.
@@ -70,6 +73,14 @@ export const AUTOPILOT = {
   HOLD_SHARE: 0.05,
   HOLD_HOURS: 12,
   HOLD_HOURS_REPEAT: 24,
+  /**
+   * Spam complaints. Only mail from domains registered with a feedback
+   * loop is ever reported, and providers act at about 1 in 1,000, so each
+   * one counts: the first slows the mailbox, a second in the window rests
+   * it.
+   */
+  SLOW_COMPLAINTS: 1,
+  REST_COMPLAINTS: 2,
 } as const;
 
 export interface MailboxEvidence {
@@ -79,6 +90,8 @@ export interface MailboxEvidence {
   bounced: number;
   /** Refusals of the sender itself. */
   blocked: number;
+  /** Recipients who reported it as spam (feedback loops). */
+  complained?: number;
 }
 
 export type MailboxVerdict =
@@ -91,6 +104,11 @@ const pct = (n: number) => `${(n * 100).toFixed(n < 0.1 ? 1 : 0)}%`;
 export function judgeMailbox(e: MailboxEvidence): MailboxVerdict {
   const failures = e.bounced + e.blocked;
   const blockShare = e.sent > 0 ? e.blocked / e.sent : 0;
+  const complaints = e.complained || 0;
+
+  if (complaints >= AUTOPILOT.REST_COMPLAINTS) {
+    return { verdict: 'rest', reason: `${complaints} recipients marked its email as spam in the last ${AUTOPILOT.WINDOW_DAYS} days` };
+  }
 
   if (e.blocked >= AUTOPILOT.REST_BLOCKS && (e.sent === 0 || blockShare >= AUTOPILOT.REST_BLOCK_SHARE)) {
     return { verdict: 'rest', reason: `${e.blocked} receiving servers refused it as a sender in the last ${AUTOPILOT.WINDOW_DAYS} days` };
@@ -103,6 +121,9 @@ export function judgeMailbox(e: MailboxEvidence): MailboxVerdict {
     if (lower >= AUTOPILOT.SLOW_BOUNCE) {
       return { verdict: 'slow', reason: `bounce rate climbing: ${failures} of ${e.sent} (${pct(failures / e.sent)})` };
     }
+  }
+  if (complaints >= AUTOPILOT.SLOW_COMPLAINTS) {
+    return { verdict: 'slow', reason: 'a recipient marked its email as spam' };
   }
   if (e.blocked >= AUTOPILOT.SLOW_BLOCKS) {
     return { verdict: 'slow', reason: `${e.blocked === 1 ? 'a receiving server' : `${e.blocked} receiving servers`} refused it as a sender` };

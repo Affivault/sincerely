@@ -1524,13 +1524,17 @@ export async function checkAndAutoCompleteCampaign(campaignId: string): Promise<
   if (nonTerminal && nonTerminal > 0) return;
 
   // All contacts are in terminal states — mark campaign as completed
-  const { error } = await supabaseAdmin
+  const { data: done, error } = await supabaseAdmin
     .from('campaigns')
     .update({ status: 'completed', completed_at: new Date().toISOString() })
     .eq('id', campaignId)
-    .eq('status', 'running'); // guard against concurrent updates
+    .eq('status', 'running') // guard against concurrent updates
+    .select('id');
 
-  if (!error) {
+  // Only the caller whose update changed the row announces it: two workers
+  // finishing the last contacts together both got "no error" and both told
+  // Slack, webhooks and now the owner's inbox that it had completed.
+  if (!error && done && done.length > 0) {
     console.log(`[Sequence] Campaign ${campaignId} auto-completed — all contacts finished`);
     fireEvent(campaign.user_id, 'campaign.completed', { campaign_id: campaignId }).catch(() => {});
   }

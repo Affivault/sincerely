@@ -1,3 +1,4 @@
+import { REPLY_CHECK_CONTACT_DOMAIN } from '@lemlist/shared';
 import { enrichmentService } from './enrichment.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
@@ -117,7 +118,9 @@ export const contactsService = {
     let query = supabaseAdmin
       .from('contacts')
       .select(select, { count: 'exact' })
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      // A running reply check's placeholder (shared/reply-check).
+      .not('email', 'like', `%@${REPLY_CHECK_CONTACT_DOMAIN}`);
 
     if (listScoped) {
       query = query.eq('in_list.list_id', params.list_id!);

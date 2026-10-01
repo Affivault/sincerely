@@ -188,6 +188,14 @@ const dnsRecords = [
   { id: 'dkim', label: 'DKIM', type: 'TXT', host: 'google._domainkey', value: 'v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2x', purpose: 'Signs each email', status: 'missing' },
   { id: 'dmarc', label: 'DMARC', type: 'TXT', host: '_dmarc', value: 'v=DMARC1; p=none; rua=mailto:dmarc@affivault.com', purpose: 'Tells receivers what to do with failures', status: 'verified' },
 ];
+function replyCheckResult(kind) {
+  const base = { from_mailbox: 'alex@affivault.com', to_mailbox: 'sam@affivault.io', ran_at: ago(0.2), skipped: false };
+  if (kind === 'failed') return { ...base, ok: false, seconds: 104, reached: ['sent', 'replied'], failed_at: 'arrived',
+    detail: "The answer never reached alex@affivault.com's inbox as far as inbox sync can see. Either delivery is slow, it went to spam, or inbox sync is not reading new mail. Until this passes, replies may not stop sequences." };
+  return { ...base, ok: true, seconds: 34, reached: ['sent', 'replied', 'arrived', 'matched', 'stopped'], failed_at: null,
+    detail: 'sam@affivault.io answered alex@affivault.com, inbox sync found the answer, matched it and stopped the sequence - in 34 seconds.' };
+}
+
 function answer(method, path, q) {
   if (method === 'POST' && /\/campaigns\/write-sequence$/.test(path)) {
     return { name: 'ISA platforms - affiliate partnership', rationale: 'Leads with the partner economics.', engine: 'ai', leads: 58, personalized: 52, personalize_requested: true,
@@ -207,6 +215,9 @@ function answer(method, path, q) {
       { id: 'job:sending', label: 'Sending', ok: true, detail: 'Running - last finished 12:04 UTC.' },
     ] };
   }
+  if (method === 'POST' && path === '/system/reply-check') return replyCheckResult('ok');
+  if (method === 'POST' && path === '/notifications/test') return { sent: true, from: 'alex@affivault.com', to: 'alex@affivault.com' };
+  if (method === 'POST' && path === '/notifications/digest') return { sent: true, subject: 'Your week: 420 sent, 21 replies, 3 meetings' };
   if (method !== 'GET') return { success: true };
   const P = path.replace(/\/+$/, '');
   const seg = P.split('/');
@@ -231,6 +242,12 @@ function answer(method, path, q) {
     case '/inbox/sync/progress': return mailboxes.map((b) => ({ smtp_account_id: b.id, email_address: b.email_address, window_months: 6, oldest_synced_at: ago(180), history_complete: true, stored: 412, last_synced_at: ago(0.01), last_error: null }));
     case '/smtp-accounts': return mailboxes;
     case '/autopilot': return autopilotStatus();
+    case '/autopilot/complaints': return process.env.COMPLAINTS
+      ? { total: 2, sent: 1840, items: [
+        { id: 'cp-a', at: ago(0.4), email: 'j.doe@yahoo.com', provider: 'Yahoo', campaign_id: 'cmp1', campaign_name: 'UK brokers - Q4', mailbox: 'alex@affivault.com' },
+        { id: 'cp-b', at: ago(3), email: null, provider: 'Microsoft', campaign_id: 'cmp2', campaign_name: 'Fintech EU', mailbox: 'sam@affivault.io' },
+      ] }
+      : { total: 0, sent: 1840, items: [] };
     case '/system/status': {
       const ok = !!process.env.CALM;
       const job = (id, label, what, core, health, every) => ({ id, label, what, core, health, every_ms: every, last_ok_at: ago(health === 'ok' ? 0.001 : 0.05), last_error: health === 'failing' ? 'IMAP connect timeout' : null });
@@ -245,6 +262,11 @@ function answer(method, path, q) {
           job('placement', 'Inbox placement', 'Placement tests find their probe emails', false, ok ? 'ok' : 'late', 120000),
           job('verification', 'Email verification', 'Queued addresses are verified', false, 'ok', 20000),
         ],
+        // REPLY=ok|failed|running|none
+        reply_check: {
+          last: process.env.REPLY === 'none' ? null : replyCheckResult(process.env.REPLY === 'failed' ? 'failed' : 'ok'),
+          last_ok_at: ago(1.2), daily: true, running: process.env.REPLY === 'running', persisted: true,
+        },
         issues: ok ? [] : [
           { key: 'mailbox-sync-error:m2', level: 'attention', title: 'Replies to alex@affivault.io are not coming in', detail: 'The last inbox sync failed: IMAP login refused. Replies are not being read and sequences will not stop for them.', href: '/email-accounts?mailbox=m2', since: ago(0.08) },
           { key: 'campaign-stalled:cp1', level: 'attention', title: '"UK brokers - Q4" is not sending', detail: 'All accounts have reached their daily sending limit', href: '/campaigns/cp1', since: ago(0.1) },

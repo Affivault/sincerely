@@ -81,9 +81,9 @@ console.log('\nrefusals at send time are told apart the same way');
 console.log('\nnotices reach the contact, the campaign and the mailbox');
 {
   const sync = src('services/inbox-sync.service.ts');
-  is('a notice is never matched as a reply', /if \(!outbound && !bounceNotice\) \{\s*if \(inReplyTo\)/.test(sync));
+  is('a notice is never matched as a reply', /const matchedActivity: any = !outbound && !bounceNotice && [^;]*await matchSend\(/.test(sync));
   is('the sync reads it on arrival', /if \(bounceNotice\) \{\s*await intakeBounceNotice\(/.test(sync));
-  is('Relay never reads it', /!outbound && !bounceNotice && ctx\.aiTaggingOn/.test(sync));
+  is('Relay never reads it', /!outbound && !bounceNotice && (!complaint && )?ctx\.aiTaggingOn/.test(sync));
   const intake = src('services/bounce-intake.service.ts');
   is('one notice about one enrolment is one bounce', /\.eq\('activity_type', 'bounced'\);\s*if \(\(count \|\| 0\) > 0\) return false;/.test(intake));
   is('the enrolment stops', /\.update\(\{ status: 'bounced', next_send_at: null \}\)/.test(intake));

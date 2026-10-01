@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   HeartPulse, CheckCircle2, AlertTriangle, XCircle, ArrowRight, Loader2, PlayCircle,
@@ -11,6 +11,7 @@ import { Button } from '../../components/ui/Button';
 import { PageSkeleton } from '../../components/ui/Skeleton';
 import { systemApi } from '../../api/system.api';
 import { cn, formatRelativeTime } from '../../lib/utils';
+import { ReplyCheckCard } from '../../components/system/ReplyCheckCard';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Is everything running?
@@ -43,7 +44,17 @@ export function SystemStatusPage() {
     refetchInterval: 30_000,
     meta: { silentError: true },
   });
+  const qc = useQueryClient();
   const test = useMutation({ mutationFn: systemApi.selfTest });
+  const replyCheck = useMutation({
+    mutationFn: systemApi.replyCheck,
+    onSettled: () => qc.invalidateQueries({ queryKey: ['system-status'] }),
+  });
+  // Everything this page can prove, at once: the mailboxes and the reply loop.
+  const runAll = () => {
+    test.mutate();
+    if (!replyCheck.isPending && !data?.reply_check?.running) replyCheck.mutate();
+  };
 
   const level = data?.level || 'ok';
   const banner = level === 'ok'
@@ -64,7 +75,7 @@ export function SystemStatusPage() {
         title="System status"
         description="Everything that runs in the background - sending, inbox sync, the autopilot - and whether it is running right now."
         actions={
-          <Button variant="secondary" onClick={() => test.mutate()} disabled={test.isPending}>
+          <Button variant="secondary" onClick={runAll} disabled={test.isPending}>
             {test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
             {test.isPending ? 'Checking…' : 'Run checks'}
           </Button>
@@ -93,6 +104,7 @@ export function SystemStatusPage() {
         )}
 
         {test.data && <SelfTest results={test.data.results} />}
+        {data?.reply_check && <ReplyCheckCard status={data.reply_check} run={replyCheck} />}
         {test.isError && (
           <p className="text-body text-rose-600">The checks could not be run: {(test.error as any)?.response?.data?.error || 'the server did not answer'}.</p>
         )}

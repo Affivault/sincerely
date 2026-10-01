@@ -48,7 +48,7 @@ export async function autopilotReady(): Promise<boolean> {
 /* ── Evidence ──────────────────────────────────────────────────────── */
 
 interface EvidenceRow {
-  type: 'sent' | 'bounced';
+  type: 'sent' | 'bounced' | 'complained';
   at: number;
   account: string | null;
   kind: string | null;
@@ -62,7 +62,7 @@ async function readEvidence(userId: string, since: Date): Promise<EvidenceRow[]>
       .from('campaign_activities')
       .select('activity_type, occurred_at, metadata, campaigns!inner(user_id)')
       .eq('campaigns.user_id', userId)
-      .in('activity_type', ['sent', 'bounced'])
+      .in('activity_type', ['sent', 'bounced', 'complained'])
       .gte('occurred_at', since.toISOString())
       .order('occurred_at', { ascending: true })
       .range(from, from + PAGE - 1);
@@ -83,11 +83,12 @@ async function readEvidence(userId: string, since: Date): Promise<EvidenceRow[]>
 }
 
 function evidenceFor(rows: EvidenceRow[], accountId: string, from: Date): MailboxEvidence {
-  const e: MailboxEvidence = { sent: 0, bounced: 0, blocked: 0 };
+  const e: MailboxEvidence = { sent: 0, bounced: 0, blocked: 0, complained: 0 };
   const since = from.getTime();
   for (const r of rows) {
     if (r.account !== accountId || r.at < since) continue;
     if (r.type === 'sent') e.sent++;
+    else if (r.type === 'complained') e.complained = (e.complained || 0) + 1;
     else if (r.kind === 'blocked') e.blocked++;
     else e.bounced++;
   }
