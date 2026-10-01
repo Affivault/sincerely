@@ -53,13 +53,6 @@ const envSchema = z.object({
   // which always work.
   ANTHROPIC_API_KEY: z.string().optional().default(''),
   RELAY_MODEL: z.string().optional().default('claude-opus-5-5'),
-  // Each account's monthly Claude allowance in tokens, unless it picks its
-  // own in Settings. 0 = no limit. When it runs out, Relay uses its rules.
-  AI_MONTHLY_TOKEN_CAP: z.coerce.number().int().min(0).optional().default(5_000_000),
-  // Your price per million tokens, in USD, to show an estimated spend.
-  // Unset = usage is shown in tokens only.
-  AI_INPUT_USD_PER_MTOK: z.coerce.number().min(0).optional(),
-  AI_OUTPUT_USD_PER_MTOK: z.coerce.number().min(0).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

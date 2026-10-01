@@ -23,8 +23,6 @@ import {
 import { readBeats } from '../utils/heartbeat.js';
 import { smtpService } from './smtp.service.js';
 import { fireEvent } from './webhook.service.js';
-import { aiAvailable } from './ai.service.js';
-import { aiUsageService } from './ai-usage.service.js';
 
 const MIN = 60_000;
 /** Replies older than this, on a mailbox that should be syncing, is a stall. */
@@ -138,21 +136,6 @@ async function accountIssues(userId: string, now = Date.now()): Promise<StatusIs
       href: '/campaigns',
       since: null,
     });
-  }
-
-  // Relay's AI allowance ran out: replies are still read, by the rules.
-  if (aiAvailable()) {
-    const ai = await aiUsageService.usage(userId, true).catch(() => null);
-    if (ai?.state === 'reached') {
-      issues.push({
-        key: `ai-allowance:${ai.month}`,
-        level: 'attention',
-        title: 'Relay has used this month\'s AI allowance',
-        detail: `Replies are being read by the keyword rules and sequences come from templates until ${ai.resets_at.slice(0, 10)}. Nothing has stopped sending. Choose a larger allowance in Settings if you want Claude back sooner.`,
-        href: '/settings?tab=ai',
-        since: null,
-      });
-    }
   }
 
   return issues;
