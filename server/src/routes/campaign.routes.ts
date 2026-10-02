@@ -1,5 +1,8 @@
 import { Router } from 'express';
+import type { Response, NextFunction } from 'express';
 import { campaignsController } from '../controllers/campaigns.controller.js';
+import type { AuthRequest } from '../middleware/auth.middleware.js';
+import { applyContentRewrites } from '../services/content-check.service.js';
 
 export const campaignRoutes = Router();
 
@@ -27,6 +30,12 @@ campaignRoutes.get('/:id/reach', campaignsController.reach);
 
 // Lifecycle
 campaignRoutes.post('/:id/launch', campaignsController.launch);
+// The launch review's "Apply rewrites": plain words for spam-trigger phrases.
+campaignRoutes.post('/:id/content-fixes', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json(await applyContentRewrites(req.userId!, req.params.id));
+  } catch (err) { next(err); }
+});
 campaignRoutes.post('/:id/pause', campaignsController.pause);
 campaignRoutes.post('/:id/resume', campaignsController.resume);
 campaignRoutes.post('/:id/cancel', campaignsController.cancel);

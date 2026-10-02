@@ -92,6 +92,9 @@ export const campaignsApi = {
    * refuses a risky launch once, with the reasons, and accepts it on the
    * second ask. A 422 is never overridable: blocked means it cannot work.
    */
+  /** Plain words for the spam-trigger phrases the launch review found. */
+  applyContentFixes: async (id: string) =>
+    (await apiClient.post<{ changed: number; steps: number }>(`/campaigns/${id}/content-fixes`)).data,
   launch: async (id: string, acknowledgeWarnings = false) => {
     const { data } = await apiClient.post(`/campaigns/${id}/launch`, {
       acknowledge_warnings: acknowledgeWarnings,

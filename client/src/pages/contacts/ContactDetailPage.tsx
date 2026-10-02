@@ -333,6 +333,7 @@ export function ContactDetailPage() {
       {/* Where things stand with this person, before anything is read. */}
       <WhereWeAre
         contactId={contact.id}
+        away={{ until: (contact as any).away_until ?? null, returnsOn: (contact as any).away_returns_on ?? null, note: (contact as any).away_note ?? null }}
         emails={sortedEmails}
         activity={activity}
         onBookMeeting={() => setEventModal({ ...eventPrefill, type: 'meeting' })}

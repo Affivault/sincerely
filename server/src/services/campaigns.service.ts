@@ -624,7 +624,7 @@ export const campaignsService = {
      * so it never blocks a launch — it would otherwise turn one failing
      * DNS lookup into "nobody can send today".
      */
-    const report = await readinessService.report(userId).catch(() => null);
+    const report = await readinessService.report(userId, { campaignId: id }).catch(() => null);
     if (report && report.verdict !== 'ready') {
       /*
        * Two failures are reported as failures and still may not wall off a

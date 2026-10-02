@@ -25,6 +25,8 @@ async function open(opts = {}) {
     const p = u.pathname.replace('/api/v1', '');
     const body = fixtures.answer(req.method(), p, u.searchParams, req.postData());
     log.requests.push(`${req.method()} ${p}${u.search} -> ${body === undefined ? 'DEFAULT' : 'fx'}`);
+    // A fixture can answer with a status: { __status, __body }.
+    if (body && body.__status) return route.fulfill({ status: body.__status, json: body.__body, headers: { 'access-control-allow-origin': '*' } });
     return route.fulfill({ status: 200, json: body === undefined ? [] : body, headers: { 'access-control-allow-origin': '*' } });
   });
   const page = await ctx.newPage();

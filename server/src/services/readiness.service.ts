@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { settingsService } from './settings.service.js';
 import { trackingDomainService } from './tracking-domain.service.js';
+import { contentCheck } from './content-check.service.js';
 import { MIN_SENDS_BEFORE_GUARD } from './bounce-guard.service.js';
 import { warmupAllowance, autopilotAllowance, warmupDayNumber, emailDomain, isFreeMailDomain, worseStatus, isSendable } from '@lemlist/shared';
 import type {
@@ -545,8 +546,12 @@ export const readinessService = {
    * every time rather than cached: a stale "safe to send" is worse than a
    * slow one.
    */
-  async report(userId: string): Promise<ReadinessReport> {
+  async report(userId: string, opts: { campaignId?: string | null } = {}): Promise<ReadinessReport> {
     const { accounts, domains, settings, tracking, campaigns, sent, bounced } = await gather(userId);
+    // About one campaign's emails, when one is being launched.
+    const content = opts.campaignId
+      ? await contentCheck(userId, opts.campaignId, accounts, tracking).catch(() => null)
+      : null;
     const threshold = Number(settings?.bounce_guard_threshold) > 0 ? Number(settings?.bounce_guard_threshold) : 8;
 
     const capacity = capacityCheck(accounts);
@@ -559,6 +564,7 @@ export const readinessService = {
       warmupCheck(accounts),
       capacity.check,
       safeguardCheck(settings, campaigns),
+      ...(content ? [content] : []),
     ];
 
     const worst = checks.reduce<ReadinessStatus>((acc, c) => worseStatus(acc, c.status), 'pass');

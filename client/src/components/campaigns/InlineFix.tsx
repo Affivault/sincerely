@@ -6,6 +6,7 @@ import { smtpApi } from '../../api/smtp.api';
 import { domainApi } from '../../api/domain.api';
 import { trackingDomainApi } from '../../api/tracking-domain.api';
 import { settingsApi } from '../../api/settings.api';
+import { campaignsApi } from '../../api/campaigns.api';
 
 // The connect wizard is large and needed only when this row says so.
 const SmtpAccountModal = lazy(() =>
@@ -27,8 +28,15 @@ const SmtpAccountModal = lazy(() =>
 
 type Outcome = { ok: boolean; message: string };
 
-async function runFix(kind: Exclude<InlineFixKind, 'connect_mailbox'>): Promise<Outcome> {
+async function runFix(kind: Exclude<InlineFixKind, 'connect_mailbox'>, target?: string): Promise<Outcome> {
   switch (kind) {
+    case 'apply_content_fixes': {
+      if (!target) return { ok: false, message: 'Open the editor to change the wording' };
+      const r = await campaignsApi.applyContentFixes(target);
+      return r.changed > 0
+        ? { ok: true, message: `Rewrote ${r.changed} phrase${r.changed === 1 ? '' : 's'} in ${r.steps} email${r.steps === 1 ? '' : 's'}` }
+        : { ok: true, message: 'Nothing left to rewrite' };
+    }
     case 'test_mailboxes': {
       const accounts = await smtpApi.list();
       const untested = accounts.filter((a) => !a.is_verified);
@@ -79,7 +87,7 @@ export function InlineFix({ check, onFixed }: { check: ReadinessCheck; onFixed: 
     if (kind === 'connect_mailbox') { setConnecting(true); return; }
     setBusy(true);
     try {
-      const out = await runFix(kind);
+      const out = await runFix(kind, check.fix?.target);
       if (out.ok) { toast.success(out.message); setDone(true); }
       else toast.error(out.message);
     } catch (e: any) {

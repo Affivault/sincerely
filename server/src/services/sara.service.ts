@@ -15,6 +15,7 @@ import { defaultBookingLinkUrl } from './booking.service.js';
 import { pauseColleaguesAfterReply } from './account-pause.service.js';
 import { stripQuoted, htmlToText, NON_PERSON_KINDS } from '../utils/mail-kind.js';
 import { readReply, aiAvailable } from './ai.service.js';
+import { reinstateAfterAutoReply } from './absence.service.js';
 
 /**
  * Relay → CRM: when a reply is classified as interested/meeting, create a
@@ -499,6 +500,12 @@ export async function processReply(messageId: string, requestingUserId?: string)
       action: result.action,
       contact_id: message.contact_id,
     }).catch(() => {});
+  }
+
+  // An out-of-office the headers did not give away was taken for a reply
+  // and stopped the sequence; put it back and hold it instead.
+  if (result.intent === SaraIntent.OutOfOffice && result.confidence >= 0.8 && message.user_id) {
+    await reinstateAfterAutoReply(message.user_id, message);
   }
 
   // Positive intent → fill the CRM pipeline automatically (user-toggleable).
