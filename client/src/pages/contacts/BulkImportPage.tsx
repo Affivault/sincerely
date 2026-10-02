@@ -298,6 +298,9 @@ export function BulkImportPage() {
     });
     setStep('complete');
     queryClient.invalidateQueries({ queryKey: ['lists'] });
+    for (const key of ['contacts', 'contact-stats', 'contact-companies', 'verification-breakdown']) {
+      queryClient.invalidateQueries({ queryKey: [key] });
+    }
   }, [prepared, mappingValid, listChoiceValid, listMode, targetListId, newListName, queryClient, file]);
 
   const cancel = () => {

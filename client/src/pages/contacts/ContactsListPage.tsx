@@ -613,13 +613,15 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   // How many rows per page. Remembered across visits — someone working through
   // a 5,000-contact list shouldn't have to re-pick 100 every single time.
   const [pageSize, setPageSize] = useState<number>(() => {
-    const saved = Number(localStorage.getItem('contacts:page-size'));
-    return PAGE_SIZE_OPTIONS.includes(saved) ? saved : DEFAULT_PAGE_SIZE;
+    try {
+      const saved = Number(localStorage.getItem('contacts:page-size'));
+      return PAGE_SIZE_OPTIONS.includes(saved) ? saved : DEFAULT_PAGE_SIZE;
+    } catch { return DEFAULT_PAGE_SIZE; }
   });
   const changePageSize = (size: number) => {
     setPageSize(size);
     setPage(1);
-    localStorage.setItem('contacts:page-size', String(size));
+    try { localStorage.setItem('contacts:page-size', String(size)); } catch { /* storage blocked */ }
   };
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);

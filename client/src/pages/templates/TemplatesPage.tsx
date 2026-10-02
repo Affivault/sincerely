@@ -804,8 +804,10 @@ export function TemplatesPage() {
   const deleteEmailMut = useMutation({
     mutationFn: templateApi.deleteEmail,
     // No success toast: the undo bar already said so, six seconds earlier.
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['email-templates'] });
-      queryClient.invalidateQueries({ queryKey: ['templates'] }); setSelectedId(null); },
+    // Only clear the selection if it is still the deleted template; the user
+    // may have picked another one during the undo window.
+    onSuccess: (_d, id) => { queryClient.invalidateQueries({ queryKey: ['email-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['templates'] }); setSelectedId((cur) => (cur === id ? null : cur)); },
   });
   const duplicateEmailMut = useMutation({
     mutationFn: templateApi.duplicateEmail,
@@ -815,8 +817,8 @@ export function TemplatesPage() {
   });
   const deleteSequenceMut = useMutation({
     mutationFn: templateApi.deleteSequence,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['sequence-templates'] });
-      queryClient.invalidateQueries({ queryKey: ['templates'] }); setSelectedId(null); },
+    onSuccess: (_d, id) => { queryClient.invalidateQueries({ queryKey: ['sequence-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['templates'] }); setSelectedId((cur) => (cur === id ? null : cur)); },
   });
   const duplicateSequenceMut = useMutation({
     mutationFn: templateApi.duplicateSequence,
