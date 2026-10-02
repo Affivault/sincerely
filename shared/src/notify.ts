@@ -152,7 +152,7 @@ export function buildDigest(d: DigestNumbers): { subject: string; text: string }
     lines.push(`Replies     ${n(d.replies)} (${rate(d.replies, d.sent)})${d.positive ? `, ${n(d.positive)} interested` : ''}`);
     lines.push(`Meetings    ${n(d.meetings)}`);
     lines.push(`Bounced     ${n(d.bounced)} (${rate(d.bounced, d.sent)})`);
-    if (d.complaints) lines.push(`Spam reports ${n(d.complaints)}`);
+    if (d.complaints) lines.push(`Spam reports  ${n(d.complaints)}`);
   }
   if (d.waiting > 0) {
     lines.push('');

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CalendarDays, ArrowRight, Video, Phone, MapPin, Users, Sparkles, CheckCircle2 } from 'lucide-react';
@@ -25,13 +25,27 @@ const LOCATION_ICON = { video: Video, phone: Phone, in_person: MapPin, other: Us
 
 export function TodayPanel() {
   const [openId, setOpenId] = useState<string | null>(null);
+  // Ticks once a minute (and when the tab is shown again), so a page left open
+  // overnight rolls over to the new day and a meeting that has just finished
+  // moves to "awaiting outcome" without a reload.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const tick = () => setNow(new Date());
+    const timer = setInterval(tick, 60_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') tick(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, []);
+
+  const dayKey = now.toDateString();
   const dayRange = useMemo(() => {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
     const end = new Date(start);
     end.setDate(end.getDate() + 1);
     return { from: start.toISOString(), to: end.toISOString() };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dayKey]);
 
   const { data: events = [], isLoading, isPlaceholderData: stale } = useQuery({
     queryKey: ['crm', 'events', 'today', dayRange.from],
@@ -56,8 +70,6 @@ export function TodayPanel() {
     for (const t of types) m.set(t.id, t);
     return m;
   }, [types]);
-
-  const now = new Date();
 
   /*
    * Today's meetings, still to come, plus whatever is running right now.
