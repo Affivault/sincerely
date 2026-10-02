@@ -112,6 +112,16 @@ export function CheckRow({ check, action, hideLink = false }: {
         {check.detail && (
           <p className="mt-1 text-caption leading-relaxed text-[var(--text-tertiary)]">{check.detail}</p>
         )}
+        {check.items && check.items.length > 0 && (
+          <ul className="mt-1.5 space-y-1" data-check-items>
+            {check.items.map((item) => (
+              <li key={item} className="flex gap-1.5 text-caption leading-relaxed text-[var(--text-secondary)]">
+                <span aria-hidden className="mt-[7px] h-1 w-1 flex-shrink-0 rounded-full bg-[var(--text-muted)]" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        )}
         {check.facts.length > 0 && (
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
             {check.facts.map((f) => (
@@ -147,7 +157,7 @@ export function ReadinessPanel() {
   const [showAll, setShowAll] = useState(false);
   const { data: report, isLoading, isError, isFetching } = useQuery({
     queryKey: ['readiness'],
-    queryFn: readinessApi.get,
+    queryFn: () => readinessApi.get(),
     // A stale "safe to send" is worse than a slow one.
     staleTime: 0,
     meta: { silentError: true },
@@ -299,7 +309,7 @@ export function ReadinessPanel() {
 export function ReadinessSummary({ className }: { className?: string }) {
   const { data: report, isLoading } = useQuery({
     queryKey: ['readiness'],
-    queryFn: readinessApi.get,
+    queryFn: () => readinessApi.get(),
     meta: { silentError: true },
   });
 

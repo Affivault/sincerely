@@ -55,7 +55,7 @@ const bodies = [
   'Not a priority this quarter - circle back in January?',
   'Yes, please send over the case study you mentioned. Keen to understand the onboarding timeline.',
   'I am out of the office until Monday with limited access to email.',
-  'Who else at your company should I loop in on this?',
+  "Thanks Alex - I'm not the right person for this. Please reach out to Sam Patel (sam.patel@northbeam.io), he looks after partnerships.",
   'Sounds good. Can you share a short deck I can forward to our CEO?',
 ];
 const inbox = intents.map((intent, i) => {
@@ -216,6 +216,16 @@ function answer(method, path, q) {
     ] };
   }
   if (method === 'POST' && path === '/system/reply-check') return replyCheckResult('ok');
+  if (method === 'POST' && /^\/inbox\/[^/]+\/referral\/draft$/.test(path)) return { engine: 'ai', subject: 'Sofia suggested I reach out',
+    body: "Hi Sam,\n\nSofia suggested I get in touch - she mentioned you look after partnerships at Northbeam.\n\nWe run affiliate partnerships for UK investment platforms, and partners typically see their first funded accounts within a month.\n\nWould a 15-minute call next week be worth it?\n\nAlex" };
+  if (method === 'POST' && /^\/inbox\/[^/]+\/referral$/.test(path)) return { sent: true, contact_id: 'c2', enrolled: true, campaign_name: 'Q3 Fintech outreach', campaign_running: true };
+  if (method === 'POST' && /^\/campaigns\/[^/]+\/launch$/.test(path) && process.env.CONTENT) return { __status: 409, __body: { error: 'Launch anyway?', readiness: {
+    verdict: 'risky', summary: 'You can launch, but read the warnings first.', capacity_today: 150, capacity_ceiling: 150, generated_at: iso(now),
+    checks: [
+      { id: 'content', group: 'content', label: 'Email content', status: 'warn', headline: '4 things in the emails read like spam to filters.', detail: '2 can be rewritten in plain words in one click; the rest are worth a look in the editor.', fix: { label: 'Apply 2 rewrites', href: '/campaigns/cmp1/edit', inline: 'apply_content_fixes', target: 'cmp1' }, facts: [],
+        items: ['Email 1: "act now" is a common spam-filter trigger - "when you have a moment" says the same.', 'Email 1: A link shortener (bit.ly). Spammers use them to hide where a link goes, so filters treat them harshly. Link to the real address.', 'Email 1: An exclamation mark in the subject. A person writing to one person rarely uses one.', 'Email 2: "no obligation" is a common spam-filter trigger - "no pressure" says the same.'] },
+      { id: 'safeguards', group: 'safeguards', label: 'Automatic protection', status: 'warn', headline: 'The bounce guard is switched off.', detail: 'Nothing will stop a campaign that starts bouncing heavily.', fix: { label: 'Turn it on', href: '/settings', inline: 'enable_bounce_guard' }, facts: [] },
+    ] } } };
   if (method === 'POST' && path === '/notifications/test') return { sent: true, from: 'alex@affivault.com', to: 'alex@affivault.com' };
   if (method === 'POST' && path === '/notifications/digest') return { sent: true, subject: 'Your week: 420 sent, 21 replies, 3 meetings' };
   if (method !== 'GET') return { success: true };
@@ -294,7 +304,13 @@ function answer(method, path, q) {
     case '/domains': return [{ ...base, id: 'dom1', domain: 'affivault.com', is_verified: !PRE, spf_ok: !PRE, dkim_ok: !PRE, dmarc_ok: false, spf_status: 'verified', dkim_status: 'verified', dmarc_status: 'verified', status: 'verified', last_checked_at: ago(1) }];
   }
   if (/^\/campaigns\/cmp\d+$/.test(P)) { const c = campaigns.find((x) => x.id === seg[2]); return { ...c, steps: c.status === 'draft' ? [] : steps.map((st) => ({ ...st, campaign_id: c.id })) }; }
-  if (/^\/contacts\/c\d+$/.test(P)) return contacts.find((x) => x.id === seg[2]);
+  if (/^\/contacts\/c\d+$/.test(P)) {
+    const c = contacts.find((x) => x.id === seg[2]);
+    // The contact who sent the out-of-office (index 5) is held until they are back.
+    return c && c.id === contacts[5].id
+      ? { ...c, away_until: new Date(now + 4 * 86400000).toISOString(), away_returns_on: new Date(now + 3 * 86400000).toISOString().slice(0, 10), away_note: 'I am out of the office until Monday' }
+      : c;
+  }
   if (/^\/lists\/[^/]+\/contacts$/.test(P)) return { contact_ids: contacts.map((c) => c.id) };
   if (/^\/inbox\/(msg|om)\d+$/.test(P)) return [...inbox, ...otherMail].find((x) => x.id === seg[2]);
   if (/^\/inbox\/(msg|om)\d+\/thread$/.test(P)) return [[...inbox, ...otherMail].find((x) => x.id === seg[2])];

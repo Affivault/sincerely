@@ -1355,7 +1355,7 @@ export async function processDueSteps(): Promise<number> {
 // Helpers
 // ============================================
 
-async function advanceToNextStep(
+export async function advanceToNextStep(
   campaignContactId: string,
   currentStepOrder: number,
   allSteps: any[]

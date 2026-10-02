@@ -31,7 +31,7 @@ export type ReadinessStatus = 'pass' | 'warn' | 'fail' | 'unknown';
  */
 export type ReadinessVerdict = 'ready' | 'risky' | 'blocked';
 
-export type ReadinessGroup = 'identity' | 'reputation' | 'capacity' | 'safeguards';
+export type ReadinessGroup = 'identity' | 'reputation' | 'capacity' | 'safeguards' | 'content';
 
 export interface ReadinessFact {
   label: string;
@@ -43,7 +43,8 @@ export type InlineFixKind =
   | 'test_mailboxes'
   | 'recheck_domains'
   | 'verify_tracking'
-  | 'enable_bounce_guard';
+  | 'enable_bounce_guard'
+  | 'apply_content_fixes';
 
 export interface ReadinessCheck {
   id: string;
@@ -60,9 +61,11 @@ export interface ReadinessCheck {
    * runs those in place instead of sending someone away from the button
    * they were about to press.
    */
-  fix: { label: string; href: string; inline?: InlineFixKind } | null;
+  fix: { label: string; href: string; inline?: InlineFixKind; target?: string } | null;
   /** Supporting numbers, shown beside the check. */
   facts: ReadinessFact[];
+  /** Findings listed one per line, when a headline cannot hold them (the content check). */
+  items?: string[];
 }
 
 export interface ReadinessReport {
@@ -86,6 +89,7 @@ export const READINESS_GROUP_LABELS: Record<ReadinessGroup, string> = {
   reputation: 'How you are seen',
   capacity: 'What you can send',
   safeguards: 'What protects you',
+  content: 'What you are sending',
 };
 
 /** The worse of two statuses — how a report's verdict is rolled up. */

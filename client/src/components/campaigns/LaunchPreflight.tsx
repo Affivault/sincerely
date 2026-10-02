@@ -95,6 +95,7 @@ export function useLaunchPreflight(options?: { onLaunched?: () => void }) {
   const dialog = refusal ? (
     <PreflightDialog
       refusal={refusal}
+      campaignId={pending?.id}
       campaignName={pending?.name}
       busy={launch.isPending}
       onClose={dismiss}
@@ -113,12 +114,15 @@ export function useLaunchPreflight(options?: { onLaunched?: () => void }) {
 
 export function PreflightDialog({
   refusal,
+  campaignId,
   campaignName,
   busy,
   onClose,
   onProceed,
 }: {
   refusal: Refusal;
+  /** Re-reads include this campaign's emails, as the launch itself does. */
+  campaignId?: string;
   campaignName?: string;
   busy: boolean;
   onClose: () => void;
@@ -138,16 +142,17 @@ export function PreflightDialog({
   const recheck = useCallback(async () => {
     setChecking(true);
     try {
-      const next = await readinessApi.get();
+      const next = await readinessApi.get(campaignId);
       setReport(next);
       setRechecked(true);
-      qc.setQueryData(['readiness'], next);
+      // The account-wide cache must not hold one campaign's content row.
+      if (!campaignId) qc.setQueryData(['readiness'], next);
     } catch {
       // A failed re-read changes nothing; the rows stay as they were.
     } finally {
       setChecking(false);
     }
-  }, [qc]);
+  }, [qc, campaignId]);
 
   // Only what is wrong. A launch dialog is not the place to read eleven
   // passing checks — the panel on the email accounts page is for that.
