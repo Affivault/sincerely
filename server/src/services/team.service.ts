@@ -112,7 +112,7 @@ export const teamService = {
     const org = await this.getOrg(userId);
     if (!org) throw new AppError('No organisation found', 404);
     if (org.owner_id !== userId) throw new AppError('Only the owner can change roles', 403);
-    if (role === 'owner') throw new AppError('Cannot assign owner role this way', 400);
+    if (role !== 'admin' && role !== 'member') throw new AppError('Role must be admin or member', 400);
 
     const { data, error } = await supabaseAdmin
       .from('team_members')
@@ -141,7 +141,7 @@ export const teamService = {
   async invite(userId: string, email: string, role: TeamRole = 'member') {
     const org = await this.getOrCreateOrg(userId);
     if (org.owner_id !== userId) throw new AppError('Only the owner can invite members', 403);
-    if (role === 'owner') throw new AppError('Cannot invite someone as owner', 400);
+    if (role !== 'admin' && role !== 'member') throw new AppError('Role must be admin or member', 400);
 
     // Check if already a member
     const { data: existing } = await supabaseAdmin

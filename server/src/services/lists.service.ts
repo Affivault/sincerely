@@ -270,10 +270,13 @@ export const listsService = {
     // would leave the contact removed from the source list and never added
     // to an invalid target (vanishing from both).
     await this.get(userId, toListId);
-    // Remove from source list
+    // Add first, remove second: if the add fails the contact stays where it
+    // was instead of vanishing from both lists.
+    const added = await this.addContacts(userId, toListId, [contactId]);
+    if (added.failed > 0 || added.success === 0) {
+      throw new AppError('Could not add the contact to the target list', 500);
+    }
     await this.removeContacts(userId, fromListId, [contactId]);
-    // Add to target list
-    await this.addContacts(userId, toListId, [contactId]);
     return { success: true };
   },
 

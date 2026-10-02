@@ -239,13 +239,16 @@ router.get('/click/:trackingId', async (req: Request, res: Response) => {
  * GET /api/track/unsubscribe/:trackingId
  * Unsubscribe a contact from further emails. Shows confirmation page.
  */
-async function performUnsubscribe(campaignContactId: string, stepId: string | null, method: string): Promise<void> {
+async function performUnsubscribe(campaignContactId: string, stepId: string | null, method: string): Promise<boolean> {
   try {
-    const { data: cc } = await supabaseAdmin
+    const { data: cc, error: lookupError } = await supabaseAdmin
       .from('campaign_contacts')
       .select('campaign_id, contact_id, status, campaigns(user_id)')
       .eq('id', campaignContactId)
       .single();
+    // A failed lookup must not read as "nothing to do": the person would be
+    // told they are unsubscribed while nothing was recorded.
+    if (lookupError && lookupError.code !== 'PGRST116') throw lookupError;
 
     /*
      * Once is enough.
@@ -257,20 +260,25 @@ async function performUnsubscribe(campaignContactId: string, stepId: string | nu
      * an integration downstream saw three unsubscribes from one person and
      * the campaign's unsubscribe count read three.
      */
-    if (cc && cc.status === 'unsubscribed') return;
+    if (cc && cc.status === 'unsubscribed') return true;
 
     if (cc) {
-      await supabaseAdmin
-        .from('campaign_contacts')
-        .update({ status: 'unsubscribed', next_send_at: null })
-        .eq('id', campaignContactId);
-
-      checkAndAutoCompleteCampaign(cc.campaign_id).catch(() => {});
-
-      await supabaseAdmin
+      // The contact flag goes first and the status last: the status is what
+      // the early return above keys on, so if either write fails a retry
+      // (Gmail re-POSTs, a second click) runs the whole thing again.
+      const { error: flagError } = await supabaseAdmin
         .from('contacts')
         .update({ is_unsubscribed: true })
         .eq('id', cc.contact_id);
+      if (flagError) throw flagError;
+
+      const { error: statusError } = await supabaseAdmin
+        .from('campaign_contacts')
+        .update({ status: 'unsubscribed', next_send_at: null })
+        .eq('id', campaignContactId);
+      if (statusError) throw statusError;
+
+      checkAndAutoCompleteCampaign(cc.campaign_id).catch(() => {});
 
       await supabaseAdmin
         .from('campaign_activities')
@@ -306,8 +314,10 @@ async function performUnsubscribe(campaignContactId: string, stepId: string | nu
         }).catch(() => {});
       }
     }
+    return true;
   } catch (err) {
     console.error('Unsubscribe error:', err);
+    return false;
   }
 }
 
@@ -319,7 +329,9 @@ async function performUnsubscribe(campaignContactId: string, stepId: string | nu
 router.post('/unsubscribe/:trackingId', async (req: Request, res: Response) => {
   const parsed = parseTrackingId(req.params.trackingId);
   if (!parsed) return res.status(400).json({ error: 'Invalid link' });
-  await performUnsubscribe(parsed.campaignContactId, parsed.stepId, 'one_click');
+  if (!(await performUnsubscribe(parsed.campaignContactId, parsed.stepId, 'one_click'))) {
+    return res.status(500).json({ error: 'Could not unsubscribe, please retry' });
+  }
   return res.status(200).json({ ok: true });
 });
 
@@ -330,7 +342,9 @@ router.get('/unsubscribe/:trackingId', async (req: Request, res: Response) => {
     return res.status(400).send('<html><body><h2>Invalid link</h2></body></html>');
   }
 
-  await performUnsubscribe(parsed.campaignContactId, parsed.stepId, 'link_click');
+  if (!(await performUnsubscribe(parsed.campaignContactId, parsed.stepId, 'link_click'))) {
+    return res.status(500).send('<html><body><h2>Something went wrong</h2><p>We could not process your unsubscribe. Please try the link again in a moment.</p></body></html>');
+  }
 
   return res.send(`<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">

@@ -412,8 +412,10 @@ export function DashboardPage() {
   const unreadCount = useUnreadCount();
   const { user } = useAuth();
   const [period, setPeriod] = useState<number>(() => {
-    const saved = Number(localStorage.getItem('dashboard.period'));
-    return [7, 30, 90].includes(saved) ? saved : 30;
+    try {
+      const saved = Number(localStorage.getItem('dashboard.period'));
+      return [7, 30, 90].includes(saved) ? saved : 30;
+    } catch { return 30; }
   });
   const [metric, setMetric] = useState<MetricKey>('sent');
   // Persisted by which accounts are unhealthy, not just a boolean — so
@@ -433,9 +435,9 @@ export function DashboardPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `overview-report-${period}d.csv`;
+      a.download = `overview-report-${period}d-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch {
       toast.error('Failed to export report');
     } finally {
@@ -468,7 +470,7 @@ export function DashboardPage() {
     queryFn: inboxApi.listScheduled,
   });
   const { data: smtpAccounts } = useQuery({
-    queryKey: ['smtp', 'accounts'],
+    queryKey: ['smtp-accounts'],
     queryFn: () => smtpApi.list(),
     staleTime: 5 * 60 * 1000,
   });
