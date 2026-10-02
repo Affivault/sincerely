@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware.js';
 import { teamService } from '../services/team.service.js';
+import { jwtOnly } from '../middleware/apikey.middleware.js';
 import { supabaseAdmin } from '../config/supabase.js';
 
 export const teamRoutes = Router();
@@ -14,7 +15,7 @@ teamRoutes.get('/org', async (req: AuthRequest, res: Response, next: NextFunctio
   } catch (err) { next(err); }
 });
 
-teamRoutes.put('/org', async (req: AuthRequest, res: Response, next: NextFunction) => {
+teamRoutes.put('/org', jwtOnly, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
@@ -31,14 +32,14 @@ teamRoutes.get('/members', async (req: AuthRequest, res: Response, next: NextFun
   } catch (err) { next(err); }
 });
 
-teamRoutes.delete('/members/:memberId', async (req: AuthRequest, res: Response, next: NextFunction) => {
+teamRoutes.delete('/members/:memberId', jwtOnly, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     await teamService.removeMember(req.userId!, req.params.memberId);
     res.status(204).send();
   } catch (err) { next(err); }
 });
 
-teamRoutes.put('/members/:memberId/role', async (req: AuthRequest, res: Response, next: NextFunction) => {
+teamRoutes.put('/members/:memberId/role', jwtOnly, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { role } = req.body;
     if (!role) return res.status(400).json({ error: 'role is required' });
@@ -55,7 +56,7 @@ teamRoutes.get('/invites', async (req: AuthRequest, res: Response, next: NextFun
   } catch (err) { next(err); }
 });
 
-teamRoutes.post('/invites', async (req: AuthRequest, res: Response, next: NextFunction) => {
+teamRoutes.post('/invites', jwtOnly, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { email, role } = req.body;
     if (!email) return res.status(400).json({ error: 'email is required' });
@@ -64,7 +65,7 @@ teamRoutes.post('/invites', async (req: AuthRequest, res: Response, next: NextFu
   } catch (err) { next(err); }
 });
 
-teamRoutes.delete('/invites/:inviteId', async (req: AuthRequest, res: Response, next: NextFunction) => {
+teamRoutes.delete('/invites/:inviteId', jwtOnly, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     await teamService.revokeInvite(req.userId!, req.params.inviteId);
     res.status(204).send();

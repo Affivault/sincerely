@@ -562,7 +562,7 @@ export const contactsService = {
 
     const { data, error } = await supabaseAdmin
       .from('contacts')
-      .upsert(uniqueValid, { onConflict: 'user_id,email' })
+      .upsert(uniqueValid, { onConflict: 'user_id,email', defaultToNull: false })
       .select('id, email');
 
     if (error) {
@@ -695,7 +695,7 @@ export const contactsService = {
       const batch = validContacts.slice(i, i + BATCH_SIZE);
       const { error } = await supabaseAdmin
         .from('contacts')
-        .upsert(batch, { onConflict: 'user_id,email' });
+        .upsert(batch, { onConflict: 'user_id,email', defaultToNull: false });
 
       if (error) {
         errors += batch.length;

@@ -237,6 +237,15 @@ async function resolveContactEmail(userId: string, messageId: string): Promise<s
     (msg.direction === 'outbound' ? msg.to_email : msg.from_email) || null;
 }
 
+/** Normalise a send time to a UTC ISO string. sara_action is text and the
+ * scheduler compares it lexicographically, so offsets or local strings would
+ * send at the wrong time (or never). */
+function normaliseScheduledAt(value: string): string {
+  const d = new Date(value);
+  if (!value || Number.isNaN(d.getTime())) throw new AppError('A valid scheduled_at is required', 400);
+  return d.toISOString();
+}
+
 export const inboxService = {
   async unreadCount(userId: string): Promise<number> {
     let q = supabaseAdmin
@@ -942,6 +951,7 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
    * so no database migration is needed.
    */
   async scheduleSend(userId: string, input: { to: string; subject: string; body: string; body_html?: string; smtp_account_id?: string; scheduled_at: string }) {
+    const scheduledAt = normaliseScheduledAt(input.scheduled_at);
     const smtpAccount = await findSmtpAccount(userId, input.smtp_account_id);
 
     const domain = smtpAccount.email_address?.split('@')[1] || 'usesincerely.com';
@@ -961,11 +971,11 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
       direction: 'outbound',
       received_at: new Date().toISOString(),
       sara_status: 'scheduled',
-      sara_action: input.scheduled_at,
+      sara_action: scheduledAt,
     }).select('id').single();
 
     if (error) throw new AppError(error.message, 500);
-    return { success: true, message_id: messageId, id: data?.id, scheduled_at: input.scheduled_at };
+    return { success: true, message_id: messageId, id: data?.id, scheduled_at: scheduledAt };
   },
 
   /**
@@ -973,6 +983,7 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
    * Uses sara_status='scheduled' and sara_action=ISO_TIMESTAMP.
    */
   async scheduleReply(userId: string, messageId: string, body: string, scheduledAt: string, smtpAccountId?: string, bodyHtml?: string) {
+    scheduledAt = normaliseScheduledAt(scheduledAt);
     const { data: original } = await supabaseAdmin
       .from('inbox_messages')
       .select('*')
@@ -1053,9 +1064,7 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
    * cancel and recompose it from scratch.
    */
   async rescheduleScheduledEmail(userId: string, id: string, scheduledAt: string) {
-    if (!scheduledAt || Number.isNaN(new Date(scheduledAt).getTime())) {
-      throw new AppError('A valid scheduled_at is required', 400);
-    }
+    scheduledAt = normaliseScheduledAt(scheduledAt);
 
     const { data: msg } = await supabaseAdmin
       .from('inbox_messages')

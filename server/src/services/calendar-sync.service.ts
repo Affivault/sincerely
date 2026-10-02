@@ -114,7 +114,10 @@ async function post(url: string, body: URLSearchParams): Promise<any> {
     let json: any = null;
     try { json = JSON.parse(text); } catch { /* non-JSON error page */ }
     if (!res.ok) {
-      throw new AppError(json?.error_description || json?.error || `Google said ${res.status}`, 502);
+      // Keep Google's error code in the message: accessTokenFor() matches on
+      // "invalid_grant" to detect a revoked connection.
+      const detail = json?.error_description || json?.error || `Google said ${res.status}`;
+      throw new AppError(json?.error && json?.error_description ? `${json.error}: ${detail}` : detail, 502);
     }
     return json;
   } finally {
