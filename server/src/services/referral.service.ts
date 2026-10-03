@@ -101,7 +101,10 @@ export const referralService = {
 
     // The person, at the referrer's company.
     let { data: contact } = await supabaseAdmin
-      .from('contacts').select('id, first_name, custom_fields').eq('user_id', userId).eq('email', email).maybeSingle();
+      .from('contacts').select('id, first_name, custom_fields, is_unsubscribed, is_bounced').eq('user_id', userId).eq('email', email).maybeSingle();
+    if (contact && ((contact as any).is_unsubscribed || (contact as any).is_bounced)) {
+      throw new AppError('That address has unsubscribed or bounced and cannot be emailed.', 409);
+    }
     if (!contact) {
       const rc = msg.contacts || {};
       contact = await contactsService.create(userId, {

@@ -47,6 +47,6 @@ replyQueueRoutes.patch('/:id/snooze', async (req: AuthRequest, res: Response, ne
     if (until !== null && typeof until !== 'string') {
       return res.status(400).json({ error: 'until must be an ISO timestamp, or null to unpark' });
     }
-    res.json(await replyQueueService.snooze(req.userId!, req.params.id, until, note));
+    res.json(await replyQueueService.snooze(req.userId!, req.params.id, until || null, note));
   } catch (err) { next(err); }
 });

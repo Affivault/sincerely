@@ -73,8 +73,9 @@ export const teamService = {
       .update({ name })
       .eq('id', org.id)
       .select()
-      .single();
+      .maybeSingle();
     if (error) throw new AppError(error.message, 500);
+    if (!data) throw new AppError('Member not found', 404);
     return data;
   },
 
@@ -105,7 +106,8 @@ export const teamService = {
     if (!member) throw new AppError('Member not found', 404);
     if (member.role === 'owner') throw new AppError('Cannot remove the owner', 400);
 
-    await supabaseAdmin.from('team_members').delete().eq('id', memberId);
+    const { error: delErr } = await supabaseAdmin.from('team_members').delete().eq('id', memberId).eq('org_id', org.id);
+    if (delErr) throw new AppError(delErr.message, 500);
   },
 
   async updateMemberRole(userId: string, memberId: string, role: TeamRole) {

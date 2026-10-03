@@ -184,8 +184,10 @@ router.get('/click/:trackingId', async (req: Request, res: Response) => {
     return res.status(400).send('Invalid URL format');
   }
 
+  // An unsigned or forged id must not bounce visitors to an arbitrary URL
+  // from our domain (open redirect).
   if (!parsed) {
-    return res.redirect(302, originalUrl);
+    return res.status(400).send('Invalid link');
   }
 
   const { campaignContactId, stepId } = parsed;

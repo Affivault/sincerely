@@ -140,6 +140,11 @@ function candidates(text: string, today: number): Found[] {
     const mo = monthNum(m[1]);
     push(m, mo === null ? null : withoutYear(mo, 1, today));
   }
+  // "until October 2026" - the first of that month in that year.
+  for (const m of text.matchAll(new RegExp(`\\b(?:in|until|till|from|early|beginning of|start of)\\s+${MONTH_RE}\\.?,?\\s+(\\d{4})\\b`, 'gi'))) {
+    const mo = monthNum(m[1]);
+    push(m, mo === null ? null : makeDay(Number(m[2]), mo, 1));
+  }
   // A weekday alone: its next occurrence. Never part of a range ("Mon-Fri").
   for (const m of text.matchAll(new RegExp(`\\b(next\\s+)?${WEEKDAY_RE}\\b`, 'gi'))) {
     const before = text.slice(Math.max(0, (m.index ?? 0) - 4), m.index);

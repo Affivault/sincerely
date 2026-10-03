@@ -2438,10 +2438,10 @@ export function InboxPage() {
   const archiveMut = useMutation({
     mutationFn: ({ id }: { id: string; contactEmail: string | null }) => inboxApi.archiveThread(id),
     onMutate: async ({ contactEmail }: { id: string; contactEmail: string | null }) => {
-      await qc.cancelQueries({ queryKey: ['inbox', folder, tagFilter, search, messageLimit] });
-      const prevData = qc.getQueryData(['inbox', folder, tagFilter, search, messageLimit]);
+      await qc.cancelQueries({ queryKey: ['inbox', folder, tagFilter, search, messageLimit, mailKindFilter] });
+      const prevData = qc.getQueryData(['inbox', folder, tagFilter, search, messageLimit, mailKindFilter]);
       if (contactEmail) {
-        qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit], (old: any) => {
+        qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit, mailKindFilter], (old: any) => {
           if (!old?.data) return old;
           return {
             ...old,
@@ -2452,7 +2452,7 @@ export function InboxPage() {
       return { prevData };
     },
     onError: (_err: any, _id: any, context: any) => {
-      if (context?.prevData) qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit], context.prevData);
+      if (context?.prevData) qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit, mailKindFilter], context.prevData);
       toast.error('Failed to archive');
     },
     onSuccess: () => {
@@ -2464,10 +2464,10 @@ export function InboxPage() {
   const unarchiveMut = useMutation({
     mutationFn: ({ id }: { id: string; contactEmail: string | null }) => inboxApi.unarchiveThread(id),
     onMutate: async ({ contactEmail }: { id: string; contactEmail: string | null }) => {
-      await qc.cancelQueries({ queryKey: ['inbox', folder, tagFilter, search, messageLimit] });
-      const prevData = qc.getQueryData(['inbox', folder, tagFilter, search, messageLimit]);
+      await qc.cancelQueries({ queryKey: ['inbox', folder, tagFilter, search, messageLimit, mailKindFilter] });
+      const prevData = qc.getQueryData(['inbox', folder, tagFilter, search, messageLimit, mailKindFilter]);
       if (contactEmail) {
-        qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit], (old: any) => {
+        qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit, mailKindFilter], (old: any) => {
           if (!old?.data) return old;
           return {
             ...old,
@@ -2478,7 +2478,7 @@ export function InboxPage() {
       return { prevData };
     },
     onError: (_err: any, _id: any, context: any) => {
-      if (context?.prevData) qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit], context.prevData);
+      if (context?.prevData) qc.setQueryData(['inbox', folder, tagFilter, search, messageLimit, mailKindFilter], context.prevData);
       toast.error('Failed to unarchive');
     },
     onSuccess: () => {
@@ -3158,6 +3158,7 @@ export function InboxPage() {
 
                     {/* A reply that hands you on to somebody else. */}
                     <ReferralCard
+                      key={currentMsg.id}
                       msg={currentMsg}
                       ownAddresses={smtpAccounts.map((a) => a.email_address)}
                       campaignName={currentMsg.campaign_name}

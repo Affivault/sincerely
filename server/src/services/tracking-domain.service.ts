@@ -193,8 +193,11 @@ export const trackingDomainService = {
       );
     }
 
-    await supabaseAdmin.from('tracking_domains').delete().eq('user_id', userId);
-    invalidateTrackingBaseUrl(userId);
+    // Claim the new domain first: if another account holds it the insert
+    // fails and the user keeps the domain they already have.
+    // Re-submitting the same domain resets it, as before.
+    await supabaseAdmin.from('tracking_domains').delete().eq('user_id', userId).eq('domain', domain);
+    const { data: previous } = await supabaseAdmin.from('tracking_domains').select('id').eq('user_id', userId);
 
     const { data, error } = await supabaseAdmin
       .from('tracking_domains')
@@ -208,6 +211,9 @@ export const trackingDomainService = {
       }
       throw new AppError(error.message, 500);
     }
+    const staleIds = (previous || []).map((r: any) => r.id).filter((id: string) => id !== (data as any).id);
+    if (staleIds.length) await supabaseAdmin.from('tracking_domains').delete().eq('user_id', userId).in('id', staleIds);
+    invalidateTrackingBaseUrl(userId);
     return data as TrackingDomainRecord;
   },
 
