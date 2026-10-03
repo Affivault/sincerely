@@ -80,7 +80,9 @@ export function findReferrals(input: {
 
   const sender = (input.senderEmail || '').trim().toLowerCase();
   const own = new Set((input.ownAddresses || []).map((a) => a.trim().toLowerCase()));
-  const ownDomains = new Set([...own].map((a) => a.split('@')[1]).filter(Boolean));
+  // A mailbox on a free-mail provider says nothing about who else is "us".
+  const FREE_MAIL = new Set(['gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com', 'yahoo.com', 'icloud.com', 'me.com', 'aol.com', 'proton.me', 'protonmail.com']);
+  const ownDomains = new Set([...own].map((a) => a.split('@')[1]).filter((d): d is string => !!d && !FREE_MAIL.has(d)));
 
   const out: Referral[] = [];
   const seen = new Set<string>();

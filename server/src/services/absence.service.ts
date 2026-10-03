@@ -47,7 +47,9 @@ export async function holdForAbsence(userId: string, contactId: string, message:
         .from('contacts')
         .update({ away_until: reading.resume_at, away_returns_on: reading.returns_on, away_note: reading.phrase })
         .eq('id', contactId)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        // An older out-of-office reached during backfill must not replace a later hold.
+        .or(`away_until.is.null,away_until.lt.${reading.resume_at}`);
       if (noteErr && /away_/.test(noteErr.message)) columnsMissing = true;
     }
 

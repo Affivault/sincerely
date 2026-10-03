@@ -100,7 +100,7 @@ function ReferralDialog({ msg, person, referrer, campaignName, onClose, onSent }
 
   const draft = useMutation({
     mutationFn: () => inboxApi.referralDraft(msg.id, { email, first_name: first || null }),
-    onSuccess: (d) => { setSubject(d.subject); setBody(d.body); },
+    onSuccess: (d) => { setSubject((s) => s || d.subject); setBody((b) => b || d.body); },
     onError: () => toast.error('The draft could not be written. Write your own below.'),
   });
   // Draft once, as the dialog opens.

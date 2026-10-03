@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contactsApi, listsApi } from '../../api/contacts.api';
@@ -61,11 +61,18 @@ export function ContactDetailPage() {
   const [eventModal, setEventModal] = useState<Partial<CrmEvent> | null | undefined>(undefined);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
 
-  const { data: contact, isLoading } = useQuery({
+  const { data: contact, isLoading, isError, refetch } = useQuery({
     queryKey: ['contacts', id],
     queryFn: () => contactsApi.get(id!),
     enabled: !!id,
   });
+
+  // Name the tab after the person, so several open contacts can be told apart.
+  const tabName = contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') || contact.email : '';
+  useEffect(() => {
+    if (!tabName) return;
+    document.title = `${tabName} · Sincerely`;
+  }, [tabName]);
 
   /*
    * Deals this person leads AND deals they are merely on.
@@ -195,6 +202,15 @@ export function ContactDetailPage() {
   }
 
   if (isLoading) return <PageSkeleton variant="detail" bleed={false} />;
+
+  if (isError && !contact) {
+    return (
+      <div className="text-center text-[var(--text-secondary)]">
+        <p>Couldn't load this contact.</p>
+        <button type="button" onClick={() => refetch()} className="mt-2 text-body font-medium text-[var(--indigo)] hover:underline">Try again</button>
+      </div>
+    );
+  }
 
   if (!contact) {
     return <div className="text-center text-[var(--text-secondary)]">Contact not found</div>;

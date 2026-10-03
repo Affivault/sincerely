@@ -260,19 +260,27 @@ export const linkedinAgentService = {
       })
       .eq('id', taskId)
       .eq('user_id', userId)
+      .eq('is_done', false)
       .select('id, channel, campaign_contact_id')
       .maybeSingle();
 
     if (error) throw new AppError(error.message, 500);
-    if (!task) throw new AppError('Task not found', 404);
+    if (!task) {
+      // A retried "done" (network timeout) must not count the action twice.
+      const { data: existing } = await supabaseAdmin
+        .from('crm_tasks').select('id').eq('id', taskId).eq('user_id', userId).maybeSingle();
+      if (!existing) throw new AppError('Task not found', 404);
+      return { ok: true };
+    }
 
     if (task.channel) {
       const s = await this.getSettings(userId);
-      await supabaseAdmin.rpc('record_linkedin_action', {
+      const { error: rpcErr } = await supabaseAdmin.rpc('record_linkedin_action', {
         uid: userId,
         action: task.channel,
         local_date: localDateString(s.timezone || 'UTC'),
       });
+      if (rpcErr) console.error(`[LinkedIn] Could not count ${task.channel} for ${userId}: ${rpcErr.message}`);
     }
     if (task.campaign_contact_id) {
       // Never let a bookkeeping failure look like the action failed — the
