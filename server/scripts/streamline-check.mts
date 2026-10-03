@@ -167,7 +167,7 @@ console.log('\nthe launch preflight fixes what it can in place');
     is(`the client runs ${kind}`, fix.includes(`case '${kind}'`));
   }
   const dialog = client('components/campaigns/LaunchPreflight.tsx');
-  is('the dialog re-reads the report after a fix', /readinessApi\.get\(\)/.test(dialog) && /onFixed=\{recheck\}/.test(dialog));
+  is('the dialog re-reads the report after a fix', /readinessApi\.get\((campaignId)?\)/.test(dialog) && /onFixed=\{recheck\}/.test(dialog));
   is('and judges it with the server\'s own rule', /launchGate\(report\)/.test(dialog) && /launchGate\(report\)/.test(server('services/campaigns.service.ts')));
   const warn = { verdict: 'risky' as const, checks: [{ id: 'safeguards', group: 'safeguards' as const, label: '', status: 'warn' as const, headline: '', detail: null, fix: null, facts: [] }] };
   is('a warning alone is risky, not blocked', launchGate(warn).gate === 'risky');

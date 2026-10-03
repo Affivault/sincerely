@@ -70,6 +70,13 @@ export const inboxApi = {
   },
 
   /** Whether Relay reads with Claude, and anyone it may have wrongly unsubscribed. */
+  /** The intro to somebody a reply pointed you to: Claude's, or a plain template. */
+  referralDraft: async (messageId: string, to: { email: string; first_name?: string | null }) =>
+    (await apiClient.post<{ subject: string; body: string; engine: 'ai' | 'template' }>(`/inbox/${messageId}/referral/draft`, to, { timeout: 60_000 })).data,
+  referralSend: async (messageId: string, input: {
+    email: string; first_name?: string | null; last_name?: string | null;
+    subject: string; body: string; smtp_account_id?: string | null; follow_up: boolean;
+  }) => (await apiClient.post<{ sent: boolean; contact_id: string; enrolled: boolean; campaign_name: string | null; campaign_running: boolean | null }>(`/inbox/${messageId}/referral`, input, { timeout: 45_000 })).data,
   relayStatus: async () => {
     const { data } = await apiClient.get<{ ai: boolean; review: RelayReviewItem[] }>('/inbox/relay-status');
     return data;

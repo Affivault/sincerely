@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inboxApi } from '../../api/inbox.api';
 import { smtpApi } from '../../api/smtp.api';
+import { ReferralCard } from '../../components/inbox/ReferralCard';
 import { templateApi } from '../../api/template.api';
 import { crmApi } from '../../api/crm.api';
 import { companiesApi } from '../../api/companies.api';
@@ -3154,6 +3155,13 @@ export function InboxPage() {
 
                     {/* Relay co-pilot — surfaces AI triage + one-tap draft */}
                     <SaraCopilot msg={currentMsg} onUseDraft={applySaraDraft} />
+
+                    {/* A reply that hands you on to somebody else. */}
+                    <ReferralCard
+                      msg={currentMsg}
+                      ownAddresses={smtpAccounts.map((a) => a.email_address)}
+                      campaignName={currentMsg.campaign_name}
+                    />
 
                     {/* Conversation timeline — day-grouped, direction-coded */}
                     <ThreadTimeline

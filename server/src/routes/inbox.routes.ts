@@ -1,5 +1,9 @@
 import { Router } from 'express';
+import type { Response, NextFunction } from 'express';
 import { inboxController } from '../controllers/inbox.controller.js';
+import type { AuthRequest } from '../middleware/auth.middleware.js';
+import { AppError } from '../middleware/error.middleware.js';
+import { referralService } from '../services/referral.service.js';
 
 export const inboxRoutes = Router();
 
@@ -43,3 +47,26 @@ inboxRoutes.post('/:id/ai-reply-assist', inboxController.aiReplyAssist);
 inboxRoutes.post('/:id/schedule-reply', inboxController.scheduleReply);
 inboxRoutes.delete('/:id/schedule', inboxController.cancelScheduled);
 inboxRoutes.put('/:id/schedule', inboxController.rescheduleScheduled);
+
+/* ── A reply that hands you on to somebody else (services/referral) ── */
+inboxRoutes.post('/:id/referral/draft', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const email = String(req.body?.email || '').trim();
+    if (!email) throw new AppError('Who is it to?', 400);
+    res.json(await referralService.draft(req.userId!, req.params.id, { email, first_name: req.body?.first_name ?? null }));
+  } catch (err) { next(err); }
+});
+
+inboxRoutes.post('/:id/referral', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json(await referralService.send(req.userId!, req.params.id, {
+      email: req.body?.email,
+      first_name: req.body?.first_name ?? null,
+      last_name: req.body?.last_name ?? null,
+      subject: String(req.body?.subject || ''),
+      body: String(req.body?.body || ''),
+      smtp_account_id: req.body?.smtp_account_id ?? null,
+      follow_up: req.body?.follow_up === true,
+    }));
+  } catch (err) { next(err); }
+});

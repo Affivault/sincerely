@@ -9,6 +9,7 @@ import { intakeBounceNotice, markBounceChecked } from './bounce-intake.service.j
 import { looksLikeBounceNotice, parseComplaintReport, SYSTEM_MAIL_HEADER, readSystemMailHeader, replyCheckTokenIn } from '@lemlist/shared';
 import { noteReplyCheck } from '../utils/reply-check-notes.js';
 import { intakeComplaint } from './complaint-intake.service.js';
+import { holdForAbsence } from './absence.service.js';
 import { fireEvent } from './webhook.service.js';
 import { markReplied, stopOtherCampaignsForContact } from './sequence.service.js';
 import {
@@ -568,6 +569,13 @@ async function ingest(msg: any, ctx: IngestContext): Promise<boolean> {
 
   if (complaint) {
     await intakeComplaint(userId, complaint, saved.id);
+  }
+
+  // An out-of-office is not an answer, so nothing stops - but the next
+  // email waits until they are back (services/absence).
+  const awayContact = matchedActivity?.contact_id || contactId;
+  if (!outbound && awayContact && autoReply.kind === 'out_of_office') {
+    await holdForAbsence(userId, awayContact, { subject, bodyText, receivedAt: row.received_at });
   }
 
   if (!outbound && !bounceNotice && !complaint && ctx.aiTaggingOn && !autoReply.kind && (!mailKind || mailKind === 'person')) {

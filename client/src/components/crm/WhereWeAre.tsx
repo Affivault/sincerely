@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Clock, Handshake, CalendarClock, Megaphone, Hourglass } from 'lucide-react';
-import { whereWeAre, dealStageLabel, formatMoney, formatDayMonth, formatWeekdayShort, formatTime } from '@lemlist/shared';
+import { Clock, Handshake, CalendarClock, Megaphone, Hourglass, Plane } from 'lucide-react';
+import { awayLabel, whereWeAre, dealStageLabel, formatMoney, formatDayMonth, formatWeekdayShort, formatTime } from '@lemlist/shared';
 import { crmApi } from '../../api/crm.api';
 import { cn, formatRelativeTime } from '../../lib/utils';
 
@@ -14,8 +14,10 @@ import { cn, formatRelativeTime } from '../../lib/utils';
  * happened since. Replaces a strip of counts - received, opens - that
  * described the relationship without saying where it stood.
  */
-export function WhereWeAre({ contactId, emails, activity, onBookMeeting, onNewDeal }: {
+export function WhereWeAre({ contactId, emails, activity, onBookMeeting, onNewDeal, away }: {
   contactId: string;
+  /** From an out-of-office (shared/away): when the next email may go, and the date they gave. */
+  away?: { until: string | null; returnsOn: string | null; note: string | null };
   emails: any[];
   activity: any[];
   onBookMeeting: () => void;
@@ -37,9 +39,18 @@ export function WhereWeAre({ contactId, emails, activity, onBookMeeting, onNewDe
   });
 
   const nextAt = w.next_step?.at ? new Date(w.next_step.at) : null;
+  const awayNote = awayLabel(away?.until, away?.returnsOn);
 
   return (
     <div className="space-y-2" data-where-we-are>
+      {awayNote && (
+        <div className="flex items-start gap-2 rounded-xl border border-sky-500/25 bg-sky-500/8 px-3.5 py-2.5 text-body text-sky-800 dark:text-sky-300" data-away>
+          <Plane className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <span>
+            {awayNote}.{away?.note ? <span className="text-sky-700/80 dark:text-sky-300/80"> They said: "{away.note}"</span> : null}
+          </span>
+        </div>
+      )}
       {w.quiet_days !== null && (
         <div className="flex items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3.5 py-2.5 text-body text-amber-800 dark:text-amber-300">
           <Hourglass className="h-4 w-4 flex-shrink-0" />
