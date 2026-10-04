@@ -46,7 +46,7 @@ export function InviteAcceptPage() {
         setError(err.response?.data?.error || 'Failed to accept invite');
       });
     return () => clearTimeout(timer);
-  }, [user, loading, token, navigate]);
+  }, [user?.id, loading, token, navigate]);
 
   if (loading || status === 'idle' || status === 'accepting') {
     return (
@@ -66,6 +66,12 @@ export function InviteAcceptPage() {
           <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
           <h1 className="text-title font-semibold text-[var(--text-primary)]">Invite accepted!</h1>
           <p className="text-strong text-[var(--text-secondary)]">Redirecting to your team page…</p>
+          <button
+            onClick={() => navigate('/team')}
+            className="mt-2 px-4 py-2 rounded-xl bg-[var(--indigo)] text-white text-strong font-semibold hover:opacity-90"
+          >
+            Go to team now
+          </button>
         </div>
       </div>
     );
