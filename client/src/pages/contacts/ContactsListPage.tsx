@@ -205,7 +205,8 @@ function CopyableEmail({ email }: { email: string }) {
         title="Copy email"
         onClick={(e) => {
           e.stopPropagation();
-          navigator.clipboard?.writeText(email).then(() => {
+          if (!navigator.clipboard) { toast.error('Could not copy email'); return; }
+          navigator.clipboard.writeText(email).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 1200);
           }).catch(() => toast.error('Could not copy email'));

@@ -506,7 +506,7 @@ export const availabilityService = {
        */
       if (e.all_day) {
         const dayStart = new Date(start);
-        dayStart.setHours(0, 0, 0, 0);
+        dayStart.setUTCHours(0, 0, 0, 0);
         return { start: dayStart, end: new Date(dayStart.getTime() + 86_400_000) };
       }
       return { start, end: resolveEnd(e, minutesById.get(e.event_type_id) ?? null) };

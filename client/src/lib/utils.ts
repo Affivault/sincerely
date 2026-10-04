@@ -38,7 +38,8 @@ export function formatRelativeTime(date: string | Date | null | undefined): stri
   const d = new Date(date);
   if (isNaN(d.getTime())) return '—';
   const diffMs = Date.now() - d.getTime();
-  if (diffMs < 0) return formatDate(d);
+  // Small client/server clock skew puts brand-new records slightly in the future.
+  if (diffMs < -60_000) return formatDate(d);
   const seconds = Math.floor(diffMs / 1000);
   if (seconds < 60) return 'just now';
   const minutes = Math.floor(seconds / 60);

@@ -160,11 +160,13 @@ export const campaignContactsService = {
       const suppressed = new Set<string>();
       const PAGE = 200;
       for (let from = 0; from < emails.length; from += PAGE) {
-        const { data: rows } = await supabaseAdmin
+        const { data: rows, error: suppressErr } = await supabaseAdmin
           .from('suppression_list')
           .select('email')
           .eq('user_id', campaign.user_id)
           .in('email', emails.slice(from, from + PAGE));
+        // Fail closed: a missed lookup would enrol suppressed addresses.
+        if (suppressErr) throw new AppError(`Could not check the suppression list: ${suppressErr.message}`, 503);
         for (const row of rows || []) if (row.email) suppressed.add(String(row.email).toLowerCase());
       }
       if (suppressed.size > 0) {

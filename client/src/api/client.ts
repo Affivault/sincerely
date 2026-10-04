@@ -79,10 +79,21 @@ apiClient.interceptors.response.use(
     }
     if (error.config && error.response?.status === 401 && !error.config._retry) {
       error.config._retry = true;
-      const { error: refreshError } = await supabase.auth.refreshSession();
+      let refreshError: any = null;
+      try {
+        ({ error: refreshError } = await supabase.auth.refreshSession());
+      } catch (e) {
+        refreshError = e;
+      }
       if (refreshError) {
-        await supabase.auth.signOut();
-        toLogin();
+        // Only a definitive auth rejection ends the session. A network blip
+        // (offline laptop waking up) must not log the user out and discard
+        // their unsaved work; surface the original 401 instead.
+        const status = refreshError.status;
+        if (status === 400 || status === 401 || status === 403) {
+          await supabase.auth.signOut();
+          toLogin();
+        }
       } else {
         // Refresh succeeded — retry the original request once with the new token
         const { data: { session } } = await supabase.auth.getSession();
