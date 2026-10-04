@@ -37,7 +37,7 @@ export const teamService = {
       org_id: org.id,
       user_id: userId,
       role: 'owner',
-      email: user?.user?.email,
+      email: user?.user?.email?.toLowerCase(),
     });
 
     if (memberError) {
@@ -121,9 +121,11 @@ export const teamService = {
       .update({ role })
       .eq('id', memberId)
       .eq('org_id', org.id)
+      .neq('role', 'owner')
       .select()
-      .single();
+      .maybeSingle();
     if (error) throw new AppError(error.message, 500);
+    if (!data) throw new AppError('Member not found', 404);
     return data;
   },
 

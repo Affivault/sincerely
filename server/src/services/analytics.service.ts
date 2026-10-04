@@ -17,7 +17,7 @@ function calcChange(current: number, prev: number): number | null {
 
 function daysAgoISO(days: number): string {
   const d = new Date();
-  d.setDate(d.getDate() - days);
+  d.setUTCDate(d.getUTCDate() - days);
   return d.toISOString();
 }
 
@@ -242,7 +242,7 @@ export const analyticsService = {
 
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date();
-      d.setDate(d.getDate() - i);
+      d.setUTCDate(d.getUTCDate() - i);
       const key = d.toISOString().slice(0, 10);
       byDate[key] = { sent: 0, opened: 0, clicked: 0, replied: 0 };
     }
@@ -969,7 +969,7 @@ export const analyticsService = {
     const byDate: Record<string, { sent: number; opened: number; clicked: number; replied: number; bounced: number }> = {};
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date();
-      d.setDate(d.getDate() - i);
+      d.setUTCDate(d.getUTCDate() - i);
       byDate[d.toISOString().slice(0, 10)] = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
     }
 

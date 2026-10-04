@@ -173,22 +173,25 @@ export async function guardAfterBounce(
       .select('id, name')
       .maybeSingle();
 
+    let didPause = !!paused;
     if (error) {
       // A pre-045 database has no paused_reason column. Pausing still matters
       // more than explaining, so retry without the explanation.
       if (/paused_reason|paused_at/.test(error.message)) {
-        await supabaseAdmin
+        const { data: fallback } = await supabaseAdmin
           .from('campaigns')
           .update({ status: 'paused' })
           .eq('id', campaignId)
-          .eq('status', 'running');
+          .eq('status', 'running')
+          .select('id');
+        didPause = !!fallback && fallback.length > 0;
       } else {
         console.error(`[BounceGuard] Could not pause campaign ${campaignId}:`, error.message);
         return verdict;
       }
     }
 
-    if (paused || !error) {
+    if (didPause) {
       console.warn(
         `[BounceGuard] Paused campaign ${campaignId} — ${verdict.bounced}/${verdict.sent} bounced ` +
         `(${(verdict.rate * 100).toFixed(1)}%, lower bound ${(verdict.confidentRate * 100).toFixed(1)}%, ` +
