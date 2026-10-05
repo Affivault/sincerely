@@ -158,6 +158,8 @@ export const campaignsController = {
   async resumePaused(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter((x: unknown) => typeof x === 'string') : undefined;
+      // An explicit empty selection means "nobody"; only an absent list means "all".
+      if (ids && ids.length === 0) return res.json({ resumed: 0 });
       const resumed = await resumePausedContacts(req.userId!, req.params.id, ids);
       res.json({ resumed });
     } catch (err) { next(err); }

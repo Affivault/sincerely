@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import type { SmtpAccount, SmtpAccountHealthSummary, SseSelectionResult } from '@lemlist/shared';
 import { autopilotAllowance } from '@lemlist/shared';
+import { AppError } from '../middleware/error.middleware.js';
 
 /**
  * SSE - Smart-Sharding Engine
@@ -350,22 +351,26 @@ export async function setCampaignPool(
   campaignId: string,
   accountIds: string[]
 ): Promise<void> {
-  // Remove existing
-  await supabaseAdmin
+  // An empty pool means "any verified mailbox", so a failed write must not
+  // leave one behind: check both steps rather than widening the campaign.
+  const unique = Array.from(new Set(accountIds));
+
+  const { error: delErr } = await supabaseAdmin
     .from('campaign_smtp_accounts')
     .delete()
     .eq('campaign_id', campaignId);
+  if (delErr) throw new AppError(delErr.message, 500);
 
-  // Insert new
-  if (accountIds.length > 0) {
-    const rows = accountIds.map((id, idx) => ({
+  if (unique.length > 0) {
+    const rows = unique.map((id, idx) => ({
       campaign_id: campaignId,
       smtp_account_id: id,
       priority: idx,
     }));
-    await supabaseAdmin
+    const { error: insErr } = await supabaseAdmin
       .from('campaign_smtp_accounts')
       .insert(rows);
+    if (insErr) throw new AppError(insErr.message, 500);
   }
 }
 
