@@ -1262,6 +1262,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       if (!activeResize.current) return;
       window.removeEventListener('pointermove', activeResize.current.onMove);
       window.removeEventListener('pointerup', activeResize.current.onUp);
+      window.removeEventListener('pointercancel', activeResize.current.onUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       activeResize.current = null;
@@ -1285,15 +1286,17 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       activeResize.current = null;
       setResizingCol(null);
-      localStorage.setItem('contacts.colWidths', JSON.stringify(latest));
+      try { localStorage.setItem('contacts.colWidths', JSON.stringify(latest)); } catch { /* storage unavailable */ }
     };
     activeResize.current = { onMove, onUp };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
   };

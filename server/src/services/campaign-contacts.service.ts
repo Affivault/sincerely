@@ -50,7 +50,7 @@ export const campaignContactsService = {
     // 1. Look up the campaign's bound lead list
     const { data: campaign } = await supabaseAdmin
       .from('campaigns')
-      .select('id, user_id, list_id')
+      .select('id, user_id, list_id, status, scheduled_at')
       .eq('id', campaignId)
       .maybeSingle();
     if (!campaign) throw new AppError('Campaign not found', 404);
@@ -283,6 +283,26 @@ export const campaignContactsService = {
             throw new AppError(error.message, 500);
           }
         }
+      }
+    }
+
+    // launch() is the only thing that turns pending into active, so people added
+    // to a campaign that is already live would otherwise sit pending forever
+    // while the UI reported them as enrolled. A scheduled campaign holds them
+    // until its start time, exactly as launch() would have.
+    if (newIds.length > 0 && (campaign.status === 'running' || campaign.status === 'scheduled')) {
+      const startAt = campaign.status === 'scheduled' && campaign.scheduled_at
+        && new Date(campaign.scheduled_at).getTime() > Date.now()
+        ? new Date(campaign.scheduled_at).toISOString()
+        : new Date().toISOString();
+      for (const slice of chunk(newIds, 200)) {
+        const { error: actErr } = await supabaseAdmin
+          .from('campaign_contacts')
+          .update({ status: 'active', next_send_at: startAt })
+          .eq('campaign_id', campaignId)
+          .eq('status', 'pending')
+          .in('contact_id', slice);
+        if (actErr) console.error('[CampaignContacts] Failed to activate new enrolments for', campaignId, ':', actErr.message);
       }
     }
 
