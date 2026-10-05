@@ -25,7 +25,7 @@
 
 import { partsInTimezone, tzWallTimeToUtc } from './timezone.js';
 
-export type NotifySetting = 'email_notifications' | 'campaign_alerts' | 'reply_notifications' | 'weekly_digest';
+export type NotifySetting = 'email_notifications' | 'campaign_alerts' | 'reply_notifications' | 'weekly_digest' | 'monthly_results';
 
 export interface NotifyMail {
   setting: NotifySetting;

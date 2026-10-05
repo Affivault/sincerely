@@ -196,6 +196,28 @@ function replyCheckResult(kind) {
     detail: 'sam@affivault.io answered alex@affivault.com, inbox sync found the answer, matched it and stopped the sequence - in 34 seconds.' };
 }
 
+function resultsReport(period) {
+  const last = period === 'last_month';
+  const empty = !!process.env.EMPTY;
+  const N = (o) => ({ sent: 0, replies: 0, positive: 0, meetings: 0, deals: 0, pipeline: [], won_deals: 0, won: [], ...o });
+  const current = empty ? N({}) : N({ sent: last ? 4120 : 1180, replies: last ? 211 : 64, positive: last ? 64 : 19, meetings: last ? 23 : 7, deals: last ? 9 : 3, pipeline: [{ currency: 'GBP', amount: last ? 84000 : 26000 }], won_deals: last ? 2 : 0, won: last ? [{ currency: 'GBP', amount: 12000 }] : [] });
+  const before = N({ sent: last ? 3800 : 1240, replies: last ? 180 : 58, positive: last ? 50 : 15, meetings: last ? 15 : 6, deals: last ? 6 : 3, pipeline: [{ currency: 'GBP', amount: last ? 50000 : 31000 }], won_deals: 1, won: [{ currency: 'GBP', amount: 7500 }] });
+  return {
+    period: last ? { key: 'last_month', label: 'September 2026', from: '2026-08-31T23:00:00.000Z', to: '2026-09-30T23:00:00.000Z', end: '2026-09-30T23:00:00.000Z', partial: false }
+      : { key: 'this_month', label: 'October 2026', from: '2026-09-30T23:00:00.000Z', to: iso(now), end: '2026-10-31T23:00:00.000Z', partial: true },
+    previous: { key: 'custom', label: last ? 'August 2026' : 'the same days of September 2026', from: '', to: '', end: '', partial: false },
+    current, before,
+    headline: empty ? (last ? 'Nothing went out in September 2026.' : 'Nothing went out in October 2026 so far.')
+      : last ? 'From 4,120 emails in September 2026: 23 meetings, £84K of new pipeline and £12K closed.' : 'From 1,180 emails in October 2026 so far: 7 meetings and £26K of new pipeline.',
+    campaigns: empty ? [] : [
+      { id: 'cmp1', name: 'Q3 Fintech outreach', sent: last ? 2100 : 600, replies: last ? 120 : 35, meetings: last ? 14 : 4, deals: last ? 5 : 2, pipeline: [{ currency: 'GBP', amount: last ? 52000 : 18000 }], won: last ? [{ currency: 'GBP', amount: 12000 }] : [] },
+      { id: 'cmp2', name: 'Broker partnerships - EU', sent: last ? 1400 : 420, replies: last ? 71 : 22, meetings: last ? 7 : 3, deals: last ? 3 : 1, pipeline: [{ currency: 'GBP', amount: last ? 26000 : 8000 }], won: [] },
+      { id: 'cmp3', name: 'Webinar follow-up', sent: last ? 620 : 160, replies: last ? 20 : 7, meetings: last ? 2 : 0, deals: last ? 1 : 0, pipeline: last ? [{ currency: 'GBP', amount: 6000 }] : [], won: [] },
+    ],
+    generated_at: iso(now),
+  };
+}
+
 function answer(method, path, q) {
   if (method === 'POST' && /\/campaigns\/write-sequence$/.test(path)) {
     return { name: 'ISA platforms - affiliate partnership', rationale: 'Leads with the partner economics.', engine: 'ai', leads: 58, personalized: 52, personalize_requested: true,
@@ -216,6 +238,7 @@ function answer(method, path, q) {
     ] };
   }
   if (method === 'POST' && path === '/system/reply-check') return replyCheckResult('ok');
+  if (method === 'POST' && path === '/results/shares') return { id: 'sh2', token: 'Zq3vXk9TmA0bR7wLp2sY5nC8dE1fG4hJ', title: 'Results - September 2026', period_label: 'September 2026', from: '2026-08-31T23:00:00.000Z', to: '2026-09-30T23:00:00.000Z', show_campaigns: true, views: 0, last_viewed_at: null, created_at: iso(now), revoked_at: null };
   if (method === 'POST' && /^\/inbox\/[^/]+\/referral\/draft$/.test(path)) return { engine: 'ai', subject: 'Sofia suggested I reach out',
     body: "Hi Sam,\n\nSofia suggested I get in touch - she mentioned you look after partnerships at Northbeam.\n\nWe run affiliate partnerships for UK investment platforms, and partners typically see their first funded accounts within a month.\n\nWould a 15-minute call next week be worth it?\n\nAlex" };
   if (method === 'POST' && /^\/inbox\/[^/]+\/referral$/.test(path)) return { sent: true, contact_id: 'c2', enrolled: true, campaign_name: 'Q3 Fintech outreach', campaign_running: true };
@@ -229,6 +252,7 @@ function answer(method, path, q) {
   if (method === 'POST' && path === '/notifications/test') return { sent: true, from: 'alex@affivault.com', to: 'alex@affivault.com' };
   if (method === 'POST' && path === '/notifications/digest') return { sent: true, subject: 'Your week: 420 sent, 21 replies, 3 meetings' };
   if (method !== 'GET') return { success: true };
+  if (/^\/api\/report\/[A-Za-z0-9_-]+$/.test(path)) return { title: 'Results for Northbeam - September 2026', prepared_by: 'AffiVault', report: resultsReport('last_month') };
   const P = path.replace(/\/+$/, '');
   const seg = P.split('/');
   switch (P) {
@@ -252,6 +276,8 @@ function answer(method, path, q) {
     case '/inbox/sync/progress': return mailboxes.map((b) => ({ smtp_account_id: b.id, email_address: b.email_address, window_months: 6, oldest_synced_at: ago(180), history_complete: true, stored: 412, last_synced_at: ago(0.01), last_error: null }));
     case '/smtp-accounts': return mailboxes;
     case '/autopilot': return autopilotStatus();
+    case '/results': return resultsReport(q.get('period') || 'this_month');
+    case '/results/shares': return process.env.SHARES ? [{ id: 'sh1', token: 'Ab3vXk9TmA0bR7wLp2sY5nC8dE1fG4hJ', title: 'Results for Northbeam - September 2026', period_label: 'September 2026', from: '', to: '', show_campaigns: true, views: 4, last_viewed_at: ago(0.2), created_at: ago(2), revoked_at: null }] : [];
     case '/autopilot/complaints': return process.env.COMPLAINTS
       ? { total: 2, sent: 1840, items: [
         { id: 'cp-a', at: ago(0.4), email: 'j.doe@yahoo.com', provider: 'Yahoo', campaign_id: 'cmp1', campaign_name: 'UK brokers - Q4', mailbox: 'alex@affivault.com' },

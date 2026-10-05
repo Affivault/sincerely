@@ -12,6 +12,7 @@ export interface UserSettings {
   campaign_alerts: boolean;
   reply_notifications: boolean;
   weekly_digest: boolean;
+  monthly_results?: boolean;
   default_signature: string;
   theme: string;
   sara_enabled: boolean;

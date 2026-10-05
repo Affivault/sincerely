@@ -14,7 +14,8 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 import { supabaseAdmin } from '../config/supabase.js';
-import { buildDigest, digestDue, digestSlot, type DigestNumbers } from '@lemlist/shared';
+import { buildDigest, digestDue, digestSlot, monthlyResultsDue, buildResultsEmail, type DigestNumbers } from '@lemlist/shared';
+import { resultsService } from './results.service.js';
 import { sendToOwner } from './notify.service.js';
 import { systemStatusService } from './system-status.service.js';
 import { replyQueueService } from './reply-queue.service.js';
@@ -152,4 +153,45 @@ export async function runDigests(now = Date.now()): Promise<{ sent: number }> {
 
 export function digestReady(): boolean {
   return !columnMissing;
+}
+
+/* ── Monthly results (shared/results) ──────────────────────────────── */
+
+let monthlyColumnMissing = false;
+
+/** On the 1st, last month's results to every account that wants them. Cross-tenant; scheduler only. */
+export async function runMonthlyResults(now = Date.now()): Promise<{ sent: number }> {
+  if (monthlyColumnMissing) return { sent: 0 };
+  const { data: rows, error } = await supabaseAdmin
+    .from('user_settings')
+    .select('user_id, timezone, monthly_results, last_results_month');
+  if (error) {
+    if (/monthly_results|last_results_month/.test(error.message)) { monthlyColumnMissing = true; return { sent: 0 }; }
+    throw new Error(`monthly results accounts: ${error.message}`);
+  }
+  let sent = 0;
+  for (const r of rows || []) {
+    const row = r as any;
+    if (row.monthly_results === false) continue;
+    const key = monthlyResultsDue(row.last_results_month, now, row.timezone);
+    if (!key) continue;
+    // Claim the month before sending, so it goes once.
+    const claim = supabaseAdmin.from('user_settings').update({ last_results_month: key }).eq('user_id', row.user_id);
+    const { data: won } = await (row.last_results_month ? claim.eq('last_results_month', row.last_results_month) : claim.is('last_results_month', null)).select('user_id');
+    if (!won?.length) continue;
+    try {
+      const report = await resultsService.report(row.user_id, 'last_month', { now });
+      // Nothing went out and nothing came back: no email about nothing.
+      const c = report.current;
+      if (!c.sent && !c.replies && !c.meetings && !c.deals && !c.won_deals) continue;
+      const { subject, text } = buildResultsEmail(report);
+      if (await sendToOwner(row.user_id, {
+        subject, text, href: '/analytics/results?period=last_month',
+        footer: 'Your monthly results. Turn them off in Settings, Notifications.',
+      })) sent++;
+    } catch (err: any) {
+      console.error(`[Results] monthly for ${row.user_id}: ${err?.message || err}`);
+    }
+  }
+  return { sent };
 }

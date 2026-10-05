@@ -8,6 +8,7 @@ import { assetController } from './controllers/asset.controller.js';
 import { webhookInboundRoutes } from './routes/webhook-inbound.routes.js';
 import { trackingRoutes } from './routes/tracking.routes.js';
 import { publicBookingRoutes } from './routes/booking.routes.js';
+import { publicResultsRoutes } from './routes/results.routes.js';
 import { integrationsOAuthRoutes } from './routes/integrations-oauth.routes.js';
 import { calendarOAuthRoutes } from './routes/calendar-oauth.routes.js';
 import { billingController } from './controllers/billing.controller.js';
@@ -57,6 +58,8 @@ app.use('/api/oauth/calendar', calendarOAuthRoutes);
 // Public booking pages (no auth - a stranger with a link is the point).
 // Rate limited in the router; every response is a hand-written whitelist.
 app.use('/api/book', publicBookingRoutes);
+// Shared results pages: read-only, the token is the key (services/results-share).
+app.use('/api/report', publicResultsRoutes);
 
 // Routes (authenticated)
 app.use('/api/v1', routes);

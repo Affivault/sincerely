@@ -17,6 +17,8 @@ export interface UserSettings {
   campaign_alerts: boolean;
   reply_notifications: boolean;
   weekly_digest: boolean;
+  /** On the 1st: last month's results, by email (services/digest). */
+  monthly_results: boolean;
   default_signature: string;
   theme: string;
   sara_enabled: boolean;
@@ -57,6 +59,7 @@ const DEFAULTS: Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at
   campaign_alerts: true,
   reply_notifications: true,
   weekly_digest: false,
+  monthly_results: true,
   default_signature: '',
   theme: 'system',
   sara_enabled: true,
