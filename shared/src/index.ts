@@ -72,3 +72,4 @@ export * from './notify.js';
 export * from './away.js';
 export * from './referral.js';
 export * from './content-check.js';
+export * from './results.js';

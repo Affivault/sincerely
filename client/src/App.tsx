@@ -31,6 +31,8 @@ const StartPage            = lazyRoute('/start', () => import('./pages/start/Sta
 const RepliesPage          = lazyRoute('/replies', () => import('./pages/replies/RepliesPage'), m => m.RepliesPage);
 const SegmentsPage         = lazyRoute('/analytics/segments', () => import('./pages/analytics/SegmentsPage'), m => m.SegmentsPage);
 const RevenuePage          = lazyRoute('/analytics/revenue', () => import('./pages/analytics/RevenuePage'), m => m.RevenuePage);
+const ResultsPage          = lazyRoute('/analytics/results', () => import('./pages/analytics/ResultsPage'), m => m.ResultsPage);
+const SharedResultsPage    = lazyRoute('/r/:token', () => import('./pages/public/SharedResultsPage'), m => m.SharedResultsPage);
 const ContactsListPage     = lazyRoute(['/leads', '/contacts'], () => import('./pages/contacts/ContactsListPage'), m => m.ContactsListPage);
 const ContactDetailPage    = lazyRoute('/contacts/:id', () => import('./pages/contacts/ContactDetailPage'), m => m.ContactDetailPage);
 const BulkImportPage       = lazyRoute('/contacts/import', () => import('./pages/contacts/BulkImportPage'), m => m.BulkImportPage);
@@ -158,6 +160,8 @@ export default function App() {
         */}
         <Route path="/b/:slug"          element={<BookPage />} />
         <Route path="/booking/:token"   element={<ManageBookingPage />} />
+        {/* Shared results: public and read-only, like the booking pages. */}
+        <Route path="/r/:token"         element={<SharedResultsPage />} />
 
         {/* Protected app routes */}
         <Route
@@ -200,6 +204,7 @@ export default function App() {
           <Route path="/replies"            element={<RepliesPage />} />
           <Route path="/domains"            element={<Navigate to="/email-accounts" replace />} />
           <Route path="/analytics"          element={<AnalyticsDashboardPage />} />
+          <Route path="/analytics/results"   element={<ResultsPage />} />
           <Route path="/analytics/revenue"   element={<RevenuePage />} />
           <Route path="/analytics/revenue/:id" element={<CampaignRevenuePage />} />
           <Route path="/analytics/segments"   element={<SegmentsPage />} />

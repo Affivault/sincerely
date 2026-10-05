@@ -111,6 +111,7 @@ export function SettingsPage() {
   const [campaignAlerts, setCampaignAlerts] = useState(true);
   const [replyNotifications, setReplyNotifications] = useState(true);
   const [weeklyDigest, setWeeklyDigest] = useState(false);
+  const [monthlyResults, setMonthlyResults] = useState(true);
 
   const [defaultSignature, setDefaultSignature] = useState('');
 
@@ -172,6 +173,7 @@ export function SettingsPage() {
       setCampaignAlerts(settings.campaign_alerts ?? true);
       setReplyNotifications(settings.reply_notifications ?? true);
       setWeeklyDigest(settings.weekly_digest ?? false);
+      setMonthlyResults(settings.monthly_results ?? true);
       setDefaultSignature(settings.default_signature || '');
       setAiTaggingEnabled((settings as any).ai_tagging_enabled ?? settings.sara_enabled ?? true);
       setAiAutoClassify(settings.sara_auto_classify ?? true);
@@ -230,6 +232,7 @@ export function SettingsPage() {
       campaign_alerts: campaignAlerts,
       reply_notifications: replyNotifications,
       weekly_digest: weeklyDigest,
+      monthly_results: monthlyResults,
       default_signature: defaultSignature,
       theme: themeMode,
       sara_enabled: aiTaggingEnabled,
@@ -712,6 +715,12 @@ export function SettingsPage() {
                     description="Monday at 8am in your time zone: what went out, who replied, meetings booked, what bounced, and anything that needs a look."
                     checked={weeklyDigest}
                     onChange={(v) => { setWeeklyDigest(v); markChanged(); }}
+                  />
+                  <ToggleSetting
+                    label="Monthly results"
+                    description="On the 1st: last month's meetings, pipeline and revenue from outreach, compared with the month before. Only sent when something went out."
+                    checked={monthlyResults}
+                    onChange={(v) => { setMonthlyResults(v); markChanged(); }}
                   />
                 </div>
 

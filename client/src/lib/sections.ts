@@ -28,7 +28,7 @@
 import {
   Home, Inbox, Megaphone, Users, Handshake, BarChart3, Settings as SettingsIcon,
   Waves, LayoutDashboard, MessageSquare, Sparkles, Layers, FileText, CalendarClock,
-  Contact2, Building2, Radar, CalendarDays, ListTodo, Link2, Clock, Banknote, Crosshair,
+  Contact2, Building2, Radar, CalendarDays, ListTodo, Link2, Clock, Banknote, Crosshair, Trophy,
   LineChart, Users as TeamIcon, CreditCard, AtSign, Activity, Target, Ban, ShieldCheck,
   Blocks, Linkedin, Code2, Wrench, BookOpen, HeartPulse, type LucideIcon,
 } from 'lucide-react';
@@ -103,6 +103,7 @@ export const SECTIONS: Section[] = [
     id: 'insights', name: 'Insights', href: '/analytics', icon: BarChart3, goKey: 'a',
     tabs: [
       { label: 'Analytics', href: '/analytics', icon: BarChart3, exact: true, keywords: 'stats reports metrics' },
+      { label: 'Results', href: '/analytics/results', icon: Trophy, keywords: 'results report roi meetings pipeline share month' },
       { label: 'Revenue', href: '/analytics/revenue', icon: Banknote, keywords: 'money attribution earned' },
       { label: 'What closes', href: '/analytics/segments', icon: Crosshair, keywords: 'segments who buys icp' },
       { label: 'Win / loss', href: '/deals/insights', icon: LineChart, keywords: 'win rate lost reasons velocity' },

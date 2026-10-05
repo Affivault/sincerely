@@ -15,9 +15,12 @@ import { cn } from '../../lib/utils';
  * preference, and put back on the way out so returning to the app does not
  * leave it stuck on whatever a booking page chose.
  */
-export function PublicShell({ children, wide }: {
+export function PublicShell({ children, wide, footer = 'Scheduling by Sincerely', bare }: {
   children: React.ReactNode;
   wide?: boolean;
+  footer?: string;
+  /** No card around the content: for pages that bring their own panels. */
+  bare?: boolean;
 }) {
   useEffect(() => {
     const root = document.documentElement;
@@ -44,11 +47,13 @@ export function PublicShell({ children, wide }: {
   return (
     <div className="min-h-screen bg-[var(--bg-elevated)] px-4 py-8 sm:py-14">
       <div className={cn('mx-auto', wide ? 'max-w-4xl' : 'max-w-md')}>
-        <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 sm:p-7 shadow-sm">
-          {children}
-        </div>
+        {bare ? children : (
+          <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 sm:p-7 shadow-sm">
+            {children}
+          </div>
+        )}
         <p className="mt-4 text-center text-caption text-[var(--text-tertiary)]">
-          Scheduling by Sincerely
+          {footer}
         </p>
       </div>
     </div>
