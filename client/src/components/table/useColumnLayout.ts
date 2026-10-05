@@ -77,7 +77,7 @@ export function useColumnLayout({
   // table unmounts mid-resize (route change, browser back/forward) — without
   // this they stayed attached to window forever, since only pointerup ever
   // removed them.
-  const activeResize = useRef<{ onMove: (ev: PointerEvent) => void; onUp: () => void } | null>(null);
+  const activeResize = useRef<{ onMove: (ev: PointerEvent) => void; onUp: () => void; onKey: (ev: KeyboardEvent) => void } | null>(null);
 
   useEffect(() => {
     return () => {
@@ -85,6 +85,7 @@ export function useColumnLayout({
       window.removeEventListener('pointermove', activeResize.current.onMove);
       window.removeEventListener('pointerup', activeResize.current.onUp);
       window.removeEventListener('pointercancel', activeResize.current.onUp);
+      window.removeEventListener('keydown', activeResize.current.onKey);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       activeResize.current = null;
@@ -101,6 +102,7 @@ export function useColumnLayout({
     setResizingCol(id);
     // Track the gesture's own result rather than reading state back, so the
     // value written to storage is the one the user let go on.
+    const initial: Record<string, number> = { ...widths };
     let latest: Record<string, number> = { ...widths };
 
     const onMove = (ev: PointerEvent) => {
@@ -108,21 +110,32 @@ export function useColumnLayout({
       latest = { ...latest, [id]: w };
       setWidths(latest);
     };
-    const onUp = () => {
+    const finish = (commit: boolean) => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
+      window.removeEventListener('keydown', onKey);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       activeResize.current = null;
       setResizingCol(null);
-      write(widthKey, latest);
+      if (commit) {
+        write(widthKey, latest);
+      } else {
+        // Escape abandons the drag and puts the column back where it started.
+        setWidths(initial);
+      }
+    };
+    const onUp = () => finish(true);
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') finish(false);
     };
 
-    activeResize.current = { onMove, onUp };
+    activeResize.current = { onMove, onUp, onKey };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
+    window.addEventListener('keydown', onKey);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
   };

@@ -16,6 +16,9 @@ import {
   type TriageResult,
 } from '@lemlist/shared';
 
+// Results that point at a lead somebody else made; see markInterested.
+const preExistingLeadResults = new WeakSet<object>();
+
 /* ═══════════════════════════════════════════════════════════════════════
    Acting on a reply.
 
@@ -155,7 +158,7 @@ export const triageService = {
      */
     await supabaseAdmin
       .from('inbox_messages')
-      .update({ triage_ref: result.lead_id || result.task_id || null })
+      .update({ triage_ref: (preExistingLeadResults.has(result) ? null : result.lead_id) || result.task_id || null })
       .eq('id', message.id)
       .eq('user_id', userId);
 
@@ -363,11 +366,14 @@ export const triageService = {
      */
     const existing = await leadsService.list(userId, { status: 'open', contactId: message.contact_id });
     if (existing.length > 0) {
-      return {
+      const reused: TriageResult = {
         decision: 'interested',
         lead_id: existing[0].id,
         message: `Already a lead: ${existing[0].title}`,
       };
+      // Not created here, so undo must not delete it.
+      preExistingLeadResults.add(reused);
+      return reused;
     }
 
     const { data: contact } = await supabaseAdmin
