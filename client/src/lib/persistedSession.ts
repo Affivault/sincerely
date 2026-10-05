@@ -74,7 +74,9 @@ export function parsePersistedSession(raw: string | null, now = Date.now()): Use
   try {
     let text = raw;
     if (text.startsWith('base64-')) {
-      text = atob(text.slice('base64-'.length).replace(/-/g, '+').replace(/_/g, '/'));
+      const bin = atob(text.slice('base64-'.length).replace(/-/g, '+').replace(/_/g, '/'));
+      // atob yields a Latin-1 string; the payload is UTF-8 JSON.
+      text = new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
     }
     const parsed = JSON.parse(text);
     const session = parsed?.currentSession ?? parsed;

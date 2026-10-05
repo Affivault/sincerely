@@ -35,17 +35,23 @@ export function InviteAcceptPage() {
     acceptedFor.current = user.id;
 
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
     setStatus('accepting');
     teamApi.acceptInvite(token)
       .then(() => {
+        if (cancelled) return;
         setStatus('success');
         timer = setTimeout(() => navigate('/team'), 2000);
       })
       .catch((err) => {
+        if (cancelled) return;
         setStatus('error');
         setError(err.response?.data?.error || 'Failed to accept invite');
       });
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [user?.id, loading, token, navigate]);
 
   if (loading || status === 'idle' || status === 'accepting') {
