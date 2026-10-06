@@ -1324,7 +1324,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
     const next = { ...colWidths };
     delete next[id];
     setColWidths(next);
-    localStorage.setItem('contacts.colWidths', JSON.stringify(next));
+    try { localStorage.setItem('contacts.colWidths', JSON.stringify(next)); } catch { /* storage unavailable */ }
   };
 
   // Collapsible folders (persisted) + drag-and-drop of lists into folders

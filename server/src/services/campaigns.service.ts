@@ -735,12 +735,11 @@ export const campaignsService = {
     // picked up by the sequence worker once next_send_at arrives.
     if (!isScheduled) {
       console.log(`[Campaign] Launched campaign ${id} — triggering immediate processing`);
-      try {
-        const processed = await processDueSteps();
-        console.log(`[Campaign] Immediate processing: ${processed} contact(s) processed`);
-      } catch (err: any) {
-        console.error('[Campaign] Immediate processing error:', err.message);
-      }
+      // Fire-and-forget: sending up to a batch of emails takes far longer than
+      // the client's request timeout, and the launch itself has already succeeded.
+      processDueSteps()
+        .then((processed) => console.log(`[Campaign] Immediate processing: ${processed} contact(s) processed`))
+        .catch((err: any) => console.error('[Campaign] Immediate processing error:', err?.message ?? String(err)));
     } else {
       console.log(`[Campaign] Scheduled campaign ${id} to start at ${firstSendAt}`);
     }
@@ -802,6 +801,9 @@ export const campaignsService = {
 
   async retryErrors(userId: string, id: string) {
     const campaign = await this.get(userId, id); // ownership check
+    // A cancelled campaign stays cancelled: resuming it here would also restart
+    // sending to every other contact still sitting 'active' on it.
+    if (campaign.status === 'cancelled') throw new AppError('Cancelled campaigns cannot be retried', 400);
     const now = new Date().toISOString();
     const { data, error } = await supabaseAdmin
       .from('campaign_contacts')
@@ -818,12 +820,12 @@ export const campaignsService = {
     // only ever pick up contacts whose campaign is still 'running' — without
     // resuming it here, the contacts just reactivated above would sit as 'active'
     // forever and never actually get retried.
-    if ((data?.length || 0) > 0 && (campaign.status === 'completed' || campaign.status === 'cancelled')) {
+    if ((data?.length || 0) > 0 && campaign.status === 'completed') {
       const { error: resumeErr } = await supabaseAdmin
         .from('campaigns')
         .update({ status: 'running', completed_at: null })
         .eq('id', id)
-        .in('status', ['completed', 'cancelled']);
+        .eq('status', 'completed');
       if (resumeErr) console.error(`[Campaign] Failed to resume ${id} after retrying errors:`, resumeErr.message);
     }
 

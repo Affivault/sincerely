@@ -409,7 +409,7 @@ function wrapLinks(html: string, trackingId: string, base: string): string {
       if (url.includes('/api/track/') || url.includes('unsubscribe')) {
         return `href=${quote}${url}${quote}`;
       }
-      const encoded = Buffer.from(url).toString('base64url');
+      const encoded = Buffer.from(url.replace(/&amp;/g, '&')).toString('base64url');
       const trackUrl = `${base}/api/track/click/${trackingId}?url=${encoded}`;
       return `href=${quote}${trackUrl}${quote}`;
     }

@@ -847,7 +847,7 @@ export const publicBookingService = {
       .from('contacts')
       .select('id, first_name, last_name, phone, company')
       .eq('user_id', userId)
-      .ilike('email', who.email)
+      .ilike('email', who.email.replace(/([%_\\])/g, '\\$1')) // literal match: _ and % are legal in addresses
       .maybeSingle();
 
     const [first, ...rest] = who.name.split(/\s+/);
@@ -1101,7 +1101,7 @@ export const publicBookingService = {
         status: 'cancelled',
         cancelled_at: new Date().toISOString(),
         cancelled_by: by,
-        cancel_reason: (reason || '').trim().slice(0, 500) || null,
+        cancel_reason: (typeof reason === 'string' ? reason : '').trim().slice(0, 500) || null,
       })
       .eq('id', booking.id);
     if (error) throw new AppError(error.message, 500);

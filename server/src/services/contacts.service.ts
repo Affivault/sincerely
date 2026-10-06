@@ -827,10 +827,15 @@ export const contactsService = {
     const flat = (data || []).map((r: any) => {
       const { custom_fields, ...rest } = r;
       return (custom_fields && typeof custom_fields === 'object' && !Array.isArray(custom_fields))
-        ? { ...rest, ...custom_fields }
+        ? { ...custom_fields, ...rest } // real columns win over same-named custom fields
         : rest;
     });
-    const csv = Papa.unparse(flat);
+    // Papa.unparse(objects) takes its columns from the first row only; use the
+    // union so custom fields missing on the first contact aren't dropped.
+    const fields: string[] = [];
+    const seen = new Set<string>();
+    for (const row of flat) for (const k of Object.keys(row)) if (!seen.has(k)) { seen.add(k); fields.push(k); }
+    const csv = Papa.unparse({ fields, data: flat.map((row: any) => fields.map((f) => row[f])) });
     return { data: csv, format: 'csv' };
   },
 
