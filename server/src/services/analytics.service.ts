@@ -394,8 +394,10 @@ export const analyticsService = {
     lines.push('Email,Name,Status,DCS,Sent,Opened,Clicked,Replied,Bounced');
     for (const c of contacts) {
       const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || '';
-      const csvEmail = `"${c.email.replace(/"/g, '""')}"`;
-      const csvName = `"${name.replace(/"/g, '""')}"`;
+      // Neutralise spreadsheet formulas (=, +, -, @) in imported text.
+      const csvSafe = (v: string) => `"${(/^[=+\-@\t\r]/.test(v) ? `'${v}` : v).replace(/"/g, '""')}"`;
+      const csvEmail = csvSafe(String(c.email ?? ''));
+      const csvName = csvSafe(name);
       lines.push(`${csvEmail},${csvName},${c.status},${c.dcs_score ?? ''},${c.sent},${c.opened},${c.clicked},${c.replied ? 'Yes' : 'No'},${c.is_bounced ? 'Yes' : 'No'}`);
     }
 
@@ -427,7 +429,7 @@ export const analyticsService = {
     lines.push('Campaigns');
     lines.push('Name,Status,Created');
     for (const c of campaigns || []) {
-      lines.push(`"${c.name}",${c.status},${c.created_at}`);
+      lines.push(`"${String(c.name ?? '').replace(/"/g, '""')}",${c.status},${c.created_at}`);
     }
 
     return lines.join('\n');

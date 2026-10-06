@@ -630,6 +630,10 @@ export function SmtpAccountModal({
     if (!editId && (!activePreset || autoDetected)) {
       const detected = detectPresetFromEmail(email);
       if (detected) {
+        // A known provider needs no MX lookup; cancel any pending one for the
+        // half-typed domain so it can't report on (or overwrite) this preset.
+        clearTimeout(mxTimer.current);
+        mxCheckedDomain.current = '';
         setActivePreset(detected);
         setAutoDetected(true);
         setMxState({ status: 'idle', note: '' });

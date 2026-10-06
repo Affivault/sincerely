@@ -84,9 +84,9 @@ async function downloadCsv(url: string, filename: string) {
     link.href = URL.createObjectURL(blob);
     link.download = filename;
     link.click();
-    URL.revokeObjectURL(link.href);
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   } catch {
-    window.open(url, '_blank');
+    toast.error('Export failed. Please try again.');
   }
 }
 

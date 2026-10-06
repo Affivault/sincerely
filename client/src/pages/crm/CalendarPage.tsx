@@ -406,7 +406,7 @@ export function CalendarPage() {
   const shift = (dir: -1 | 1) => {
     setAnchor((a) => {
       const d = new Date(a);
-      if (view === 'month') d.setMonth(d.getMonth() + dir);
+      if (view === 'month') { d.setDate(1); d.setMonth(d.getMonth() + dir); }
       else if (view === 'week') d.setDate(d.getDate() + 7 * dir);
       else if (view === 'day') d.setDate(d.getDate() + dir);
       else d.setDate(d.getDate() + 14 * dir);

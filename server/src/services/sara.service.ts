@@ -445,6 +445,20 @@ export async function processReply(messageId: string, requestingUserId?: string)
     throw new AppError('Message not found', 404);
   }
 
+  // Already handled: re-classifying would put a sent or dismissed reply back
+  // in the review queue, where approving it again emails the prospect twice.
+  if (requestingUserId && (message.sara_status === SaraStatus.Sent
+    || message.sara_status === SaraStatus.Approved
+    || message.sara_status === SaraStatus.Dismissed)) {
+    return {
+      intent: (message.sara_intent as SaraIntent) ?? SaraIntent.Other,
+      confidence: message.sara_confidence ?? 0,
+      action: message.sara_action ?? 'none',
+      draft_reply: message.sara_draft_reply ?? null,
+      reasoning: 'Already handled - not re-classified.',
+    };
+  }
+
   // Relay is a paid feature — skip classification/auto-actions when not included.
   if (message.user_id && !(await billingService.hasFeature(message.user_id, 'sara'))) {
     return {

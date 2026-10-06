@@ -187,8 +187,8 @@ export default function App() {
             nothing cold reaches it. Separate routes rather than a toggle so
             each is linkable and neither can be mistaken for the other.
           */}
-          <Route path="/leads"              element={<ContactsListPage kind="lead" />} />
-          <Route path="/contacts"           element={<ContactsListPage kind="contact" />} />
+          <Route path="/leads"              element={<ContactsListPage key="lead" kind="lead" />} />
+          <Route path="/contacts"           element={<ContactsListPage key="contact" kind="contact" />} />
           <Route path="/contacts/import"    element={<BulkImportPage />} />
           <Route path="/contacts/:id"       element={<ContactDetailPage />} />
           <Route path="/campaigns"          element={<CampaignsListPage />} />

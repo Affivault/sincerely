@@ -1067,7 +1067,10 @@ async function processLinkedinStep(cc: any, step: any, steps: any[]): Promise<vo
   // beats parking the contact forever on work nobody can complete.
   if (!contact.linkedin_url) {
     await supabaseAdmin.from('campaign_activities').insert({
+      campaign_id: cc.campaign_id,
       campaign_contact_id: cc.id,
+      contact_id: cc.contact_id,
+      step_id: step.id,
       activity_type: 'skipped',
       metadata: { step_order: step.step_order, step_type: step.step_type, reason: 'no_linkedin_url' },
     }).then(() => {}, () => {});

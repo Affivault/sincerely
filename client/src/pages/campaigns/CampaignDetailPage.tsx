@@ -578,14 +578,14 @@ export function CampaignDetailPage() {
                   Resume {campaignContacts.data.filter(isColleaguePause).length} paused
                 </button>
               )}
-              {campaignContacts.data.some((cc: any) => cc.status === 'error') && (
+              {campaign.status !== 'cancelled' && campaignContacts.data.some((cc: any) => cc.status === 'error') && (
                 <button
                   onClick={() => retryErrorsMutation.mutate()}
                   disabled={retryErrorsMutation.isPending}
                   className="ml-auto flex items-center gap-1.5 h-8 px-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 text-body font-medium hover:bg-amber-100 disabled:opacity-50 transition-colors dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60"
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${retryErrorsMutation.isPending ? 'animate-spin' : ''}`} />
-                  Retry errors
+                  Retry {campaignContacts.data.filter((cc: any) => cc.status === 'error').length} errored
                 </button>
               )}
             </div>

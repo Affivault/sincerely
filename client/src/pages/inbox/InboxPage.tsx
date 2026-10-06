@@ -2178,7 +2178,7 @@ export function InboxPage() {
   const [messageLimit, setMessageLimit] = useState(50);
   useEffect(() => {
     setMessageLimit(50);
-  }, [folder, tagFilter, search]);
+  }, [folder, tagFilter, search, mailKindFilter]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   /*
