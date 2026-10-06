@@ -6,6 +6,7 @@ import { fireEvent } from './webhook.service.js';
 import {
   noteSmtpOutcome,
   outboundSmtpStatus,
+  releaseSmtpProbeSlot,
   shouldSkipSmtpProbe,
   smtpBlockedMessage,
 } from './smtp-reachability.service.js';
@@ -93,6 +94,12 @@ async function checkSmtp(
     .sort((a, b) => a.priority - b.priority);
 
   if (sorted.length === 0) {
+    // Bailing out before a socket was ever opened: this says nothing about
+    // port 25 reachability, so release the retest slot without recording an
+    // outcome. Otherwise, whenever this early return is the allowed one
+    // retest after a cooldown, `probing` never gets cleared and every future
+    // verification silently skips its real SMTP check forever.
+    releaseSmtpProbeSlot();
     return { ok: false, checked: true, reason: 'No MX records' };
   }
 
