@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, Printer } from 'lucide-react';
 import { publicResultsApi } from '../../api/results.api';
 import { ResultsView } from '../../components/results/ResultsView';
 import { PublicShell } from './PublicShell';
@@ -39,9 +39,18 @@ export function SharedResultsPage() {
   const d = q.data;
   return (
     <PublicShell wide bare footer="Results by Sincerely">
-      <div className="mb-4">
-        <h1 className="text-title font-semibold text-[var(--text-primary)]" data-shared-title>{d.title}</h1>
-        {d.prepared_by && <p className="mt-0.5 text-body text-[var(--text-tertiary)]">From {d.prepared_by}</p>}
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-title font-semibold text-[var(--text-primary)]" data-shared-title>{d.title}</h1>
+          {d.prepared_by && <p className="mt-0.5 text-body text-[var(--text-tertiary)]">From {d.prepared_by}</p>}
+        </div>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-2.5 py-1.5 text-caption text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] print:hidden"
+        >
+          <Printer className="h-3.5 w-3.5" /> Print or save as PDF
+        </button>
       </div>
       <ResultsView report={d.report} linkCampaigns={false} />
     </PublicShell>

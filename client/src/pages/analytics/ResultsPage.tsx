@@ -151,6 +151,10 @@ function ShareList() {
   const revoke = useMutation({
     mutationFn: resultsApi.revoke,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['results', 'shares'] }); toast.success('Link switched off'); },
+    onError: (err: any) => {
+      qc.invalidateQueries({ queryKey: ['results', 'shares'] });
+      toast.error(err?.response?.data?.error || 'The link could not be switched off.');
+    },
   });
   if (!data || data.length === 0) return null;
   return (

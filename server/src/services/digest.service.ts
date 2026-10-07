@@ -190,6 +190,9 @@ export async function runMonthlyResults(now = Date.now()): Promise<{ sent: numbe
         footer: 'Your monthly results. Turn them off in Settings, Notifications.',
       })) sent++;
     } catch (err: any) {
+      // Give the month back, or a failed report means that month's email never goes.
+      await supabaseAdmin.from('user_settings').update({ last_results_month: row.last_results_month ?? null })
+        .eq('user_id', row.user_id).eq('last_results_month', key).then(() => {}, () => {});
       console.error(`[Results] monthly for ${row.user_id}: ${err?.message || err}`);
     }
   }

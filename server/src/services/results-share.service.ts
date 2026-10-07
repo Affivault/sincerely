@@ -70,9 +70,11 @@ export const resultsShareService = {
   },
 
   async revoke(userId: string, id: string): Promise<void> {
-    const { error } = await supabaseAdmin.from('report_shares')
-      .update({ revoked_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId);
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new AppError('Link not found', 404);
+    const { data, error } = await supabaseAdmin.from('report_shares')
+      .update({ revoked_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId).is('revoked_at', null).select('id');
     if (error) throw new AppError(error.message, 500);
+    if (!data?.length) throw new AppError('Link not found', 404);
   },
 
   /** For the public page. Null for anything not live. */

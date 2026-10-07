@@ -166,7 +166,9 @@ export function previousPeriod(period: ResultsPeriod, timeZone?: string | null):
   const p = partsInTimezone(new Date(from + 86_400_000), tz);
   const months = period.key === 'this_quarter' ? 3 : period.key === 'this_year' ? 12 : 1;
   const prevFrom = startOfMonth(p.year, p.month - months, tz).getTime();
-  const prevTo = Math.min(prevFrom + length, from);
+  // Only a running period is cut to the same stretch; a finished one is set
+  // against the whole of the one before (28-day February vs all of January).
+  const prevTo = period.partial ? Math.min(prevFrom + length, from) : from;
   const q = partsInTimezone(new Date(prevFrom + 86_400_000), tz);
   const name = months === 12 ? String(q.year) : months === 3 ? `Q${Math.floor((q.month - 1) / 3) + 1} ${q.year}` : `${MONTHS[q.month - 1]} ${q.year}`;
   return {
