@@ -54,7 +54,10 @@ async function gather(userId: string, period: Pick<ResultsPeriod, 'from' | 'to'>
       .eq('user_id', userId).eq('direction', 'inbound').not('campaign_id', 'is', null)
       .in('sara_intent', ['interested', 'meeting'])
       .gte('received_at', from).lt('received_at', to)
-      .then((r) => r.count || 0),
+      .then((r) => {
+        if (r.error) throw new Error(`results positive: ${r.error.message}`);
+        return r.count || 0;
+      }),
     supabaseAdmin.from('crm_events').select('id, source_campaign_id')
       .eq('user_id', userId).eq('type', 'meeting').not('source_campaign_id', 'is', null).is('cancelled_at', null)
       .gte('created_at', from).lt('created_at', to)
