@@ -16,6 +16,7 @@
 
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { stripDashes } from '@lemlist/shared';
 import { escapeHtml } from '../utils/html.js';
 import { settingsService } from './settings.service.js';
 import { listsService } from './lists.service.js';
@@ -40,7 +41,7 @@ export interface WrittenStep {
 }
 
 /** Shown where no first line could honestly be written for a lead. */
-const FIRST_LINE_FALLBACK = 'Came across your team and had a quick idea worth sharing.';
+const FIRST_LINE_FALLBACK = 'This is probably something that lands on your desk.';
 
 function toHtml(text: string): string {
   return text
@@ -52,7 +53,7 @@ function toHtml(text: string): string {
 
 /** Merge tags survive escaping; {{first_line}} always carries a fallback. */
 function finishBody(text: string): string {
-  return text.replace(/\{\{\s*first_line\s*\}\}/g, `{{first_line|${FIRST_LINE_FALLBACK}}}`);
+  return stripDashes(text).replace(/\{\{\s*first_line\s*\}\}/g, `{{first_line|${FIRST_LINE_FALLBACK}}}`);
 }
 
 function firstSentence(text: string): string {
@@ -68,32 +69,33 @@ function templateSequence(offer: string, steps: number, usesFirstLines: boolean,
   const rest = firstMatch ? trimmed.slice(firstMatch[1].length).trim() : '';
   const sign = sender ? `\n\n${sender}` : '';
   const opener = usesFirstLines ? '{{first_line}}\n\n' : '';
-  const all = [
-    {
-      delay_days: 0,
-      subject: 'quick question',
-      body: `Hi {{first_name|there}},\n\n${opener}${pitch}\n\nWould it be worth a short call to see whether it fits {{company|your team}}?${sign}`,
-    },
-    {
-      delay_days: 3,
-      subject: '',
-      body: `Hi {{first_name|there}},\n\n${rest ? firstSentence(rest) : 'One thing I should have said: it takes about ten minutes to see whether this is a fit.'}\n\nIf someone else looks after this at {{company|your team}}, I would be grateful for a pointer.${sign}`,
-    },
-    {
-      delay_days: 4,
-      subject: '',
-      body: `Hi {{first_name|there}},\n\nI will leave it here so I am not cluttering your inbox. If it is ever useful, just reply to this and I will pick it up.${sign}`,
-    },
-    {
-      delay_days: 5,
-      subject: '',
-      body: `Hi {{first_name|there}},\n\nLast note from me. Thanks for reading - happy to help whenever the timing is better.${sign}`,
-    },
-  ];
+  const hi = 'Hi {{first_name|there}},\n\n';
+  const first = {
+    delay_days: 0,
+    subject: 'idea for {{company|your team}}',
+    body: `${hi}${opener}${pitch}\n\nIs {{company|your team}} already sorted on this, or is it worth a look?${sign}`,
+  };
+  const pointer = {
+    delay_days: 3,
+    subject: '',
+    body: `${hi}${rest ? firstSentence(rest) : 'The short version: one call is enough to know whether this fits.'}\n\nIf someone else owns this at {{company|your team}}, who should I speak to?${sign}`,
+  };
+  const setup = {
+    delay_days: 4,
+    subject: '',
+    body: `${hi}One question usually settles it: how is {{company|your team}} handling this today?\n\nA one-line answer is plenty.${sign}`,
+  };
+  const close = {
+    delay_days: 5,
+    subject: '',
+    body: `${hi}Last note from me on this.\n\nReply YES and I'll send the specifics for {{company|your team}}, or NO and I'll leave it there. Either way, I'll know where we stand.${sign}`,
+  };
+  const n = Math.max(1, Math.min(4, steps));
+  const all = n === 1 ? [first] : n === 2 ? [first, close] : n === 3 ? [first, pointer, close] : [first, pointer, setup, close];
   return {
     name: `Outreach - ${pitch.slice(0, 40)}`,
-    steps: all.slice(0, Math.max(1, Math.min(4, steps))),
-    rationale: 'A plain three-part structure from your description: the offer, a useful follow-up that asks for the right person, and a polite close.',
+    steps: all,
+    rationale: 'A plain structure from your description: the offer with a yes-or-no question, a follow-up that asks for the right person, and a clear last note.',
   };
 }
 
@@ -169,7 +171,7 @@ export const sequenceWriterService = {
     // The sender does not thread by Message-ID, so a blank follow-up subject
     // would go out blank. "Re: <first subject>" is what keeps it reading as
     // the same conversation in the recipient's inbox.
-    const opening = (seq.steps[0]?.subject || 'quick question').trim();
+    const opening = stripDashes((seq.steps[0]?.subject || 'idea for {{company|your team}}').trim());
     const steps: WrittenStep[] = seq.steps.map((s, i) => {
       const body = finishBody(s.body);
       const subject = i === 0 ? opening : (s.subject?.trim() || `Re: ${opening}`);

@@ -18,6 +18,7 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 import { stripQuoted } from './reply-text.js';
+import { stripDashes } from './writing.js';
 
 export interface Referral {
   email: string;
@@ -124,15 +125,15 @@ export function referralIntro(input: {
   const lines = [
     `Hi ${input.toFirstName || 'there'},`,
     '',
-    `${who}${input.referrerCompany ? ` at ${input.referrerCompany}` : ''} suggested I get in touch with you as the right person to talk to.`,
+    `${who}${input.referrerCompany ? ` at ${input.referrerCompany}` : ''} suggested I get in touch, as you are the right person for this.`,
     '',
-    offer ? `In short: ${offer.replace(/^[a-z]/, (c) => c.toLowerCase())}` : 'I would like to share a short idea that could be useful for your team.',
+    offer ? `In short: ${offer}` : 'It is about something your team likely looks after.',
     '',
-    'Would you be open to a 15-minute call next week?',
+    'Worth 15 minutes next week, or is someone else closer to this?',
   ];
   if (input.senderFirstName) lines.push('', input.senderFirstName);
   return {
     subject: input.referrerFirstName ? `${input.referrerFirstName} suggested I reach out` : 'A quick introduction',
-    body: lines.join('\n'),
+    body: stripDashes(lines.join('\n')),
   };
 }
