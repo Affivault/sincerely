@@ -3,6 +3,7 @@ import type { Response, NextFunction } from 'express';
 import { campaignsController } from '../controllers/campaigns.controller.js';
 import type { AuthRequest } from '../middleware/auth.middleware.js';
 import { applyContentRewrites } from '../services/content-check.service.js';
+import { experimentsService } from '../services/experiments.service.js';
 
 export const campaignRoutes = Router();
 
@@ -31,6 +32,34 @@ campaignRoutes.get('/:id/reach', campaignsController.reach);
 // Lifecycle
 campaignRoutes.post('/:id/launch', campaignsController.launch);
 // The launch review's "Apply rewrites": plain words for spam-trigger phrases.
+/* ── Let Relay improve this campaign (services/experiments) ───────── */
+campaignRoutes.get('/:id/improve', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await experimentsService.status(req.userId!, req.params.id)); } catch (err) { next(err); }
+});
+campaignRoutes.put('/:id/improve', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const patch: { enabled?: boolean; auto?: boolean } = {};
+    if (typeof req.body?.enabled === 'boolean') patch.enabled = req.body.enabled;
+    if (typeof req.body?.auto === 'boolean') patch.auto = req.body.auto;
+    res.json(await experimentsService.configure(req.userId!, req.params.id, patch));
+  } catch (err) { next(err); }
+});
+campaignRoutes.post('/:id/improve/:experimentId/approve', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const edits = req.body && (typeof req.body.subject === 'string' || typeof req.body.body_html === 'string')
+      ? { subject: typeof req.body.subject === 'string' ? req.body.subject : undefined, body_html: typeof req.body.body_html === 'string' ? req.body.body_html : undefined }
+      : undefined;
+    await experimentsService.approve(req.userId!, req.params.experimentId, edits);
+    res.json(await experimentsService.status(req.userId!, req.params.id));
+  } catch (err) { next(err); }
+});
+campaignRoutes.post('/:id/improve/:experimentId/stop', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { await experimentsService.stop(req.userId!, req.params.experimentId); res.json(await experimentsService.status(req.userId!, req.params.id)); } catch (err) { next(err); }
+});
+campaignRoutes.post('/:id/improve/:experimentId/undo', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { await experimentsService.undo(req.userId!, req.params.experimentId); res.json(await experimentsService.status(req.userId!, req.params.id)); } catch (err) { next(err); }
+});
+
 campaignRoutes.post('/:id/content-fixes', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     res.json(await applyContentRewrites(req.userId!, req.params.id));

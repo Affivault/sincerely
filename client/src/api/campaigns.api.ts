@@ -1,3 +1,4 @@
+import type { ImproveStatus } from '@lemlist/shared';
 import { apiClient } from './client';
 import type {
   Campaign,
@@ -92,6 +93,14 @@ export const campaignsApi = {
    * refuses a risky launch once, with the reasons, and accepts it on the
    * second ask. A 422 is never overridable: blocked means it cannot work.
    */
+  /** Let Relay improve this campaign (shared/experiments). */
+  improve: async (id: string) => (await apiClient.get<ImproveStatus>(`/campaigns/${id}/improve`)).data,
+  setImprove: async (id: string, patch: { enabled?: boolean; auto?: boolean }) =>
+    (await apiClient.put<ImproveStatus>(`/campaigns/${id}/improve`, patch, { timeout: 60_000 })).data,
+  approveTest: async (id: string, testId: string, edits?: { subject?: string; body_html?: string }) =>
+    (await apiClient.post<ImproveStatus>(`/campaigns/${id}/improve/${testId}/approve`, edits || {})).data,
+  stopTest: async (id: string, testId: string) => (await apiClient.post<ImproveStatus>(`/campaigns/${id}/improve/${testId}/stop`)).data,
+  undoTest: async (id: string, testId: string) => (await apiClient.post<ImproveStatus>(`/campaigns/${id}/improve/${testId}/undo`)).data,
   /** Plain words for the spam-trigger phrases the launch review found. */
   applyContentFixes: async (id: string) =>
     (await apiClient.post<{ changed: number; steps: number }>(`/campaigns/${id}/content-fixes`)).data,

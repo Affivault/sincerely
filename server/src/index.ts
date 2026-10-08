@@ -10,6 +10,7 @@ import { startAutopilotScheduler } from './jobs/schedulers/autopilot.scheduler.j
 import { startWatchdogScheduler } from './jobs/schedulers/watchdog.scheduler.js';
 import { startReplyCheckScheduler } from './jobs/schedulers/reply-check.scheduler.js';
 import { startDigestScheduler } from './jobs/schedulers/digest.scheduler.js';
+import { startImproveScheduler } from './jobs/schedulers/improve.scheduler.js';
 import { startProspectRulesScheduler } from './jobs/schedulers/prospect-rules.scheduler.js';
 import { startAbPromoteScheduler } from './jobs/schedulers/ab-promote.scheduler.js';
 import { startBookingReminderScheduler } from './jobs/schedulers/booking-reminder.scheduler.js';
@@ -106,6 +107,15 @@ const server = app.listen(port, () => {
     console.log('Digest scheduler started');
   } catch (err: any) {
     console.warn('Digest scheduler failed to start:', err.message);
+  }
+
+  // Campaigns that improve themselves: tests proposed, run and settled.
+  try {
+    const improve = startImproveScheduler();
+    if (improve) disposers.push(() => improve.stop());
+    console.log('Improve scheduler started');
+  } catch (err: any) {
+    console.warn('Improve scheduler failed to start:', err.message);
   }
 
   // Inbox placement: look for the seed probes of any test still running.
