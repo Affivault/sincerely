@@ -239,7 +239,7 @@ function answer(method, path, q) {
   if (method === 'POST' && /\/campaigns\/write-sequence$/.test(path)) {
     return { name: 'ISA platforms - affiliate partnership', rationale: 'Leads with the partner economics.', engine: 'ai', leads: 58, personalized: 52, personalize_requested: true,
       steps: [
-        { delay_days: 0, subject: 'partnering with {{company|your team}}', body_text: 'Hi {{first_name|there}},\n\n{{first_line}}\n\nWe run affiliate partnerships for UK investment platforms.', body_html: '<p>Hi {{first_name|there}},</p><p>{{first_line|Came across your team and had a quick idea worth sharing.}}</p><p>We run affiliate partnerships for UK investment platforms.</p>' },
+        { delay_days: 0, subject: 'partnering with {{company|your team}}', body_text: 'Hi {{first_name|there}},\n\n{{first_line}}\n\nWe run affiliate partnerships for UK investment platforms.', body_html: '<p>Hi {{first_name|there}},</p><p>{{first_line|This is probably something that lands on your desk.}}</p><p>We run affiliate partnerships for UK investment platforms.</p>' },
         { delay_days: 3, subject: 'Re: partnering with {{company|your team}}', body_text: 'Hi {{first_name|there}},\n\nOne more thing.', body_html: '<p>Hi {{first_name|there}},</p><p>One more thing.</p>' },
         { delay_days: 4, subject: 'Re: partnering with {{company|your team}}', body_text: 'Hi {{first_name|there}},\n\nI will leave it here.', body_html: '<p>Hi {{first_name|there}},</p><p>I will leave it here.</p>' },
       ] };

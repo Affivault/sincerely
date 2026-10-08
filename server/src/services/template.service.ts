@@ -12,22 +12,27 @@ import type {
 } from '@lemlist/shared';
 
 // ─── Preset Email Templates ─────────────────────────────────────────
+//
+// Written to the same standard Relay writes to (shared/src/writing.ts):
+// one idea per email, the reader's world before ours, one question that
+// can be answered in a line, no long dashes and no stock phrases. The
+// template check holds every preset to it.
 
 const PRESET_EMAIL_TEMPLATES: Omit<EmailTemplate, 'id' | 'user_id' | 'created_at' | 'updated_at'>[] = [
   {
-    name: 'The Warm Opener',
-    subject: 'Quick question about {{company|your company}}',
+    name: 'The Observation Opener',
+    subject: '{{pain_point|this}} at {{company|your company}}',
     body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I came across {{company|your company}} and was genuinely impressed by what you're building. The way you're approaching {{industry|your industry}} is refreshing.</p>
+<p>Most teams in {{industry|your industry}} don't have a {{pain_point|this}} problem. They have a time problem that shows up as one.</p>
 
-<p>I'm reaching out because we help companies like yours {{value_proposition|grow faster}}. I think there might be a natural fit here.</p>
+<p>It usually surfaces at the worst point in the quarter, when there's no room left to fix it properly.</p>
 
-<p>Would you be open to a quick 15-minute chat this week to explore if we can help?</p>
+<p>We help companies like {{company|your company}} {{value_proposition|grow faster}} without adding headcount to do it.</p>
 
-<p>Either way, keep up the great work.</p>
+<p>Is this already sorted at {{company|your company}}, or worth a look?</p>
 
-<p>Best,<br>{{sender_name}}</p>`,
+<p>{{sender_name}}</p>`,
     category: 'cold_outreach',
     tags: ['cold', 'opener', 'personalized'],
     is_preset: true,
@@ -35,52 +40,50 @@ const PRESET_EMAIL_TEMPLATES: Omit<EmailTemplate, 'id' | 'user_id' | 'created_at
   },
   {
     name: 'The Value-First',
-    subject: 'Idea to help {{company|your company}} with {{pain_point|this}}',
+    subject: 'idea for {{company|your company}}',
     body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I noticed {{company|your company}} might be dealing with {{pain_point|this}} — it's something we see a lot in {{industry|your industry}}.</p>
+<p>{{pain_point|This}} comes up in almost every {{industry|your industry}} team we speak to, and it rarely gets fixed until it costs a quarter.</p>
 
-<p>We recently helped a similar company {{result_achieved|see real results}}, and I thought the same approach could work for you.</p>
+<p>We helped a team in a similar spot {{result_achieved|see real results}}. The change was smaller than they expected.</p>
 
-<p>I put together a quick breakdown of how it'd apply to your situation. Worth a look?</p>
+<p>I can send a short breakdown of how it would apply at {{company|your company}}. Want it?</p>
 
-<p>Happy to walk through it if you're interested.</p>
-
-<p>Cheers,<br>{{sender_name}}</p>`,
+<p>{{sender_name}}</p>`,
     category: 'cold_outreach',
     tags: ['cold', 'value', 'solution'],
     is_preset: true,
     usage_count: 0,
   },
   {
-    name: 'The Gentle Follow-Up',
-    subject: 'Re: Quick question about {{company|your company}}',
+    name: 'The Second Touch',
+    subject: 'Re: {{pain_point|this}} at {{company|your company}}',
     body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>Just floating this back to the top of your inbox — I know things get buried.</p>
+<p>One thing I left out. The cost of {{pain_point|this}} is rarely the money. It's the hours your team spends working around it, every week.</p>
 
-<p>I'd love to show you how we've helped teams like yours {{key_benefit|move faster}}. It typically takes about 15 minutes and there's zero commitment.</p>
+<p>That's the part we take off their plate, so they can {{key_benefit|move faster}}.</p>
 
-<p>Would any time this week work for a quick call?</p>
+<p>Would it help to see how other {{industry|your industry}} teams have set this up?</p>
 
-<p>Best,<br>{{sender_name}}</p>`,
+<p>{{sender_name}}</p>`,
     category: 'follow_up',
-    tags: ['follow-up', 'gentle', 'second-touch'],
+    tags: ['follow-up', 'second-touch', 'insight'],
     is_preset: true,
     usage_count: 0,
   },
   {
-    name: 'The Social Proof',
-    subject: 'How {{reference_company|a company much like yours}} solved {{pain_point|this}}',
+    name: 'The Proof',
+    subject: 'how {{reference_company|a similar team}} handled it',
     body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I wanted to share a quick story that might resonate.</p>
+<p>One example, so this is easier to picture.</p>
 
-<p>{{reference_company|a company much like yours}} was facing the exact same challenge — {{pain_point|this}}. Within {{timeframe|a quarter}}, they were able to {{result_achieved|see real results}}.</p>
+<p>{{reference_company|A team much like yours}} had the same issue with {{pain_point|this}}. Within {{timeframe|a quarter}}, they {{result_achieved|saw real results}}, without changing how the rest of the team works.</p>
 
-<p>Here's the interesting part: the fix was simpler than they expected.</p>
+<p>Different setup to yours, I'm sure. Same problem underneath.</p>
 
-<p>I think we could replicate something similar for {{company|your company}}. Open to hearing how?</p>
+<p>Worth 15 minutes to see how it would translate for {{company|your company}}?</p>
 
 <p>{{sender_name}}</p>`,
     category: 'cold_outreach',
@@ -89,15 +92,15 @@ const PRESET_EMAIL_TEMPLATES: Omit<EmailTemplate, 'id' | 'user_id' | 'created_at
     usage_count: 0,
   },
   {
-    name: 'The Break-Up Email',
-    subject: 'Closing the loop',
+    name: 'The Last Note',
+    subject: 'yes or no, {{first_name|there}}',
     body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I've reached out a couple of times and haven't heard back — totally understand, you're busy.</p>
+<p>Last note from me on this.</p>
 
-<p>I'll take the hint and won't follow up again. But if {{pain_point|this}} ever becomes a priority, I'm just a reply away.</p>
+<p>Reply YES and I'll send the specifics for {{company|your company}}. Reply NO and I'll close it off on my side.</p>
 
-<p>Wishing you and the {{company|your company}} team all the best.</p>
+<p>Either way, I'll know where we stand.</p>
 
 <p>{{sender_name}}</p>`,
     category: 'follow_up',
@@ -107,22 +110,20 @@ const PRESET_EMAIL_TEMPLATES: Omit<EmailTemplate, 'id' | 'user_id' | 'created_at
   },
   {
     name: 'The Meeting Request',
-    subject: '{{first_name|there}}, quick sync?',
+    subject: '15 minutes, {{first_name|there}}?',
     body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I have an idea that could help {{company|your company}} {{key_benefit|move faster}} — but I'd rather show than tell.</p>
+<p>Easier to show than explain: how {{company|your company}} could {{key_benefit|move faster}} on {{pain_point|this}}.</p>
 
-<p>Are you free for a quick 15-minute call this week? I promise to keep it focused and valuable.</p>
-
-<p>Here are a couple of times that work on my end:</p>
+<p>Two times that work for me:</p>
 <ul>
   <li>{{time_slot_1|Tuesday afternoon}}</li>
   <li>{{time_slot_2|Thursday morning}}</li>
 </ul>
 
-<p>If those don't work, feel free to suggest a time that does.</p>
+<p>Does either suit, or is someone else closer to this?</p>
 
-<p>Looking forward to it,<br>{{sender_name}}</p>`,
+<p>{{sender_name}}</p>`,
     category: 'meeting_request',
     tags: ['meeting', 'call', 'calendar'],
     is_preset: true,
@@ -130,16 +131,16 @@ const PRESET_EMAIL_TEMPLATES: Omit<EmailTemplate, 'id' | 'user_id' | 'created_at
   },
   {
     name: 'The Re-Engagement',
-    subject: 'It\'s been a while, {{first_name|there}}',
+    subject: 'since we last spoke',
     body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>It's been a while since we last connected, and a lot has changed on our end.</p>
+<p>When we last spoke, the timing wasn't right for {{company|your company}}.</p>
 
-<p>We've recently {{new_feature_or_update|something new}} which I think would be really relevant for {{company|your company}} given your focus on {{focus_area|the year ahead}}.</p>
+<p>Since then we've {{new_feature_or_update|changed how this works}}, which matters given your focus on {{focus_area|the year ahead}}.</p>
 
-<p>Would love to catch up and see if there's a fit now. Are you open to reconnecting?</p>
+<p>Has anything moved on your side, or is it still a no for now?</p>
 
-<p>Best,<br>{{sender_name}}</p>`,
+<p>{{sender_name}}</p>`,
     category: 're_engagement',
     tags: ['re-engage', 'reconnect', 'update'],
     is_preset: true,
@@ -147,16 +148,16 @@ const PRESET_EMAIL_TEMPLATES: Omit<EmailTemplate, 'id' | 'user_id' | 'created_at
   },
   {
     name: 'The Warm Introduction',
-    subject: '{{mutual_connection|Someone we both know}} suggested I reach out',
+    subject: '{{mutual_connection|a mutual contact}} suggested I get in touch',
     body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>{{mutual_connection|Someone we both know}} mentioned you'd be the right person to talk to about {{topic|this}}.</p>
+<p>{{mutual_connection|A mutual contact}} said you're the person to speak to about {{topic|this}} at {{company|your company}}.</p>
 
-<p>We've been helping companies in {{industry|your industry}} with {{value_proposition|grow faster}}, and they thought there might be some synergy worth exploring.</p>
+<p>We help {{industry|your industry}} teams {{value_proposition|grow faster}}, and they thought it was worth putting us in touch.</p>
 
-<p>Would you be open to a quick chat? I'd love to learn more about what you're working on at {{company|your company}}.</p>
+<p>Worth 15 minutes next week, or is someone else closer to it?</p>
 
-<p>Thanks,<br>{{sender_name}}</p>`,
+<p>{{sender_name}}</p>`,
     category: 'introduction',
     tags: ['referral', 'warm', 'introduction'],
     is_preset: true,
@@ -169,7 +170,7 @@ const PRESET_EMAIL_TEMPLATES: Omit<EmailTemplate, 'id' | 'user_id' | 'created_at
 const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'created_at' | 'updated_at'>[] = [
   {
     name: 'Classic 3-Step Outreach',
-    description: 'The proven cold outreach formula: personalized intro, value follow-up, and a respectful break-up. Perfect for first-time campaigns.',
+    description: 'An observation and a yes-or-no question, a follow-up that names the hidden cost, and a clear last note. A good first campaign.',
     category: 'cold_outreach',
     tags: ['cold', 'proven', 'beginner-friendly'],
     is_preset: true,
@@ -177,29 +178,29 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
     steps: [
       {
         step_order: 1,
-        subject: 'Quick question about {{company|your company}}',
+        subject: '{{pain_point|this}} at {{company|your company}}',
         body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I came across {{company|your company}} and was impressed by what you're building in {{industry|your industry}}.</p>
+<p>Most {{industry|your industry}} teams don't have a {{pain_point|this}} problem. They have a time problem that shows up as one.</p>
 
-<p>We help companies like yours {{value_proposition|grow faster}}, and I think there's a great fit here.</p>
+<p>We help companies like {{company|your company}} {{value_proposition|grow faster}} without adding headcount to do it.</p>
 
-<p>Would you be open to a quick 15-minute chat this week?</p>
+<p>Is this already sorted at {{company|your company}}, or worth a look?</p>
 
-<p>Best,<br>{{sender_name}}</p>`,
+<p>{{sender_name}}</p>`,
         delay_days: 0,
         delay_hours: 0,
       },
       {
         step_order: 2,
-        subject: 'Re: Quick question about {{company|your company}}',
+        subject: 'Re: {{pain_point|this}} at {{company|your company}}',
         body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>Just following up on my previous note. I know your inbox is probably packed.</p>
+<p>The cost of {{pain_point|this}} is rarely the money. It's the hours spent working around it, every week, by people who should be doing something else.</p>
 
-<p>Here's why I think this is worth 15 minutes: we recently helped a company similar to {{company|your company}} achieve {{result_achieved|see real results}}.</p>
+<p>A team similar to {{company|your company}} {{result_achieved|saw real results}} once that time came back.</p>
 
-<p>Happy to share the details if you're curious.</p>
+<p>If someone else owns this at {{company|your company}}, who should I speak to?</p>
 
 <p>{{sender_name}}</p>`,
         delay_days: 3,
@@ -207,14 +208,14 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 3,
-        subject: 'Closing the loop, {{first_name|there}}',
+        subject: 'Re: {{pain_point|this}} at {{company|your company}}',
         body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I'll keep this short — I've reached out a couple of times and don't want to be a pest.</p>
+<p>Last note from me on this.</p>
 
-<p>If the timing isn't right, no worries at all. But if {{pain_point|this}} ever becomes a priority, I'm just a reply away.</p>
+<p>Reply YES and I'll send the specifics for {{company|your company}}, or NO and I'll leave it there.</p>
 
-<p>All the best to you and the team at {{company|your company}}.</p>
+<p>Either way, I'll know where we stand.</p>
 
 <p>{{sender_name}}</p>`,
         delay_days: 5,
@@ -224,7 +225,7 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
   },
   {
     name: '5-Step Cold Campaign',
-    description: 'Comprehensive cold outreach with multiple angles: opener, value, social proof, question, and break-up. Higher reply rates through persistence.',
+    description: 'Five emails, each with one job: the reframe, an insight, a question about their setup, one example, and a yes-or-no close.',
     category: 'cold_outreach',
     tags: ['cold', 'comprehensive', 'high-volume'],
     is_preset: true,
@@ -232,14 +233,16 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
     steps: [
       {
         step_order: 1,
-        subject: 'Idea for {{company|your company}}',
+        subject: 'idea for {{company|your company}}',
         body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I've been following {{company|your company}}'s growth and had an idea I think could help you {{key_benefit|move faster}}.</p>
+<p>Something stood out looking at how {{industry|your industry}} teams handle {{pain_point|this}}.</p>
 
-<p>We specialize in {{value_proposition|grow faster}} and have helped similar companies in {{industry|your industry}} see real results.</p>
+<p>The problem is rarely effort. It's that nobody can see it coming until the quarter is nearly gone.</p>
 
-<p>Worth a quick conversation?</p>
+<p>We help teams like {{company|your company}} {{value_proposition|grow faster}}. Some use us to fill a gap, others to replace a process outright.</p>
+
+<p>Is this already handled at {{company|your company}}, or worth exploring?</p>
 
 <p>{{sender_name}}</p>`,
         delay_days: 0,
@@ -247,29 +250,29 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 2,
-        subject: 'Re: Idea for {{company|your company}}',
+        subject: 'Re: idea for {{company|your company}}',
         body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>Wanted to share something specific — {{reference_company|a company much like yours}} was in a similar position to {{company|your company}} not long ago.</p>
+<p>Working with {{industry|your industry}} teams taught us something early. What people wanted wasn't more of anything. It was knowing what would land, and when.</p>
 
-<p>They were struggling with {{pain_point|this}}, and within {{timeframe|a quarter}} of working together, they {{result_achieved|see real results}}.</p>
+<p>That's what we built around: so teams can {{key_benefit|move faster}} without guessing.</p>
 
-<p>I'd love to show you how we could do the same for your team.</p>
+<p>Would it help to see how other teams in your position set this up?</p>
 
 <p>{{sender_name}}</p>`,
-        delay_days: 2,
+        delay_days: 3,
         delay_hours: 0,
       },
       {
         step_order: 3,
-        subject: 'Quick thought, {{first_name|there}}',
+        subject: 'Re: idea for {{company|your company}}',
         body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>One thing I keep hearing from {{industry|your industry}} leaders is that {{common_challenge|a slow pipeline}} is eating into their growth.</p>
+<p>One pattern we see as teams grow: {{common_challenge|a slow pipeline}} quietly becomes one of the most expensive things they run. Not because of the obvious cost. Because of the hours around it.</p>
 
-<p>Is that something you're experiencing at {{company|your company}} too, or have you found a way around it?</p>
+<p>At a certain size, that shouldn't still be happening.</p>
 
-<p>Genuinely curious to hear your perspective.</p>
+<p>How is {{company|your company}} handling it today?</p>
 
 <p>{{sender_name}}</p>`,
         delay_days: 3,
@@ -277,14 +280,16 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 4,
-        subject: '{{first_name|there}}, one more thing',
+        subject: 'Re: idea for {{company|your company}}',
         body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I realize I might be catching you at a busy time, so I'll keep this brief.</p>
+<p>One example, so this is easier to picture.</p>
 
-<p>If there's someone else on your team who handles {{topic|this}}, I'd be happy to connect with them instead. Just point me in the right direction.</p>
+<p>{{reference_company|A team much like yours}} was stuck on {{pain_point|this}}. Within {{timeframe|a quarter}}, they {{result_achieved|saw real results}}, alongside their existing team rather than instead of it.</p>
 
-<p>Either way, I appreciate your time.</p>
+<p>Different setups. Same problem underneath.</p>
+
+<p>Worth 15 minutes to see how this would translate for {{company|your company}}?</p>
 
 <p>{{sender_name}}</p>`,
         delay_days: 4,
@@ -292,24 +297,26 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 5,
-        subject: 'Last note from me',
+        subject: 'Re: idea for {{company|your company}}',
         body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>This will be my last email — I don't want to overstay my welcome in your inbox.</p>
+<p>Final note before I close this off.</p>
 
-<p>If there's ever a time when {{value_proposition|grow faster}} becomes a priority for {{company|your company}}, my door is always open.</p>
+<p>By {{focus_area|the end of the quarter}}, most teams know whether {{pain_point|this}} cost them or not. The difference is usually whether they acted early or reacted late.</p>
 
-<p>Wishing you and the team continued success.</p>
+<p>Reply YES if you want the specifics for {{company|your company}}. Reply NO if you're handling it another way.</p>
+
+<p>Either way, I'll know where we stand.</p>
 
 <p>{{sender_name}}</p>`,
-        delay_days: 7,
+        delay_days: 5,
         delay_hours: 0,
       },
     ],
   },
   {
     name: 'Meeting Booker',
-    description: 'Focused 3-step sequence designed to get a meeting on the calendar. Direct, respectful, and conversion-optimized.',
+    description: 'Three short emails built to get one call on the calendar: a clear reason, two real times, and a yes-or-no last note.',
     category: 'meeting_request',
     tags: ['meeting', 'direct', 'conversion'],
     is_preset: true,
@@ -317,14 +324,12 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
     steps: [
       {
         step_order: 1,
-        subject: '{{first_name|there}}, 15 minutes?',
+        subject: '15 minutes, {{first_name|there}}?',
         body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I have something I think could genuinely help {{company|your company}} — but I'd rather show than tell.</p>
+<p>Easier to show than explain: how {{company|your company}} could {{key_benefit|move faster}} on {{pain_point|this}}.</p>
 
-<p>Would you be open to a quick 15-minute call? I promise to keep it focused.</p>
-
-<p>I'm flexible this week — just let me know what works best for you.</p>
+<p>Worth 15 minutes this week, or is someone else closer to it?</p>
 
 <p>{{sender_name}}</p>`,
         delay_days: 0,
@@ -332,18 +337,16 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 2,
-        subject: 'Re: {{first_name|there}}, 15 minutes?',
+        subject: 'Re: 15 minutes, {{first_name|there}}?',
         body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>Following up — I know scheduling can be tricky.</p>
-
-<p>Here are a couple of specific times that work on my end:</p>
+<p>To make it easy, two times that work for me:</p>
 <ul>
   <li>{{time_slot_1|Tuesday afternoon}}</li>
   <li>{{time_slot_2|Thursday morning}}</li>
 </ul>
 
-<p>If those don't work, feel free to grab any time that suits you. What matters is finding 15 minutes that work for both of us.</p>
+<p>Does either suit? If not, send me one that does.</p>
 
 <p>{{sender_name}}</p>`,
         delay_days: 2,
@@ -351,14 +354,12 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 3,
-        subject: 'Last shot — {{company|your company}} + {{sender_company}}',
+        subject: 'Re: 15 minutes, {{first_name|there}}?',
         body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I'll be brief: I genuinely believe there's a compelling opportunity for {{company|your company}} here.</p>
+<p>Last one from me.</p>
 
-<p>If now isn't the right time, just say the word and I'll follow up in a few months instead.</p>
-
-<p>If it is the right time — let's find 15 minutes. I think you'll be glad we connected.</p>
+<p>If now isn't the time, reply LATER and I'll come back next quarter. If it is, reply YES and I'll send a link.</p>
 
 <p>{{sender_name}}</p>`,
         delay_days: 4,
@@ -368,7 +369,7 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
   },
   {
     name: 'Nurture Sequence',
-    description: 'Gentle 4-step nurture for warm leads who aren\'t ready to buy yet. Keeps you top-of-mind with value-driven touchpoints.',
+    description: 'Four useful notes for warm leads who are not ready yet: something worth reading, a trend, a quick win, and a straight question.',
     category: 'nurture',
     tags: ['nurture', 'warm', 'long-term'],
     is_preset: true,
@@ -376,14 +377,12 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
     steps: [
       {
         step_order: 1,
-        subject: 'Thought you\'d find this useful, {{first_name|there}}',
+        subject: 'worth reading on {{topic|this}}',
         body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>I came across this {{resource_type|guide}} on {{topic|this}} and immediately thought of you and the work you're doing at {{company|your company}}.</p>
+<p>This {{resource_type|guide}} on {{topic|this}} made one point that applies to {{company|your company}}: {{insight|the fundamentals still win}}.</p>
 
-<p>Here's the key takeaway: {{insight|the fundamentals still win}}</p>
-
-<p>Thought it might be helpful as you think about {{focus_area|the year ahead}}. No strings attached — just sharing something valuable.</p>
+<p>Useful as you plan {{focus_area|the year ahead}}. Nothing to reply to.</p>
 
 <p>{{sender_name}}</p>`,
         delay_days: 0,
@@ -391,14 +390,12 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 2,
-        subject: '{{industry|your industry}} trend worth watching',
+        subject: 'what {{industry|your industry}} teams are changing',
         body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>Quick heads up — we're seeing a major shift in how {{industry|your industry}} companies are approaching {{topic|this}}.</p>
+<p>A shift we're seeing in how {{industry|your industry}} teams approach {{topic|this}}: {{trend_insight|the shift is accelerating}}.</p>
 
-<p>The companies getting ahead are {{trend_insight|the shift is accelerating}}. Figured this would be on your radar at {{company|your company}}.</p>
-
-<p>Happy to chat about what we're seeing if it's useful.</p>
+<p>Is it showing up at {{company|your company}} yet, or not on the radar?</p>
 
 <p>{{sender_name}}</p>`,
         delay_days: 7,
@@ -406,14 +403,12 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 3,
-        subject: 'Quick win for {{company|your company}}',
+        subject: 'a quick win for {{company|your company}}',
         body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>One thing we've noticed working with teams like yours: {{quick_win_insight|small changes compound quickly}}.</p>
+<p>Something we keep seeing with teams like yours: {{quick_win_insight|small changes compound quickly}}.</p>
 
-<p>It's a small change that tends to have an outsized impact. Thought it might be worth trying at {{company|your company}}.</p>
-
-<p>Let me know if you'd like to dig deeper into this.</p>
+<p>It takes an afternoon to try. Want the two-line version of how?</p>
 
 <p>{{sender_name}}</p>`,
         delay_days: 7,
@@ -421,14 +416,12 @@ const PRESET_SEQUENCE_TEMPLATES: Omit<SequenceTemplate, 'id' | 'user_id' | 'crea
       },
       {
         step_order: 4,
-        subject: 'Checking in, {{first_name|there}}',
+        subject: 'still on your list?',
         body_html: `<p>Hi {{first_name|there}},</p>
 
-<p>It's been a few weeks since I last reached out. Hope things are going well at {{company|your company}}.</p>
+<p>Straight question: is {{topic|this}} something {{company|your company}} wants to look at this quarter, or later in the year?</p>
 
-<p>I wanted to check in and see if any of the things I shared were helpful, or if there's anything specific I can help with.</p>
-
-<p>No pressure — just here if you need anything.</p>
+<p>Either answer helps me send the right thing.</p>
 
 <p>{{sender_name}}</p>`,
         delay_days: 14,

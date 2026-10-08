@@ -23,6 +23,7 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 import { checkEmailContent } from './content-check.js';
+import { writingProblems } from './writing.js';
 
 export const IMPROVE = {
   /** Sends per version before anything is decided. */
@@ -182,7 +183,8 @@ function text(html: string | null | undefined): string {
 /**
  * Whether a challenger may be tested at all. Relay changes one thing; it
  * must not drop a merge tag, add or remove a link, balloon or gut the
- * email, or introduce anything the launch review would flag.
+ * email, introduce anything the launch review would flag, or add a long
+ * dash or a stock phrase the original did not have.
  * Returns the problems; empty means it may run.
  */
 export function challengerProblems(
@@ -208,6 +210,13 @@ export function challengerProblems(
   const before = checkEmailContent([{ step_order: 0, subject: original.subject, body_html: original.body_html }]).length;
   const after = checkEmailContent([{ step_order: 0, subject: challenger.subject ?? original.subject, body_html: challenger.body_html ?? original.body_html }]).length;
   if (after > before) problems.push('The new version reads more like spam to filters.');
+  // Relay's own words are held to Relay's standard: no long dashes, no
+  // stock phrases, nothing the original did not already have.
+  const own = (x: { subject: string | null; body_html: string | null }) =>
+    new Set([...writingProblems(x.subject || '', { subject: true }), ...writingProblems(x.body_html || '')]);
+  const was = own(original);
+  const now = own({ subject: challenger.subject ?? original.subject, body_html: challenger.body_html ?? original.body_html });
+  if ([...now].some((p) => !was.has(p))) problems.push('The new version does not meet the writing standard.');
   return problems;
 }
 

@@ -12,7 +12,7 @@ import { decrypt } from '../utils/encryption.js';
 import { resolveHostIp } from '../utils/dns-doh.js';
 import { sendViaSmtp, formatFromHeader } from './email-sender.service.js';
 import { htmlToText } from './sequence.service.js';
-import { SaraStatus } from '@lemlist/shared';
+import { SaraStatus, stripDashes } from '@lemlist/shared';
 import { billingService } from './billing.service.js';
 import { inboxSyncService, imapHostFor } from './inbox-sync.service.js';
 import { guardImap } from '../utils/imap-guard.js';
@@ -1165,23 +1165,26 @@ ${original.body_html || `<p>${textToHtml(original.body_text)}</p>`}`;
     // Context-aware reply generation based on user prompt
     let replyText: string;
 
-    if (/accept|agree|yes|confirm|sounds good|let'?s do/i.test(promptLower)) {
-      replyText = `Hi ${firstName},\n\nThanks for reaching out! That sounds great — I'd be happy to move forward.\n\nPlease let me know if there are any next steps on your end, or if you'd like to schedule a time to connect.\n\nBest regards`;
-    } else if (/meet|call|schedule|book|calendar|chat|demo/i.test(promptLower)) {
-      replyText = `Hi ${firstName},\n\nI'd love to set up a time to chat! I'm generally available this week — feel free to suggest a time that works best for you, or I can send over some options.\n\nLooking forward to connecting.\n\nBest regards`;
-    } else if (/decline|no|not interested|pass|reject/i.test(promptLower)) {
-      replyText = `Hi ${firstName},\n\nThank you for thinking of us. After careful consideration, I'm going to pass on this for now.\n\nI appreciate you reaching out and wish you all the best.\n\nKind regards`;
-    } else if (/more info|details|learn more|tell me|explain/i.test(promptLower)) {
-      replyText = `Hi ${firstName},\n\nThanks for your interest! I'd be happy to share more details.\n\nCould you let me know which specific aspects you'd like to learn more about? That way I can tailor the information to what's most relevant for you.\n\nBest regards`;
-    } else if (/follow.?up|check.?in|touch base|reconnect/i.test(promptLower)) {
-      replyText = `Hi ${firstName},\n\nJust wanted to follow up on my previous message and see if you had any thoughts.\n\nI'd love to hear back from you when you get a chance. No rush at all — just wanted to make sure this didn't slip through the cracks.\n\nBest regards`;
-    } else if (/thank|appreciate|grateful/i.test(promptLower)) {
-      replyText = `Hi ${firstName},\n\nThank you so much — I really appreciate it!\n\nPlease don't hesitate to reach out if there's anything else I can help with.\n\nBest regards`;
-    } else if (/delay|later|postpone|busy|not now/i.test(promptLower)) {
-      replyText = `Hi ${firstName},\n\nNo worries at all — I completely understand. Timing is everything.\n\nFeel free to reach out whenever you're ready, and I'll be happy to pick things back up.\n\nBest regards`;
+    // Word boundaries matter: a bare /no/ matched "not now" and "know", so
+    // "they said not now" got a polite decline. Timing is checked first for
+    // the same reason.
+    if (/\b(not now|later|postpone|delay|busy|next (month|quarter|year))\b/i.test(promptLower)) {
+      replyText = `Hi ${firstName},\n\nUnderstood. When is a better time to pick this up? Give me a month and I'll come back to you then.\n\nThanks`;
+    } else if (/\b(accept|agree|yes|confirm|sounds good|let'?s do)\b/i.test(promptLower)) {
+      replyText = `Hi ${firstName},\n\nGreat, let's go ahead.\n\nWhat's the next step on your side, and is there anyone else I should include?\n\nThanks`;
+    } else if (/\b(meet|meeting|call|schedule|book|calendar|chat|demo)\b/i.test(promptLower)) {
+      replyText = `Hi ${firstName},\n\nGood idea. Does Tuesday or Thursday afternoon work for 20 minutes? If neither does, send me two times that suit you and I'll make one work.\n\nThanks`;
+    } else if (/\b(decline|no|not interested|pass|reject)\b/i.test(promptLower)) {
+      replyText = `Hi ${firstName},\n\nThanks for thinking of us. It isn't a fit for us right now, so I'll pass for the moment.\n\nAll the best`;
+    } else if (/\b(more info|details|learn more|tell me|explain)\b/i.test(promptLower)) {
+      replyText = `Hi ${firstName},\n\nHappy to. So I send the right thing: is it how it works, what it costs, or an example from a team like yours that matters most?\n\nThanks`;
+    } else if (/\b(follow.?up|check.?in|touch base|reconnect)\b/i.test(promptLower)) {
+      replyText = `Hi ${firstName},\n\nIs this still on your list, or has the priority moved? A one-line answer either way helps me plan.\n\nThanks`;
+    } else if (/\b(thank|thanks|appreciate|grateful)\b/i.test(promptLower)) {
+      replyText = `Hi ${firstName},\n\nThank you, that's appreciated.\n\nIf anything else comes up, reply here and I'll pick it up.\n\nThanks`;
     } else {
-      // Generic professional reply incorporating the user's prompt
-      replyText = `Hi ${firstName},\n\n${prompt}\n\nPlease let me know if you have any questions.\n\nBest regards`;
+      // The user's own words, framed and nothing more.
+      replyText = `Hi ${firstName},\n\n${stripDashes(prompt.trim())}\n\nThanks`;
     }
 
     const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${textToHtml(replyText)}</div>`;
