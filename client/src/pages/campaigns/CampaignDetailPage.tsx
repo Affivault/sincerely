@@ -16,6 +16,7 @@ import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { PersonalizationPanel, TimezoneCoverageNote } from '../../components/campaigns/PersonalizationPanel';
 import { CampaignHealthStrip } from '../../components/campaigns/CampaignHealthStrip';
+import { ImproveCard } from '../../components/campaigns/ImproveCard';
 import { useLaunchPreflight } from '../../components/campaigns/LaunchPreflight';
 import { SequenceStepsPanel } from '../../components/analytics/SequenceStepsPanel';
 import { StatusBadge } from '../../components/shared/StatusBadge';
@@ -418,6 +419,8 @@ export function CampaignDetailPage() {
       {/* Overview Tab */}
       {activeTab === 'overview' && (
         <div className="space-y-4">
+          {/* Relay testing and keeping what gets more replies. */}
+          {id && <ImproveCard campaignId={id} />}
           {analytics && (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">

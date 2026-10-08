@@ -9,7 +9,8 @@
                            mailbox resting, a spam complaint, a reply check
                            that failed (whatever the status page raises)
      campaign_alerts       what happens to a campaign without you: the
-                           bounce guard pausing it, or it finishing.
+                           bounce guard pausing it, it finishing, and
+                           Relay proposing or settling a test on it.
                            Never your own launch, pause or resume.
      reply_notifications   somebody replied - one email per reply, at most
                            REPLY_EMAILS_PER_HOUR an hour so a burst does not
@@ -75,6 +76,22 @@ export function notificationFor(event: string, data: Record<string, any>): Notif
       };
     case 'campaign.completed':
       return { setting: 'campaign_alerts', subject: `Finished: ${campaignName(data)}`, text: `Everybody in "${campaignName(data)}" has been through the whole sequence, replied, or been stopped. It has finished.`, href, dedupeKey: `completed:${cid}` };
+    case 'relay.test_proposed':
+      return {
+        setting: 'campaign_alerts',
+        subject: `Relay wants to test a new ${data.element === 'subject' ? 'subject line' : data.element === 'opening' ? 'opening line' : 'closing question'} in "${campaignName(data)}"`,
+        text: `${data.why || 'Relay wrote a new version to test against the original.'}\n\nApprove, edit or skip it on the campaign page. Nothing changes until you do.`,
+        href,
+        dedupeKey: `test-proposed:${cid}`,
+      };
+    case 'relay.test_decided':
+      return {
+        setting: 'campaign_alerts',
+        subject: data.outcome === 'won' ? `Relay found a better version for "${campaignName(data)}"` : `Relay's test on "${campaignName(data)}" is finished`,
+        text: `${data.summary || ''}${data.outcome === 'won' ? '\n\nYou can undo it from the campaign page.' : ''}`.trim(),
+        href,
+        dedupeKey: `test-decided:${cid}:${data.outcome}`,
+      };
     case 'email.replied': {
       const who = data.from_name ? `${data.from_name} (${data.from})` : String(data.from || 'Somebody');
       return {
@@ -106,6 +123,8 @@ export interface DigestNumbers {
   waiting: number;
   campaigns: Array<{ name: string; sent: number; replies: number }>;
   attention: Array<{ title: string; detail: string }>;
+  /** Tests Relay settled this week (shared/experiments), as sentences. */
+  learned?: string[];
 }
 
 /** Monday at 08:00 in the account's time zone. */
@@ -163,6 +182,11 @@ export function buildDigest(d: DigestNumbers): { subject: string; text: string }
     lines.push('');
     lines.push('By campaign');
     for (const c of top) lines.push(`- ${c.name}: ${n(c.sent)} sent, ${n(c.replies)} ${c.replies === 1 ? 'reply' : 'replies'}`);
+  }
+  if (d.learned?.length) {
+    lines.push('');
+    lines.push('What Relay learned');
+    for (const l of d.learned.slice(0, 4)) lines.push(`- ${l}`);
   }
   if (d.attention.length) {
     lines.push('');

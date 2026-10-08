@@ -44,8 +44,15 @@ export async function runAbPromoteSweep(): Promise<number> {
       const report = await analyticsService.campaignAbTest(campaign.user_id, campaign.id);
       if (!report.has_ab_test) continue;
 
+      // Relay's own tests are judged on replies by services/experiments.
+      // Promoting one here, on opens, would end it on the wrong evidence.
+      const { data: relayTests } = await supabaseAdmin
+        .from('campaign_experiments').select('step_id').eq('campaign_id', campaign.id).eq('status', 'running');
+      const relayOwned = new Set((relayTests || []).map((t: any) => t.step_id));
+
       for (const step of report.steps) {
         if (!step.winner || !step.significant) continue;
+        if (relayOwned.has(step.step_id)) continue;
         await campaignsService.promoteAbVariant(campaign.user_id, campaign.id, step.step_id, step.winner);
         promoted++;
         console.log(

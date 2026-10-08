@@ -16,6 +16,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { buildDigest, digestDue, digestSlot, monthlyResultsDue, buildResultsEmail, type DigestNumbers } from '@lemlist/shared';
 import { resultsService } from './results.service.js';
+import { learnedSince } from './experiments.service.js';
 import { sendToOwner } from './notify.service.js';
 import { systemStatusService } from './system-status.service.js';
 import { replyQueueService } from './reply-queue.service.js';
@@ -99,6 +100,7 @@ export const digestService = {
       waiting: (queue as any)?.open ?? 0,
       campaigns,
       attention: (status?.issues || []).map((i) => ({ title: i.title, detail: i.detail })),
+      learned: await learnedSince(userId, from).catch(() => []),
     };
   },
 

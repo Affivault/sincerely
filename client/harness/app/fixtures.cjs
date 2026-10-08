@@ -218,6 +218,23 @@ function resultsReport(period) {
   };
 }
 
+
+function improveStatus() {
+  const mode = process.env.IMPROVE || 'proposed';
+  const orig = { subject: 'quick question about {{company|your team}}', body_html: '<p>Hi {{first_name|there}},</p><p>I run partnerships at AffiVault - we help UK investment platforms grow through vetted affiliates.</p><p>Partners usually see their first funded accounts within a month.</p><p>Worth a quick call next week?</p><p>Alex</p>' };
+  const base = { id: 'ex1', campaign_id: 'cmp1', step_id: 'st0', email_number: 1, created_at: ago(1), decided_at: null, probability_b_better: null, summary: null };
+  const proposed = { ...base, element: 'opening', status: 'proposed', started_at: null, why: 'Several replies asked how it works - opening with a concrete result answers that before they have to ask.', original: orig,
+    challenger: { subject: null, body_html: '<p>Hi {{first_name|there}},</p><p>Two UK platforms added 400+ funded accounts last quarter through partners we found them.</p><p>Partners usually see their first funded accounts within a month.</p><p>Worth a quick call next week?</p><p>Alex</p>' }, a: { sent: 0, replies: 0 }, b: { sent: 0, replies: 0 } };
+  const running = { ...base, element: 'subject', status: 'running', started_at: ago(6), why: 'Shorter, more specific subjects get opened by the right person.', original: orig, challenger: { subject: 'partners for {{company|your team}}', body_html: null }, a: { sent: 112, replies: 4 }, b: { sent: 109, replies: 7 } };
+  const history = [
+    { ...base, id: 'ex0', element: 'subject', status: 'won', decided_at: ago(9), original: orig, challenger: orig, a: { sent: 300, replies: 9 }, b: { sent: 300, replies: 16 }, why: '', started_at: ago(20), summary: 'A new subject line on email 1 got 78% more replies (5.3% replied to the new version, 3.0% to the original, 300 sends each). It is now the email everyone gets.' },
+    { ...base, id: 'exm', element: 'ask', email_number: 2, status: 'kept', decided_at: ago(16), original: orig, challenger: orig, a: { sent: 600, replies: 20 }, b: { sent: 600, replies: 22 }, why: '', started_at: ago(30), summary: 'A new closing question on email 2 made no clear difference (3.7% replied to the new version, 3.3% to the original, 600 sends each), so the original stays.' },
+  ];
+  if (mode === 'off') return { enabled: false, auto: false, ai: true, waiting: null, current: null, history: [], ready: true };
+  if (mode === 'waiting') return { enabled: true, auto: false, ai: true, waiting: 'Not enough people left to learn from: the most any email still has to go to is 180, and a fair test needs 400.', current: null, history: [], ready: true };
+  return { enabled: true, auto: false, ai: true, waiting: null, current: mode === 'running' ? running : proposed, history, ready: true };
+}
+
 function answer(method, path, q) {
   if (method === 'POST' && /\/campaigns\/write-sequence$/.test(path)) {
     return { name: 'ISA platforms - affiliate partnership', rationale: 'Leads with the partner economics.', engine: 'ai', leads: 58, personalized: 52, personalize_requested: true,
@@ -251,6 +268,7 @@ function answer(method, path, q) {
     ] } } };
   if (method === 'POST' && path === '/notifications/test') return { sent: true, from: 'alex@affivault.com', to: 'alex@affivault.com' };
   if (method === 'POST' && path === '/notifications/digest') return { sent: true, subject: 'Your week: 420 sent, 21 replies, 3 meetings' };
+  if (/^\/campaigns\/[^/]+\/improve(\/.*)?$/.test(path)) return improveStatus();
   if (method !== 'GET') return { success: true };
   if (/^\/api\/report\/[A-Za-z0-9_-]+$/.test(path)) return { title: 'Results for Northbeam - September 2026', prepared_by: 'AffiVault', report: resultsReport('last_month') };
   const P = path.replace(/\/+$/, '');
