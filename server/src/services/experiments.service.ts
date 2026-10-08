@@ -154,11 +154,26 @@ async function stepUnchanged(e: Experiment): Promise<boolean> {
   return same(st.body_html_b, e.challenger.body_html) && same(st.body_html, e.original.body_html);
 }
 
-async function start(userId: string, e: Experiment, campaignName: string): Promise<void> {
+/**
+ * Begin a proposed test. A proposal can sit for days: if the email was edited
+ * since, or the person set up an A/B of their own on it, the proposal is
+ * stale and must not be written over their work.
+ */
+async function start(userId: string, e: Experiment, campaignName: string): Promise<boolean> {
+  const { data: s } = await supabaseAdmin.from('campaign_steps').select('subject, body_html, subject_b, body_html_b').eq('id', e.step_id).maybeSingle();
+  const st = s as any;
+  const same = (x: string | null, y: string | null) => (x || '').trim() === (y || '').trim();
+  const stale = !st || st.subject_b || st.body_html_b
+    || !same(st.subject, e.original.subject) || !same(st.body_html, e.original.body_html);
+  if (stale) {
+    await setStatus(e.id, { status: 'stopped', decided_at: new Date().toISOString(), summary: 'Not started: the email changed after Relay wrote this version. The email is untouched.' }, ['proposed']);
+    return false;
+  }
   await writeIntoStep(e);
   const ok = await setStatus(e.id, { status: 'running', started_at: new Date().toISOString() }, ['proposed']);
-  if (!ok) { await clearStep(e); return; }
+  if (!ok) { await clearStep(e); return false; }
   fireEvent(userId, 'relay.test_started', { campaign_id: e.campaign_id, campaign_name: campaignName, element: e.element, email_number: e.email_number, why: e.why }).catch(() => {});
+  return true;
 }
 
 async function decide(userId: string, e: Experiment, campaignName: string): Promise<Experiment> {
@@ -327,11 +342,15 @@ export const experimentsService = {
         ? { subject: (edits.subject ?? e.challenger.subject)?.trim() || null, body_html: null }
         : { subject: null, body_html: (edits.body_html ?? e.challenger.body_html)?.trim() || null };
       if (e.element === 'subject' ? !challenger.subject : !challenger.body_html) throw new AppError('The new version cannot be empty.', 400);
+      // The person's wording is held to the same limits as Relay's: it may not
+      // drop a merge tag or a link, or run past what a subject line allows.
+      const problems = challengerProblems(e.original, challenger, e.element);
+      if (problems.length) throw new AppError(problems.join(' '), 400);
       await supabaseAdmin.from('campaign_experiments').update({ challenger }).eq('id', id);
       e = { ...e, challenger };
     }
     const campaign = await ownCampaign(userId, e.campaign_id);
-    await start(userId, e, campaign.name);
+    if (!(await start(userId, e, campaign.name))) throw new AppError('The email has changed since Relay wrote this, so the test was not started. Relay will propose a fresh one.', 409);
   },
 
   /** Skip a proposal, or end a running test with the original in place. */
