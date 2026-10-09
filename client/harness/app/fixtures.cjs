@@ -235,6 +235,51 @@ function improveStatus() {
   return { enabled: true, auto: false, ai: true, waiting: null, current: mode === 'running' ? running : proposed, history, ready: true };
 }
 
+
+function momentsData() {
+  const mode = process.env.MOMENTS || 'full';
+  const p = (id, name, email, title) => ({ id, name, email, title });
+  const settings = {
+    web: mode !== 'off', ai: true, watching: 38, last_checked: ago(0.2), ready: true,
+    topics: [
+      { label: 'Hiring a head of operations or fleet manager', on: true },
+      { label: 'Opening a new depot or warehouse', on: true },
+      { label: 'Launching next-day or same-day delivery', on: true },
+      { label: 'A new COO or operations director', on: false },
+    ],
+  };
+  if (mode === 'empty' || mode === 'off') return { moments: [], settings, acted_this_week: 0 };
+  const moments = [
+    { id: 'sg1', kind: 'web_change', strength: 3, occurred_at: ago(0.3), status: 'new',
+      headline: 'Northline Freight: Hiring a Head of Fleet Operations in Leeds',
+      detail: 'A new fleet lead usually reviews routing and dispatch tools in their first 90 days, which is exactly what you sell.',
+      evidence_url: 'https://northlinefreight.co.uk/careers', evidence_quote: 'Head of Fleet Operations - Leeds. You will own routing, dispatch and delivery performance across our 140-vehicle fleet.',
+      opener: 'A new head of fleet in Leeds usually means routing gets a fresh look in the first quarter.',
+      contact: null, company: { id: 'co1', name: 'Northline Freight', domain: 'northlinefreight.co.uk' },
+      people: [p('c1', 'Priya Shah', 'priya@northlinefreight.co.uk', 'Operations Director'), p('c2', 'Tom Ellis', 'tom@northlinefreight.co.uk', 'Logistics Manager')], deal: null, score: 2.9 },
+    { id: 'sg2', kind: 'not_now_due', strength: 3, occurred_at: ago(1), status: 'new',
+      headline: 'Sam Carter said "not now" on 9 July and asked to talk next quarter',
+      detail: 'That time is here, and nothing has been said since. Picking it up as promised is the easiest reply you will get all week.',
+      evidence_url: null, evidence_quote: 'Timing is wrong this quarter, budgets reset in October.', opener: null,
+      contact: p('c3', 'Sam Carter', 'sam@brightparcel.com', 'Head of Logistics'), company: { id: 'co2', name: 'BrightParcel', domain: 'brightparcel.com' }, people: [], deal: null, score: 2.6 },
+    { id: 'sg3', kind: 're_engaged', strength: 3, occurred_at: ago(0.8), status: 'new',
+      headline: 'Lena Fischer clicked through your email after 6 weeks quiet',
+      detail: 'Coming back to an old email usually means the problem is live again. A short, direct note now lands better than the next scheduled step.',
+      evidence_url: null, evidence_quote: null, opener: null,
+      contact: p('c4', 'Lena Fischer', 'lena@urbanroute.de', 'COO'), company: { id: 'co3', name: 'UrbanRoute', domain: 'urbanroute.de' }, people: [], deal: null, score: 2.5 },
+    { id: 'sg4', kind: 'company_buzz', strength: 2, occurred_at: ago(2), status: 'new',
+      headline: '3 people at Coastal Couriers engaged this week',
+      detail: 'Jo Patel, Mark Owen and Ana Ruiz. When several people look at once, it is usually being discussed internally.',
+      evidence_url: null, evidence_quote: null, opener: null, contact: null, company: { id: 'co4', name: 'Coastal Couriers', domain: 'coastalcouriers.com' },
+      people: [p('c5', 'Jo Patel', 'jo@coastalcouriers.com', 'Managing Director'), p('c6', 'Mark Owen', 'mark@coastalcouriers.com', 'Ops Lead')], deal: null, score: 1.6 },
+    { id: 'sg5', kind: 'left_company', strength: 2, occurred_at: ago(4), status: 'new',
+      headline: 'Ben Harris, who replied to you before, no longer has an address at Swift Haulage',
+      detail: 'They have probably moved on. Whoever took over inherits the problem, and the person who left may want you at their new company.',
+      evidence_url: null, evidence_quote: null, opener: null, contact: null, company: { id: 'co5', name: 'Swift Haulage', domain: 'swifthaulage.co.uk' }, people: [], deal: null, score: 1.3 },
+  ];
+  return { moments, settings, acted_this_week: 4 };
+}
+
 function answer(method, path, q) {
   if (method === 'POST' && /\/campaigns\/write-sequence$/.test(path)) {
     return { name: 'ISA platforms - affiliate partnership', rationale: 'Leads with the partner economics.', engine: 'ai', leads: 58, personalized: 52, personalize_requested: true,
@@ -269,6 +314,11 @@ function answer(method, path, q) {
   if (method === 'POST' && path === '/notifications/test') return { sent: true, from: 'alex@affivault.com', to: 'alex@affivault.com' };
   if (method === 'POST' && path === '/notifications/digest') return { sent: true, subject: 'Your week: 420 sent, 21 replies, 3 meetings' };
   if (/^\/campaigns\/[^/]+\/improve(\/.*)?$/.test(path)) return improveStatus();
+  if (path === '/signals') return momentsData();
+  if (path === '/signals/count') return { count: 5 };
+  if (path === '/signals/settings') return momentsData().settings;
+  if (path === '/signals/settings/suggest') return { topics: ['Hiring a head of operations or fleet manager'], engine: 'ai' };
+  if (/^\/signals\/[^/]+\/draft$/.test(path)) return { to: { id: 'c1', email: 'priya@northlinefreight.co.uk', name: 'Priya Shah' }, subject: 'routing in leeds', body: 'Hi Priya,\n\nA new head of fleet in Leeds usually means routing gets a fresh look in the first quarter.\n\nWe check every route before dispatch, so failed drops fall in the first month rather than after a review cycle.\n\nWorth 15 minutes once they start, or is that too early?\n\nAlex', engine: 'ai' };
   if (method !== 'GET') return { success: true };
   if (/^\/api\/report\/[A-Za-z0-9_-]+$/.test(path)) return { title: 'Results for Northbeam - September 2026', prepared_by: 'AffiVault', report: resultsReport('last_month') };
   const P = path.replace(/\/+$/, '');

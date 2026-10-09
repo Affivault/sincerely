@@ -697,7 +697,7 @@ export function BulkImportPage() {
                     <input
                       value={newListName}
                       onChange={(e) => setNewListName(e.target.value)}
-                      placeholder="e.g. Q3 UK brokers"
+                      placeholder="e.g. Q3 logistics leads"
                       maxLength={80}
                       className={cn(
                         'w-full h-9 px-3 rounded-lg border bg-[var(--bg-elevated)] text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none transition-all focus:ring-2 focus:ring-[var(--indigo)]/15',

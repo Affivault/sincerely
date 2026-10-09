@@ -30,7 +30,7 @@ import {
   Waves, LayoutDashboard, MessageSquare, Sparkles, Layers, FileText, CalendarClock,
   Contact2, Building2, Radar, CalendarDays, ListTodo, Link2, Clock, Banknote, Crosshair, Trophy,
   LineChart, Users as TeamIcon, CreditCard, AtSign, Activity, Target, Ban, ShieldCheck,
-  Blocks, Linkedin, Code2, Wrench, BookOpen, HeartPulse, type LucideIcon,
+  Blocks, Linkedin, Code2, Wrench, BookOpen, HeartPulse, Zap, type LucideIcon,
 } from 'lucide-react';
 
 export interface SectionTab {
@@ -61,6 +61,7 @@ export const SECTIONS: Section[] = [
     id: 'home', name: 'Home', href: '/dashboard', icon: Home, goKey: 'h',
     tabs: [
       { label: 'Overview', href: '/dashboard', icon: LayoutDashboard, match: ['/start'], keywords: 'dashboard home performance stats numbers get started setup onboarding' },
+      { label: 'Moments', href: '/moments', icon: Zap, keywords: 'signals timing who to email today why now intent hiring re-engaged not now website changes' },
       { label: 'Flow', href: '/flow', icon: Waves, keywords: 'today queue next focus work decide todo priorities' },
     ],
   },
