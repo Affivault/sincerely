@@ -31,6 +31,7 @@ const StartPage            = lazyRoute('/start', () => import('./pages/start/Sta
 const RepliesPage          = lazyRoute('/replies', () => import('./pages/replies/RepliesPage'), m => m.RepliesPage);
 const SegmentsPage         = lazyRoute('/analytics/segments', () => import('./pages/analytics/SegmentsPage'), m => m.SegmentsPage);
 const RevenuePage          = lazyRoute('/analytics/revenue', () => import('./pages/analytics/RevenuePage'), m => m.RevenuePage);
+const MomentsPage          = lazyRoute('/moments', () => import('./pages/moments/MomentsPage'), m => m.MomentsPage);
 const ResultsPage          = lazyRoute('/analytics/results', () => import('./pages/analytics/ResultsPage'), m => m.ResultsPage);
 const SharedResultsPage    = lazyRoute('/r/:token', () => import('./pages/public/SharedResultsPage'), m => m.SharedResultsPage);
 const ContactsListPage     = lazyRoute(['/leads', '/contacts'], () => import('./pages/contacts/ContactsListPage'), m => m.ContactsListPage);
@@ -173,6 +174,7 @@ export default function App() {
         >
           <Route path="/dashboard"          element={<DashboardPage />} />
           <Route path="/flow"               element={<FlowPage />} />
+          <Route path="/moments"            element={<MomentsPage />} />
           {/* Today briefly lived here and the dashboard was pushed to /overview.
               Kept as a redirect so bookmarks and old links still land. */}
           <Route path="/dashboard/overview" element={<Navigate to="/dashboard" replace />} />

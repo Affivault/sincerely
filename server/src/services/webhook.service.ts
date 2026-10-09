@@ -21,7 +21,7 @@ import type {
  */
 
 /** True for loopback, private, link-local (incl. the cloud metadata address), and other non-routable ranges. */
-function isPrivateOrReservedIp(ip: string): boolean {
+export function isPrivateOrReservedIp(ip: string): boolean {
   if (net.isIPv6(ip)) {
     const lower = ip.toLowerCase();
     if (lower === '::1' || lower === '::') return true;
@@ -37,6 +37,7 @@ function isPrivateOrReservedIp(ip: string): boolean {
   if (a === 172 && b >= 16 && b <= 31) return true; // private
   if (a === 192 && b === 168) return true; // private
   if (a === 169 && b === 254) return true; // link-local incl. cloud metadata (169.254.169.254)
+  if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT (100.64.0.0/10)
   if (a === 0) return true; // "this network"
   if (a >= 224) return true; // multicast/reserved
   return false;
@@ -92,7 +93,7 @@ export async function assertSafeWebhookUrl(rawUrl: string): Promise<string[]> {
  * the hostname again at connect time (which is what let DNS rebinding slip
  * a private IP in between the safety check and the real request).
  */
-function pinnedLookup(addresses: string[]): (hostname: string, options: any, callback: any) => void {
+export function pinnedLookup(addresses: string[]): (hostname: string, options: any, callback: any) => void {
   return (_hostname, options, callback) => {
     if (typeof options === 'function') {
       callback = options;

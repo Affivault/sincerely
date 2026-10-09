@@ -19,7 +19,7 @@ import type { ReplyCheckResult } from './reply-check.js';
 export type JobId =
   | 'sending' | 'inbox' | 'autopilot' | 'warmup_send' | 'warmup_engage' | 'verification'
   | 'booking_reminders' | 'placement' | 'standing_searches' | 'ab_promote'
-  | 'sse_maintenance' | 'domain_reverify' | 'watchdog' | 'digest' | 'reply_check' | 'improve';
+  | 'sse_maintenance' | 'domain_reverify' | 'watchdog' | 'digest' | 'reply_check' | 'improve' | 'signals';
 
 export interface JobDef {
   id: JobId;
@@ -49,6 +49,7 @@ export const JOBS: JobDef[] = [
   { id: 'watchdog', label: 'Watchdog', what: 'Problems are noticed and you are told', everyMs: 5 * M, core: false },
   { id: 'digest', label: 'Weekly digest', what: 'Monday\'s summary email goes out', everyMs: 30 * M, core: false },
   { id: 'improve', label: 'Campaign improvement', what: 'Relay writes, runs and settles tests on campaigns that asked for it', everyMs: H, core: false },
+  { id: 'signals', label: 'Moments', what: 'Finds people and companies where something just changed, from your own data and the websites you watch', everyMs: H, core: false },
   { id: 'reply_check', label: 'Daily reply check', what: 'Proves once a day that a reply stops a sequence', everyMs: H, core: false },
 ];
 

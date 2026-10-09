@@ -11,6 +11,7 @@ import { startWatchdogScheduler } from './jobs/schedulers/watchdog.scheduler.js'
 import { startReplyCheckScheduler } from './jobs/schedulers/reply-check.scheduler.js';
 import { startDigestScheduler } from './jobs/schedulers/digest.scheduler.js';
 import { startImproveScheduler } from './jobs/schedulers/improve.scheduler.js';
+import { startSignalsScheduler } from './jobs/schedulers/signals.scheduler.js';
 import { startProspectRulesScheduler } from './jobs/schedulers/prospect-rules.scheduler.js';
 import { startAbPromoteScheduler } from './jobs/schedulers/ab-promote.scheduler.js';
 import { startBookingReminderScheduler } from './jobs/schedulers/booking-reminder.scheduler.js';
@@ -116,6 +117,15 @@ const server = app.listen(port, () => {
     console.log('Improve scheduler started');
   } catch (err: any) {
     console.warn('Improve scheduler failed to start:', err.message);
+  }
+
+  // Moments: who to email today, and why.
+  try {
+    const signals = startSignalsScheduler();
+    if (signals) disposers.push(() => signals.stop());
+    console.log('Signals scheduler started');
+  } catch (err: any) {
+    console.warn('Signals scheduler failed to start:', err.message);
   }
 
   // Inbox placement: look for the seed probes of any test still running.
