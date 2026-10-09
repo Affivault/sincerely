@@ -3,7 +3,7 @@
 
    "Build a sequence" is the step people stall on: a blank editor, three
    emails to write, and no idea what a good first line for a partnerships
-   inbox at an investment platform looks like. So Relay drafts it from
+   inbox at a mid-sized company looks like. So Relay drafts it from
    what you sell and who is on the list, and - when Claude is available -
    writes one opening line per lead, stored on the lead as {{first_line}}.
 
