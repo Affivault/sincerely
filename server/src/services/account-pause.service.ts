@@ -18,7 +18,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { emailDomain, isFreeMailDomain } from '@lemlist/shared';
 import { AppError } from '../middleware/error.middleware.js';
-import { chunk } from '../utils/batch.js';
+import { chunk, selectInChunks } from '../utils/batch.js';
 
 /** The note left on a paused enrolment. Also how a resume recognises one. */
 export const COMPANY_PAUSE_PREFIX = 'Paused: ';
@@ -99,22 +99,28 @@ export async function resumePausedContacts(
   if (cErr) throw new AppError(cErr.message, 500);
   if (!campaign || campaign.user_id !== userId) throw new AppError('Campaign not found', 404);
 
-  let query = supabaseAdmin
+  const paused = () => supabaseAdmin
     .from('campaign_contacts')
     .select('id')
     .eq('campaign_id', campaignId)
     .eq('status', 'paused');
-  if (campaignContactIds && campaignContactIds.length > 0) {
-    // Named rows resume whatever paused them - somebody chose them.
-    query = query.in('id', campaignContactIds.slice(0, 1000));
-  } else {
-    // "Resume all" means the ones a colleague's reply held back. A person
-    // paused by hand ("stop emailing bob@...") was paused on purpose and
-    // stays paused until somebody resumes them by name.
-    query = query.like('error_message', `${COMPANY_PAUSE_PREFIX}%`);
+  let rows: Array<{ id: string }>;
+  try {
+    if (campaignContactIds && campaignContactIds.length > 0) {
+      // Named rows resume whatever paused them - somebody chose them. Looked
+      // up in slices: a thousand ids in one filter is past the URL ceiling.
+      rows = await selectInChunks(campaignContactIds.slice(0, 1000), (slice) => paused().in('id', slice));
+    } else {
+      // "Resume all" means the ones a colleague's reply held back. A person
+      // paused by hand ("stop emailing bob@...") was paused on purpose and
+      // stays paused until somebody resumes them by name.
+      const { data, error } = await paused().like('error_message', `${COMPANY_PAUSE_PREFIX}%`).limit(5000);
+      if (error) throw new Error(error.message);
+      rows = data || [];
+    }
+  } catch (err) {
+    throw new AppError((err as Error).message, 500);
   }
-  const { data: rows, error } = await query.limit(5000);
-  if (error) throw new AppError(error.message, 500);
   if (!rows || rows.length === 0) return 0;
 
   // A campaign that has not launched yet keeps them pending; launch will

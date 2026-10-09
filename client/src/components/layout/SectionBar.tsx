@@ -4,6 +4,7 @@ import { prefetchHref } from '../../lib/prefetch';
 import type { Section, SectionTab } from '../../lib/sections';
 import { cn } from '../../lib/utils';
 import { useActiveIntoView } from '../../hooks/useActiveIntoView';
+import { useMomentsCount } from '../../hooks/useMomentsCount';
 
 /**
  * The pages of the place you are in, as one row of tabs under the header.
@@ -17,6 +18,7 @@ export const SECTION_BAR_H = 44;
 
 export function SectionBar({ section, active }: { section: Section; active: SectionTab | null }) {
   const strip = useActiveIntoView<HTMLDivElement>(active?.href);
+  const momentsCount = useMomentsCount();
 
   /*
    * The pages beside this one are the likeliest next click, and they are
@@ -58,6 +60,14 @@ export function SectionBar({ section, active }: { section: Section; active: Sect
             >
               <tab.icon className={cn('h-3.5 w-3.5', on ? 'text-[var(--indigo)]' : 'opacity-70')} strokeWidth={1.8} />
               {tab.label}
+              {tab.href === '/moments' && momentsCount > 0 && (
+                <span
+                  className="min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-[var(--indigo)] text-white text-micro font-semibold leading-none tabular-nums"
+                  aria-label={`${momentsCount} new`}
+                >
+                  {momentsCount > 99 ? '99+' : momentsCount}
+                </span>
+              )}
               <span
                 aria-hidden
                 className={cn(
