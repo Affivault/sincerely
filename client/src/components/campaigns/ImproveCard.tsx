@@ -118,7 +118,7 @@ export function ImproveCard({ campaignId }: { campaignId: string }) {
       {data.enabled && (
         <div className="space-y-3 border-t border-[var(--border-subtle)] px-4 py-3.5">
           {data.current?.status === 'proposed' && (
-            <Proposal e={data.current} busy={busy}
+            <Proposal key={data.current.id} e={data.current} busy={busy}
               onApprove={(edits) => approve.mutate({ id: data.current!.id, edits })}
               onSkip={() => stop.mutate(data.current!.id)} />
           )}
@@ -170,6 +170,7 @@ function Proposal({ e, busy, onApprove, onSkip }: {
   const [editing, setEditing] = useState(false);
   const [subject, setSubject] = useState(e.challenger.subject || '');
   const [body, setBody] = useState(e.challenger.body_html || '');
+  const empty = editing && (e.element === 'subject' ? !subject.trim() : !plain(body));
   return (
     <div className="space-y-3" data-improve-proposal>
       <div>
@@ -180,13 +181,16 @@ function Proposal({ e, busy, onApprove, onSkip }: {
       </div>
       {editing ? (
         e.element === 'subject' ? (
-          <input
-            value={subject}
-            onChange={(ev) => setSubject(ev.target.value)}
-            maxLength={80}
-            aria-label="New subject line"
-            className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 py-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
-          />
+          <div>
+            <input
+              value={subject}
+              onChange={(ev) => setSubject(ev.target.value)}
+              maxLength={80}
+              aria-label="New subject line"
+              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 py-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
+            />
+            <p className="mt-1 text-right text-micro tabular-nums text-[var(--text-muted)]" data-improve-count>{subject.length}/80</p>
+          </div>
         ) : (
           <div className="rounded-xl border border-[var(--border-subtle)]">
             <RichTextEditor initialContent={e.challenger.body_html || ''} onChange={(html) => setBody(html)} minHeight="160px" bare />
@@ -199,7 +203,7 @@ function Proposal({ e, busy, onApprove, onSkip }: {
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" disabled={busy} onClick={() => onApprove(editing ? (e.element === 'subject' ? { subject } : { body_html: body }) : undefined)}>
+        <Button size="sm" disabled={busy || empty} onClick={() => onApprove(editing ? (e.element === 'subject' ? { subject } : { body_html: body }) : undefined)}>
           <FlaskConical className="h-3.5 w-3.5" /> {editing ? 'Start test with my edit' : 'Approve and start test'}
         </Button>
         {!editing && (

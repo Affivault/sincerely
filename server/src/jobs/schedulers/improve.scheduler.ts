@@ -10,9 +10,12 @@ import { beat } from '../../utils/heartbeat.js';
 const TICK_MS = 60 * 60 * 1000;
 let timer: ReturnType<typeof setInterval> | null = null;
 let kickoff: ReturnType<typeof setTimeout> | null = null;
+let running = false;
 
 async function tick() {
-  await runImproveSweep();
+  if (running) return; // a big sweep must not overlap the next one
+  running = true;
+  try { await runImproveSweep(); } finally { running = false; }
 }
 
 export function startImproveScheduler() {
