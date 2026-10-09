@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSidebar } from '../../context/SidebarContext';
 import { SetupNudge } from '../setup/SetupNudge';
 import { useUnreadCount } from '../../hooks/useUnreadCount';
+import { useMomentsCount } from '../../hooks/useMomentsCount';
 import { billingApi } from '../../api/billing.api';
 import { isUnlimited, ADMIN_EMAILS } from '@lemlist/shared';
 import { SECTIONS, SETTINGS_ICON, locate, isSettingsPath } from '../../lib/sections';
@@ -113,6 +114,7 @@ export function Sidebar() {
   const location = useLocation();
   const workspaceName = user?.email?.split('@')[0] || 'Workspace';
   const unreadCount = useUnreadCount();
+  const momentsCount = useMomentsCount();
 
   // On a narrow screen the drawer is a way to get somewhere; once there, it goes.
   useEffect(() => { setDrawerOpen(false); }, [location.pathname, setDrawerOpen]);
@@ -155,7 +157,7 @@ export function Sidebar() {
               icon={sec.icon}
               active={here.section?.id === sec.id}
               collapsed={collapsed}
-              badge={sec.id === 'inbox' ? unreadCount : undefined}
+              badge={sec.id === 'inbox' ? unreadCount : sec.id === 'home' ? momentsCount : undefined}
               hint={sec.tabs.map((t) => t.label).join(' · ')}
             />
           ))}

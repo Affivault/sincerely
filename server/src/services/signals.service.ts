@@ -28,6 +28,7 @@ import { settingsService } from './settings.service.js';
 import { inboxService } from './inbox.service.js';
 import { campaignContactsService } from './campaign-contacts.service.js';
 import { safeGetText } from '../utils/safe-fetch.js';
+import { selectInChunks } from '../utils/batch.js';
 
 const DAY = 86_400_000;
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -107,13 +108,13 @@ async function campaignIds(userId: string): Promise<string[]> {
 async function reEngaged(userId: string, campaigns: string[], now: number): Promise<NewSignal[]> {
   if (!campaigns.length) return [];
   const since = now - 5 * DAY;
-  const { data: recent } = await supabaseAdmin
+  const recent = await selectInChunks(campaigns, (slice) => supabaseAdmin
     .from('campaign_activities')
     .select('contact_id, activity_type, occurred_at')
-    .in('campaign_id', campaigns.slice(0, 500))
+    .in('campaign_id', slice)
     .in('activity_type', ['clicked', 'opened'])
     .gte('occurred_at', iso(since))
-    .limit(3000);
+    .limit(3000));
   const byContact = new Map<string, { clicks: number; days: Set<string>; first: number }>();
   for (const a of recent || []) {
     const r = a as any; const at = Date.parse(r.occurred_at);
@@ -127,24 +128,24 @@ async function reEngaged(userId: string, campaigns: string[], now: number): Prom
   if (!candidates.length) return [];
 
   // Quiet before: emailed earlier, no opens, clicks or replies in the two weeks before.
-  const { data: before } = await supabaseAdmin
+  const before = await selectInChunks(candidates, (slice) => supabaseAdmin
     .from('campaign_activities')
     .select('contact_id, activity_type, occurred_at')
-    .in('contact_id', candidates)
+    .in('contact_id', slice)
     .in('activity_type', ['sent', 'opened', 'clicked', 'replied'])
     .gte('occurred_at', iso(now - 120 * DAY))
     .lt('occurred_at', iso(since))
-    .limit(5000);
+    .limit(5000));
   const lastTouch = new Map<string, number>(); const lastSent = new Map<string, number>();
   for (const a of before || []) {
     const r = a as any; const at = Date.parse(r.occurred_at);
     if (r.activity_type === 'sent') lastSent.set(r.contact_id, Math.max(lastSent.get(r.contact_id) || 0, at));
     else lastTouch.set(r.contact_id, Math.max(lastTouch.get(r.contact_id) || 0, at));
   }
-  const { data: replies } = await supabaseAdmin
+  const replies = await selectInChunks(candidates, (slice) => supabaseAdmin
     .from('inbox_messages').select('contact_id')
-    .eq('user_id', userId).in('contact_id', candidates).neq('direction', 'outbound')
-    .gte('received_at', iso(now - 30 * DAY));
+    .eq('user_id', userId).in('contact_id', slice).neq('direction', 'outbound')
+    .gte('received_at', iso(now - 30 * DAY)));
   const repliedLately = new Set((replies || []).map((r: any) => r.contact_id));
   const people = await reachable(userId, candidates);
 
@@ -186,10 +187,10 @@ async function notNowDue(userId: string, now: number): Promise<NewSignal[]> {
     .filter(({ back }) => { const t = Date.parse(back.due); return t <= now && t >= now - 30 * DAY; });
   if (!due.length) return [];
   const ids = [...new Set(due.map(({ m }) => m.contact_id))];
-  const { data: later } = await supabaseAdmin
+  const later = await selectInChunks(ids, (slice) => supabaseAdmin
     .from('inbox_messages').select('contact_id, received_at')
-    .eq('user_id', userId).in('contact_id', ids)
-    .gte('received_at', iso(now - 400 * DAY));
+    .eq('user_id', userId).in('contact_id', slice)
+    .gte('received_at', iso(now - 400 * DAY)));
   const people = await reachable(userId, ids);
   const out: NewSignal[] = [];
   const seen = new Set<string>();
@@ -199,7 +200,7 @@ async function notNowDue(userId: string, now: number): Promise<NewSignal[]> {
     const c = people.get(m.contact_id);
     if (!c || c.is_unsubscribed || c.is_bounced) continue;
     // Anything said since, in either direction, and the moment has passed.
-    if ((later || []).some((l: any) => l.contact_id === m.contact_id && Date.parse(l.received_at) > Date.parse(m.received_at))) continue;
+    if (later.some((l: any) => l.contact_id === m.contact_id && Date.parse(l.received_at) > Date.parse(m.received_at))) continue;
     const when = new Date(m.received_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
     out.push({
       kind: 'not_now_due',
@@ -250,14 +251,14 @@ async function lostDealsReturn(userId: string, now: number): Promise<NewSignal[]
 /** Several people at one company engaging in the same week. */
 async function companyBuzz(userId: string, campaigns: string[], now: number): Promise<NewSignal[]> {
   const since = iso(now - 7 * DAY);
-  const [{ data: clicks }, { data: replies }] = await Promise.all([
+  const [clicks, { data: replies }] = await Promise.all([
     campaigns.length
-      ? supabaseAdmin.from('campaign_activities').select('contact_id').in('campaign_id', campaigns.slice(0, 500)).eq('activity_type', 'clicked').gte('occurred_at', since).limit(3000)
-      : Promise.resolve({ data: [] as any[] }),
+      ? selectInChunks(campaigns, (slice) => supabaseAdmin.from('campaign_activities').select('contact_id').in('campaign_id', slice).eq('activity_type', 'clicked').gte('occurred_at', since).limit(3000))
+      : Promise.resolve([] as any[]),
     supabaseAdmin.from('inbox_messages').select('contact_id').eq('user_id', userId).neq('direction', 'outbound').not('contact_id', 'is', null).gte('received_at', since).limit(2000),
   ]);
   const replied = new Set((replies || []).map((r: any) => r.contact_id));
-  const ids = [...new Set([...(clicks || []).map((c: any) => c.contact_id), ...replied])].slice(0, 1000);
+  const ids = [...new Set([...clicks.map((c: any) => c.contact_id), ...replied])].slice(0, 1000);
   if (ids.length < 2) return [];
   const people = await reachable(userId, ids);
   const byCompany = new Map<string, any[]>();
@@ -292,19 +293,19 @@ async function stalledPositive(userId: string, now: number): Promise<NewSignal[]
     .limit(300);
   if (!data?.length) return [];
   const ids = [...new Set(data.map((m: any) => m.contact_id))];
-  const [{ data: later }, { data: deals }, people] = await Promise.all([
-    supabaseAdmin.from('inbox_messages').select('id, contact_id, received_at').eq('user_id', userId).in('contact_id', ids).gte('received_at', iso(now - 30 * DAY)),
-    supabaseAdmin.from('deals').select('contact_id, stage').eq('user_id', userId).in('contact_id', ids).in('stage', ['proposal', 'won']),
+  const [later, deals, people] = await Promise.all([
+    selectInChunks(ids, (slice) => supabaseAdmin.from('inbox_messages').select('id, contact_id, received_at').eq('user_id', userId).in('contact_id', slice).gte('received_at', iso(now - 30 * DAY))),
+    selectInChunks(ids, (slice) => supabaseAdmin.from('deals').select('contact_id, stage').eq('user_id', userId).in('contact_id', slice).in('stage', ['proposal', 'won'])),
     reachable(userId, ids),
   ]);
-  const advanced = new Set((deals || []).map((d: any) => d.contact_id));
+  const advanced = new Set(deals.map((d: any) => d.contact_id));
   const out: NewSignal[] = []; const seen = new Set<string>();
   for (const m of data as any[]) {
     if (seen.has(m.contact_id)) continue;
     seen.add(m.contact_id);
     const c = people.get(m.contact_id);
     if (!c || c.is_unsubscribed || c.is_bounced || advanced.has(m.contact_id)) continue;
-    if ((later || []).some((l: any) => l.contact_id === m.contact_id && l.id !== m.id && Date.parse(l.received_at) > Date.parse(m.received_at))) continue;
+    if (later.some((l: any) => l.contact_id === m.contact_id && l.id !== m.id && Date.parse(l.received_at) > Date.parse(m.received_at))) continue;
     const days = Math.floor((now - Date.parse(m.received_at)) / DAY);
     out.push({
       kind: 'stalled_positive',
@@ -324,22 +325,22 @@ async function stalledPositive(userId: string, now: number): Promise<NewSignal[]
 /** A past replier whose address now bounces: they have probably moved on. */
 async function leftCompany(userId: string, campaigns: string[], now: number): Promise<NewSignal[]> {
   if (!campaigns.length) return [];
-  const { data: bounces } = await supabaseAdmin
+  const bounces = await selectInChunks(campaigns, (slice) => supabaseAdmin
     .from('campaign_activities').select('contact_id, occurred_at')
-    .in('campaign_id', campaigns.slice(0, 500)).eq('activity_type', 'bounced')
-    .gte('occurred_at', iso(now - 14 * DAY)).limit(1000);
-  const ids = [...new Set((bounces || []).map((b: any) => b.contact_id))].slice(0, 500);
+    .in('campaign_id', slice).eq('activity_type', 'bounced')
+    .gte('occurred_at', iso(now - 14 * DAY)).limit(1000));
+  const ids = [...new Set(bounces.map((b: any) => b.contact_id))].slice(0, 500);
   if (!ids.length) return [];
-  const { data: replied } = await supabaseAdmin
-    .from('inbox_messages').select('contact_id').eq('user_id', userId).in('contact_id', ids).neq('direction', 'outbound').limit(2000);
-  const repliers = new Set((replied || []).map((r: any) => r.contact_id));
+  const replied = await selectInChunks(ids, (slice) => supabaseAdmin
+    .from('inbox_messages').select('contact_id').eq('user_id', userId).in('contact_id', slice).neq('direction', 'outbound').limit(2000));
+  const repliers = new Set(replied.map((r: any) => r.contact_id));
   if (!repliers.size) return [];
   const people = await reachable(userId, [...repliers]);
   const out: NewSignal[] = [];
   for (const id of repliers) {
     const c = people.get(id);
     if (!c) continue;
-    const at = (bounces || []).find((b: any) => b.contact_id === id)?.occurred_at || iso(now);
+    const at = bounces.find((b: any) => b.contact_id === id)?.occurred_at || iso(now);
     out.push({
       kind: 'left_company',
       contact_id: id,
