@@ -19,5 +19,5 @@ export const signalsApi = {
   send: async (id: string, input: { contact_id?: string | null; subject: string; body: string }) =>
     (await apiClient.post<{ sent: boolean; to: string }>(`/signals/${id}/send`, input)).data,
   enrol: async (id: string, input: { contact_id?: string | null; campaign_id: string }) =>
-    (await apiClient.post<EnrolResult & { campaign_name: string; first_line: string | null }>(`/signals/${id}/enrol`, input)).data,
+    (await apiClient.post<EnrolResult & { already_in: boolean; campaign_name: string; first_line: string | null }>(`/signals/${id}/enrol`, input)).data,
 };
