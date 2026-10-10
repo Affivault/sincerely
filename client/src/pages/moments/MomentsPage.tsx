@@ -158,6 +158,11 @@ function MomentCard({ moment: m, onWrite, onAdd, onDismiss }: {
             <span className="font-semibold uppercase tracking-wide">{SIGNAL_KIND_LABELS[m.kind]}</span>
             <span className={`rounded-full px-2 py-0.5 font-medium ${strength.cls}`}>{strength.label}</span>
             <span>{formatRelativeTime(m.occurred_at)}</span>
+            {m.company && (
+              <Link to={`/companies/${m.company.id}`} className="inline-flex items-center gap-1 font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:underline">
+                <Building2 className="h-3 w-3" /> {m.company.name}
+              </Link>
+            )}
           </div>
           <p className="text-strong font-semibold text-[var(--text-primary)]">{m.headline}</p>
           {m.detail && <p className="mt-1 text-body text-[var(--text-secondary)]">{m.detail}</p>}
@@ -380,7 +385,8 @@ function AddDialog({ moment, to, onClose, onAdded }: { moment: Signal; to: Signa
   const add = useMutation({
     mutationFn: () => signalsApi.enrol(moment.id, { contact_id: to.id, campaign_id: campaignId }),
     onSuccess: (r) => {
-      if (r.added > 0) { toast.success(`${who(to)} added to "${r.campaign_name}".`); onAdded(); }
+      if (r.already_in) { toast.success(`${who(to)} is already in "${r.campaign_name}". Marked as done.`); onAdded(); }
+      else if (r.added > 0) { toast.success(`${who(to)} added to "${r.campaign_name}".`); onAdded(); }
       else toast.error(`${who(to)} was not added: they may already be in it, or cannot be emailed.`);
     },
     onError: (err: any) => toast.error(err?.response?.data?.error || 'They could not be added.'),

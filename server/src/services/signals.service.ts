@@ -31,6 +31,8 @@ import { safeGetText } from '../utils/safe-fetch.js';
 import { selectInChunks } from '../utils/batch.js';
 
 const DAY = 86_400_000;
+/** Contacts per history lookup: a response is capped at 1,000 rows, so 200 busy contacts could silently lose some. */
+const HISTORY_SLICE = 40;
 const iso = (ms: number) => new Date(ms).toISOString();
 
 /** Website pages read per account per run, and Claude judgements per run. */
@@ -135,7 +137,7 @@ async function reEngaged(userId: string, campaigns: string[], now: number): Prom
     .in('activity_type', ['sent', 'opened', 'clicked', 'replied'])
     .gte('occurred_at', iso(now - 120 * DAY))
     .lt('occurred_at', iso(since))
-    .limit(5000));
+    .limit(5000), HISTORY_SLICE);
   const lastTouch = new Map<string, number>(); const lastSent = new Map<string, number>();
   for (const a of before || []) {
     const r = a as any; const at = Date.parse(r.occurred_at);
@@ -145,7 +147,7 @@ async function reEngaged(userId: string, campaigns: string[], now: number): Prom
   const replies = await selectInChunks(candidates, (slice) => supabaseAdmin
     .from('inbox_messages').select('contact_id')
     .eq('user_id', userId).in('contact_id', slice).neq('direction', 'outbound')
-    .gte('received_at', iso(now - 30 * DAY)));
+    .gte('received_at', iso(now - 30 * DAY)), HISTORY_SLICE);
   const repliedLately = new Set((replies || []).map((r: any) => r.contact_id));
   const people = await reachable(userId, candidates);
 
@@ -190,7 +192,7 @@ async function notNowDue(userId: string, now: number): Promise<NewSignal[]> {
   const later = await selectInChunks(ids, (slice) => supabaseAdmin
     .from('inbox_messages').select('contact_id, received_at')
     .eq('user_id', userId).in('contact_id', slice)
-    .gte('received_at', iso(now - 400 * DAY)));
+    .gte('received_at', iso(now - 400 * DAY)), HISTORY_SLICE);
   const people = await reachable(userId, ids);
   const out: NewSignal[] = [];
   const seen = new Set<string>();
@@ -294,7 +296,7 @@ async function stalledPositive(userId: string, now: number): Promise<NewSignal[]
   if (!data?.length) return [];
   const ids = [...new Set(data.map((m: any) => m.contact_id))];
   const [later, deals, people] = await Promise.all([
-    selectInChunks(ids, (slice) => supabaseAdmin.from('inbox_messages').select('id, contact_id, received_at').eq('user_id', userId).in('contact_id', slice).gte('received_at', iso(now - 30 * DAY))),
+    selectInChunks(ids, (slice) => supabaseAdmin.from('inbox_messages').select('id, contact_id, received_at').eq('user_id', userId).in('contact_id', slice).gte('received_at', iso(now - 30 * DAY)), HISTORY_SLICE),
     selectInChunks(ids, (slice) => supabaseAdmin.from('deals').select('contact_id, stage').eq('user_id', userId).in('contact_id', slice).in('stage', ['proposal', 'won'])),
     reachable(userId, ids),
   ]);
@@ -719,7 +721,9 @@ export const signalsService = {
     const sent = await inboxService.compose(userId, {
       to: c.email, subject: input.subject.trim(), body: input.body.trim(), smtp_account_id: input.smtp_account_id || undefined,
     });
-    await signalsService.setStatus(userId, id, 'acted');
+    // The email is out. A failed status write must not surface as a failed
+    // send, or the retry sends it twice.
+    await signalsService.setStatus(userId, id, 'acted').catch((err) => console.warn('[Moments] sent but not marked:', (err as Error)?.message || err));
     return { sent: true, to: c.email, message_id: (sent as any)?.message_id ?? null };
   },
 
@@ -729,13 +733,19 @@ export const signalsService = {
     const c = await recipient(userId, row, input.contact_id);
     const { data: campaign } = await supabaseAdmin.from('campaigns').select('id, name, status').eq('id', input.campaign_id).eq('user_id', userId).maybeSingle();
     if (!campaign) throw new AppError('Campaign not found', 404);
-    if (row.opener) {
+    // Someone already in the campaign keeps the first line they were enrolled
+    // with: rewriting it would change an email already queued for them.
+    const { data: existing } = await supabaseAdmin.from('campaign_contacts').select('id').eq('campaign_id', campaign.id).eq('contact_id', c.id).limit(1);
+    const alreadyIn = (existing || []).length > 0;
+    if (row.opener && !alreadyIn) {
       const custom = { ...(c.custom_fields && typeof c.custom_fields === 'object' ? c.custom_fields : {}), first_line: row.opener };
       await supabaseAdmin.from('contacts').update({ custom_fields: custom }).eq('id', c.id).eq('user_id', userId);
     }
     const result = await campaignContactsService.add(campaign.id, [c.id]);
-    if (result.added > 0) await signalsService.setStatus(userId, id, 'acted');
-    return { ...result, campaign_name: (campaign as any).name, first_line: row.opener || null };
+    // Already in the campaign is as handled as newly added; leaving the moment
+    // on the list would offer the same click again forever.
+    if (result.added > 0 || alreadyIn) await signalsService.setStatus(userId, id, 'acted');
+    return { ...result, already_in: alreadyIn, campaign_name: (campaign as any).name, first_line: alreadyIn ? null : row.opener || null };
   },
 
   settings: settingsFor,
