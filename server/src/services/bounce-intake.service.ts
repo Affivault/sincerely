@@ -14,6 +14,7 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 import { supabaseAdmin } from '../config/supabase.js';
+import { chunk } from '../utils/batch.js';
 import { parseBounceNotice, type BounceNotice } from '@lemlist/shared';
 import * as sse from './sse.service.js';
 import { guardAfterBounce } from './bounce-guard.service.js';
@@ -162,11 +163,19 @@ async function recordOne(msg: InboundForBounce, email: string, notice: BounceNot
  */
 export async function markBounceChecked(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
-  const { error } = await supabaseAdmin
-    .from('inbox_messages')
-    .update({ bounce_checked_at: new Date().toISOString() })
-    .in('id', ids);
-  if (error && !/bounce_checked_at/.test(error.message)) {
-    console.warn(`[BounceIntake] Could not mark messages checked: ${error.message}`);
+  // The sweep reads up to 300 at a time; one .in() of that many uuids is past
+  // the URL ceiling, and a failed mark means the same notices are re-read forever.
+  const checkedAt = new Date().toISOString();
+  for (const slice of chunk(ids)) {
+    const { error } = await supabaseAdmin
+      .from('inbox_messages')
+      .update({ bounce_checked_at: checkedAt })
+      .in('id', slice);
+    if (error) {
+      if (!/bounce_checked_at/.test(error.message)) {
+        console.warn(`[BounceIntake] Could not mark messages checked: ${error.message}`);
+      }
+      return;
+    }
   }
 }

@@ -19,6 +19,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { companyFromEmail, websiteFromEmail, isRoleAddress, registrableDomain, emailDomain, isFreeMailDomain } from '@lemlist/shared';
 import { companiesService } from './companies.service.js';
+import { chunk } from '../utils/batch.js';
 
 const running = new Set<string>();
 const again = new Set<string>();
@@ -112,8 +113,10 @@ async function enrichAll(userId: string): Promise<number> {
               .update({ ...(co.domain ? {} : { domain: entry.domain }), ...(co.website ? {} : { website: entry.website }) })
               .eq('id', co.id).eq('user_id', userId);
           }
-          await supabaseAdmin.from('contacts').update({ company_id: co.id })
-            .eq('user_id', userId).in('id', entry.ids).is('company_id', null);
+          for (const slice of chunk(entry.ids)) {
+            await supabaseAdmin.from('contacts').update({ company_id: co.id })
+              .eq('user_id', userId).in('id', slice).is('company_id', null);
+          }
         }
       } catch { /* a company that can't be made is not worth failing the rest */ }
     }

@@ -16,6 +16,7 @@ import { SaraStatus, stripDashes } from '@lemlist/shared';
 import { billingService } from './billing.service.js';
 import { inboxSyncService, imapHostFor } from './inbox-sync.service.js';
 import { guardImap } from '../utils/imap-guard.js';
+import { selectInChunks } from '../utils/batch.js';
 
 /** Reserve a monthly-quota slot before an interactive send; throws if over cap. */
 async function assertSendQuota(userId: string): Promise<void> {
@@ -63,14 +64,17 @@ async function syncArchiveToImap(
   }
 
   // Fetch messages with their UIDs + account info
-  const { data: messages } = await supabaseAdmin
+  const messages = await selectInChunks(inboxMessageIds, (slice) => supabaseAdmin
     .from('inbox_messages')
     .select('id, imap_uid, imap_folder, smtp_account_id')
-    .in('id', inboxMessageIds)
+    .in('id', slice)
     .eq('user_id', userId)
-    .not('imap_uid', 'is', null);
+    .not('imap_uid', 'is', null)).catch((e: Error) => {
+    console.error('[Inbox] IMAP archive sync lookup failed:', e.message);
+    return [] as any[];
+  });
 
-  if (!messages || messages.length === 0) return;
+  if (messages.length === 0) return;
 
   // Group by SMTP account so we only open one IMAP connection per account
   const byAccount = new Map<string, any[]>();
