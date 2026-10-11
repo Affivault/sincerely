@@ -71,7 +71,11 @@ export function ContactDetailPage() {
   const tabName = contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') || contact.email : '';
   useEffect(() => {
     if (!tabName) return;
+    // AppLayout owns document.title (it adds the unread badge and rewrites it
+    // whenever the count changes), so hand it the name rather than set it here.
+    document.documentElement.dataset.pageName = tabName;
     document.title = `${tabName} · Sincerely`;
+    return () => { delete document.documentElement.dataset.pageName; };
   }, [tabName]);
 
   /*

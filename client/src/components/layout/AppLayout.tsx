@@ -102,7 +102,7 @@ function AppContent() {
 
   // Wayfinding — document title tracks the current page
   useEffect(() => {
-    const page = pageTitle(location.pathname);
+    const page = document.documentElement.dataset.pageName || pageTitle(location.pathname);
     const badge = unreadCount > 0 ? ` (${unreadCount})` : '';
     document.title = `${page ? `${page} · ` : ''}Sincerely${badge}`;
     return () => { document.title = 'Sincerely'; };
