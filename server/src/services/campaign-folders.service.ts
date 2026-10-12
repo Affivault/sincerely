@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { chunk } from '../utils/batch.js';
 
 const PAGE_SIZE = 1000;
 
@@ -148,13 +149,17 @@ export const campaignFoldersService = {
       return { folder, campaigns: [], totals: { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 } };
     }
 
-    const activities = await fetchAllRows<{ activity_type: string; campaign_id: string }>((from, to) =>
-      supabaseAdmin
-        .from('campaign_activities')
-        .select('activity_type, campaign_id')
-        .in('campaign_id', campaignIds)
-        .range(from, to)
-    );
+    // Slice the id list: a folder with many campaigns would overflow the URL.
+    const activities: { activity_type: string; campaign_id: string }[] = [];
+    for (const slice of chunk(campaignIds)) {
+      activities.push(...await fetchAllRows<{ activity_type: string; campaign_id: string }>((from, to) =>
+        supabaseAdmin
+          .from('campaign_activities')
+          .select('activity_type, campaign_id')
+          .in('campaign_id', slice)
+          .range(from, to)
+      ));
+    }
 
     const byCampaign: Record<string, any> = {};
     const totals = { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 };
