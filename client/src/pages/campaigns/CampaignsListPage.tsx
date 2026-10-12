@@ -1169,6 +1169,7 @@ function FolderAnalyticsModal({ folderId, onClose }: { folderId: string; onClose
                 <th className="text-right py-2 font-medium">Open %</th>
                 <th className="text-right py-2 font-medium">Click %</th>
                 <th className="text-right py-2 font-medium">Reply %</th>
+                <th className="text-right py-2 font-medium">Bounced</th>
               </tr>
             </thead>
             <tbody>
@@ -1179,6 +1180,7 @@ function FolderAnalyticsModal({ folderId, onClose }: { folderId: string; onClose
                   <td className="py-2.5 text-right text-[var(--text-secondary)] tabular">{c.open_rate}%</td>
                   <td className="py-2.5 text-right text-[var(--text-secondary)] tabular">{c.click_rate}%</td>
                   <td className="py-2.5 text-right text-[var(--text-secondary)] tabular">{c.reply_rate}%</td>
+                  <td className={`py-2.5 text-right tabular ${c.bounced > 0 && c.sent > 0 && c.bounced / c.sent > 0.05 ? 'text-[var(--danger,#dc2626)] font-medium' : 'text-[var(--text-secondary)]'}`}>{c.bounced.toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
