@@ -1545,7 +1545,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           </aside>
         ) : (
         <aside className="hidden md:block w-56 flex-shrink-0" /* not on a phone: beside the table it leaves the table no room */>
-          <div className="sticky top-[calc(var(--chrome-h,56px)+4px)] panel-inset p-1.5 space-y-0.5">
+          <div className="sticky top-[calc(var(--chrome-h,56px)+4px)] space-y-0.5">
             <div className="flex items-center justify-between gap-1 px-1.5 pb-1.5 mb-0.5 border-b border-[var(--border-subtle)]">
               <span className="text-micro font-semibold text-[var(--text-tertiary)]">
                 {listKind === 'lead' ? 'Lead lists' : 'Contact lists'}
@@ -1574,7 +1574,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             className={cn(
               "w-full flex items-center gap-2.5 h-8 px-2.5 rounded-md text-strong font-medium transition-all",
               !activeListId
-                ? "bg-[var(--indigo-subtle)] text-[var(--indigo)]"
+                ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
                 : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
             )}
           >
@@ -1737,7 +1737,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               className={cn(
                 'w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-body font-medium transition-all',
                 isUnlistedView
-                  ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                  ? 'bg-[var(--bg-active)] text-[var(--text-primary)]'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
               )}
             >

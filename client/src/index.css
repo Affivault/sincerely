@@ -145,9 +145,9 @@
     --glass-border: rgba(24, 25, 29, 0.08);
     --noise: none;
 
-    --font-ui: 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
-    --font-data: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --font-ui: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-display: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-data: 'Geist Mono', 'SF Mono', Consolas, monospace;
 
     color-scheme: light;
   }
@@ -245,18 +245,13 @@
     color: var(--text-primary);
     font-size: 13.5px;
     line-height: 1.55;
-    letter-spacing: 0.002em;
+    letter-spacing: -0.003em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-optical-sizing: auto;
   }
 
-  /*
-   * Headings stay in the UI face - Newsreader is opted into with
-   * .font-display / .page-title, for the handful of lines that open a page
-   * the way a salutation opens a letter.
-   */
-  h1, h2, h3 { letter-spacing: -0.006em; }
+  h1, h2, h3 { letter-spacing: -0.012em; }
 
   ::selection {
     background: color-mix(in srgb, var(--indigo) 22%, transparent);
@@ -746,23 +741,14 @@
     color: var(--text-tertiary);
   }
 
-  /*
-   * The opening line of a page, set in Newsreader. A letter opens with a
-   * salutation in a different voice from its body; so does a page here.
-   * Used for page titles and the dashboard's greeting, and nowhere else -
-   * spread any wider and it stops meaning anything.
-   */
+  /* The title of a page: one size, one weight, everywhere. */
   .page-title {
     font-family: var(--font-display);
-    font-size: 27px;
-    font-weight: 450;
-    line-height: 1.12;
-    letter-spacing: -0.014em;
-    font-optical-sizing: auto;
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.022em;
     color: var(--text-primary);
-  }
-  @media (max-width: 640px) {
-    .page-title { font-size: 23px; }
   }
 
   /* Animated live dot */

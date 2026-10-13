@@ -2,7 +2,7 @@ import { useTrackLastSeen } from '../flow/AwayCard';
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
-import { Header } from './Header';
+import { Header, HEADER_H } from './Header';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { UpgradeNag } from '../UpgradeNag';
 import { CommandPalette, PeekDrawer, ShortcutsOverlay, warmOverlays } from './Overlays';
@@ -20,6 +20,9 @@ import { cn } from '../../lib/utils';
 import { SECTIONS, locate, isSettingsPath, pageTitle } from '../../lib/sections';
 import { SectionBar, SECTION_BAR_H } from './SectionBar';
 import { SettingsShell } from '../shared/SettingsShell';
+
+/** The paper margin around the sheet on a desktop. */
+const FRAME_GAP = 8;
 
 /* `g` then key → destination (Linear-style two-stroke navigation) */
 const GO_MAP: Record<string, string> = {
@@ -71,6 +74,7 @@ function AppContent() {
   // only reachable by search, where the bar is the way back.
   const showBar = !!here.section && (here.section.tabs.filter((t) => !t.hidden).length > 1 || !!here.tab?.hidden);
   const fullBleed = location.pathname.startsWith('/inbox');
+  const sidebarW = collapsed ? 60 : 232;
   const goPending = useRef<number | null>(null);
   const prevUnreadRef = useRef<number>(0);
   const originalFaviconHrefRef = useRef<string | null>(null);
@@ -244,19 +248,48 @@ function AppContent() {
       className="min-h-screen bg-[var(--bg-app)]"
       style={{ backgroundImage: 'var(--noise), var(--gradient-page)' }}
     >
-      {/* Full-width top bar — holds the logo + sidebar toggle, never collapses */}
+      {/* A top bar on a phone only; on a desktop the sidebar is the chrome. */}
       <Header />
-      <Sidebar />
+      <Sidebar onShortcuts={() => setShortcutsOpen(true)} />
+      {/*
+       * The sheet.
+       *
+       * On a desktop the work sits on one white sheet, inset from the
+       * window on a paper surround, with the sidebar on the same paper
+       * beside it - rather than a grey page under a top bar with cards
+       * dropped on it. The frame is drawn by a fixed overlay whose huge
+       * spread shadow paints the paper margin, so the WINDOW still
+       * scrolls: every sticky header, scroll listener and observer in the
+       * app keeps working exactly as it did, and the page simply passes
+       * under the frame's edge.
+       */}
+      {!narrow && (
+        <div
+          aria-hidden
+          className="pointer-events-none fixed z-[35] rounded-[12px] border border-[var(--border-subtle)] transition-[left] duration-200 ease-out"
+          style={{
+            top: FRAME_GAP, right: FRAME_GAP, bottom: FRAME_GAP, left: sidebarW,
+            boxShadow: '0 0 0 100vmax var(--bg-app), 0 1px 2px rgba(0,0,0,0.03)',
+          }}
+        />
+      )}
       <div
-        className={cn(
-          'transition-[padding] duration-200 pt-[56px]',
-          narrow ? 'pl-0' : collapsed ? 'pl-[52px]' : 'pl-[240px]'
-        )}
-        // Everything above the page: the header, and the section bar when
-        // there is one. Full-height surfaces (the Unibox, the campaign
-        // builder) and sticky rails size themselves from this.
-        style={{ ['--chrome-h' as string]: `${56 + (showBar ? SECTION_BAR_H : 0)}px` }}
+        className="transition-[padding] duration-200 ease-out"
+        style={{
+          paddingTop: narrow ? HEADER_H : FRAME_GAP,
+          paddingLeft: narrow ? 0 : sidebarW,
+          paddingRight: narrow ? 0 : FRAME_GAP,
+          paddingBottom: narrow ? 0 : FRAME_GAP,
+          // Where sticky things stick: just under the bar on a phone, at the
+          // top edge of the sheet on a desktop.
+          ['--frame-top' as string]: `${narrow ? HEADER_H : FRAME_GAP}px`,
+          // Everything that is not page: the bar or the sheet's margins, and
+          // the section tabs when there are some. Full-height surfaces (the
+          // Unibox, the campaign builder) and sticky rails size from this.
+          ['--chrome-h' as string]: `${(narrow ? HEADER_H : FRAME_GAP * 2) + (showBar ? SECTION_BAR_H : 0)}px`,
+        }}
       >
+      <div className="min-h-[calc(100vh-16px)] bg-[var(--bg-surface)]">
         {showBar && here.section && <SectionBar section={here.section} active={here.tab} />}
         {/* Generous workspace width — effectively full-bleed on laptops so data
             tables breathe, while capping ultrawide so forms stay readable.
@@ -278,6 +311,7 @@ function AppContent() {
             </ErrorBoundary>
           </div>
         </main>
+      </div>
       </div>
       <CommandPalette open={open} onClose={closePalette} />
       {/* Any page can open a record over itself; state lives in the URL. */}

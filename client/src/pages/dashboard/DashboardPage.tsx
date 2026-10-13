@@ -422,8 +422,7 @@ export function DashboardPage() {
       {/* ── Header ── */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          {/* The one line on the page set like the opening of a letter. */}
-          <h1 className="font-display text-[34px] sm:text-[38px] font-[420] leading-[1.05] tracking-[-0.018em] text-[var(--text-primary)]">
+          <h1 className="text-[26px] sm:text-[30px] font-semibold leading-[1.1] tracking-[-0.03em] text-[var(--text-primary)]">
             {greeting()}, <span className="capitalize">{name}</span>
           </h1>
           {/* Said as a sentence, not as a strip of dot-joined stats. */}

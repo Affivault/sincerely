@@ -68,14 +68,16 @@ export function PageHeader({
           // sm:px-6 / lg:px-8, py-5 / lg:py-7 in AppLayout). They were a fixed
           // -mx-6 against a px-8 page, which left the band floating 8px in from
           // both edges on desktop and hanging off the side on a phone.
-          : 'relative -mx-4 -mt-5 sm:-mx-6 lg:-mx-8 lg:-mt-7 mb-6 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden',
+          // The title is the top of the sheet, not a banded strip across it:
+          // no rule underneath, so the page reads as one surface.
+          : 'relative -mx-4 -mt-5 sm:-mx-6 lg:-mx-8 lg:-mt-7 mb-2 overflow-hidden',
         className
       )}
     >
       {/* `decorate` retained for API compatibility; the glow wash was removed to
           keep headers calm and consistent across the app. */}
 
-      <div className={cn('relative', inset ? '' : 'px-4 sm:px-6 lg:px-8 pt-6 pb-5')}>
+      <div className={cn('relative', inset ? '' : 'px-4 sm:px-6 lg:px-8 pt-7 pb-5')}>
         <div className={contentClassName}>
         {/* Breadcrumbs */}
         {breadcrumbs && breadcrumbs.length > 0 && (

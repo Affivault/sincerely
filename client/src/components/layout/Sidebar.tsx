@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { LogOut, ArrowUpRight, ShieldCheck } from 'lucide-react';
+import { ArrowUpRight, ShieldCheck, Search, PanelLeftClose, PanelLeftOpen, ChevronsUpDown } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
 import { useSidebar } from '../../context/SidebarContext';
@@ -11,6 +11,10 @@ import { useMomentsCount } from '../../hooks/useMomentsCount';
 import { billingApi } from '../../api/billing.api';
 import { isUnlimited, ADMIN_EMAILS } from '@lemlist/shared';
 import { SECTIONS, SETTINGS_ICON, locate, isSettingsPath } from '../../lib/sections';
+import { useCommandPalette } from '../../context/CommandPaletteContext';
+import { SincerelyLogo, SincerelyLogoMark } from '../SincerelyLogo';
+import { AccountMenu, CreateButton, CreateMenu } from './ShellMenus';
+import { HEADER_H } from './Header';
 
 /* ─── Nav ────────────────────────────────────────────────────────────
    Six places and Settings - see lib/sections.ts for why, and for the one
@@ -84,7 +88,7 @@ function UsageCard({ collapsed }: { collapsed: boolean }) {
   const isFree = usage.plan === 'free';
 
   return (
-    <div className="mx-2.5 mb-2 px-2 py-2.5">
+    <div className="mx-3 mb-1 px-1.5 py-2.5">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-caption font-medium text-[var(--text-tertiary)]">Emails this month</span>
         <span className="text-caption font-semibold text-[var(--text-secondary)] tabular-nums">
@@ -107,9 +111,12 @@ function UsageCard({ collapsed }: { collapsed: boolean }) {
 }
 
 /* ─── Sidebar ───────────────────────────────────────────────────── */
-export function Sidebar() {
-  const { user, signOut: logout } = useAuth();
-  const { collapsed, narrow, drawerOpen, setDrawerOpen } = useSidebar();
+export function Sidebar({ onShortcuts }: { onShortcuts?: () => void }) {
+  const { user } = useAuth();
+  const { collapsed: collapsedPref, narrow, drawerOpen, setDrawerOpen, toggle } = useSidebar();
+  // The drawer on a phone is always the full sidebar.
+  const collapsed = collapsedPref && !narrow;
+  const { openPalette } = useCommandPalette();
   const location = useLocation();
   const workspaceName = user?.email?.split('@')[0] || 'Workspace';
   const unreadCount = useUnreadCount();
@@ -128,24 +135,69 @@ export function Sidebar() {
       <div
         aria-hidden
         onClick={() => setDrawerOpen(false)}
+        style={{ top: HEADER_H }}
         className={cn(
-          'fixed inset-0 top-[56px] z-40 bg-black/30 backdrop-blur-[1px] transition-opacity duration-200',
+          'fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px] transition-opacity duration-200',
           drawerOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
         )}
       />
     )}
     <aside
       className={cn(
-        'fixed top-[56px] bottom-0 left-0 z-40 flex flex-col bg-[var(--bg-app)] border-r border-[var(--border-subtle)] transition-[width,transform,visibility] duration-200 ease-out',
-        narrow ? 'w-[264px] shadow-[var(--shadow-xl)]' : collapsed ? 'w-[52px]' : 'w-[240px]',
+        'fixed bottom-0 left-0 z-40 flex flex-col bg-[var(--bg-app)] transition-[width,transform,visibility] duration-200 ease-out',
+        narrow ? 'w-[264px] border-r border-[var(--border-subtle)] shadow-[var(--shadow-xl)]' : collapsed ? 'w-[60px]' : 'w-[232px]',
         // Invisible as well as off-screen, so a closed drawer's links are out of the Tab order.
         narrow && !drawerOpen && 'invisible -translate-x-full shadow-none',
       )}
+      style={{ top: narrow ? HEADER_H : 0 }}
     >
+      {/* Brand, search and create - what the top bar used to hold, in the
+          one column of chrome that is left. */}
+      {!narrow && (
+        <div className={cn('flex-shrink-0 pt-3', collapsed ? 'px-2.5' : 'px-3')}>
+          <div className={cn('flex items-center h-8', collapsed ? 'justify-center' : 'justify-between pl-1.5')}>
+            {collapsed ? (
+              <button onClick={toggle} title="Expand sidebar" className="group relative flex h-8 w-8 items-center justify-center rounded-md hover:bg-[var(--bg-hover)]">
+                <SincerelyLogoMark className="h-6 w-6 group-hover:opacity-0 transition-opacity" />
+                <PanelLeftOpen className="absolute h-4 w-4 text-[var(--text-secondary)] opacity-0 group-hover:opacity-100 transition-opacity" />
+              </button>
+            ) : (
+              <>
+                <SincerelyLogo />
+                <button onClick={toggle} title="Collapse sidebar" className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
+                  <PanelLeftClose className="h-4 w-4" />
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className={cn('mt-4 flex gap-1.5', collapsed && 'flex-col items-center')}>
+            <button
+              type="button"
+              onClick={openPalette}
+              aria-label="Search or jump to"
+              title={collapsed ? 'Search  ⌘K' : undefined}
+              className={cn(
+                'group flex items-center rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-left shadow-[var(--shadow-sm)] transition-colors hover:border-[var(--border-default)]',
+                collapsed ? 'h-8 w-8 justify-center' : 'h-8 flex-1 min-w-0 px-2.5 gap-2',
+              )}
+            >
+              <Search className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)]" />
+              {!collapsed && (
+                <>
+                  <span className="flex-1 truncate text-body text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]">Search</span>
+                  <kbd className="kbd">⌘K</kbd>
+                </>
+              )}
+            </button>
+            <CreateMenu placement="right-start" trigger={(t, o) => <CreateButton toggle={t} open={o} />} />
+          </div>
+        </div>
+      )}
       {/* Navigation */}
       <nav className={cn(
-        'flex-1 py-3 overflow-y-auto overflow-x-hidden',
-        collapsed ? 'px-2' : 'px-2.5'
+        'flex-1 py-4 overflow-y-auto overflow-x-hidden',
+        collapsed ? 'px-2.5' : 'px-3'
       )}>
         <div className="space-y-0.5">
           {SECTIONS.map((sec) => (
@@ -180,37 +232,37 @@ export function Sidebar() {
       {/* Plan usage — quiet until it matters, loud when the cap nears */}
       <UsageCard collapsed={collapsed} />
 
-      {/* User */}
-      <div className={cn(
-        'border-t border-[var(--border-subtle)] flex-shrink-0',
-        collapsed ? 'p-2' : 'p-2'
-      )}>
-        <div className={cn(
-          'flex items-center rounded-lg hover:bg-[var(--bg-hover)] transition-colors cursor-pointer group',
-          collapsed ? 'justify-center h-8 w-8 mx-auto' : 'gap-2.5 px-1.5 h-[42px]'
-        )}>
-          <div
-            className="h-[26px] w-[26px] rounded-md flex items-center justify-center flex-shrink-0 bg-[var(--text-primary)]"
-            title={collapsed ? workspaceName : undefined}
-          >
-            <span className="font-display text-[15px] font-medium leading-none text-[var(--bg-surface)]">{workspaceName[0].toUpperCase()}</span>
-          </div>
-          {!collapsed && (
-            <>
-              <div className="flex-1 min-w-0">
-                <div className="text-body font-semibold text-[var(--text-primary)] truncate leading-tight capitalize">{workspaceName}</div>
-                <div className="text-micro text-[var(--text-tertiary)] truncate leading-tight mt-px">{user?.email}</div>
-              </div>
-              <button
-                onClick={(e) => { e.stopPropagation(); logout(); }}
-                className="flex-shrink-0 p-1.5 rounded-md text-[var(--text-tertiary)] hover:text-[var(--error)] hover:bg-[var(--error-bg)] opacity-0 group-hover:opacity-100 transition-all duration-150"
-                title="Sign out"
-              >
-                <LogOut className="h-3.5 w-3.5" />
-              </button>
-            </>
+      {/* You - and everything about the account, behind one click. */}
+      <div className={cn('flex-shrink-0 p-2', collapsed ? 'px-2.5' : 'px-3 pb-3')}>
+        <AccountMenu
+          placement={collapsed ? 'right-start' : 'above-left'}
+          onShortcuts={onShortcuts}
+          trigger={(t, open) => (
+            <button
+              onClick={t}
+              aria-expanded={open}
+              title={collapsed ? workspaceName : undefined}
+              className={cn(
+                'w-full flex items-center rounded-md transition-colors hover:bg-[var(--bg-hover)]',
+                open && 'bg-[var(--bg-hover)]',
+                collapsed ? 'justify-center h-9 w-9 mx-auto' : 'gap-2.5 px-1.5 h-11',
+              )}
+            >
+              <span className="h-7 w-7 rounded-md flex items-center justify-center flex-shrink-0 bg-[var(--text-primary)] text-body font-semibold text-[var(--bg-surface)]">
+                {workspaceName[0].toUpperCase()}
+              </span>
+              {!collapsed && (
+                <>
+                  <span className="flex-1 min-w-0 text-left">
+                    <span className="block text-body font-semibold text-[var(--text-primary)] truncate leading-tight capitalize">{workspaceName}</span>
+                    <span className="block text-caption text-[var(--text-tertiary)] truncate leading-tight mt-0.5">{user?.email}</span>
+                  </span>
+                  <ChevronsUpDown className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)]" />
+                </>
+              )}
+            </button>
           )}
-        </div>
+        />
       </div>
     </aside>
     </>

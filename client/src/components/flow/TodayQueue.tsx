@@ -41,6 +41,7 @@ import { MeetingBrief, MeetingOutcome } from './MeetingBrief';
 import { AwayCard } from './AwayCard';
 import { acceptsShortcut } from '../../lib/keyboard';
 import { cn, formatRelativeTime, formatTimeUntil } from '../../lib/utils';
+import { Avatar } from '../shared/Avatar';
 
 /* ─── "Not now": hidden until tomorrow morning, per browser ────────────── */
 
@@ -295,8 +296,13 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
   );
 
   const body = isLoading ? (
-    <div className="space-y-2" aria-busy="true">
-      {[0, 1, 2].map((i) => <div key={i} className="h-[62px] animate-pulse rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]" />)}
+    <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]" aria-busy="true">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="flex items-center gap-3 px-4 py-4">
+          <div className="skeleton h-8 w-8 rounded-full" />
+          <div className="flex-1 space-y-2"><div className="skeleton h-3 w-1/3 rounded" /><div className="skeleton h-3 w-2/3 rounded" /></div>
+        </div>
+      ))}
     </div>
   ) : isError ? (
     <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center">
@@ -320,7 +326,9 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
       </div>
     </div>
   ) : (
-    <div ref={listRef} className="space-y-2">
+    // One list, not a pile of cards: rows share a sheet and are told apart
+    // by a hairline, the way an inbox is - which is what this is.
+    <div ref={listRef} className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] divide-y divide-[var(--border-subtle)]">
       {visible.map((item, i) => (
         <FlowCard
           key={item.key}
@@ -344,7 +352,7 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
       {mode === 'home' && items.length > HOME_ROWS && (
         <button
           onClick={() => setShowAll((v) => !v)}
-          className="w-full rounded-xl border border-dashed border-[var(--border-default)] py-2.5 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          className="w-full py-2.5 text-caption font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] hover:text-[var(--text-primary)] transition-colors"
           data-today-more
         >
           {showAll ? 'Show fewer' : `Show all ${items.length}`}
@@ -528,19 +536,23 @@ function FlowCard({
       data-key={item.key}
       onClick={onSelect}
       className={cn(
-        'group relative rounded-lg border bg-[var(--bg-surface)] transition-[border-color,box-shadow] duration-150',
-        selected
-          ? 'border-[var(--border-strong)] shadow-[var(--shadow-md)]'
-          : 'border-[var(--border-subtle)] hover:border-[var(--border-default)]',
+        'group relative transition-colors duration-100',
+        selected ? 'bg-[var(--bg-muted)]' : 'hover:bg-[var(--bg-muted)]',
       )}
     >
-      <div className="flex items-start gap-3 p-3.5">
+      <div className="flex items-start gap-3.5 px-4 py-3.5">
         {/* The selected row is marked in the margin, the way a reader
             marks the line they are on - an ink rule, not a glowing ring. */}
-        {selected && <span aria-hidden className="absolute left-0 top-3 bottom-3 w-[2px] rounded-r bg-[var(--indigo)]" />}
-        <span className={cn('mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[var(--bg-muted)]', meta.tint)}>
-          <Icon className="h-[15px] w-[15px]" strokeWidth={1.8} />
-        </span>
+        {selected && <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[2px] bg-[var(--indigo)]" />}
+        {/* A reply is a person, so it leads with them; everything else
+            leads with what kind of thing it is. */}
+        {item.reply ? (
+          <Avatar name={item.reply.contact_name} email={item.reply.from_email} size="lg" className="mt-px" />
+        ) : (
+          <span className={cn('mt-px flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[var(--bg-elevated)]', meta.tint)}>
+            <Icon className="h-4 w-4" strokeWidth={1.8} />
+          </span>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="truncate text-body font-semibold text-[var(--text-primary)]">{title}</span>

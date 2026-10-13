@@ -131,10 +131,10 @@ const config: Config = {
         hero:    ['28px'],
       },
       fontFamily: {
-        sans: ['"Instrument Sans"', 'system-ui', '-apple-system', 'sans-serif'],
-        /** Page titles and salutations - the voice of a letter. Nothing else. */
-        display: ['Newsreader', 'Georgia', 'serif'],
-        mono: ['JetBrains Mono', 'Consolas', 'monospace'],
+        sans: ['Geist', 'system-ui', '-apple-system', 'sans-serif'],
+        /** Titles. The same family as the UI, set tighter and heavier. */
+        display: ['Geist', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['"Geist Mono"', 'JetBrains Mono', 'Consolas', 'monospace'],
       },
       boxShadow: {
         'sm': 'var(--shadow-sm)',

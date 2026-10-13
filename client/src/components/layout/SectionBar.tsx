@@ -39,13 +39,17 @@ export function SectionBar({ section, active }: { section: Section; active: Sect
   return (
     <nav
       aria-label={section.name}
-      className="sticky top-[56px] z-30 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/85 backdrop-blur-xl"
-      style={{ height: SECTION_BAR_H }}
+      className="sticky z-30 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/85 backdrop-blur-xl"
+      style={{ height: SECTION_BAR_H, top: 'var(--frame-top, 56px)' }}
     >
       <div ref={strip} className="h-full max-w-[1760px] mx-auto flex items-stretch gap-1 px-2 sm:px-4 lg:px-6 overflow-x-auto scrollbar-none">
-        <span className="hidden md:flex items-center pr-4 mr-1.5 text-strong font-semibold text-[var(--text-primary)] border-r border-[var(--border-subtle)] my-2.5 flex-shrink-0">
-          {section.name}
-        </span>
+        {/* The place's name, unless its first tab already says it -
+            "Campaigns | Campaigns" read as a stutter. */}
+        {!section.tabs.some((t) => t.label === section.name) && (
+          <span className="hidden md:flex items-center pr-4 mr-1.5 text-strong font-semibold text-[var(--text-primary)] border-r border-[var(--border-subtle)] my-2.5 flex-shrink-0">
+            {section.name}
+          </span>
+        )}
         {section.tabs.filter((tab) => !tab.hidden || active?.href === tab.href).map((tab) => {
           const on = active?.href === tab.href;
           return (

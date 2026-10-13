@@ -341,7 +341,7 @@ export function CampaignsListPage() {
       <div className="grid grid-cols-1 md:grid-cols-[200px,1fr] gap-3">
         {/* Folder rail. Not on a phone, where it would sit above the list
             and push every campaign below the fold. */}
-        <aside className="hidden md:block panel-inset p-1.5 self-start sticky top-[calc(var(--chrome-h,56px)+8px)] max-h-[calc(100vh-var(--chrome-h,56px)-16px)] overflow-y-auto">
+        <aside className="hidden md:block self-start sticky top-[calc(var(--chrome-h,56px)+8px)] max-h-[calc(100vh-var(--chrome-h,56px)-16px)] overflow-y-auto">
           <div className="px-2 pt-1 pb-1.5 flex items-center justify-between">
             <span className="text-micro font-semibold text-[var(--text-tertiary)]">Folders</span>
             <button
@@ -657,7 +657,7 @@ function FolderRow({ label, icon: Icon, count, active, onClick, onEdit, onAnalyt
           'w-full flex items-center gap-2 px-2 h-7 rounded-md text-body text-left transition-colors',
           indent && 'pl-6',
           active
-            ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_0_0_1px_var(--border-subtle),0_1px_2px_rgba(15,15,25,0.04)] font-medium'
+            ? 'bg-[var(--bg-active)] text-[var(--text-primary)] font-medium'
             : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]/60 hover:text-[var(--text-primary)]'
         )}
       >
