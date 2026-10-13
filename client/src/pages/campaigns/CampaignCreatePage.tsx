@@ -3074,7 +3074,7 @@ function RecipientPreview({ subject, bodyHtml, fromName, fromEmail, people = [] 
           </div>
         ) : (
           <div className="flex items-center gap-3 text-caption">
-            <span className="w-32 flex-shrink-0 truncate font-bold">{fromName}</span>
+            <span className="w-24 flex-shrink-0 truncate font-bold">{fromName}</span>
             <span className="min-w-0 flex-1 truncate">
               <span className="font-bold">{previewSubject || '(no subject)'}</span>
               <span className="text-gray-500"> - {preheader}</span>
