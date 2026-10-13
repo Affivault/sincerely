@@ -14,6 +14,7 @@ import { billingService } from '../services/billing.service.js';
 import * as sse from '../services/sse.service.js';
 import { getInboundWebhookToken } from '../utils/inbound-webhook-token.js';
 import { env } from '../config/env.js';
+import { selectInChunks } from '../utils/batch.js';
 import { previewWithSampleData, htmlToText } from '../services/sequence.service.js';
 
 /* Writing with Claude costs money per call; a stuck button or a loop should
@@ -337,16 +338,17 @@ export const campaignsController = {
   async setSenderPool(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       await campaignsService.assertOwnership(req.userId!, req.params.id);
-      const accountIds: string[] = req.body.smtp_account_ids || [];
+      // De-duplicate: a repeated id made the ownership count come up short and
+      // a perfectly valid pool was rejected as "not found".
+      const raw = req.body.smtp_account_ids;
+      const accountIds: string[] = Array.isArray(raw) ? [...new Set(raw.filter((x: unknown): x is string => typeof x === 'string'))] : [];
       if (accountIds.length > 0) {
-        const { count, error } = await supabaseAdmin
-          .from('smtp_accounts')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', req.userId!)
-          .in('id', accountIds);
-        if (error) throw error;
-        if ((count || 0) !== accountIds.length) {
-          return res.status(404).json({ error: 'One or more SMTP accounts not found' });
+        const owned = await selectInChunks(accountIds, (slice) =>
+          supabaseAdmin.from('smtp_accounts').select('id').eq('user_id', req.userId!).in('id', slice));
+        if (owned.length !== accountIds.length) {
+          return res.status(404).json({
+            error: `${accountIds.length - owned.length} of the ${accountIds.length} selected mailboxes could not be found. They may have been removed - refresh and pick again.`,
+          });
         }
       }
       await sse.setCampaignPool(req.params.id, accountIds);

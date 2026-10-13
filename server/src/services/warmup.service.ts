@@ -11,6 +11,7 @@ import {
   type WarmupSummary, type WarmupAccountStatus, type SetWarmupInput,
 } from '@lemlist/shared';
 import { guardImap } from '../utils/imap-guard.js';
+import { selectInChunks } from '../utils/batch.js';
 
 /* ─── Warm-up Engine ──────────────────────────────────────────────────
    Real warm-up has two jobs: (1) ramp a new mailbox's real-campaign volume
@@ -344,8 +345,11 @@ async function runEngagementTick(maxAccounts = 15): Promise<{ opened: number; re
   }
 
   const acctIds = [...new Set(rows.flatMap((r) => [r.to_account_id, r.from_account_id]))];
-  const { data: accts } = await supabaseAdmin.from('smtp_accounts').select('*').in('id', acctIds);
-  const acctById = new Map<string, any>((accts || []).map((a: any) => [a.id, a]));
+  // Three days of warm-up mail can name well over a hundred mailboxes; one .in()
+  // of that many uuids is past the URL ceiling and came back empty, so every
+  // row was then skipped as "mailbox gone".
+  const accts = await selectInChunks(acctIds, (slice) => supabaseAdmin.from('smtp_accounts').select('*').in('id', slice));
+  const acctById = new Map<string, any>(accts.map((a: any) => [a.id, a]));
 
   let opened = 0, replied = 0, rescued = 0, processed = 0;
 
