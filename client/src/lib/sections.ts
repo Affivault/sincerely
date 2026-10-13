@@ -27,7 +27,7 @@
 
 import {
   Home, Inbox, Megaphone, Users, Handshake, BarChart3, Settings as SettingsIcon,
-  Waves, LayoutDashboard, MessageSquare, Sparkles, Layers, FileText, CalendarClock,
+  LayoutDashboard, MessageSquare, Sparkles, Layers, FileText, CalendarClock,
   Contact2, Building2, Radar, CalendarDays, ListTodo, Link2, Clock, Banknote, Crosshair, Trophy,
   LineChart, Users as TeamIcon, CreditCard, AtSign, Activity, Target, Ban, ShieldCheck,
   Blocks, Linkedin, Code2, Wrench, BookOpen, HeartPulse, Zap, type LucideIcon,
@@ -43,6 +43,12 @@ export interface SectionTab {
   match?: string[];
   /** Words the command palette should find it by. */
   keywords?: string;
+  /**
+   * Found by search and its own link, but not shown as a tab: a page that
+   * overlaps another, kept for whoever relies on it without adding a
+   * second place to look.
+   */
+  hidden?: boolean;
 }
 
 export interface Section {
@@ -60,17 +66,18 @@ export const SECTIONS: Section[] = [
   {
     id: 'home', name: 'Home', href: '/dashboard', icon: Home, goKey: 'h',
     tabs: [
-      { label: 'Overview', href: '/dashboard', icon: LayoutDashboard, match: ['/start'], keywords: 'dashboard home performance stats numbers get started setup onboarding' },
+      { label: 'Overview', href: '/dashboard', icon: LayoutDashboard, match: ['/start', '/flow'], keywords: 'dashboard home today queue next focus work decide todo priorities performance stats numbers get started setup onboarding' },
       { label: 'Moments', href: '/moments', icon: Zap, keywords: 'signals timing who to email today why now intent hiring re-engaged not now website changes' },
-      { label: 'Flow', href: '/flow', icon: Waves, keywords: 'today queue next focus work decide todo priorities' },
     ],
   },
   {
     id: 'inbox', name: 'Inbox', href: '/inbox', icon: Inbox, goKey: 'i',
     tabs: [
       { label: 'Unibox', href: '/inbox', icon: Inbox, match: ['/sara'], keywords: 'messages replies email mail other newsletters' },
-      { label: 'Reply queue', href: '/replies', icon: MessageSquare, keywords: 'waiting owed overdue assigned sla' },
-      { label: 'Leads inbox', href: '/leads/inbox', icon: Sparkles, keywords: 'new leads interested triaged' },
+      // Both now live inside the Unibox (Needs reply, Hot leads) and the
+      // Today list on Home; the pages remain for search and old links.
+      { label: 'Reply queue', href: '/replies', icon: MessageSquare, keywords: 'waiting owed overdue assigned sla', hidden: true },
+      { label: 'Leads inbox', href: '/leads/inbox', icon: Sparkles, keywords: 'new leads interested triaged', hidden: true },
     ],
   },
   {

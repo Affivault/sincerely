@@ -67,8 +67,9 @@ function AppContent() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const here = locate(location.pathname);
   const inSettings = isSettingsPath(location.pathname);
-  // A place with one page needs no tabs.
-  const showBar = !!here.section && here.section.tabs.length > 1;
+  // A place with one page needs no tabs - unless you are on a page that is
+  // only reachable by search, where the bar is the way back.
+  const showBar = !!here.section && (here.section.tabs.filter((t) => !t.hidden).length > 1 || !!here.tab?.hidden);
   const fullBleed = location.pathname.startsWith('/inbox');
   const goPending = useRef<number | null>(null);
   const prevUnreadRef = useRef<number>(0);

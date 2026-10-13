@@ -13,7 +13,7 @@
 import type { DealHealth } from './deal-health.js';
 import type { ReplyUrgency } from './reply-queue.js';
 
-export type FlowKind = 'mailbox' | 'meeting' | 'reply' | 'deal' | 'task';
+export type FlowKind = 'mailbox' | 'meeting' | 'reply' | 'deal' | 'task' | 'moment';
 
 export interface FlowReply {
   message_id: string;
@@ -77,6 +77,22 @@ export interface FlowMailbox {
   reason: string;
 }
 
+/** A moment (shared/signals): a reason to write to someone now. */
+export interface FlowMoment {
+  signal_id: string;
+  kind: string;
+  headline: string;
+  detail: string | null;
+  strength: number;
+  occurred_at: string;
+  contact_id: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  company: string | null;
+  /** A first line Relay wrote for it, when there is one. */
+  opener: string | null;
+}
+
 export interface FlowItem {
   /** Stable across refreshes: `${kind}:${id}`. */
   key: string;
@@ -90,6 +106,7 @@ export interface FlowItem {
   meeting?: FlowMeeting;
   task?: FlowTask;
   mailbox?: FlowMailbox;
+  moment?: FlowMoment;
 }
 
 export interface FlowSummary {
@@ -125,6 +142,16 @@ export function dealRank(health: DealHealth): number {
 
 export function taskRank(overdue: boolean, priority: string): number {
   return (overdue ? 60 : 48) + (priority === 'high' ? 6 : 0);
+}
+
+/**
+ * A moment's place: below anyone already waiting on an answer, above
+ * routine tasks; strong and fresh first, fading by half each week.
+ */
+export function momentRank(strength: number, occurredAt: string, now: number): number {
+  const age = Math.max(0, (now - Date.parse(occurredAt)) / 86_400_000);
+  const s = Math.max(1, Math.min(3, strength)) * 0.5 ** (age / 7);
+  return Math.round(40 + s * 7);
 }
 
 export function sortFlow(items: FlowItem[]): FlowItem[] {

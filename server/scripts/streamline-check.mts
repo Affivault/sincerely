@@ -216,7 +216,7 @@ console.log('\nfirst login to first campaign, on one page');
   is('the account\'s own setup check has the last word', /stepDone\('domain'\) \|\|/.test(start));
   is('the builder\'s writer starts on that list', /useState<string \| null>\(\(\) => new URLSearchParams\(window\.location\.search\)\.get\('list'\)\)/.test(client('pages/campaigns/CampaignCreatePage.tsx')));
   is('the checklist on Home leads to it', /to="\/start"/.test(client('components/setup/SetupChecklist.tsx')));
-  is('it belongs to Home', /match: \['\/start'\]/.test(client('lib/sections.ts')));
+  is('it belongs to Home', /match: \['\/start'/.test(client('lib/sections.ts')));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -21,7 +21,7 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
   {
     title: 'Jump straight to',
     items: [
-      { keys: ['G', 'F'], label: 'Flow' },
+      { keys: ['G', 'F'], label: 'Focus mode (today, full screen)' },
       { keys: ['G', 'R'], label: 'Reply queue' },
       { keys: ['G', 'M'], label: 'Calendar' },
       { keys: ['G', 'L'], label: 'Leads' },

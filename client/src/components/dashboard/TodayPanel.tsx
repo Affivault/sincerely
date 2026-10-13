@@ -115,7 +115,7 @@ export function TodayPanel() {
         <div className="min-w-0">
           <h3 className="flex items-center gap-1.5 text-strong font-semibold text-[var(--text-primary)]">
             <CalendarDays className="h-3.5 w-3.5 text-[var(--indigo)]" />
-            Today
+            Schedule
           </h3>
           <p className="mt-0.5 truncate text-caption text-[var(--text-tertiary)]">{todayLabel}</p>
         </div>

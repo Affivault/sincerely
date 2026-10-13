@@ -176,7 +176,11 @@ function flow() {
   inbox.slice(0, 5).forEach((m, i) => items.push({ key: `reply:${m.id}`, kind: 'reply', rank: 90 - i * 4, why: m.sara_intent === 'meeting' ? 'Wants to meet' : 'Waiting on your reply', reply: { message_id: m.id, from_email: m.from_email, contact_id: m.contact_id, contact_name: m.contact_name, company: contacts[i].company, subject: m.subject, snippet: bodies[i], intent: m.sara_intent, urgency: i === 0 ? 'overdue' : 'due-soon', waited_ms: (i + 2) * 3600000, draft: m.sara_draft_reply, deal_value: null } }));
   items.push({ key: 'meeting:e4', kind: 'meeting', rank: 72, why: 'How did it go?', meeting: { event_id: 'e4', title: events[3].title, starts_at: events[3].starts_at, ends_at: events[3].ends_at, contact_id: 'c4', contact_email: 'jonas@fernhill.de', contact_name: 'Jonas Keller', deal_id: null, conferencing_url: null, location: null, needs_outcome: true } });
   tasks.slice(0, 3).forEach((t, i) => items.push({ key: `task:${t.id}`, kind: 'task', rank: 60 - i, why: i === 1 ? 'Overdue' : 'Due today', task: { task_id: t.id, title: t.title, due_date: t.due_date, priority: t.priority, deal_id: t.deal_id, contact_name: t.contact_name, overdue: i === 1 } }));
-  const counts = { mailbox: 0, meeting: 2, reply: 5, deal: 0, task: 3 };
+  items.push({ key: 'moment:sg2', kind: 'moment', rank: 65, why: 'That time is here.', moment: { signal_id: 'sg2', kind: 'not_now_due', headline: 'Sam Carter said "not now" on 9 July and asked to talk next quarter', detail: 'That time is here, and nothing has been said since.', strength: 3, occurred_at: ago(1), contact_id: 'c3', contact_name: 'Sam Carter', contact_email: 'sam@brightparcel.com', company: 'BrightParcel', opener: null } });
+  items.push({ key: 'moment:sg1', kind: 'moment', rank: 62, why: 'A new fleet lead', moment: { signal_id: 'sg1', kind: 'web_change', headline: 'Northline Freight: Hiring a Head of Fleet Operations in Leeds', detail: 'A new fleet lead usually reviews routing tools in their first 90 days.', strength: 3, occurred_at: ago(0.3), contact_id: null, contact_name: null, contact_email: null, company: 'Northline Freight', opener: null } });
+  if (process.env.TODAY_EMPTY) return { items: [], counts: { mailbox: 0, meeting: 0, reply: 0, deal: 0, task: 0, moment: 0 }, generated_at: iso(now) };
+  items.sort((a, b) => b.rank - a.rank);
+  const counts = { mailbox: 0, meeting: 2, reply: 5, deal: 0, task: 3, moment: 2 };
   return { items, counts, generated_at: iso(now) };
 }
 

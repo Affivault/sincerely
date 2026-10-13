@@ -11,7 +11,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middleware/error.middleware.js';
 import {
-  meetingRank, replyRank, dealRank, taskRank, sortFlow, startOfDayInTimezone,
+  meetingRank, replyRank, dealRank, taskRank, momentRank, sortFlow, startOfDayInTimezone,
   type FlowItem, type FlowSummary, type FlowKind,
 } from '@lemlist/shared';
 import { replyQueueService } from './reply-queue.service.js';
@@ -219,8 +219,48 @@ export async function buildFlow(userId: string): Promise<FlowSummary> {
     });
   }
 
+  /* ─── Moments ─────────────────────────────────────────────────────── */
+  // Reasons to write to someone now (services/signals). Optional: an
+  // install without migration 083 simply has none.
+  const { data: moments, error: momentErr } = await supabaseAdmin
+    .from('signals')
+    .select('id, kind, headline, detail, strength, occurred_at, opener, contact_id, contact:contacts(first_name, last_name, email, is_unsubscribed, is_bounced), company:companies(name)')
+    .eq('user_id', userId).eq('status', 'new')
+    .gte('occurred_at', new Date(now - 30 * 86_400_000).toISOString())
+    .order('occurred_at', { ascending: false })
+    .limit(60);
+  if (momentErr && !/does not exist|schema cache/i.test(momentErr.message)) console.error('[Flow] moments:', momentErr.message);
+  const momentItems: FlowItem[] = [];
+  for (const m of (moments || []) as any[]) {
+    const c = m.contact;
+    // Someone already waiting on a reply is in the list as that reply.
+    if (m.contact_id && replyContacts.has(m.contact_id)) continue;
+    const reachable = c && !c.is_unsubscribed && !c.is_bounced && m.kind !== 'left_company';
+    momentItems.push({
+      key: `moment:${m.id}`,
+      kind: 'moment',
+      rank: momentRank(m.strength, m.occurred_at, now),
+      why: m.detail || 'A reason to write now',
+      moment: {
+        signal_id: m.id,
+        kind: m.kind,
+        headline: m.headline,
+        detail: m.detail,
+        strength: m.strength,
+        occurred_at: m.occurred_at,
+        contact_id: reachable ? m.contact_id : null,
+        contact_name: reachable ? fullName(c) : null,
+        contact_email: reachable ? c.email : null,
+        company: m.company?.name || null,
+        opener: m.opener || null,
+      },
+    });
+  }
+  // A handful at a time: the rest wait on the Moments page.
+  items.push(...sortFlow(momentItems).slice(0, 8));
+
   const sorted = sortFlow(items).slice(0, MAX_ITEMS);
-  const counts: Record<FlowKind, number> = { mailbox: 0, meeting: 0, reply: 0, deal: 0, task: 0 };
+  const counts: Record<FlowKind, number> = { mailbox: 0, meeting: 0, reply: 0, deal: 0, task: 0, moment: 0 };
   for (const i of items) counts[i.kind]++;
   return { items: sorted, counts, generated_at: new Date(now).toISOString() };
 }

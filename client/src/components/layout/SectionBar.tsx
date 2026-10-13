@@ -31,7 +31,7 @@ export function SectionBar({ section, active }: { section: Section; active: Sect
       (window as any).requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1200));
     const cancel: (id: number) => void = (window as any).cancelIdleCallback ?? window.clearTimeout;
     const id = idle(() => {
-      for (const tab of section.tabs) if (tab.href !== active?.href) prefetchHref(tab.href);
+      for (const tab of section.tabs) if (!tab.hidden && tab.href !== active?.href) prefetchHref(tab.href);
     });
     return () => cancel(id);
   }, [section, active?.href]);
@@ -46,7 +46,7 @@ export function SectionBar({ section, active }: { section: Section; active: Sect
         <span className="hidden md:flex items-center pr-3 mr-1 text-body font-semibold text-[var(--text-primary)] border-r border-[var(--border-subtle)] my-2.5 flex-shrink-0">
           {section.name}
         </span>
-        {section.tabs.map((tab) => {
+        {section.tabs.filter((tab) => !tab.hidden || active?.href === tab.href).map((tab) => {
           const on = active?.href === tab.href;
           return (
             <Link

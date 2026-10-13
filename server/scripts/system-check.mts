@@ -98,7 +98,7 @@ console.log('\nthe account\'s quiet failures are found, and told once');
   is('heartbeats are server-only', /alter table job_heartbeats enable row level security;/.test(migration) && !/on job_heartbeats for/.test(migration));
   is('the migration is ASCII with no BEGIN/COMMIT', /^[\x00-\x7F]*$/.test(migration) && !/^\s*(begin|commit)\s*;/im.test(migration));
   is('Settings lists it', /href: '\/system'/.test(client('lib/sections.ts')));
-  is('Home says so only when something is wrong', /if \(!data \|\| data\.level === 'ok'\) return null;/.test(client('components/dashboard/SystemNote.tsx')));
+  is('Home says so only when something is wrong', /if \(system && system\.level !== 'ok'\)/.test(client('components/dashboard/StatusLine.tsx')) && /if \(!lead && !pilot\.length\) return null;/.test(client('components/dashboard/StatusLine.tsx')));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

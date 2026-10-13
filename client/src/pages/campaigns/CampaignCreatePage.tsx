@@ -54,12 +54,20 @@ const BROWSER_TZ = (() => {
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+/*
+ * Indexed by section: 0 sending, 1 sequence, 2 audience, 3 review - the
+ * numbers saved drafts and the pre-flight issues use. WIZARD_ORDER is the
+ * order they are walked in: write first, then who it goes to. Sending is
+ * set up for you from your healthy mailboxes, so it comes last, before
+ * the review, for anyone who wants to change it.
+ */
 const WIZARD_STEPS = [
-  { label: 'Settings', icon: Settings, description: 'Schedule, sender, behaviour' },
-  { label: 'Sequence', icon: Layers, description: 'Build your email flow' },
+  { label: 'Sending', icon: Settings, description: 'Set up for you' },
+  { label: 'Sequence', icon: Layers, description: 'What you will say' },
   { label: 'Audience', icon: Users, description: 'Who will receive it' },
-  { label: 'Review', icon: Rocket, description: 'Validate & launch' },
+  { label: 'Review', icon: Rocket, description: 'Check & launch' },
 ];
+const WIZARD_ORDER = [1, 2, 0, 3] as const;
 
 const TONE_OPTIONS = [
   { value: 'professional', label: 'Professional', icon: '💼', description: 'Polite, B2B, formal-leaning' },
@@ -215,7 +223,10 @@ export function CampaignCreatePage() {
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
   const [contactSearch, setContactSearch] = useState('');
   const [contactModalTab, setContactModalTab] = useState<'individual' | 'lists'>('individual');
-  const [wizardStep, setWizardStep] = useState(0);
+  // New campaigns open on the writing, not the settings.
+  const [wizardStep, setWizardStep] = useState(1);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const focusName = () => { nameRef.current?.focus(); nameRef.current?.select(); };
 
   const [senderPoolIds, setSenderPoolIds] = useState<string[]>([]);
   const [testEmailTo, setTestEmailTo] = useState('');
@@ -840,8 +851,8 @@ export function CampaignCreatePage() {
 
   const handleSaveAndLaunch = async () => {
     if (!campaignForm.name) {
-      toast.error('Campaign name is required');
-      setWizardStep(0);
+      toast.error('Give the campaign a name first');
+      focusName();
       return;
     }
     // Guard against an accidental blast: scheduling requires a *future* time.
@@ -938,8 +949,8 @@ export function CampaignCreatePage() {
 
   const handleSave = () => {
     if (!campaignForm.name) {
-      toast.error('Campaign name is required');
-      setWizardStep(0);
+      toast.error('Give the campaign a name first');
+      focusName();
       return;
     }
     createCampaignMutation.mutate(campaignForm);
@@ -998,7 +1009,6 @@ export function CampaignCreatePage() {
   const webhookWaitSteps = steps.filter((s) => s.step_type === 'webhook_wait');
   const sectionIssues: Record<number, string[]> = {
     0: [
-      !campaignForm.name && 'Campaign name',
       !campaignForm.smtp_account_id && 'Sending account',
     ].filter(Boolean) as string[],
     1: [
@@ -1012,11 +1022,15 @@ export function CampaignCreatePage() {
     2: [
       selectedContactIds.length === 0 && 'No recipients selected',
     ].filter(Boolean) as string[],
-    3: [],
+    // The name lives in the header now; its issue is listed with the
+    // review and a click on it goes to the name, not to a step.
+    3: [
+      !campaignForm.name && 'Campaign name',
+    ].filter(Boolean) as string[],
   };
   const sectionStatus = (i: number): 'ok' | 'warn' | 'empty' => {
     if (i === 0) {
-      if (!campaignForm.name && !campaignForm.smtp_account_id) return 'empty';
+      if (!campaignForm.smtp_account_id) return 'empty';
       return sectionIssues[0].length > 0 ? 'warn' : 'ok';
     }
     if (i === 1) {
@@ -1028,7 +1042,7 @@ export function CampaignCreatePage() {
     }
     return 'ok';
   };
-  const totalIssues = sectionIssues[0].length + sectionIssues[1].length + sectionIssues[2].length;
+  const totalIssues = sectionIssues[0].length + sectionIssues[1].length + sectionIssues[2].length + sectionIssues[3].length;
   const isReady = totalIssues === 0 && steps.length > 0 && selectedContactIds.length > 0 && !!campaignForm.name && !!campaignForm.smtp_account_id;
 
   // The wrapper cancels <main>'s padding at every width (see AppLayout) so the
@@ -1090,10 +1104,12 @@ export function CampaignCreatePage() {
           <Rocket className="h-3.5 w-3.5 text-[var(--indigo)]" />
         </span>
         <input
+          ref={nameRef}
           type="text"
+          aria-label="Campaign name"
           value={campaignForm.name}
           onChange={(e) => setCampaignForm({ ...campaignForm, name: e.target.value })}
-          placeholder={isEdit ? 'Edit campaign…' : 'Untitled campaign — give it a name'}
+          placeholder={isEdit ? 'Edit campaign…' : 'Name this campaign'}
           className="order-last basis-full sm:order-none sm:basis-auto flex-1 max-w-md min-w-0 bg-transparent border-0 text-heading font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] placeholder:font-normal outline-none focus:bg-[var(--bg-elevated)] rounded-md px-2 h-7 transition-colors"
         />
         <div className="flex-1" />
@@ -1151,12 +1167,13 @@ export function CampaignCreatePage() {
       {/* ── Wizard progress stepper ──────────────────────────── */}
       <div className="flex-shrink-0 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 sm:px-6 py-3">
         <div className="flex items-center max-w-3xl mx-auto">
-          {WIZARD_STEPS.map((ws, i) => {
+          {WIZARD_ORDER.map((i, pos) => {
+            const ws = WIZARD_STEPS[i];
             const Icon = ws.icon;
             const active = i === wizardStep;
-            const completed = i < wizardStep && sectionStatus(i) === 'ok';
+            const completed = pos < WIZARD_ORDER.indexOf(wizardStep as typeof WIZARD_ORDER[number]) && sectionStatus(i) === 'ok';
             const status = sectionStatus(i);
-            const isLast = i === WIZARD_STEPS.length - 1;
+            const isLast = pos === WIZARD_ORDER.length - 1;
             return (
               <div key={ws.label} className={cn('flex items-center', !isLast && 'flex-1')}>
                 <button
@@ -1233,7 +1250,7 @@ export function CampaignCreatePage() {
                   issues.map((issue, j) => (
                     <li key={`${sectionIdx}-${j}`}>
                       <button
-                        onClick={() => setWizardStep(Number(sectionIdx))}
+                        onClick={() => (issue === 'Campaign name' ? focusName() : setWizardStep(Number(sectionIdx)))}
                         className="w-full text-left flex items-start gap-1.5 text-caption text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors py-0.5"
                       >
                         <span className="h-1 w-1 rounded-full bg-amber-500 mt-1.5 flex-shrink-0" />
@@ -1267,20 +1284,6 @@ export function CampaignCreatePage() {
             </div>
           )}
 
-          {/* Help */}
-          <div className="rounded-lg border border-dashed border-[var(--border-subtle)] p-3">
-            <Sparkles className="h-3.5 w-3.5 text-[var(--text-tertiary)] mb-1.5" />
-            <p className="text-caption font-semibold text-[var(--text-secondary)] mb-1">Need a head start?</p>
-            <p className="text-micro text-[var(--text-tertiary)] leading-snug mb-2">
-              Use AI to generate emails or load a saved template to skip the blank page.
-            </p>
-            <button
-              onClick={() => setWizardStep(1)}
-              className="text-micro font-semibold text-[var(--indigo)] hover:underline"
-            >
-              Go to sequence →
-            </button>
-          </div>
         </aside>
 
         {/* Main */}
@@ -1315,7 +1318,7 @@ export function CampaignCreatePage() {
                     >
                       <option value="">Select an account…</option>
                       {(smtpAccounts || []).map((a: SmtpAccount) => (
-                        <option key={a.id} value={a.id}>{a.label} — {a.email_address}</option>
+                        <option key={a.id} value={a.id}>{a.label && a.label !== a.email_address ? `${a.label} - ${a.email_address}` : a.email_address}</option>
                       ))}
                     </select>
                     {(smtpAccounts || []).length === 0 && (
@@ -1602,9 +1605,13 @@ export function CampaignCreatePage() {
                 </div>
               </SectionCard>
 
-              <div className="flex justify-end pt-2">
-                <Button onClick={() => setWizardStep(1)}>
-                  Continue to sequence
+              <div className="flex justify-between pt-2">
+                <Button variant="secondary" onClick={() => setWizardStep(2)}>
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  Audience
+                </Button>
+                <Button onClick={() => setWizardStep(0)}>
+                  Continue to sending
                   <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
               </div>
@@ -1614,42 +1621,9 @@ export function CampaignCreatePage() {
           {/* ════════ STEP 2 — Sequence ════════ */}
           {wizardStep === 1 && (
             <div className="space-y-4">
-              {/* Quick start callout */}
-              {steps.length === 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {sequenceTemplates.length > 0 && (
-                    <button
-                      onClick={() => setShowTemplatePicker(true)}
-                      className="group text-left p-4 rounded-xl border border-[var(--indigo-subtle)] bg-[var(--indigo-subtle)] hover:border-[var(--indigo-subtle)] hover:bg-[var(--indigo-subtle)] transition-all"
-                    >
-                      <div className="flex items-center gap-2.5 mb-2">
-                        <div className="h-8 w-8 rounded-lg bg-[var(--indigo)] flex items-center justify-center text-white">
-                          <FolderOpen className="h-4 w-4" />
-                        </div>
-                        <h3 className="text-strong font-semibold text-[var(--text-primary)]">Start from a template</h3>
-                      </div>
-                      <p className="text-caption text-[var(--text-secondary)] leading-snug">
-                        Apply one of your saved sequences to skip building from scratch — {sequenceTemplates.length} available.
-                      </p>
-                      <span className="inline-flex items-center gap-1 text-caption font-semibold text-[var(--indigo)] mt-3 group-hover:gap-1.5 transition-all">
-                        Browse templates <ChevronRight className="h-3 w-3" />
-                      </span>
-                    </button>
-                  )}
-                  <div className="text-left p-4 rounded-xl border border-violet-500/20 bg-violet-500/5">
-                    <div className="flex items-center gap-2.5 mb-2">
-                      <div className="h-8 w-8 rounded-lg bg-violet-500 flex items-center justify-center text-white">
-                        <Wand2 className="h-4 w-4" />
-                      </div>
-                      <h3 className="text-strong font-semibold text-[var(--text-primary)]">AI assistance available</h3>
-                    </div>
-                    <p className="text-caption text-[var(--text-secondary)] leading-snug">
-                      Add an email step below, then use "Generate with AI" inside the editor to write the content for you.
-                    </p>
-                  </div>
-                </div>
-              )}
-
+              {/* One way in, inside the builder: "Let Relay write the first
+                  draft", or the Template button beside it. Two more cards up
+                  here and a third in the sidebar said the same thing. */}
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
                 {/* Flow Canvas */}
                 <div className="lg:col-span-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden flex flex-col">
@@ -1996,11 +1970,7 @@ export function CampaignCreatePage() {
                 </div>
               </div>
 
-              <div className="flex justify-between">
-                <Button variant="secondary" onClick={() => setWizardStep(0)}>
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  Settings
-                </Button>
+              <div className="flex justify-end">
                 <Button onClick={() => setWizardStep(2)}>
                   Continue to audience
                   <ChevronRight className="h-3.5 w-3.5" />
@@ -2193,6 +2163,27 @@ export function CampaignCreatePage() {
 
             return (
               <div className="max-w-5xl mx-auto space-y-4">
+                {/* How it will send, in one line - set up for you, changed
+                    here if needed, never a step to wade through first. */}
+                {(() => {
+                  const pool = senderPoolIds.length || (campaignForm.smtp_account_id ? 1 : 0);
+                  const days = (campaignForm.send_days || []).map((d) => DAY_LABELS[DAYS.indexOf(d)]).filter(Boolean);
+                  const dayText = days.length === 5 && days.join() === 'Mon,Tue,Wed,Thu,Fri' ? 'weekdays' : days.length === 7 ? 'every day' : days.join(', ');
+                  return (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3" data-review-sending>
+                      <Send className="h-4 w-4 flex-shrink-0 text-[var(--indigo)]" />
+                      <p className="min-w-0 flex-1 text-body text-[var(--text-secondary)]">
+                        <span className="font-semibold text-[var(--text-primary)]">Sending</span>{' '}
+                        {pool > 1 ? `from ${pool} mailboxes` : smtpAccount ? `from ${smtpAccount.email_address}` : 'from no mailbox yet'}
+                        {campaignForm.daily_limit ? `, up to ${campaignForm.daily_limit} a day` : ''}
+                        {`, ${dayText} ${campaignForm.send_window_start || '09:00'}-${campaignForm.send_window_end || '17:00'}`}
+                        {campaignForm.send_in_recipient_timezone ? " in each person's time zone" : ` ${campaignForm.timezone || ''}`}
+                      </p>
+                      <button onClick={() => setWizardStep(0)} className="text-caption font-semibold text-[var(--indigo)] hover:underline">Change</button>
+                    </div>
+                  );
+                })()}
+
                 {/* KPI strip */}
                 <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                   <StatCard label="Recipients" value={selectedContactIds.length.toLocaleString()} icon={Users} accent="indigo" />
@@ -2427,9 +2418,9 @@ export function CampaignCreatePage() {
                 </div>
 
                 <div className="flex justify-start">
-                  <Button variant="secondary" onClick={() => setWizardStep(2)}>
+                  <Button variant="secondary" onClick={() => setWizardStep(0)}>
                     <ArrowLeft className="h-3.5 w-3.5" />
-                    Back to audience
+                    Back to sending
                   </Button>
                 </div>
 

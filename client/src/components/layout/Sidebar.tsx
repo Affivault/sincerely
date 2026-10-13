@@ -158,7 +158,7 @@ export function Sidebar() {
               active={here.section?.id === sec.id}
               collapsed={collapsed}
               badge={sec.id === 'inbox' ? unreadCount : sec.id === 'home' ? momentsCount : undefined}
-              hint={sec.tabs.map((t) => t.label).join(' · ')}
+              hint={sec.tabs.filter((t) => !t.hidden).map((t) => t.label).join(' · ')}
             />
           ))}
         </div>
