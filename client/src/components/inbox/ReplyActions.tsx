@@ -218,7 +218,7 @@ function ActionButton({
       className={cn(
         'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-caption font-semibold transition-colors',
         primary
-          ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] hover:bg-[rgba(91,91,245,0.14)]'
+          ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] hover:bg-[rgba(47, 63, 156,0.14)]'
           : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]',
       )}
     >

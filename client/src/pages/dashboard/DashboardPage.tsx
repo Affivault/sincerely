@@ -31,7 +31,7 @@ import {
    live replies). One accent; length and hierarchy carry the data.
    ═══════════════════════════════════════════════════════════════════════ */
 
-const ACCENT = '#6366F1';
+const ACCENT = '#3B4AA3';
 
 /* ─── Formatters ─────────────────────────────────────── */
 const fmtNum = (n: number | undefined | null): string => {
@@ -264,8 +264,8 @@ function Funnel({ sent, opened, clicked, replied }: {
 }
 
 const STATUS_DOT: Record<string, string> = {
-  running: '#10B981', active: '#10B981', paused: '#F59E0B', draft: 'var(--text-muted)',
-  scheduled: '#6366F1', completed: 'var(--text-tertiary)', cancelled: '#F43F5E',
+  running: '#3F8763', active: '#3F8763', paused: '#B88124', draft: 'var(--text-muted)',
+  scheduled: '#3B4AA3', completed: 'var(--text-tertiary)', cancelled: '#B54B53',
 };
 
 
@@ -296,7 +296,7 @@ function InboxHealth({ score, verified, bounced, suppressed }: {
 }) {
   const pct = Math.max(0, Math.min(100, score));
   const tier = pct >= 80 ? 'Excellent' : pct >= 60 ? 'Healthy' : pct >= 40 ? 'Fair' : 'Needs attention';
-  const color = pct >= 60 ? ACCENT : pct >= 40 ? '#F59E0B' : '#F43F5E';
+  const color = pct >= 60 ? ACCENT : pct >= 40 ? '#B88124' : '#B54B53';
   return (
     <div className="p-4">
       <div className="flex items-baseline justify-between">
@@ -422,26 +422,22 @@ export function DashboardPage() {
       {/* ── Header ── */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-display font-semibold text-[var(--text-primary)] tracking-[-0.025em] leading-tight">
+          {/* The one line on the page set like the opening of a letter. */}
+          <h1 className="font-display text-[34px] sm:text-[38px] font-[420] leading-[1.05] tracking-[-0.018em] text-[var(--text-primary)]">
             {greeting()}, <span className="capitalize">{name}</span>
           </h1>
-          <div className="mt-2 flex items-center flex-wrap gap-x-2.5 gap-y-1 text-strong text-[var(--text-tertiary)]">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: s.active_campaigns > 0 ? '#10B981' : 'var(--text-muted)' }} />
-              {s.active_campaigns} active {s.active_campaigns === 1 ? 'campaign' : 'campaigns'}
-            </span>
-            <span className="text-[var(--border-strong)]">·</span>
-            <span>{fmtFull(totalContacts)} contacts</span>
-            <span className="text-[var(--border-strong)]">·</span>
+          {/* Said as a sentence, not as a strip of dot-joined stats. */}
+          <p className="mt-2 text-strong text-[var(--text-secondary)]">
+            {s.active_campaigns > 0 ? s.active_campaigns : 'No'} active {s.active_campaigns === 1 ? 'campaign' : 'campaigns'} and {fmtFull(totalContacts)} contacts
             {/* The headline figure only claims to be one once it can be. */}
             <span title={headlineReply.hint}>
               {headlineReply.isRate
-                ? `${headlineReply.label} avg reply rate`
-                : `${fmtFull(s.total_sent)} sent — too early for a reply rate`}
+                ? <>, averaging a <span className="font-medium text-[var(--text-primary)] tabular">{headlineReply.label}</span> reply rate.</>
+                : <>. {fmtFull(s.total_sent)} sent, too early for a reply rate.</>}
             </span>
-          </div>
+          </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {everSent && (
             <>
               <Segmented options={PERIODS} value={period} onChange={setPeriodPersist} />
@@ -604,7 +600,7 @@ function FirstSendPanel({ contacts, verified, bounced, onWrite }: {
     <section className="panel overflow-hidden">
       <div className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr]">
         <div className="p-5 sm:p-6">
-          <p className="text-caption font-semibold uppercase tracking-wide text-[var(--indigo)]">Your first campaign</p>
+          <p className="text-caption font-medium text-[var(--indigo)]">Your first campaign</p>
           <h2 className="mt-1.5 text-title font-semibold text-[var(--text-primary)] tracking-[-0.01em]">
             {contacts > 0 ? 'Your leads are ready. Relay can draft the emails.' : 'Add a few leads, then Relay drafts the emails.'}
           </h2>

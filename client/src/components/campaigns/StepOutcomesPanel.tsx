@@ -79,7 +79,7 @@ export function StepOutcomesPanel({ campaignId }: { campaignId: string }) {
             </div>
             {s.split && s.a && s.b && (
               <div className="ml-12 mt-1.5 space-y-1 border-l border-[var(--border-subtle)] pl-3">
-                <p className="flex items-center gap-1 text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]"><GitBranch className="h-3 w-3" /> Split test</p>
+                <p className="flex items-center gap-1 text-caption font-medium text-[var(--text-tertiary)]"><GitBranch className="h-3 w-3" /> Split test</p>
                 <ArmLine label="A" arm={s.a} best={s.suggestion?.variant === 'a'} />
                 <ArmLine label="B" arm={s.b} best={s.suggestion?.variant === 'b'} />
                 {s.suggestion && (

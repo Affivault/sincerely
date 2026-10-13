@@ -456,7 +456,7 @@ export function EmailAccountsPage() {
                   <button
                     key={p.title}
                     onClick={() => openQuick(p.name ? SMTP_PRESETS.find((x) => x.name === p.name) || null : null)}
-                    className="group flex flex-col items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-5 text-center transition-all hover:-translate-y-0.5 hover:border-[rgba(91,91,245,0.3)] hover:shadow-[var(--shadow-md)]"
+                    className="group flex flex-col items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-5 text-center transition-all hover:-translate-y-0.5 hover:border-[rgba(47, 63, 156,0.3)] hover:shadow-[var(--shadow-md)]"
                   >
                     <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
                       {p.name ? <ProviderLogo name={p.name} className="h-6 w-6" /> : <Server className="h-5 w-5 text-[var(--indigo)]" />}

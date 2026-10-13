@@ -342,7 +342,7 @@ export function ProspectorPage() {
         {/* Filters */}
         <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 space-y-3.5 lg:sticky lg:top-4">
           <div className="flex items-center justify-between">
-            <p className="text-caption font-semibold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
+            <p className="text-caption font-medium text-[var(--text-tertiary)] flex items-center gap-1.5">
               <Search className="h-3 w-3" /> Filters
             </p>
             {hasFilters && (
@@ -376,7 +376,7 @@ export function ProspectorPage() {
                     onClick={() => setSeniorities(on ? seniorities.filter((x) => x !== s.value) : [...seniorities, s.value])}
                     className={cn(
                       'h-6 px-2 rounded-md text-caption font-medium border transition-colors',
-                      on ? 'bg-[var(--indigo-subtle)] border-[rgba(91,91,245,0.3)] text-[var(--indigo)]' : 'border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]'
+                      on ? 'bg-[var(--indigo-subtle)] border-[rgba(47, 63, 156,0.3)] text-[var(--indigo)]' : 'border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]'
                     )}
                   >
                     {s.label}
@@ -399,7 +399,7 @@ export function ProspectorPage() {
                     onClick={() => setCompanySizes(on ? companySizes.filter((x) => x !== s) : [...companySizes, s])}
                     className={cn(
                       'h-6 px-2 rounded-md text-caption font-medium border tabular transition-colors',
-                      on ? 'bg-[var(--indigo-subtle)] border-[rgba(91,91,245,0.3)] text-[var(--indigo)]' : 'border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]'
+                      on ? 'bg-[var(--indigo-subtle)] border-[rgba(47, 63, 156,0.3)] text-[var(--indigo)]' : 'border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]'
                     )}
                   >
                     {s}
@@ -499,7 +499,7 @@ export function ProspectorPage() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left">
                   <thead>
-                    <tr className="border-b border-[var(--border-subtle)] text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                    <tr className="border-b border-[var(--border-subtle)] text-caption font-medium text-[var(--text-tertiary)]">
                       <th className="py-2.5 pl-4 pr-2 w-8">
                         {unrevealedOnPage.length > 0 && (
                           <input

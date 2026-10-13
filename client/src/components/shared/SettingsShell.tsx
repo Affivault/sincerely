@@ -23,28 +23,28 @@ export function SettingsShell({ children }: { children: ReactNode }) {
     <div className="flex gap-8 items-start">
       {/* Grouped settings nav — persistent across every admin page */}
       <aside className="hidden lg:block w-[216px] flex-shrink-0 sticky top-[calc(var(--chrome-h,56px)+16px)]">
-        <h2 className="px-2.5 mb-4 text-title font-semibold text-[var(--text-primary)] tracking-[-0.015em]">Settings</h2>
+        <h2 className="px-2.5 mb-4 text-heading font-semibold text-[var(--text-primary)]">Settings</h2>
         <nav className="space-y-5">
           {GROUPS.map((g) => (
             <div key={g.label}>
-              <p className="px-2.5 mb-1 text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">{g.label}</p>
+              <p className="px-2.5 mb-1.5 text-caption font-medium text-[var(--text-tertiary)]">{g.label}</p>
               <div className="space-y-0.5">
                 {g.items.map((it) => (
                   <NavLink
                     key={it.href}
                     to={it.href}
                     className={() => cn(
-                      'relative flex items-center gap-2.5 h-[30px] px-2.5 rounded-lg text-body font-medium border transition-colors',
+                      'relative flex items-center gap-2.5 h-[30px] px-2.5 rounded-md text-body transition-colors',
                       current === it.href
-                        // Raised-card active state — same language as the app sidebar
-                        ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] border-[var(--border-subtle)] shadow-[0_1px_2px_rgba(27,27,31,0.05)]'
-                        : 'border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
+                        // Pressed into the page - same language as the app sidebar
+                        ? 'bg-[var(--bg-active)] text-[var(--text-primary)] font-semibold'
+                        : 'font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
                     )}
                   >
                     {() => (
                       <>
                         <it.icon
-                          className={cn('h-[15px] w-[15px] flex-shrink-0', current === it.href ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')}
+                          className={cn('h-[15px] w-[15px] flex-shrink-0', current === it.href ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]')}
                           strokeWidth={1.75}
                         />
                         <span className="truncate">{it.label}</span>

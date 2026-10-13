@@ -93,11 +93,11 @@ async function downloadCsv(url: string, filename: string) {
 /* Cohesive, analogous palette — indigo→violet→cyan for the engagement
    series, emerald for the success outcome, rose reserved for bounces. */
 const CHART_COLORS = {
-  sent: '#6366F1',
-  opened: '#8B5CF6',
-  clicked: '#06B6D4',
-  replied: '#10B981',
-  bounced: '#F43F5E',
+  sent: '#3B4AA3',
+  opened: '#6E4E8E',
+  clicked: '#3D7F89',
+  replied: '#3F8763',
+  bounced: '#B54B53',
 };
 
 const tooltipStyle = {
@@ -239,7 +239,7 @@ function HeatmapGrid({ grid, maxValue }: { grid: HeatmapDay[]; maxValue: number 
                     className="w-[22px] h-[22px] rounded flex-shrink-0 transition-colors"
                     style={{
                       backgroundColor: intensity > 0
-                        ? `rgba(99, 102, 241, ${Math.min(1, intensity * 1.2).toFixed(2)})`
+                        ? `rgba(47, 63, 156, ${Math.min(1, intensity * 1.2).toFixed(2)})`
                         : 'var(--bg-elevated)',
                     }}
                     title={val > 0 ? `${row.day} ${h}:00 — ${val} engagements` : undefined}
@@ -253,7 +253,7 @@ function HeatmapGrid({ grid, maxValue }: { grid: HeatmapDay[]; maxValue: number 
           <span className="text-micro text-[var(--text-tertiary)]">Low</span>
           <div className="flex gap-0.5">
             {[0.1, 0.25, 0.45, 0.65, 0.85, 1].map((o) => (
-              <div key={o} className="w-4 h-4 rounded-sm" style={{ backgroundColor: `rgba(99,102,241,${o})` }} />
+              <div key={o} className="w-4 h-4 rounded-sm" style={{ backgroundColor: `rgba(47, 63, 156,${o})` }} />
             ))}
           </div>
           <span className="text-micro text-[var(--text-tertiary)]">High</span>
@@ -431,7 +431,7 @@ function CampaignLeaderboard({
                 </span>
               </td>
               <td className="py-3.5 px-3 w-32">
-                <MetricBar value={c.sent} max={maxSent} color="#6366F1" />
+                <MetricBar value={c.sent} max={maxSent} color="#3B4AA3" />
               </td>
               <td className="py-3.5 px-2">
                 <ArrowRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -454,7 +454,7 @@ function DeliverabilitySection({
   overview: OverviewAnalytics | undefined;
 }) {
   const avgDcs = safeNum(overview?.avg_dcs_score);
-  const dcsColor = avgDcs >= 80 ? '#10B981' : avgDcs >= 50 ? '#F59E0B' : '#EF4444';
+  const dcsColor = avgDcs >= 80 ? '#3F8763' : avgDcs >= 50 ? '#B88124' : '#BE4A3B';
   const circumference = 2 * Math.PI * 36;
   const progress = circumference - (avgDcs / 100) * circumference;
 
@@ -492,8 +492,8 @@ function DeliverabilitySection({
         </div>
         <div className="w-full space-y-1.5">
           {[
-            { label: 'Verified (DCS≥60)', value: safeNum(overview?.verified_contacts), color: '#10B981' },
-            { label: 'Bounced contacts', value: safeNum(overview?.bounced_contacts), color: '#EF4444' },
+            { label: 'Verified (DCS≥60)', value: safeNum(overview?.verified_contacts), color: '#3F8763' },
+            { label: 'Bounced contacts', value: safeNum(overview?.bounced_contacts), color: '#BE4A3B' },
           ].map((row) => (
             <div key={row.label} className="flex items-center justify-between text-caption">
               <div className="flex items-center gap-1.5">
@@ -716,7 +716,7 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
                   <td className="py-2.5 px-3">
                     <div className="flex items-center gap-2 justify-end">
                       <div className="w-16">
-                        <MetricBar value={score} max={100} color={score >= 70 ? '#10B981' : score >= 40 ? '#F59E0B' : '#94A3B8'} />
+                        <MetricBar value={score} max={100} color={score >= 70 ? '#3F8763' : score >= 40 ? '#B88124' : '#94A3B8'} />
                       </div>
                       <span className={cn(
                         'text-caption font-bold tabular-nums w-7 text-right',
@@ -894,7 +894,7 @@ export function AnalyticsDashboardPage() {
   }, [overview]);
 
   // Indigo tonal scale + a neutral for "no engagement" — matches the dashboard donuts
-  const PIE_COLORS = ['#6366F1', '#8B5CF6', '#06B6D4', theme === 'dark' ? '#2A2A33' : '#E4E4E7'];
+  const PIE_COLORS = ['#3B4AA3', '#6E4E8E', '#3D7F89', theme === 'dark' ? '#2A2A33' : '#E4E4E7'];
 
   const filteredCampaigns = useMemo(() => {
     const list = campaignList || [];
@@ -1047,11 +1047,11 @@ export function AnalyticsDashboardPage() {
                     <AreaChart data={formattedTrend} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id="ana-hero" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#6366F1" stopOpacity={0.22} />
-                          <stop offset="100%" stopColor="#6366F1" stopOpacity={0} />
+                          <stop offset="0%" stopColor="#3B4AA3" stopOpacity={0.22} />
+                          <stop offset="100%" stopColor="#3B4AA3" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <Area type="monotone" dataKey="sent" stroke="#6366F1" strokeWidth={2} fill="url(#ana-hero)" dot={false} />
+                      <Area type="monotone" dataKey="sent" stroke="#3B4AA3" strokeWidth={2} fill="url(#ana-hero)" dot={false} />
                     </AreaChart>
                   </ResponsiveContainer>
                 )}
@@ -1271,7 +1271,7 @@ export function AnalyticsDashboardPage() {
               {selectedCampaign && (
                 <div className="flex items-center justify-between px-5 py-4 panel">
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
+                    <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(47, 63, 156,0.18)]">
                       <Target className="h-5 w-5 text-[var(--indigo)]" strokeWidth={1.5} />
                     </div>
                     <div>
@@ -1328,11 +1328,11 @@ export function AnalyticsDashboardPage() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                     {[
-                      { label: 'Sent', value: campaignStats.sent, sub: undefined, color: '#6366F1', icon: Send },
-                      { label: 'Open rate', value: fmtPct(campaignStats.open_rate), sub: fmtNum(campaignStats.opened) + ' opens', color: '#10B981', icon: Mail },
-                      { label: 'Click rate', value: fmtPct(campaignStats.click_rate), sub: fmtNum(campaignStats.clicked) + ' clicks', color: '#F59E0B', icon: MousePointerClick },
-                      { label: 'Reply rate', value: fmtPct(campaignStats.reply_rate), sub: fmtNum(campaignStats.replied) + ' replies', color: '#EC4899', icon: MessageSquare },
-                      { label: 'Bounce rate', value: fmtPct(campaignStats.bounce_rate), sub: fmtNum(campaignStats.bounced) + ' bounced', color: '#EF4444', icon: AlertTriangle },
+                      { label: 'Sent', value: campaignStats.sent, sub: undefined, color: '#3B4AA3', icon: Send },
+                      { label: 'Open rate', value: fmtPct(campaignStats.open_rate), sub: fmtNum(campaignStats.opened) + ' opens', color: '#3F8763', icon: Mail },
+                      { label: 'Click rate', value: fmtPct(campaignStats.click_rate), sub: fmtNum(campaignStats.clicked) + ' clicks', color: '#B88124', icon: MousePointerClick },
+                      { label: 'Reply rate', value: fmtPct(campaignStats.reply_rate), sub: fmtNum(campaignStats.replied) + ' replies', color: '#A3507A', icon: MessageSquare },
+                      { label: 'Bounce rate', value: fmtPct(campaignStats.bounce_rate), sub: fmtNum(campaignStats.bounced) + ' bounced', color: '#BE4A3B', icon: AlertTriangle },
                     ].map(({ label, value, sub, color, icon: Icon }) => (
                       <div key={label} className="p-4 panel hover:border-[var(--border-default)] transition-all">
                         <div className="flex items-center justify-center h-7 w-7 rounded-lg mb-3" style={{ backgroundColor: `${color}18` }}>

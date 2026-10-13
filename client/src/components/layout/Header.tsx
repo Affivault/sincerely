@@ -79,7 +79,7 @@ export function Header() {
   ];
 
   return (
-    <header className="fixed top-0 inset-x-0 z-50 flex h-[56px] items-center border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/90 backdrop-blur-xl gap-2 sm:gap-3 pr-3 sm:pr-6">
+    <header className="fixed top-0 inset-x-0 z-50 flex h-[56px] items-center border-b border-[var(--border-subtle)] bg-[var(--bg-app)]/90 backdrop-blur-xl gap-2 sm:gap-3 pr-3 sm:pr-6">
       {/* Logo zone — fixed, never collapses. On a narrow screen the menu
           button comes first, where a thumb expects it. */}
       <div className={cn('flex items-center h-full flex-shrink-0', narrow ? 'gap-1.5 pl-2 pr-1' : 'gap-2.5 pl-5 pr-3')}>
@@ -111,7 +111,7 @@ export function Header() {
         type="button"
         onClick={openPalette}
         aria-label="Search or jump to"
-        className="group relative hidden sm:flex items-center h-7 w-44 md:w-64 rounded-md border border-[var(--border-default)] bg-[var(--bg-inset)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)] transition-colors text-left"
+        className="group relative hidden sm:flex items-center h-7 w-44 md:w-72 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-default)] transition-colors text-left shadow-[var(--shadow-sm)]"
       >
         <Search className="h-3.5 w-3.5 text-[var(--text-tertiary)] ml-2.5 flex-shrink-0" />
         <span className="flex-1 truncate px-2 text-body text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)] transition-colors">
@@ -137,7 +137,7 @@ export function Header() {
         <div className="relative mr-1.5">
           <button
             onClick={() => setCreateOpen(!createOpen)}
-            className="flex items-center gap-1 h-7 pl-2 pr-1.5 rounded-md bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
+            className="flex items-center gap-1 h-7 pl-2 pr-1.5 rounded-md bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[var(--glow-indigo)]"
           >
             <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
             <span className="hidden sm:inline">Create</span>
@@ -154,8 +154,8 @@ export function Header() {
                     onClick={() => { setCreateOpen(false); navigate(item.to); }}
                     className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left hover:bg-[var(--bg-hover)] transition-colors"
                   >
-                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--indigo-subtle)] flex-shrink-0 mt-px">
-                      <item.icon className="h-3.5 w-3.5 text-[var(--indigo)]" strokeWidth={2} />
+                    <span className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] flex-shrink-0 mt-px">
+                      <item.icon className="h-3.5 w-3.5 text-[var(--text-secondary)]" strokeWidth={1.8} />
                     </span>
                     <span className="min-w-0">
                       <span className="block text-body font-medium text-[var(--text-primary)] leading-tight">{item.label}</span>
@@ -202,7 +202,7 @@ export function Header() {
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-1.5 h-8 pl-1 pr-1.5 rounded-lg hover:bg-[var(--bg-hover)] transition-colors"
           >
-            <div className="h-6 w-6 rounded-full bg-[var(--indigo)] flex items-center justify-center text-micro font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]">
+            <div className="h-6 w-6 rounded-full bg-[var(--text-primary)] flex items-center justify-center font-display text-[13px] font-medium leading-none text-[var(--bg-surface)]">
               {user?.email?.charAt(0)?.toUpperCase() || 'U'}
             </div>
             <ChevronDown className={cn(
@@ -259,7 +259,7 @@ export function Header() {
                       <button
                         onClick={() => { setMenuOpen(false); navigate('/billing'); }}
                         className="w-full mt-0.5 h-7 rounded-md text-caption font-semibold text-white"
-                        style={{ background: 'linear-gradient(100deg,#4F86F7,#8B5CF6)' }}
+                        style={{ background: 'var(--indigo)' }}
                       >
                         Upgrade plan
                       </button>

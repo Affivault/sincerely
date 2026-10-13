@@ -100,7 +100,7 @@ export function ReplyDeck({ items, onSend, onSnooze, onOpen, onClose }: {
               {item.reply?.snippet || item.reply?.subject}
             </div>
             <div className="flex flex-1 flex-col border-t border-[var(--border-subtle)] px-4 py-3">
-              <p className="mb-1.5 flex items-center gap-1.5 text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              <p className="mb-1.5 flex items-center gap-1.5 text-caption font-medium text-[var(--text-tertiary)]">
                 <Sparkles className="h-3 w-3" /> Your answer
               </p>
               <textarea

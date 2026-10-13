@@ -17,16 +17,16 @@ import { SECTIONS, SETTINGS_ICON, locate, isSettingsPath } from '../../lib/secti
    definition every surface reads. A place's own pages are tabs in the bar
    under the header, so the rail never grows and never needs opening. */
 
-/* ─── Row styling (the Attio look) ──────────────────────────────────
-   Inactive rows are quiet text on the gray rail. The ACTIVE row is a
-   raised card: white surface, hairline border, soft shadow — the page
-   you are on physically sits on top of the rail. */
+/* ─── Row styling ───────────────────────────────────────────────────
+   Inactive rows are graphite text on the paper rail. The active row is
+   pressed into it - a darker ground, full ink - rather than a floating
+   white card with a shadow, which is every sidebar kit's active state. */
 const rowBase =
-  'group relative flex items-center rounded-lg transition-all duration-100 select-none';
+  'group relative flex items-center rounded-md transition-colors duration-100 select-none';
 const rowInactive =
-  'text-[var(--text-secondary)] border border-transparent hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]';
+  'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]';
 const rowActive =
-  'bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-subtle)] shadow-[0_1px_2px_rgba(16,16,20,0.05),0_0_0_0.5px_rgba(16,16,20,0.02)]';
+  'bg-[var(--bg-active)] text-[var(--text-primary)]';
 
 /* ─── NavRow ────────────────────────────────────────────────────── */
 function NavRow({ name, href, icon: Icon, active, collapsed, badge, hint }: {
@@ -44,11 +44,11 @@ function NavRow({ name, href, icon: Icon, active, collapsed, badge, hint }: {
       )}
     >
       <Icon
-        className={cn('h-[16px] w-[16px] flex-shrink-0 transition-colors', active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]')}
+        className={cn('h-[16px] w-[16px] flex-shrink-0 transition-colors', active ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]')}
         strokeWidth={1.75}
       />
       {!collapsed && (
-        <span className="flex-1 truncate leading-none text-strong font-medium">{name}</span>
+        <span className={cn('flex-1 truncate leading-none text-strong', active ? 'font-semibold' : 'font-medium')}>{name}</span>
       )}
       {badge != null && badge > 0 && (
         collapsed ? (
@@ -58,7 +58,7 @@ function NavRow({ name, href, icon: Icon, active, collapsed, badge, hint }: {
         ) : (
           <span className={cn(
             'ml-auto flex h-[17px] min-w-[17px] items-center justify-center rounded-md text-micro font-semibold px-1 leading-none tabular-nums',
-            active ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-active)] text-[var(--text-secondary)]',
+            active ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]',
           )}>
             {badge > 99 ? '99+' : badge}
           </span>
@@ -80,25 +80,24 @@ function UsageCard({ collapsed }: { collapsed: boolean }) {
   if (collapsed || !usage || isUnlimited(usage.emailsLimit)) return null;
 
   const pct = usage.emailsLimit > 0 ? Math.min(100, (usage.emailsSent / usage.emailsLimit) * 100) : 0;
-  const barColor = pct >= 90 ? '#EF4444' : pct >= 75 ? '#F59E0B' : 'var(--indigo)';
+  const barColor = pct >= 90 ? 'var(--error)' : pct >= 75 ? 'var(--warning)' : 'var(--text-secondary)';
   const isFree = usage.plan === 'free';
 
   return (
-    <div className="mx-2.5 mb-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5 shadow-[0_1px_2px_rgba(16,16,20,0.04)]">
+    <div className="mx-2.5 mb-2 px-2 py-2.5">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-caption font-medium text-[var(--text-tertiary)]">Emails this month</span>
         <span className="text-caption font-semibold text-[var(--text-secondary)] tabular-nums">
           {usage.emailsSent.toLocaleString()}<span className="text-[var(--text-muted)] font-normal"> / {usage.emailsLimit.toLocaleString()}</span>
         </span>
       </div>
-      <div className="mt-2 h-1 rounded-full bg-[var(--bg-active)] overflow-hidden">
+      <div className="mt-2 h-[3px] rounded-full bg-[var(--bg-active)] overflow-hidden">
         <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: barColor }} />
       </div>
       {isFree && (
         <button
           onClick={() => navigate('/billing')}
-          className="mt-2 w-full flex items-center justify-center gap-1 h-[26px] rounded-lg text-caption font-semibold text-white transition-opacity hover:opacity-90"
-          style={{ background: 'var(--indigo-grad)' }}
+          className="mt-2.5 w-full flex items-center justify-center gap-1 h-[26px] rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] text-caption font-semibold text-[var(--text-primary)] transition-colors hover:border-[var(--border-strong)]"
         >
           Upgrade <ArrowUpRight className="h-3 w-3" strokeWidth={2.2} />
         </button>
@@ -191,11 +190,10 @@ export function Sidebar() {
           collapsed ? 'justify-center h-8 w-8 mx-auto' : 'gap-2.5 px-1.5 h-[42px]'
         )}>
           <div
-            className="h-[26px] w-[26px] rounded-lg flex items-center justify-center flex-shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_1px_2px_rgba(67,56,202,0.3)]"
-            style={{ background: 'var(--indigo-grad)' }}
+            className="h-[26px] w-[26px] rounded-md flex items-center justify-center flex-shrink-0 bg-[var(--text-primary)]"
             title={collapsed ? workspaceName : undefined}
           >
-            <span className="text-caption font-bold text-white">{workspaceName[0].toUpperCase()}</span>
+            <span className="font-display text-[15px] font-medium leading-none text-[var(--bg-surface)]">{workspaceName[0].toUpperCase()}</span>
           </div>
           {!collapsed && (
             <>

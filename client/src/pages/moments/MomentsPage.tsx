@@ -152,7 +152,7 @@ function MomentCard({ moment: m, onWrite, onAdd, onDismiss }: {
         </span>
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-[var(--text-tertiary)]">
-            <span className="font-semibold uppercase tracking-wide">{SIGNAL_KIND_LABELS[m.kind]}</span>
+            <span className="font-medium">{SIGNAL_KIND_LABELS[m.kind]}</span>
             <span className={`rounded-full px-2 py-0.5 font-medium ${strength.cls}`}>{strength.label}</span>
             <span>{formatRelativeTime(m.occurred_at)}</span>
             {m.company && (

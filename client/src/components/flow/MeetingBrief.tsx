@@ -29,7 +29,7 @@ function money(v: number, currency: string): string {
 function Section({ icon: Icon, title, children }: { icon: typeof Briefcase; title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-1.5 flex items-center gap-1.5 text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+      <p className="mb-1.5 flex items-center gap-1.5 text-caption font-medium text-[var(--text-tertiary)]">
         <Icon className="h-3 w-3" />{title}
       </p>
       {children}

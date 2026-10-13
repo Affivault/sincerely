@@ -80,7 +80,7 @@ export function StandingStrip({ contactId, email, name }: { contactId: string; e
 
   return (
     <div className="px-4 py-3 space-y-2.5 border-b border-[var(--border-subtle)]">
-      <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">Where they stand</p>
+      <p className="text-caption font-medium text-[var(--text-tertiary)]">Where they stand</p>
 
       {openDeals.length > 0 ? openDeals.slice(0, 2).map((d) => (
         <Link key={d.id} to={`/deals/${d.id}`} className="flex items-center gap-2 min-w-0 text-body hover:text-[var(--indigo)]">

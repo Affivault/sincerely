@@ -125,7 +125,7 @@ import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../../lib/constants';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
 
-const FOLDER_COLORS = ['#10B981', '#6366F1', '#F59E0B', '#EC4899', '#06B6D4', '#8B5CF6', '#EF4444', '#84CC16'];
+const FOLDER_COLORS = ['#3F8763', '#3B4AA3', '#B88124', '#A3507A', '#3D7F89', '#6E4E8E', '#BE4A3B', '#84CC16'];
 
 const emptyContact: CreateContactInput = {
   email: '',

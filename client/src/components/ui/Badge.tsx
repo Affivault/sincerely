@@ -24,7 +24,7 @@ export function Badge({ children, variant = 'default', size = 'md', dot = false,
     warning: 'bg-[var(--warning-bg)] text-[var(--warning)] border border-[var(--warning-border)]',
     danger:  'bg-[var(--error-bg)] text-[var(--error)] border border-[var(--error-border)]',
     info:    'bg-[var(--info-bg)] text-[var(--info)] border border-[var(--info-border)]',
-    brand:   'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(99,102,241,0.2)]',
+    brand:   'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[color-mix(in_srgb,var(--indigo)_18%,transparent)]',
   };
 
   const sizes = {

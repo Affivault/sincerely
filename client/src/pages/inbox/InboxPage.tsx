@@ -360,13 +360,13 @@ const INTENT_COLORS: Record<string, { bg: string; text: string; label: string }>
 
 /** Solid hex per intent — used for sidebar dots where Tailwind classes don't fit. */
 const INTENT_HEX: Record<string, string> = {
-  interested: '#10B981',
-  meeting: '#3B82F6',
-  objection: '#F59E0B',
+  interested: '#3F8763',
+  meeting: '#4D6BB0',
+  objection: '#B88124',
   not_now: '#64748B',
-  unsubscribe: '#EF4444',
-  out_of_office: '#8B5CF6',
-  bounce: '#EF4444',
+  unsubscribe: '#BE4A3B',
+  out_of_office: '#6E4E8E',
+  bounce: '#BE4A3B',
   other: '#64748B',
 };
 
@@ -378,13 +378,13 @@ const TAG_OPTIONS = [
 
 /* Dot colors for the intent rows in the mail-nav rail */
 const INTENT_DOTS: Record<string, string> = {
-  interested: '#10B981',
-  meeting: '#3B82F6',
+  interested: '#3F8763',
+  meeting: '#4D6BB0',
   not_now: '#64748B',
-  objection: '#F59E0B',
-  out_of_office: '#8B5CF6',
-  unsubscribe: '#EF4444',
-  bounce: '#F43F5E',
+  objection: '#B88124',
+  out_of_office: '#6E4E8E',
+  unsubscribe: '#BE4A3B',
+  bounce: '#B54B53',
   other: '#94A3B8',
 };
 
@@ -546,7 +546,7 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
                 disabled={!canSend}
                 className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-strong font-medium transition-all disabled:opacity-40 ${
                   showSchedule
-                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(91,91,245,0.25)]'
+                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(47, 63, 156,0.25)]'
                     : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
                 }`}
                 title="Schedule send"
@@ -565,7 +565,7 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
                 }
               }}
               disabled={!canSend}
-              className="flex items-center gap-2 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-strong font-semibold hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
+              className="flex items-center gap-2 h-9 px-4 rounded-lg bg-[var(--indigo)] text-white text-strong font-semibold hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(24, 25, 29,0.35)]"
             >
               <Send className="h-3.5 w-3.5" />
               {sending ? 'Sending…' : 'Send'}
@@ -1001,7 +1001,7 @@ function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string
           <CustomTimePicker value={selectedTime} onChange={setSelectedTime} />
           <button
             onClick={handleConfirmSchedule}
-            className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-[var(--indigo)] text-white text-strong font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
+            className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-[var(--indigo)] text-white text-strong font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(24, 25, 29,0.35)]"
           >
             <CalendarClock className="h-3.5 w-3.5" />
             Schedule for {selectedDateLabel} · {selectedTimeLabel}
@@ -1055,7 +1055,7 @@ function FolderSelector({ folders, active, onChange }: {
                 key={f.id}
                 onClick={() => { onChange(f.id); setOpen(false); }}
                 className={`w-full text-left px-3 py-2.5 text-body font-medium transition-colors flex items-center gap-2.5 ${
-                  isActive ? 'bg-[rgba(99,102,241,0.08)] text-[var(--indigo)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                  isActive ? 'bg-[rgba(47, 63, 156,0.08)] text-[var(--indigo)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                 }`}
               >
                 <FolderIcon className={`h-3.5 w-3.5 ${isActive ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]'}`} />
@@ -1164,7 +1164,7 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
       {/* Rail node — avatar for the contact, indigo send-node for you */}
       <div className="relative z-10 w-9 flex-shrink-0 flex justify-center pt-2">
         {isOutbound ? (
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--indigo)] text-white ring-4 ring-[var(--bg-app)] shadow-[0_2px_8px_-2px_rgba(91,91,245,0.55)]">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--indigo)] text-white ring-4 ring-[var(--bg-app)] shadow-[0_2px_8px_-2px_rgba(47, 63, 156,0.55)]">
             <SendHorizontal className="h-3.5 w-3.5" />
           </span>
         ) : (
@@ -1177,8 +1177,8 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
       {/* Card */}
       <div className={cn(
         'flex-1 min-w-0 panel overflow-hidden transition-shadow',
-        isOutbound && 'border-[rgba(91,91,245,0.28)]',
-        isCurrent && 'ring-2 ring-[rgba(91,91,245,0.22)]'
+        isOutbound && 'border-[rgba(47, 63, 156,0.28)]',
+        isCurrent && 'ring-2 ring-[rgba(47, 63, 156,0.22)]'
       )}>
         <button
           type="button"
@@ -1187,7 +1187,7 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
             'w-full text-left px-4 py-2.5 transition-colors',
             expanded
               ? cn('border-b', isOutbound
-                  ? 'bg-[var(--indigo-subtle)] border-[rgba(91,91,245,0.15)] hover:bg-[rgba(91,91,245,0.12)]'
+                  ? 'bg-[var(--indigo-subtle)] border-[rgba(47, 63, 156,0.15)] hover:bg-[rgba(47, 63, 156,0.12)]'
                   : 'border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]/60')
               : 'hover:bg-[var(--bg-hover)]/60'
           )}
@@ -1472,7 +1472,7 @@ function ThreadDealPanel({ msg }: { msg: Message }) {
   return (
     <div className="px-3.5 pb-3.5">
       <div className="flex items-center justify-between mb-2 px-1">
-        <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+        <p className="text-caption font-medium text-[var(--text-tertiary)]">
           {deals.length > 0 ? `Deals · ${deals.length}` : 'Deal'}
         </p>
         {!open && (
@@ -1665,7 +1665,7 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
     <aside className="hidden xl:flex w-[280px] flex-shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-col overflow-y-auto">
       {/* ── Prospect card — the person, linked to their lead record ── */}
       <div className="px-3.5 pt-4 pb-3.5">
-        <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2 px-1">Prospect</p>
+        <p className="text-caption font-medium text-[var(--text-tertiary)] mb-2 px-1">Prospect</p>
         <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 p-3.5">
           <div className="flex items-start gap-3">
             <Avatar name={name} email={email} size="md" />
@@ -1735,7 +1735,7 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
       {/* ── Campaign card — which sequence this thread belongs to ── */}
       {(msg.campaign_name || sendingInbox) && (
         <div className="px-3.5 pb-3.5">
-          <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2 px-1">Campaign</p>
+          <p className="text-caption font-medium text-[var(--text-tertiary)] mb-2 px-1">Campaign</p>
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 p-3.5">
             {msg.campaign_name ? (
               <div className="flex items-start gap-2.5">
@@ -1780,7 +1780,7 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
 
       {/* ── Engagement ── */}
       <div className="px-3.5 pb-3.5">
-        <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2 px-1">Engagement</p>
+        <p className="text-caption font-medium text-[var(--text-tertiary)] mb-2 px-1">Engagement</p>
         <div className="grid grid-cols-2 gap-2">
           <div className="panel-inset px-2.5 py-1.5">
             <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
@@ -1810,7 +1810,7 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
 
       {/* ── Details ── */}
       <div className="px-3.5 pb-4">
-        <p className="text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1.5 px-1">Details</p>
+        <p className="text-caption font-medium text-[var(--text-tertiary)] mb-1.5 px-1">Details</p>
         <div className="px-1">
           <DetailRow label="Intent">
             {intent ? (
@@ -2100,9 +2100,9 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
   if (!intent && !hasDraft && !msg.sara_action) return null;
 
   return (
-    <div className="mb-5 rounded-2xl border border-[rgba(91,91,245,0.22)] bg-[var(--indigo-subtle)] overflow-hidden">
+    <div className="mb-5 rounded-2xl border border-[rgba(47, 63, 156,0.22)] bg-[var(--indigo-subtle)] overflow-hidden">
       <div className="flex items-start gap-3 p-4">
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--indigo)] text-white flex-shrink-0 shadow-[0_2px_8px_-2px_rgba(91,91,245,0.6)]">
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--indigo)] text-white flex-shrink-0 shadow-[0_2px_8px_-2px_rgba(47, 63, 156,0.6)]">
           <Sparkles className="h-4 w-4" />
         </span>
         <div className="flex-1 min-w-0">
@@ -2145,7 +2145,7 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
         </div>
       </div>
       {hasDraft && (
-        <div className="flex items-center gap-2.5 px-4 py-2.5 border-t border-[rgba(91,91,245,0.18)] bg-[var(--bg-surface)]">
+        <div className="flex items-center gap-2.5 px-4 py-2.5 border-t border-[rgba(47, 63, 156,0.18)] bg-[var(--bg-surface)]">
           <button
             onClick={onUseDraft}
             className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[var(--indigo-hover)] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]"
@@ -2988,7 +2988,7 @@ export function InboxPage() {
               <div className="flex-1" />
               <button
                 onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
-                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo-subtle)] text-[var(--indigo)] text-body font-semibold hover:bg-[rgba(91,91,245,0.14)] transition-colors"
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo-subtle)] text-[var(--indigo)] text-body font-semibold hover:bg-[rgba(47, 63, 156,0.14)] transition-colors"
               >
                 <Reply className="h-3.5 w-3.5" /> Reply
               </button>
@@ -3289,7 +3289,7 @@ export function InboxPage() {
                                 disabled={replyEditor.isEmpty || replyMut.isPending}
                                 className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-strong font-medium transition-all disabled:opacity-40 ${
                                   showReplySchedule
-                                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(91,91,245,0.25)]'
+                                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(47, 63, 156,0.25)]'
                                     : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
                                 }`}
                                 title="Schedule send"
@@ -3325,7 +3325,7 @@ export function InboxPage() {
                             disabled={
                               (replyMode === 'reply' ? replyEditor.isEmpty || replyMut.isPending : !forwardTo.trim() || forwardMut.isPending)
                             }
-                            className="flex items-center gap-2 h-9 px-3 sm:px-4 rounded-lg bg-[var(--indigo)] text-white text-strong font-semibold whitespace-nowrap hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(67,56,202,0.35)]"
+                            className="flex items-center gap-2 h-9 px-3 sm:px-4 rounded-lg bg-[var(--indigo)] text-white text-strong font-semibold whitespace-nowrap hover:bg-[var(--indigo-hover)] transition-colors disabled:opacity-40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(24, 25, 29,0.35)]"
                           >
                             <Send className="h-3.5 w-3.5" />
                             {replyMut.isPending || forwardMut.isPending ? 'Sending…' : replyMode === 'reply' ? 'Send reply' : 'Forward'}
@@ -3339,7 +3339,7 @@ export function InboxPage() {
                       <Avatar name={threadContactName || undefined} email={threadContactEmail || undefined} size="md" />
                       <button
                         onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
-                        className="flex-1 h-10 px-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 text-left text-strong text-[var(--text-tertiary)] hover:border-[rgba(91,91,245,0.45)] hover:bg-[var(--bg-surface)] transition-colors"
+                        className="flex-1 h-10 px-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 text-left text-strong text-[var(--text-tertiary)] hover:border-[rgba(47, 63, 156,0.45)] hover:bg-[var(--bg-surface)] transition-colors"
                       >
                         Reply to {threadContactName || 'this conversation'}…
                       </button>
@@ -3469,7 +3469,7 @@ export function InboxPage() {
             className={cn(
               'hidden md:block h-8 px-2 rounded-lg border text-body font-medium outline-none cursor-pointer transition-colors flex-shrink-0',
               tagFilter !== 'all'
-                ? 'border-[rgba(91,91,245,0.4)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                ? 'border-[rgba(47, 63, 156,0.4)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
                 : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
             )}
           >
@@ -3530,7 +3530,7 @@ export function InboxPage() {
           </button>
           <button
             onClick={() => { setReplyMode(null); setShowCompose(true); }}
-            className="ml-1 flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[var(--indigo-hover)] transition-colors flex-shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(91,91,245,0.35)]"
+            className="ml-1 flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo)] text-white text-body font-semibold hover:bg-[var(--indigo-hover)] transition-colors flex-shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(47, 63, 156,0.35)]"
           >
             <Pencil className="h-3.5 w-3.5" /> Compose
           </button>

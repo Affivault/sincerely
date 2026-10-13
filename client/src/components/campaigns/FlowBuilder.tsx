@@ -169,11 +169,11 @@ function AddStepMenu({ onAdd, showAbove }: AddStepMenuProps) {
             "absolute z-30 w-52 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)] shadow-xl py-1 animate-fade-in",
             showAbove ? "bottom-full mb-2" : "top-full mt-2"
           )}>
-            <p className="px-3 pb-1.5 pt-1.5 text-micro font-bold text-[var(--text-tertiary)] uppercase tracking-[0.08em]">
+            <p className="px-3 pb-1.5 pt-1.5 text-caption font-medium text-[var(--text-tertiary)]">
               Add step
             </p>
             {[
-              { type: StepType.Email, icon: Mail, label: 'Email Step', desc: 'Send a personalised email', accent: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[rgba(91,91,245,0.18)]' },
+              { type: StepType.Email, icon: Mail, label: 'Email Step', desc: 'Send a personalised email', accent: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[rgba(47, 63, 156,0.18)]' },
               { type: StepType.Delay, icon: Clock, label: 'Wait / Delay', desc: 'Wait before the next step', accent: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
             ].map(({ type, icon: Icon, label, desc, accent }) => (
               <button
@@ -247,7 +247,7 @@ const getStepColors = (stepType: string) => {
   switch (stepType) {
     case 'email':
       return {
-        iconBg: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(91,91,245,0.18)]',
+        iconBg: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(47, 63, 156,0.18)]',
         borderColor: 'border-l-[3px] border-l-[var(--indigo)]',
         badgeBg: 'bg-[var(--indigo)] text-white',
       };
@@ -365,7 +365,7 @@ function FlowNode({
           'group relative mx-auto max-w-xl rounded-xl border bg-[var(--bg-surface)] transition-all duration-200',
           stepColors.borderColor,
           isEditing
-            ? 'border-[var(--indigo-subtle)] shadow-[0_0_0_2px_var(--indigo-subtle),0_4px_12px_rgba(91,91,245,0.12)]'
+            ? 'border-[var(--indigo-subtle)] shadow-[0_0_0_2px_var(--indigo-subtle),0_4px_12px_rgba(47, 63, 156,0.12)]'
             : 'border-[var(--border-subtle)] hover:border-[var(--border-default)] hover:shadow-[0_2px_8px_rgba(15,15,25,0.06)]'
         )}
       >
@@ -872,7 +872,7 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
     return (
       <div className="flex flex-col items-center py-10">
         {/* Start node */}
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)] mb-3">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--indigo-subtle)] border border-[rgba(47, 63, 156,0.18)] mb-3">
           <Sparkles className="h-6 w-6 text-[var(--indigo)]" strokeWidth={1.5} />
         </div>
         <p className="text-heading font-semibold text-[var(--text-primary)] mb-1">Campaign start</p>
@@ -880,7 +880,7 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-w-2xl">
           {[
-            { type: StepType.Email, icon: Mail, label: 'Add Email', desc: 'Send a personalised message', accent: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[rgba(91,91,245,0.18)]' },
+            { type: StepType.Email, icon: Mail, label: 'Add Email', desc: 'Send a personalised message', accent: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[rgba(47, 63, 156,0.18)]' },
             { type: StepType.Delay, icon: Clock, label: 'Add Delay', desc: 'Wait before next step', accent: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
             { type: StepType.Condition, icon: GitBranch, label: 'Add Condition', desc: 'If / else branching', accent: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20' },
           ].map(({ type, icon: Icon, label, desc, accent }) => (
@@ -931,7 +931,7 @@ export function FlowBuilder({ steps, onStepsChange, onEditStep, editingStep, cam
     <div className="relative py-4">
       {/* Start Node */}
       <div className="flex flex-col items-center gap-1.5 mb-1">
-        <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--indigo)] text-white text-caption font-bold shadow-[0_2px_6px_rgba(91,91,245,0.3)]">
+        <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--indigo)] text-white text-caption font-bold shadow-[0_2px_6px_rgba(47, 63, 156,0.3)]">
           <Sparkles className="h-3 w-3" />
           Campaign start
         </div>

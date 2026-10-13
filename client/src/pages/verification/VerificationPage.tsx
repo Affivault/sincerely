@@ -77,7 +77,7 @@ function HealthGauge({ score, size = 160 }: { score: number; size?: number }) {
   const r = size / 2 - 14;
   const c = 2 * Math.PI * r;
   const offset = c - (score / 100) * c;
-  const stroke = score >= 80 ? '#10B981' : score >= 50 ? '#F59E0B' : '#F43F5E';
+  const stroke = score >= 80 ? '#3F8763' : score >= 50 ? '#B88124' : '#B54B53';
 
   return (
     <div className="relative" style={{ width: size, height: size }}>

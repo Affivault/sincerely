@@ -134,7 +134,7 @@ export function PersonalizationDropdown({ onInsert, variant = 'button' }: Person
           <div className="max-h-64 overflow-y-auto py-2">
             {categories.map((category) => (
               <div key={category}>
-                <p className="px-4 py-1.5 text-body font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">
+                <p className="px-4 py-1.5 text-body font-medium text-[var(--text-tertiary)]">
                   {category}
                 </p>
                 {filteredTags

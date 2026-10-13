@@ -252,11 +252,11 @@ export function CampaignDetailPage() {
 
   const chartData = analytics
     ? [
-        { name: 'Sent', value: analytics.sent, fill: '#6366F1' },
-        { name: 'Opened', value: analytics.opened, fill: '#818CF8' },
+        { name: 'Sent', value: analytics.sent, fill: '#3B4AA3' },
+        { name: 'Opened', value: analytics.opened, fill: '#7380C7' },
         { name: 'Clicked', value: analytics.clicked, fill: '#A5B4FC' },
-        { name: 'Replied', value: analytics.replied, fill: '#6366F1' },
-        { name: 'Bounced', value: analytics.bounced, fill: '#ef4444' },
+        { name: 'Replied', value: analytics.replied, fill: '#3B4AA3' },
+        { name: 'Bounced', value: analytics.bounced, fill: '#BE4A3B' },
       ]
     : [];
 
@@ -803,7 +803,7 @@ function formatDelay(days: number, hours: number, minutes: number): string {
 }
 
 const STEP_CFG: Record<string, { accent: string; iconColor: string; iconBg: string }> = {
-  email:       { accent: 'bg-[var(--indigo)]',   iconColor: 'text-[var(--indigo)]',   iconBg: 'bg-[rgba(99,102,241,0.1)]'  },
+  email:       { accent: 'bg-[var(--indigo)]',   iconColor: 'text-[var(--indigo)]',   iconBg: 'bg-[rgba(47, 63, 156,0.1)]'  },
   delay:       { accent: 'bg-amber-500',    iconColor: 'text-amber-500',   iconBg: 'bg-amber-500/10'            },
   condition:   { accent: 'bg-blue-500',     iconColor: 'text-blue-500',    iconBg: 'bg-blue-500/10'             },
   webhook_wait:{ accent: 'bg-emerald-500',  iconColor: 'text-emerald-500', iconBg: 'bg-emerald-500/10'          },
@@ -841,7 +841,7 @@ function SequenceStepCard({ step, index, ab, onEditWording }: {
                     'inline-flex shrink-0 items-center px-1.5 h-[18px] rounded text-micro font-semibold',
                     ab?.tone === 'ready'
                       ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                      : 'bg-[rgba(99,102,241,0.08)] text-[var(--indigo)]',
+                      : 'bg-[rgba(47, 63, 156,0.08)] text-[var(--indigo)]',
                   )}
                   data-ab-chip
                 >

@@ -142,7 +142,7 @@ function SectionCard({
   accent?: 'indigo' | 'emerald' | 'amber' | 'violet';
 }) {
   const accentMap = {
-    indigo: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[rgba(91,91,245,0.18)]',
+    indigo: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[rgba(47, 63, 156,0.18)]',
     emerald: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
     amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
     violet: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20',
@@ -1100,7 +1100,7 @@ export function CampaignCreatePage() {
           Campaigns
         </button>
         <div className="hidden sm:block h-5 w-px bg-[var(--border-subtle)]" />
-        <span className="hidden sm:flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)] flex-shrink-0">
+        <span className="hidden sm:flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] border border-[rgba(47, 63, 156,0.18)] flex-shrink-0">
           <Rocket className="h-3.5 w-3.5 text-[var(--indigo)]" />
         </span>
         <input
@@ -1183,7 +1183,7 @@ export function CampaignCreatePage() {
                   <div className={cn(
                     'flex items-center justify-center h-8 w-8 rounded-full text-body font-bold transition-all',
                     active
-                      ? 'bg-[var(--indigo)] text-white shadow-[0_2px_6px_rgba(91,91,245,0.3)] ring-4 ring-[var(--indigo-subtle)]'
+                      ? 'bg-[var(--indigo)] text-white shadow-[0_2px_6px_rgba(47, 63, 156,0.3)] ring-4 ring-[var(--indigo-subtle)]'
                       : completed
                       ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20'
                       : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)] ring-1 ring-[var(--border-subtle)]'
@@ -1628,7 +1628,7 @@ export function CampaignCreatePage() {
                 {/* Flow Canvas */}
                 <div className="lg:col-span-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden flex flex-col">
                   <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center gap-3">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] border border-[rgba(47, 63, 156,0.18)]">
                       <Layers className="h-3.5 w-3.5 text-[var(--indigo)]" strokeWidth={1.75} />
                     </span>
                     <div className="flex-1 min-w-0">
@@ -1666,7 +1666,7 @@ export function CampaignCreatePage() {
                     {emailSteps.length === 0 && (
                       <button
                         onClick={() => setShowWriter(true)}
-                        className="mb-4 w-full flex items-center gap-3 rounded-xl border border-[rgba(91,91,245,0.3)] bg-[var(--indigo-subtle)] px-4 py-3 text-left hover:border-[var(--indigo)] transition-colors"
+                        className="mb-4 w-full flex items-center gap-3 rounded-xl border border-[rgba(47, 63, 156,0.3)] bg-[var(--indigo-subtle)] px-4 py-3 text-left hover:border-[var(--indigo)] transition-colors"
                       >
                         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--indigo)] text-white flex-shrink-0"><Sparkles className="h-4 w-4" /></span>
                         <span className="min-w-0">
@@ -1691,7 +1691,7 @@ export function CampaignCreatePage() {
                     <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] sticky top-4 overflow-hidden">
                       <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)] flex-shrink-0">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--indigo-subtle)] border border-[rgba(47, 63, 156,0.18)] flex-shrink-0">
                             <Mail className="h-3 w-3 text-[var(--indigo)]" />
                           </span>
                           <div className="min-w-0">
@@ -2406,7 +2406,7 @@ export function CampaignCreatePage() {
                         className={cn(
                           'inline-flex items-center gap-2 px-5 py-2 rounded-md text-strong font-bold transition-all',
                           reviewReady
-                            ? 'bg-[var(--indigo)] text-white hover:bg-[var(--indigo-hover)] shadow-[0_2px_8px_rgba(91,91,245,0.35)] hover:shadow-[0_4px_12px_rgba(91,91,245,0.45)]'
+                            ? 'bg-[var(--indigo)] text-white hover:bg-[var(--indigo-hover)] shadow-[0_2px_8px_rgba(47, 63, 156,0.35)] hover:shadow-[0_4px_12px_rgba(47, 63, 156,0.45)]'
                             : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)] cursor-not-allowed'
                         )}
                       >
@@ -2672,7 +2672,7 @@ export function CampaignCreatePage() {
                       className={cn(
                         'p-2.5 rounded-lg border text-center transition-all',
                         aiTone === t.value
-                          ? 'border-violet-500/40 bg-violet-500/10 shadow-[0_0_0_1px_rgba(139,92,246,0.15)]'
+                          ? 'border-violet-500/40 bg-violet-500/10 shadow-[0_0_0_1px_rgba(110, 78, 142,0.15)]'
                           : 'border-[var(--border-subtle)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)]'
                       )}
                     >
@@ -2708,7 +2708,7 @@ export function CampaignCreatePage() {
           <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] border border-[rgba(91,91,245,0.18)]">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] border border-[rgba(47, 63, 156,0.18)]">
                   <FolderOpen className="h-3.5 w-3.5 text-[var(--indigo)]" />
                 </span>
                 <div>

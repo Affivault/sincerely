@@ -441,7 +441,7 @@ export function DealTimeline({
         <div className="panel divide-y divide-[var(--border-subtle)]">
           {groups.map((g) => (
             <div key={g.day} className="px-3.5 py-3">
-              <p className="mb-2 text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">{g.day}</p>
+              <p className="mb-2 text-caption font-medium text-[var(--text-tertiary)]">{g.day}</p>
               <div className="space-y-2">
                 {g.items.map((e) => {
                   const Icon = e.icon;

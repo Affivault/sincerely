@@ -180,7 +180,7 @@ export function CampaignRevenuePage() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left">
             <thead>
-              <tr className="border-b border-[var(--border-subtle)] text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              <tr className="border-b border-[var(--border-subtle)] text-caption font-medium text-[var(--text-tertiary)]">
                 <th className="py-2.5 pl-4 pr-3">Step</th>
                 <th className="py-2.5 px-3 text-right">Sent</th>
                 <th className="py-2.5 px-3 text-right">Replied</th>

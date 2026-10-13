@@ -50,7 +50,7 @@ const STAGE_BAR: Record<DealStage, string> = {
 };
 
 function Figure({
-  label, value, title, sub, subTone, icon: Icon, accent,
+  label, value, title, sub, subTone, accent,
 }: {
   label: string;
   value: string;
@@ -64,19 +64,15 @@ function Figure({
     <div
       title={title}
       className={cn(
-        'rounded-xl border px-3.5 py-3',
-        accent
-          ? 'border-[var(--indigo)]/25 bg-[var(--indigo-subtle)]'
-          : 'border-[var(--border-subtle)] bg-[var(--bg-surface)]',
+        'bg-[var(--bg-surface)] px-4 py-3.5',
       )}
     >
-      <p className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-tertiary)]">
-        <Icon className="h-3 w-3" />
+      <p className="text-caption font-medium text-[var(--text-tertiary)]">
         {label}
       </p>
       <p
         className={cn(
-          'mt-1 text-display font-semibold leading-none tabular-nums tracking-[-0.02em]',
+          'mt-1.5 text-display font-medium leading-none tabular-nums tracking-[-0.02em]',
           accent ? 'text-[var(--indigo)]' : 'text-[var(--text-primary)]',
         )}
       >
@@ -218,7 +214,13 @@ export function PipelineHeader({
 
   return (
     <div className="mb-5 space-y-3">
-      <div className={cn('grid grid-cols-2 gap-3', arr.open > 0 ? 'lg:grid-cols-5' : 'lg:grid-cols-4')}>
+      {/* One ledger rather than a row of cards: these are one account of
+          the same pipeline, read left to right. */}
+      <div className={cn(
+        'grid grid-cols-2 gap-px overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--border-subtle)] shadow-[var(--shadow-sm)]',
+        'max-lg:[&>*:last-child:nth-child(odd)]:col-span-2',
+        arr.open > 0 ? 'lg:grid-cols-5' : 'lg:grid-cols-4',
+      )}>
         <Figure
           label="Open pipeline"
           value={money(s.open, currency)}

@@ -22,7 +22,7 @@ function dayLabel(iso: string | null): string {
 function Stat({ icon: Icon, label, value, hint }: { icon: typeof Gauge; label: string; value: string; hint?: string }) {
   return (
     <div className="min-w-0">
-      <p className="flex items-center gap-1 text-micro font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+      <p className="flex items-center gap-1 text-caption font-medium text-[var(--text-tertiary)]">
         <Icon className="h-3 w-3" />{label}
       </p>
       <p className="mt-0.5 truncate text-strong font-semibold text-[var(--text-primary)] tabular">{value}</p>

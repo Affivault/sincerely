@@ -143,7 +143,7 @@ function AppContent() {
       const r = size * 0.16;
       ctx.beginPath();
       ctx.arc(size - r, r, r, 0, Math.PI * 2);
-      ctx.fillStyle = '#EF4444';
+      ctx.fillStyle = '#BE4A3B';
       ctx.strokeStyle = 'white';
       ctx.lineWidth = size * 0.03;
       ctx.fill();
