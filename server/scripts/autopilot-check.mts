@@ -215,7 +215,7 @@ console.log('\nwired in, and visible');
   is('Slack hears about it', /case 'autopilot\.action':/.test(src('services/integrations.service.ts')));
   is('the Email accounts page has the tab', /\{ id: 'autopilot', label: 'Autopilot'/.test(client('pages/smtp/EmailAccountsPage.tsx')));
   is('each mailbox row says when it is held back', /data-autopilot-pill/.test(client('components/delivery/MailboxList.tsx')));
-  is('Home mentions it only when there is something to say', /if \(bits\.length === 0\) return null;/.test(client('components/dashboard/AutopilotNote.tsx')));
+  is('Home mentions it only when there is something to say', /if \(!data\?\.ready \|\| !data\.enabled\) return \[\];/.test(client('components/dashboard/autopilotBits.ts')) && /if \(!lead && !pilot\.length\) return null;/.test(client('components/dashboard/StatusLine.tsx')));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

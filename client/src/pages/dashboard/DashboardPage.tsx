@@ -1,26 +1,20 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { TodayPanel } from '../../components/dashboard/TodayPanel';
-import { FlowTeaser } from '../../components/dashboard/FlowTeaser';
+import { TodayQueue } from '../../components/flow/TodayQueue';
+import { StatusLine } from '../../components/dashboard/StatusLine';
 import { AwayCard } from '../../components/flow/AwayCard';
-import { AutopilotNote } from '../../components/dashboard/AutopilotNote';
-import { SystemNote } from '../../components/dashboard/SystemNote';
 import { analyticsApi, type TrendDataPoint } from '../../api/analytics.api';
-import { inboxApi } from '../../api/inbox.api';
-import { smtpApi } from '../../api/smtp.api';
 import { settingsApi } from '../../api/settings.api';
-import { useUnreadCount } from '../../hooks/useUnreadCount';
 import { useAuth } from '../../context/AuthContext';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { SetupChecklist } from '../../components/setup/SetupChecklist';
-import { EmptyState, InlineEmpty } from '../../components/shared/EmptyState';
-import { rateReadout, averageRateReadout, rateBarWidth, type RateReadout, formatDayMonth, REPLY_INTENT_LABELS, senderLabel } from '@lemlist/shared';
-import { Avatar } from '../../components/shared/Avatar';
+import { EmptyState } from '../../components/shared/EmptyState';
+import { rateReadout, averageRateReadout, rateBarWidth, type RateReadout, formatDayMonth } from '@lemlist/shared';
 import {
-  Plus, Send, MailOpen, MousePointerClick, MessageSquare, Inbox,
-  ChevronRight, ArrowUp, ArrowDown, Download, Megaphone, Activity,
-  AlertTriangle, Reply, Flame, Clock, CheckCircle2, X, Sparkles,
+  Plus, Send, MailOpen, MousePointerClick, MessageSquare,
+  ChevronRight, ArrowUp, ArrowDown, Download, Megaphone, Activity, Sparkles,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -57,18 +51,6 @@ function greeting(): string {
   if (h < 18) return 'Good afternoon';
   return 'Good evening';
 }
-function timeAgo(date: string): string {
-  const diff = Date.now() - new Date(date).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return 'now';
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d`;
-  return formatDayMonth(new Date(date));
-}
-
 /* ─── Metric config ─────────────────────────────────── */
 const METRICS = {
   sent:    { label: 'Sent',    icon: Send },
@@ -77,26 +59,12 @@ const METRICS = {
   replied: { label: 'Replied', icon: MessageSquare },
 } as const;
 type MetricKey = keyof typeof METRICS;
-const CHANGE_KEY: Record<MetricKey, 'sent_change' | 'opened_change' | 'clicked_change' | 'replied_change'> = {
-  sent: 'sent_change', opened: 'opened_change', clicked: 'clicked_change', replied: 'replied_change',
-};
 
 const PERIODS = [
   { value: 7, label: '7D' },
   { value: 30, label: '30D' },
   { value: 90, label: '90D' },
 ];
-
-/* Reply-intent chips for the live replies feed (mirrors inbox colors) */
-const INTENT_CHIP: Record<string, { label: string; cls: string }> = {
-  interested: { label: REPLY_INTENT_LABELS.interested.short, cls: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
-  meeting: { label: REPLY_INTENT_LABELS.meeting.short, cls: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
-  objection: { label: REPLY_INTENT_LABELS.objection.short, cls: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
-  not_now: { label: REPLY_INTENT_LABELS.not_now.short, cls: 'bg-slate-500/10 text-slate-500' },
-  out_of_office: { label: REPLY_INTENT_LABELS.out_of_office.short, cls: 'bg-purple-500/10 text-purple-500' },
-  unsubscribe: { label: REPLY_INTENT_LABELS.unsubscribe.short, cls: 'bg-red-500/10 text-red-500' },
-  bounce: { label: REPLY_INTENT_LABELS.bounce.short, cls: 'bg-red-500/10 text-red-500' },
-};
 
 /* ─── Segmented control ─────────────────────────────── */
 function Segmented<T extends string | number>({ options, value, onChange, size = 'md' }: {
@@ -139,54 +107,6 @@ function Delta({ value, className }: { value: number | null | undefined; classNa
       {!flat && (up ? <ArrowUp className="h-3 w-3" strokeWidth={2.5} /> : <ArrowDown className="h-3 w-3" strokeWidth={2.5} />)}
       {Math.abs(value).toFixed(1)}%
     </span>
-  );
-}
-
-/* ─── Attention row — one work item in the "Needs attention" queue ────
-   Quiet list rows, not stat cards: the count is a neutral chip on the
-   right, urgency is a small tinted icon, the row is the tap target. */
-function AttentionRow({ icon: Icon, count, label, sub, to, tone = 'default', onDismiss }: {
-  icon: any; count: number; label: string; sub: string; to: string;
-  tone?: 'default' | 'warn' | 'hot';
-  /** Shows a hover-revealed dismiss control instead of the row always being permanent. */
-  onDismiss?: () => void;
-}) {
-  const navigate = useNavigate();
-  const iconCls =
-    tone === 'warn' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-    : tone === 'hot' ? 'bg-rose-500/10 text-rose-500'
-    : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]';
-  return (
-    <button
-      onClick={() => navigate(to)}
-      className="group w-full flex items-center gap-3 px-4 h-[46px] text-left hover:bg-[var(--bg-hover)] transition-colors"
-    >
-      <span className={cn('flex h-6 w-6 items-center justify-center rounded-md flex-shrink-0', iconCls)}>
-        <Icon className="h-[13px] w-[13px]" strokeWidth={2} />
-      </span>
-      <span className="text-strong font-medium text-[var(--text-primary)] flex-shrink-0">{label}</span>
-      <span className="text-body text-[var(--text-tertiary)] truncate flex-1 min-w-0">{sub}</span>
-      <span className={cn(
-        'flex h-[19px] min-w-[19px] items-center justify-center rounded-md px-1.5 text-caption font-semibold tabular flex-shrink-0',
-        tone === 'warn' ? 'bg-amber-500/12 text-amber-700 dark:text-amber-400' : 'bg-[var(--bg-active)] text-[var(--text-secondary)]'
-      )}>
-        {fmtNum(count)}
-      </span>
-      {onDismiss ? (
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={(e) => { e.stopPropagation(); onDismiss(); }}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); onDismiss(); } }}
-          title="Dismiss"
-          className="flex h-5 w-5 items-center justify-center rounded-md text-[var(--text-muted)] opacity-0 group-hover:opacity-100 hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)] transition-opacity flex-shrink-0"
-        >
-          <X className="h-3 w-3" />
-        </span>
-      ) : (
-        <ChevronRight className="h-3.5 w-3.5 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-      )}
-    </button>
   );
 }
 
@@ -348,8 +268,6 @@ const STATUS_DOT: Record<string, string> = {
   scheduled: '#6366F1', completed: 'var(--text-tertiary)', cancelled: '#F43F5E',
 };
 
-/* Accounts under this health score surface in the attention queue */
-const SMTP_HEALTH_THRESHOLD = 50;
 
 /* ─── Loading skeleton ──────────────────────────────── */
 function DashboardSkeleton() {
@@ -409,7 +327,6 @@ function InboxHealth({ score, verified, bounced, suppressed }: {
 /* ─── Dashboard ─────────────────────────────────────── */
 export function DashboardPage() {
   const navigate = useNavigate();
-  const unreadCount = useUnreadCount();
   const { user } = useAuth();
   const [period, setPeriod] = useState<number>(() => {
     try {
@@ -418,13 +335,6 @@ export function DashboardPage() {
     } catch { return 30; }
   });
   const [metric, setMetric] = useState<MetricKey>('sent');
-  // Persisted by which accounts are unhealthy, not just a boolean — so
-  // dismissing today's warning doesn't also hide tomorrow's warning about
-  // a different account, and the dismissal survives navigating away and back.
-  const [dismissedSmtpSignature, setDismissedSmtpSignature] = useState<string | null>(() => {
-    try { return localStorage.getItem('dashboard.smtpBannerDismissed'); } catch { return null; }
-  });
-
   const setPeriodPersist = (p: number) => { setPeriod(p); try { localStorage.setItem('dashboard.period', String(p)); } catch { /* ignore */ } };
 
   const [exporting, setExporting] = useState(false);
@@ -457,23 +367,6 @@ export function DashboardPage() {
     queryKey: ['analytics', 'campaignList'],
     queryFn: () => analyticsApi.campaignList(),
   });
-  const { data: inboxData } = useQuery({
-    queryKey: ['inbox', 'dashboard'],
-    queryFn: () => inboxApi.list({ limit: 5, folder: 'inbox' }),
-  });
-  const { data: inboxCounts } = useQuery({
-    queryKey: ['inbox', 'counts'],
-    queryFn: inboxApi.counts,
-  });
-  const { data: scheduledEmails } = useQuery({
-    queryKey: ['inbox', 'scheduled'],
-    queryFn: inboxApi.listScheduled,
-  });
-  const { data: smtpAccounts } = useQuery({
-    queryKey: ['smtp-accounts'],
-    queryFn: () => smtpApi.list(),
-    staleTime: 5 * 60 * 1000,
-  });
   const { data: userSettings } = useQuery({
     queryKey: ['settings'],
     queryFn: settingsApi.get,
@@ -481,17 +374,6 @@ export function DashboardPage() {
   });
 
   if (analyticsLoading || trendLoading) return <DashboardSkeleton />;
-
-  const unhealthySmtpAccounts = (smtpAccounts || [])
-    .filter((a) => a.is_active && a.health_score < SMTP_HEALTH_THRESHOLD);
-  const smtpBannerSignature = unhealthySmtpAccounts.length
-    ? unhealthySmtpAccounts.map((a) => a.id).sort().join(',')
-    : null;
-  const smtpBannerDismissed = smtpBannerSignature !== null && smtpBannerSignature === dismissedSmtpSignature;
-  const dismissSmtpBanner = () => {
-    setDismissedSmtpSignature(smtpBannerSignature);
-    try { if (smtpBannerSignature) localStorage.setItem('dashboard.smtpBannerDismissed', smtpBannerSignature); } catch { /* ignore */ }
-  };
 
   const s = analytics || {
     total_campaigns: 0, active_campaigns: 0, total_contacts: 0,
@@ -505,14 +387,12 @@ export function DashboardPage() {
   const refreshing = aFetching || tFetching;
 
   const metricTotal = trend.reduce((a, d) => a + Number(d[metric] || 0), 0);
-  const metricChange = (s as any)[CHANGE_KEY[metric]] as number | null;
 
   const campaigns = Array.isArray(campaignList) ? campaignList : [];
   const topCampaigns = [...campaigns].sort((a, b) => b.sent - a.sent).slice(0, 5);
   /* Whether the headline rate has enough behind it to be stated as one. */
   const headlineReply = averageRateReadout(s.avg_reply_rate, s.total_sent, 'emails');
 
-  const recentMessages = Array.isArray(inboxData?.data) ? inboxData.data : [];
   // Prefer the name the user set in Settings; fall back to the email prefix.
   const settingsFirst = (userSettings?.first_name || '').trim();
   const settingsLast = (userSettings?.last_name || '').trim();
@@ -524,13 +404,6 @@ export function DashboardPage() {
   const suppressed = Number(s.suppressed_count) || 0;
   const totalContacts = Number(s.total_contacts) || 0;
 
-  /* Action queue — real work items pulled from the inbox counts endpoint */
-  const intents = (inboxCounts?.intents || {}) as Record<string, number>;
-  const needsReply = (intents.interested || 0) + (intents.objection || 0) + (intents.meeting || 0);
-  const hotLeads = (intents.interested || 0) + (intents.meeting || 0);
-  const unreadReplies = inboxCounts?.unread ?? unreadCount;
-  const scheduledCount = Array.isArray(scheduledEmails) ? scheduledEmails.length : 0;
-  const allClear = needsReply === 0 && unreadReplies === 0 && scheduledCount === 0 && hotLeads === 0;
   /*
    * Nothing has ever been sent: a chart of zeros, an empty leaderboard, a
    * funnel of noughts and a deliverability score for mail that does not
@@ -545,8 +418,7 @@ export function DashboardPage() {
       <AwayCard />
       {/* What the deliverability autopilot is doing, only when it is doing something. */}
       {/* Something has stopped - shown only when it has. */}
-      <SystemNote />
-      <AutopilotNote />
+      <StatusLine />
       {/* ── Header ── */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
@@ -599,93 +471,14 @@ export function DashboardPage() {
         />
       )}
 
-      {/* ── Row 1: work first — the attention queue + live replies ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Its own height, not the row's: stretched to match the column
-            beside it, three rows sat on top of a tall empty white card. */}
-        <section className="panel lg:col-span-2 overflow-hidden lg:self-start">
-          <Head
-            title="Needs attention"
-            desc="Everything waiting on you, in one queue"
-            action={allClear && !unhealthySmtpAccounts.length ? undefined : <MoreLink to="/inbox" label="Open unibox" />}
-          />
-          {allClear && unhealthySmtpAccounts.length === 0 ? (
-            <div className="flex items-center gap-2.5 px-4 py-8 justify-center">
-              <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" strokeWidth={2} />
-              <span className="text-strong text-[var(--text-secondary)]">All clear — nothing waiting on you right now.</span>
-            </div>
-          ) : (
-            <div className="divide-y divide-[var(--border-subtle)]">
-              {needsReply > 0 && (
-                <AttentionRow icon={Reply} count={needsReply} label="Need a reply" sub="Interested, objections & meeting requests" to="/inbox?view=needs" tone="warn" />
-              )}
-              {hotLeads > 0 && (
-                <AttentionRow icon={Flame} count={hotLeads} label="Hot leads" sub="Interested or asking to meet" to="/inbox?view=hot" tone="hot" />
-              )}
-              {unreadReplies > 0 && (
-                <AttentionRow icon={Inbox} count={unreadReplies} label="Unread replies" sub="Waiting in your unibox" to="/inbox?view=unread" />
-              )}
-              {scheduledCount > 0 && (
-                <AttentionRow icon={Clock} count={scheduledCount} label="Scheduled sends" sub="Queued from compose & replies" to="/inbox?view=scheduled" />
-              )}
-              {!smtpBannerDismissed && unhealthySmtpAccounts.length > 0 && (
-                <AttentionRow
-                  icon={AlertTriangle}
-                  count={unhealthySmtpAccounts.length}
-                  label={unhealthySmtpAccounts.length === 1 ? 'Inbox health low' : 'Inboxes health low'}
-                  sub={unhealthySmtpAccounts.map((a) => a.label || a.email_address).join(', ')}
-                  to="/email-accounts"
-                  tone="warn"
-                  onDismiss={dismissSmtpBanner}
-                />
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* The right-hand column carries the two time-critical things: what
-            is happening today, and what has just come in. */}
+      {/* ── Row 1: the day's work, as one list - replies, meetings, moments,
+          deals and tasks, most urgent first - and the calendar beside it. ── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <TodayQueue mode="home" />
+        </div>
         <div className="flex flex-col gap-4">
-        <FlowTeaser />
-        <TodayPanel />
-
-        <section className="panel overflow-hidden flex flex-col">
-          <Head title="Latest replies" action={<MoreLink to="/inbox" label={unreadReplies > 0 ? `${unreadReplies} new` : 'Open'} />} />
-          {recentMessages.length > 0 ? (
-            <div className="divide-y divide-[var(--border-subtle)] flex-1">
-              {recentMessages.slice(0, 4).map((msg: any) => {
-                const chip = msg.sara_intent ? INTENT_CHIP[msg.sara_intent] : null;
-                return (
-                  <Link key={msg.id} to="/inbox" className="flex items-start gap-2.5 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors">
-                    <div className="relative flex-shrink-0 mt-0.5">
-                      <Avatar name={msg.contact_name} email={msg.from_email} size="sm" />
-                      {!msg.is_read && <span className="absolute -top-0.5 -left-0.5 w-2 h-2 rounded-full ring-2 ring-[var(--bg-surface)]" style={{ background: ACCENT }} />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={cn('text-body truncate', msg.is_read ? 'text-[var(--text-secondary)]' : 'font-semibold text-[var(--text-primary)]')}>
-                          {msg.contact_name || senderLabel(msg.from_email, msg.sender_name) || 'Unknown'}
-                        </span>
-                        <span className="text-caption text-[var(--text-tertiary)] flex-shrink-0 tabular">{timeAgo(msg.received_at)}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-                        <p className="text-caption text-[var(--text-tertiary)] truncate leading-tight flex-1">{msg.relay_summary || msg.subject || '(no subject)'}</p>
-                        {chip && (
-                          <span className={cn('text-micro font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0', chip.cls)}>{chip.label}</span>
-                        )}
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center py-12 text-center">
-              <Inbox className="h-5 w-5 text-[var(--text-muted)] mb-2" strokeWidth={1.5} />
-              <InlineEmpty>No replies yet</InlineEmpty>
-            </div>
-          )}
-        </section>
+          <TodayPanel />
         </div>
       </div>
 

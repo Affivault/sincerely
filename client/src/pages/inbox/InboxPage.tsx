@@ -3374,13 +3374,15 @@ export function InboxPage() {
           <div className="flex items-center gap-1 h-[46px] sm:h-full basis-full sm:basis-auto flex-1 min-w-0 overflow-x-auto scrollbar-none">
           {([
             // "All", not "Inbox": the place above is already called Inbox.
+            // Four tabs, not seven slices of the same replies: everything,
+            // who is waiting on me, what Relay could not decide, and the
+            // mail that is not people. Hot leads and Unread are in More.
+            // "All", not "Inbox": the place above is already called Inbox.
             { id: 'inbox' as const, label: 'All', count: viewCounts.unread },
-            // First after the inbox itself, because it is the question the
-            // inbox is for: what have I not decided about yet?
-            { id: 'needs_triage' as const, label: 'Needs triage', count: viewCounts.needs_triage },
-            { id: 'needs' as const, label: 'Needs reply', count: viewCounts.needs_reply },
-            { id: 'hot' as const, label: 'Hot leads', count: viewCounts.hot },
-            { id: 'unread' as const, label: 'Unread', count: undefined },
+            { id: 'needs' as const, label: 'Needs you', count: viewCounts.needs_reply },
+            // Only while there is something to decide - an empty tab is noise.
+            ...((viewCounts.needs_triage || 0) > 0 || activeView === 'needs_triage'
+              ? [{ id: 'needs_triage' as const, label: 'Relay is unsure', count: viewCounts.needs_triage }] : []),
             // Newsletters, notifications and receipts: kept, one click away,
             // and out of every count.
             { id: 'other' as const, label: 'Other mail', count: countsData?.other_unread || undefined, muted: true },
@@ -3413,6 +3415,8 @@ export function InboxPage() {
           <div className="relative flex-shrink-0 self-stretch flex items-stretch">
             {(() => {
               const MORE: Array<{ id: ViewId; label: string }> = [
+                { id: 'hot', label: 'Hot leads' },
+                { id: 'unread', label: 'Unread' },
                 { id: 'scheduled', label: 'Scheduled' },
                 { id: 'starred', label: 'Starred' },
                 { id: 'sent', label: 'Sent' },
@@ -3731,7 +3735,7 @@ export function InboxPage() {
                       onClick={() => selectMessage(msg)}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectMessage(msg); } }}
                       className={cn(
-                        'group w-full min-w-0 overflow-hidden text-left flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-1 px-4 py-2.5 sm:py-0 sm:h-[40px] border-b border-[var(--border-subtle)] transition-colors cursor-pointer',
+                        'group relative w-full min-w-0 overflow-hidden text-left flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-1 px-4 py-2.5 sm:py-0 sm:h-[40px] border-b border-[var(--border-subtle)] transition-colors cursor-pointer',
                         isPicked ? 'bg-[var(--indigo-subtle)]/60' : isSelected ? 'bg-[var(--indigo-subtle)]' : 'hover:bg-[var(--bg-hover)]'
                       )}
                     >
@@ -3791,20 +3795,34 @@ export function InboxPage() {
                       {/* On a phone this drops to its own line under the sender,
                           like every mail app, instead of three truncated letters. */}
                       <span className="order-last sm:order-none basis-full sm:basis-auto flex-1 min-w-0 flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-2 overflow-hidden pl-[30px] sm:pl-0">
-                        <span className={cn('min-w-0 flex-shrink truncate text-body', conv.hasUnread ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]')}>
-                          {msg.subject || '(no subject)'}
-                        </span>
-                        {/* Relay's one line, when it has read them, says more
-                            than the first 140 characters of the email do. */}
-                        {msg.relay_summary && !isMail(msg) ? (
-                          <span className="flex-1 min-w-0 truncate text-body text-[var(--text-secondary)]" title={snippet || undefined}>
-                            <span className="hidden sm:inline text-[var(--text-tertiary)]">— </span>
-                            <Sparkles className="inline h-3 w-3 -mt-0.5 mr-1 text-[var(--indigo)]" />
-                            {msg.relay_summary}
-                          </span>
-                        ) : snippet ? (
-                          <span className="flex-1 min-w-0 truncate text-body text-[var(--text-tertiary)]"><span className="hidden sm:inline">— </span>{snippet}</span>
-                        ) : null}
+                        {/* What they said leads. "Re: <the campaign's subject>"
+                            was the same on every row of a campaign and took
+                            the widest column, so it shows only when it says
+                            something - a new subject, or there is nothing else. */}
+                        {(() => {
+                          const said = msg.relay_summary && !isMail(msg) ? msg.relay_summary : snippet;
+                          const threadOnly = /^\s*(re|aw|sv|antw|fwd?)\s*:/i.test(msg.subject || '');
+                          const showSubject = !said || (!threadOnly && !isOutbound) || isMail(msg);
+                          return (
+                            <>
+                              {showSubject && (
+                                <span className={cn('min-w-0 flex-shrink truncate text-body', conv.hasUnread ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]')}>
+                                  {msg.subject || '(no subject)'}
+                                </span>
+                              )}
+                              {said ? (
+                                <span
+                                  className={cn('flex-1 min-w-0 truncate text-body', !showSubject && conv.hasUnread ? 'font-medium text-[var(--text-primary)]' : 'text-[var(--text-secondary)]')}
+                                  title={[msg.subject, snippet].filter(Boolean).join(' - ') || undefined}
+                                >
+                                  {showSubject && <span className="hidden sm:inline text-[var(--text-tertiary)]">- </span>}
+                                  {msg.relay_summary && !isMail(msg) && <Sparkles className="inline h-3 w-3 -mt-0.5 mr-1 text-[var(--indigo)]" />}
+                                  {said}
+                                </span>
+                              ) : null}
+                            </>
+                          );
+                        })()}
                       </span>
 
                       {/* Intent — or, once somebody has decided, what they
@@ -3846,6 +3864,37 @@ export function InboxPage() {
                       <span className="w-[54px] flex-shrink-0 text-right text-caption text-[var(--text-tertiary)] tabular">
                         {timeAgo(msg.received_at)}
                       </span>
+
+                      {/* The two things done most, on the row itself - where a
+                          pointer can hover. Keys do the same: r replies, e archives. */}
+                      {!isOutbound && !isMail(msg) && (
+                        <span
+                          className="pointer-events-none absolute inset-y-0 right-0 hidden items-center gap-1 bg-gradient-to-l from-[var(--bg-hover)] from-70% to-transparent pl-10 pr-3 opacity-0 transition-opacity [@media(hover:hover)]:md:flex group-hover:pointer-events-auto group-hover:opacity-100"
+                          onClick={(e) => e.stopPropagation()}
+                          data-row-actions
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              selectMessage(msg);
+                              setReplyMode('reply');
+                              setReplySenderId(msg.smtp_account_id || smtpAccounts[0]?.id || '');
+                            }}
+                            className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                            title="Reply (r)"
+                          >
+                            <Reply className="h-3 w-3" /> Reply
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleArchiveToggle(msg)}
+                            className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                            title={isInArchived ? 'Move to Inbox (e)' : 'Done - archive it (e)'}
+                          >
+                            {isInArchived ? <ArchiveRestore className="h-3 w-3" /> : <Archive className="h-3 w-3" />} {isInArchived ? 'Restore' : 'Done'}
+                          </button>
+                        </span>
+                      )}
                     </div>
                   );
                 })
