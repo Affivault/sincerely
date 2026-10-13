@@ -33,6 +33,7 @@ import { crmApi } from '../../api/crm.api';
 import { replyQueueApi } from '../../api/replyQueue.api';
 import { PageHeader } from '../shared/PageHeader';
 import { MomentWriteDialog } from '../moments/MomentDialogs';
+import { ReplyDeck } from './ReplyDeck';
 import { useDeferredAction } from '../ui/UndoBar';
 import { usePeek } from '../peek/usePeek';
 import { DealHealthDot, ACTION_ICON } from '../crm/DealHealth';
@@ -102,6 +103,7 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [writing, setWriting] = useState<FlowItem | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [deck, setDeck] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
@@ -360,6 +362,27 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
     />
   ) : null;
 
+  const replies = items.filter((i) => i.kind === 'reply' && i.reply);
+  const deckView = deck ? (
+    <ReplyDeck
+      items={replies}
+      onSend={(item, text) => sendDraft.mutate({ id: item.reply!.message_id, text })}
+      onSnooze={(item) => snooze(item)}
+      onOpen={(item) => { setDeck(false); openItem(item); }}
+      onClose={() => setDeck(false)}
+    />
+  ) : null;
+  // On a phone, replies one at a time beat a long list of small buttons.
+  const deckButton = replies.length > 0 ? (
+    <button
+      onClick={() => setDeck(true)}
+      className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--indigo)] py-2.5 text-body font-semibold text-white md:hidden"
+      data-open-deck
+    >
+      <MessageSquareReply className="h-4 w-4" /> Go through {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+    </button>
+  ) : null;
+
   if (mode === 'home') {
     return (
       <section className="space-y-3" data-today>
@@ -372,9 +395,11 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
             <Maximize2 className="h-3.5 w-3.5" /> Focus mode
           </Link>
         </div>
+        {deckButton}
         {total > 0 && chips}
         {body}
         {dialog}
+        {deckView}
       </section>
     );
   }
@@ -406,8 +431,10 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
             <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>enter</kbd> do it · <kbd>d</kbd> done · <kbd>s</kbd> tomorrow · <kbd>p</kbd> peek · <kbd>o</kbd> open
           </span>
         </div>
+        <div className="mb-3">{deckButton}</div>
         {body}
         {dialog}
+        {deckView}
       </div>
     </>
   );

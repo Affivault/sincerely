@@ -6,6 +6,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { StepWordingEditor } from '../../components/campaigns/StepWordingEditor';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { campaignsApi } from '../../api/campaigns.api';
+import { InlineEdit } from '../../components/ui/InlineEdit';
 import { analyticsApi, type AbTestStep } from '../../api/analytics.api';
 import { stepHasVariantB, abStatusLine, type AbStatus, formatDate, formatDateTime } from '@lemlist/shared';
 import { Spinner } from '../../components/ui/Spinner';
@@ -281,7 +282,21 @@ export function CampaignDetailPage() {
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <div className="min-w-0 flex-1 basis-64">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-title font-semibold text-[var(--text-primary)] break-words">{campaign.name}</h1>
+            {/* Click the name to rename it - at any stage. */}
+            <h1 className="min-w-0 flex-1" title={campaign.name}>
+              <InlineEdit
+                value={campaign.name}
+                ariaLabel="Campaign name"
+                textClassName="text-title font-semibold text-[var(--text-primary)] !overflow-visible !whitespace-normal break-words"
+                inputClassName="text-title font-semibold"
+                onSave={async (next) => {
+                  if (!next.trim()) throw new Error('empty');
+                  await campaignsApi.update(id!, { name: next.trim() } as any);
+                  queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+                  queryClient.invalidateQueries({ queryKey: ['campaign', id] });
+                }}
+              />
+            </h1>
             <StatusBadge status={campaign.status} type="campaign" />
           </div>
           <p className="mt-0.5 text-body text-[var(--text-secondary)]">
@@ -349,12 +364,6 @@ export function CampaignDetailPage() {
           a queue where everyone is errored, a schedule that is closed. */}
       <CampaignHealthStrip campaignId={id!} status={campaign.status} />
 
-      {/* Before launch, and while it runs: when it will finish and what it should return. */}
-      {['draft', 'scheduled', 'running', 'paused'].includes(campaign.status) && (
-        <div className="mb-4"><ForecastPanel campaignId={id!} title={campaign.status === 'draft' ? 'If you launch now' : 'What happens next'} /></div>
-      )}
-      {campaign.status !== 'draft' && <div className="mb-4"><StepOutcomesPanel campaignId={id!} /></div>}
-
       {/* Why this campaign is stopped, or stuck.
           The engine has always known — it computes "every mailbox is at its
           daily cap", "no verified mailbox", or pauses on a bounce rate — and
@@ -398,7 +407,8 @@ export function CampaignDetailPage() {
         </div>
       )}
 
-      {/* Tabs — segmented control */}
+      {/* Tabs, right under the name: editing the sequence used to mean
+          scrolling past two charts first. */}
       <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
         {tabs.map((tab) => (
           <button
@@ -419,6 +429,12 @@ export function CampaignDetailPage() {
       {/* Overview Tab */}
       {activeTab === 'overview' && (
         <div className="space-y-4">
+          {/* Before launch, and while it runs: when it will finish and what it should return. */}
+          {['draft', 'scheduled', 'running', 'paused'].includes(campaign.status) && (
+            <ForecastPanel campaignId={id!} title={campaign.status === 'draft' ? 'If you launch now' : 'What happens next'} />
+          )}
+          {campaign.status !== 'draft' && <StepOutcomesPanel campaignId={id!} />}
+
           {/* Relay testing and keeping what gets more replies. */}
           {id && <ImproveCard campaignId={id} />}
           {analytics && (

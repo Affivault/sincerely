@@ -3004,14 +3004,36 @@ function RecipientPreview({ subject, bodyHtml, fromName, fromEmail, people = [] 
 
   const step = (d: number) => setWho((w) => (w + d + people.length) % people.length);
 
+  // Where they read it. The inbox row comes first in every view: sender,
+  // subject and the first words are what decide whether it is opened.
+  const [client, setClient] = useState<'gmail' | 'outlook' | 'phone'>('gmail');
+  const preheader = previewHtml.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
+  const font = client === 'outlook' ? "'Segoe UI',Calibri,Arial,sans-serif" : "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
+  const phone = client === 'phone';
+  const fontDecl = `font-family:${font};`;
+  const clientFont = client === 'outlook' ? "font-['Segoe_UI',Calibri,Arial,sans-serif]" : 'font-sans';
+
   return (
-    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] overflow-hidden">
+    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] overflow-hidden" data-preview-client={client}>
       <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)]">
         <Eye className="h-3 w-3 text-[var(--indigo)]" />
         <span className="text-micro font-bold text-[var(--text-secondary)]">
           {person ? 'As they will see it' : 'Inbox preview'}
         </span>
         <div className="ml-auto flex items-center gap-2">
+          <span className="inline-flex rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-0.5" role="tablist" aria-label="Preview in">
+            {(['gmail', 'outlook', 'phone'] as const).map((c) => (
+              <button
+                key={c}
+                role="tab"
+                aria-selected={client === c}
+                onClick={() => setClient(c)}
+                className={cn('rounded px-1.5 py-0.5 text-micro font-medium', client === c ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]')}
+              >
+                {c === 'gmail' ? 'Gmail' : c === 'outlook' ? 'Outlook' : 'Phone'}
+              </button>
+            ))}
+          </span>
           {variants > 1 && (
             <button
               onClick={() => setVariation((v) => v + 1)}
@@ -3039,8 +3061,31 @@ function RecipientPreview({ subject, bodyHtml, fromName, fromEmail, people = [] 
         </div>
       </div>
 
-      <div className="bg-white text-gray-900 px-3.5 py-2.5 border-b border-gray-200">
-        <h3 className="text-strong font-semibold text-gray-900 mb-1.5 leading-snug">{previewSubject}</h3>
+      {/* The row in their inbox, before they open it. */}
+      <div className={cn('mx-auto bg-gray-50 text-gray-900 border-b border-gray-200', clientFont, phone ? 'max-w-[360px] px-3 py-2' : 'px-3.5 py-2')} data-preview-row>
+        {phone ? (
+          <div className="min-w-0">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="truncate text-body font-bold">{fromName}</span>
+              <span className="flex-shrink-0 text-micro text-gray-500">9:41</span>
+            </div>
+            <div className="truncate text-caption font-semibold">{previewSubject || '(no subject)'}</div>
+            <div className="line-clamp-2 text-caption text-gray-500">{preheader}</div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 text-caption">
+            <span className="w-24 flex-shrink-0 truncate font-bold">{fromName}</span>
+            <span className="min-w-0 flex-1 truncate">
+              <span className="font-bold">{previewSubject || '(no subject)'}</span>
+              <span className="text-gray-500"> - {preheader}</span>
+            </span>
+            <span className="flex-shrink-0 text-micro font-bold">9:41</span>
+          </div>
+        )}
+      </div>
+
+      <div className={cn('mx-auto bg-white text-gray-900 px-3.5 py-2.5 border-b border-gray-200', clientFont, phone && 'max-w-[360px]')}>
+        <h3 className={cn('font-semibold text-gray-900 mb-1.5 leading-snug', client === 'outlook' ? 'text-heading' : 'text-strong')}>{previewSubject}</h3>
         <div className="flex items-center gap-2">
           <Avatar name={fromName || fromEmail} email={fromEmail} size="sm" />
           <div className="flex-1 min-w-0">
@@ -3056,8 +3101,8 @@ function RecipientPreview({ subject, bodyHtml, fromName, fromEmail, people = [] 
       <iframe
         srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><base target="_blank"><style>
           html,body{margin:0;padding:14px;background:#fff;color:#111;
-            font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-            font-size:13.5px;line-height:1.55;word-break:break-word;}
+            ${fontDecl}
+            font-size:${phone ? '15px' : client === 'outlook' ? '14.5px' : '13.5px'};line-height:1.55;word-break:break-word;}
           a{color:#1a73e8;text-decoration:none}
           img{max-width:100%;height:auto}
           p{margin:0 0 10px}
@@ -3065,7 +3110,8 @@ function RecipientPreview({ subject, bodyHtml, fromName, fromEmail, people = [] 
         </style></head><body>${previewHtml}</body></html>`}
         sandbox="allow-same-origin"
         style={{
-          width: '100%', height: '220px', border: 'none', display: 'block',
+          width: phone ? '360px' : '100%', maxWidth: '100%', margin: phone ? '0 auto' : undefined,
+          height: phone ? '320px' : '220px', border: 'none', display: 'block',
           backgroundColor: '#fff', pointerEvents: 'none',
         }}
         title="Recipient inbox preview"

@@ -277,7 +277,15 @@ export const campaignsService = {
 
   async update(userId: string, id: string, input: any) {
     const existing = await this.get(userId, id);
-    if (existing.status !== 'draft') {
+    // A name is a label for the person, not for the recipients: it may change
+    // at any stage. Everything else waits for a draft.
+    const renameOnly = input && typeof input === 'object'
+      && Object.keys(input).every((k) => k === 'name') && 'name' in input;
+    if (renameOnly) {
+      const name = String(input.name ?? '').trim();
+      if (!name) throw new AppError('A campaign needs a name', 400);
+      input = { name: name.slice(0, 200) };
+    } else if (existing.status !== 'draft') {
       throw new AppError('Can only edit campaigns in draft status', 400);
     }
 

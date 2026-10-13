@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { SkeletonList } from '../../components/ui/Skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { assetApi } from '../../api/asset.api';
 import type { AssetTemplate, AssetTemplateLayer, CreateAssetTemplateInput } from '@lemlist/shared';
@@ -23,7 +24,6 @@ import {
 import { cn } from '../../lib/utils';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
-import { Spinner } from '../../components/ui/Spinner';
 
 const MERGE_TAGS = ['{{first_name}}', '{{last_name}}', '{{email}}', '{{company}}', '{{title}}'];
 
@@ -283,9 +283,7 @@ export function AssetBuilderPage() {
             Your Templates
           </h3>
           {isLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <Spinner size="lg" />
-            </div>
+            <SkeletonList rows={3} />
           ) : !templates || templates.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--bg-surface)] mb-4">

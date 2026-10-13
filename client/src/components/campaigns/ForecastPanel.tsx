@@ -82,8 +82,23 @@ export function ForecastView({ f }: { f: CampaignForecast }) {
           </div>
         ))}
       </div>
-      <div className="flex justify-between text-micro text-[var(--text-tertiary)]">
+      {/* A day under each bar, so a gap reads as "no sending on Saturday"
+          rather than a broken chart - and a key for the two shades. */}
+      <div className="flex gap-[2px] text-micro text-[var(--text-tertiary)]" aria-hidden>
+        {shown.map((d) => (
+          <span key={d.date} className={cn('flex-1 min-w-[3px] text-center leading-none', !d.sending_day && 'opacity-40')}>
+            {shown.length <= 31 ? new Date(`${d.date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'narrow', timeZone: 'UTC' }) : ''}
+          </span>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-micro text-[var(--text-tertiary)]">
         <span>Today</span>
+        <span className="inline-flex items-center gap-3">
+          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-[var(--indigo)]" />Sends</span>
+          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-[var(--bg-elevated)] ring-1 ring-[var(--border-subtle)]" />Room left that day</span>
+          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-emerald-500" />Last email</span>
+          <span>Gaps: days it does not send</span>
+        </span>
         <span>{dayLabel(shown[shown.length - 1]?.date ?? null)}</span>
       </div>
 
