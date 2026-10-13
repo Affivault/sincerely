@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { SkeletonList } from '../../components/ui/Skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { saraApi } from '../../api/sara.api';
 import {
@@ -26,7 +27,6 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { StatCard } from '../../components/shared/StatCard';
 import { Avatar } from '../../components/shared/Avatar';
 import toast from 'react-hot-toast';
-import { Spinner } from '../../components/ui/Spinner';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
 import { formatDateTime, REPLY_INTENT_LABELS } from '@lemlist/shared';
@@ -288,9 +288,7 @@ export function SaraQueuePage() {
       {/* Queue — two-pane triage */}
       <Refreshing active={stale}>
         {isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <Spinner size="lg" />
-          </div>
+          <SkeletonList rows={6} />
         ) : isError ? (
           <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-20 px-8 flex flex-col items-center justify-center text-center">
             <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 mb-5">

@@ -6,7 +6,7 @@ import { campaignsApi } from '../../api/campaigns.api';
 import { campaignFoldersApi, type CampaignFolder } from '../../api/campaign-folders.api';
 import { templateApi } from '../../api/template.api';
 import { Spinner } from '../../components/ui/Spinner';
-import { Skeleton } from '../../components/ui/Skeleton';
+import { Skeleton, SkeletonList } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
@@ -1145,7 +1145,7 @@ function FolderAnalyticsModal({ folderId, onClose }: { folderId: string; onClose
       description="Aggregate performance across every campaign in this folder."
     >
       {isLoading ? (
-        <div className="py-12 flex justify-center"><Spinner size="md" /></div>
+        <SkeletonList rows={4} />
       ) : !data || data.campaigns.length === 0 ? (
         <div className="text-center py-12 text-[var(--text-secondary)]">
           <Megaphone className="h-10 w-10 mx-auto text-[var(--text-tertiary)] mb-2" />

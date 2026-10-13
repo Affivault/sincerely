@@ -485,7 +485,7 @@ export function DashboardPage() {
       {everSent && (<>
       {/* ── Row 2: one performance module — metric strip drives the chart ── */}
       <section className={cn('panel overflow-hidden transition-opacity duration-300', refreshing && 'opacity-60')}>
-        <div className="flex divide-x divide-[var(--border-subtle)] border-b border-[var(--border-subtle)]">
+        <div className="grid grid-cols-2 sm:flex sm:divide-x divide-[var(--border-subtle)] border-b border-[var(--border-subtle)]">
           <MetricCell label="Emails sent" value={fmtNum(s.total_sent)} delta={s.sent_change}
             active={metric === 'sent'} onClick={() => setMetric('sent')} />
           <MetricCell label="Open rate" value={fmtPct(s.avg_open_rate)} delta={s.opened_change}

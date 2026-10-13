@@ -9,7 +9,7 @@ import { crmApi } from '../../api/crm.api';
 import { companiesApi } from '../../api/companies.api';
 import { contactsApi } from '../../api/contacts.api';
 import { Spinner } from '../../components/ui/Spinner';
-import { Skeleton } from '../../components/ui/Skeleton';
+import { Skeleton, SkeletonList } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { Avatar } from '../../components/shared/Avatar';
 import { EmailBody } from '../../components/shared/EmailBody';
@@ -1843,7 +1843,7 @@ function ScheduledEmailsPanel({ onCancel, onReschedule }: {
   const [reschedulingId, setReschedulingId] = useState<string | null>(null);
 
   if (isLoading) {
-    return <div className="flex items-center justify-center py-10"><Spinner size="md" /></div>;
+    return <SkeletonList rows={4} className="m-4" />;
   }
 
   const emails = scheduled || [];
