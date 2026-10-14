@@ -95,7 +95,7 @@ export function PageHeader({
                   <span className="text-[var(--text-secondary)]">{bc.label}</span>
                 )}
                 {i < breadcrumbs.length - 1 && (
-                  <ChevronRight className="h-3 w-3 text-[var(--text-muted)]" strokeWidth={1.5} />
+                  <ChevronRight className="h-3 w-3 text-[var(--text-tertiary)]" strokeWidth={1.5} />
                 )}
               </span>
             ))}

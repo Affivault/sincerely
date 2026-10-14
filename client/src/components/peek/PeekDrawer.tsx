@@ -60,9 +60,10 @@ function CopyRowButton({ value, label }: { value: string; label: string }) {
         }
       }}
       title={`Copy ${label}`}
-      className="flex-shrink-0 p-1 rounded text-[var(--text-muted)] opacity-0 group-hover/row:opacity-100 hover:text-[var(--indigo)] transition-opacity"
+      aria-label={`Copy ${label}`}
+      className="inline-flex min-h-6 min-w-6 flex-shrink-0 items-center justify-center p-1 rounded text-[var(--text-tertiary)] opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 hover:text-[var(--indigo-text)] transition-opacity"
     >
-      {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+      {copied ? <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3 w-3" />}
     </button>
   );
 }
@@ -79,7 +80,7 @@ function Row({ icon: Icon, value, href, copyLabel }: { icon: typeof Mail; value?
     <div className="flex items-center gap-2 min-w-0 group/row">
       <span className="flex-1 min-w-0">
         {href
-          ? <a href={href} target="_blank" rel="noreferrer" className="block hover:text-[var(--indigo)]">{body}</a>
+          ? <a href={href} target="_blank" rel="noreferrer" className="block hover:text-[var(--indigo-text)]">{body}</a>
           : body}
       </span>
       {copyLabel ? <CopyRowButton value={value} label={copyLabel} /> : null}
@@ -115,7 +116,8 @@ function EditRow({
           target="_blank"
           rel="noreferrer"
           title={`Open ${label}`}
-          className="flex-shrink-0 p-1 rounded text-[var(--text-muted)] opacity-0 group-hover/row:opacity-100 hover:text-[var(--indigo)] transition-opacity"
+          aria-label={`Open ${label}`}
+          className="inline-flex min-h-6 min-w-6 flex-shrink-0 items-center justify-center p-1 rounded text-[var(--text-tertiary)] opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 hover:text-[var(--indigo-text)] transition-opacity"
         >
           <ExternalLink className="h-3 w-3" />
         </a>
@@ -164,7 +166,7 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
     return (
       <div className="px-4 py-16 text-center">
         <p className="text-strong font-medium text-[var(--text-primary)]">That contact no longer exists</p>
-        <button onClick={onClose} className="mt-2 text-body text-[var(--indigo)] hover:underline">Close</button>
+        <button onClick={onClose} className="mt-2 text-body text-[var(--indigo-text)] hover:underline">Close</button>
       </div>
     );
   }
@@ -205,7 +207,7 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
         <Link
           to={`/contacts/${contact.id}`}
-          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
+          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo-text)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
         >
           <ExternalLink className="h-3 w-3" /> Full page
         </Link>
@@ -217,11 +219,11 @@ function ContactPeek({ id, onClose }: { id: string; onClose: () => void }) {
         {contact.company_id ? (
           <button
             onClick={() => openPeek('company', contact.company_id!)}
-            className="flex items-center gap-2 min-w-0 w-full text-left hover:text-[var(--indigo)]"
+            className="flex items-center gap-2 min-w-0 w-full text-left hover:text-[var(--indigo-text)]"
           >
             <Building2 className="h-3.5 w-3.5 text-[var(--text-tertiary)] flex-shrink-0" />
-            <span className="text-body text-[var(--text-secondary)] truncate hover:text-[var(--indigo)]">{contact.company}</span>
-            <ArrowRight className="h-3 w-3 text-[var(--text-muted)] flex-shrink-0" />
+            <span className="text-body text-[var(--text-secondary)] truncate hover:text-[var(--indigo-text)]">{contact.company}</span>
+            <ArrowRight className="h-3 w-3 text-[var(--text-tertiary)] flex-shrink-0" />
           </button>
         ) : (
           <EditRow icon={Building2} label="Company" value={contact.company} onSave={field('company')} />
@@ -307,7 +309,7 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
     return (
       <div className="px-4 py-16 text-center">
         <p className="text-strong font-medium text-[var(--text-primary)]">That deal no longer exists</p>
-        <button onClick={onClose} className="mt-2 text-body text-[var(--indigo)] hover:underline">Close</button>
+        <button onClick={onClose} className="mt-2 text-body text-[var(--indigo-text)] hover:underline">Close</button>
       </div>
     );
   }
@@ -323,7 +325,7 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
           the click that was meant to open the record. */}
       <div className="flex items-start gap-3 pl-4 pr-12 py-4 border-b border-[var(--border-subtle)]">
         <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] flex-shrink-0">
-          <Handshake className="h-5 w-5 text-[var(--indigo)]" />
+          <Handshake className="h-5 w-5 text-[var(--indigo-text)]" />
         </span>
         <div className="flex-1 min-w-0">
           <InlineEdit
@@ -340,7 +342,7 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
         <Link
           to={`/deals/${deal.id}`}
-          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
+          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo-text)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
         >
           <ExternalLink className="h-3 w-3" /> Pipeline
         </Link>
@@ -381,7 +383,7 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
               className={cn(
                 'h-7 px-2.5 rounded-lg border text-body font-medium transition-colors disabled:opacity-60',
                 s.id === deal.stage
-                  ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                  ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
                   : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)]',
               )}
             >
@@ -392,7 +394,7 @@ function DealPeek({ id, onClose }: { id: string; onClose: () => void }) {
         {deal.outcome_reason && (deal.stage === 'won' || deal.stage === 'lost') && (
           <p className={cn(
             'mt-2 text-body',
-            deal.stage === 'won' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500',
+            deal.stage === 'won' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400',
           )}>
             {deal.stage === 'won' ? 'Won because: ' : 'Lost because: '}{deal.outcome_reason}
           </p>
@@ -442,7 +444,7 @@ function PeekLink({ contactId, label }: { contactId: string; label: string }) {
       className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-subtle)] text-left hover:border-[var(--indigo)]/40 hover:bg-[var(--bg-hover)] transition-colors"
     >
       <span className="flex-1 min-w-0 text-body font-medium text-[var(--text-primary)] truncate">{label}</span>
-      <ArrowRight className="h-3.5 w-3.5 text-[var(--text-muted)] flex-shrink-0" />
+      <ArrowRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] flex-shrink-0" />
     </button>
   );
 }
@@ -473,7 +475,7 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
     return (
       <div className="px-4 py-16 text-center">
         <p className="text-strong font-medium text-[var(--text-primary)]">That company no longer exists</p>
-        <button onClick={onClose} className="mt-2 text-body text-[var(--indigo)] hover:underline">Close</button>
+        <button onClick={onClose} className="mt-2 text-body text-[var(--indigo-text)] hover:underline">Close</button>
       </div>
     );
   }
@@ -505,7 +507,7 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
         <Link
           to={`/companies/${company.id}`}
-          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
+          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo-text)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
         >
           <ExternalLink className="h-3 w-3" /> Full page
         </Link>
@@ -542,6 +544,7 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
         <div className="flex items-center gap-2 min-w-0">
           <Users className="h-3.5 w-3.5 text-[var(--text-tertiary)] flex-shrink-0" />
           <InlineSelect
+            ariaLabel="Headcount"
             value={(company.size || '') as string}
             options={COMPANY_SIZE_OPTIONS}
             onSave={(next) => save({ size: next || null })}
@@ -579,7 +582,7 @@ function CompanyPeek({ id, onClose }: { id: string; onClose: () => void }) {
                     <span className="block text-body font-medium text-[var(--text-primary)] truncate">{name}</span>
                     <span className="block text-caption text-[var(--text-tertiary)] truncate">{c.job_title || c.email}</span>
                   </span>
-                  <ArrowRight className="h-3.5 w-3.5 text-[var(--text-muted)] flex-shrink-0" />
+                  <ArrowRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] flex-shrink-0" />
                 </button>
               );
             })}
@@ -690,6 +693,7 @@ export function PeekDrawer() {
           onClick={closePeek}
           className="absolute right-3 top-3 z-10 icon-btn h-7 w-7 bg-[var(--bg-surface)]"
           title="Close (esc)"
+          aria-label="Close"
         >
           <X className="h-4 w-4" />
         </button>

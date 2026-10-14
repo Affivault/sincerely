@@ -63,7 +63,7 @@ export function UndoBarShell({ label, onUndo, secondsLeft, action = 'Undo' }: {
       <button
         type="button"
         onClick={onUndo}
-        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-body font-semibold text-[var(--indigo)] transition-colors hover:bg-[var(--bg-hover)]"
+        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-body font-semibold text-[var(--indigo-text)] transition-colors hover:bg-[var(--bg-hover)]"
         data-undo-action
       >
         <Undo2 className="h-3.5 w-3.5" />

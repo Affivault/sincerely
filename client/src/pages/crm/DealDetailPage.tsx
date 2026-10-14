@@ -59,14 +59,14 @@ function spellDays(days: number | null): string {
 }
 
 function whenLabel(iso: string | null | undefined): { text: string; tone: string } {
-  if (!iso) return { text: 'No date', tone: 'text-[var(--text-muted)]' };
+  if (!iso) return { text: 'No date', tone: 'text-[var(--text-tertiary)]' };
   // A calendar day, not UTC midnight - see parseDay.
   const d = parseDay(iso);
-  if (!d) return { text: 'No date', tone: 'text-[var(--text-muted)]' };
+  if (!d) return { text: 'No date', tone: 'text-[var(--text-tertiary)]' };
   const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diff = Math.round((startOf(d) - startOf(new Date())) / 86_400_000);
   const text = formatDayMonth(d);
-  if (diff < 0) return { text: `${text} · ${Math.abs(diff)}d late`, tone: 'text-rose-500' };
+  if (diff < 0) return { text: `${text} · ${Math.abs(diff)}d late`, tone: 'text-rose-600 dark:text-rose-400' };
   if (diff === 0) return { text: 'Today', tone: 'text-amber-600 dark:text-amber-400' };
   if (diff <= 7) return { text, tone: 'text-amber-600 dark:text-amber-400' };
   return { text, tone: 'text-[var(--text-primary)]' };
@@ -152,7 +152,7 @@ export function DealDetailPage() {
     const status = (error as any)?.response?.status;
     return (
       <div className="panel py-16 text-center">
-        <Handshake className="mx-auto mb-3 h-8 w-8 text-[var(--text-muted)]" />
+        <Handshake className="mx-auto mb-3 h-8 w-8 text-[var(--text-tertiary)]" />
         <p className="text-heading font-semibold text-[var(--text-primary)]">
           {status === 404 ? 'That deal no longer exists' : 'Could not load that deal'}
         </p>
@@ -249,7 +249,7 @@ export function DealDetailPage() {
                 <button
                   type="button"
                   onClick={() => (companyId ? openPeek('company', companyId) : navigate(`/companies?q=${encodeURIComponent(deal.company!)}`))}
-                  className="inline-flex items-center gap-1 transition-colors hover:text-[var(--indigo)] hover:underline"
+                  className="inline-flex items-center gap-1 transition-colors hover:text-[var(--indigo-text)] hover:underline"
                 >
                   <Building2 className="h-3.5 w-3.5" />{deal.company}
                 </button>
@@ -286,7 +286,7 @@ export function DealDetailPage() {
             type="button"
             onClick={() => deleteDeal(deal.title)}
             className="icon-btn h-9 w-9 hover:text-rose-500"
-            title="Delete this deal"
+            title="Delete this deal" aria-label="Delete this deal"
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -320,11 +320,11 @@ export function DealDetailPage() {
             </>
           ) : (
             <>
-              <CalendarClock className={cn('h-4 w-4 flex-shrink-0', step.overdue ? 'text-rose-500' : 'text-[var(--indigo)]')} />
+              <CalendarClock className={cn('h-4 w-4 flex-shrink-0', step.overdue ? 'text-rose-600 dark:text-rose-400' : 'text-[var(--indigo-text)]')} />
               <span className="text-body text-[var(--text-primary)]">
                 <span className="font-medium">{step.overdue ? 'Overdue:' : 'Next:'}</span> {step.title}
               </span>
-              <span className={cn('text-body', step.overdue ? 'font-medium text-rose-500' : 'text-[var(--text-tertiary)]')}>
+              <span className={cn('text-body', step.overdue ? 'font-medium text-rose-600 dark:text-rose-400' : 'text-[var(--text-tertiary)]')}>
                 {whenLabel(step.at).text}
               </span>
             </>
@@ -333,7 +333,7 @@ export function DealDetailPage() {
           <button
             type="button"
             onClick={() => setTaskModal(taskDefaults())}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-caption font-semibold text-[var(--indigo)] transition-colors hover:bg-[var(--indigo-subtle)]"
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-caption font-semibold text-[var(--indigo-text)] transition-colors hover:bg-[var(--indigo-subtle)]"
           >
             <CheckSquare className="h-3.5 w-3.5" /> {step.missing ? 'Schedule one' : 'Add another'}
           </button>
@@ -344,7 +344,7 @@ export function DealDetailPage() {
               contact_email: deal.contact?.email || deal.contact_email,
               title: `Call — ${deal.company || primaryName || deal.title}`,
             })}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-caption font-semibold text-[var(--indigo)] transition-colors hover:bg-[var(--indigo-subtle)]"
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-caption font-semibold text-[var(--indigo-text)] transition-colors hover:bg-[var(--indigo-subtle)]"
           >
             <CalendarPlus className="h-3.5 w-3.5" /> Book
           </button>
@@ -407,7 +407,7 @@ export function DealDetailPage() {
                     />
                   )}
                   {split.arr > 0 && (
-                    <Field label="New ARR" value={money(split.arr, deal.currency)} tone="text-[var(--indigo)]" />
+                    <Field label="New ARR" value={money(split.arr, deal.currency)} tone="text-[var(--indigo-text)]" />
                   )}
                   {split.oneOff > 0 && <Field label="One-off" value={money(split.oneOff, deal.currency)} />}
                   <Field
@@ -421,23 +421,23 @@ export function DealDetailPage() {
                 label="Weighted"
                 value={money(weightedValue(deal), deal.currency)}
                 title={`${probabilityOf(deal)}% of ${money(deal.value, deal.currency)}`}
-                tone="text-[var(--indigo)]"
+                tone="text-[var(--indigo-text)]"
               />
               <Field label="Probability" value={`${probabilityOf(deal)}%`} />
               <Field label="Expected close" value={close.text} tone={close.tone} />
-              <Field label="In stage" value={spellDays(daysInStage(deal))} tone={rot.rotting ? 'text-rose-500' : undefined} />
+              <Field label="In stage" value={spellDays(daysInStage(deal))} tone={rot.rotting ? 'text-rose-600 dark:text-rose-400' : undefined} />
               <Field label="Deal age" value={spellDays(Math.floor((Date.now() - new Date(deal.created_at).getTime()) / 86_400_000))} />
               {deal.source && <Field label="Source" value={sourceLabel(deal.source)} />}
               {deal.outcome_reason && (
                 <Field
                   label={deal.stage === 'won' ? 'Won because' : 'Lost because'}
                   value={deal.outcome_reason}
-                  tone={deal.stage === 'won' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}
+                  tone={deal.stage === 'won' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}
                 />
               )}
             </div>
             {isOpen(deal.stage) && (
-              <p className="mt-2 flex items-start gap-1.5 text-caption leading-relaxed text-[var(--text-muted)]">
+              <p className="mt-2 flex items-start gap-1.5 text-caption leading-relaxed text-[var(--text-tertiary)]">
                 <TrendingUp className="mt-px h-3 w-3 flex-shrink-0" />
                 Weighted is what this deal contributes to the forecast. Give it its own probability on the edit form to override the stage default.
               </p>

@@ -58,7 +58,7 @@ export function DealStageBar({
                 active
                   ? 'bg-[var(--indigo)] text-white shadow-[var(--shadow-sm)]'
                   : done
-                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] hover:bg-[var(--indigo)]/20'
+                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] hover:bg-[var(--indigo)]/20'
                     : 'bg-[var(--bg-muted)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
                 (busy || active) && 'cursor-default',
               )}
@@ -70,7 +70,7 @@ export function DealStageBar({
               <span
                 className={cn(
                   'text-micro tabular-nums',
-                  active ? 'text-white/75' : 'text-[var(--text-muted)]',
+                  active ? 'text-white/75' : 'text-[var(--text-tertiary)]',
                 )}
               >
                 {days === undefined ? 'not reached' : `${spellDays(days)} spent`}

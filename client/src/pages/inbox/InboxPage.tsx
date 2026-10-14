@@ -1,7 +1,10 @@
 import { Notice } from '../../components/ui/Notice';
 import { TONE, tonePill, type Tone } from '../../components/ui/tone';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useOverlayStack } from '../../hooks/useOverlayStack';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useState, useRef, useEffect, useCallback, useMemo, useId } from 'react';
+import { usePopover } from '../../hooks/usePopover';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inboxApi } from '../../api/inbox.api';
@@ -282,14 +285,14 @@ function SignaturePreview({ html, onRemove }: { html: string; onRemove: () => vo
   return (
     <div className="group relative px-4 pb-4">
       <div
-        className="prose prose-sm max-w-none text-heading leading-relaxed text-[var(--text-primary)] border-t border-[var(--border-subtle)] pt-3 mt-1 [&_p]:my-1 [&_a]:text-[var(--indigo)] [&_a]:no-underline [&_img]:max-h-16 [&_img]:inline"
+        className="prose prose-sm max-w-none text-heading leading-relaxed text-[var(--text-primary)] border-t border-[var(--border-subtle)] pt-3 mt-1 [&_p]:my-1 [&_a]:text-[var(--indigo-text)] [&_a]:no-underline [&_img]:max-h-16 [&_img]:inline"
         dangerouslySetInnerHTML={{ __html: html }}
       />
       <button
         type="button"
         onClick={onRemove}
         title="Remove signature"
-        className="absolute top-2 right-3 flex items-center gap-1 h-6 px-2 rounded-md bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-micro font-medium text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] shadow-sm transition-opacity"
+        className="absolute top-2 right-3 flex items-center gap-1 h-6 px-2 rounded-md bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-micro font-medium text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] shadow-sm transition-opacity"
       >
         <X className="h-3 w-3" /> Signature
       </button>
@@ -308,7 +311,7 @@ function SignatureButton({ available, on, onToggle }: { available: boolean; on: 
       className={cn(
         'flex items-center gap-1.5 h-9 px-3 rounded-lg text-strong font-medium transition-colors',
         on
-          ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+          ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
           : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]',
       )}
     >
@@ -414,9 +417,10 @@ function SenderSelect({ accounts, value, onChange }: {
   return (
     <div className="relative">
       <select
+        aria-label="Send from"
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="appearance-none bg-transparent text-strong text-[var(--text-primary)] outline-none pr-6 cursor-pointer w-full"
+        className="appearance-none bg-transparent text-strong text-[var(--text-primary)] outline-none rounded focus-visible:shadow-[var(--ring-focus)] pr-6 cursor-pointer w-full"
       >
         {accounts.map(a => (
           <option key={a.id} value={a.id}>
@@ -445,8 +449,12 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
   const [senderId, setSenderId] = useState(smtpAccounts[0]?.id || '');
   const [expanded, setExpanded] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
+  const scheduleId = useId();
   const editor = useRichTextEditorRef();
   const sig = useSignatureState(smtpAccounts, senderId);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const topmost = useOverlayStack(true, onClose);
+  useFocusTrap(panelRef, true, { topmost });
 
   // smtpAccounts is fetched async and can still be empty when this modal
   // first mounts; resync once accounts arrive so the selected sender always
@@ -473,7 +481,12 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
     <div className={`fixed inset-0 z-50 flex ${expanded ? 'items-center justify-center' : 'items-end justify-end'} p-4`}>
       <div className="fixed inset-0 bg-black/25 backdrop-blur-[1px]" onClick={onClose} />
       <div
-        className={`relative bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] flex flex-col transition-all duration-200 overflow-hidden ${
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="compose-title"
+        tabIndex={-1}
+        className={`relative bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] flex flex-col transition-all duration-200 overflow-hidden focus:outline-none ${
           expanded ? 'w-[820px] max-h-[85vh]' : 'w-[640px] max-h-[85vh]'
         }`}
         style={{ boxShadow: 'var(--shadow-xl)' }}
@@ -481,23 +494,23 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
         {/* Header — matches the reply composer's icon + title language */}
         <div className="flex items-center gap-2.5 px-4 h-[52px] border-b border-[var(--border-subtle)] flex-shrink-0">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] flex-shrink-0">
-            <MailPlus className="h-3.5 w-3.5 text-[var(--indigo)]" />
+            <MailPlus className="h-3.5 w-3.5 text-[var(--indigo-text)]" />
           </span>
-          <p className="flex-1 text-strong font-semibold text-[var(--text-primary)]">New message</p>
-          <button
+          <h2 id="compose-title" className="flex-1 text-strong font-semibold text-[var(--text-primary)]">New message</h2>
+          <button aria-label={expanded ? 'Minimize' : 'Expand'}
             onClick={() => setExpanded(!expanded)}
             className="icon-btn h-7 w-7 flex-shrink-0"
             title={expanded ? 'Minimize' : 'Expand'}
           >
             {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
           </button>
-          <button onClick={onClose} title="Close" className="icon-btn h-7 w-7 flex-shrink-0"><X className="h-3.5 w-3.5" /></button>
+          <button aria-label="Close" onClick={onClose} title="Close" className="icon-btn h-7 w-7 flex-shrink-0"><X className="h-3.5 w-3.5" /></button>
         </div>
 
         {/* To — recipient, with the sending-inbox routing on the right (two identities) */}
-        <div className="flex items-center gap-2.5 px-4 h-11 border-b border-[var(--border-subtle)] flex-shrink-0">
-          <span className="text-caption font-medium text-[var(--text-tertiary)] flex-shrink-0">To</span>
-          <input value={to} onChange={e => setTo(e.target.value)} className="flex-1 min-w-0 bg-transparent text-strong text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]" placeholder="recipient@example.com" autoFocus />
+        <div className="flex items-center gap-2.5 px-4 h-11 border-b border-[var(--border-subtle)] flex-shrink-0 focus-within:shadow-[inset_0_-2px_0_var(--indigo)]">
+          <label htmlFor="compose-to" className="text-caption font-medium text-[var(--text-tertiary)] flex-shrink-0">To</label>
+          <input id="compose-to" value={to} onChange={e => setTo(e.target.value)} className="flex-1 min-w-0 bg-transparent text-strong text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]" placeholder="recipient@example.com" autoFocus />
           <span className="text-caption text-[var(--text-tertiary)] flex-shrink-0 hidden sm:inline">via</span>
           <div className="min-w-0 max-w-[190px] flex-shrink-0">
             <SenderSelect accounts={smtpAccounts} value={senderId} onChange={setSenderId} />
@@ -514,9 +527,9 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
         </div>
 
         {/* Subject */}
-        <div className="flex items-center gap-2.5 px-4 h-11 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 flex-shrink-0">
-          <span className="text-caption font-medium text-[var(--text-tertiary)] flex-shrink-0">Subject</span>
-          <input value={subject} onChange={e => setSubject(e.target.value)} className="flex-1 min-w-0 bg-transparent text-strong text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]" placeholder="Add a subject" />
+        <div className="flex items-center gap-2.5 px-4 h-11 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 flex-shrink-0 focus-within:shadow-[inset_0_-2px_0_var(--indigo)]">
+          <label htmlFor="compose-subject" className="text-caption font-medium text-[var(--text-tertiary)] flex-shrink-0">Subject</label>
+          <input id="compose-subject" value={subject} onChange={e => setSubject(e.target.value)} className="flex-1 min-w-0 bg-transparent text-strong text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]" placeholder="Add a subject" />
         </div>
 
         {/* Writing surface — seamless bare editor, like the reply composer */}
@@ -544,10 +557,13 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
             <div className="relative">
               <button
                 onClick={() => setShowSchedule(!showSchedule)}
+                aria-haspopup="true"
+                aria-expanded={showSchedule}
+                aria-controls={showSchedule ? scheduleId : undefined}
                 disabled={!canSend}
                 className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-strong font-medium transition-all disabled:opacity-40 ${
                   showSchedule
-                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(47,63,156,0.25)]'
+                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] border border-[rgba(47,63,156,0.25)]'
                     : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
                 }`}
                 title="Schedule send"
@@ -556,7 +572,7 @@ function ComposeModal({ onClose, onSend, onSchedule, sending, smtpAccounts, temp
                 <span>Schedule</span>
                 <ChevronDown className={`h-3 w-3 transition-transform ${showSchedule ? 'rotate-180' : ''}`} />
               </button>
-              {showSchedule && <ScheduleSendPicker onSchedule={handleSchedule} onClose={() => setShowSchedule(false)} />}
+              {showSchedule && <ScheduleSendPicker id={scheduleId} onSchedule={handleSchedule} onClose={() => setShowSchedule(false)} />}
             </div>
             <button
               onClick={() => {
@@ -598,7 +614,7 @@ function AiAssistBar({ messageId, onInsert }: { messageId: string; onInsert: (ht
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] hover:bg-[var(--indigo)]/5 transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo-text)] hover:bg-[var(--indigo)]/5 transition-colors"
       >
         <Wand2 className="h-3.5 w-3.5" />
         AI Assist
@@ -607,9 +623,10 @@ function AiAssistBar({ messageId, onInsert }: { messageId: string; onInsert: (ht
   }
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2.5 border-t border-[var(--border-subtle)] bg-[var(--indigo-subtle)]">
-      <Wand2 className="h-4 w-4 text-[var(--indigo)] flex-shrink-0" />
+    <div className="flex items-center gap-2 px-4 py-2.5 border-t border-[var(--border-subtle)] bg-[var(--indigo-subtle)] focus-within:shadow-[inset_0_-2px_0_var(--indigo)]">
+      <Wand2 className="h-4 w-4 text-[var(--indigo-text)] flex-shrink-0" />
       <input
+        aria-label="Describe your reply"
         value={prompt}
         onChange={e => setPrompt(e.target.value)}
         onKeyDown={e => {
@@ -637,7 +654,7 @@ function AiAssistBar({ messageId, onInsert }: { messageId: string; onInsert: (ht
           <><Sparkles className="h-3 w-3" /> Generate</>
         )}
       </button>
-      <button
+      <button aria-label="Close"
         onClick={() => setIsOpen(false)}
         className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)]"
       >
@@ -688,14 +705,14 @@ function CustomCalendar({ selected, onSelect }: { selected: Date | null; onSelec
     <div>
       {/* Month navigation */}
       <div className="flex items-center justify-between mb-3">
-        <button
+        <button aria-label="Previous month"
           onClick={() => setViewDate(new Date(year, month - 1, 1))}
           className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
         >
           <ChevronLeft className="h-3.5 w-3.5" />
         </button>
         <span className="text-strong font-semibold text-[var(--text-primary)]">{monthLabel}</span>
-        <button
+        <button aria-label="Next month"
           onClick={() => setViewDate(new Date(year, month + 1, 1))}
           className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
         >
@@ -706,7 +723,7 @@ function CustomCalendar({ selected, onSelect }: { selected: Date | null; onSelec
       {/* Day headers */}
       <div className="grid grid-cols-7 mb-1">
         {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-          <div key={d} className="text-center text-micro font-semibold text-[var(--text-muted)] py-1">{d}</div>
+          <div key={d} className="text-center text-micro font-semibold text-[var(--text-tertiary)] py-1">{d}</div>
         ))}
       </div>
 
@@ -725,11 +742,11 @@ function CustomCalendar({ selected, onSelect }: { selected: Date | null; onSelec
                 isSelected
                   ? 'bg-[var(--indigo)] text-[var(--bg-app)] font-semibold shadow-sm'
                   : isToday
-                    ? 'font-semibold text-[var(--indigo)] hover:bg-[var(--indigo)]/10'
+                    ? 'font-semibold text-[var(--indigo-text)] hover:bg-[var(--indigo)]/10'
                     : !cell.current
-                      ? 'text-[var(--text-muted)]'
+                      ? 'text-[var(--text-tertiary)]'
                       : disabled
-                        ? 'text-[var(--text-muted)] cursor-not-allowed'
+                        ? 'text-[var(--text-tertiary)] cursor-not-allowed'
                         : 'text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
               }`}
             >
@@ -792,7 +809,7 @@ function CustomTimePicker({ value, onChange }: { value: { hour: number; minute: 
 
       {/* Hour grid */}
       <div className="mb-2">
-        <span className="text-micro font-semibold text-[var(--text-muted)] mb-1.5 block">Hour</span>
+        <span className="text-micro font-semibold text-[var(--text-tertiary)] mb-1.5 block">Hour</span>
         <div className="grid grid-cols-6 gap-1">
           {hours12.map(h => (
             <button
@@ -812,7 +829,7 @@ function CustomTimePicker({ value, onChange }: { value: { hour: number; minute: 
 
       {/* Minute grid */}
       <div>
-        <span className="text-micro font-semibold text-[var(--text-muted)] mb-1.5 block">Minute</span>
+        <span className="text-micro font-semibold text-[var(--text-tertiary)] mb-1.5 block">Minute</span>
         <div className="grid grid-cols-4 gap-1">
           {minutes.map(m => (
             <button
@@ -834,19 +851,24 @@ function CustomTimePicker({ value, onChange }: { value: { hour: number; minute: 
 }
 
 /* ─── Schedule Send Picker ────────────────────────── */
-function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string) => void; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
+function ScheduleSendPicker({ onSchedule, onClose, id }: { onSchedule: (date: string) => void; onClose: () => void; id?: string }) {
+  const { panelProps } = usePopover(true, onClose);
+  const ref = panelProps.ref;
   const [view, setView] = useState<'presets' | 'calendar' | 'time'>('presets');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState({ hour: 9, minute: 0 });
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
+      // Pressing the button that opened it is not an outside click: closing
+      // here let that same click reopen it, so the button could never close it.
+      const t = e.target as Element | null;
+      if (id && t?.closest?.(`[aria-controls="${id}"]`)) return;
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
+  }, [onClose, id]);
 
   const presets = useMemo(() => {
     const now = new Date();
@@ -912,12 +934,12 @@ function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string
   const selectedTimeLabel = `${display12}:${String(selectedTime.minute).padStart(2, '0')} ${isPM ? 'PM' : 'AM'}`;
 
   return (
-    <div ref={ref} className="absolute bottom-full left-0 mb-2 w-80 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl z-50 overflow-hidden" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)' }}>
+    <div {...panelProps} id={id ?? panelProps.id} className="absolute bottom-full left-0 mb-2 w-80 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl z-50 overflow-hidden" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)' }}>
       {/* Header */}
       <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
         <div className="flex items-center gap-2">
           {view !== 'presets' && (
-            <button
+            <button aria-label="Back"
               onClick={() => setView(view === 'time' ? 'calendar' : 'presets')}
               className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
             >
@@ -926,7 +948,7 @@ function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string
           )}
           {view === 'presets' && (
             <div className="w-7 h-7 rounded-lg bg-[var(--indigo)]/10 flex items-center justify-center">
-              <CalendarClock className="h-3.5 w-3.5 text-[var(--indigo)]" />
+              <CalendarClock className="h-3.5 w-3.5 text-[var(--indigo-text)]" />
             </div>
           )}
           <div className="flex-1">
@@ -953,13 +975,13 @@ function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string
                   className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--bg-hover)] active:bg-[var(--bg-active)] transition-colors flex items-center gap-3 group"
                 >
                   <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)] group-hover:bg-[var(--indigo)]/10 flex items-center justify-center transition-colors border border-[var(--border-subtle)] group-hover:border-[var(--indigo)]/20">
-                    <Icon className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[var(--indigo)] transition-colors" />
+                    <Icon className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[var(--indigo-text)] transition-colors" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-strong font-medium text-[var(--text-primary)] block">{p.label}</span>
                     <span className="text-caption text-[var(--text-tertiary)]">{p.sublabel}</span>
                   </div>
-                  <ChevronRight className="h-3.5 w-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-tertiary)] transition-colors" />
+                  <ChevronRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] group-hover:text-[var(--text-tertiary)] transition-colors" />
                 </button>
               );
             })}
@@ -971,13 +993,13 @@ function ScheduleSendPicker({ onSchedule, onClose }: { onSchedule: (date: string
               className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--bg-hover)] active:bg-[var(--bg-active)] transition-colors flex items-center gap-3 group"
             >
               <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)] group-hover:bg-[var(--indigo)]/10 flex items-center justify-center transition-colors border border-[var(--border-subtle)] group-hover:border-[var(--indigo)]/20">
-                <Calendar className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[var(--indigo)] transition-colors" />
+                <Calendar className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[var(--indigo-text)] transition-colors" />
               </div>
               <div className="flex-1">
                 <span className="text-strong font-medium text-[var(--text-primary)]">Custom date & time</span>
                 <span className="text-caption text-[var(--text-tertiary)] block">Pick a specific date and time</span>
               </div>
-              <ChevronRight className="h-3.5 w-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-tertiary)] transition-colors" />
+              <ChevronRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] group-hover:text-[var(--text-tertiary)] transition-colors" />
             </button>
           </div>
         </>
@@ -1021,6 +1043,7 @@ function FolderSelector({ folders, active, onChange }: {
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const menu = usePopover(open, () => setOpen(false));
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -1036,6 +1059,7 @@ function FolderSelector({ folders, active, onChange }: {
   return (
     <div className="relative" ref={ref}>
       <button
+        {...menu.triggerProps}
         onClick={() => setOpen(!open)}
         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-body font-semibold text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] transition-colors"
       >
@@ -1047,7 +1071,7 @@ function FolderSelector({ folders, active, onChange }: {
         <ChevronDown className={`h-3 w-3 text-[var(--text-tertiary)] transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl shadow-lg overflow-hidden z-50">
+        <div {...menu.panelProps} className="absolute top-full left-0 mt-1 w-48 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl shadow-lg overflow-hidden z-50">
           {folders.map(f => {
             const FolderIcon = f.icon;
             const isActive = active === f.id;
@@ -1056,10 +1080,10 @@ function FolderSelector({ folders, active, onChange }: {
                 key={f.id}
                 onClick={() => { onChange(f.id); setOpen(false); }}
                 className={`w-full text-left px-3 py-2.5 text-body font-medium transition-colors flex items-center gap-2.5 ${
-                  isActive ? 'bg-[rgba(47,63,156,0.08)] text-[var(--indigo)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                  isActive ? 'bg-[rgba(47,63,156,0.08)] text-[var(--indigo-text)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                 }`}
               >
-                <FolderIcon className={`h-3.5 w-3.5 ${isActive ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]'}`} />
+                <FolderIcon className={`h-3.5 w-3.5 ${isActive ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)]'}`} />
                 <span className="flex-1">{f.label}</span>
                 {f.count ? (
                   <span className="text-micro bg-[var(--indigo)] text-white rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 font-bold">{f.count}</span>
@@ -1080,6 +1104,7 @@ function FolderSelector({ folders, active, onChange }: {
 function TagFilterDropdown({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const menu = usePopover(open, () => setOpen(false));
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -1095,6 +1120,7 @@ function TagFilterDropdown({ value, onChange }: { value: string; onChange: (v: s
   return (
     <div className="relative flex-shrink-0" ref={ref}>
       <button
+        {...menu.triggerProps}
         onClick={() => setOpen(!open)}
         className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-caption font-medium transition-all ${
           value !== 'all'
@@ -1107,7 +1133,7 @@ function TagFilterDropdown({ value, onChange }: { value: string; onChange: (v: s
         <ChevronDown className="h-2.5 w-2.5" />
       </button>
       {open && (
-        <div className="absolute top-full right-0 mt-1 w-44 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl shadow-lg overflow-hidden z-50">
+        <div {...menu.panelProps} className="absolute top-full right-0 mt-1 w-44 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl shadow-lg overflow-hidden z-50">
           {TAG_OPTIONS.map(opt => {
             const ic = opt.value !== 'all' ? INTENT_COLORS[opt.value] : null;
             return (
@@ -1138,7 +1164,7 @@ function DaySeparator({ label, gap }: { label: string; gap?: string }) {
       <span className="flex h-[22px] items-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 text-micro font-semibold text-[var(--text-tertiary)] shadow-sm">
         {label}
       </span>
-      {gap && <span className="text-micro font-medium text-[var(--text-muted)]">{gap}</span>}
+      {gap && <span className="text-micro font-medium text-[var(--text-tertiary)]">{gap}</span>}
     </div>
   );
 }
@@ -1207,7 +1233,7 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
               </span>
             )}
             <span className="text-micro text-[var(--text-tertiary)] tabular flex-shrink-0" title={formatFullDateTime(msg.received_at)}>{stamp}</span>
-            <ChevronDown className={cn('h-3.5 w-3.5 text-[var(--text-muted)] transition-transform flex-shrink-0', expanded && 'rotate-180')} />
+            <ChevronDown className={cn('h-3.5 w-3.5 text-[var(--text-tertiary)] transition-transform flex-shrink-0', expanded && 'rotate-180')} />
           </div>
 
           {!expanded ? (
@@ -1222,7 +1248,7 @@ function TimelineMessage({ msg, threadSubject, isCurrent, expanded, onToggle }: 
                   </span>
                 )}
                 {isOutbound && viaInbox && (
-                  <span className="inline-flex items-center text-micro font-medium px-1.5 py-0.5 rounded-md bg-blue-500/8 text-blue-500" title={msg.smtp_email || undefined}>
+                  <span className="inline-flex items-center text-micro font-medium px-1.5 py-0.5 rounded-md bg-blue-500/8 text-blue-600 dark:text-blue-300" title={msg.smtp_email || undefined}>
                     via {viaInbox}
                   </span>
                 )}
@@ -1479,7 +1505,7 @@ function ThreadDealPanel({ msg }: { msg: Message }) {
         {!open && (
           <button
             onClick={startCreate}
-            className="inline-flex items-center gap-1 text-micro font-semibold text-[var(--indigo)] hover:underline"
+            className="inline-flex items-center gap-1 text-micro font-semibold text-[var(--indigo-text)] hover:underline"
           >
             <Plus className="h-3 w-3" /> {deals.length > 0 ? 'Add another' : 'Create'}
           </button>
@@ -1495,14 +1521,14 @@ function ThreadDealPanel({ msg }: { msg: Message }) {
             className="group flex items-start gap-2 w-full text-left"
           >
             <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] flex-shrink-0">
-              <Handshake className="h-3 w-3 text-[var(--indigo)]" />
+              <Handshake className="h-3 w-3 text-[var(--indigo-text)]" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-body font-semibold text-[var(--text-primary)] leading-snug truncate group-hover:text-[var(--indigo)] transition-colors">
+              <span className="block text-body font-semibold text-[var(--text-primary)] leading-snug truncate group-hover:text-[var(--indigo-text)] transition-colors">
                 {d.title}
               </span>
             </span>
-            <ArrowUpRight className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" />
+            <ArrowUpRight className="h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" />
           </button>
 
           <div className="mt-2 flex items-center gap-2">
@@ -1552,8 +1578,8 @@ function ThreadDealPanel({ msg }: { msg: Message }) {
           className="rounded-xl border border-[var(--indigo)]/40 bg-[var(--bg-elevated)]/50 p-3 space-y-2.5"
         >
           <div>
-            <label className="block text-micro font-medium text-[var(--text-tertiary)] mb-1">Deal name</label>
-            <input
+            <label htmlFor="inbox-deal-name" className="block text-micro font-medium text-[var(--text-tertiary)] mb-1">Deal name</label>
+            <input id="inbox-deal-name"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               autoFocus
@@ -1563,8 +1589,8 @@ function ThreadDealPanel({ msg }: { msg: Message }) {
           </div>
 
           <div>
-            <label className="block text-micro font-medium text-[var(--text-tertiary)] mb-1">Value</label>
-            <input
+            <label htmlFor="inbox-value" className="block text-micro font-medium text-[var(--text-tertiary)] mb-1">Value</label>
+            <input id="inbox-value"
               value={value}
               onChange={(e) => setValue(e.target.value)}
               inputMode="decimal"
@@ -1574,8 +1600,8 @@ function ThreadDealPanel({ msg }: { msg: Message }) {
           </div>
 
           <div>
-            <label className="block text-micro font-medium text-[var(--text-tertiary)] mb-1">Stage</label>
-            <div className="flex flex-wrap gap-1">
+            <span id="inbox-deal-stage-label" className="block text-micro font-medium text-[var(--text-tertiary)] mb-1">Stage</span>
+            <div className="flex flex-wrap gap-1" role="group" aria-labelledby="inbox-deal-stage-label">
               {DEAL_STAGES.map((s) => (
                 <button
                   key={s.id}
@@ -1638,7 +1664,7 @@ function ThreadDealPanel({ msg }: { msg: Message }) {
               <Handshake className="h-3 w-3 text-[var(--text-tertiary)]" />
             </span>
             <span className="text-caption text-[var(--text-secondary)]">
-              No deal yet — <span className="text-[var(--indigo)] font-medium">create one</span>
+              No deal yet — <span className="text-[var(--indigo-text)] font-medium">create one</span>
             </span>
           </span>
         </button>
@@ -1663,7 +1689,7 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
   const sendingInbox = msg.smtp_label || msg.smtp_email;
 
   return (
-    <aside className="hidden xl:flex w-[280px] flex-shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-col overflow-y-auto">
+    <aside aria-label="Conversation details" className="hidden xl:flex w-[280px] flex-shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-col overflow-y-auto">
       {/* ── Prospect card — the person, linked to their lead record ── */}
       <div className="px-3.5 pt-4 pb-3.5">
         <p className="text-caption font-medium text-[var(--text-tertiary)] mb-2 px-1">Prospect</p>
@@ -1674,7 +1700,7 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
               {contactHref ? (
                 <Link
                   to={contactHref}
-                  className="group inline-flex items-center gap-1 text-strong font-semibold text-[var(--text-primary)] hover:text-[var(--indigo)] transition-colors leading-tight"
+                  className="group inline-flex items-center gap-1 text-strong font-semibold text-[var(--text-primary)] hover:text-[var(--indigo-text)] transition-colors leading-tight"
                 >
                   <span className="truncate">{name}</span>
                   <ArrowUpRight className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -1741,13 +1767,13 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
             {msg.campaign_name ? (
               <div className="flex items-start gap-2.5">
                 <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] flex-shrink-0">
-                  <Megaphone className="h-3.5 w-3.5 text-[var(--indigo)]" />
+                  <Megaphone className="h-3.5 w-3.5 text-[var(--indigo-text)]" />
                 </span>
                 <div className="min-w-0 flex-1">
                   {msg.campaign_id ? (
                     <Link
                       to={`/campaigns/${msg.campaign_id}`}
-                      className="group inline-flex items-center gap-1 text-body font-semibold text-[var(--text-primary)] hover:text-[var(--indigo)] transition-colors leading-snug"
+                      className="group inline-flex items-center gap-1 text-body font-semibold text-[var(--text-primary)] hover:text-[var(--indigo-text)] transition-colors leading-snug"
                     >
                       <span className="truncate">{msg.campaign_name}</span>
                       <ArrowUpRight className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -1792,7 +1818,7 @@ function ContactContextPanel({ msg, stats, onCopyEmail }: {
           </div>
           <div className="panel-inset px-2.5 py-1.5">
             <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
-              <ArrowUpRight className="h-3 w-3 text-[var(--indigo)]" />
+              <ArrowUpRight className="h-3 w-3 text-[var(--indigo-text)]" />
               <span className="text-micro font-medium">Sent</span>
             </div>
             <p className="mt-0.5 text-heading font-semibold tabular text-[var(--text-primary)] leading-none">{stats.outbound}</p>
@@ -1867,9 +1893,9 @@ function ScheduledEmailsPanel({ onCancel, onReschedule }: {
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-3xl mx-auto px-6 py-6 space-y-3">
         <div className="flex items-center gap-2 mb-4">
-          <Clock className="h-5 w-5 text-[var(--indigo)]" />
+          <Clock className="h-5 w-5 text-[var(--indigo-text)]" />
           <h2 className="text-title font-semibold text-[var(--text-primary)]">Scheduled emails</h2>
-          <span className="text-body font-medium px-2 py-0.5 rounded-full bg-[var(--indigo)]/10 text-[var(--indigo)]">{emails.length}</span>
+          <span className="text-body font-medium px-2 py-0.5 rounded-full bg-[var(--indigo)]/10 text-[var(--indigo-text)]">{emails.length}</span>
         </div>
         {emails.map((email: any) => {
           const scheduledDate = new Date(email.scheduled_at);
@@ -1890,14 +1916,14 @@ function ScheduledEmailsPanel({ onCancel, onReschedule }: {
                 }`}>
                   {failed
                     ? <AlertTriangle className="h-4 w-4 text-red-500" />
-                    : <Clock className="h-4 w-4 text-[var(--indigo)]" />}
+                    : <Clock className="h-4 w-4 text-[var(--indigo-text)]" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-strong font-semibold text-[var(--text-primary)]">To: {email.to_email}</span>
                     <span className={`text-micro font-medium px-1.5 py-0.5 rounded-full ${
-                      failed ? 'bg-red-500/10 text-red-500'
-                        : isPast ? 'bg-amber-500/10 text-amber-500' : 'bg-[var(--indigo)]/10 text-[var(--indigo)]'
+                      failed ? 'bg-red-500/10 text-red-600 dark:text-red-400'
+                        : isPast ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-[var(--indigo)]/10 text-[var(--indigo-text)]'
                     }`}>
                       {failed ? 'Did not send' : isPast ? 'Sending soon...' : 'Scheduled'}
                     </span>
@@ -1913,7 +1939,7 @@ function ScheduledEmailsPanel({ onCancel, onReschedule }: {
                       {formatTime(scheduledDate)}
                     </div>
                     {email.smtp_email && (
-                      <span className="text-micro font-medium px-1.5 py-0.5 rounded-md bg-blue-500/8 text-blue-500">
+                      <span className="text-micro font-medium px-1.5 py-0.5 rounded-md bg-blue-500/8 text-blue-600 dark:text-blue-300">
                         via {email.smtp_label || email.smtp_email.split('@')[0]}
                       </span>
                     )}
@@ -1925,6 +1951,9 @@ function ScheduledEmailsPanel({ onCancel, onReschedule }: {
                 <div className="relative flex items-center gap-1 flex-shrink-0">
                   <button
                     onClick={() => setReschedulingId(reschedulingId === email.id ? null : email.id)}
+                    aria-haspopup="true"
+                    aria-expanded={reschedulingId === email.id}
+                    aria-controls={reschedulingId === email.id ? `reschedule-${email.id}` : undefined}
                     disabled={isPast}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     title={failed
@@ -1936,7 +1965,7 @@ function ScheduledEmailsPanel({ onCancel, onReschedule }: {
                   </button>
                   <button
                     onClick={() => onCancel(email.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-medium text-red-500 hover:bg-red-500/10 transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-medium text-red-600 dark:text-red-400 hover:bg-red-500/10 transition-colors"
                     title={failed ? 'Discard this email' : 'Cancel scheduled email'}
                   >
                     <XCircle className="h-3.5 w-3.5" />
@@ -1944,6 +1973,7 @@ function ScheduledEmailsPanel({ onCancel, onReschedule }: {
                   </button>
                   {reschedulingId === email.id && (
                     <ScheduleSendPicker
+                      id={`reschedule-${email.id}`}
                       onSchedule={(scheduledAt) => { onReschedule(email.id, scheduledAt); setReschedulingId(null); }}
                       onClose={() => setReschedulingId(null)}
                     />
@@ -2071,12 +2101,12 @@ function NavRow({ item, active, collapsed, count, onClick }: {
     >
       {item.dot
         ? <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: item.dot }} />
-        : Icon && <Icon className={cn('h-[14px] w-[14px] flex-shrink-0', active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} strokeWidth={1.8} />}
+        : Icon && <Icon className={cn('h-[14px] w-[14px] flex-shrink-0', active ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)]')} strokeWidth={1.8} />}
       {!collapsed && (
         <>
           <span className="flex-1 text-left text-body font-medium truncate">{item.label}</span>
           {count != null && count > 0 && (
-            <span className={cn('text-micro font-semibold tabular', active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')}>
+            <span className={cn('text-micro font-semibold tabular', active ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)]')}>
               {count > 999 ? '999+' : count}
             </span>
           )}
@@ -2129,7 +2159,7 @@ function SaraCopilot({ msg, onUseDraft }: { msg: Message; onUseDraft: () => void
               <p className="mt-1.5 text-body text-[var(--text-primary)] leading-snug">{msg.relay_summary}</p>
               {msg.relay_next_step && (
                 <p className="mt-1 flex items-center gap-1.5 text-body text-[var(--text-secondary)]">
-                  <ArrowRight className="h-3 w-3 text-[var(--indigo)] flex-shrink-0" />
+                  <ArrowRight className="h-3 w-3 text-[var(--indigo-text)] flex-shrink-0" />
                   {msg.relay_next_step}
                 </p>
               )}
@@ -2217,7 +2247,10 @@ export function InboxPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [replySenderId, setReplySenderId] = useState('');
   const [showReplySchedule, setShowReplySchedule] = useState(false);
+  const replyScheduleId = useId();
   const [showTagDropdown, setShowTagDropdown] = useState(false);
+  const tagMenu = usePopover(showTagDropdown, () => setShowTagDropdown(false));
+  const moreMenu = usePopover(moreOpen, () => setMoreOpen(false));
   const replyComposerRef = useRef<HTMLDivElement>(null);
   const replyEditor = useRichTextEditorRef();
 
@@ -2994,27 +3027,27 @@ export function InboxPage() {
               <span className="text-body text-[var(--text-tertiary)] tabular">
                 {Math.max(1, visibleConversations.findIndex(c => c.latestMessage.id === selectedId) + 1)} of {visibleConversations.length}
               </span>
-              <span className="hidden lg:flex items-center gap-1.5 ml-2 text-caption text-[var(--text-muted)]">
+              <span className="hidden lg:flex items-center gap-1.5 ml-2 text-caption text-[var(--text-tertiary)]">
                 <kbd className="kbd">J</kbd><kbd className="kbd">K</kbd> move
                 <kbd className="kbd ml-1">Esc</kbd> close
               </span>
               <div className="flex-1" />
               <button
                 onClick={() => { setShowCompose(false); setReplyMode('reply'); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
-                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo-subtle)] text-[var(--indigo)] text-body font-semibold hover:bg-[rgba(47,63,156,0.14)] transition-colors"
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[var(--indigo-subtle)] text-[var(--indigo-text)] text-body font-semibold hover:bg-[rgba(47,63,156,0.14)] transition-colors"
               >
                 <Reply className="h-3.5 w-3.5" /> Reply
               </button>
-              <button onClick={() => { setShowCompose(false); setReplyMode('forward'); setForwardTo(''); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }} title="Forward" className="icon-btn h-8 w-8">
+              <button aria-label="Forward" onClick={() => { setShowCompose(false); setReplyMode('forward'); setForwardTo(''); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }} title="Forward" className="icon-btn h-8 w-8">
                 <Forward className="h-4 w-4" />
               </button>
-              <button onClick={() => toggleStarMut.mutate(currentMsg.id)} title={currentMsg.is_starred ? 'Unstar' : 'Star'} className="icon-btn h-8 w-8">
+              <button aria-label={currentMsg.is_starred ? 'Unstar' : 'Star'} onClick={() => toggleStarMut.mutate(currentMsg.id)} title={currentMsg.is_starred ? 'Unstar' : 'Star'} className="icon-btn h-8 w-8">
                 <Star className={`h-4 w-4 ${currentMsg.is_starred ? 'text-amber-400 fill-amber-400' : ''}`} />
               </button>
-              <button onClick={() => handleArchiveToggle(currentMsg)} title={archiveLabel} className="icon-btn h-8 w-8">
+              <button aria-label={archiveLabel} onClick={() => handleArchiveToggle(currentMsg)} title={archiveLabel} className="icon-btn h-8 w-8">
                 <ArchiveIcon className="h-4 w-4" />
               </button>
-              <button
+              <button aria-label={currentMsg.is_read ? 'Mark unread' : 'Mark read'}
                 onClick={() => currentMsg.is_read ? markUnreadMut.mutate(currentMsg.id) : markReadMut.mutate(currentMsg.id)}
                 title={currentMsg.is_read ? 'Mark unread' : 'Mark read'}
                 className="icon-btn h-8 w-8"
@@ -3022,7 +3055,7 @@ export function InboxPage() {
                 {currentMsg.is_read ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
               <span className="h-4 w-px bg-[var(--border-subtle)] hidden xl:block" />
-              <button
+              <button aria-label={showContext ? 'Hide contact details' : 'Show contact details'}
                 onClick={() => setShowContext(v => !v)}
                 title={showContext ? 'Hide contact details' : 'Show contact details'}
                 className={cn('icon-btn h-8 w-8 hidden xl:inline-flex', split && !roomy && '!hidden', showContext && 'bg-[var(--bg-active)] text-[var(--text-primary)]')}
@@ -3050,9 +3083,9 @@ export function InboxPage() {
                               <h2 className="text-heading font-semibold text-[var(--text-primary)] truncate">{threadContactName || 'Unknown sender'}</h2>
                               {threadContactEmail && <span className="text-body text-[var(--text-tertiary)] truncate hidden md:inline">{threadContactEmail}</span>}
                             </div>
-                            <h1 className="mt-1 text-title sm:text-display font-semibold text-[var(--text-primary)] leading-snug tracking-[-0.02em]">
+                            <h2 className="mt-1 text-title sm:text-display font-semibold text-[var(--text-primary)] leading-snug tracking-[-0.02em]">
                               {threadSubject || '(no subject)'}
-                            </h1>
+                            </h2>
                             <div className="mt-1.5 flex items-center gap-2 text-body text-[var(--text-tertiary)] flex-wrap">
                               <span className="tabular">{threadStats.total} message{threadStats.total === 1 ? '' : 's'}</span>
                               {threadStats.first && threadStats.total > 1 && (
@@ -3072,6 +3105,7 @@ export function InboxPage() {
                       {/* Clickable tag dropdown */}
                       <div className="relative flex-shrink-0 mt-0.5">
                         <button
+                          {...tagMenu.triggerProps}
                           onClick={() => setShowTagDropdown(!showTagDropdown)}
                           className={`flex items-center gap-1 text-caption font-semibold px-2.5 py-1 rounded-full transition-colors ${
                             currentMsg.sara_intent
@@ -3087,8 +3121,8 @@ export function InboxPage() {
                         </button>
                         {showTagDropdown && (
                           <>
-                            <div className="fixed inset-0 z-40" onClick={() => setShowTagDropdown(false)} />
-                            <div className="absolute right-0 top-full mt-1 z-50 w-48 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl shadow-lg overflow-hidden">
+                            <div className="fixed inset-0 z-40" aria-hidden onClick={() => setShowTagDropdown(false)} />
+                            <div {...tagMenu.panelProps} className="absolute right-0 top-full mt-1 z-50 w-48 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl shadow-lg overflow-hidden">
                               {currentMsg.sara_intent && (
                                 <button
                                   onClick={() => { setTagMut.mutate({ id: currentMsg.id, tag: '' }); setShowTagDropdown(false); }}
@@ -3198,9 +3232,9 @@ export function InboxPage() {
                       className="w-full flex flex-col max-h-[64vh] rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] overflow-hidden"
                     >
                       {/* Routing line — recipient identity, with close. No labels, no boxes. */}
-                      <div className="flex items-center gap-2.5 px-4 h-[50px] border-b border-[var(--border-subtle)] flex-shrink-0">
+                      <div className="flex items-center gap-2.5 px-4 h-[50px] border-b border-[var(--border-subtle)] flex-shrink-0 focus-within:shadow-[inset_0_-2px_0_var(--indigo)]">
                         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] flex-shrink-0">
-                          {replyMode === 'reply' ? <Reply className="h-3.5 w-3.5 text-[var(--indigo)]" /> : <Forward className="h-3.5 w-3.5 text-[var(--indigo)]" />}
+                          {replyMode === 'reply' ? <Reply className="h-3.5 w-3.5 text-[var(--indigo-text)]" /> : <Forward className="h-3.5 w-3.5 text-[var(--indigo-text)]" />}
                         </span>
                         <span className="text-caption font-medium text-[var(--text-tertiary)] flex-shrink-0">To</span>
                         {replyMode === 'reply' ? (
@@ -3211,6 +3245,7 @@ export function InboxPage() {
                           </div>
                         ) : (
                           <input
+                            aria-label="Forward to"
                             value={forwardTo}
                             onChange={e => setForwardTo(e.target.value)}
                             className="flex-1 min-w-0 bg-transparent text-strong text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
@@ -3218,7 +3253,7 @@ export function InboxPage() {
                             autoFocus
                           />
                         )}
-                        <button onClick={() => setReplyMode(null)} title="Close composer" className="icon-btn h-7 w-7 flex-shrink-0"><X className="h-3.5 w-3.5" /></button>
+                        <button aria-label="Close composer" onClick={() => setReplyMode(null)} title="Close composer" className="icon-btn h-7 w-7 flex-shrink-0"><X className="h-3.5 w-3.5" /></button>
                       </div>
 
                       {/* Meta strip — subject on the left, sending-inbox routing on the right */}
@@ -3260,7 +3295,7 @@ export function InboxPage() {
                         {replyMode === 'forward' && (
                           <div className="mx-4 mb-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 overflow-hidden">
                             <div className="px-3.5 py-2.5">
-                              <p className="text-micro font-semibold text-[var(--text-muted)] mb-1.5">Forwarded message</p>
+                              <p className="text-micro font-semibold text-[var(--text-tertiary)] mb-1.5">Forwarded message</p>
                               <div className="text-caption text-[var(--text-tertiary)] space-y-0.5">
                                 <p><span className="font-medium text-[var(--text-secondary)]">From:</span> {currentMsg.from_email}</p>
                                 <p><span className="font-medium text-[var(--text-secondary)]">Date:</span> {formatFullDateTime(currentMsg.received_at)}</p>
@@ -3299,10 +3334,13 @@ export function InboxPage() {
                             <div className="relative">
                               <button
                                 onClick={() => setShowReplySchedule(!showReplySchedule)}
+                                aria-haspopup="true"
+                                aria-expanded={showReplySchedule}
+                                aria-controls={showReplySchedule ? replyScheduleId : undefined}
                                 disabled={replyEditor.isEmpty || replyMut.isPending}
                                 className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-strong font-medium transition-all disabled:opacity-40 ${
                                   showReplySchedule
-                                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(47,63,156,0.25)]'
+                                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] border border-[rgba(47,63,156,0.25)]'
                                     : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
                                 }`}
                                 title="Schedule send"
@@ -3313,6 +3351,7 @@ export function InboxPage() {
                               </button>
                               {showReplySchedule && (
                                 <ScheduleSendPicker
+                                  id={replyScheduleId}
                                   onSchedule={(scheduledAt) => {
                                     const sid = replySenderId || undefined;
                                     const b = withSignature(replyEditor.html, replyEditor.text, replySig.sigHtml, replySig.on);
@@ -3356,7 +3395,7 @@ export function InboxPage() {
                       >
                         Reply to {threadContactName || 'this conversation'}…
                       </button>
-                      <button
+                      <button aria-label="Forward"
                         onClick={() => { setShowCompose(false); setReplyMode('forward'); setForwardTo(''); setReplySenderId(currentMsg.smtp_account_id || smtpAccounts[0]?.id || ''); }}
                         title="Forward"
                         className="icon-btn h-9 w-9 flex-shrink-0"
@@ -3418,7 +3457,7 @@ export function InboxPage() {
                 {tabItem.count != null && tabItem.count > 0 && (
                   <span className={cn(
                     'flex h-[17px] min-w-[17px] items-center justify-center rounded-md px-1 text-micro font-semibold tabular',
-                    isActive && !tabItem.muted ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
+                    isActive && !tabItem.muted ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
                   )}>{tabItem.count > 999 ? '999+' : tabItem.count}</span>
                 )}
                 <span className={cn('absolute left-2 right-2 bottom-0 h-[2px] rounded-t-full transition-opacity', isActive ? 'bg-[var(--indigo)] opacity-100' : 'opacity-0')} />
@@ -3444,8 +3483,8 @@ export function InboxPage() {
                 <>
                   <button
                     type="button"
+                    {...moreMenu.triggerProps}
                     onClick={() => setMoreOpen((o) => !o)}
-                    aria-expanded={moreOpen}
                     className={cn(
                       'relative flex items-center gap-1 h-[46px] sm:h-full px-3 text-strong font-medium whitespace-nowrap transition-colors',
                       current ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
@@ -3457,15 +3496,15 @@ export function InboxPage() {
                   </button>
                   {moreOpen && (
                     <>
-                      <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
-                      <div className="absolute left-0 top-full mt-1 z-50 w-44 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] p-1 shadow-[var(--shadow-xl)] animate-slide-in">
+                      <div className="fixed inset-0 z-40" aria-hidden onClick={() => setMoreOpen(false)} />
+                      <div {...moreMenu.panelProps} className="absolute left-0 top-full mt-1 z-50 w-44 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] p-1 shadow-[var(--shadow-xl)] animate-slide-in">
                         {MORE.map((m) => (
                           <button
                             key={m.id}
                             onClick={() => { setMoreOpen(false); setView(m.id); }}
                             className={cn(
                               'w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-body text-left transition-colors',
-                              activeView === m.id ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] font-medium' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+                              activeView === m.id ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] font-medium' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
                             )}
                           >
                             {m.label}
@@ -3481,12 +3520,13 @@ export function InboxPage() {
           </div>
 
           <select
+            aria-label="Filter by intent"
             value={tagFilter}
             onChange={e => { setTagFilter(e.target.value); setQuickFilter('all'); setSelectedId(null); }}
             className={cn(
-              'hidden md:block h-8 px-2 rounded-lg border text-body font-medium outline-none cursor-pointer transition-colors flex-shrink-0',
+              'hidden md:block h-8 px-2 rounded-lg border text-body font-medium outline-none focus-visible:shadow-[var(--ring-focus)] cursor-pointer transition-colors flex-shrink-0',
               tagFilter !== 'all'
-                ? 'border-[rgba(47,63,156,0.4)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                ? 'border-[rgba(47,63,156,0.4)] bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
                 : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
             )}
           >
@@ -3497,32 +3537,33 @@ export function InboxPage() {
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
               <input
+                aria-label="Search conversations"
                 value={searchInput}
                 onChange={e => setSearchInput(e.target.value)}
                 placeholder="Search…"
                 className="w-full sm:w-[180px] sm:focus:w-[240px] pl-8 pr-7 h-8 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15 transition-all"
               />
               {search && (
-                <button type="button" onClick={() => { setSearch(''); setSearchInput(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-[var(--bg-hover)]">
+                <button aria-label="Clear search" type="button" onClick={() => { setSearch(''); setSearchInput(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-[var(--bg-hover)]">
                   <X className="h-3 w-3 text-[var(--text-tertiary)]" />
                 </button>
               )}
             </div>
           </form>
 
-          <button onClick={handleRefresh} disabled={isRefreshing || isFetching} title="Sync inboxes" className="icon-btn flex-shrink-0 disabled:opacity-40">
+          <button aria-label="Sync inboxes" onClick={handleRefresh} disabled={isRefreshing || isFetching} title="Sync inboxes" className="icon-btn flex-shrink-0 disabled:opacity-40">
             <RefreshCw className={cn('h-3.5 w-3.5', (isRefreshing || isFetching) && 'animate-spin')} />
           </button>
           {/* Where "why can't I see older mail?" gets answered, next to the
               button people press when they think mail is missing. */}
-          <button
+          <button aria-label="How far back each mailbox is kept"
             onClick={() => setShowHistory((v) => !v)}
             title="How far back each mailbox is kept"
-            className={cn('icon-btn flex-shrink-0 max-sm:!hidden', showHistory && 'text-[var(--indigo)]')}
+            className={cn('icon-btn flex-shrink-0 max-sm:!hidden', showHistory && 'text-[var(--indigo-text)]')}
           >
             <HistoryIcon className="h-3.5 w-3.5" />
           </button>
-          <button
+          <button aria-label="Mark all read (entire mailbox)"
             onClick={() => {
               // Sits next to the folder/tag/search controls, which makes it look
               // scoped to the current view — it isn't: markAllRead has no
@@ -3644,11 +3685,11 @@ export function InboxPage() {
             <button
               onClick={() => bulkUndoMut.mutate(lastRun.ids)}
               disabled={bulkUndoMut.isPending}
-              className="flex-shrink-0 text-caption font-semibold text-[var(--indigo)] hover:underline disabled:opacity-50"
+              className="flex-shrink-0 text-caption font-semibold text-[var(--indigo-text)] hover:underline disabled:opacity-50"
             >
               {bulkUndoMut.isPending ? 'Undoing…' : `Undo ${lastRun.ids.length}`}
             </button>
-            <button onClick={() => setLastRun(null)} className="p-0.5 rounded hover:bg-[var(--bg-hover)] flex-shrink-0" title="Dismiss">
+            <button aria-label="Dismiss" onClick={() => setLastRun(null)} className="p-0.5 rounded hover:bg-[var(--bg-hover)] flex-shrink-0" title="Dismiss">
               <X className="h-3 w-3 text-[var(--text-tertiary)]" />
             </button>
           </div>
@@ -3815,7 +3856,7 @@ export function InboxPage() {
                             <span className="ml-auto flex-shrink-0 text-caption text-[var(--text-tertiary)] tabular">{timeAgo(msg.received_at)}</span>
                           </span>
                           <span className={cn('mt-0.5 block line-clamp-2 text-body leading-snug', conv.hasUnread ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]')}>
-                            {msg.relay_summary && !isMail(msg) && <Sparkles className="inline h-3 w-3 -mt-0.5 mr-1 text-[var(--indigo)]" />}
+                            {msg.relay_summary && !isMail(msg) && <Sparkles className="inline h-3 w-3 -mt-0.5 mr-1 text-[var(--indigo-text)]" />}
                             {said}
                           </span>
                           {(msg.triage_decision || intent || isMail(msg) || msg.auto_reply_kind || msg.campaign_name) && (
@@ -3933,7 +3974,7 @@ export function InboxPage() {
                                   title={[msg.subject, snippet].filter(Boolean).join(' - ') || undefined}
                                 >
                                   {showSubject && <span className="hidden sm:inline text-[var(--text-tertiary)]">- </span>}
-                                  {msg.relay_summary && !isMail(msg) && <Sparkles className="inline h-3 w-3 -mt-0.5 mr-1 text-[var(--indigo)]" />}
+                                  {msg.relay_summary && !isMail(msg) && <Sparkles className="inline h-3 w-3 -mt-0.5 mr-1 text-[var(--indigo-text)]" />}
                                   {said}
                                 </span>
                               ) : null}
@@ -3986,7 +4027,7 @@ export function InboxPage() {
                           pointer can hover. Keys do the same: r replies, e archives. */}
                       {!isOutbound && !isMail(msg) && (
                         <span
-                          className="pointer-events-none absolute inset-y-0 right-0 hidden items-center gap-1 bg-gradient-to-l from-[var(--bg-hover)] from-70% to-transparent pl-10 pr-3 opacity-0 transition-opacity [@media(hover:hover)]:md:flex group-hover:pointer-events-auto group-hover:opacity-100"
+                          className="pointer-events-none absolute inset-y-0 right-0 hidden items-center gap-1 bg-gradient-to-l from-[var(--bg-hover)] from-70% to-transparent pl-10 pr-3 opacity-0 transition-opacity [@media(hover:hover)]:md:flex group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
                           onClick={(e) => e.stopPropagation()}
                           data-row-actions
                         >
@@ -4022,7 +4063,7 @@ export function InboxPage() {
                 <button
                   onClick={() => setMessageLimit(l => l + 50)}
                   disabled={isFetching}
-                  className="text-body font-medium text-[var(--indigo)] hover:underline disabled:opacity-50 disabled:no-underline"
+                  className="text-body font-medium text-[var(--indigo-text)] hover:underline disabled:opacity-50 disabled:no-underline"
                 >
                   {isFetching
                     ? <span className="inline-flex items-center gap-1.5"><Spinner size="sm" /> Loading more</span>
@@ -4037,6 +4078,7 @@ export function InboxPage() {
 
   return (
     <div className="overflow-hidden" style={{ height: 'calc(100vh - var(--chrome-h, 56px))' }}>
+      <h1 className="sr-only">Inbox</h1>
       <div className="h-full flex flex-col bg-[var(--bg-app)]">
 
         {/*
@@ -4055,7 +4097,7 @@ export function InboxPage() {
               <div className="flex-1 min-w-0 flex flex-col min-h-0">
                 {focusView ?? (
                   <div className="flex-1 flex flex-col items-center justify-center gap-3 bg-[var(--bg-app)] px-6 text-center">
-                    <MailOpen className="h-6 w-6 text-[var(--text-muted)]" strokeWidth={1.5} />
+                    <MailOpen className="h-6 w-6 text-[var(--text-tertiary)]" strokeWidth={1.5} />
                     <p className="text-strong font-medium text-[var(--text-secondary)]">Choose a conversation to read it here</p>
                     <p className="flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
                       <kbd className="kbd">J</kbd><kbd className="kbd">K</kbd> to move, <kbd className="kbd">R</kbd> to reply, <kbd className="kbd">E</kbd> when it is done

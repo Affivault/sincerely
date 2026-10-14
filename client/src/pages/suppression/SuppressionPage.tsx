@@ -194,12 +194,13 @@ export function SuppressionPage() {
           <input
             type="text"
             placeholder="Search emails…"
+            aria-label="Search suppressed emails"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             className="w-full h-8 pl-8 pr-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[rgba(47,63,156,0.4)] focus:bg-[var(--bg-surface)] focus:shadow-[var(--ring-focus)] outline-none transition"
           />
           {searchInput && (
-            <button onClick={() => setSearchInput('')} className="absolute right-2 top-1/2 -translate-y-1/2">
+            <button aria-label="Clear search" onClick={() => setSearchInput('')} className="absolute right-2 top-1/2 -translate-y-1/2 after:absolute after:-inset-1.5 after:content-['']">
               <X className="h-3 w-3 text-[var(--text-tertiary)]" />
             </button>
           )}
@@ -207,6 +208,7 @@ export function SuppressionPage() {
         <div className="relative">
           <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />
           <select
+            aria-label="Filter by reason"
             value={reasonFilter}
             onChange={(e) => { setReasonFilter(e.target.value); setPage(1); }}
             className="h-8 pl-8 pr-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-body text-[var(--text-primary)] focus:border-[rgba(47,63,156,0.4)] focus:shadow-[var(--ring-focus)] outline-none transition appearance-none cursor-pointer"
@@ -241,7 +243,7 @@ export function SuppressionPage() {
                     <th className="text-left px-4 py-2.5 text-micro font-medium text-[var(--text-tertiary)]">Reason</th>
                     <th className="text-left px-4 py-2.5 text-micro font-medium text-[var(--text-tertiary)]">Notes</th>
                     <th className="text-left px-4 py-2.5 text-micro font-medium text-[var(--text-tertiary)]">Added</th>
-                    <th className="px-4 py-2.5" />
+                    <th className="px-4 py-2.5"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border-subtle)]">
@@ -256,15 +258,15 @@ export function SuppressionPage() {
                             {meta.label}
                           </span>
                         </td>
-                        <td className="px-4 py-2.5 text-body text-[var(--text-secondary)] truncate max-w-xs">{entry.notes || <span className="text-[var(--text-muted)]">—</span>}</td>
+                        <td className="px-4 py-2.5 text-body text-[var(--text-secondary)] truncate max-w-xs">{entry.notes || <span className="text-[var(--text-tertiary)]">—</span>}</td>
                         <td className="px-4 py-2.5 text-body text-[var(--text-secondary)] tabular">{formatDate(entry.created_at)}</td>
                         <td className="px-4 py-2.5 text-right">
-                          <button
+                          <button aria-label={`Remove ${entry.email} from the suppression list`}
                             onClick={() => confirm(
                               { title: `Let ${entry.email} back in?`, body: 'Removing them from the suppression list means campaigns can email them again.', confirmLabel: 'Remove from list' },
                               () => removeMut.mutate(entry.email),
                             )}
-                            className="icon-btn opacity-0 group-hover:opacity-100 hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
+                            className="icon-btn opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
                           >
                             <Trash2 className="h-3 w-3" />
                           </button>
@@ -309,8 +311,8 @@ export function SuppressionPage() {
           <form id="suppress-add-form" onSubmit={(e) => { e.preventDefault(); addMut.mutate(); }} className="space-y-4">
             <Input label="Email address" type="email" autoFocus value={addEmail} onChange={(e) => setAddEmail(e.target.value)} placeholder="user@example.com" />
             <div className="space-y-1">
-              <label className="block text-body font-medium text-[var(--text-secondary)]">Reason</label>
-              <select value={addReason} onChange={(e) => setAddReason(e.target.value)} className={SELECT_CLS}>
+              <label htmlFor="suppress-add-reason" className="block text-body font-medium text-[var(--text-secondary)]">Reason</label>
+              <select id="suppress-add-reason" value={addReason} onChange={(e) => setAddReason(e.target.value)} className={SELECT_CLS}>
                 <option value="manual">Manual</option>
                 <option value="unsubscribed">Unsubscribed</option>
                 <option value="bounced">Bounced</option>
@@ -341,8 +343,9 @@ export function SuppressionPage() {
         >
           <form id="suppress-bulk-form" onSubmit={(e) => { e.preventDefault(); suppressBulk(); }} className="space-y-4">
             <div className="space-y-1">
-              <label className="block text-body font-medium text-[var(--text-secondary)]">Email addresses</label>
+              <label htmlFor="suppress-bulk-emails" className="block text-body font-medium text-[var(--text-secondary)]">Email addresses</label>
               <textarea
+                id="suppress-bulk-emails"
                 value={bulkText}
                 onChange={(e) => setBulkText(e.target.value)}
                 rows={8}
@@ -352,8 +355,8 @@ export function SuppressionPage() {
               />
             </div>
             <div className="space-y-1">
-              <label className="block text-body font-medium text-[var(--text-secondary)]">Reason</label>
-              <select value={addReason} onChange={(e) => setAddReason(e.target.value)} className={SELECT_CLS}>
+              <label htmlFor="suppress-bulk-reason" className="block text-body font-medium text-[var(--text-secondary)]">Reason</label>
+              <select id="suppress-bulk-reason" value={addReason} onChange={(e) => setAddReason(e.target.value)} className={SELECT_CLS}>
                 <option value="manual">Manual</option>
                 <option value="unsubscribed">Unsubscribed</option>
                 <option value="bounced">Bounced</option>

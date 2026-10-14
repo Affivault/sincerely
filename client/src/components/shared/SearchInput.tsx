@@ -26,9 +26,9 @@ export function SearchInput({ value, onChange, placeholder = 'Search…', classN
       {/* In the magnifier's place, not beside it - the box must not change
           width or reflow on every keystroke. */}
       {busy
-        ? <Loader2 className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-[var(--indigo)] pointer-events-none" data-search-busy />
+        ? <Loader2 className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-[var(--indigo-text)] pointer-events-none" data-search-busy />
         : <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />}
-      <input
+      <input aria-label={placeholder}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -36,9 +36,9 @@ export function SearchInput({ value, onChange, placeholder = 'Search…', classN
         className="h-8 w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] pl-8 pr-7 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow] duration-150"
       />
       {value && (
-        <button
+        <button aria-label="Clear search"
           onClick={() => onChange('')}
-          className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center h-4 w-4 rounded text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+          className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center h-4 w-4 rounded after:absolute after:-inset-1.5 after:content-[''] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
         >
           <X className="h-3 w-3" />
         </button>

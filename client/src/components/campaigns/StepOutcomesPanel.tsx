@@ -56,9 +56,9 @@ export function StepOutcomesPanel({ campaignId }: { campaignId: string }) {
   return (
     <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="flex items-center gap-1.5 text-strong font-semibold text-[var(--text-primary)]">
-          <CalendarCheck className="h-4 w-4 text-[var(--indigo)]" /> What each step books
-        </h3>
+        <h2 className="flex items-center gap-1.5 text-strong font-semibold text-[var(--text-primary)]">
+          <CalendarCheck className="h-4 w-4 text-[var(--indigo-text)]" /> What each step books
+        </h2>
         <p className="text-caption text-[var(--text-tertiary)]">{data.headline}</p>
       </div>
       <ul className="space-y-3">

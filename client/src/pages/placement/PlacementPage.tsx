@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useId } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -180,7 +180,7 @@ function TestDetail({ detail, onRefresh, refreshing }: {
 
       {advice && (
         <div className="flex items-start gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 px-4 py-3">
-          <Info className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--indigo)]" />
+          <Info className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--indigo-text)]" />
           <p className="text-body leading-relaxed text-[var(--text-secondary)]" data-placement-advice>{advice}</p>
         </div>
       )}
@@ -188,7 +188,7 @@ function TestDetail({ detail, onRefresh, refreshing }: {
       {groups.length > 1 && (
         <section className="panel overflow-hidden">
           <div className="border-b border-[var(--border-subtle)] px-4 py-3">
-            <h3 className="text-strong font-semibold text-[var(--text-primary)]">By provider</h3>
+            <h2 className="text-strong font-semibold text-[var(--text-primary)]">By provider</h2>
             <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
               Filtering is decided per provider, so one bad result here is a finding rather than an average.
             </p>
@@ -204,7 +204,7 @@ function TestDetail({ detail, onRefresh, refreshing }: {
       <section className="panel overflow-hidden">
         <div className="flex items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-3">
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-strong font-semibold text-[var(--text-primary)]">{detail.test.subject}</h3>
+            <h2 className="truncate text-strong font-semibold text-[var(--text-primary)]">{detail.test.subject}</h2>
             <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
               Sent {formatDayMonthTime(detail.test.started_at)}
               {detail.test.completed_at ? ' · finished' : ''}
@@ -236,6 +236,7 @@ function TestDetail({ detail, onRefresh, refreshing }: {
 function StartTestModal({ open, onClose, seeds }: {
   open: boolean; onClose: () => void; seeds: PlacementSeed[];
 }) {
+  const a11yId = useId();
   const queryClient = useQueryClient();
   const [senderId, setSenderId] = useState('');
   const [campaignId, setCampaignId] = useState('');
@@ -343,8 +344,8 @@ function StartTestModal({ open, onClose, seeds }: {
 
           {!stepId && (
             <div className="mt-3">
-              <label className="mb-1 block text-body font-medium text-[var(--text-secondary)]">Subject line</label>
-              <input
+              <label htmlFor={`${a11yId}-f1`} className="mb-1 block text-body font-medium text-[var(--text-secondary)]">Subject line</label>
+              <input id={`${a11yId}-f1`}
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder="The subject you would actually send"
@@ -386,7 +387,7 @@ function SeedPanel({ seeds }: { seeds: PlacementSeed[] }) {
   return (
     <section className="panel overflow-hidden">
       <div className="border-b border-[var(--border-subtle)] px-4 py-3">
-        <h3 className="text-strong font-semibold text-[var(--text-primary)]">Seed mailboxes</h3>
+        <h2 className="text-strong font-semibold text-[var(--text-primary)]">Seed mailboxes</h2>
         <p className="mt-0.5 text-caption leading-snug text-[var(--text-tertiary)]">
           Mailboxes you control, at the providers your recipients use. They receive the probes and
           never send anything.
@@ -395,11 +396,11 @@ function SeedPanel({ seeds }: { seeds: PlacementSeed[] }) {
 
       {seeds.length === 0 ? (
         <div className="px-4 py-6 text-center">
-          <Target className="mx-auto mb-2 h-5 w-5 text-[var(--text-muted)]" strokeWidth={1.5} />
+          <Target className="mx-auto mb-2 h-5 w-5 text-[var(--text-tertiary)]" strokeWidth={1.5} />
           <p className="text-body font-medium text-[var(--text-primary)]">No seed mailboxes yet</p>
           <p className="mx-auto mt-1 max-w-sm text-caption leading-relaxed text-[var(--text-tertiary)]">
             Connect a mailbox at Gmail, Outlook and Yahoo on the{' '}
-            <Link to="/email-accounts" className="font-medium text-[var(--indigo)] hover:underline">email accounts</Link>{' '}
+            <Link to="/email-accounts" className="font-medium text-[var(--indigo-text)] hover:underline">email accounts</Link>{' '}
             page, then mark it as a seed below. Each one needs an incoming (IMAP) server so it can be read back.
           </p>
         </div>
@@ -606,7 +607,7 @@ export function PlacementPage() {
           {(tests?.length || 0) > 1 && (
             <section className="panel overflow-hidden">
               <div className="border-b border-[var(--border-subtle)] px-4 py-3">
-                <h3 className="text-strong font-semibold text-[var(--text-primary)]">Earlier tests</h3>
+                <h2 className="text-strong font-semibold text-[var(--text-primary)]">Earlier tests</h2>
                 <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
                   Placement moves with your volume, your records and your copy. The trend is the point.
                 </p>
@@ -636,7 +637,7 @@ export function PlacementPage() {
                         ? `${Math.round(t.summary.inboxRate * 100)}% inbox`
                         : t.summary.pending > 0 ? 'Looking…' : '—'}
                     </span>
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" />
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]" />
                   </button>
                 ))}
               </div>
@@ -651,12 +652,12 @@ export function PlacementPage() {
 
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 px-4 py-3">
             <p className="flex items-center gap-1.5 text-body font-semibold text-[var(--text-primary)]">
-              <CheckCircle2 className="h-3.5 w-3.5 text-[var(--indigo)]" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-[var(--indigo-text)]" />
               Before you blame the copy
             </p>
             <p className="mt-1 text-caption leading-relaxed text-[var(--text-secondary)]">
               Authentication moves placement more than wording does.{' '}
-              <Link to="/domains" className="font-medium text-[var(--indigo)] hover:underline">Check SPF, DKIM and DMARC</Link>{' '}
+              <Link to="/domains" className="font-medium text-[var(--indigo-text)] hover:underline">Check SPF, DKIM and DMARC</Link>{' '}
               are all passing before rewriting anything.
             </p>
           </div>

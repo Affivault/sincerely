@@ -33,7 +33,7 @@ export const TONE: Record<Tone, ToneClasses> = {
   attention: { bg: 'bg-amber-500/15', text: 'text-amber-800 dark:text-amber-300', solid: 'bg-amber-500', icon: 'text-amber-600 dark:text-amber-400' },
   negative:  { bg: 'bg-rose-500/10', text: 'text-rose-700 dark:text-rose-300', solid: 'bg-rose-500', icon: 'text-rose-600 dark:text-rose-400' },
   info:      { bg: 'bg-sky-500/10', text: 'text-sky-700 dark:text-sky-300', solid: 'bg-sky-500', icon: 'text-sky-600 dark:text-sky-400' },
-  brand:     { bg: 'bg-[var(--indigo-subtle)]', text: 'text-[var(--indigo)]', solid: 'bg-[var(--indigo)]', icon: 'text-[var(--indigo)]' },
+  brand:     { bg: 'bg-[var(--indigo-subtle)]', text: 'text-[var(--indigo-text)]', solid: 'bg-[var(--indigo)]', icon: 'text-[var(--indigo-text)]' },
 };
 
 /** The pill: soft ground, toned text. Size and padding stay with the caller. */

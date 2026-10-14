@@ -39,7 +39,7 @@ export function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
   return (
     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-body font-medium rounded ${
       ok
-        ? 'bg-green-500/10 text-green-500'
+        ? 'bg-green-500/10 text-green-600 dark:text-green-400'
         : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
     }`}>
       {ok ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
@@ -71,6 +71,7 @@ function CopyButton({ text, title }: { text: string; title: string }) {
       onClick={handleCopy}
       className="shrink-0 p-2 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
       title={title}
+      aria-label={title}
     >
       {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
     </button>
@@ -93,7 +94,7 @@ const RECORD_STATUS_META = {
   missing: {
     border: 'border-[var(--border-subtle)]',
     icon: <XCircle className="h-4 w-4 text-rose-400" />,
-    chip: 'bg-rose-500/10 text-rose-500',
+    chip: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
     text: 'Not found',
   },
 } as const;
@@ -308,7 +309,7 @@ export function DomainDetailPanel({
 
       {subtree !== 'absent' && (
         <div className="mt-2 flex items-center gap-1.5">
-          <input
+          <input aria-label="DKIM selector"
             value={selector}
             onChange={(e) => setSelector(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') saveSelector.mutate(); }}
@@ -429,7 +430,7 @@ export function DomainDetailPanel({
       {!domain.is_verified && (
         <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 p-3.5">
           <div className="flex items-start gap-2.5">
-            <HelpCircle className="h-4 w-4 text-[var(--indigo)] mt-0.5 shrink-0" />
+            <HelpCircle className="h-4 w-4 text-[var(--indigo-text)] mt-0.5 shrink-0" />
             <div className="text-body text-[var(--text-secondary)] min-w-0">
               <p className="font-medium text-[var(--text-primary)] mb-1.5">How to finish setup</p>
               <ol className="space-y-1 list-decimal list-inside">
@@ -450,7 +451,7 @@ export function DomainDetailPanel({
       ) : records.length > 0 ? (
         <div className="space-y-2.5">
           <h4 className="text-body font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
-            <Shield className="h-3.5 w-3.5 text-[var(--indigo)]" />
+            <Shield className="h-3.5 w-3.5 text-[var(--indigo-text)]" />
             DNS records
           </h4>
           {records.map((record) => (
@@ -592,7 +593,7 @@ export function DomainsPage() {
       <Card variant="premium" padding="md" className="mb-3">
         <div className="flex items-start gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(47,63,156,0.18)] flex-shrink-0">
-            <Shield className="h-4 w-4 text-[var(--indigo)]" />
+            <Shield className="h-4 w-4 text-[var(--indigo-text)]" />
           </span>
           <div className="min-w-0">
             <p className="text-strong font-medium text-[var(--text-primary)]">Why verify your domain?</p>
@@ -623,11 +624,13 @@ export function DomainsPage() {
             <div key={domain.id} className="card overflow-hidden relative">
               <span className={cn('absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full', domain.is_verified ? 'bg-emerald-500' : 'bg-amber-500')} />
               {/* Domain row */}
-              <button
-                onClick={() => setExpandedId(expandedId === domain.id ? null : domain.id)}
-                className="w-full flex items-center justify-between p-3.5 hover:bg-[var(--bg-hover)] transition-colors text-left"
-              >
-                <div className="flex items-center gap-3 min-w-0">
+              <div className="w-full flex items-center justify-between hover:bg-[var(--bg-hover)] transition-colors">
+                <button
+                  type="button"
+                  aria-expanded={expandedId === domain.id}
+                  onClick={() => setExpandedId(expandedId === domain.id ? null : domain.id)}
+                  className="flex flex-1 items-center gap-3 min-w-0 p-3.5 pr-0 text-left"
+                >
                   <span className={cn(
                     'flex items-center justify-center w-9 h-9 rounded-xl flex-shrink-0',
                     domain.is_verified
@@ -637,12 +640,12 @@ export function DomainsPage() {
                     {domain.is_verified ? (
                       <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                     ) : (
-                      <Globe className="h-4 w-4 text-[var(--indigo)]" />
+                      <Globe className="h-4 w-4 text-[var(--indigo-text)]" />
                     )}
                   </span>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <h3 className="text-heading font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">{domain.domain}</h3>
+                      <h2 className="text-heading font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">{domain.domain}</h2>
                       {domain.is_verified ? (
                         <span className="inline-flex items-center gap-1 px-1.5 h-[18px] text-micro font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded">
                           Verified
@@ -663,11 +666,10 @@ export function DomainsPage() {
                       <StatusBadge ok={domain.dmarc_ok} label="DMARC" />
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
+                </button>
+                <div className="flex items-center gap-1.5 flex-shrink-0 p-3.5 pl-2">
+                  <button aria-label="Remove domain"
+                    onClick={() => {
                       confirm(
                         { title: `Remove ${domain.domain}?`, body: 'Sincerely stops tracking its DNS records. The records themselves stay at your registrar.', tone: 'danger', confirmLabel: 'Remove' },
                         () => deleteMutation.mutate(domain.id),
@@ -677,13 +679,21 @@ export function DomainsPage() {
                   >
                     <Trash2 className="h-3 w-3" />
                   </button>
-                  {expandedId === domain.id ? (
-                    <ChevronDown className="h-4 w-4 text-[var(--text-tertiary)]" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-[var(--text-tertiary)]" />
-                  )}
+                  {/* Mouse convenience only: the row button on the left is the keyboard/AT control. */}
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    onClick={() => setExpandedId(expandedId === domain.id ? null : domain.id)}
+                  >
+                    {expandedId === domain.id ? (
+                      <ChevronDown className="h-4 w-4 text-[var(--text-tertiary)]" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-[var(--text-tertiary)]" />
+                    )}
+                  </button>
                 </div>
-              </button>
+              </div>
 
               {/* Expanded detail */}
               {expandedId === domain.id && (

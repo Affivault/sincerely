@@ -234,7 +234,7 @@ function Group({ icon: Icon, title, subtitle, children }: {
     <div>
       <div className="mb-2 flex items-baseline gap-1.5">
         <Icon className="h-3 w-3 translate-y-px text-[var(--text-tertiary)]" />
-        <h4 className="text-caption font-semibold text-[var(--text-secondary)]">{title}</h4>
+        <h3 className="text-caption font-semibold text-[var(--text-secondary)]">{title}</h3>
         {subtitle && <span className="text-caption text-[var(--text-tertiary)]">{subtitle}</span>}
       </div>
       {children}
@@ -276,12 +276,12 @@ function DiagLeg({ title, diag, relayHealthy }: {
             <span className="mt-px flex-shrink-0">
               {s.status === 'ok' && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
               {s.status === 'fail' && <XCircle className="h-3.5 w-3.5 text-rose-500" />}
-              {s.status === 'skipped' && <MinusCircle className="h-3.5 w-3.5 text-[var(--text-muted)]" />}
+              {s.status === 'skipped' && <MinusCircle className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />}
             </span>
             <span className="min-w-0">
               <span className={cn('font-medium', s.status === 'fail' ? 'text-rose-600 dark:text-rose-400' : 'text-[var(--text-primary)]')}>{s.label}</span>
               <span className="text-[var(--text-secondary)]"> — {s.detail}</span>
-              {s.ms != null && <span className="text-[var(--text-muted)]"> ({s.ms}ms)</span>}
+              {s.ms != null && <span className="text-[var(--text-tertiary)]"> ({s.ms}ms)</span>}
             </span>
           </li>
         ))}
@@ -319,7 +319,7 @@ function Stepper({ step }: { step: WizardStep }) {
               'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-micro font-bold transition-colors',
               done ? 'bg-emerald-500 text-white'
                 : current ? 'bg-[var(--indigo)] text-white ring-4 ring-[var(--indigo-subtle)]'
-                : 'border border-[var(--border-default)] text-[var(--text-muted)]',
+                : 'border border-[var(--border-default)] text-[var(--text-tertiary)]',
             )}>
               {done ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : i + 1}
             </span>
@@ -337,10 +337,10 @@ function CheckLine({ state, label, detail }: { state: 'waiting' | 'running' | 'o
   return (
     <li className="flex items-start gap-3 py-2">
       <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center">
-        {state === 'running' && <Loader2 className="h-4 w-4 animate-spin text-[var(--indigo)]" />}
+        {state === 'running' && <Loader2 className="h-4 w-4 animate-spin text-[var(--indigo-text)]" />}
         {state === 'ok' && <CheckCircle2 className="h-5 w-5 text-emerald-500" />}
         {state === 'fail' && <XCircle className="h-5 w-5 text-rose-500" />}
-        {state === 'skipped' && <MinusCircle className="h-5 w-5 text-[var(--text-muted)]" />}
+        {state === 'skipped' && <MinusCircle className="h-5 w-5 text-[var(--text-tertiary)]" />}
         {state === 'waiting' && <span className="h-2 w-2 rounded-full bg-[var(--border-strong)]" />}
       </span>
       <span className="min-w-0">
@@ -940,7 +940,6 @@ export function SmtpAccountModal({
       <button
         type="button"
         onClick={() => setShowPass((v) => !v)}
-        tabIndex={-1}
         aria-label={showPass ? 'Hide password' : 'Show password'}
         className="absolute right-2.5 top-[27px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
       >
@@ -973,7 +972,7 @@ export function SmtpAccountModal({
         Send replies to a different address
       </button>
       {replyToOn && (
-        <Input className="mt-2" type="email" value={form.reply_to || ''} onChange={(e) => updateField('reply_to', e.target.value)} placeholder="replies@company.com" hint="Replies are directed here instead of your From address" />
+        <Input aria-label="Reply-to address" className="mt-2" type="email" value={form.reply_to || ''} onChange={(e) => updateField('reply_to', e.target.value)} placeholder="replies@company.com" hint="Replies are directed here instead of your From address" />
       )}
     </>
   );
@@ -1039,7 +1038,7 @@ export function SmtpAccountModal({
               <button
                 type="button"
                 onClick={() => setUserEdited(true)}
-                className="mt-0.5 text-caption font-semibold text-[var(--indigo)] hover:underline"
+                className="mt-0.5 text-caption font-semibold text-[var(--indigo-text)] hover:underline"
                 data-override-login
               >
                 Use a different username
@@ -1085,6 +1084,7 @@ export function SmtpAccountModal({
     <Group icon={Gauge} title="Daily limit" subtitle="real campaign sends from this mailbox">
       <div className="grid grid-cols-2 gap-3">
         <Input
+          aria-label="Daily send limit"
           type="number"
           min={0}
           placeholder="0 = unlimited"
@@ -1147,7 +1147,7 @@ export function SmtpAccountModal({
       <button
         type="button"
         onClick={() => { setUserEdited(false); updateField('smtp_user', form.email_address); }}
-        className="mt-1.5 text-caption font-semibold text-[var(--indigo)] hover:underline"
+        className="mt-1.5 text-caption font-semibold text-[var(--indigo-text)] hover:underline"
         data-fix-sender
       >
         Sign in as {form.email_address} instead
@@ -1172,7 +1172,7 @@ export function SmtpAccountModal({
           type="button"
           onClick={() => diagnoseMutation.mutate()}
           disabled={diagnoseMutation.isPending}
-          className="inline-flex items-center gap-1.5 text-caption font-semibold text-[var(--indigo)] hover:underline disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 text-caption font-semibold text-[var(--indigo-text)] hover:underline disabled:opacity-60"
           data-run-diagnostics
         >
           {diagnoseMutation.isPending
@@ -1185,7 +1185,7 @@ export function SmtpAccountModal({
       {diagnostics && (
         <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 p-3.5 space-y-3">
           <div className="flex items-center gap-1.5">
-            <Stethoscope className="h-3.5 w-3.5 text-[var(--indigo)]" />
+            <Stethoscope className="h-3.5 w-3.5 text-[var(--indigo-text)]" />
             <p className="text-body font-semibold text-[var(--text-primary)]">Diagnosis</p>
             <span className="flex-1" />
             <button type="button" onClick={() => setDiagnostics(null)} className="text-caption text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">
@@ -1210,7 +1210,7 @@ export function SmtpAccountModal({
                 <p className="text-body font-medium text-[var(--text-primary)]">Receiving (IMAP) — nothing to test</p>
                 <p className="text-caption text-[var(--text-secondary)] mt-1 leading-relaxed">
                   No IMAP server is set on this mailbox, so replies cannot sync into the unibox.
-                  <button type="button" onClick={() => { reveal('servers'); if (wizard) setStep('signin'); }} className="ml-1 font-medium text-[var(--indigo)] hover:underline">
+                  <button type="button" onClick={() => { reveal('servers'); if (wizard) setStep('signin'); }} className="ml-1 font-medium text-[var(--indigo-text)] hover:underline">
                     Add one under Servers.
                   </button>
                 </p>
@@ -1253,7 +1253,7 @@ export function SmtpAccountModal({
           )}
           {!autoDetected && mxState.status === 'done' && mxState.note && (
             <p className="flex items-start gap-1.5 text-caption text-[var(--text-secondary)]">
-              <Sparkles className="mt-px h-3 w-3 shrink-0 text-[var(--indigo)]" /> {mxState.note}
+              <Sparkles className="mt-px h-3 w-3 shrink-0 text-[var(--indigo-text)]" /> {mxState.note}
             </p>
           )}
         </div>
@@ -1282,19 +1282,20 @@ export function SmtpAccountModal({
                 <span className="min-w-0 truncate text-body font-medium text-[var(--text-primary)]">
                   {name === 'Outlook / Microsoft 365' ? 'Microsoft' : name.replace(' Mail', '')}
                 </span>
-                {on && <Check className="ml-auto h-3.5 w-3.5 flex-shrink-0 text-[var(--indigo)]" strokeWidth={3} />}
+                {on && <Check className="ml-auto h-3.5 w-3.5 flex-shrink-0 text-[var(--indigo-text)]" strokeWidth={3} />}
               </button>
             );
           })}
         </div>
         <div className="mt-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-          <div className="flex items-center gap-2 px-3 h-9 border-b border-[var(--border-subtle)]">
+          <div className="flex items-center gap-2 px-3 h-9 border-b border-[var(--border-subtle)] focus-within:shadow-[inset_0_-2px_0_var(--indigo)]">
             <Search className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
             <input
+              aria-label="Search other providers"
               value={providerSearch}
               onChange={(e) => setProviderSearch(e.target.value)}
               placeholder="Other providers - SendGrid, Mailgun, Titan, Spacemail…"
-              className="flex-1 bg-transparent text-body text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none"
+              className="flex-1 bg-transparent text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none"
             />
           </div>
           <div className="flex flex-wrap gap-1.5 p-2">
@@ -1306,7 +1307,7 @@ export function SmtpAccountModal({
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-caption font-medium transition-colors',
                   activePreset?.name === p.name
-                    ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                    ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
                     : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
                 )}
               >
@@ -1318,7 +1319,7 @@ export function SmtpAccountModal({
               onClick={() => { applyPreset(''); reveal('servers'); }}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-caption font-medium transition-colors',
-                !activePreset ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'border-dashed border-[var(--border-default)] text-[var(--text-secondary)]',
+                !activePreset ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' : 'border-dashed border-[var(--border-default)] text-[var(--text-secondary)]',
               )}
             >
               <Server className="h-3.5 w-3.5" /> Any other server (IMAP/SMTP)
@@ -1340,7 +1341,7 @@ export function SmtpAccountModal({
           <p className="truncate text-body font-semibold text-[var(--text-primary)]">{form.email_address}</p>
           <p className="text-caption text-[var(--text-tertiary)]">{activePreset ? activePreset.name : 'Custom mail server'}</p>
         </div>
-        <button type="button" onClick={() => setStep('address')} className="text-caption font-medium text-[var(--indigo)] hover:underline">Change</button>
+        <button type="button" onClick={() => setStep('address')} className="text-caption font-medium text-[var(--indigo-text)] hover:underline">Change</button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
@@ -1350,18 +1351,18 @@ export function SmtpAccountModal({
         </div>
         <div className="rounded-xl border border-[var(--indigo)]/15 bg-[var(--indigo-subtle)]/40 p-3.5">
           <p className="flex items-center gap-1.5 text-caption font-semibold text-[var(--text-primary)]">
-            <KeyRound className="h-3.5 w-3.5 text-[var(--indigo)]" /> Getting your {guide.secret.toLowerCase()}
+            <KeyRound className="h-3.5 w-3.5 text-[var(--indigo-text)]" /> Getting your {guide.secret.toLowerCase()}
           </p>
           <ol className="mt-2 space-y-1.5">
             {guide.steps.map((s, i) => (
               <li key={i} className="flex gap-2 text-caption leading-snug text-[var(--text-secondary)]">
-                <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[var(--bg-surface)] text-micro font-bold text-[var(--indigo)]">{i + 1}</span>
+                <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[var(--bg-surface)] text-micro font-bold text-[var(--indigo-text)]">{i + 1}</span>
                 {s}
               </li>
             ))}
           </ol>
           {guide.link && (
-            <a href={guide.link.url} target="_blank" rel="noreferrer" className="mt-2.5 inline-flex items-center gap-1 text-caption font-semibold text-[var(--indigo)] hover:underline">
+            <a href={guide.link.url} target="_blank" rel="noreferrer" className="mt-2.5 inline-flex items-center gap-1 text-caption font-semibold text-[var(--indigo-text)] hover:underline">
               {guide.link.label} <ExternalLink className="h-3 w-3" />
             </a>
           )}
@@ -1494,7 +1495,7 @@ export function SmtpAccountModal({
       </div>
 
       <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-        <button type="button" onClick={() => setSigOpen((v) => !v)} className="flex w-full items-center gap-2 px-3.5 py-3 text-left">
+        <button type="button" aria-expanded={sigOpen} onClick={() => setSigOpen((v) => !v)} className="flex w-full items-center gap-2 px-3.5 py-3 text-left">
           <Signature className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
           <span className="flex-1 text-body font-semibold text-[var(--text-primary)]">Add a signature <span className="font-normal text-[var(--text-tertiary)]">- optional</span></span>
           <ChevronDown className={cn('h-4 w-4 text-[var(--text-tertiary)] transition-transform', sigOpen && 'rotate-180')} />

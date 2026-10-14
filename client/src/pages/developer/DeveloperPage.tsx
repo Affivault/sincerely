@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useId } from 'react';
 import { usePendingRemoval } from '../../components/ui/UndoBar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { webhookApi } from '../../api/webhook.api';
@@ -56,6 +56,7 @@ function tabFromUrl(): Tab {
 }
 
 export function DeveloperPage() {
+  const a11yId = useId();
   const confirm = useConfirm();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>(tabFromUrl);
@@ -344,15 +345,15 @@ export function DeveloperPage() {
           {revealedSecret && (
             <div className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-default)] p-4 space-y-2">
               <div className="flex items-center justify-between">
-                <h3 className="text-strong font-medium text-[var(--text-primary)]">Signing secret for "{revealedSecret.label}"</h3>
-                <button onClick={() => setRevealedSecret(null)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X className="h-4 w-4" /></button>
+                <h2 className="text-strong font-medium text-[var(--text-primary)]">Signing secret for "{revealedSecret.label}"</h2>
+                <button aria-label="Dismiss" onClick={() => setRevealedSecret(null)} className="relative text-[var(--text-secondary)] hover:text-[var(--text-primary)] after:absolute after:-inset-1 after:content-['']"><X className="h-4 w-4" /></button>
               </div>
               <p className="text-body text-[var(--text-tertiary)]">
                 Copy this now — it won't be shown again. Use it to verify the <code>X-Sincerely-Signature</code> header on incoming deliveries.
               </p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 rounded bg-[var(--bg-surface)] px-3 py-2 text-strong font-mono text-[var(--text-primary)] break-all">{revealedSecret.secret}</code>
-                <button
+                <button aria-label="Copy signing secret"
                   onClick={() => {
                     navigator.clipboard.writeText(revealedSecret.secret)
                       .then(() => toast.success('Copied!'))
@@ -369,21 +370,21 @@ export function DeveloperPage() {
           {showCreateWebhook && (
             <div className="rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)] p-4 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-strong font-medium text-[var(--text-primary)]">New webhook endpoint</h3>
-                <button onClick={() => setShowCreateWebhook(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X className="h-4 w-4" /></button>
+                <h2 className="text-strong font-medium text-[var(--text-primary)]">New webhook endpoint</h2>
+                <button aria-label="Close" onClick={() => setShowCreateWebhook(false)} className="relative text-[var(--text-secondary)] hover:text-[var(--text-primary)] after:absolute after:-inset-1 after:content-['']"><X className="h-4 w-4" /></button>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-body text-[var(--text-tertiary)] mb-1 block">Endpoint URL</label>
-                  <input type="url" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} placeholder="https://your-server.com/webhook" className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--text-primary)]" />
+                  <label htmlFor={`${a11yId}-f1`} className="text-body text-[var(--text-tertiary)] mb-1 block">Endpoint URL</label>
+                  <input id={`${a11yId}-f1`} type="url" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} placeholder="https://your-server.com/webhook" className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--text-primary)]" />
                 </div>
                 <div>
-                  <label className="text-body text-[var(--text-tertiary)] mb-1 block">Label</label>
-                  <input type="text" value={webhookLabel} onChange={(e) => setWebhookLabel(e.target.value)} placeholder="My CRM Integration" className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--text-primary)]" />
+                  <label htmlFor={`${a11yId}-f2`} className="text-body text-[var(--text-tertiary)] mb-1 block">Label</label>
+                  <input id={`${a11yId}-f2`} type="text" value={webhookLabel} onChange={(e) => setWebhookLabel(e.target.value)} placeholder="My CRM Integration" className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--text-primary)]" />
                 </div>
               </div>
               <div>
-                <label className="text-body text-[var(--text-tertiary)] mb-2 block">Subscribe to events</label>
+                <span className="text-body text-[var(--text-tertiary)] mb-2 block">Subscribe to events</span>
                 <div className="space-y-3">
                   {Object.entries(EVENT_CATEGORIES).map(([category, events]) => (
                     <div key={category}>
@@ -395,7 +396,7 @@ export function DeveloperPage() {
                             onClick={() => toggleEvent(event)}
                             className={cn(
                               'rounded border px-2.5 py-1 text-body transition-all',
-                              webhookEvents.includes(event) ? 'bg-[rgba(47,63,156,0.1)] border-[var(--indigo)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                              webhookEvents.includes(event) ? 'bg-[rgba(47,63,156,0.1)] border-[var(--indigo)] text-[var(--indigo-text)]' : 'bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                             )}
                           >
                             {event}
@@ -437,7 +438,7 @@ export function DeveloperPage() {
                     <div className={cn('h-2.5 w-2.5 rounded-full', ep.is_active ? 'bg-[var(--indigo)]' : 'bg-[var(--text-tertiary)]')} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <h4 className="text-strong font-medium text-[var(--text-primary)]">{ep.label}</h4>
+                        <h3 className="text-strong font-medium text-[var(--text-primary)]">{ep.label}</h3>
                         {lastDelivery && (
                           <span
                             className={cn(
@@ -485,7 +486,7 @@ export function DeveloperPage() {
                     </button>
                     <button
                       onClick={() => gone.remove(ep.id, `Deleted the "${ep.label}" webhook`, () => deleteEndpointMutation.mutateAsync(ep.id))}
-                      title="Delete webhook"
+                      title="Delete webhook" aria-label="Delete webhook"
                       className="icon-btn hover:text-rose-500 hover:bg-rose-500/10"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -497,7 +498,7 @@ export function DeveloperPage() {
                         <p className="text-body text-[var(--text-tertiary)] text-center py-2">No deliveries yet</p>
                       ) : deliveries.map((d) => (
                         <div key={d.id} className="flex items-center gap-3 text-body">
-                          {d.success ? <CheckCircle2 className="h-3.5 w-3.5 text-[var(--indigo)] shrink-0" /> : <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />}
+                          {d.success ? <CheckCircle2 className="h-3.5 w-3.5 text-[var(--indigo-text)] shrink-0" /> : <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />}
                           <span className="text-[var(--text-secondary)] font-mono shrink-0">{d.event_type}</span>
                           <span className="text-[var(--text-tertiary)] shrink-0">{d.status_code || 'ERR'}</span>
                           {/* The status code alone never said why — only the log
@@ -540,7 +541,7 @@ export function DeveloperPage() {
           {extensionPresent && (
             <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 flex items-center justify-between gap-4">
               <div>
-                <h3 className="text-strong font-medium text-[var(--text-primary)]">Chrome extension</h3>
+                <h2 className="text-strong font-medium text-[var(--text-primary)]">Chrome extension</h2>
                 <p className="text-strong text-[var(--text-secondary)] mt-0.5">
                   {extensionConnected
                     ? 'Connected. It can add and remove people from your campaigns.'
@@ -585,20 +586,20 @@ export function DeveloperPage() {
             <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 space-y-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-2">
-                  <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--indigo)]" />
+                  <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--indigo-text)]" />
                   <div>
-                    <h3 className="text-strong font-medium text-[var(--text-primary)]">
+                    <h2 className="text-strong font-medium text-[var(--text-primary)]">
                       Connecting the Chrome extension
-                    </h3>
+                    </h2>
                     <p className="mt-0.5 text-strong text-[var(--text-secondary)]">
                       An API key is a password the extension uses to prove it's you. You create it
                       here — it isn't something you get from anywhere else.
                     </p>
                   </div>
                 </div>
-                <button
+                <button aria-label="Close"
                   onClick={() => setShowConnectHelp(false)}
-                  className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  className="relative text-[var(--text-secondary)] hover:text-[var(--text-primary)] after:absolute after:-inset-1 after:content-['']"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -655,7 +656,7 @@ export function DeveloperPage() {
           {newRawKey && (
             <div className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-default)] p-4 space-y-2">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-[var(--indigo)]" />
+                <CheckCircle2 className="h-4 w-4 text-[var(--indigo-text)]" />
                 <span className="text-strong font-medium text-[var(--text-primary)]">
                   {newKeyName ? `"${newKeyName}" is ready.` : 'API key ready.'} Copy it now — it is
                   stored hashed and cannot be shown again.
@@ -665,10 +666,10 @@ export function DeveloperPage() {
                 <code className={cn('flex-1 rounded bg-[var(--bg-elevated)] px-3 py-2 text-strong font-mono', showKey ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]')}>
                   {showKey ? newRawKey : newRawKey.substring(0, 16) + '••••••••••••••••'}
                 </code>
-                <button onClick={() => setShowKey(!showKey)} className="p-2 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                <button aria-label={showKey ? 'Hide API key' : 'Show API key'} aria-pressed={showKey} onClick={() => setShowKey(!showKey)} className="p-2 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
                   {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
-                <button
+                <button aria-label="Copy API key"
                   onClick={() => {
                     navigator.clipboard.writeText(newRawKey)
                       .then(() => toast.success('Copied!'))
@@ -694,17 +695,17 @@ export function DeveloperPage() {
           {showCreateKey && !newRawKey && (
             <div className="rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)] p-4 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-strong font-medium text-[var(--text-primary)]">New API Key</h3>
-                <button onClick={() => setShowCreateKey(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X className="h-4 w-4" /></button>
+                <h2 className="text-strong font-medium text-[var(--text-primary)]">New API Key</h2>
+                <button aria-label="Close" onClick={() => setShowCreateKey(false)} className="relative text-[var(--text-secondary)] hover:text-[var(--text-primary)] after:absolute after:-inset-1 after:content-['']"><X className="h-4 w-4" /></button>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-body text-[var(--text-tertiary)] mb-1 block">Key name</label>
-                  <input type="text" value={keyName} onChange={(e) => setKeyName(e.target.value)} placeholder="e.g. Production CRM" className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--text-primary)]" />
+                  <label htmlFor={`${a11yId}-f3`} className="text-body text-[var(--text-tertiary)] mb-1 block">Key name</label>
+                  <input id={`${a11yId}-f3`} type="text" value={keyName} onChange={(e) => setKeyName(e.target.value)} placeholder="e.g. Production CRM" className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--text-primary)]" />
                 </div>
                 <div>
-                  <label className="text-body text-[var(--text-tertiary)] mb-1 block">Rate limit (requests/min)</label>
-                  <input
+                  <label htmlFor={`${a11yId}-f4`} className="text-body text-[var(--text-tertiary)] mb-1 block">Rate limit (requests/min)</label>
+                  <input id={`${a11yId}-f4`}
                     type="number"
                     min={1}
                     max={10000}
@@ -752,7 +753,7 @@ export function DeveloperPage() {
                     <Key className={cn('h-4 w-4', key.is_active ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]')} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-strong font-medium text-[var(--text-primary)]">{key.name}</h4>
+                    <h3 className="text-strong font-medium text-[var(--text-primary)]">{key.name}</h3>
                     <p className="text-body text-[var(--text-tertiary)] font-mono">{key.key_prefix}••••••••</p>
                   </div>
                   <div className="text-right">
@@ -792,7 +793,7 @@ export function DeveloperPage() {
                       <Shield className="h-3 w-3" /> Revoke
                     </button>
                   )}
-                  <button
+                  <button aria-label="Delete API key"
                     onClick={() => confirm(
                       { title: `Delete "${key.name}"?`, body: 'The key record and its usage history are removed for good.', tone: 'danger' },
                       () => deleteKeyMutation.mutate(key.id),

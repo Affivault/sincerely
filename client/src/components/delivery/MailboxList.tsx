@@ -171,7 +171,7 @@ function Row({
                     'inline-flex h-[18px] flex-shrink-0 items-center self-center rounded px-1.5 text-micro font-bold',
                     pilot === 'resting' ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
                       : pilot === 'slowed' ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                        : 'bg-[var(--indigo-subtle)] text-[var(--indigo)]',
+                        : 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]',
                   )}
                   title={account.autopilot_reason || undefined}
                   data-autopilot-pill={pilot}
@@ -196,24 +196,24 @@ function Row({
           <span className="hidden flex-shrink-0 items-center gap-5 text-right sm:flex">
             <span className="w-16">
               <span className="block text-body tabular text-[var(--text-secondary)]">
-                {account.sends_today}<span className="text-[var(--text-muted)]">/{allowance.sendable ? formatDailyLimit(limit) : '0'}</span>
+                {account.sends_today}<span className="text-[var(--text-tertiary)]">/{allowance.sendable ? formatDailyLimit(limit) : '0'}</span>
               </span>
-              <span className="block text-micro text-[var(--text-muted)]">today</span>
+              <span className="block text-micro text-[var(--text-tertiary)]">today</span>
             </span>
             <span className="w-14">
               {score === null ? (
-                <span className="block text-body text-[var(--text-muted)]">—</span>
+                <span className="block text-body text-[var(--text-tertiary)]">—</span>
               ) : (
                 <span className={cn(
                   'block text-body tabular font-medium',
                   score >= 80 ? 'text-[var(--text-secondary)]' : 'text-amber-600 dark:text-amber-400',
                 )}>{score}%</span>
               )}
-              <span className="block text-micro text-[var(--text-muted)]">health</span>
+              <span className="block text-micro text-[var(--text-tertiary)]">health</span>
             </span>
           </span>
 
-          <ChevronRight className="h-4 w-4 flex-shrink-0 text-[var(--text-muted)]" />
+          <ChevronRight className="h-4 w-4 flex-shrink-0 text-[var(--text-tertiary)]" />
         </button>
 
         {/*

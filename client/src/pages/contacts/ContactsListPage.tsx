@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import Papa from 'papaparse';
 import { useDebounce } from '../../hooks/useDebounce';
+import { usePopover } from '../../hooks/usePopover';
+import { useAriaSort } from '../../components/table/TableParts';
 import { contactsApi, listsApi, tagsApi } from '../../api/contacts.api';
 import { UNLISTED_LIST_ID, UNLISTED_LIST_NAME, LIFECYCLE_LABEL, formatDate, plural, websiteFromEmail } from '@lemlist/shared';
 import type { Lifecycle, ListKind } from '@lemlist/shared';
@@ -105,10 +107,14 @@ function SortableHeader({
   onSort: (k: ContactSortKey) => void;
 }) {
   const active = sortBy === colKey;
+  const ref = useRef<HTMLButtonElement>(null);
+  useAriaSort(ref, active, sortDir);
   return (
     <button
+      ref={ref}
+      type="button"
       onClick={() => onSort(colKey)}
-      className={`flex items-center gap-1 group/sort transition-colors ${active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
+      className={`flex min-h-6 -my-1 items-center gap-1 group/sort transition-colors ${active ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
     >
       <span className="text-caption font-medium">{label}</span>
       {active
@@ -158,7 +164,7 @@ function tintFor(str: string): string {
  */
 function CompanyCell({ company, website, email }: { company?: string | null; website?: string | null; email?: string | null }) {
   const [logoFailed, setLogoFailed] = useState(false);
-  if (!company) return <span className="text-body text-[var(--text-muted)]">—</span>;
+  if (!company) return <span className="text-body text-[var(--text-tertiary)]">—</span>;
   const tint = tintFor(company);
   const initials = company.trim().slice(0, 2).toUpperCase();
   const domain = logoDomain(website, email);
@@ -200,7 +206,7 @@ function CopyableEmail({ email }: { email: string }) {
   return (
     <span className="group/email inline-flex items-center gap-1.5 min-w-0">
       <span className="text-body text-[var(--text-secondary)] truncate">{email}</span>
-      <button
+      <button aria-label="Copy email"
         type="button"
         title="Copy email"
         onClick={(e) => {
@@ -211,7 +217,7 @@ function CopyableEmail({ email }: { email: string }) {
             setTimeout(() => setCopied(false), 1200);
           }).catch(() => toast.error('Could not copy email'));
         }}
-        className="flex-shrink-0 p-1 rounded-md text-[var(--text-tertiary)] opacity-0 group-hover/email:opacity-100 hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)] transition-all"
+        className="flex-shrink-0 p-1 rounded-md text-[var(--text-tertiary)] opacity-0 group-hover/email:opacity-100 focus-visible:opacity-100 group-focus-within/email:opacity-100 hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)] transition-all"
       >
         {copied ? <Check className="h-3 w-3 text-[var(--success)]" /> : <Copy className="h-3 w-3" />}
       </button>
@@ -241,19 +247,19 @@ function HealthCell({ c }: { c: any }) {
       {c.dcs_score}
     </span>
   );
-  return <span className="text-caption text-[var(--text-muted)]">—</span>;
+  return <span className="text-caption text-[var(--text-tertiary)]">—</span>;
 }
 
 const TextCell = ({ v }: { v?: string | null; mono?: boolean }) =>
   v ? <span className="text-body text-[var(--text-secondary)] truncate">{v}</span>
-    : <span className="text-body text-[var(--text-muted)]">—</span>;
+    : <span className="text-body text-[var(--text-tertiary)]">—</span>;
 
 const LinkCell = ({ href, label }: { href?: string | null; label?: string | null }) => {
-  if (!href) return <span className="text-body text-[var(--text-muted)]">—</span>;
+  if (!href) return <span className="text-body text-[var(--text-tertiary)]">—</span>;
   const url = href.startsWith('http') ? href : `https://${href}`;
   return (
     <a href={url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
-      className="inline-flex items-center gap-1 text-body text-[var(--indigo)] hover:underline truncate">
+      className="inline-flex items-center gap-1 text-body text-[var(--indigo-text)] hover:underline truncate">
       {(label || href).replace(/^https?:\/\//, '')}
       <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
     </a>
@@ -352,7 +358,7 @@ function LinkedInGlyph({ url }: { url?: string | null }) {
         'flex h-4 w-4 items-center justify-center rounded flex-shrink-0 transition-colors',
         // A quiet mark that turns LinkedIn blue on hover. A solid blue
         // tile after every name made the column a row of logos.
-        has ? 'text-[var(--text-tertiary)] hover:text-[#0A66C2]' : 'text-[var(--text-muted)] opacity-60'
+        has ? 'text-[var(--text-tertiary)] hover:text-[#0A66C2]' : 'text-[var(--text-tertiary)] opacity-60'
       )}
       title={has ? 'Has a LinkedIn profile' : 'No LinkedIn profile on file'}
     >
@@ -366,7 +372,7 @@ function LinkedInGlyph({ url }: { url?: string | null }) {
 
 /* Chips for tag / list membership, with a +N overflow. */
 function TagsCell({ tags }: { tags?: { id: string; name: string; color?: string }[] }) {
-  if (!tags || tags.length === 0) return <span className="text-body text-[var(--text-muted)]">—</span>;
+  if (!tags || tags.length === 0) return <span className="text-body text-[var(--text-tertiary)]">—</span>;
   const shown = tags.slice(0, 2);
   return (
     <span className="inline-flex items-center gap-1 align-middle">
@@ -382,12 +388,12 @@ function TagsCell({ tags }: { tags?: { id: string; name: string; color?: string 
 }
 
 function ListsCell({ lists }: { lists?: { id: string; name: string }[] }) {
-  if (!lists || lists.length === 0) return <span className="text-body text-[var(--text-muted)]">—</span>;
+  if (!lists || lists.length === 0) return <span className="text-body text-[var(--text-tertiary)]">—</span>;
   const shown = lists.slice(0, 2);
   return (
     <span className="inline-flex items-center gap-1 align-middle">
       {shown.map((l) => (
-        <span key={l.id} className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-micro font-medium bg-[var(--indigo-subtle)] text-[var(--indigo)]">
+        <span key={l.id} className="inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-micro font-medium bg-[var(--indigo-subtle)] text-[var(--indigo-text)]">
           <FolderOpen className="h-2.5 w-2.5 flex-shrink-0" />
           {l.name}
         </span>
@@ -407,13 +413,13 @@ function StatusPill({ label, count, dot, active, onClick }: {
       className={cn(
         'inline-flex items-center gap-1.5 h-7 pl-2.5 pr-2.5 rounded-full text-body font-medium border transition-colors',
         active
-          ? 'bg-[var(--indigo-subtle)] border-[var(--indigo)] text-[var(--indigo)]'
+          ? 'bg-[var(--indigo-subtle)] border-[var(--indigo)] text-[var(--indigo-text)]'
           : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]'
       )}
     >
       <span className={cn('h-1.5 w-1.5 rounded-full', dot)} />
       {label}
-      <span className={cn('text-micro font-semibold tabular', active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')}>
+      <span className={cn('text-micro font-semibold tabular', active ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)]')}>
         {count.toLocaleString()}
       </span>
     </button>
@@ -429,6 +435,7 @@ function CompanyFilter({ value, options, onChange }: {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const ref = useRef<HTMLDivElement>(null);
+  const menu = usePopover(open, () => setOpen(false));
 
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
@@ -445,20 +452,24 @@ function CompanyFilter({ value, options, onChange }: {
   return (
     <div className="relative" ref={ref}>
       <button
+        {...menu.triggerProps}
         onClick={() => setOpen((o) => !o)}
         title="Filter leads by company"
         className={cn(
           'inline-flex items-center gap-1.5 h-8 pl-2.5 pr-2 rounded-lg text-body font-medium border transition-colors',
           value
-            ? 'bg-[var(--indigo-subtle)] border-[var(--indigo)] text-[var(--indigo)]'
+            ? 'bg-[var(--indigo-subtle)] border-[var(--indigo)] text-[var(--indigo-text)]'
             : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]'
         )}
       >
         <Building2 className="h-3.5 w-3.5" />
         <span className="max-w-[150px] truncate">{value || 'Company'}</span>
         {value ? (
+          // A shortcut for the mouse only. A control inside a button is not
+          // reachable or announced; "Clear filter" in the menu is the
+          // keyboard and screen-reader path.
           <span
-            role="button"
+            aria-hidden="true"
             onClick={(e) => { e.stopPropagation(); onChange(null); }}
             className="ml-0.5 -mr-0.5 flex h-4 w-4 items-center justify-center rounded hover:bg-[var(--indigo)]/15"
           >
@@ -469,11 +480,12 @@ function CompanyFilter({ value, options, onChange }: {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-64 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-lg overflow-hidden">
+        <div {...menu.panelProps} className="absolute right-0 top-full mt-1 z-50 w-64 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-lg overflow-hidden">
           <div className="p-2 border-b border-[var(--border-subtle)]">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
               <input
+                aria-label="Search companies"
                 autoFocus
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
@@ -794,6 +806,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [editingFolder, setEditingFolder] = useState<ListFolder | null>(null);
   const [listContextMenu, setListContextMenu] = useState<{ listId: string; x: number; y: number } | null>(null);
+  const listMenu = usePopover(!!listContextMenu, () => setListContextMenu(null));
   const [renamingListId, setRenamingListId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   /** Inline rename straight from the page title, where people look first. */
@@ -1388,6 +1401,12 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
   });
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
   const [columnSearch, setColumnSearch] = useState('');
+  const columnMenu = usePopover(columnMenuOpen, () => { setColumnMenuOpen(false); setColumnSearch(''); });
+  // Hiding or adding a column unmounts the button that was pressed; without
+  // this, focus fell to <body> with the menu still open.
+  const refocusColumnMenu = () => requestAnimationFrame(() => {
+    columnMenu.panelProps.ref.current?.querySelector<HTMLElement>('input, button')?.focus();
+  });
   const [colDragIndex, setColDragIndex] = useState<number | null>(null);
   const persistColumns = (next: string[]) => {
     setVisibleColumns(next);
@@ -1422,7 +1441,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         id, label: key, tdClass: 'max-w-[220px]',
         render: (c: any) => c.custom_fields?.[key]
           ? <span className="text-body text-[var(--text-secondary)] truncate inline-block max-w-full align-bottom">{c.custom_fields[key]}</span>
-          : <span className="text-body text-[var(--text-muted)]">—</span>,
+          : <span className="text-body text-[var(--text-tertiary)]">—</span>,
       };
     }
     return ALL_COLUMNS.find((c) => c.id === id) || null;
@@ -1478,6 +1497,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               }}
             >
               <input
+                aria-label="List name"
                 value={titleRenameValue}
                 onChange={(e) => setTitleRenameValue(e.target.value)}
                 onBlur={() => setTitleRenaming(false)}
@@ -1490,7 +1510,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           ) : (
             <span className="group/title inline-flex items-center gap-1.5">
               {currentListName}
-              <button
+              <button aria-label="Rename this list"
                 type="button"
                 onClick={() => { setTitleRenameValue(currentListName); setTitleRenaming(true); }}
                 className="p-1 rounded-md opacity-0 group-hover/title:opacity-100 focus-visible:opacity-100 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
@@ -1536,30 +1556,30 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       <div className="flex gap-4 items-start" onClick={() => setListContextMenu(null)}>
         {/* Lists rail — collapsible so the table can use the full width */}
         {railCollapsed ? (
-          <aside className="hidden md:block flex-shrink-0">
-            <button
+          <aside aria-label="Lists" className="hidden md:block flex-shrink-0">
+            <button aria-label="Show lists"
               onClick={toggleRail}
               title="Show lists"
-              className="sticky top-[calc(var(--chrome-h,56px)+4px)] flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-tertiary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)] transition-colors"
+              className="sticky top-[calc(var(--chrome-h,56px)+4px)] flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-tertiary)] hover:text-[var(--indigo-text)] hover:border-[var(--indigo)] transition-colors"
             >
               <PanelLeftOpen className="h-4 w-4" />
             </button>
           </aside>
         ) : (
-        <aside className="hidden md:block w-56 flex-shrink-0" /* not on a phone: beside the table it leaves the table no room */>
+        <aside aria-label="Lists" className="hidden md:block w-56 flex-shrink-0" /* not on a phone: beside the table it leaves the table no room */>
           <div className="sticky top-[calc(var(--chrome-h,56px)+4px)] space-y-0.5">
             <div className="flex items-center justify-between gap-1 px-1.5 pb-1.5 mb-0.5 border-b border-[var(--border-subtle)]">
               <span className="text-micro font-semibold text-[var(--text-tertiary)]">
                 {listKind === 'lead' ? 'Lead lists' : 'Contact lists'}
               </span>
               <div className="flex items-center gap-0.5">
-                <button onClick={() => { setEditingFolder(null); setFolderModalOpen(true); }} className="icon-btn h-6 w-6" title={`New ${listKind === 'lead' ? 'lead-list' : 'contact-list'} folder`}>
+                <button aria-label={`New ${listKind === 'lead' ? 'lead-list' : 'contact-list'} folder`} onClick={() => { setEditingFolder(null); setFolderModalOpen(true); }} className="icon-btn h-6 w-6" title={`New ${listKind === 'lead' ? 'lead-list' : 'contact-list'} folder`}>
                   <FolderPlus className="h-3.5 w-3.5" />
                 </button>
-                <button onClick={() => setShowListModal(true)} className="icon-btn h-6 w-6" title={listKind === 'lead' ? 'New lead list' : 'New contact list'}>
+                <button aria-label={listKind === 'lead' ? 'New lead list' : 'New contact list'} onClick={() => setShowListModal(true)} className="icon-btn h-6 w-6" title={listKind === 'lead' ? 'New lead list' : 'New contact list'}>
                   <Plus className="h-3.5 w-3.5" />
                 </button>
-                <button onClick={toggleRail} title="Hide lists" className="icon-btn h-6 w-6">
+                <button aria-label="Hide lists" onClick={toggleRail} title="Hide lists" className="icon-btn h-6 w-6">
                   <PanelLeftClose className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -1584,7 +1604,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             <span className="flex-1 text-left">{listKind === 'lead' ? 'All leads' : 'All contacts'}</span>
             <span className={cn(
               "text-micro font-semibold tabular px-1.5 rounded",
-              !activeListId ? "text-[var(--indigo)]" : "text-[var(--text-tertiary)]"
+              !activeListId ? "text-[var(--indigo-text)]" : "text-[var(--text-tertiary)]"
             )}>
               {stats?.total || 0}
             </span>
@@ -1629,9 +1649,9 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                           {isFolder ? group.folder!.name : 'Uncategorised'}
                         </span>
                         {isFolder && (
-                          <button
+                          <button aria-label="Edit folder"
                             onClick={(e) => { e.stopPropagation(); setEditingFolder(group.folder!); setFolderModalOpen(true); }}
-                            className="p-0.5 rounded hover:bg-[var(--bg-active)] opacity-0 group-hover/folder:opacity-100 transition-opacity"
+                            className="p-0.5 rounded hover:bg-[var(--bg-active)] opacity-0 group-hover/folder:opacity-100 focus-visible:opacity-100 group-focus-within/folder:opacity-100 transition-opacity"
                             title="Edit folder"
                           >
                             <Pencil className="h-2.5 w-2.5 text-[var(--text-tertiary)]" />
@@ -1660,6 +1680,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                                 className="px-2 py-1"
                               >
                                 <input
+                                  aria-label="List name"
                                   value={renameValue}
                                   onChange={(e) => setRenameValue(e.target.value)}
                                   onBlur={() => setRenamingListId(null)}
@@ -1671,12 +1692,20 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                             ) : (
                               <button
                                 onClick={() => setSearchParams({ list: list.id })}
-                                onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setListContextMenu({ listId: list.id, x: e.clientX, y: e.clientY }); }}
+                                // Also what the context-menu key and Shift+F10 raise on a focused row: those
+                                // report no pointer position, so the menu hangs off the row instead.
+                                onContextMenu={(e: React.MouseEvent<HTMLButtonElement>) => {
+                                  e.preventDefault();
+                                  const r = e.currentTarget.getBoundingClientRect();
+                                  const fromKeyboard = e.clientX === 0 && e.clientY === 0;
+                                  listMenu.returnFocusTo.current = e.currentTarget;
+                                  setListContextMenu({ listId: list.id, x: fromKeyboard ? r.left + 16 : e.clientX, y: fromKeyboard ? r.bottom : e.clientY });
+                                }}
                                 className={cn(
                                   'w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-body font-medium transition-all cursor-grab active:cursor-grabbing',
                                   draggingListId === list.id && 'opacity-50',
                                   activeListId === list.id
-                                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
                                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                                 )}
                               >
@@ -1688,17 +1717,17 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                                     nobody discovers. */}
                                 <span className={cn(
                                   'text-micro font-semibold tabular transition-opacity group-hover/list:opacity-0',
-                                  activeListId === list.id ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]'
+                                  activeListId === list.id ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)]'
                                 )}>
                                   {list.contact_count || 0}
                                 </span>
                               </button>
                             )}
                             {renamingListId !== list.id && (
-                              <button
+                              <button aria-label={`Rename "${list.name}"`}
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); setRenameValue(list.name); setRenamingListId(list.id); }}
-                                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover/list:opacity-100 focus-visible:opacity-100 hover:bg-[var(--bg-active)] transition-opacity"
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover/list:opacity-100 focus-visible:opacity-100 group-focus-within/list:opacity-100 hover:bg-[var(--bg-active)] transition-opacity"
                                 title={`Rename "${list.name}"`}
                               >
                                 <Pencil className="h-2.5 w-2.5 text-[var(--text-tertiary)]" />
@@ -1707,7 +1736,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                           </div>
                         ))}
                         {isFolder && group.lists.length === 0 && (
-                          <p className="px-2 py-1 text-micro text-[var(--text-muted)] italic">
+                          <p className="px-2 py-1 text-micro text-[var(--text-tertiary)] italic">
                             {isDrop ? 'Drop to add here' : 'Empty folder'}
                           </p>
                         )}
@@ -1747,14 +1776,14 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               <span className="flex-1 text-left truncate">{UNLISTED_LIST_NAME}</span>
               <span className={cn(
                 'text-micro font-semibold tabular',
-                isUnlistedView ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]'
+                isUnlistedView ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)]'
               )}>
                 {unlistedCount}
               </span>
             </button>
             <Link
               to="/suppression"
-              className="w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-body font-medium text-[var(--text-secondary)] hover:text-rose-500 hover:bg-rose-500/10 transition-all"
+              className="w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-body font-medium text-[var(--text-secondary)] hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-all"
             >
               <ShieldOff className="h-3 w-3 flex-shrink-0" />
               <span className="flex-1 text-left">Do not email</span>
@@ -1767,8 +1796,11 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       {/* List right-click context menu — portaled + clamped to the viewport */}
       {listContextMenu && createPortal(
         <>
-          <div className="fixed inset-0 z-[60]" onClick={() => setListContextMenu(null)} />
+          <div className="fixed inset-0 z-[60]" aria-hidden onClick={() => setListContextMenu(null)} />
           <div
+            {...listMenu.panelProps}
+            role="group"
+            aria-label="List actions"
             className="fixed z-[61] bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-lg shadow-xl py-1 min-w-[200px] max-h-[80vh] overflow-y-auto animate-fade-in"
             style={{
               top: Math.max(8, Math.min(listContextMenu.y, window.innerHeight - 240)),
@@ -1807,7 +1839,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           <div className="border-t border-[var(--border-subtle)] my-1" />
           <button
             onClick={() => trashList(listContextMenu.listId)}
-            className="w-full text-left px-3 py-2 text-strong text-red-500 hover:bg-red-500/10 flex items-center gap-2"
+            className="w-full text-left px-3 py-2 text-strong text-red-600 dark:text-red-400 hover:bg-red-500/10 flex items-center gap-2"
           >
             <Trash2 className="h-3.5 w-3.5" /> Move to trash
           </button>
@@ -1841,7 +1873,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         */}
         {!activeListId && lifecycleCounts && lifecycleCounts.total > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-0.5">
+            <div className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-0.5 sm:overflow-visible">
               {([
                 { id: 'engaged' as const, label: 'Contacts', count: lifecycleCounts.contact + lifecycleCounts.customer,
                   hint: 'People who replied, met you, or were added deliberately' },
@@ -1856,14 +1888,14 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                   title={opt.hint}
                   onClick={() => setLifecyclePersisted(opt.id)}
                   className={cn(
-                    'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-body font-medium transition-colors',
+                    'inline-flex flex-shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-body font-medium transition-colors',
                     lifecycle === opt.id
                       ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
                       : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
                   )}
                 >
                   {opt.label}
-                  <span className="text-caption tabular-nums text-[var(--text-muted)]">
+                  <span className="text-caption tabular-nums text-[var(--text-tertiary)]">
                     {opt.count.toLocaleString()}
                   </span>
                 </button>
@@ -1905,13 +1937,14 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
             <input
               ref={searchRef}
               type="text"
+              aria-label="Search contacts"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name, email, or company…  /"
               className="w-full h-8 pl-8 pr-4 text-body rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
             />
             {search && (
-              <button
+              <button aria-label="Clear search"
                 onClick={() => setSearch('')}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 icon-btn h-4 w-4"
               >
@@ -1929,7 +1962,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                   key={f.id}
                   onClick={f.clear}
                   title={`Remove this filter`}
-                  className="group inline-flex max-w-[180px] items-center gap-1 rounded-md border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-2 h-6 text-caption font-medium text-[var(--indigo)] transition-colors hover:border-[var(--indigo)]/50"
+                  className="group inline-flex max-w-[180px] items-center gap-1 rounded-md border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-2 h-6 text-caption font-medium text-[var(--indigo-text)] transition-colors hover:border-[var(--indigo)]/50"
                 >
                   <span className="truncate">{f.label}</span>
                   <X className="h-2.5 w-2.5 flex-shrink-0 opacity-50 group-hover:opacity-100" />
@@ -1951,7 +1984,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
 
           {/* Live auto-verification indicator */}
           {autoVerifyOn && pendingOnPage > 0 && (
-            <span className="inline-flex items-center gap-1.5 text-caption font-medium text-[var(--indigo)] bg-[var(--indigo-subtle)] px-2.5 h-7 rounded-lg" title="Contacts are being verified in the background">
+            <span className="inline-flex items-center gap-1.5 text-caption font-medium text-[var(--indigo-text)] bg-[var(--indigo-subtle)] px-2.5 h-7 rounded-lg" title="Contacts are being verified in the background">
               <Loader2 className="h-3 w-3 animate-spin" />
               Verifying {pendingOnPage} on this page…
             </span>
@@ -1960,11 +1993,12 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           {/* Column picker — choose which contact fields show in the table */}
           <div className="relative ml-auto">
             <button
+              {...columnMenu.triggerProps}
               onClick={() => setColumnMenuOpen((o) => !o)}
               className={cn(
                 'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-body font-medium transition-colors',
                 columnMenuOpen
-                  ? 'border-[var(--indigo)] text-[var(--indigo)] bg-[var(--indigo-subtle)]'
+                  ? 'border-[var(--indigo)] text-[var(--indigo-text)] bg-[var(--indigo-subtle)]'
                   : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
               )}
               title="Choose columns"
@@ -1991,12 +2025,13 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               const hidden = hiddenColumns.filter((c) => !q || c.label.toLowerCase().includes(q));
               return (
                 <>
-                  <div className="fixed inset-0 z-40" onClick={() => { setColumnMenuOpen(false); setColumnSearch(''); }} />
-                  <div className="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-xl glass shadow-[var(--shadow-xl)] animate-slide-in overflow-hidden">
+                  <div className="fixed inset-0 z-40" aria-hidden onClick={() => { setColumnMenuOpen(false); setColumnSearch(''); }} />
+                  <div {...columnMenu.panelProps} className="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-xl glass shadow-[var(--shadow-xl)] animate-slide-in overflow-hidden">
                     <div className="p-2 border-b border-[var(--border-subtle)]">
                       <div className="relative">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
                         <input
+                          aria-label="Search columns"
                           value={columnSearch}
                           onChange={(e) => setColumnSearch(e.target.value)}
                           placeholder="Search columns…"
@@ -2009,7 +2044,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                       {/* Shown — drag to reorder, eye to hide */}
                       <p className="flex items-center justify-between px-1.5 pt-1 pb-1.5 text-micro font-semibold text-[var(--text-tertiary)]">
                         Shown
-                        {!q && <span className="normal-case text-[var(--text-muted)]">drag to reorder</span>}
+                        {!q && <span className="normal-case text-[var(--text-tertiary)]">drag to reorder</span>}
                       </p>
                       {shown.length === 0 && <p className="px-2 py-1.5 text-body text-[var(--text-tertiary)]">No matching columns.</p>}
                       {shown.map(({ id, i, label }) => (
@@ -2025,9 +2060,9 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                             colDragIndex === i ? 'opacity-50' : 'hover:bg-[var(--bg-hover)]'
                           )}
                         >
-                          {!q && <GripVertical className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-muted)] cursor-grab active:cursor-grabbing" />}
+                          {!q && <GripVertical className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)] cursor-grab active:cursor-grabbing" />}
                           <span className="flex-1 text-body text-[var(--text-primary)] truncate">{label}</span>
-                          <button onClick={() => toggleColumn(id)} title="Hide column" className="p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-active)]">
+                          <button aria-label={`Hide the ${label} column`} onClick={() => { toggleColumn(id); refocusColumnMenu(); }} title="Hide column" className="inline-flex min-h-6 min-w-6 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-active)]">
                             <Eye className="h-3.5 w-3.5" />
                           </button>
                         </div>
@@ -2039,10 +2074,10 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                           {hidden.map((c) => (
                             <button
                               key={c.id}
-                              onClick={() => toggleColumn(c.id)}
+                              onClick={() => { toggleColumn(c.id); refocusColumnMenu(); }}
                               className="w-full flex items-center gap-1.5 px-1.5 h-8 rounded-lg text-left hover:bg-[var(--bg-hover)] transition-colors"
                             >
-                              <EyeOff className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-muted)]" />
+                              <EyeOff className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)]" />
                               <span className="flex-1 text-body text-[var(--text-secondary)] truncate">{c.label}</span>
                               <Plus className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
                             </button>
@@ -2143,7 +2178,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 <Trash2 className="h-3.5 w-3.5" />
                 Delete
               </button>
-              <button
+              <button aria-label="Clear selection"
                 onClick={() => setSelectedContacts(new Set())}
                 className="p-1.5 ml-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-all duration-200"
               >
@@ -2226,7 +2261,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                       </th>
                       <th className="relative sticky top-0 left-[44px] z-[5] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-3 py-[7px] shadow-[inset_-1px_0_0_var(--border-subtle)]">
                         <span className="flex items-center gap-1.5 min-w-0">
-                          <Users className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />
+                          <Users className="h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]" strokeWidth={1.9} />
                           <SortableHeader label="Contact" colKey="first_name" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                         </span>
                         <ResizeHandle
@@ -2268,7 +2303,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                           )}
                         >
                           <span className="flex items-center gap-1.5 min-w-0">
-                            {col.icon && <col.icon className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />}
+                            {col.icon && <col.icon className="h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]" strokeWidth={1.9} />}
                             {col.sortKey
                               ? <SortableHeader label={col.label} colKey={col.sortKey} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                               : <span className="text-caption font-medium text-[var(--text-tertiary)] truncate">{col.label}</span>}
@@ -2288,8 +2323,8 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                           />
                         </th>
                       ))}
-                      <th className="sticky top-0 z-[4] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]" />
-                      <th className="sticky top-0 right-0 z-[5] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]" />
+                      <th aria-hidden="true" className="sticky top-0 z-[4] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]" />
+                      <th className="sticky top-0 right-0 z-[5] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]"><span className="sr-only">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2326,14 +2361,14 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                           <td className={cn('sticky left-0 z-[1] pl-3 pr-2 py-1.5 relative border-b border-[var(--border-subtle)]', frozenBg)}>
                             {/* Sheets-style gutter: row number at rest, checkbox on hover/selection */}
                             <span className={cn(
-                              'text-micro tabular text-[var(--text-muted)] transition-opacity select-none',
-                              isSelected ? 'opacity-0' : 'group-hover:opacity-0'
+                              'text-micro tabular text-[var(--text-tertiary)] transition-opacity select-none',
+                              isSelected ? 'opacity-0' : 'group-hover:opacity-0 group-focus-within:opacity-0'
                             )}>
                               {rowNumber}
                             </span>
                             <span className={cn(
                               'absolute inset-0 flex items-center pl-3 transition-opacity',
-                              isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                              isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
                             )}>
                               <Checkbox
                                 checked={isSelected}
@@ -2359,7 +2394,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                                   <Link
                                     to={`/contacts/${contact.id}`}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="block text-body font-semibold text-[var(--text-primary)] truncate hover:text-[var(--indigo)] hover:underline decoration-[var(--indigo)]/40 underline-offset-2 transition-colors"
+                                    className="block text-body font-semibold text-[var(--text-primary)] truncate hover:text-[var(--indigo-text)] hover:underline decoration-[var(--indigo)]/40 underline-offset-2 transition-colors"
                                   >
                                     {fullName || 'Unnamed contact'}
                                   </Link>
@@ -2384,20 +2419,20 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                           <td className="border-b border-[var(--border-subtle)]" />
                           <td className={cn('sticky right-0 z-[1] px-2 py-2 border-b border-[var(--border-subtle)] shadow-[inset_1px_0_0_var(--border-subtle)]', frozenBg)} onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                              <button
+                              <button aria-label="Verify email"
                                 onClick={() => verifyMutation.mutate(contact.id)}
                                 disabled={verifyingIds.has(contact.id)}
-                                className="icon-btn hover:text-[var(--indigo)] hover:bg-[var(--indigo-subtle)]"
+                                className="icon-btn hover:text-[var(--indigo-text)] hover:bg-[var(--indigo-subtle)]"
                                 title="Verify email"
                               >
                                 {verifyingIds.has(contact.id)
                                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                   : <ShieldCheck className="h-3.5 w-3.5" />}
                               </button>
-                              <button onClick={() => openEdit(contact)} className="icon-btn" title="Edit">
+                              <button aria-label={`Edit ${contact.email}`} onClick={() => openEdit(contact)} className="icon-btn" title="Edit">
                                 <Pencil className="h-3.5 w-3.5" />
                               </button>
-                              <button
+                              <button aria-label={`Delete ${contact.email}`}
                                 onClick={() => gone.remove(
                                   contact.id,
                                   `Deleted ${contact.email}`,
@@ -2423,8 +2458,8 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
         {/* Pagination — the rows-per-page picker shows even on a single page,
             so it's discoverable before the list grows past one screen. */}
         {totalContacts > 0 && (
-          <div className="flex items-center justify-between gap-4 mt-5 px-1">
-            <div className="flex items-center gap-3 min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mt-5 px-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
               <p className="text-strong text-[var(--text-tertiary)] whitespace-nowrap">
                 Showing{' '}
                 <span className="font-medium text-[var(--text-secondary)]">
@@ -2454,7 +2489,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               </label>
             </div>
             <div className={cn('flex items-center gap-1.5', totalPages <= 1 && 'invisible')}>
-              <button
+              <button aria-label="Previous page"
                 disabled={page <= 1}
                 onClick={() => setPage(page - 1)}
                 className="inline-flex items-center justify-center h-9 w-9 text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-hover)] hover:border-[var(--border-default)] transition-all duration-200"
@@ -2463,10 +2498,10 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
               </button>
               <div className="flex items-center h-9 px-4 text-strong font-medium text-[var(--text-secondary)] bg-[var(--bg-elevated)] rounded-lg border border-[var(--border-subtle)]">
                 <span className="text-[var(--text-primary)]">{page}</span>
-                <span className="mx-1.5 text-[var(--text-muted)]">/</span>
+                <span className="mx-1.5 text-[var(--text-tertiary)]">/</span>
                 <span>{totalPages}</span>
               </div>
-              <button
+              <button aria-label="Next page"
                 disabled={page >= totalPages}
                 onClick={() => setPage(page + 1)}
                 className="inline-flex items-center justify-center h-9 w-9 text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-hover)] hover:border-[var(--border-default)] transition-all duration-200"
@@ -2516,7 +2551,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 {previewName || form.email ? (
                   <Avatar name={previewName || form.email} email={form.email} size="lg" />
                 ) : (
-                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-dashed border-[var(--border-default)] text-[var(--text-muted)]">
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-dashed border-[var(--border-default)] text-[var(--text-tertiary)]">
                     <UserPlus className="h-4 w-4" />
                   </span>
                 )}
@@ -2561,165 +2596,154 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
       })()}
 
       {/* Import Modal */}
-      {showImportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowImportModal(false)} />
-          <div className="relative bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl w-full max-w-lg shadow-xl animate-slide-up">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--border-subtle)]">
-              <div>
-                <h2 className="text-title font-semibold text-[var(--text-primary)]">Import contacts</h2>
-                <p className="text-strong text-[var(--text-tertiary)] mt-0.5">
-                  Upload a CSV file and map columns to contact fields
-                </p>
-              </div>
-              <button
-                onClick={() => setShowImportModal(false)}
-                className="p-2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-all duration-200"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="px-6 py-5 space-y-5">
-              {/* Step indicators */}
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <span className={cn(
-                    "inline-flex items-center justify-center h-6 w-6 rounded-full text-caption font-bold",
-                    csvHeaders.length > 0
-                      ? "bg-[var(--success)] text-[var(--bg-surface)]"
-                      : "bg-[var(--text-primary)] text-[var(--bg-surface)]"
-                  )}>
-                    {csvHeaders.length > 0 ? '\u2713' : '1'}
-                  </span>
-                  <span className={cn(
-                    "text-strong font-medium",
-                    csvHeaders.length > 0 ? "text-[var(--text-tertiary)]" : "text-[var(--text-primary)]"
-                  )}>
-                    Upload
-                  </span>
-                </div>
-                <div className="flex-1 h-px bg-[var(--border-subtle)]" />
-                <div className="flex items-center gap-2">
-                  <span className={cn(
-                    "inline-flex items-center justify-center h-6 w-6 rounded-full text-caption font-bold",
-                    csvHeaders.length > 0
-                      ? "bg-[var(--text-primary)] text-[var(--bg-surface)]"
-                      : "bg-[var(--bg-elevated)] text-[var(--text-tertiary)]"
-                  )}>
-                    2
-                  </span>
-                  <span className={cn(
-                    "text-strong font-medium",
-                    csvHeaders.length > 0 ? "text-[var(--text-primary)]" : "text-[var(--text-tertiary)]"
-                  )}>
-                    Map fields
-                  </span>
-                </div>
-              </div>
-
-              {/* File drop zone */}
-              <div className={cn(
-                "relative rounded-xl p-8 text-center transition-all duration-200 cursor-pointer",
-                importFile
-                  ? "border-2 border-[var(--success)] border-opacity-40 bg-[var(--success-bg)]"
-                  : "border-2 border-dashed border-[var(--border-default)] hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)]"
+      <Modal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        title="Import contacts"
+        description="Upload a CSV file and map columns to contact fields"
+        size="lg"
+      >
+        <div className="space-y-5">
+          {/* Step indicators */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                "inline-flex items-center justify-center h-6 w-6 rounded-full text-caption font-bold",
+                csvHeaders.length > 0
+                  ? "bg-[var(--success)] text-[var(--bg-surface)]"
+                  : "bg-[var(--text-primary)] text-[var(--bg-surface)]"
               )}>
-                {importFile ? (
-                  <>
-                    <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-[var(--success)] bg-opacity-10 mb-3">
-                      <Upload className="h-6 w-6 text-[var(--success)]" strokeWidth={1.5} />
-                    </div>
-                    <p className="text-strong font-medium text-[var(--text-primary)] mb-0.5">{importFile.name}</p>
-                    <p className="text-body text-[var(--text-tertiary)]">
-                      {csvHeaders.length} columns detected
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-[var(--bg-elevated)] mb-3">
-                      <Upload className="h-6 w-6 text-[var(--text-primary)]" strokeWidth={1.5} />
-                    </div>
-                    <p className="text-strong font-medium text-[var(--text-primary)] mb-0.5">
-                      Drop your CSV file here
-                    </p>
-                    <p className="text-body text-[var(--text-tertiary)]">or click to browse files</p>
-                  </>
-                )}
-                <input
-                  type="file"
-                  accept=".csv"
-                  onChange={handleFileSelect}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-              </div>
-
-              {/* Column mapping */}
-              {csvHeaders.length > 0 && (
-                <div className="space-y-2.5 max-h-52 overflow-y-auto pr-1">
-                  <p className="text-body font-semibold text-[var(--text-tertiary)] mb-1">
-                    Column mapping
-                  </p>
-                  {csvHeaders.map((header) => (
-                    <div
-                      key={header}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]"
-                    >
-                      <span className="w-28 truncate text-strong font-medium text-[var(--text-primary)]">
-                        {header}
-                      </span>
-                      <ArrowRight className="h-3.5 w-3.5 text-[var(--text-muted)] flex-shrink-0" />
-                      <select
-                        className="flex-1 h-8 px-2.5 text-strong bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-default)] focus:shadow-[0_0_0_3px_var(--bg-elevated)] transition-all duration-200 cursor-pointer"
-                        value={columnMapping[header] || ''}
-                        onChange={(e) => setColumnMapping({ ...columnMapping, [header]: e.target.value })}
-                      >
-                        <option value="">Skip this column</option>
-                        <option value="email">Email</option>
-                        <option value="first_name">First name</option>
-                        <option value="last_name">Last name</option>
-                        <option value="company">Company</option>
-                        <option value="job_title">Job title</option>
-                        <option value="phone">Phone</option>
-                      </select>
-                      {columnMapping[header] && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-caption font-medium bg-[var(--success-bg)] text-[var(--success)]">
-                          Mapped
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-[var(--border-subtle)]">
-                <button
-                  onClick={() => setShowImportModal(false)}
-                  className="btn-secondary rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  disabled={!importFile || importMutation.isPending}
-                  onClick={() => importFile && importMutation.mutate({ file: importFile, mapping: columnMapping })}
-                  className="btn-primary rounded-lg"
-                >
-                  {importMutation.isPending ? (
-                    <>
-                      <Spinner size="sm" />
-                      Importing...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4" />
-                      Import contacts
-                    </>
-                  )}
-                </button>
-              </div>
+                {csvHeaders.length > 0 ? '\u2713' : '1'}
+              </span>
+              <span className={cn(
+                "text-strong font-medium",
+                csvHeaders.length > 0 ? "text-[var(--text-tertiary)]" : "text-[var(--text-primary)]"
+              )}>
+                Upload
+              </span>
+            </div>
+            <div className="flex-1 h-px bg-[var(--border-subtle)]" />
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                "inline-flex items-center justify-center h-6 w-6 rounded-full text-caption font-bold",
+                csvHeaders.length > 0
+                  ? "bg-[var(--text-primary)] text-[var(--bg-surface)]"
+                  : "bg-[var(--bg-elevated)] text-[var(--text-tertiary)]"
+              )}>
+                2
+              </span>
+              <span className={cn(
+                "text-strong font-medium",
+                csvHeaders.length > 0 ? "text-[var(--text-primary)]" : "text-[var(--text-tertiary)]"
+              )}>
+                Map fields
+              </span>
             </div>
           </div>
+
+          {/* File drop zone */}
+          <div className={cn(
+            "relative rounded-xl p-8 text-center transition-all duration-200 cursor-pointer focus-within:shadow-[var(--ring-focus)]",
+            importFile
+              ? "border-2 border-[var(--success)] border-opacity-40 bg-[var(--success-bg)]"
+              : "border-2 border-dashed border-[var(--border-default)] hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)]"
+          )}>
+            {importFile ? (
+              <>
+                <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-[var(--success)] bg-opacity-10 mb-3">
+                  <Upload className="h-6 w-6 text-[var(--success)]" strokeWidth={1.5} />
+                </div>
+                <p className="text-strong font-medium text-[var(--text-primary)] mb-0.5">{importFile.name}</p>
+                <p className="text-body text-[var(--text-tertiary)]">
+                  {csvHeaders.length} columns detected
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-[var(--bg-elevated)] mb-3">
+                  <Upload className="h-6 w-6 text-[var(--text-primary)]" strokeWidth={1.5} />
+                </div>
+                <p className="text-strong font-medium text-[var(--text-primary)] mb-0.5">
+                  Drop your CSV file here
+                </p>
+                <p className="text-body text-[var(--text-tertiary)]">or click to browse files</p>
+              </>
+            )}
+            <input
+              type="file"
+              aria-label="Choose a CSV file to import"
+              accept=".csv"
+              onChange={handleFileSelect}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            />
+          </div>
+
+          {/* Column mapping */}
+          {csvHeaders.length > 0 && (
+            <div className="space-y-2.5 max-h-52 overflow-y-auto pr-1">
+              <p className="text-body font-semibold text-[var(--text-tertiary)] mb-1">
+                Column mapping
+              </p>
+              {csvHeaders.map((header) => (
+                <div
+                  key={header}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]"
+                >
+                  <span className="w-28 truncate text-strong font-medium text-[var(--text-primary)]">
+                    {header}
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] flex-shrink-0" />
+                  <select
+                    aria-label={`Map column ${header} to`}
+                    className="flex-1 h-8 px-2.5 text-strong bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-default)] focus:shadow-[0_0_0_3px_var(--bg-elevated)] transition-all duration-200 cursor-pointer"
+                    value={columnMapping[header] || ''}
+                    onChange={(e) => setColumnMapping({ ...columnMapping, [header]: e.target.value })}
+                  >
+                    <option value="">Skip this column</option>
+                    <option value="email">Email</option>
+                    <option value="first_name">First name</option>
+                    <option value="last_name">Last name</option>
+                    <option value="company">Company</option>
+                    <option value="job_title">Job title</option>
+                    <option value="phone">Phone</option>
+                  </select>
+                  {columnMapping[header] && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-caption font-medium bg-[var(--success-bg)] text-[var(--success)]">
+                      Mapped
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-[var(--border-subtle)]">
+            <button
+              onClick={() => setShowImportModal(false)}
+              className="btn-secondary rounded-lg"
+            >
+              Cancel
+            </button>
+            <button
+              disabled={!importFile || importMutation.isPending}
+              onClick={() => importFile && importMutation.mutate({ file: importFile, mapping: columnMapping })}
+              className="btn-primary rounded-lg"
+            >
+              {importMutation.isPending ? (
+                <>
+                  <Spinner size="sm" />
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4" />
+                  Import contacts
+                </>
+              )}
+            </button>
+          </div>
         </div>
-      )}
+      </Modal>
 
       {/* Create List Modal */}
       {showListModal && (
@@ -2779,7 +2803,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                 onClick={() => addToList(list.id, list.name)}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-50 group"
               >
-                <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)] group-hover:bg-[var(--indigo-subtle)] group-hover:text-[var(--indigo)] transition-colors">
+                <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)] group-hover:bg-[var(--indigo-subtle)] group-hover:text-[var(--indigo-text)] transition-colors">
                   <FolderOpen className="h-4 w-4" />
                 </div>
                 <span className="flex-1 text-left text-strong font-medium text-[var(--text-primary)] truncate">
@@ -2793,7 +2817,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
           </div>
           <button
             onClick={() => { setShowAddToListModal(false); setShowListModal(true); }}
-            className="w-full flex items-center justify-center gap-2 mt-3 py-2.5 border border-dashed border-[var(--border-default)] rounded-xl text-strong font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
+            className="w-full flex items-center justify-center gap-2 mt-3 py-2.5 border border-dashed border-[var(--border-default)] rounded-xl text-strong font-medium text-[var(--text-secondary)] hover:text-[var(--indigo-text)] hover:border-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
           >
             <Plus className="h-4 w-4" />
             Create new list
@@ -2853,7 +2877,7 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                       on
                         ? (removing
                             ? 'bg-rose-500/10 border-rose-500 text-rose-600 dark:text-rose-400'
-                            : 'bg-[var(--indigo-subtle)] border-[var(--indigo)] text-[var(--indigo)]')
+                            : 'bg-[var(--indigo-subtle)] border-[var(--indigo)] text-[var(--indigo-text)]')
                         : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)]'
                     )}
                   >
@@ -2898,9 +2922,9 @@ export function ContactsListPage({ kind: listKind = 'lead' }: { kind?: ListKind 
                   moveTargetId === list.id ? 'bg-[var(--indigo-subtle)] border-[var(--indigo)]/30' : 'hover:bg-[var(--bg-hover)] border-transparent'
                 )}
               >
-                <FolderOpen className={cn('h-4 w-4', moveTargetId === list.id ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} />
+                <FolderOpen className={cn('h-4 w-4', moveTargetId === list.id ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)]')} />
                 <span className="flex-1 text-left text-strong font-medium text-[var(--text-primary)] truncate">{list.name}</span>
-                {moveTargetId === list.id && <Check className="h-4 w-4 text-[var(--indigo)]" />}
+                {moveTargetId === list.id && <Check className="h-4 w-4 text-[var(--indigo-text)]" />}
               </button>
             ))}
           </div>
@@ -2969,8 +2993,8 @@ function ListFolderModal({ initial, kind, onClose }: {
       <form id="folder-form" onSubmit={(e) => { e.preventDefault(); saveMut.mutate(); }} className="space-y-4">
         <Input label="Name" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Q4 Prospects" />
         <div>
-          <label className="block text-body font-medium text-[var(--text-secondary)] mb-2">Colour</label>
-          <div className="flex gap-2 flex-wrap">
+          <span id="folder-colour-label" className="block text-body font-medium text-[var(--text-secondary)] mb-2">Colour</span>
+          <div className="flex gap-2 flex-wrap" role="group" aria-labelledby="folder-colour-label">
             {FOLDER_COLORS.map((c) => (
               <button
                 key={c}

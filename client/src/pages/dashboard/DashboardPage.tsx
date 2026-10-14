@@ -76,6 +76,7 @@ function Segmented<T extends string | number>({ options, value, onChange, size =
         <button
           key={String(o.value)}
           onClick={() => onChange(o.value)}
+          aria-pressed={value === o.value}
           className={cn(
             'rounded-md font-medium transition-all duration-150',
             size === 'sm' ? 'h-6 px-2.5 text-body' : 'h-7 px-3 text-body',
@@ -94,14 +95,14 @@ function Segmented<T extends string | number>({ options, value, onChange, size =
 /* ─── Delta (the only place red/green appears) ─────────── */
 function Delta({ value, className }: { value: number | null | undefined; className?: string }) {
   if (value == null || !isFinite(value)) {
-    return <span className={cn('text-body font-medium text-[var(--text-muted)]', className)}>—</span>;
+    return <span className={cn('text-body font-medium text-[var(--text-tertiary)]', className)}>—</span>;
   }
   const flat = Math.abs(value) < 0.05;
   const up = value > 0;
   return (
     <span className={cn(
       'inline-flex items-center gap-0.5 text-body font-semibold tabular',
-      flat ? 'text-[var(--text-tertiary)]' : up ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-500',
+      flat ? 'text-[var(--text-tertiary)]' : up ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400',
       className
     )}>
       {!flat && (up ? <ArrowUp className="h-3 w-3" strokeWidth={2.5} /> : <ArrowDown className="h-3 w-3" strokeWidth={2.5} />)}
@@ -127,6 +128,7 @@ function MetricCell({ label, value, delta, active, onClick, readout }: {
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
         'relative flex-1 min-w-0 px-4 py-3 text-left transition-colors',
         active ? 'bg-[var(--bg-surface)]' : 'bg-[var(--bg-muted)] hover:bg-[var(--bg-surface)]'
@@ -157,7 +159,7 @@ function Head({ title, desc, action }: { title: string; desc?: string; action?: 
   return (
     <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[var(--border-subtle)]">
       <div className="min-w-0">
-        <h3 className="text-strong font-semibold text-[var(--text-primary)] tracking-[-0.01em] leading-tight truncate">{title}</h3>
+        <h2 className="text-strong font-semibold text-[var(--text-primary)] tracking-[-0.01em] leading-tight truncate">{title}</h2>
         {desc && <p className="text-body text-[var(--text-tertiary)] leading-tight mt-0.5 truncate">{desc}</p>}
       </div>
       {action && <div className="flex-shrink-0">{action}</div>}
@@ -167,7 +169,7 @@ function Head({ title, desc, action }: { title: string; desc?: string; action?: 
 
 function MoreLink({ to, label = 'View all' }: { to: string; label?: string }) {
   return (
-    <Link to={to} className="text-body font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] inline-flex items-center gap-0.5 transition-colors">
+    <Link to={to} className="text-body font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] inline-flex min-h-6 items-center gap-0.5 transition-colors">
       {label} <ChevronRight className="h-3.5 w-3.5" />
     </Link>
   );
@@ -191,13 +193,20 @@ function PerformanceChart({ data, metric }: { data: TrendDataPoint[]; metric: Me
   if (!data.length) {
     return (
       <div className="h-[268px] flex flex-col items-center justify-center gap-2 text-center">
-        <Activity className="h-6 w-6 text-[var(--text-muted)]" strokeWidth={1.5} />
+        <Activity className="h-6 w-6 text-[var(--text-tertiary)]" strokeWidth={1.5} />
         <p className="text-strong text-[var(--text-secondary)]">No activity yet</p>
         <p className="text-body text-[var(--text-tertiary)]">Launch a campaign to see trends.</p>
       </div>
     );
   }
+  // The picture in words: the same numbers the area is drawn from.
+  const values = data.map((d) => Number((d as any)[metric]) || 0);
+  const total = values.reduce((a, b) => a + b, 0);
+  const peakAt = values.indexOf(Math.max(...values));
+  const summary = `${METRICS[metric].label} per day over ${data.length} days: ${fmtFull(total)} in total, `
+    + `busiest on ${fmtDate(data[peakAt].date)} with ${fmtFull(values[peakAt])}`;
   return (
+    <div role="img" aria-label={summary}>
     <ResponsiveContainer width="100%" height={268}>
       <AreaChart data={data} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
         <defs>
@@ -217,6 +226,7 @@ function PerformanceChart({ data, metric }: { data: TrendDataPoint[]; metric: Me
           fill="url(#perf-area)" dot={false} activeDot={{ r: 3.5, strokeWidth: 2, stroke: 'var(--bg-surface)', fill: ACCENT }} />
       </AreaChart>
     </ResponsiveContainer>
+    </div>
   );
 }
 
@@ -241,7 +251,7 @@ function Funnel({ sent, opened, clicked, replied }: {
           <div key={st.label}>
             {i > 0 && (
               <div className="flex items-center gap-1.5 pl-[76px] py-1 text-caption text-[var(--text-tertiary)]">
-                <ArrowDown className="h-3 w-3 text-[var(--text-muted)]" strokeWidth={2} />
+                <ArrowDown className="h-3 w-3 text-[var(--text-tertiary)]" strokeWidth={2} />
                 <span className="tabular font-medium">{conv != null ? `${conv.toFixed(1)}%` : '—'}</span>
                 <span>of {stages[i - 1].label.toLowerCase()}</span>
               </div>
@@ -520,7 +530,7 @@ export function DashboardPage() {
                 return (
                 <button key={c.id} onClick={() => navigate(`/campaigns/${c.id}`)}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left group">
-                  <span className="w-6 text-body font-semibold tabular text-[var(--text-muted)] flex-shrink-0">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="w-6 text-body font-semibold tabular text-[var(--text-tertiary)] flex-shrink-0">{String(i + 1).padStart(2, '0')}</span>
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: STATUS_DOT[c.status] || 'var(--text-muted)' }} />
                   <div className="flex-1 min-w-0">
                     <p className="text-strong font-medium text-[var(--text-primary)] truncate">{c.name}</p>
@@ -551,7 +561,7 @@ export function DashboardPage() {
                       <div className="text-strong font-semibold tabular text-[var(--text-primary)]">{fmtNum(c.sent)}</div>
                       <div className="text-caption text-[var(--text-tertiary)]">sent</div>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <ChevronRight aria-hidden="true" className="h-4 w-4 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity" />
                   </div>
                 </button>
                 );
@@ -599,7 +609,7 @@ function FirstSendPanel({ contacts, verified, bounced, onWrite }: {
     <section className="panel overflow-hidden">
       <div className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr]">
         <div className="p-5 sm:p-6">
-          <p className="text-caption font-medium text-[var(--indigo)]">Your first campaign</p>
+          <p className="text-caption font-medium text-[var(--indigo-text)]">Your first campaign</p>
           <h2 className="mt-1.5 text-title font-semibold text-[var(--text-primary)] tracking-[-0.01em]">
             {contacts > 0 ? 'Your leads are ready. Relay can draft the emails.' : 'Add a few leads, then Relay drafts the emails.'}
           </h2>
@@ -632,7 +642,7 @@ function FirstSendPanel({ contacts, verified, bounced, onWrite }: {
             </div>
           </dl>
           {contacts > 0 && verified < contacts && (
-            <Link to="/verification" className="mt-3 inline-flex items-center gap-1 text-caption font-medium text-[var(--indigo)] hover:underline">
+            <Link to="/verification" className="mt-3 inline-flex min-h-6 items-center gap-1 text-caption font-medium text-[var(--indigo-text)] hover:underline">
               Verify the rest before sending <ChevronRight className="h-3 w-3" />
             </Link>
           )}

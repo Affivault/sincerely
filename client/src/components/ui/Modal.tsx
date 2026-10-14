@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -25,6 +25,7 @@ interface ModalProps {
 export function Modal({ isOpen, onClose, title, description, children, size = 'md', footer }: ModalProps) {
   const identity = useRef({});
   const panelRef = useRef<HTMLDivElement>(null);
+  const descId = useId();
 
   /*
    * Only the dialog on top may hold Tab.
@@ -98,6 +99,7 @@ export function Modal({ isOpen, onClose, title, description, children, size = 'm
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        aria-describedby={description ? descId : undefined}
         /* Focusable by script, not by Tab: somewhere for the cursor to
            land in a dialog that has no fields of its own. */
         tabIndex={-1}
@@ -114,15 +116,16 @@ export function Modal({ isOpen, onClose, title, description, children, size = 'm
               {title}
             </h2>
             {description && (
-              <p className="text-body text-[var(--text-secondary)] mt-0.5 leading-snug">
+              <p id={descId} className="text-body text-[var(--text-secondary)] mt-0.5 leading-snug">
                 {description}
               </p>
             )}
           </div>
           <button
+            type="button"
             onClick={onClose}
             aria-label="Close"
-            className="ml-3 flex-shrink-0 rounded-md p-1 text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors duration-150 -mr-0.5"
+            className="ml-3 flex-shrink-0 rounded-md p-1text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors duration-150 -mr-0.5"
           >
             <X className="h-4 w-4" />
           </button>

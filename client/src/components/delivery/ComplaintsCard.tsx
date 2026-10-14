@@ -29,7 +29,7 @@ export function ComplaintsCard() {
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]" data-complaints={data.total}>
       <div className="flex items-start gap-3 border-b border-[var(--border-subtle)] px-4 py-3">
-        <ShieldAlert className={cn('mt-0.5 h-5 w-5 flex-shrink-0', data.total ? 'text-rose-500' : 'text-[var(--text-muted)]')} />
+        <ShieldAlert className={cn('mt-0.5 h-5 w-5 flex-shrink-0', data.total ? 'text-rose-600 dark:text-rose-400' : 'text-[var(--text-tertiary)]')} />
         <div className="min-w-0 flex-1">
           <p className="text-strong font-semibold text-[var(--text-primary)]">Spam complaints</p>
           <p className="text-caption text-[var(--text-tertiary)]">
@@ -72,7 +72,7 @@ export function ComplaintsCard() {
           <ul className="space-y-1.5">
             {LOOPS.map((l) => (
               <li key={l.name}>
-                <a href={l.href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-[var(--indigo)] hover:underline">
+                <a href={l.href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-[var(--indigo-text)] hover:underline">
                   {l.name} <ExternalLink className="h-3 w-3" />
                 </a>
                 {' '}- {l.note}

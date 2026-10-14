@@ -83,7 +83,7 @@ export function StandingStrip({ contactId, email, name }: { contactId: string; e
       <p className="text-caption font-medium text-[var(--text-tertiary)]">Where they stand</p>
 
       {openDeals.length > 0 ? openDeals.slice(0, 2).map((d) => (
-        <Link key={d.id} to={`/deals/${d.id}`} className="flex items-center gap-2 min-w-0 text-body hover:text-[var(--indigo)]">
+        <Link key={d.id} to={`/deals/${d.id}`} className="flex items-center gap-2 min-w-0 text-body hover:text-[var(--indigo-text)]">
           <Handshake className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)]" />
           <DealHealthDot health={health?.[d.id]} />
           <span className="truncate text-[var(--text-secondary)]">{d.title}</span>
@@ -96,7 +96,7 @@ export function StandingStrip({ contactId, email, name }: { contactId: string; e
       {memberships.length === 0 ? (
         <p className="flex items-center gap-2 text-caption text-[var(--text-tertiary)]"><Megaphone className="h-3.5 w-3.5" /> Not in any campaign</p>
       ) : memberships.filter((m) => m.is_active).slice(0, 3).map((m) => (
-        <Link key={m.campaign_contact_id} to={`/campaigns/${m.campaign_id}`} className="flex items-center gap-2 min-w-0 text-body hover:text-[var(--indigo)]">
+        <Link key={m.campaign_contact_id} to={`/campaigns/${m.campaign_id}`} className="flex items-center gap-2 min-w-0 text-body hover:text-[var(--indigo-text)]">
           <Megaphone className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)]" />
           <span className="truncate text-[var(--text-secondary)]">{m.campaign_name || 'Campaign'}</span>
           <span className="ml-auto flex flex-shrink-0 items-center gap-1.5">

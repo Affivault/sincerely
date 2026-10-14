@@ -212,7 +212,7 @@ export function BulkConnect({ open, onClose, existing }: { open: boolean; onClos
             >
               <FileUp className="h-3.5 w-3.5" /> Upload CSV
             </button>
-            <input
+            <input aria-label="Upload CSV file"
               ref={fileRef}
               type="file"
               accept=".csv,text/csv"
@@ -226,13 +226,13 @@ export function BulkConnect({ open, onClose, existing }: { open: boolean; onClos
             <a
               href={`data:text/csv;charset=utf-8,${encodeURIComponent(TEMPLATE)}`}
               download="sincerely-mailboxes.csv"
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-caption font-medium text-[var(--indigo)] hover:underline"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-caption font-medium text-[var(--indigo-text)] hover:underline"
             >
               <Download className="h-3.5 w-3.5" /> Template
             </a>
             <span className="text-caption text-[var(--text-tertiary)]">or paste below. Up to 200 at a time.</span>
           </div>
-          <textarea
+          <textarea aria-label="Mailboxes to connect"
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={10}
@@ -260,10 +260,10 @@ export function BulkConnect({ open, onClose, existing }: { open: boolean; onClos
               {rows.map((r) => (
                 <li key={r.line} className="flex items-start gap-3 px-3 py-2">
                   <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center">
-                    {r.state === 'working' && <Loader2 className="h-4 w-4 animate-spin text-[var(--indigo)]" />}
+                    {r.state === 'working' && <Loader2 className="h-4 w-4 animate-spin text-[var(--indigo-text)]" />}
                     {r.state === 'connected' && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
-                    {(r.state === 'failed' || r.state === 'invalid') && <XCircle className={cn('h-4 w-4', r.state === 'failed' ? 'text-rose-500' : 'text-amber-500')} />}
-                    {r.state === 'skipped' && <MinusCircle className="h-4 w-4 text-[var(--text-muted)]" />}
+                    {(r.state === 'failed' || r.state === 'invalid') && <XCircle className={cn('h-4 w-4', r.state === 'failed' ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400')} />}
+                    {r.state === 'skipped' && <MinusCircle className="h-4 w-4 text-[var(--text-tertiary)]" />}
                     {r.state === 'ready' && <span className="h-2 w-2 rounded-full bg-[var(--border-strong)]" />}
                   </span>
                   <span className="min-w-0 flex-1">
@@ -274,7 +274,7 @@ export function BulkConnect({ open, onClose, existing }: { open: boolean; onClos
                       </span>
                     )}
                   </span>
-                  <span className="flex-shrink-0 text-micro text-[var(--text-muted)]">line {r.line}</span>
+                  <span className="flex-shrink-0 text-micro text-[var(--text-tertiary)]">line {r.line}</span>
                 </li>
               ))}
             </ul>

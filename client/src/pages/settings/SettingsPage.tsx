@@ -58,8 +58,8 @@ function getPasswordStrength(password: string): { score: 0 | 1 | 2 | 3 | 4; labe
   const levels: Record<number, { label: string; barClass: string; textClass: string }> = {
     0: { label: 'Very weak', barClass: 'bg-[var(--error)]', textClass: 'text-[var(--error)]' },
     1: { label: 'Weak', barClass: 'bg-[var(--error)]', textClass: 'text-[var(--error)]' },
-    2: { label: 'Fair', barClass: 'bg-amber-500', textClass: 'text-amber-500' },
-    3: { label: 'Good', barClass: 'bg-[var(--indigo)]', textClass: 'text-[var(--indigo)]' },
+    2: { label: 'Fair', barClass: 'bg-amber-500', textClass: 'text-amber-600 dark:text-amber-400' },
+    3: { label: 'Good', barClass: 'bg-[var(--indigo)]', textClass: 'text-[var(--indigo-text)]' },
     4: { label: 'Strong', barClass: 'bg-[var(--success)]', textClass: 'text-[var(--success)]' },
   };
   return { score: score as 0 | 1 | 2 | 3 | 4, ...levels[score] };
@@ -368,8 +368,8 @@ export function SettingsPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
-                    <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">First name</label>
-                    <input
+                    <label htmlFor="settings-first-name" className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">First name</label>
+                    <input id="settings-first-name"
                       type="text"
                       value={firstName}
                       onChange={(e) => { setFirstName(e.target.value); markChanged(); }}
@@ -378,8 +378,8 @@ export function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Last name</label>
-                    <input
+                    <label htmlFor="settings-last-name" className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Last name</label>
+                    <input id="settings-last-name"
                       type="text"
                       value={lastName}
                       onChange={(e) => { setLastName(e.target.value); markChanged(); }}
@@ -391,8 +391,8 @@ export function SettingsPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
-                    <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Company</label>
-                    <input
+                    <label htmlFor="settings-company" className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Company</label>
+                    <input id="settings-company"
                       type="text"
                       value={company}
                       onChange={(e) => { setCompany(e.target.value); markChanged(); }}
@@ -401,8 +401,8 @@ export function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Job title</label>
-                    <input
+                    <label htmlFor="settings-job-title" className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Job title</label>
+                    <input id="settings-job-title"
                       type="text"
                       value={jobTitle}
                       onChange={(e) => { setJobTitle(e.target.value); markChanged(); }}
@@ -413,7 +413,7 @@ export function SettingsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Email</label>
+                  <span className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Email</span>
                   <div className="flex items-center gap-3">
                     <div className="flex-1 flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3.5 py-2.5">
                       <Mail className="h-4 w-4 text-[var(--text-tertiary)]" />
@@ -427,11 +427,11 @@ export function SettingsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">
+                  <label htmlFor="settings-timezone" className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">
                     <Globe className="inline h-3.5 w-3.5 mr-1.5 text-[var(--text-tertiary)]" />
                     Timezone
                   </label>
-                  <select
+                  <select id="settings-timezone"
                     value={timezone}
                     onChange={(e) => { setTimezone(e.target.value); markChanged(); }}
                     className="input-field"
@@ -481,8 +481,8 @@ export function SettingsPage() {
                   <div className="p-5 rounded-xl bg-[var(--bg-surface)] space-y-4" style={{ border: '2px solid rgba(47,63,156,0.25)' }}>
                     <h3 className="text-strong font-semibold text-[var(--text-primary)]">Change password</h3>
                     <div>
-                      <label className="block text-body font-medium text-[var(--text-secondary)] mb-1.5">Current password</label>
-                      <input
+                      <label htmlFor="settings-current-password" className="block text-body font-medium text-[var(--text-secondary)] mb-1.5">Current password</label>
+                      <input id="settings-current-password"
                         type={showPassword ? 'text' : 'password'}
                         value={currentPassword}
                         onChange={(e) => setCurrentPassword(e.target.value)}
@@ -491,19 +491,20 @@ export function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-body font-medium text-[var(--text-secondary)] mb-1.5">New password</label>
+                      <label htmlFor="settings-new-password" className="block text-body font-medium text-[var(--text-secondary)] mb-1.5">New password</label>
                       <div className="relative">
                         <input
+                          id="settings-new-password"
                           type={showPassword ? 'text' : 'password'}
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
                           placeholder="Min. 6 characters"
                           className="input-field pr-10"
                         />
-                        <button
+                        <button aria-label={showPassword ? "Hide password" : "Show password"}
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] after:absolute after:-inset-1 after:content-['']"
                         >
                           {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
@@ -528,8 +529,8 @@ export function SettingsPage() {
                       )}
                     </div>
                     <div>
-                      <label className="block text-body font-medium text-[var(--text-secondary)] mb-1.5">Confirm password</label>
-                      <input
+                      <label htmlFor="settings-confirm-password" className="block text-body font-medium text-[var(--text-secondary)] mb-1.5">Confirm password</label>
+                      <input id="settings-confirm-password"
                         type={showPassword ? 'text' : 'password'}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
@@ -588,7 +589,7 @@ export function SettingsPage() {
                   <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-4">Connected accounts</h3>
                   <div className="flex items-center justify-between p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[var(--border-default)] transition-colors">
                     <div className="flex items-center gap-3">
-                      <svg className="h-5 w-5" viewBox="0 0 24 24">
+                      <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24">
                         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
                         <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
                         <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
@@ -619,6 +620,7 @@ export function SettingsPage() {
                         </p>
                         <input
                           type="text"
+                          aria-label="Type DELETE to confirm"
                           value={deleteConfirmation}
                           onChange={(e) => setDeleteConfirmation(e.target.value)}
                           placeholder="Type DELETE"
@@ -709,8 +711,8 @@ export function SettingsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-strong font-medium text-[var(--text-secondary)] mb-3">Theme</label>
-                  <div className="flex gap-2">
+                  <span id="settings-theme-label" className="block text-strong font-medium text-[var(--text-secondary)] mb-3">Theme</span>
+                  <div className="flex gap-2" role="group" aria-labelledby="settings-theme-label">
                     {([
                       { value: 'light' as const, label: 'Light', icon: Sun },
                       { value: 'dark' as const, label: 'Dark', icon: Moon },
@@ -719,9 +721,10 @@ export function SettingsPage() {
                       <button
                         key={value}
                         onClick={() => handleThemeChange(value)}
+                        aria-pressed={themeMode === value}
                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-strong font-medium transition-all duration-200 border ${
                           themeMode === value
-                            ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[var(--indigo)]'
+                            ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] border-[var(--indigo)]'
                             : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[var(--border-default)]'
                         }`}
                       >
@@ -733,10 +736,10 @@ export function SettingsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">
+                  <label htmlFor="settings-default-email-signature" className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">
                     Default email signature
                   </label>
-                  <textarea
+                  <textarea id="settings-default-email-signature"
                     value={defaultSignature}
                     onChange={(e) => { setDefaultSignature(e.target.value); markChanged(); }}
                     placeholder={`Best regards,\n${PLACEHOLDER.senderName}`}
@@ -749,7 +752,7 @@ export function SettingsPage() {
                 </div>
 
                 <div className="pt-2">
-                  <label className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Deliverability</label>
+                  <span className="block text-strong font-medium text-[var(--text-secondary)] mb-1.5">Deliverability</span>
                   <ToggleSetting
                     label="Auto-verify contacts"
                     description="Automatically check new and imported contacts in the background (syntax, mail server & mailbox) so the verification status stays up to date."
@@ -772,7 +775,7 @@ export function SettingsPage() {
 
                 <div className="relative overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 shadow-[inset_3px_0_0_var(--indigo)]">
                   <div className="flex items-start gap-3">
-                    <Sparkles className="h-5 w-5 text-[var(--indigo)] mt-0.5 flex-shrink-0" />
+                    <Sparkles className="h-5 w-5 text-[var(--indigo-text)] mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-strong font-medium text-[var(--text-primary)]">Smart email tagging</p>
                       <p className="text-body text-[var(--text-secondary)] mt-1 leading-relaxed">

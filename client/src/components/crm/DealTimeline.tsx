@@ -99,7 +99,7 @@ function AddNote({ dealId, contactId }: { dealId: string; contactId: string | nu
       onSubmit={(e) => { e.preventDefault(); if (draft.trim()) save.mutate(draft.trim()); }}
       className="panel p-2.5"
     >
-      <textarea
+      <textarea aria-label="Add a note"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
@@ -113,11 +113,11 @@ function AddNote({ dealId, contactId }: { dealId: string; contactId: string | nu
         }}
         rows={draft ? 3 : 1}
         placeholder="Add a note — what was said, what changed, what you promised…"
-        className="w-full resize-none bg-transparent px-1 py-1 text-strong text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+        className="w-full resize-none bg-transparent px-1 py-1 text-strong text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
       />
       {draft.trim() && (
         <div className="mt-1 flex items-center justify-end gap-2">
-          <span className="mr-auto text-micro text-[var(--text-muted)]">Enter to save · Shift+Enter for a new line</span>
+          <span className="mr-auto text-micro text-[var(--text-tertiary)]">Enter to save · Shift+Enter for a new line</span>
           <button
             type="button"
             onClick={() => setDraft('')}
@@ -237,7 +237,7 @@ export function DealTimeline({
         id: `task-${t.id}`, at: new Date(t.due_date || t.created_at), tab: 'activities',
         icon: Icon, tone: t.is_done
           ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-          : 'bg-[var(--indigo-subtle)] text-[var(--indigo)]',
+          : 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]',
         // The day heading and the time column already say when; repeating
         // "Tomorrow, 12:32 AM" underneath said it twice. Only lateness is new.
         title: t.title, meta: !t.is_done && t.due_date && dueLabel(t.due_date).tone === 'over' ? 'Overdue' : null, task: t,
@@ -264,7 +264,7 @@ export function DealTimeline({
         id: `mail-${m.id}`, at: new Date(m.received_at), tab: 'emails',
         icon: outbound ? ArrowUpRight : ArrowDownLeft,
         tone: outbound
-          ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+          ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
           : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
         title: m.subject || '(no subject)',
         meta: outbound ? `To ${m.to_email || 'them'}` : `From ${m.from_email || 'them'}`,
@@ -339,7 +339,7 @@ export function DealTimeline({
               <StickyNote className="h-3 w-3" /> Note
             </button>
             <span className="mx-0.5 h-3.5 w-px bg-[var(--border-default)]" />
-            <span className="text-caption text-[var(--text-muted)]">Email</span>
+            <span className="text-caption text-[var(--text-tertiary)]">Email</span>
             {recipients.map((r) => (
               <button
                 key={r.email}
@@ -389,7 +389,7 @@ export function DealTimeline({
           >
             {t.label}
             {(counts[t.id] || 0) > 0 && (
-              <span className="text-micro tabular-nums text-[var(--text-muted)]">{counts[t.id]}</span>
+              <span className="text-micro tabular-nums text-[var(--text-tertiary)]">{counts[t.id]}</span>
             )}
           </button>
         ))}
@@ -397,14 +397,14 @@ export function DealTimeline({
         <button
           type="button"
           onClick={onAddActivity}
-          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-caption font-medium text-[var(--indigo)] hover:underline"
+          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-caption font-medium text-[var(--indigo-text)] hover:underline"
         >
           <CheckSquare className="h-3 w-3" /> Activity
         </button>
         <button
           type="button"
           onClick={onBookMeeting}
-          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-caption font-medium text-[var(--indigo)] hover:underline"
+          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-caption font-medium text-[var(--indigo-text)] hover:underline"
         >
           <CalendarPlus className="h-3 w-3" /> Meeting
         </button>
@@ -418,7 +418,7 @@ export function DealTimeline({
             <div key={n.id} className="flex gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5 shadow-[inset_3px_0_0_theme(colors.amber.500)]">
               <Pin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
               <p className="min-w-0 flex-1 whitespace-pre-wrap text-body leading-relaxed text-[var(--text-primary)]">{n.body}</p>
-              <button type="button" onClick={() => pinNote.mutate(n)} className="icon-btn h-6 w-6 flex-shrink-0" title="Unpin">
+              <button type="button" onClick={() => pinNote.mutate(n)} className="icon-btn h-6 w-6 flex-shrink-0" title="Unpin" aria-label="Unpin">
                 <Pin className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -458,12 +458,12 @@ export function DealTimeline({
                             <button
                               type="button"
                               onClick={() => toggleTask.mutate(e.task!)}
-                              className="mt-0.5 flex-shrink-0"
+                              className="relative mt-0.5 flex-shrink-0 after:absolute after:-inset-1.5 after:content-['']"
                               title={e.task.is_done ? 'Mark not done' : 'Mark done'}
                             >
                               {e.task.is_done
                                 ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                                : <Circle className="h-4 w-4 text-[var(--text-muted)] transition-colors hover:text-[var(--indigo)]" />}
+                                : <Circle className="h-4 w-4 text-[var(--text-tertiary)] transition-colors hover:text-[var(--indigo-text)]" />}
                             </button>
                           ) : null}
                           <button
@@ -472,7 +472,7 @@ export function DealTimeline({
                             onClick={() => setOpenEmail(expanded ? null : e.id)}
                             className={cn(
                               'min-w-0 flex-1 text-left',
-                              expandable && 'transition-colors hover:text-[var(--indigo)]',
+                              expandable && 'transition-colors hover:text-[var(--indigo-text)]',
                             )}
                           >
                             <p
@@ -485,12 +485,12 @@ export function DealTimeline({
                               {e.title}
                             </p>
                           </button>
-                          <span className="flex-shrink-0 text-micro tabular-nums text-[var(--text-muted)]">
+                          <span className="flex-shrink-0 text-micro tabular-nums text-[var(--text-tertiary)]">
                             {timeLabel(e.at)}
                           </span>
                           {e.note && (
                             <span className="flex flex-shrink-0 gap-0.5">
-                              <button type="button" onClick={() => pinNote.mutate(e.note!)} className="icon-btn h-5 w-5" title={e.note.pinned ? 'Unpin' : 'Pin'}>
+                              <button type="button" onClick={() => pinNote.mutate(e.note!)} className="icon-btn h-5 w-5" title={e.note.pinned ? 'Unpin' : 'Pin'} aria-label={e.note.pinned ? 'Unpin' : 'Pin'}>
                                 <Pin className="h-3 w-3" />
                               </button>
                               <button
@@ -499,7 +499,7 @@ export function DealTimeline({
                                   e.note!.id, 'Note deleted', () => deleteNote.mutateAsync(e.note!),
                                 )}
                                 className="icon-btn h-5 w-5 hover:text-rose-500"
-                                title="Delete"
+                                title="Delete" aria-label="Delete"
                               >
                                 <Trash2 className="h-3 w-3" />
                               </button>

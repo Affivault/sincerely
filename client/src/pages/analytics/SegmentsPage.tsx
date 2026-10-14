@@ -201,7 +201,7 @@ export function SegmentsPage() {
             <section className="panel overflow-hidden">
               <div className="flex items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-3">
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-strong font-semibold text-[var(--text-primary)]">By {DIMENSION_LABELS[dimension].toLowerCase()}</h3>
+                  <h2 className="text-strong font-semibold text-[var(--text-primary)]">By {DIMENSION_LABELS[dimension].toLowerCase()}</h2>
                   <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
                     Ranked by how confidently each group beats your average — not by raw win rate, which puts small lucky groups on top.
                   </p>

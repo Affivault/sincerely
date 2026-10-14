@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useId } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { teamApi } from '../../api/team.api';
 import { Spinner } from '../../components/ui/Spinner';
@@ -30,7 +30,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const ROLE_CONFIG: Record<string, { label: string; icon: any; color: string }> = {
   owner:  { label: 'Owner',  icon: Crown,  color: 'text-amber-700 dark:text-amber-400 bg-amber-500/10 border-amber-500/20' },
-  admin:  { label: 'Admin',  icon: Shield, color: 'text-[var(--indigo)] bg-[var(--indigo-subtle)] border-[rgba(47,63,156,0.2)]' },
+  admin:  { label: 'Admin',  icon: Shield, color: 'text-[var(--indigo-text)] bg-[var(--indigo-subtle)] border-[rgba(47,63,156,0.2)]' },
   member: { label: 'Member', icon: User,   color: 'text-slate-600 dark:text-slate-400 bg-slate-500/10 border-slate-500/20' },
 };
 
@@ -46,6 +46,7 @@ function RoleBadge({ role }: { role: string }) {
 }
 
 export function TeamPage() {
+  const a11yId = useId();
   const confirm = useConfirm();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -144,7 +145,7 @@ export function TeamPage() {
             <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 mb-5">
               <XCircle className="h-7 w-7 text-red-600 dark:text-red-400" strokeWidth={1.5} />
             </span>
-            <h3 className="text-heading font-semibold text-[var(--text-primary)] mb-1.5">Couldn't load your team</h3>
+            <h1 className="text-heading font-semibold text-[var(--text-primary)] mb-1.5">Couldn't load your team</h1>
             <p className="text-body text-[var(--text-secondary)] max-w-sm mb-4">Something went wrong fetching your organisation. Try again.</p>
             <button
               onClick={() => queryClient.invalidateQueries({ queryKey: ['team-org'] })}
@@ -194,21 +195,21 @@ export function TeamPage() {
           <p className="text-caption font-medium text-[var(--text-tertiary)]">Organisation</p>
           {editingOrgName ? (
             <div className="mt-1 flex items-center gap-2">
-              <input
+              <input aria-label="Organisation name"
                 type="text"
                 value={editOrgName}
                 onChange={(e) => setEditOrgName(e.target.value)}
                 className="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-heading focus:border-[rgba(47,63,156,0.4)] focus:shadow-[var(--ring-focus)] outline-none"
                 autoFocus
               />
-              <button
+              <button aria-label="Save organisation name"
                 onClick={() => updateOrgMut.mutate(editOrgName)}
                 disabled={!editOrgName || updateOrgMut.isPending}
                 className="flex items-center justify-center h-8 w-8 rounded-lg bg-[var(--indigo)] text-white hover:opacity-90 disabled:opacity-50 transition"
               >
                 <Check className="h-3.5 w-3.5" />
               </button>
-              <button onClick={() => setEditingOrgName(false)} className="icon-btn">
+              <button aria-label="Cancel renaming" onClick={() => setEditingOrgName(false)} className="icon-btn">
                 <X className="h-3 w-3" />
               </button>
             </div>
@@ -220,7 +221,7 @@ export function TeamPage() {
           <button
             onClick={() => { setEditOrgName(org?.name || ''); setEditingOrgName(true); }}
             className="icon-btn flex-shrink-0"
-            title="Rename organisation"
+            title="Rename organisation" aria-label="Rename organisation"
           >
             <Pencil className="h-3 w-3" />
           </button>
@@ -252,7 +253,7 @@ export function TeamPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {isOwner && member.role !== 'owner' ? (
-                      <select
+                      <select aria-label={`Role for ${member.email}`}
                         value={member.role}
                         onChange={(e) => updateRoleMut.mutate({ memberId: member.id, role: e.target.value })}
                         className="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-body font-medium text-[var(--text-secondary)] focus:border-[rgba(47,63,156,0.4)] outline-none cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
@@ -270,7 +271,7 @@ export function TeamPage() {
                           () => removeMemberMut.mutate(member.id),
                         )}
                         className="icon-btn hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
-                        title="Remove member"
+                        title="Remove member" aria-label="Remove member"
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -300,7 +301,7 @@ export function TeamPage() {
               </span>
               <p className="text-body text-[var(--text-secondary)]">No pending invites</p>
               {isOwner && (
-                <button onClick={() => setShowInviteModal(true)} className="text-body font-medium text-[var(--indigo)] hover:underline">
+                <button onClick={() => setShowInviteModal(true)} className="text-body font-medium text-[var(--indigo-text)] hover:underline">
                   Invite a teammate
                 </button>
               )}
@@ -328,7 +329,7 @@ export function TeamPage() {
                     {isOwner && (
                       <button
                         onClick={() => revokeInviteMut.mutate(invite.id)}
-                        title="Revoke invite"
+                        title="Revoke invite" aria-label="Revoke invite"
                         className="icon-btn hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
                       >
                         <Trash2 className="h-3 w-3" />
@@ -369,8 +370,8 @@ export function TeamPage() {
               placeholder="colleague@example.com"
             />
             <div className="space-y-1">
-              <label className="block text-body font-medium text-[var(--text-secondary)]">Role</label>
-              <select
+              <label htmlFor={`${a11yId}-f1`} className="block text-body font-medium text-[var(--text-secondary)]">Role</label>
+              <select id={`${a11yId}-f1`}
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value)}
                 className="w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-strong text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]"

@@ -109,6 +109,7 @@ export function OutcomeDialog({
 
         {picked === '__other' && (
           <Input
+            aria-label="Describe the outcome"
             value={other}
             onChange={(e) => setOther(e.target.value)}
             placeholder="In a few words…"

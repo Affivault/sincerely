@@ -436,7 +436,7 @@ export function BulkImportPage() {
               'flex h-14 w-14 items-center justify-center rounded-2xl mb-4 transition-all',
               isDragging
                 ? 'bg-[var(--indigo)] text-white scale-110'
-                : 'bg-[var(--indigo)]/10 text-[var(--indigo)]'
+                : 'bg-[var(--indigo)]/10 text-[var(--indigo-text)]'
             )}>
               <Upload className="h-6 w-6" strokeWidth={1.5} />
             </span>
@@ -455,7 +455,7 @@ export function BulkImportPage() {
                 <p className="text-body font-semibold text-rose-700 dark:text-rose-400">Couldn't read this file</p>
                 <p className="text-caption text-rose-600 dark:text-rose-400 mt-0.5">{parseError}</p>
               </div>
-              <button onClick={() => { setFile(null); setParseError(null); }} className="p-1 rounded hover:bg-rose-500/10">
+              <button aria-label="Remove file" onClick={() => { setFile(null); setParseError(null); }} className="p-1 rounded hover:bg-rose-500/10">
                 <X className="h-3 w-3 text-rose-500" />
               </button>
             </div>
@@ -495,7 +495,7 @@ export function BulkImportPage() {
         <div className="space-y-4">
           {/* File info bar */}
           <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--indigo)]/10 text-[var(--indigo)] flex-shrink-0">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--indigo)]/10 text-[var(--indigo-text)] flex-shrink-0">
               <FileText className="h-4 w-4" />
             </span>
             <div className="flex-1 min-w-0">
@@ -504,7 +504,7 @@ export function BulkImportPage() {
                 {bytes(file?.size || 0)} · {allRows.length.toLocaleString()} rows · {headers.length} columns
               </p>
             </div>
-            <button onClick={reset} className="icon-btn flex-shrink-0" title="Pick a different file">
+            <button onClick={reset} className="icon-btn flex-shrink-0" title="Pick a different file" aria-label="Pick a different file">
               <RotateCcw className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -601,7 +601,7 @@ export function BulkImportPage() {
                     </div>
                     <ArrowRight className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
                     <div className="flex items-center gap-2">
-                      <select
+                      <select aria-label={`Map column ${h} to`}
                         value={mapping[h] || ''}
                         onChange={(e) => setMapping({ ...mapping, [h]: e.target.value })}
                         className={cn(
@@ -637,7 +637,7 @@ export function BulkImportPage() {
           {/* List assignment */}
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
             <div className="flex items-start gap-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--indigo)]/10 text-[var(--indigo)] flex-shrink-0 mt-0.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--indigo)]/10 text-[var(--indigo-text)] flex-shrink-0 mt-0.5">
                 <FolderOpen className="h-4 w-4" />
               </span>
               <div className="flex-1 min-w-0">
@@ -679,7 +679,7 @@ export function BulkImportPage() {
                       You don't have any lists yet — switch to <span className="font-medium text-[var(--text-primary)]">New list</span> to create one as part of this import.
                     </p>
                   ) : (
-                    <select
+                    <select aria-label="List to add contacts to"
                       value={targetListId}
                       onChange={(e) => setTargetListId(e.target.value)}
                       className="w-full h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-strong text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15 transition-all"
@@ -694,7 +694,7 @@ export function BulkImportPage() {
 
                 {listMode === 'new' && (
                   <div>
-                    <input
+                    <input aria-label="New list name"
                       value={newListName}
                       onChange={(e) => setNewListName(e.target.value)}
                       placeholder="e.g. Q3 logistics leads"
@@ -808,10 +808,10 @@ export function BulkImportPage() {
             </div>
             <div className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3">
               <div className="flex items-center gap-1.5 mb-1">
-                <Loader2 className="h-3.5 w-3.5 text-[var(--indigo)] animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 text-[var(--indigo-text)] animate-spin" />
                 <span className="text-micro font-bold text-[var(--text-tertiary)]">Processing</span>
               </div>
-              <p className="text-display font-semibold tabular text-[var(--indigo)] tracking-[-0.02em] leading-none">
+              <p className="text-display font-semibold tabular text-[var(--indigo-text)] tracking-[-0.02em] leading-none">
                 {progress.processed.toLocaleString()}
               </p>
             </div>

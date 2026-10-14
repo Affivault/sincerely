@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useId, Children, cloneElement, isValidElement } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useDraftRecovery, useUnsavedChangesWarning } from '../../hooks/useDraftRecovery';
 import { draftAgeLabel, firstBlocker, plural } from '@lemlist/shared';
@@ -32,7 +32,7 @@ import {
   CheckCircle2, Search, Building2, ChevronLeft, ChevronRight, SkipForward, Gauge, Shield,
   Eye, MousePointerClick, MessageSquare, Send, AlertTriangle, Rocket,
   RotateCcw, Plus, FolderOpen, ListPlus, Sparkles, Loader2, X, Timer,
-  Zap, FileText, TrendingUp, ShieldCheck, Brain, Wand2, CalendarClock,
+  Zap, FileText, TrendingUp, ShieldCheck, Brain, CalendarClock,
   Trophy,
   Globe,
   History,
@@ -89,6 +89,8 @@ function ToggleSwitch({
   return (
     <button
       type="button"
+      role="switch"
+      aria-checked={checked}
       onClick={() => onChange(!checked)}
       className={cn(
         'flex items-start gap-3 p-3.5 rounded-xl border bg-[var(--bg-surface)] text-left transition-all',
@@ -142,7 +144,7 @@ function SectionCard({
   accent?: 'indigo' | 'emerald' | 'amber' | 'violet';
 }) {
   const accentMap = {
-    indigo: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border-[rgba(47,63,156,0.18)]',
+    indigo: 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] border-[rgba(47,63,156,0.18)]',
     emerald: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
     amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
     violet: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20',
@@ -154,7 +156,7 @@ function SectionCard({
           <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
         </span>
         <div className="flex-1 min-w-0">
-          <h3 className="text-strong font-semibold text-[var(--text-primary)]">{title}</h3>
+          <h2 className="text-strong font-semibold text-[var(--text-primary)]">{title}</h2>
           {description && <p className="text-caption text-[var(--text-tertiary)] mt-0.5">{description}</p>}
         </div>
         {action}
@@ -166,13 +168,23 @@ function SectionCard({
 
 /* ─── Field components ───────────────────────────────────────────── */
 
-function Field({ label, hint, children }: { label: React.ReactNode; hint?: string; children: React.ReactNode }) {
+/* A label that names its control. A lone <input>/<select>/<textarea> child
+   is wired up automatically; a control nested in a wrapper passes `controlId`;
+   anything else (a row of buttons, an editor, two linked inputs) becomes a
+   labelled group so the label is never orphaned. */
+function Field({ label, hint, controlId, children }: { label: React.ReactNode; hint?: string; controlId?: string; children: React.ReactNode }) {
+  const auto = useId();
+  const only = Children.count(children) === 1 && isValidElement<{ id?: string }>(children) ? children : null;
+  const direct = !!only && typeof only.type === 'string' && ['input', 'select', 'textarea'].includes(only.type);
+  const forId = direct ? (only!.props.id ?? auto) : controlId;
+  const body = direct && !only!.props.id ? cloneElement(only!, { id: auto }) : children;
+  const labelCls = 'block text-caption font-semibold text-[var(--text-secondary)] mb-1.5';
   return (
-    <div>
-      <label className="block text-caption font-semibold text-[var(--text-secondary)] mb-1.5">
-        {label}
-      </label>
-      {children}
+    <div role={forId ? undefined : 'group'} aria-labelledby={forId ? undefined : auto}>
+      {forId
+        ? <label htmlFor={forId} className={labelCls}>{label}</label>
+        : <span id={auto} className={labelCls}>{label}</span>}
+      {body}
       {hint && <p className="text-caption text-[var(--text-tertiary)] mt-1.5">{hint}</p>}
     </div>
   );
@@ -1102,8 +1114,9 @@ export function CampaignCreatePage() {
         </button>
         <div className="hidden sm:block h-5 w-px bg-[var(--border-subtle)]" />
         <span className="hidden sm:flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] border border-[rgba(47,63,156,0.18)] flex-shrink-0">
-          <Rocket className="h-3.5 w-3.5 text-[var(--indigo)]" />
+          <Rocket className="h-3.5 w-3.5 text-[var(--indigo-text)]" />
         </span>
+        <h1 className="sr-only">{isEdit ? 'Edit campaign' : 'New campaign'}</h1>
         <input
           ref={nameRef}
           type="text"
@@ -1225,14 +1238,14 @@ export function CampaignCreatePage() {
         {/* Beside the form only where there is room for both. On a phone the
             issue count in the top bar says the same, and the form gets the
             whole width instead of 120 pixels. */}
-        <aside className="hidden lg:block w-60 flex-shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-app)] overflow-y-auto p-3">
+        <aside aria-label="Campaign pre-flight checks" className="hidden lg:block w-60 flex-shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-app)] overflow-y-auto p-3">
 
           {/* Pre-flight checks */}
           <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3 mb-3">
             <div className="flex items-center gap-2 mb-2">
               <ShieldCheck className={cn(
                 'h-3.5 w-3.5',
-                totalIssues === 0 ? 'text-emerald-500' : 'text-amber-500'
+                totalIssues === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
               )} />
               <p className="text-micro font-bold text-[var(--text-secondary)]">
                 Pre-flight
@@ -1252,7 +1265,7 @@ export function CampaignCreatePage() {
                     <li key={`${sectionIdx}-${j}`}>
                       <button
                         onClick={() => (issue === 'Campaign name' ? focusName() : setWizardStep(Number(sectionIdx)))}
-                        className="w-full text-left flex items-start gap-1.5 text-caption text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors py-0.5"
+                        className="w-full text-left flex items-start gap-1.5 text-caption text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors py-0.5 min-h-6"
                       >
                         <span className="h-1 w-1 rounded-full bg-amber-500 mt-1.5 flex-shrink-0" />
                         <span className="leading-snug">{issue}</span>
@@ -1268,7 +1281,7 @@ export function CampaignCreatePage() {
           {(selectedContactIds.length > 0 || steps.length > 0) && (
             <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3 mb-3">
               <p className="text-micro font-bold text-[var(--text-secondary)] mb-2 flex items-center gap-1.5">
-                <Zap className="h-3 w-3 text-[var(--indigo)]" />
+                <Zap className="h-3 w-3 text-[var(--indigo-text)]" />
                 Quick stats
               </p>
               <div className="space-y-1.5">
@@ -1288,7 +1301,7 @@ export function CampaignCreatePage() {
         </aside>
 
         {/* Main */}
-        <main className="flex-1 overflow-y-auto px-6 py-5 pb-16">
+        <div className="flex-1 overflow-y-auto px-6 py-5 pb-16">
 
           {/* ════════ STEP 1 — Settings ════════ */}
           {wizardStep === 0 && (
@@ -1338,7 +1351,7 @@ export function CampaignCreatePage() {
                     <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 p-4">
                       <div className="flex items-center gap-2 mb-1">
                         <RotateCcw className="h-3.5 w-3.5 text-[var(--text-secondary)]" />
-                        <h4 className="text-body font-semibold text-[var(--text-primary)]">Sender rotation pool</h4>
+                        <h3 className="text-body font-semibold text-[var(--text-primary)]">Sender rotation pool</h3>
                         <span className="text-micro font-medium text-[var(--text-tertiary)] bg-[var(--bg-surface)] px-1.5 py-0.5 rounded">Optional</span>
                       </div>
                       <p className="text-caption text-[var(--text-secondary)] mb-3 leading-snug">
@@ -1387,7 +1400,7 @@ export function CampaignCreatePage() {
 
                   {smartDefaults && (
                     <p className="flex items-start gap-1.5 text-caption text-[var(--text-tertiary)]" data-smart-defaults>
-                      <Sparkles className="h-3 w-3 mt-0.5 flex-shrink-0 text-[var(--indigo)]" />
+                      <Sparkles className="h-3 w-3 mt-0.5 flex-shrink-0 text-[var(--indigo-text)]" />
                       <span>
                         Set up for you: {smartDefaults.mailboxes > 1
                           ? `sends rotate across your ${smartDefaults.mailboxes} healthy mailboxes`
@@ -1408,7 +1421,7 @@ export function CampaignCreatePage() {
                   description="When emails will be delivered"
                   accent="amber"
                   action={
-                    <Link to="/schedules" className="text-caption font-medium text-[var(--indigo)] hover:underline whitespace-nowrap">
+                    <Link to="/schedules" className="text-caption font-medium text-[var(--indigo-text)] hover:underline whitespace-nowrap">
                       Manage saved →
                     </Link>
                   }
@@ -1416,10 +1429,11 @@ export function CampaignCreatePage() {
                   <div className="space-y-4">
                     {savedSchedules.length > 0 && (
                       <div className="rounded-lg border border-[var(--indigo-subtle)] bg-[var(--indigo-subtle)] p-2.5">
-                        <label className="block text-micro font-bold text-[var(--indigo)] mb-1.5">
+                        <label htmlFor="campaign-quick-schedule" className="block text-micro font-bold text-[var(--indigo-text)] mb-1.5">
                           Quick apply saved schedule
                         </label>
                         <select
+                          id="campaign-quick-schedule"
                           onChange={(e) => {
                             const s = savedSchedules.find((x) => x.id === e.target.value);
                             if (s) applySchedule(s);
@@ -1506,9 +1520,10 @@ export function CampaignCreatePage() {
                   accent="emerald"
                 >
                   <div className="space-y-4">
-                    <Field label="Daily limit" hint="Set 0 for unlimited sends">
+                    <Field label="Daily limit" hint="Set 0 for unlimited sends" controlId="campaign-daily-limit">
                       <div className="flex items-center gap-2">
                         <input
+                          id="campaign-daily-limit"
                           type="number" min="0"
                           value={campaignForm.daily_limit ?? 50}
                           onChange={(e) => setCampaignForm({ ...campaignForm, daily_limit: parseInt(e.target.value) || 0 })}
@@ -1521,6 +1536,7 @@ export function CampaignCreatePage() {
                     <Field label="Delay between emails" hint="Random delay added between each individual send">
                       <div className="flex items-center gap-2">
                         <input
+                          aria-label="Minimum delay between emails"
                           type="number" min="0"
                           value={campaignForm.delay_between_emails_min ?? 50}
                           onChange={(e) => setCampaignForm({ ...campaignForm, delay_between_emails_min: parseInt(e.target.value) || 0 })}
@@ -1528,6 +1544,7 @@ export function CampaignCreatePage() {
                         />
                         <span className="text-caption font-medium text-[var(--text-tertiary)]">to</span>
                         <input
+                          aria-label="Maximum delay between emails"
                           type="number" min="0"
                           value={campaignForm.delay_between_emails_max ?? 200}
                           onChange={(e) => setCampaignForm({ ...campaignForm, delay_between_emails_max: parseInt(e.target.value) || 0 })}
@@ -1633,13 +1650,13 @@ export function CampaignCreatePage() {
                 {/* Flow Canvas */}
                 <div className={cn('rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden flex flex-col', editingEmail ? 'lg:col-span-3' : 'lg:col-span-5')}>
                   <div className="px-5 h-12 border-b border-[var(--border-subtle)] flex items-center gap-3">
-                    <h3 className="flex-1 min-w-0 text-strong font-semibold text-[var(--text-primary)]">Sequence</h3>
+                    <h2 className="flex-1 min-w-0 text-strong font-semibold text-[var(--text-primary)]">Sequence</h2>
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => setShowWriter(true)}
                         className="btn-ghost h-7 px-2 text-caption"
                       >
-                        <Sparkles className="h-3.5 w-3.5 text-[var(--indigo)]" /> Write with Relay
+                        <Sparkles className="h-3.5 w-3.5 text-[var(--indigo-text)]" /> Write with Relay
                       </button>
                       {sequenceTemplates.length > 0 && (
                         <button
@@ -1686,7 +1703,7 @@ export function CampaignCreatePage() {
                       <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--indigo-subtle)] border border-[rgba(47,63,156,0.18)] flex-shrink-0">
-                            <Mail className="h-3 w-3 text-[var(--indigo)]" />
+                            <Mail className="h-3 w-3 text-[var(--indigo-text)]" />
                           </span>
                           <div className="min-w-0">
                             <p className="text-body font-semibold text-[var(--text-primary)]">Email editor</p>
@@ -1722,10 +1739,10 @@ export function CampaignCreatePage() {
                             const len = (steps[editingStep].subject || '').length;
                             if (len === 0) return null;
                             const quality =
-                              len >= 30 && len <= 60 ? { label: 'Great length', color: 'text-emerald-500' }
-                              : len < 30 ? { label: 'Could be longer', color: 'text-amber-500' }
-                              : len <= 80 ? { label: 'A bit long', color: 'text-amber-500' }
-                              : { label: 'Too long — may truncate', color: 'text-rose-500' };
+                              len >= 30 && len <= 60 ? { label: 'Great length', color: 'text-emerald-600 dark:text-emerald-400' }
+                              : len < 30 ? { label: 'Could be longer', color: 'text-amber-600 dark:text-amber-400' }
+                              : len <= 80 ? { label: 'A bit long', color: 'text-amber-600 dark:text-amber-400' }
+                              : { label: 'Too long — may truncate', color: 'text-rose-600 dark:text-rose-400' };
                             return (
                               <div className="flex items-center justify-between mt-1 px-0.5">
                                 <span className={cn('text-micro font-semibold', quality.color)}>{quality.label}</span>
@@ -1750,9 +1767,9 @@ export function CampaignCreatePage() {
                             const rawText = (steps[editingStep].body_html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
                             const words = rawText ? rawText.split(/\s+/).filter(Boolean).length : 0;
                             if (words === 0) return null;
-                            const quality = words <= 100 ? { label: 'Concise', color: 'text-emerald-500' }
-                              : words <= 200 ? { label: 'Good length', color: 'text-amber-500' }
-                              : { label: 'Long — consider trimming', color: 'text-rose-500' };
+                            const quality = words <= 100 ? { label: 'Concise', color: 'text-emerald-600 dark:text-emerald-400' }
+                              : words <= 200 ? { label: 'Good length', color: 'text-amber-600 dark:text-amber-400' }
+                              : { label: 'Long — consider trimming', color: 'text-rose-600 dark:text-rose-400' };
                             return (
                               <div className="flex items-center justify-between mt-1 px-0.5">
                                 <span className={cn('text-micro font-semibold', quality.color)}>{quality.label}</span>
@@ -1827,7 +1844,7 @@ export function CampaignCreatePage() {
                                     <button
                                       type="button"
                                       onClick={() => setWizardStep(0)}
-                                      className="font-semibold text-[var(--indigo)] hover:underline"
+                                      className="font-semibold text-[var(--indigo-text)] hover:underline"
                                     >
                                       Settings
                                     </button>{' '}
@@ -1839,6 +1856,7 @@ export function CampaignCreatePage() {
                                   {/* Sender picker — only needed when the campaign sender isn't set yet */}
                                   {!campaignForm.smtp_account_id && (
                                     <select
+                                      aria-label="Send test email from"
                                       value={testSmtpId}
                                       onChange={(e) => setTestSmtpId(e.target.value)}
                                       className="w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1.5 text-caption text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo-subtle)] transition-all"
@@ -1853,6 +1871,7 @@ export function CampaignCreatePage() {
                                   )}
                                   <div className="flex gap-2">
                                     <input
+                                      aria-label="Send test email to"
                                       type="email"
                                       value={testEmailTo}
                                       onChange={(e) => setTestEmailTo(e.target.value)}
@@ -1930,10 +1949,11 @@ export function CampaignCreatePage() {
                             { label: 'Min', key: 'delay_minutes', max: 59 },
                           ].map(({ label, key, max }) => (
                             <div key={key}>
-                              <label className="block text-micro font-bold text-[var(--text-tertiary)] mb-1.5 text-center">
+                              <label htmlFor={`step-${key}`} className="block text-micro font-bold text-[var(--text-tertiary)] mb-1.5 text-center">
                                 {label}
                               </label>
                               <input
+                                id={`step-${key}`}
                                 type="number" min="0" max={max}
                                 value={(steps[editingStep] as any)[key] || 0}
                                 onChange={(e) => updateStep(editingStep, { [key]: parseInt(e.target.value) || 0 } as any)}
@@ -1943,7 +1963,7 @@ export function CampaignCreatePage() {
                           ))}
                         </div>
                         <div className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3 flex items-start gap-2">
-                          <Sparkles className="h-3.5 w-3.5 text-[var(--indigo)] flex-shrink-0 mt-px" />
+                          <Sparkles className="h-3.5 w-3.5 text-[var(--indigo-text)] flex-shrink-0 mt-px" />
                           <p className="text-caption text-[var(--text-secondary)] leading-snug">
                             <span className="font-semibold text-[var(--text-primary)]">Pro tip:</span> A 1–3 day gap between emails typically yields the best reply rates.
                           </p>
@@ -2023,8 +2043,8 @@ export function CampaignCreatePage() {
                         </p>
                       </div>
                       <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--indigo-subtle)] p-3">
-                        <p className="text-micro text-[var(--indigo)] font-bold">Total sends</p>
-                        <p className="text-title font-bold text-[var(--indigo)] tabular leading-tight mt-0.5">
+                        <p className="text-micro text-[var(--indigo-text)] font-bold">Total sends</p>
+                        <p className="text-title font-bold text-[var(--indigo-text)] tabular leading-tight mt-0.5">
                           {(emailSteps.length * selectedContactIds.length).toLocaleString()}
                         </p>
                       </div>
@@ -2043,7 +2063,7 @@ export function CampaignCreatePage() {
                             </Button>
                             <button
                               onClick={() => setSelectedContactIds([])}
-                              className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-caption font-medium text-[var(--text-tertiary)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                              className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-caption font-medium text-[var(--text-tertiary)] hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                               title="Remove all recipients"
                             >
                               <X className="h-3 w-3" /> Clear all
@@ -2066,7 +2086,7 @@ export function CampaignCreatePage() {
                                     <span className="truncate max-w-[120px]">{c.company}</span>
                                   </span>
                                 )}
-                                <button
+                                <button aria-label="Remove from campaign"
                                   onClick={() => toggleContact(c.id)}
                                   className="flex items-center justify-center h-6 w-6 rounded-md text-[var(--text-tertiary)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors flex-shrink-0"
                                   title="Remove from campaign"
@@ -2156,7 +2176,7 @@ export function CampaignCreatePage() {
                   const dayText = days.length === 5 && days.join() === 'Mon,Tue,Wed,Thu,Fri' ? 'weekdays' : days.length === 7 ? 'every day' : days.join(', ');
                   return (
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3" data-review-sending>
-                      <Send className="h-4 w-4 flex-shrink-0 text-[var(--indigo)]" />
+                      <Send className="h-4 w-4 flex-shrink-0 text-[var(--indigo-text)]" />
                       <p className="min-w-0 flex-1 text-body text-[var(--text-secondary)]">
                         <span className="font-semibold text-[var(--text-primary)]">Sending</span>{' '}
                         {pool > 1 ? `from ${pool} mailboxes` : smtpAccount ? `from ${smtpAccount.email_address}` : 'from no mailbox yet'}
@@ -2164,7 +2184,7 @@ export function CampaignCreatePage() {
                         {`, ${dayText} ${campaignForm.send_window_start || '09:00'}-${campaignForm.send_window_end || '17:00'}`}
                         {campaignForm.send_in_recipient_timezone ? " in each person's time zone" : ` ${campaignForm.timezone || ''}`}
                       </p>
-                      <button onClick={() => setWizardStep(0)} className="text-caption font-semibold text-[var(--indigo)] hover:underline">Change</button>
+                      <button onClick={() => setWizardStep(0)} className="text-caption font-semibold text-[var(--indigo-text)] hover:underline">Change</button>
                     </div>
                   );
                 })()}
@@ -2231,7 +2251,7 @@ export function CampaignCreatePage() {
                             </span>
                             {step.step_type === 'email' ? (
                               <>
-                                <Mail className="h-3.5 w-3.5 text-[var(--indigo)] flex-shrink-0" />
+                                <Mail className="h-3.5 w-3.5 text-[var(--indigo-text)] flex-shrink-0" />
                                 <div className="flex-1 min-w-0">
                                   <p className="text-body font-medium text-[var(--text-primary)] truncate">
                                     {step.subject || 'Untitled Email'}
@@ -2315,7 +2335,7 @@ export function CampaignCreatePage() {
                       )}
                     >
                       <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0', sendMode === 'now' ? 'bg-[var(--indigo-subtle)]' : 'bg-[var(--bg-elevated)]')}>
-                        <Send className={cn('h-4 w-4', sendMode === 'now' ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} />
+                        <Send className={cn('h-4 w-4', sendMode === 'now' ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)]')} />
                       </span>
                       <span className="min-w-0">
                         <span className="block text-strong font-semibold text-[var(--text-primary)]">Send now</span>
@@ -2331,7 +2351,7 @@ export function CampaignCreatePage() {
                       )}
                     >
                       <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0', sendMode === 'schedule' ? 'bg-[var(--indigo-subtle)]' : 'bg-[var(--bg-elevated)]')}>
-                        <CalendarClock className={cn('h-4 w-4', sendMode === 'schedule' ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} />
+                        <CalendarClock className={cn('h-4 w-4', sendMode === 'schedule' ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)]')} />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-strong font-semibold text-[var(--text-primary)]">Schedule</span>
@@ -2341,8 +2361,9 @@ export function CampaignCreatePage() {
                   </div>
                   {sendMode === 'schedule' && (
                     <div className="mt-3">
-                      <label className="block text-caption font-medium text-[var(--text-secondary)] mb-1">Start date & time ({campaignForm.timezone || 'local'})</label>
+                      <label htmlFor="campaign-schedule-at" className="block text-caption font-medium text-[var(--text-secondary)] mb-1">Start date & time ({campaignForm.timezone || 'local'})</label>
                       <input
+                        id="campaign-schedule-at"
                         type="datetime-local"
                         value={scheduleAt}
                         min={formatDatetimeLocalInTimezone(new Date(Date.now() + 5 * 60000), campaignForm.timezone || 'UTC')}
@@ -2490,7 +2511,7 @@ export function CampaignCreatePage() {
               </div>
             );
           })()}
-        </main>
+        </div>
       </div>
 
       {/* Contact selection modal */}
@@ -2523,6 +2544,7 @@ export function CampaignCreatePage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
                 <input
                   type="text"
+                  aria-label="Search contacts"
                   placeholder="Search by name, email, or company…"
                   value={contactSearch}
                   onChange={(e) => setContactSearch(e.target.value)}
@@ -2612,147 +2634,123 @@ export function CampaignCreatePage() {
       </Modal>
 
       {/* AI generation modal */}
-      {showAiModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowAiModal(false)}>
-          <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)] shadow-2xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/15 border border-violet-500/20">
-                  <Wand2 className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
-                </span>
-                <div>
-                  <h2 className="text-strong font-semibold text-[var(--text-primary)]">Generate email with AI</h2>
-                  <p className="text-caption text-[var(--text-tertiary)] mt-0.5">Relay will write the subject and body for you</p>
-                </div>
-              </div>
-              <button onClick={() => setShowAiModal(false)} className="p-1.5 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
-                <X className="h-4 w-4" />
-              </button>
+      <Modal
+        isOpen={showAiModal}
+        onClose={() => setShowAiModal(false)}
+        title="Generate email with AI"
+        description="Relay will write the subject and body for you"
+        size="lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowAiModal(false)}>Cancel</Button>
+            <button
+              disabled={!aiGoal || aiGenerating}
+              onClick={handleGenerateEmail}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md bg-violet-600 text-white text-body font-semibold hover:bg-violet-700 disabled:opacity-50 transition-all"
+            >
+              {aiGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              {aiGenerating ? 'Generating…' : 'Generate email'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Field label={<>What's the goal? <span className="text-rose-600 dark:text-rose-400">*</span></>}>
+            <input
+              type="text"
+              value={aiGoal}
+              onChange={(e) => setAiGoal(e.target.value)}
+              placeholder="e.g. Book a demo call, introduce our product…"
+              className={inputCls}
+            />
+          </Field>
+          <Field label="Product / Service">
+            <input
+              type="text"
+              value={aiProduct}
+              onChange={(e) => setAiProduct(e.target.value)}
+              placeholder="e.g. Sincerely email automation"
+              className={inputCls}
+            />
+          </Field>
+          <Field label="Tone">
+            <div className="grid grid-cols-3 gap-2">
+              {TONE_OPTIONS.map((t) => (
+                <button
+                  key={t.value}
+                  onClick={() => setAiTone(t.value)}
+                  className={cn(
+                    'p-2.5 rounded-lg border text-center transition-all',
+                    aiTone === t.value
+                      ? 'border-violet-500/40 bg-violet-500/10 shadow-[0_0_0_1px_rgba(110,78,142,0.15)]'
+                      : 'border-[var(--border-subtle)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)]'
+                  )}
+                >
+                  <div className="text-title mb-1">{t.icon}</div>
+                  <p className={cn(
+                    'text-body font-semibold',
+                    aiTone === t.value ? 'text-violet-700 dark:text-violet-400' : 'text-[var(--text-primary)]'
+                  )}>{t.label}</p>
+                  <p className="text-micro text-[var(--text-tertiary)] mt-0.5 leading-tight">{t.description}</p>
+                </button>
+              ))}
             </div>
-            <div className="p-5 space-y-4">
-              <Field label={<>What's the goal? <span className="text-rose-500">*</span></>}>
-                <input
-                  type="text"
-                  value={aiGoal}
-                  onChange={(e) => setAiGoal(e.target.value)}
-                  placeholder="e.g. Book a demo call, introduce our product…"
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="Product / Service">
-                <input
-                  type="text"
-                  value={aiProduct}
-                  onChange={(e) => setAiProduct(e.target.value)}
-                  placeholder="e.g. Sincerely email automation"
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="Tone">
-                <div className="grid grid-cols-3 gap-2">
-                  {TONE_OPTIONS.map((t) => (
-                    <button
-                      key={t.value}
-                      onClick={() => setAiTone(t.value)}
-                      className={cn(
-                        'p-2.5 rounded-lg border text-center transition-all',
-                        aiTone === t.value
-                          ? 'border-violet-500/40 bg-violet-500/10 shadow-[0_0_0_1px_rgba(110,78,142,0.15)]'
-                          : 'border-[var(--border-subtle)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)]'
-                      )}
-                    >
-                      <div className="text-title mb-1">{t.icon}</div>
-                      <p className={cn(
-                        'text-body font-semibold',
-                        aiTone === t.value ? 'text-violet-700 dark:text-violet-400' : 'text-[var(--text-primary)]'
-                      )}>{t.label}</p>
-                      <p className="text-micro text-[var(--text-tertiary)] mt-0.5 leading-tight">{t.description}</p>
-                    </button>
-                  ))}
-                </div>
-              </Field>
-            </div>
-            <div className="px-5 py-3 border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/40 flex gap-2">
-              <Button variant="secondary" className="flex-1" onClick={() => setShowAiModal(false)}>Cancel</Button>
-              <button
-                disabled={!aiGoal || aiGenerating}
-                onClick={handleGenerateEmail}
-                className="flex-1 inline-flex items-center justify-center gap-2 py-2 rounded-md bg-violet-600 text-white text-body font-semibold hover:bg-violet-700 disabled:opacity-50 transition-all"
-              >
-                {aiGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                {aiGenerating ? 'Generating…' : 'Generate email'}
-              </button>
-            </div>
-          </div>
+          </Field>
         </div>
-      )}
+      </Modal>
 
       {/* Template picker */}
-      {showTemplatePicker && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowTemplatePicker(false)}>
-          <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] border border-[rgba(47,63,156,0.18)]">
-                  <FolderOpen className="h-3.5 w-3.5 text-[var(--indigo)]" />
-                </span>
-                <div>
-                  <h2 className="text-strong font-semibold text-[var(--text-primary)]">Apply sequence template</h2>
-                  <p className="text-caption text-[var(--text-tertiary)] mt-0.5">This will replace your current sequence steps.</p>
-                </div>
-              </div>
-              <button onClick={() => setShowTemplatePicker(false)} className="p-1.5 rounded-md hover:bg-[var(--bg-hover)]">
-                <X className="h-4 w-4 text-[var(--text-tertiary)]" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              {sequenceTemplates.length === 0 ? (
-                <div className="text-center py-12">
-                  <Layers className="h-10 w-10 mx-auto text-[var(--text-tertiary)] mb-2" strokeWidth={1.5} />
-                  <p className="text-strong text-[var(--text-secondary)] mb-1">No sequence templates yet</p>
-                  <Link to="/templates" className="text-caption text-[var(--indigo)] hover:underline font-semibold">
-                    Create your first template →
-                  </Link>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {sequenceTemplates.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => loadTemplate(t.id)}
-                      className="text-left p-4 rounded-lg border border-[var(--border-subtle)] hover:border-[var(--indigo-subtle)] hover:bg-[var(--indigo-subtle)] transition-all group"
-                    >
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <h3 className="text-strong font-semibold text-[var(--text-primary)] group-hover:text-[var(--indigo)] transition-colors flex-1 min-w-0 truncate">
-                          {t.name}
-                        </h3>
-                        {t.is_preset && (
-                          <span className="px-1.5 py-0.5 rounded text-micro font-bold bg-[var(--indigo-subtle)] text-[var(--indigo)] flex-shrink-0">
-                            Preset
-                          </span>
-                        )}
-                      </div>
-                      {t.description && <p className="text-caption text-[var(--text-secondary)] mt-1 line-clamp-2 leading-snug">{t.description}</p>}
-                      <div className="flex items-center gap-3 mt-2.5 text-micro text-[var(--text-tertiary)]">
-                        <span className="flex items-center gap-1">
-                          <Mail className="h-2.5 w-2.5" />
-                          {(t.steps as any[])?.length || 0} steps
-                        </span>
-                        {t.category && (
-                          <>
-                            <span className="text-[var(--text-muted)]">·</span>
-                            <span>{t.category}</span>
-                          </>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+      <Modal
+        isOpen={showTemplatePicker}
+        onClose={() => setShowTemplatePicker(false)}
+        title="Apply sequence template"
+        description="This will replace your current sequence steps."
+        size="xl"
+      >
+        {sequenceTemplates.length === 0 ? (
+          <div className="text-center py-12">
+            <Layers className="h-10 w-10 mx-auto text-[var(--text-tertiary)] mb-2" strokeWidth={1.5} />
+            <p className="text-strong text-[var(--text-secondary)] mb-1">No sequence templates yet</p>
+            <Link to="/templates" className="text-caption text-[var(--indigo-text)] hover:underline font-semibold">
+              Create your first template →
+            </Link>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {sequenceTemplates.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => loadTemplate(t.id)}
+                className="text-left p-4 rounded-lg border border-[var(--border-subtle)] hover:border-[var(--indigo-subtle)] hover:bg-[var(--indigo-subtle)] transition-all group"
+              >
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <h3 className="text-strong font-semibold text-[var(--text-primary)] group-hover:text-[var(--indigo-text)] transition-colors flex-1 min-w-0 truncate">
+                    {t.name}
+                  </h3>
+                  {t.is_preset && (
+                    <span className="px-1.5 py-0.5 rounded text-micro font-bold bg-[var(--indigo-subtle)] text-[var(--indigo-text)] flex-shrink-0">
+                      Preset
+                    </span>
+                  )}
+                </div>
+                {t.description && <p className="text-caption text-[var(--text-secondary)] mt-1 line-clamp-2 leading-snug">{t.description}</p>}
+                <div className="flex items-center gap-3 mt-2.5 text-micro text-[var(--text-tertiary)]">
+                  <span className="flex items-center gap-1">
+                    <Mail className="h-2.5 w-2.5" />
+                    {(t.steps as any[])?.length || 0} steps
+                  </span>
+                  {t.category && (
+                    <>
+                      <span className="text-[var(--text-tertiary)]">·</span>
+                      <span>{t.category}</span>
+                    </>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </Modal>
 
       <WriteWithRelay
         isOpen={showWriter}
@@ -2790,7 +2788,7 @@ function StatRow({ label, value, accent }: { label: string; value: string | numb
       <span className="text-[var(--text-tertiary)]">{label}</span>
       <span className={cn(
         'tabular font-semibold',
-        accent === 'indigo' ? 'text-[var(--indigo)]' : 'text-[var(--text-primary)]'
+        accent === 'indigo' ? 'text-[var(--indigo-text)]' : 'text-[var(--text-primary)]'
       )}>{value}</span>
     </div>
   );
@@ -2808,6 +2806,7 @@ function ABSection({
   variantALabel: string;
   isTextarea?: boolean;
 }) {
+  const bId = useId();
   return (
     <div className="rounded-lg border border-[var(--border-subtle)] p-3.5">
       <div className="flex items-center justify-between mb-2.5">
@@ -2819,7 +2818,7 @@ function ABSection({
           <button
             type="button"
             onClick={onClear}
-            className="text-caption text-[var(--text-tertiary)] hover:text-rose-500 transition-colors font-medium"
+            className="text-caption text-[var(--text-tertiary)] hover:text-rose-600 dark:hover:text-rose-400 transition-colors font-medium"
           >
             Clear
           </button>
@@ -2827,19 +2826,20 @@ function ABSection({
       </div>
       <div className="space-y-2">
         <div>
-          <label className="block text-micro font-medium text-[var(--text-tertiary)] mb-1">
+          <span className="block text-micro font-medium text-[var(--text-tertiary)] mb-1">
             {variantALabel}
-          </label>
+          </span>
           <div className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 py-2 text-caption text-[var(--text-secondary)] line-clamp-2">
             {variantA || 'Not yet set'}
           </div>
         </div>
         <div>
-          <label className="block text-micro font-medium text-[var(--text-tertiary)] mb-1">
+          <label htmlFor={bId} className="block text-micro font-medium text-[var(--text-tertiary)] mb-1">
             Variant B
           </label>
           {isTextarea ? (
             <textarea
+              id={bId}
               value={variantB}
               onChange={(e) => onChangeB(e.target.value)}
               rows={3}
@@ -2848,6 +2848,7 @@ function ABSection({
             />
           ) : (
             <input
+              id={bId}
               type="text"
               value={variantB}
               onChange={(e) => onChangeB(e.target.value)}
@@ -3001,7 +3002,7 @@ function RecipientPreview({ subject, bodyHtml, fromName, fromEmail, people = [] 
   return (
     <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] overflow-hidden" data-preview-client={client}>
       <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)]">
-        <Eye className="h-3 w-3 text-[var(--indigo)]" />
+        <Eye className="h-3 w-3 text-[var(--indigo-text)]" />
         <span className="text-micro font-bold text-[var(--text-secondary)]">
           {person ? 'As they will see it' : 'Inbox preview'}
         </span>
@@ -3022,7 +3023,7 @@ function RecipientPreview({ subject, bodyHtml, fromName, fromEmail, people = [] 
           {variants > 1 && (
             <button
               onClick={() => setVariation((v) => v + 1)}
-              className="text-micro text-[var(--indigo)] hover:underline"
+              className="text-micro text-[var(--indigo-text)] hover:underline"
               title={`Spintax makes ${variants.toLocaleString()} wordings of this email`}
             >
               {variants.toLocaleString()} wordings — another
@@ -3070,7 +3071,7 @@ function RecipientPreview({ subject, bodyHtml, fromName, fromEmail, people = [] 
       </div>
 
       <div className={cn('mx-auto bg-white text-gray-900 px-3.5 py-2.5 border-b border-gray-200', clientFont, phone && 'max-w-[360px]')}>
-        <h3 className={cn('font-semibold text-gray-900 mb-1.5 leading-snug', client === 'outlook' ? 'text-heading' : 'text-strong')}>{previewSubject}</h3>
+        <p className={cn('font-semibold text-gray-900 mb-1.5 leading-snug', client === 'outlook' ? 'text-heading' : 'text-strong')}>{previewSubject}</p>
         <div className="flex items-center gap-2">
           <Avatar name={fromName || fromEmail} email={fromEmail} size="sm" />
           <div className="flex-1 min-w-0">

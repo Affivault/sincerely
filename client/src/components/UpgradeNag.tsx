@@ -148,7 +148,7 @@ export function UpgradeNag() {
           </div>
           <button
             onClick={() => { setReason(undefined); setOpen(true); }}
-            className="flex-shrink-0 inline-flex items-center gap-1 rounded-lg bg-white/95 px-3 py-1.5 text-body font-semibold text-[var(--indigo)] hover:bg-white transition-colors"
+            className="flex-shrink-0 inline-flex items-center gap-1 rounded-lg bg-white/95 px-3 py-1.5 text-body font-semibold text-[var(--indigo-text)] hover:bg-white transition-colors"
           >
             Upgrade <ArrowRight className="h-3.5 w-3.5" />
           </button>
@@ -176,7 +176,7 @@ export function UpgradeNag() {
             <div className="px-6 pt-5 pb-4 border-b border-[var(--border-subtle)]">
               <div className="flex items-start gap-3.5">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(47,63,156,0.18)] flex-shrink-0 mt-0.5">
-                  <Sparkles className="h-[18px] w-[18px] text-[var(--indigo)]" />
+                  <Sparkles className="h-[18px] w-[18px] text-[var(--indigo-text)]" />
                 </span>
                 <div className="flex-1 min-w-0">
                   <h2 className="text-title font-semibold text-[var(--text-primary)] tracking-[-0.01em] leading-tight">
@@ -225,7 +225,7 @@ export function UpgradeNag() {
                           : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                       )}
                     >
-                      {i === 'annual' ? <>Annual <span className={cn(interval === i ? 'text-[var(--indigo)]' : 'text-[var(--text-muted)]')}>−{maxSave}%</span></> : 'Monthly'}
+                      {i === 'annual' ? <>Annual <span className={cn(interval === i ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)]')}>−{maxSave}%</span></> : 'Monthly'}
                     </button>
                   ))}
                 </div>
@@ -263,7 +263,7 @@ export function UpgradeNag() {
                           'flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0',
                           popular ? 'bg-[var(--indigo-subtle)] border border-[rgba(47,63,156,0.18)]' : 'bg-[var(--bg-elevated)] border border-[var(--border-subtle)]'
                         )}>
-                          <Icon className={cn('h-4 w-4', popular ? 'text-[var(--indigo)]' : 'text-[var(--text-secondary)]')} />
+                          <Icon className={cn('h-4 w-4', popular ? 'text-[var(--indigo-text)]' : 'text-[var(--text-secondary)]')} />
                         </span>
                         <div className="min-w-0">
                           <p className="text-strong font-semibold text-[var(--text-primary)] leading-tight">{plan.name}</p>
@@ -276,7 +276,7 @@ export function UpgradeNag() {
                           <span className="text-hero font-semibold text-[var(--text-primary)] tabular tracking-[-0.02em] leading-none">${monthlyEq}</span>
                           <span className="text-body text-[var(--text-tertiary)]">/mo</span>
                         </div>
-                        <p className="mt-1 text-caption text-[var(--text-muted)]">
+                        <p className="mt-1 text-caption text-[var(--text-tertiary)]">
                           {interval === 'annual'
                             ? <>billed ${plan.priceAnnual}/yr · <span className="text-emerald-600 dark:text-emerald-400 font-medium">save {save}%</span></>
                             : 'billed monthly'}
@@ -311,12 +311,12 @@ export function UpgradeNag() {
               <div className="mt-4 flex items-center justify-between">
                 <button
                   onClick={() => { setOpen(false); navigate('/billing'); }}
-                  className="inline-flex items-center gap-1 text-body font-medium text-[var(--indigo)] hover:underline"
+                  className="inline-flex items-center gap-1 text-body font-medium text-[var(--indigo-text)] hover:underline"
                 >
                   Compare all plans <ArrowRight className="h-3 w-3" />
                 </button>
                 <div className="flex items-center gap-3">
-                  <span className="hidden sm:inline text-caption text-[var(--text-muted)]">10-day trial · cancel anytime</span>
+                  <span className="hidden sm:inline text-caption text-[var(--text-tertiary)]">10-day trial · cancel anytime</span>
                   <button onClick={() => setOpen(false)} className="text-body text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors">
                     Maybe later
                   </button>

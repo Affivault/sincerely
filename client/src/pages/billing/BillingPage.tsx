@@ -149,9 +149,9 @@ export function BillingPage() {
           <div className="min-w-0">
             <p className="text-body font-medium text-[var(--text-tertiary)]">Current plan</p>
             <div className="mt-1 flex items-center gap-2.5">
-              <h3 className="text-display font-semibold text-[var(--text-primary)] tracking-[-0.02em] leading-none">
+              <h2 className="text-display font-semibold text-[var(--text-primary)] tracking-[-0.02em] leading-none">
                 {usage ? usage.planName : '—'}
-              </h3>
+              </h2>
               {isTrialing && (
                 <span className="text-micro font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
                   Trial
@@ -182,7 +182,7 @@ export function BillingPage() {
       {/* Plans */}
       <div className="flex items-center justify-between mb-4 mt-8">
         <div>
-          <h3 className="text-heading font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Plans</h3>
+          <h2 className="text-heading font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Plans</h2>
           <p className="text-body text-[var(--text-tertiary)] mt-0.5">Upgrade any time — changes are prorated.</p>
         </div>
         <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
@@ -196,7 +196,7 @@ export function BillingPage() {
               )}
             >
               {i}
-              {i === 'annual' && <span className="text-[var(--indigo)] font-semibold"> · save 2mo</span>}
+              {i === 'annual' && <span className="text-[var(--indigo-text)] font-semibold"> · save 2mo</span>}
             </button>
           ))}
         </div>
@@ -229,7 +229,7 @@ export function BillingPage() {
                   'flex h-9 w-9 items-center justify-center rounded-xl',
                   featured ? 'bg-[var(--indigo)]' : 'bg-[var(--indigo-subtle)]'
                 )}>
-                  <Icon className={cn('h-4 w-4', featured ? 'text-white' : 'text-[var(--indigo)]')} />
+                  <Icon className={cn('h-4 w-4', featured ? 'text-white' : 'text-[var(--indigo-text)]')} />
                 </span>
                 {isCurrent && (
                   <span className="flex items-center gap-1 text-micro font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
@@ -239,7 +239,7 @@ export function BillingPage() {
               </div>
 
               <div>
-                <h4 className="text-heading font-semibold text-[var(--text-primary)]">{plan.name}</h4>
+                <h3 className="text-heading font-semibold text-[var(--text-primary)]">{plan.name}</h3>
                 <div className="mt-1.5 flex items-baseline gap-1">
                   {price === null ? (
                     <span className="text-hero font-semibold text-[var(--text-primary)] tracking-[-0.02em]">Custom</span>
@@ -312,7 +312,7 @@ function FeatureChip({ label, on }: { label: string; on: boolean }) {
 function PlanLine({ muted = false, children }: { muted?: boolean; children: React.ReactNode }) {
   return (
     <li className="flex items-start gap-2">
-      <Check className={cn('h-3.5 w-3.5 mt-0.5 flex-shrink-0', muted ? 'text-[var(--text-muted)]' : 'text-[var(--indigo)]')} />
+      <Check className={cn('h-3.5 w-3.5 mt-0.5 flex-shrink-0', muted ? 'text-[var(--text-tertiary)]' : 'text-[var(--indigo-text)]')} />
       <span className={cn(muted && 'text-[var(--text-tertiary)]')}>{children}</span>
     </li>
   );

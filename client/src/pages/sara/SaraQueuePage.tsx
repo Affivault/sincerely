@@ -206,7 +206,7 @@ export function SaraQueuePage() {
               queryClient.invalidateQueries({ queryKey: ['sara-stats'] });
             }}
             className="icon-btn"
-            title="Refresh"
+            title="Refresh" aria-label="Refresh"
           >
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
@@ -224,7 +224,7 @@ export function SaraQueuePage() {
       {/* Intent Distribution */}
       {stats?.top_intents && stats.top_intents.length > 0 && (
         <div className="card p-4">
-          <h3 className="text-caption font-bold text-[var(--text-tertiary)] mb-3">Intent Distribution</h3>
+          <h2 className="text-caption font-bold text-[var(--text-tertiary)] mb-3">Intent Distribution</h2>
           <div className="flex gap-1.5 flex-wrap">
             {stats.top_intents.map((item: any) => {
               const config = INTENT_CONFIG[item.intent] || INTENT_CONFIG.other;
@@ -237,13 +237,13 @@ export function SaraQueuePage() {
                   className={cn(
                     'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-body font-medium border transition-all',
                     isActive
-                      ? 'bg-[rgba(47,63,156,0.1)] border-[rgba(47,63,156,0.3)] text-[var(--indigo)]'
+                      ? 'bg-[rgba(47,63,156,0.1)] border-[rgba(47,63,156,0.3)] text-[var(--indigo-text)]'
                       : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]'
                   )}
                 >
                   <IntentIcon className="h-3 w-3" />
                   {config.label}
-                  <span className={cn('tabular', isActive ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')}>{item.count}</span>
+                  <span className={cn('tabular', isActive ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)]')}>{item.count}</span>
                 </button>
               );
             })}
@@ -294,7 +294,7 @@ export function SaraQueuePage() {
             <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 mb-5">
               <XCircle className="h-7 w-7 text-red-600 dark:text-red-400" strokeWidth={1.5} />
             </span>
-            <h3 className="text-heading font-semibold text-[var(--text-primary)] mb-1.5">Couldn't load the queue</h3>
+            <h2 className="text-heading font-semibold text-[var(--text-primary)] mb-1.5">Couldn't load the queue</h2>
             <p className="text-body text-[var(--text-secondary)] max-w-sm mb-4">Something went wrong fetching Relay's queue — this isn't necessarily an empty inbox. Try again.</p>
             <button
               onClick={() => queryClient.invalidateQueries({ queryKey: ['sara-queue'] })}
@@ -311,9 +311,9 @@ export function SaraQueuePage() {
               </span>
               <Sparkles className="h-4 w-4 text-amber-400 absolute -top-1 -right-1" />
             </div>
-            <h3 className="text-heading font-semibold text-[var(--text-primary)] mb-1.5">
+            <h2 className="text-heading font-semibold text-[var(--text-primary)] mb-1.5">
               {statusFilter === 'pending_review' ? 'Inbox zero — nice.' : 'Nothing here yet'}
-            </h3>
+            </h2>
             <p className="text-body text-[var(--text-secondary)] max-w-sm">
               {statusFilter === 'pending_review'
                 ? 'Relay hasn\'t flagged any replies for review. New ones will appear here as they come in.'
@@ -383,7 +383,7 @@ export function SaraQueuePage() {
                               </span>
                             )}
                             {autoHandled && (
-                              <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-semibold bg-[var(--indigo)]/8 text-[var(--indigo)]" title="Handled automatically by Relay — no human review">
+                              <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-semibold bg-[var(--indigo)]/8 text-[var(--indigo-text)]" title="Handled automatically by Relay — no human review">
                                 <Bot className="h-2.5 w-2.5" />
                                 Auto
                               </span>
@@ -422,7 +422,7 @@ export function SaraQueuePage() {
                       <Avatar name={name} email={msg.from_email} size="lg" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-heading font-semibold text-[var(--text-primary)]">{name}</h3>
+                          <h2 className="text-heading font-semibold text-[var(--text-primary)]">{name}</h2>
                           <span className="text-caption text-[var(--text-tertiary)]">&lt;{msg.from_email}&gt;</span>
                         </div>
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -442,7 +442,7 @@ export function SaraQueuePage() {
                       <div className="flex flex-col items-end gap-1 flex-shrink-0">
                         <span className={cn(
                           'inline-flex items-center gap-1 px-1.5 h-[20px] rounded-md text-micro font-semibold',
-                          'bg-[var(--indigo)]/8 text-[var(--indigo)]'
+                          'bg-[var(--indigo)]/8 text-[var(--indigo-text)]'
                         )}>
                           <IntentIcon className="h-2.5 w-2.5" />
                           {intentConfig.label}
@@ -453,7 +453,7 @@ export function SaraQueuePage() {
                           </span>
                         )}
                         {autoHandled && (
-                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-semibold bg-[var(--indigo)]/8 text-[var(--indigo)]" title="Relay acted on this automatically based on your auto-execute settings">
+                          <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-semibold bg-[var(--indigo)]/8 text-[var(--indigo-text)]" title="Relay acted on this automatically based on your auto-execute settings">
                             <Bot className="h-2.5 w-2.5" />
                             Auto-handled
                           </span>
@@ -466,9 +466,9 @@ export function SaraQueuePage() {
                       <div className="px-5 py-4 space-y-4">
                         {/* Original message */}
                         <div>
-                          <h4 className="text-micro font-bold text-[var(--text-tertiary)] mb-2">
+                          <h3 className="text-micro font-bold text-[var(--text-tertiary)] mb-2">
                             Reply received
-                          </h4>
+                          </h3>
                           <div className="text-strong text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
                             {msg.body_text || msg.body_html?.replace(/<[^>]*>/g, '') || '(empty message)'}
                           </div>
@@ -482,9 +482,9 @@ export function SaraQueuePage() {
                                 <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--indigo)]">
                                   <Bot className="h-3 w-3 text-white" />
                                 </span>
-                                <h4 className="text-caption font-bold text-[var(--indigo)]">
+                                <h3 className="text-caption font-bold text-[var(--indigo-text)]">
                                   Relay's draft reply
-                                </h4>
+                                </h3>
                               </div>
                               {msg.sara_action && (
                                 <span className="text-micro text-[var(--text-tertiary)]">
@@ -493,7 +493,7 @@ export function SaraQueuePage() {
                               )}
                             </div>
                             {isEditing ? (
-                              <textarea
+                              <textarea aria-label="Edited reply"
                                 value={editedReply}
                                 onChange={(e) => setEditedReply(e.target.value)}
                                 rows={8}

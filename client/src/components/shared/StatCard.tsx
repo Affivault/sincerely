@@ -51,6 +51,15 @@ export function StatCard({
   return (
     <div
       onClick={onClick}
+      // A clickable card must be reachable and operable from the keyboard.
+      {...(onClick ? {
+        role: 'button' as const,
+        tabIndex: 0,
+        onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+          if (e.target !== e.currentTarget) return;
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); }
+        },
+      } : {})}
       className={cn(inStrip ? 'px-5 py-4' : 'panel p-4', onClick && (inStrip ? 'cursor-pointer hover:bg-[var(--bg-muted)]' : 'panel-hover cursor-pointer'), className)}
     >
       <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
@@ -59,9 +68,12 @@ export function StatCard({
         {delta != null && (
           <span className={cn(
             'ml-auto flex items-center gap-0.5 text-body font-semibold tabular flex-shrink-0',
-            flat ? 'text-[var(--text-tertiary)]' : deltaGood ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-500'
+            flat ? 'text-[var(--text-tertiary)]' : deltaGood ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
           )}>
-            {!flat && (delta > 0 ? <ArrowUp className="h-3 w-3" strokeWidth={2.5} /> : <ArrowDown className="h-3 w-3" strokeWidth={2.5} />)}
+            {!flat && (delta > 0
+              ? <ArrowUp aria-hidden className="h-3 w-3" strokeWidth={2.5} />
+              : <ArrowDown aria-hidden className="h-3 w-3" strokeWidth={2.5} />)}
+            {!flat && <span className="sr-only">{delta > 0 ? 'Up' : 'Down'}</span>}
             {Math.abs(delta).toFixed(1)}%
           </span>
         )}

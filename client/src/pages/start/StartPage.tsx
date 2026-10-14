@@ -168,7 +168,7 @@ function StepCard({ n, title, summary, icon: Icon, done, current, expanded, lock
           </span>
           <span className="mt-0.5 block truncate text-caption text-[var(--text-tertiary)]">{summary}</span>
         </span>
-        <ChevronRight className={cn('h-4 w-4 flex-shrink-0 text-[var(--text-muted)] transition-transform', expanded && 'rotate-90')} />
+        <ChevronRight className={cn('h-4 w-4 flex-shrink-0 text-[var(--text-tertiary)] transition-transform', expanded && 'rotate-90')} />
       </button>
       {expanded && <div className="border-t border-[var(--border-subtle)] px-4 py-4">{children}</div>}
     </section>
@@ -318,7 +318,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
   return (
     <button type="button" onClick={copy} title={`Copy ${label.toLowerCase()}`} className="group col-span-2 flex min-w-0 items-center gap-1.5 rounded-md bg-[var(--bg-elevated)] px-2 py-1 text-left sm:col-span-1">
       <span className="truncate font-mono text-caption text-[var(--text-primary)]">{value}</span>
-      <Copy className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)] group-hover:text-[var(--indigo)]" />
+      <Copy className="h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)] group-hover:text-[var(--indigo-text)]" />
     </button>
   );
 }
@@ -345,7 +345,7 @@ function LeadsStep({ lists, chosenId, onChoose }: {
                 onClick={() => onChoose(l.id)}
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-lg border px-2.5 h-8 text-body',
-                  chosenId === l.id ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]',
+                  chosenId === l.id ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]',
                 )}
               >
                 {chosenId === l.id && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
@@ -437,12 +437,12 @@ function QuickImport({ onImported }: { onImported: (listId: string) => void }) {
         />
         {progress ? (
           <>
-            <Loader2 className="mb-2 h-5 w-5 animate-spin text-[var(--indigo)]" />
+            <Loader2 className="mb-2 h-5 w-5 animate-spin text-[var(--indigo-text)]" />
             <p className="text-body font-medium text-[var(--text-primary)]">Adding {progress.done.toLocaleString()} of {progress.total.toLocaleString()}…</p>
           </>
         ) : (
           <>
-            <Upload className="mb-2 h-5 w-5 text-[var(--indigo)]" />
+            <Upload className="mb-2 h-5 w-5 text-[var(--indigo-text)]" />
             <p className="text-body font-medium text-[var(--text-primary)]">Drop a CSV of your leads, or click to choose one</p>
             <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">Any export works - Apollo, LinkedIn, a spreadsheet. Duplicates and bad addresses are left out for you.</p>
           </>

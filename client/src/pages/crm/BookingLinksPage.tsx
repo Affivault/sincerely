@@ -121,7 +121,7 @@ export function BookingLinksPage() {
             <span className="text-[var(--text-secondary)]">
               Bookings still land on your calendar, but the person who booked hears nothing.
             </span>{' '}
-            <a href="/email-accounts" className="text-[var(--indigo)] hover:underline">
+            <a href="/email-accounts" className="text-[var(--indigo-text)] hover:underline">
               Connect one
             </a>
           </p>
@@ -141,9 +141,9 @@ export function BookingLinksPage() {
               <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--bg-elevated)]">
                 <Link2 className="h-5 w-5 text-[var(--text-tertiary)]" />
               </span>
-              <h3 className="mt-3 text-heading font-semibold text-[var(--text-primary)]">
+              <h2 className="mt-3 text-heading font-semibold text-[var(--text-primary)]">
                 No booking links yet
-              </h3>
+              </h2>
               <p className="mt-1 text-body text-[var(--text-secondary)] max-w-sm mx-auto">
                 Make one and put it in a sequence. A reply that says &ldquo;sure, when?&rdquo;
                 turns into a meeting without another email.
@@ -177,12 +177,12 @@ export function BookingLinksPage() {
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className={cn(
+                      <h2 className={cn(
                         'truncate text-strong font-semibold',
                         link.is_active ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]',
                       )}>
                         {link.headline}
-                      </h3>
+                      </h2>
                       {!link.is_active && (
                         <span className="rounded px-1.5 py-[1px] text-micro font-medium bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">
                           Paused
@@ -193,7 +193,8 @@ export function BookingLinksPage() {
                     <button
                       onClick={() => copy(link.slug)}
                       title="Copy this address"
-                      className="mt-0.5 flex items-center gap-1 text-body text-[var(--text-secondary)] hover:text-[var(--indigo)]"
+                      aria-label={`Copy the address /b/${link.slug}`}
+                      className="mt-0.5 flex min-h-6 items-center gap-1 text-body text-[var(--text-secondary)] hover:text-[var(--indigo-text)]"
                       data-copy={link.slug}
                     >
                       <span className="truncate">/b/{link.slug}</span>
@@ -210,8 +211,8 @@ export function BookingLinksPage() {
                         onClick={() => setOpened((o) => (o === link.id ? null : link.id))}
                         disabled={link.bookings === 0}
                         className={cn(
-                          'flex items-center gap-1',
-                          link.bookings > 0 && 'hover:text-[var(--indigo)]',
+                          'flex min-h-6 items-center gap-1',
+                          link.bookings > 0 && 'hover:text-[var(--indigo-text)]',
                         )}
                         data-open-bookings={link.slug}
                       >
@@ -242,6 +243,7 @@ export function BookingLinksPage() {
                       target="_blank"
                       rel="noreferrer"
                       title="Open the page"
+                      aria-label={`Open the page for ${link.headline}`}
                       className="h-7 w-7 grid place-items-center rounded-md text-[var(--text-tertiary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
@@ -249,6 +251,7 @@ export function BookingLinksPage() {
                     <button
                       onClick={() => setEditing(link)}
                       title="Edit"
+                      aria-label={`Edit ${link.headline}`}
                       className="h-7 w-7 grid place-items-center rounded-md text-[var(--text-tertiary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
                     >
                       <Settings2 className="h-3.5 w-3.5" />
@@ -256,6 +259,7 @@ export function BookingLinksPage() {
                     <Switch
                       on={link.is_active}
                       onChange={(v) => toggle.mutate({ id: link.id, is_active: v })}
+                      label={`${link.headline} is taking bookings`}
                     />
                   </div>
                 </div>
@@ -277,14 +281,14 @@ export function BookingLinksPage() {
             />
           ) : (
             <div className="panel px-4 py-5">
-              <h3 className="text-strong font-semibold text-[var(--text-primary)]">
+              <h2 className="text-strong font-semibold text-[var(--text-primary)]">
                 How these work
-              </h3>
+              </h2>
               <ol className="mt-2 space-y-2 text-body leading-relaxed text-[var(--text-secondary)]">
                 <li>
                   <strong className="text-[var(--text-primary)]">1.</strong> A link offers the
                   free times from your{' '}
-                  <a href="/calendar/availability" className="text-[var(--indigo)] hover:underline">
+                  <a href="/calendar/availability" className="text-[var(--indigo-text)] hover:underline">
                     working hours
                   </a>, minus whatever is already in your calendar.
                 </li>
@@ -446,11 +450,13 @@ function Editor({ link, types, onClose, onArchive }: {
   return (
     <div className="panel overflow-hidden" data-editor>
       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
-        <h3 className="text-strong font-semibold text-[var(--text-primary)]">
+        <h2 className="text-strong font-semibold text-[var(--text-primary)]">
           {link ? 'Edit link' : 'New booking link'}
-        </h3>
+        </h2>
         <button
           onClick={onClose}
+          aria-label="Close"
+          title="Close"
           className="h-6 w-6 grid place-items-center rounded text-[var(--text-tertiary)] hover:bg-[var(--bg-elevated)]"
         >
           <X className="h-3.5 w-3.5" />
@@ -476,7 +482,7 @@ function Editor({ link, types, onClose, onArchive }: {
             <input
               value={previewSlug}
               onChange={(e) => { setSlugTouched(true); setForm({ ...form, slug: e.target.value }); }}
-              className="h-8 flex-1 bg-transparent text-body text-[var(--text-primary)] outline-none"
+              className="h-8 flex-1 rounded bg-transparent text-body text-[var(--text-primary)] outline-none focus-visible:shadow-[var(--ring-focus)]"
               data-slug
             />
           </div>
@@ -600,6 +606,7 @@ function Editor({ link, types, onClose, onArchive }: {
               type="button"
               onClick={() => onArchive(link.id)}
               title="Remove this link"
+              aria-label="Remove this link"
               className="btn-secondary text-[var(--error)]"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -625,15 +632,16 @@ function Field({ label, hint, children }: {
   );
 }
 
-function Switch({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+function Switch({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button
       role="switch"
       aria-checked={on}
+      aria-label={label}
       onClick={() => onChange(!on)}
       title={on ? 'Taking bookings' : 'Paused'}
       className={cn(
-        'relative h-5 w-9 flex-shrink-0 rounded-full transition-colors',
+        "relative h-5 w-9 flex-shrink-0 rounded-full transition-colors after:absolute after:-inset-1 after:content-['']",
         on ? 'bg-[var(--indigo)]' : 'bg-[var(--border-subtle)]',
       )}
     >
@@ -650,12 +658,21 @@ function Switch({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 function Check2({ on, onChange, label }: {
   on: boolean; onChange: (v: boolean) => void; label: string;
 }) {
+  // A real checkbox, visually replaced: Space toggles it, a screen reader
+  // announces it, and the label is the click target. The box is drawn by the
+  // span next to it and picks up the keyboard focus ring from the input.
   return (
-    <label className="flex items-center gap-2 cursor-pointer">
+    <label className="flex min-h-6 cursor-pointer items-center gap-2">
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={(e) => onChange(e.target.checked)}
+        className="peer sr-only"
+      />
       <span
-        onClick={() => onChange(!on)}
+        aria-hidden="true"
         className={cn(
-          'grid h-4 w-4 place-items-center rounded border transition-colors',
+          'grid h-4 w-4 place-items-center rounded border transition-colors peer-focus-visible:shadow-[var(--ring-focus)]',
           on
             ? 'border-[var(--indigo)] bg-[var(--indigo)]'
             : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)]',

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type FocusEvent as ReactFocusEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -23,21 +23,64 @@ function daysUntil(iso: string | null): number | null {
   return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000));
 }
 
-/** Closes on Escape, on scroll and on navigation - not just on a click. */
-function useDismiss(open: boolean, setOpen: (o: boolean) => void) {
+/**
+ * Closes on Escape, on scroll and on navigation - not just on a click.
+ *
+ * Escape hands the cursor back to the trigger first: the panel is about to
+ * unmount, and focus on a removed node drops to <body>, which sends a
+ * keyboard user back to the top of the page.
+ */
+function useDismiss(open: boolean, setOpen: (o: boolean) => void, restoreFocus: () => void) {
   const location = useLocation();
   useEffect(() => { setOpen(false); }, [location.pathname, setOpen]);
   useEffect(() => {
     if (!open) return;
     const close = () => setOpen(false);
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      restoreFocus();
+      close();
+    };
     window.addEventListener('scroll', close, true);
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('scroll', close, true);
       window.removeEventListener('keydown', onKey);
     };
-  }, [open, setOpen]);
+  }, [open, setOpen, restoreFocus]);
+}
+
+/** What the trigger button must spread so the menu can be driven from the keyboard. */
+export interface TriggerProps {
+  ref: (el: HTMLButtonElement | null) => void;
+  'aria-expanded': boolean;
+  'aria-controls': string | undefined;
+}
+
+/**
+ * The state and wiring shared by both menus: a disclosure, not an ARIA
+ * menu - the panel is a group of ordinary buttons reached with Tab, so the
+ * trigger says whether it is open and what it controls and promises no
+ * arrow-key roving it does not have.
+ */
+function useMenu() {
+  const [open, setOpen] = useState(false);
+  const triggerEl = useRef<HTMLButtonElement | null>(null);
+  const panelId = useId();
+  const setTrigger = useCallback((el: HTMLButtonElement | null) => { triggerEl.current = el; }, []);
+  const restoreFocus = useCallback(() => { triggerEl.current?.focus({ preventScroll: true }); }, []);
+  useDismiss(open, setOpen, restoreFocus);
+  const triggerProps: TriggerProps = {
+    ref: setTrigger,
+    'aria-expanded': open,
+    'aria-controls': open ? panelId : undefined,
+  };
+  /** Tabbing out of the open panel (or the trigger) closes it rather than leaving it hanging. */
+  const onBlur = (e: ReactFocusEvent<HTMLElement>) => {
+    const next = e.relatedTarget as Node | null;
+    if (next && !e.currentTarget.contains(next)) setOpen(false);
+  };
+  return { open, setOpen, panelId, triggerProps, restoreFocus, onBlur };
 }
 
 type Placement = 'below-right' | 'below-left' | 'above-left' | 'right-start' | 'right-end';
@@ -51,14 +94,26 @@ const PLACEMENT: Record<Placement, string> = {
   'right-end': 'left-full bottom-0 ml-2',
 };
 
-function Popover({ open, onClose, placement, width, children }: {
-  open: boolean; onClose: () => void; placement: Placement; width: string; children: ReactNode;
+function Popover({ open, onClose, placement, width, id, label, children }: {
+  open: boolean; onClose: () => void; placement: Placement; width: string; id: string; label: string; children: ReactNode;
 }) {
+  const panel = useRef<HTMLDivElement>(null);
+  // Opening is a decision to look inside, so the cursor goes with it.
+  useEffect(() => {
+    if (!open) return;
+    panel.current?.querySelector<HTMLElement>('button:not([disabled]), a[href]')?.focus({ preventScroll: true });
+  }, [open]);
   if (!open) return null;
   return (
     <>
-      <div className="fixed inset-0 z-[60]" onClick={onClose} />
-      <div className={cn('absolute z-[61] rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] p-1 shadow-[var(--shadow-xl)] animate-slide-in', PLACEMENT[placement], width)}>
+      <div className="fixed inset-0 z-[60]" aria-hidden onClick={onClose} />
+      <div
+        ref={panel}
+        id={id}
+        role="group"
+        aria-label={label}
+        className={cn('absolute z-[61] rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] p-1 shadow-[var(--shadow-xl)] animate-slide-in', PLACEMENT[placement], width)}
+      >
         {children}
       </div>
     </>
@@ -78,16 +133,15 @@ const CREATE_ITEMS = [
 
 export function CreateMenu({ placement = 'below-right', trigger }: {
   placement?: Placement;
-  /** Renders the button. Receives the toggle and whether the menu is open. */
-  trigger: (toggle: () => void, open: boolean) => ReactNode;
+  /** Renders the button. Receives the toggle, whether the menu is open, and the props the button must spread. */
+  trigger: (toggle: () => void, open: boolean, triggerProps: TriggerProps) => ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, panelId, triggerProps, onBlur } = useMenu();
   const navigate = useNavigate();
-  useDismiss(open, setOpen);
   return (
-    <div className="relative">
-      {trigger(() => setOpen((o) => !o), open)}
-      <Popover open={open} onClose={() => setOpen(false)} placement={placement} width="w-64">
+    <div className="relative" onBlur={onBlur}>
+      {trigger(() => setOpen((o) => !o), open, triggerProps)}
+      <Popover open={open} onClose={() => setOpen(false)} placement={placement} width="w-64" id={panelId} label="Create">
         {CREATE_ITEMS.map((item) => (
           <button
             key={item.to}
@@ -108,9 +162,11 @@ export function CreateMenu({ placement = 'below-right', trigger }: {
 }
 
 /** A plain plus button for the create menu, sized for a toolbar. */
-export function CreateButton({ toggle, open, compact }: { toggle: () => void; open: boolean; compact?: boolean }) {
+export function CreateButton({ toggle, open, compact, triggerProps }: { toggle: () => void; open: boolean; compact?: boolean; triggerProps?: TriggerProps }) {
   return (
     <button
+      {...triggerProps}
+      type="button"
       onClick={toggle}
       aria-label="Create"
       aria-expanded={open}
@@ -128,22 +184,21 @@ export function CreateButton({ toggle, open, compact }: { toggle: () => void; op
 export function AccountMenu({ placement = 'above-left', onShortcuts, trigger }: {
   placement?: Placement;
   onShortcuts?: () => void;
-  trigger: (toggle: () => void, open: boolean) => ReactNode;
+  trigger: (toggle: () => void, open: boolean, triggerProps: TriggerProps) => ReactNode;
 }) {
   const { user, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { data: usage } = useQuery({ queryKey: ['billing', 'usage'], queryFn: billingApi.usage, staleTime: 60_000 });
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, panelId, triggerProps, restoreFocus, onBlur } = useMenu();
   const navigate = useNavigate();
-  useDismiss(open, setOpen);
   const go = (to: string) => { setOpen(false); navigate(to); };
 
   const row = 'w-full flex items-center gap-2.5 px-2.5 h-8 rounded-lg text-body text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors';
 
   return (
-    <div className="relative">
-      {trigger(() => setOpen((o) => !o), open)}
-      <Popover open={open} onClose={() => setOpen(false)} placement={placement} width="w-60">
+    <div className="relative" onBlur={onBlur}>
+      {trigger(() => setOpen((o) => !o), open, triggerProps)}
+      <Popover open={open} onClose={() => setOpen(false)} placement={placement} width="w-60" id={panelId} label="Account">
         <div className="px-2.5 pt-2 pb-2.5 mb-1 border-b border-[var(--border-subtle)]">
           <p className="text-body font-semibold text-[var(--text-primary)] truncate capitalize">{user?.email?.split('@')[0]}</p>
           <p className="text-caption text-[var(--text-tertiary)] truncate">{user?.email}</p>
@@ -190,7 +245,7 @@ export function AccountMenu({ placement = 'above-left', onShortcuts, trigger }: 
           {theme === 'light' ? 'Dark theme' : 'Light theme'}
         </button>
         {onShortcuts && (
-          <button onClick={() => { setOpen(false); onShortcuts(); }} className={row}>
+          <button onClick={() => { restoreFocus(); setOpen(false); onShortcuts(); }} className={row}>
             <Keyboard className="h-3.5 w-3.5" />Keyboard shortcuts<kbd className="kbd ml-auto">?</kbd>
           </button>
         )}

@@ -163,12 +163,12 @@ function SequenceTimeline({ steps, compact }: { steps: SequenceTemplateStep[]; c
 // ─── Category Badge ─────────────────────────────────────────────────
 
 const CATEGORY_COLORS: Record<TemplateCategory, string> = {
-  cold_outreach: 'bg-blue-500/10 text-blue-500',
-  follow_up: 'bg-amber-500/10 text-amber-500',
-  introduction: 'bg-green-500/10 text-green-500',
-  meeting_request: 'bg-purple-500/10 text-purple-500',
-  nurture: 'bg-teal-500/10 text-teal-500',
-  re_engagement: 'bg-rose-500/10 text-rose-500',
+  cold_outreach: 'bg-blue-500/10 text-blue-600 dark:text-blue-300',
+  follow_up: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  introduction: 'bg-green-500/10 text-green-600 dark:text-green-400',
+  meeting_request: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
+  nurture: 'bg-teal-500/10 text-teal-600 dark:text-teal-400',
+  re_engagement: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
   custom: 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]',
 };
 
@@ -217,7 +217,7 @@ function TemplateListRow({ title, snippet, category, isPreset, meta, active, onC
       <p className="mt-0.5 text-caption text-[var(--text-tertiary)] truncate">{snippet}</p>
       <div className="mt-1.5 flex items-center gap-2">
         <CategoryBadge category={category} />
-        <span className="text-micro text-[var(--text-muted)] tabular">{meta}</span>
+        <span className="text-micro text-[var(--text-tertiary)] tabular">{meta}</span>
       </div>
     </button>
   );
@@ -255,10 +255,10 @@ function DetailShell({ title, category, isPreset, meta, onUse, onEdit, onDuplica
           <button className="btn-primary" onClick={onUse}>
             <Rocket className="h-3.5 w-3.5" /> Use in campaign
           </button>
-          <button className="icon-btn" title="Edit" onClick={onEdit}><Pencil className="h-4 w-4" /></button>
-          <button className="icon-btn" title="Duplicate" onClick={onDuplicate}><Copy className="h-4 w-4" /></button>
+          <button aria-label="Edit" className="icon-btn" title="Edit" onClick={onEdit}><Pencil className="h-4 w-4" /></button>
+          <button aria-label="Duplicate" className="icon-btn" title="Duplicate" onClick={onDuplicate}><Copy className="h-4 w-4" /></button>
           {onDelete && (
-            <button className="icon-btn hover:text-rose-500 hover:bg-rose-500/10" title="Delete" onClick={onDelete}>
+            <button aria-label="Delete" className="icon-btn hover:text-rose-500 hover:bg-rose-500/10" title="Delete" onClick={onDelete}>
               <Trash2 className="h-4 w-4" />
             </button>
           )}
@@ -361,8 +361,8 @@ function EmailEditorModal({
           <div className="grid grid-cols-2 gap-3">
             <Input label="Template Name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Cold Intro v2" required />
             <div>
-              <label className="block text-strong font-medium text-[var(--text-primary)] mb-1">Category</label>
-              <select
+              <label htmlFor="tpl-category" className="block text-strong font-medium text-[var(--text-primary)] mb-1">Category</label>
+              <select id="tpl-category"
                 value={category}
                 onChange={e => setCategory(e.target.value as TemplateCategory)}
                 className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-strong text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo)]"
@@ -378,7 +378,7 @@ function EmailEditorModal({
 
           <div>
             <div className="flex items-center justify-between mb-1.5 gap-2">
-              <label className="text-strong font-medium text-[var(--text-primary)]">Email body</label>
+              <span className="text-strong font-medium text-[var(--text-primary)]">Email body</span>
               <div className="flex items-center gap-1 flex-wrap justify-end">
                 {mergeTags.map(tag => (
                   <button
@@ -386,7 +386,7 @@ function EmailEditorModal({
                     type="button"
                     onClick={() => insertMergeTag(tag)}
                     title={`Insert {{${tag}}}`}
-                    className="px-1.5 py-0.5 text-micro font-data rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
+                    className="px-1.5 py-0.5 text-micro font-data rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--indigo-text)] hover:bg-[var(--indigo-subtle)] transition-colors"
                   >
                     {`{{${tag}}}`}
                   </button>
@@ -422,7 +422,7 @@ function EmailEditorModal({
           <div className="w-[380px] shrink-0 sticky top-0 self-start space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-body font-medium text-[var(--text-secondary)]">Live preview</span>
-              <button onClick={() => setShowPreview(false)} className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)]">
+              <button aria-label="Close preview" onClick={() => setShowPreview(false)} className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)]">
                 <X className="h-3 w-3" />
               </button>
             </div>
@@ -491,8 +491,8 @@ function SequenceEditorModal({
         <div className="w-[200px] shrink-0 space-y-3">
           <Input label="Sequence Name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., 5-Step Outreach" required />
           <div>
-            <label className="block text-strong font-medium text-[var(--text-primary)] mb-1">Category</label>
-            <select
+            <label htmlFor="tpl-category-2" className="block text-strong font-medium text-[var(--text-primary)] mb-1">Category</label>
+            <select id="tpl-category-2"
               value={category}
               onChange={e => setCategory(e.target.value as TemplateCategory)}
               className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-strong text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--indigo)]"
@@ -508,7 +508,7 @@ function SequenceEditorModal({
             {steps.map((step, idx) => (
               <div key={idx}>
                 {idx > 0 && (
-                  <div className="flex items-center gap-1 ml-3.5 text-micro text-amber-500 my-0.5">
+                  <div className="flex items-center gap-1 ml-3.5 text-micro text-amber-600 dark:text-amber-400 my-0.5">
                     <Clock className="h-2.5 w-2.5" />
                     {step.delay_days}d {step.delay_hours}h
                   </div>
@@ -517,7 +517,7 @@ function SequenceEditorModal({
                   onClick={() => setActiveStep(idx)}
                   className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-body transition-colors ${
                     activeStep === idx
-                      ? 'bg-[rgba(47,63,156,0.08)] text-[var(--indigo)] font-medium'
+                      ? 'bg-[rgba(47,63,156,0.08)] text-[var(--indigo-text)] font-medium'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                   }`}
                 >
@@ -542,9 +542,9 @@ function SequenceEditorModal({
         {current && (
           <div className="flex-1 space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-strong font-semibold text-[var(--text-primary)]">
+              <h3 className="text-strong font-semibold text-[var(--text-primary)]">
                 Step {activeStep + 1} of {steps.length}
-              </h4>
+              </h3>
               {steps.length > 1 && (
                 <button onClick={() => removeStep(activeStep)} className="text-body text-red-400 hover:text-red-300 flex items-center gap-1">
                   <Trash2 className="h-3 w-3" /> Remove step
@@ -555,8 +555,8 @@ function SequenceEditorModal({
             {activeStep > 0 && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-strong font-medium text-[var(--text-primary)] mb-1">Delay (days)</label>
-                  <input
+                  <label htmlFor="tpl-delay-days" className="block text-strong font-medium text-[var(--text-primary)] mb-1">Delay (days)</label>
+                  <input id="tpl-delay-days"
                     type="number"
                     min={0}
                     value={current.delay_days}
@@ -565,8 +565,8 @@ function SequenceEditorModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-strong font-medium text-[var(--text-primary)] mb-1">Delay (hours)</label>
-                  <input
+                  <label htmlFor="tpl-delay-hours" className="block text-strong font-medium text-[var(--text-primary)] mb-1">Delay (hours)</label>
+                  <input id="tpl-delay-hours"
                     type="number"
                     min={0}
                     value={current.delay_hours}
@@ -581,7 +581,7 @@ function SequenceEditorModal({
 
             <div>
               <div className="flex items-center justify-between mb-1.5 gap-2">
-                <label className="text-strong font-medium text-[var(--text-primary)]">Email body</label>
+                <span className="text-strong font-medium text-[var(--text-primary)]">Email body</span>
                 <div className="flex items-center gap-1 flex-wrap justify-end">
                   {['first_name', 'company', 'sender_name'].map(tag => (
                     <button
@@ -589,7 +589,7 @@ function SequenceEditorModal({
                       type="button"
                       onClick={() => window.dispatchEvent(new CustomEvent('rte-insert-text', { detail: { text: `{{${tag}}}` } }))}
                       title={`Insert {{${tag}}}`}
-                      className="px-1.5 py-0.5 text-micro font-data rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
+                      className="px-1.5 py-0.5 text-micro font-data rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--indigo-text)] hover:bg-[var(--indigo-subtle)] transition-colors"
                     >
                       {`{{${tag}}}`}
                     </button>
@@ -617,6 +617,7 @@ function SequenceEditorModal({
 
       <div className="flex items-center justify-between pt-4 border-t border-[var(--border-subtle)] mt-4">
         <textarea
+          aria-label="Sequence description"
           value={description}
           onChange={e => setDescription(e.target.value)}
           placeholder="Brief description of this sequence..."
@@ -649,7 +650,7 @@ function EmailDetailBody({ template }: { template: EmailTemplate }) {
         </div>
       )}
       <EmailPreview subject={template.subject} bodyHtml={template.body_html} />
-      <p className="text-caption text-[var(--text-muted)] text-center">
+      <p className="text-caption text-[var(--text-tertiary)] text-center">
         Merge tags like {'{{first_name}}'} render with sample data in this preview.
       </p>
     </div>
@@ -680,7 +681,7 @@ function SequenceDetailBody({ template }: { template: SequenceTemplate }) {
           {steps.map((st, i) => (
             <div key={i}>
               {i > 0 && st.delay_days > 0 && (
-                <div className="flex items-center gap-1 ml-4 text-micro text-amber-500 my-1">
+                <div className="flex items-center gap-1 ml-4 text-micro text-amber-600 dark:text-amber-400 my-1">
                   <Clock className="h-2.5 w-2.5" /> Wait {st.delay_days}d
                 </div>
               )}
@@ -713,14 +714,14 @@ function SequenceDetailBody({ template }: { template: SequenceTemplate }) {
         <div className="mb-2 flex items-center justify-between">
           <span className="text-body font-medium text-[var(--text-secondary)] tabular">Email {idx + 1} of {steps.length}</span>
           <div className="flex gap-1">
-            <button
+            <button aria-label="Previous step"
               onClick={() => setActiveStep(Math.max(0, idx - 1))}
               disabled={idx === 0}
               className="icon-btn disabled:opacity-30"
             >
               <ChevronRight className="h-4 w-4 rotate-180" />
             </button>
-            <button
+            <button aria-label="Next step"
               onClick={() => setActiveStep(Math.min(steps.length - 1, idx + 1))}
               disabled={idx === steps.length - 1}
               className="icon-btn disabled:opacity-30"
@@ -901,7 +902,7 @@ export function TemplatesPage() {
 
       <div className="flex flex-col md:flex-row gap-4 md:items-start">
         {/* ── Library rail ── */}
-        <aside className="w-full md:w-[300px] flex-shrink-0 space-y-3">
+        <aside aria-label="Template library" className="w-full md:w-[300px] flex-shrink-0 space-y-3">
           {/* Type tabs */}
           <div className="flex items-center p-0.5 rounded-lg bg-[var(--bg-elevated)]">
             {([
@@ -919,7 +920,7 @@ export function TemplatesPage() {
                 )}
               >
                 <t.icon className="h-3.5 w-3.5" /> {t.label}
-                <span className="text-micro tabular text-[var(--text-muted)]">{t.count}</span>
+                <span className="text-micro tabular text-[var(--text-tertiary)]">{t.count}</span>
               </button>
             ))}
           </div>
@@ -929,6 +930,7 @@ export function TemplatesPage() {
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
               <input
+                aria-label={`Search ${tab}`}
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder={`Search ${tab}…`}
@@ -936,6 +938,7 @@ export function TemplatesPage() {
               />
             </div>
             <select
+              aria-label="Filter by category"
               value={activeCategory}
               onChange={e => setActiveCategory(e.target.value as TemplateCategory | 'all')}
               className="input-field cursor-pointer"
@@ -1060,9 +1063,9 @@ export function TemplatesPage() {
               {isEmpty && hasPresets ? (
                 <>
                   <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] mb-3">
-                    <Sparkles className="h-5 w-5 text-[var(--indigo)]" />
+                    <Sparkles className="h-5 w-5 text-[var(--indigo-text)]" />
                   </span>
-                  <h3 className="text-heading font-semibold text-[var(--text-primary)]">Start from a proven {tab === 'emails' ? 'template' : 'sequence'}</h3>
+                  <h2 className="text-heading font-semibold text-[var(--text-primary)]">Start from a proven {tab === 'emails' ? 'template' : 'sequence'}</h2>
                   <p className="mt-1.5 text-strong text-[var(--text-secondary)] max-w-[380px]">
                     {(tab === 'emails' ? presets?.emails?.length : presets?.sequences?.length) ?? 0} preset {tab} ship with your library — pick one from the list, duplicate it, and make it yours.
                   </p>
@@ -1075,7 +1078,7 @@ export function TemplatesPage() {
                   <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--bg-elevated)] mb-3">
                     <FileText className="h-5 w-5 text-[var(--text-tertiary)]" />
                   </span>
-                  <h3 className="text-heading font-semibold text-[var(--text-primary)]">No {tab} yet</h3>
+                  <h2 className="text-heading font-semibold text-[var(--text-primary)]">No {tab} yet</h2>
                   <p className="mt-1.5 text-strong text-[var(--text-secondary)] max-w-[360px]">
                     Build reusable {tab === 'emails' ? 'emails' : 'multi-step sequences'} once and drop them into any campaign.
                   </p>

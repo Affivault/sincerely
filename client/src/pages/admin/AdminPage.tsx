@@ -18,7 +18,7 @@ import { ADMIN_EMAILS, PLANS, type AdminUserRow, type PlanId, formatDate } from 
 import { keepPrevious } from '../../lib/listQuery';
 
 const PLAN_BADGE: Record<string, string> = {
-  lifetime: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(47,63,156,0.3)]',
+  lifetime: 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] border border-[rgba(47,63,156,0.3)]',
   growth: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
   starter: 'bg-sky-500/10 text-sky-700 dark:text-sky-400',
   scale: 'bg-violet-500/10 text-violet-700 dark:text-violet-400',
@@ -85,7 +85,7 @@ export function AdminPage() {
   const lifetimeMembers = users.filter((u) => u.plan === 'lifetime');
 
   const statCards = [
-    { label: 'Total users', value: stats?.total_users, icon: Users, accentCls: 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' },
+    { label: 'Total users', value: stats?.total_users, icon: Users, accentCls: 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' },
     { label: 'Lifetime members', value: stats?.lifetime_users, icon: Crown, accentCls: 'bg-violet-500/10 text-violet-600 dark:text-violet-400' },
     { label: 'Paying customers', value: stats?.paying_users, icon: Sparkles, accentCls: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
     { label: 'Free accounts', value: stats?.free_users, icon: Gift, accentCls: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
@@ -108,7 +108,7 @@ export function AdminPage() {
           <div>
             <h1 className="text-title font-semibold text-[var(--text-primary)] tracking-[-0.01em] flex items-center gap-2">
               Admin
-              <span className="inline-flex items-center gap-1 px-1.5 h-[19px] rounded-md text-micro font-semibold bg-[var(--indigo-subtle)] text-[var(--indigo)]">
+              <span className="inline-flex items-center gap-1 px-1.5 h-[19px] rounded-md text-micro font-semibold bg-[var(--indigo-subtle)] text-[var(--indigo-text)]">
                 <Crown className="h-2.5 w-2.5" /> Owner
               </span>
             </h1>
@@ -148,7 +148,7 @@ export function AdminPage() {
         <div className="p-4">
           <div className="flex items-center gap-2.5 mb-1">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--indigo-subtle)]">
-              <InfinityIcon className="h-4 w-4 text-[var(--indigo)]" />
+              <InfinityIcon className="h-4 w-4 text-[var(--indigo-text)]" />
             </span>
             <div>
               <p className="text-strong font-semibold text-[var(--text-primary)]">Grant lifetime access</p>
@@ -163,8 +163,9 @@ export function AdminPage() {
               type="email"
               value={grantEmail}
               onChange={(e) => setGrantEmail(e.target.value)}
+              aria-label="Email of the account to grant lifetime access"
               placeholder="user@example.com — must already have an account"
-              className="flex-1 h-9 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-3 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]"
+              className="flex-1 h-9 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-3 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]"
               required
             />
             <Button type="submit" disabled={grantMutation.isPending || !grantEmail.trim()}>
@@ -173,7 +174,7 @@ export function AdminPage() {
           </form>
           {lifetimeMembers.length > 0 && !search && (
             <p className="mt-2.5 text-caption text-[var(--text-tertiary)]">
-              <Crown className="h-3 w-3 inline mr-1 text-[var(--indigo)]" />
+              <Crown className="h-3 w-3 inline mr-1 text-[var(--indigo-text)]" />
               {lifetimeMembers.length} lifetime member{lifetimeMembers.length === 1 ? '' : 's'}: {lifetimeMembers.slice(0, 5).map((m) => m.email).join(', ')}{lifetimeMembers.length > 5 ? '…' : ''}
             </p>
           )}
@@ -220,9 +221,9 @@ export function AdminPage() {
                           <div className="min-w-0">
                             <p className="text-strong font-medium text-[var(--text-primary)] truncate">
                               {u.email}
-                              {isSelf && <span className="ml-1.5 text-micro font-semibold text-[var(--indigo)]">(you)</span>}
+                              {isSelf && <span className="ml-1.5 text-micro font-semibold text-[var(--indigo-text)]">(you)</span>}
                             </p>
-                            <p className="text-micro text-[var(--text-muted)] font-mono truncate">{u.id}</p>
+                            <p className="text-micro text-[var(--text-tertiary)] font-mono truncate">{u.id}</p>
                           </div>
                         </div>
                       </td>
@@ -232,13 +233,13 @@ export function AdminPage() {
                           {planName}
                         </span>
                         {u.status !== 'active' && u.status !== 'free' && u.status !== 'trialing' && (
-                          <span className="ml-1.5 text-micro text-[var(--text-muted)]">{u.status}</span>
+                          <span className="ml-1.5 text-micro text-[var(--text-tertiary)]">{u.status}</span>
                         )}
                       </td>
                       <td className="py-2.5 px-3">
                         {u.email_confirmed
-                          ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                          : <XCircle className="h-3.5 w-3.5 text-[var(--text-muted)]" />}
+                          ? <CheckCircle2 aria-label="Email confirmed" role="img" className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                          : <XCircle aria-label="Email not confirmed" role="img" className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />}
                       </td>
                       <td className="py-2.5 px-3 text-body text-[var(--text-secondary)] tabular whitespace-nowrap">{relTime(u.created_at)}</td>
                       <td className="py-2.5 px-3 text-body text-[var(--text-tertiary)] tabular whitespace-nowrap">{relTime(u.last_sign_in_at)}</td>
@@ -256,7 +257,8 @@ export function AdminPage() {
                             ) : (
                               <button
                                 onClick={() => setConfirmRevoke(u)}
-                                className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-caption font-medium text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 hover:text-rose-500 hover:bg-rose-500/10 transition-all"
+                                aria-label={`Revoke lifetime access for ${u.email}`}
+                                className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-caption font-medium text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-all"
                               >
                                 <Undo2 className="h-3 w-3" /> Revoke
                               </button>
@@ -282,7 +284,7 @@ export function AdminPage() {
         )}
       </div>
 
-      <p className="mt-3 text-caption text-[var(--text-muted)]">
+      <p className="mt-3 text-caption text-[var(--text-tertiary)]">
         Access is enforced server-side: only {ADMIN_EMAILS.join(', ')} can call these endpoints — everyone else receives a 404.
       </p>
     </div>

@@ -31,7 +31,7 @@ function Meter({ label, used, limit, tone }: { label: string; used: number; limi
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-caption font-medium text-[var(--text-tertiary)]">{label}</span>
         <span className="text-caption font-semibold tabular text-[var(--text-secondary)]">
-          {used}<span className="text-[var(--text-muted)] font-normal"> / {limit}</span>
+          {used}<span className="text-[var(--text-tertiary)] font-normal"> / {limit}</span>
         </span>
       </div>
       <div className="mt-2 h-1 rounded-full bg-[var(--bg-active)] overflow-hidden">
@@ -59,7 +59,7 @@ function NumberField({ label, value, onChange, min, max, suffix, hint }: {
         />
         {suffix && <span className="text-caption text-[var(--text-tertiary)]">{suffix}</span>}
       </span>
-      {hint && <span className="block mt-1 text-micro text-[var(--text-muted)]">{hint}</span>}
+      {hint && <span className="block mt-1 text-micro text-[var(--text-tertiary)]">{hint}</span>}
     </label>
   );
 }
@@ -97,7 +97,7 @@ export function LinkedinPage() {
       <div>
         <PageHeader title="LinkedIn" description="Run LinkedIn steps from your own browser" />
         <div className="panel px-5 py-8 text-center">
-          <Linkedin className="h-6 w-6 mx-auto text-[var(--text-muted)] mb-2" />
+          <Linkedin className="h-6 w-6 mx-auto text-[var(--text-tertiary)] mb-2" />
           <p className="text-heading font-semibold text-[var(--text-primary)]">Not set up yet</p>
           <p className="text-body text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
             Run migration <span className="font-mono text-caption">040_linkedin_agent.sql</span> in Supabase, then reload.
@@ -160,7 +160,7 @@ export function LinkedinPage() {
         {pausedNow && (
           <button
             onClick={() => saveQuick.mutate({ paused_until: null, pause_reason: null } as any)}
-            className="text-caption font-semibold text-[var(--indigo)] hover:underline"
+            className="text-caption font-semibold text-[var(--indigo-text)] hover:underline"
           >
             Resume now
           </button>
@@ -191,7 +191,7 @@ export function LinkedinPage() {
               They default well under the thresholds where accounts get flagged — around 100 invites a
               week. On a new or quiet account, start lower.
             </p>
-            <Link to="/developer" className="inline-flex items-center gap-1 mt-2 font-medium text-[var(--indigo)] hover:underline">
+            <Link to="/developer" className="inline-flex items-center gap-1 mt-2 font-medium text-[var(--indigo-text)] hover:underline">
               Get your API key <ExternalLink className="h-3 w-3" />
             </Link>
           </div>
@@ -255,7 +255,7 @@ export function LinkedinPage() {
                 className="h-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
               />
             </span>
-            <span className="block mt-1 text-micro text-[var(--text-muted)]">In {s.timezone}.</span>
+            <span className="block mt-1 text-micro text-[var(--text-tertiary)]">In {s.timezone}.</span>
           </label>
 
           <div>

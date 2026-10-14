@@ -132,9 +132,9 @@ export function SetupChecklist() {
       <div className="border-b border-[var(--border-subtle)] p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="text-strong font-semibold text-[var(--text-primary)]">
+            <h2 className="text-strong font-semibold text-[var(--text-primary)]">
               {data.fresh ? 'Get your first campaign out' : 'Finish setting up'}
-            </h3>
+            </h2>
             <p className="mt-0.5 text-caption leading-snug text-[var(--text-secondary)]">
               {data.fresh
                 ? 'Five steps, in the order they depend on each other. Most of it is once, and then never again.'

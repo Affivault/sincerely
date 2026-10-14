@@ -1,5 +1,5 @@
 import { StandingSearches, SaveStandingSearch } from '../../components/prospector/StandingSearches';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useId } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -45,6 +45,7 @@ function ChipInput({
   onChange: (v: string[]) => void;
   placeholder: string;
 }) {
+  const a11yId = useId();
   const [draft, setDraft] = useState('');
   const commit = () => {
     const parts = draft.split(',').map((s) => s.trim()).filter(Boolean);
@@ -53,23 +54,23 @@ function ChipInput({
   };
   return (
     <div>
-      <label className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-secondary)] mb-1">
-        <Icon className="h-3 w-3 text-[var(--text-muted)]" /> {label}
+      <label htmlFor={`${a11yId}-f1`} className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-secondary)] mb-1">
+        <Icon className="h-3 w-3 text-[var(--text-tertiary)]" /> {label}
       </label>
-      <input
+      <input id={`${a11yId}-f1`}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commit(); } }}
         onBlur={commit}
         placeholder={placeholder}
-        className="block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]"
+        className="block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]"
       />
       {values.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-1.5">
           {values.map((v) => (
-            <span key={v} className="inline-flex items-center gap-1 pl-2 pr-1 h-[20px] rounded-md bg-[var(--indigo-subtle)] text-caption font-medium text-[var(--indigo)]">
+            <span key={v} className="inline-flex items-center gap-1 pl-2 pr-1 h-[20px] rounded-md bg-[var(--indigo-subtle)] text-caption font-medium text-[var(--indigo-text)]">
               {v}
-              <button onClick={() => onChange(values.filter((x) => x !== v))} className="rounded hover:bg-[var(--indigo)]/15 p-0.5">
+              <button aria-label={`Remove ${v}`} onClick={() => onChange(values.filter((x) => x !== v))} className="relative rounded hover:bg-[var(--indigo)]/15 p-0.5 after:absolute after:-inset-1.5 after:content-['']">
                 <X className="h-2.5 w-2.5" />
               </button>
             </span>
@@ -90,14 +91,14 @@ function CreditsMeter({ allowance, planRemaining, purchased, onBuy }: {
   const low = pct <= 15 && purchased === 0;
   return (
     <div className="flex items-center gap-2.5 flex-wrap">
-      <Coins className={cn('h-4 w-4', low ? 'text-amber-500' : 'text-[var(--indigo)]')} />
+      <Coins className={cn('h-4 w-4', low ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--indigo-text)]')} />
       <div className="w-28 h-1.5 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
         <div className={cn('h-full rounded-full transition-all', low ? 'bg-amber-500' : '[background:var(--indigo-grad)]')} style={{ width: `${pct}%` }} />
       </div>
       <span className="text-body font-medium text-[var(--text-primary)] tabular">
-        {planRemaining}<span className="text-[var(--text-muted)]">/{allowance}</span>
-        {purchased > 0 && <span className="text-[var(--indigo)]"> +{purchased.toLocaleString()}</span>}
-        <span className="text-[var(--text-muted)]"> credits</span>
+        {planRemaining}<span className="text-[var(--text-tertiary)]">/{allowance}</span>
+        {purchased > 0 && <span className="text-[var(--indigo-text)]"> +{purchased.toLocaleString()}</span>}
+        <span className="text-[var(--text-tertiary)]"> credits</span>
       </span>
       <Button size="sm" variant="secondary" onClick={onBuy}><Plus className="h-3 w-3" /> Buy credits</Button>
     </div>
@@ -125,7 +126,7 @@ function BuyCreditsModal({ onClose }: { onClose: () => void }) {
           return (
             <div key={pack.id} className="flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] flex-shrink-0">
-                <Coins className="h-4 w-4 text-[var(--indigo)]" />
+                <Coins className="h-4 w-4 text-[var(--indigo-text)]" />
               </span>
               <div className="flex-1 min-w-0">
                 <p className="text-strong font-semibold text-[var(--text-primary)] tabular">
@@ -141,12 +142,13 @@ function BuyCreditsModal({ onClose }: { onClose: () => void }) {
           );
         })}
       </div>
-      <p className="mt-3 text-caption text-[var(--text-muted)]">Secure checkout via Stripe. Credits appear within a few seconds of payment.</p>
+      <p className="mt-3 text-caption text-[var(--text-tertiary)]">Secure checkout via Stripe. Credits appear within a few seconds of payment.</p>
     </Modal>
   );
 }
 
 export function ProspectorPage() {
+  const a11yId = useId();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -317,7 +319,7 @@ export function ProspectorPage() {
             <p className="font-semibold text-[var(--text-primary)]">Couldn't load Prospector status</p>
             <p className="text-[var(--text-secondary)]">Credit balance and provider connection couldn't be checked — this doesn't mean they're unavailable.</p>
           </div>
-          <button onClick={() => qc.invalidateQueries({ queryKey: ['prospecting', 'status'] })} className="text-body font-semibold text-[var(--indigo)] hover:underline flex-shrink-0">Retry</button>
+          <button onClick={() => qc.invalidateQueries({ queryKey: ['prospecting', 'status'] })} className="text-body font-semibold text-[var(--indigo-text)] hover:underline flex-shrink-0">Retry</button>
         </div>
       )}
 
@@ -352,7 +354,7 @@ export function ProspectorPage() {
                   setCompanies([]); setSeniorities([]); setCompanySizes([]);
                   setKeywords('');
                 }}
-                className="text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] transition-colors"
+                className="text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo-text)] transition-colors"
               >
                 Clear all
               </button>
@@ -364,9 +366,9 @@ export function ProspectorPage() {
           <ChipInput label="Company" icon={Building2} values={companies} onChange={setCompanies} placeholder="Name or domain…" />
 
           <div>
-            <label className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-secondary)] mb-1">
-              <Users className="h-3 w-3 text-[var(--text-muted)]" /> Seniority
-            </label>
+            <span className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-secondary)] mb-1">
+              <Users className="h-3 w-3 text-[var(--text-tertiary)]" /> Seniority
+            </span>
             <div className="flex flex-wrap gap-1">
               {SENIORITIES.map((s) => {
                 const on = seniorities.includes(s.value);
@@ -376,7 +378,7 @@ export function ProspectorPage() {
                     onClick={() => setSeniorities(on ? seniorities.filter((x) => x !== s.value) : [...seniorities, s.value])}
                     className={cn(
                       'h-6 px-2 rounded-md text-caption font-medium border transition-colors',
-                      on ? 'bg-[var(--indigo-subtle)] border-[rgba(47,63,156,0.3)] text-[var(--indigo)]' : 'border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]'
+                      on ? 'bg-[var(--indigo-subtle)] border-[rgba(47,63,156,0.3)] text-[var(--indigo-text)]' : 'border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]'
                     )}
                   >
                     {s.label}
@@ -387,9 +389,9 @@ export function ProspectorPage() {
           </div>
 
           <div>
-            <label className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-secondary)] mb-1">
-              <Building2 className="h-3 w-3 text-[var(--text-muted)]" /> Company size
-            </label>
+            <span className="flex items-center gap-1.5 text-caption font-medium text-[var(--text-secondary)] mb-1">
+              <Building2 className="h-3 w-3 text-[var(--text-tertiary)]" /> Company size
+            </span>
             <div className="flex flex-wrap gap-1">
               {COMPANY_SIZES.map((s) => {
                 const on = companySizes.includes(s);
@@ -399,7 +401,7 @@ export function ProspectorPage() {
                     onClick={() => setCompanySizes(on ? companySizes.filter((x) => x !== s) : [...companySizes, s])}
                     className={cn(
                       'h-6 px-2 rounded-md text-caption font-medium border tabular transition-colors',
-                      on ? 'bg-[var(--indigo-subtle)] border-[rgba(47,63,156,0.3)] text-[var(--indigo)]' : 'border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]'
+                      on ? 'bg-[var(--indigo-subtle)] border-[rgba(47,63,156,0.3)] text-[var(--indigo-text)]' : 'border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]'
                     )}
                   >
                     {s}
@@ -410,13 +412,13 @@ export function ProspectorPage() {
           </div>
 
           <div>
-            <label className="text-caption font-medium text-[var(--text-secondary)] mb-1 block">Keywords</label>
-            <input
+            <label htmlFor={`${a11yId}-f1`} className="text-caption font-medium text-[var(--text-secondary)] mb-1 block">Keywords</label>
+            <input id={`${a11yId}-f1`}
               value={keywords}
               onChange={(e) => setKeywords(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') runSearch(1); }}
               placeholder="e.g. outbound, PLG, agency…"
-              className="block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]"
+              className="block w-full h-8 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] hover:border-[var(--border-strong)] focus:border-[var(--indigo)] focus:outline-none focus:shadow-[var(--ring-focus)] transition-[border-color,box-shadow]"
             />
           </div>
 
@@ -428,7 +430,7 @@ export function ProspectorPage() {
             type="button"
             onClick={() => setSaveRuleOpen(true)}
             disabled={!hasFilters || !providerReady}
-            className="w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-lg border border-dashed border-[var(--border-default)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 disabled:opacity-40 transition-colors"
+            className="w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-lg border border-dashed border-[var(--border-default)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo-text)] hover:border-[var(--indigo)]/40 disabled:opacity-40 transition-colors"
             title="Reveal, verify and enrol new matches automatically"
           >
             <Radar className="h-3.5 w-3.5" /> Keep this search running
@@ -441,10 +443,11 @@ export function ProspectorPage() {
           <StandingSearches />
           {/* Save-to-list bar */}
           <div className="flex items-center gap-2.5 mb-3 flex-wrap">
-            <FolderOpen className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+            <FolderOpen className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
             <span className="text-body text-[var(--text-secondary)]">Save revealed leads to</span>
             <div className="w-52">
               <Select
+                aria-label="Save revealed leads to"
                 options={[{ value: '', label: 'All contacts (no list)' }, ...(lists || []).map((l) => ({ value: l.id, label: l.name }))]}
                 value={listId}
                 onChange={(e) => setListId(e.target.value)}
@@ -479,7 +482,7 @@ export function ProspectorPage() {
 
           {!results ? (
             <div className="rounded-xl border border-dashed border-[var(--border-default)] bg-[var(--bg-surface)] py-20 text-center px-6">
-              <Radar className="h-8 w-8 text-[var(--text-muted)] mx-auto mb-3" />
+              <Radar className="h-8 w-8 text-[var(--text-tertiary)] mx-auto mb-3" />
               <p className="text-heading font-semibold text-[var(--text-primary)]">Find your next customers</p>
               <p className="text-body text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
                 Filter by job title, location, industry and company size. Each verified email you reveal costs 1 credit and lands in your contact lists — ready for campaigns.
@@ -546,7 +549,7 @@ export function ProspectorPage() {
                               <div className="flex items-center gap-1.5">
                                 <span className="text-strong font-medium text-[var(--text-primary)] truncate">{p.full_name}</span>
                                 {p.linkedin_url && (
-                                  <a href={p.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-[var(--text-muted)] hover:text-[#0A66C2] transition-colors flex-shrink-0" title="Open LinkedIn">
+                                  <a href={p.linkedin_url} target="_blank" rel="noopener noreferrer" className="relative text-[var(--text-tertiary)] hover:text-[#0A66C2] transition-colors flex-shrink-0 after:absolute after:-inset-1.5 after:content-['']" title="Open LinkedIn" aria-label="Open LinkedIn">
                                     <Linkedin className="h-3 w-3" />
                                   </a>
                                 )}
@@ -566,7 +569,7 @@ export function ProspectorPage() {
                               <CheckCircle2 className="h-3 w-3" /> Unlocked
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 text-body text-[var(--text-muted)] font-mono select-none">
+                            <span className="inline-flex items-center gap-1.5 text-body text-[var(--text-tertiary)] font-mono select-none">
                               <Lock className="h-3 w-3" /> ●●●●●@{p.company_domain || '●●●●●.com'}
                             </span>
                           )}
@@ -577,7 +580,7 @@ export function ProspectorPage() {
                               <span className="inline-flex items-center gap-0.5">
                                 <button
                                   onClick={() => setCampaignContactIds([p.contact_id!])}
-                                  className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-body font-medium text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
+                                  className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-body font-medium text-[var(--indigo-text)] hover:bg-[var(--indigo-subtle)] transition-colors"
                                   title="Add this lead to a campaign"
                                 >
                                   <Megaphone className="h-3 w-3" /> Campaign
@@ -613,8 +616,8 @@ export function ProspectorPage() {
               <div className="flex items-center justify-between px-4 h-11 border-t border-[var(--border-subtle)]">
                 <span className="text-caption text-[var(--text-tertiary)] tabular">Page {page} of {totalPages}</span>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => runSearch(page - 1)} disabled={page <= 1 || searchMutation.isPending} className="icon-btn h-7 w-7 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
-                  <button onClick={() => runSearch(page + 1)} disabled={page >= totalPages || searchMutation.isPending} className="icon-btn h-7 w-7 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+                  <button aria-label="Previous page" onClick={() => runSearch(page - 1)} disabled={page <= 1 || searchMutation.isPending} className="icon-btn h-7 w-7 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
+                  <button aria-label="Next page" onClick={() => runSearch(page + 1)} disabled={page >= totalPages || searchMutation.isPending} className="icon-btn h-7 w-7 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
                 </div>
               </div>
             </div>
@@ -628,7 +631,7 @@ export function ProspectorPage() {
                 <Coins className="h-3.5 w-3.5 text-amber-500" /> You're out of credits. Plan credits reset {formatDayMonth(new Date(credits.resets_at))}.
               </span>
               <span className="flex items-center gap-3 flex-shrink-0">
-                <button onClick={() => setBuyOpen(true)} className="inline-flex items-center gap-1 text-body font-semibold text-[var(--indigo)] hover:underline">
+                <button onClick={() => setBuyOpen(true)} className="inline-flex items-center gap-1 text-body font-semibold text-[var(--indigo-text)] hover:underline">
                   <Plus className="h-3 w-3" /> Buy credits
                 </button>
                 <Link to="/billing" className="text-body font-medium text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">

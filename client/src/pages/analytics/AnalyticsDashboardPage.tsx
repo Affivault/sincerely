@@ -29,6 +29,7 @@ import toast from 'react-hot-toast';
 import { keepPrevious } from '../../lib/listQuery';
 import { Refreshing } from '../../components/ui/Refreshing';
 import { formatDateTime, formatDayMonth, campaignStatusLabel } from '@lemlist/shared';
+import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
 import {
   LineChart, Line,
   BarChart, Bar,
@@ -118,7 +119,7 @@ function ChangeChip({ change }: { change: number | null }) {
     <span
       className={cn(
         'inline-flex items-center gap-0.5 text-caption font-semibold px-1.5 py-0.5 rounded-full',
-        up ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'
+        up ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
       )}
     >
       {up ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
@@ -139,8 +140,40 @@ function MetricBar({ value, max, color }: { value: number; max: number; color: s
 function SortIcon({ col, sortKey, sortDir }: { col: string; sortKey: string; sortDir: 'asc' | 'desc' }) {
   if (sortKey !== col) return <ChevronsUpDown className="h-3 w-3 text-[var(--text-tertiary)]" />;
   return sortDir === 'asc'
-    ? <ChevronUp className="h-3 w-3 text-[var(--indigo)]" />
-    : <ChevronDown className="h-3 w-3 text-[var(--indigo)]" />;
+    ? <ChevronUp className="h-3 w-3 text-[var(--indigo-text)]" />
+    : <ChevronDown className="h-3 w-3 text-[var(--indigo-text)]" />;
+}
+
+/**
+ * A sortable column header. The whole cell still sorts on a mouse click; the
+ * button inside it is the keyboard (and screen reader) way to do the same.
+ */
+function SortableTh({ label, col, sortKey, sortDir, onSort }: {
+  label: string; col: string; sortKey: string; sortDir: 'asc' | 'desc'; onSort: () => void;
+}) {
+  const on = sortKey === col;
+  return (
+    <th
+      scope="col"
+      aria-sort={on ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className="text-right py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium cursor-pointer hover:text-[var(--text-primary)] select-none"
+      onClick={onSort}
+    >
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onSort(); }}
+        className="inline-flex min-h-6 items-center gap-1 justify-end"
+      >
+        {label}
+        <SortIcon col={col} sortKey={sortKey} sortDir={sortDir} />
+      </button>
+    </th>
+  );
+}
+
+/** Words for a chart: the same numbers the picture is drawn from. */
+function chartLabel(title: string, rows: { name: string; value: number | string }[]): string {
+  return `${title}: ${rows.map((r) => `${r.name} ${typeof r.value === 'number' ? fmtNum(r.value) : r.value}`).join(', ')}`;
 }
 
 function EmptyDeepDive({ icon: Icon, title, description }: { icon: React.ElementType; title: string; description: string }) {
@@ -215,9 +248,18 @@ function FunnelViz({ sent, opened, clicked, replied, bounced }: {
 
 function HeatmapGrid({ grid, maxValue }: { grid: HeatmapDay[]; maxValue: number }) {
   const hours = Array.from({ length: 24 }, (_, i) => (i < 10 ? `0${i}` : `${i}`));
+  // The picture in words: the busiest slot of each day.
+  const summary = grid
+    .map((row) => {
+      const best = row.hours.reduce((bi, v, i, arr) => (v > arr[bi] ? i : bi), 0);
+      return { day: row.day, hour: best, value: row.hours[best] ?? 0 };
+    })
+    .filter((d) => d.value > 0)
+    .map((d) => `${d.day} peaks at ${d.hour}:00 (${d.value})`)
+    .join(', ');
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[640px]">
+      <div className="min-w-[640px]" role="img" aria-label={`Engagement by day of week and hour. ${summary || 'No engagement yet'}`}>
         <div className="flex gap-px mb-1 pl-[52px]">
           {hours.map((h) => (
             <div key={h} className="w-[22px] text-micro text-center text-[var(--text-tertiary)] flex-shrink-0">
@@ -281,7 +323,7 @@ function VariantCard({ variant, label, subject, stats, isWinner }: {
         : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)]'
     )}>
       {isWinner && (
-        <div className="absolute top-3 right-3 flex items-center gap-1 text-micro font-semibold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+        <div className="absolute top-3 right-3 flex items-center gap-1 text-micro font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
           <Trophy className="h-3 w-3" /> Winner
         </div>
       )}
@@ -359,21 +401,19 @@ function CampaignLeaderboard({
               Campaign
             </th>
             {cols.map((c) => (
-              <th
+              <SortableTh
                 key={c.key}
-                className="text-right py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium cursor-pointer hover:text-[var(--text-primary)] select-none"
-                onClick={() => toggleSort(c.key)}
-              >
-                <span className="inline-flex items-center gap-1 justify-end">
-                  {c.label}
-                  <SortIcon col={c.key} sortKey={String(sortKey)} sortDir={sortDir} />
-                </span>
-              </th>
+                label={c.label}
+                col={String(c.key)}
+                sortKey={String(sortKey)}
+                sortDir={sortDir}
+                onSort={() => toggleSort(c.key)}
+              />
             ))}
             <th className="text-left py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium w-32">
               Volume
             </th>
-            <th className="w-10" />
+            <th className="w-10"><span className="sr-only">Open</span></th>
           </tr>
         </thead>
         <tbody>
@@ -393,9 +433,14 @@ function CampaignLeaderboard({
                       c.status === 'completed' ? 'bg-[var(--text-tertiary)]' : 'bg-[var(--border-subtle)]'
                     )}
                   />
-                  <span className="font-medium text-strong text-[var(--text-primary)] max-w-[280px] truncate">
+                  {/* The row opens on a mouse click anywhere; the name is the keyboard path. */}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onSelect(c.id); }}
+                    className="min-h-6 rounded text-left font-medium text-strong text-[var(--text-primary)] max-w-[280px] truncate"
+                  >
                     {c.name}
-                  </span>
+                  </button>
                 </div>
               </td>
               <td className="py-3.5 px-3 text-right tabular-nums text-strong font-medium text-[var(--text-secondary)]">
@@ -404,7 +449,7 @@ function CampaignLeaderboard({
               <td className="py-3.5 px-3 text-right">
                 <span className={cn(
                   'tabular-nums text-strong font-semibold',
-                  c.open_rate >= 30 ? 'text-emerald-500' : c.open_rate >= 15 ? 'text-amber-500' : 'text-[var(--text-secondary)]'
+                  c.open_rate >= 30 ? 'text-emerald-600 dark:text-emerald-400' : c.open_rate >= 15 ? 'text-amber-700 dark:text-amber-400' : 'text-[var(--text-secondary)]'
                 )}>
                   {fmtPct(c.open_rate)}
                 </span>
@@ -417,7 +462,7 @@ function CampaignLeaderboard({
               <td className="py-3.5 px-3 text-right">
                 <span className={cn(
                   'tabular-nums text-strong font-semibold',
-                  c.reply_rate >= 5 ? 'text-emerald-500' : 'text-[var(--text-secondary)]'
+                  c.reply_rate >= 5 ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--text-secondary)]'
                 )}>
                   {fmtPct(c.reply_rate)}
                 </span>
@@ -425,7 +470,7 @@ function CampaignLeaderboard({
               <td className="py-3.5 px-3 text-right">
                 <span className={cn(
                   'tabular-nums text-strong',
-                  c.bounce_rate >= 5 ? 'text-rose-500 font-semibold' : 'text-[var(--text-tertiary)]'
+                  c.bounce_rate >= 5 ? 'text-rose-600 dark:text-rose-400 font-semibold' : 'text-[var(--text-tertiary)]'
                 )}>
                   {fmtPct(c.bounce_rate)}
                 </span>
@@ -434,7 +479,7 @@ function CampaignLeaderboard({
                 <MetricBar value={c.sent} max={maxSent} color="#3B4AA3" />
               </td>
               <td className="py-3.5 px-2">
-                <ArrowRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                <ArrowRight aria-hidden="true" className="h-3.5 w-3.5 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity" />
               </td>
             </tr>
           ))}
@@ -453,6 +498,7 @@ function DeliverabilitySection({
   deliverability: { dcs_distribution: { label: string; value: number; color: string }[]; suppression_by_reason: { label: string; value: number; color: string }[] } | undefined;
   overview: OverviewAnalytics | undefined;
 }) {
+  const reducedMotion = usePrefersReducedMotion();
   const avgDcs = safeNum(overview?.avg_dcs_score);
   const dcsColor = avgDcs >= 80 ? '#3F8763' : avgDcs >= 50 ? '#B88124' : '#BE4A3B';
   const circumference = 2 * Math.PI * 36;
@@ -469,7 +515,7 @@ function DeliverabilitySection({
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-0 lg:divide-x lg:divide-[var(--border-subtle)] [&>*]:lg:px-6 [&>*:first-child]:lg:pl-0 [&>*:last-child]:lg:pr-0">
       {/* DCS Gauge */}
       <div className="flex flex-col items-center gap-4">
-        <svg width="88" height="88" viewBox="0 0 88 88">
+        <svg width="88" height="88" viewBox="0 0 88 88" role="img" aria-label={`Average DCS score ${avgDcs} out of 100`}>
           <circle cx="44" cy="44" r="36" fill="none" stroke="var(--border-subtle)" strokeWidth="9" />
           <circle
             cx="44" cy="44" r="36" fill="none"
@@ -512,12 +558,16 @@ function DeliverabilitySection({
 
       {/* DCS Distribution */}
       <div className="min-w-0">
-        <h4 className="text-body font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-1.5">
+        <h3 className="text-body font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-1.5">
           <TrendingUp className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
           DCS Distribution
-        </h4>
+        </h3>
         {(deliverability?.dcs_distribution || []).filter((d) => d.value > 0).length > 0 ? (
-          <div className="h-44">
+          <div
+            className="h-44"
+            role="img"
+            aria-label={chartLabel('DCS distribution', (deliverability?.dcs_distribution || []).filter((d) => d.value > 0).map((d) => ({ name: d.label, value: d.value })))}
+          >
             <ErrorBoundary fallback={<p className="text-body text-center text-[var(--text-tertiary)]">Chart unavailable</p>}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={(deliverability?.dcs_distribution || []).filter((d) => d.value > 0)} barSize={32}>
@@ -525,7 +575,7 @@ function DeliverabilitySection({
                   <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-tertiary)', fontSize: 9.5 }} dy={5} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }} dx={-4} />
                   <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'var(--bg-hover)', radius: 6 }} />
-                  <Bar dataKey="value" radius={[5, 5, 0, 0]} name="Contacts">
+                  <Bar dataKey="value" radius={[5, 5, 0, 0]} name="Contacts" isAnimationActive={!reducedMotion}>
                     {(deliverability?.dcs_distribution || []).map((entry, i) => (
                       <Cell key={i} fill={entry.color} />
                     ))}
@@ -541,10 +591,10 @@ function DeliverabilitySection({
 
       {/* Suppression breakdown */}
       <div className="min-w-0">
-        <h4 className="text-body font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-1.5">
+        <h3 className="text-body font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-1.5">
           <ShieldOff className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
           Suppression breakdown
-        </h4>
+        </h3>
         {(deliverability?.suppression_by_reason || []).some((r) => r.value > 0) ? (
           <div className="space-y-3">
             {(deliverability?.suppression_by_reason || []).filter((r) => r.value > 0).map((item) => {
@@ -619,6 +669,7 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
           <button
             key={f}
             onClick={() => setFilter(f)}
+            aria-pressed={filter === f}
             className={cn(
               'inline-flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-caption font-medium border transition-all',
               filter === f
@@ -641,7 +692,8 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search contacts…"
-            className="bg-transparent text-caption text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] w-32"
+            aria-label="Search contacts"
+            className="rounded bg-transparent text-caption text-[var(--text-primary)] outline-none focus-visible:shadow-[var(--ring-focus)] placeholder:text-[var(--text-tertiary)] w-32"
           />
         </div>
       </div>
@@ -652,38 +704,34 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
             <tr className="bg-[var(--bg-elevated)] border-b border-[var(--border-subtle)]">
               <th className="text-left py-2.5 px-4 text-micro text-[var(--text-tertiary)] font-medium">Contact</th>
               <th className="text-left py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium">Status</th>
-              <th
-                className="text-right py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium cursor-pointer hover:text-[var(--text-primary)] select-none"
-                onClick={() => { setSortKey('score'); setSortDir(sortKey === 'score' && sortDir === 'desc' ? 'asc' : 'desc'); }}
-              >
-                <span className="inline-flex items-center gap-1 justify-end">
-                  Engagement <SortIcon col="score" sortKey={sortKey} sortDir={sortDir} />
-                </span>
-              </th>
-              <th
-                className="text-right py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium cursor-pointer hover:text-[var(--text-primary)] select-none"
-                onClick={() => { setSortKey('sent'); setSortDir(sortKey === 'sent' && sortDir === 'desc' ? 'asc' : 'desc'); }}
-              >
-                <span className="inline-flex items-center gap-1 justify-end">
-                  Sent <SortIcon col="sent" sortKey={sortKey} sortDir={sortDir} />
-                </span>
-              </th>
-              <th
-                className="text-right py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium cursor-pointer hover:text-[var(--text-primary)] select-none"
-                onClick={() => { setSortKey('opened'); setSortDir(sortKey === 'opened' && sortDir === 'desc' ? 'asc' : 'desc'); }}
-              >
-                <span className="inline-flex items-center gap-1 justify-end">
-                  Opens <SortIcon col="opened" sortKey={sortKey} sortDir={sortDir} />
-                </span>
-              </th>
-              <th
-                className="text-right py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium cursor-pointer hover:text-[var(--text-primary)] select-none"
-                onClick={() => { setSortKey('clicked'); setSortDir(sortKey === 'clicked' && sortDir === 'desc' ? 'asc' : 'desc'); }}
-              >
-                <span className="inline-flex items-center gap-1 justify-end">
-                  Clicks <SortIcon col="clicked" sortKey={sortKey} sortDir={sortDir} />
-                </span>
-              </th>
+              <SortableTh
+                label="Engagement"
+                col="score"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={() => { setSortKey('score'); setSortDir(sortKey === 'score' && sortDir === 'desc' ? 'asc' : 'desc'); }}
+              />
+              <SortableTh
+                label="Sent"
+                col="sent"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={() => { setSortKey('sent'); setSortDir(sortKey === 'sent' && sortDir === 'desc' ? 'asc' : 'desc'); }}
+              />
+              <SortableTh
+                label="Opens"
+                col="opened"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={() => { setSortKey('opened'); setSortDir(sortKey === 'opened' && sortDir === 'desc' ? 'asc' : 'desc'); }}
+              />
+              <SortableTh
+                label="Clicks"
+                col="clicked"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={() => { setSortKey('clicked'); setSortDir(sortKey === 'clicked' && sortDir === 'desc' ? 'asc' : 'desc'); }}
+              />
               <th className="text-center py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium">Reply</th>
               <th className="text-right py-2.5 px-3 text-micro text-[var(--text-tertiary)] font-medium">DCS</th>
             </tr>
@@ -720,7 +768,7 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
                       </div>
                       <span className={cn(
                         'text-caption font-bold tabular-nums w-7 text-right',
-                        score >= 70 ? 'text-emerald-500' : score >= 40 ? 'text-amber-500' : 'text-[var(--text-tertiary)]'
+                        score >= 70 ? 'text-emerald-600 dark:text-emerald-400' : score >= 40 ? 'text-amber-700 dark:text-amber-400' : 'text-[var(--text-tertiary)]'
                       )}>
                         {score}
                       </span>
@@ -731,7 +779,7 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
                   <td className="py-2.5 px-3 text-right tabular-nums text-body text-[var(--text-secondary)]">{c.clicked}</td>
                   <td className="py-2.5 px-3 text-center">
                     {c.replied ? (
-                      <span className="inline-flex items-center gap-1 text-micro font-semibold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
+                      <span className="inline-flex items-center gap-1 text-micro font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
                         <MessageSquare className="h-2.5 w-2.5" /> Yes
                       </span>
                     ) : (
@@ -742,7 +790,7 @@ function ContactsTab({ contacts }: { contacts: CampaignContact[] }) {
                     {c.dcs_score != null ? (
                       <span className={cn(
                         'text-caption font-semibold tabular-nums',
-                        c.dcs_score >= 80 ? 'text-emerald-500' : c.dcs_score >= 50 ? 'text-amber-500' : 'text-rose-500'
+                        c.dcs_score >= 80 ? 'text-emerald-600 dark:text-emerald-400' : c.dcs_score >= 50 ? 'text-amber-700 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
                       )}>
                         {c.dcs_score}
                       </span>
@@ -778,6 +826,7 @@ type Mode = 'overview' | 'campaign';
 type CampaignTab = 'stats' | 'funnel' | 'abtest' | 'contacts' | 'heatmap';
 
 export function AnalyticsDashboardPage() {
+  const reducedMotion = usePrefersReducedMotion();
   const { theme } = useTheme();
   const [mode, setMode] = useState<Mode>('overview');
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('30d');
@@ -966,6 +1015,7 @@ export function AnalyticsDashboardPage() {
                 <button
                   key={opt.value}
                   onClick={() => setDateRange(opt.value)}
+                  aria-pressed={dateRange === opt.value}
                   className={cn(
                     'px-2.5 h-7 text-body font-medium rounded-md transition-all',
                     dateRange === opt.value
@@ -992,6 +1042,7 @@ export function AnalyticsDashboardPage() {
       <div className="flex items-center gap-2 p-1 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl w-fit">
         <button
           onClick={() => setMode('overview')}
+          aria-pressed={mode === 'overview'}
           className={cn(
             'inline-flex items-center gap-2 px-4 h-8 rounded-lg text-body font-medium transition-all',
             mode === 'overview'
@@ -1004,6 +1055,7 @@ export function AnalyticsDashboardPage() {
         </button>
         <button
           onClick={() => setMode('campaign')}
+          aria-pressed={mode === 'campaign'}
           className={cn(
             'inline-flex items-center gap-2 px-4 h-8 rounded-lg text-body font-medium transition-all',
             mode === 'campaign'
@@ -1014,7 +1066,7 @@ export function AnalyticsDashboardPage() {
           <Eye className="h-3.5 w-3.5" />
           One campaign
           {selectedCampaign && (
-            <span className="text-micro font-semibold bg-[var(--indigo-subtle)] text-[var(--indigo)] px-1.5 py-0.5 rounded-full">
+            <span className="text-micro font-semibold bg-[var(--indigo-subtle)] text-[var(--indigo-text)] px-1.5 py-0.5 rounded-full">
               {selectedCampaign.name.slice(0, 14)}{selectedCampaign.name.length > 14 ? '…' : ''}
             </span>
           )}
@@ -1045,7 +1097,7 @@ export function AnalyticsDashboardPage() {
             <div className="lg:col-span-2 p-5 panel min-w-0">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-strong font-semibold text-[var(--text-primary)]">Performance over time</h3>
+                  <h2 className="text-strong font-semibold text-[var(--text-primary)]">Performance over time</h2>
                   <p className="text-caption text-[var(--text-secondary)] mt-0.5">All metrics over the last {days} days</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -1057,7 +1109,16 @@ export function AnalyticsDashboardPage() {
                   ))}
                 </div>
               </div>
-              <div className="h-56">
+              <div
+                className="h-56"
+                role={formattedTrend.length > 0 ? 'img' : undefined}
+                aria-label={formattedTrend.length > 0
+                  ? chartLabel(`Performance over the last ${days} days, totals`, (['sent', 'opened', 'clicked', 'replied'] as const).map((key) => ({
+                    name: key.charAt(0).toUpperCase() + key.slice(1),
+                    value: formattedTrend.reduce((sum, row) => sum + safeNum((row as any)[key]), 0),
+                  })))
+                  : undefined}
+              >
                 {formattedTrend.length > 0 ? (
                   <ErrorBoundary fallback={<div className="flex items-center justify-center h-full text-strong text-[var(--text-tertiary)]">Chart unavailable</div>}>
                     <ResponsiveContainer width="100%" height="100%">
@@ -1067,7 +1128,7 @@ export function AnalyticsDashboardPage() {
                         <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }} dx={-4} />
                         <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: 'var(--border-default)', strokeDasharray: '4 4' }} />
                         {(['sent', 'opened', 'clicked', 'replied'] as const).map((key) => (
-                          <Line key={key} type="monotone" dataKey={key} stroke={CHART_COLORS[key]} strokeWidth={2} dot={false} activeDot={{ r: 4, fill: CHART_COLORS[key], stroke: 'var(--bg-surface)', strokeWidth: 2 }} name={key.charAt(0).toUpperCase() + key.slice(1)} />
+                          <Line key={key} type="monotone" dataKey={key} stroke={CHART_COLORS[key]} strokeWidth={2} dot={false} isAnimationActive={!reducedMotion} activeDot={{ r: 4, fill: CHART_COLORS[key], stroke: 'var(--bg-surface)', strokeWidth: 2 }} name={key.charAt(0).toUpperCase() + key.slice(1)} />
                         ))}
                       </LineChart>
                     </ResponsiveContainer>
@@ -1079,15 +1140,25 @@ export function AnalyticsDashboardPage() {
             </div>
 
             <div className="p-5 panel">
-              <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-1">Engagement mix</h3>
+              <h2 className="text-strong font-semibold text-[var(--text-primary)] mb-1">Engagement mix</h2>
               <p className="text-caption text-[var(--text-secondary)] mb-3">Distribution across activities</p>
               {pieData.length > 0 ? (
                 <>
-                  <div className="h-36">
+                  <div
+                    className="h-36"
+                    role="img"
+                    aria-label={chartLabel('Engagement mix', pieData.map((d) => {
+                      const total = pieData.reduce((sum, x) => sum + x.value, 0);
+                      return { name: d.name, value: total > 0 ? `${((d.value / total) * 100).toFixed(1)}%` : '0%' };
+                    }))}
+                  >
+                    {/* The label above is the chart for a screen reader; the
+                        sectors themselves would otherwise read as unnamed images. */}
+                    <div aria-hidden="true" className="h-full">
                     <ErrorBoundary fallback={<div className="h-full flex items-center justify-center text-body text-[var(--text-tertiary)]">Chart unavailable</div>}>
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={pieData} cx="50%" cy="50%" innerRadius={42} outerRadius={60} paddingAngle={3} dataKey="value" strokeWidth={0}>
+                          <Pie rootTabIndex={-1} isAnimationActive={!reducedMotion} data={pieData} cx="50%" cy="50%" innerRadius={42} outerRadius={60} paddingAngle={3} dataKey="value" strokeWidth={0}>
                             {pieData.map((_, i) => (
                               <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                             ))}
@@ -1096,6 +1167,7 @@ export function AnalyticsDashboardPage() {
                         </PieChart>
                       </ResponsiveContainer>
                     </ErrorBoundary>
+                    </div>
                   </div>
                   <div className="space-y-2 mt-2">
                     {pieData.map((item, i) => {
@@ -1125,7 +1197,7 @@ export function AnalyticsDashboardPage() {
             <div className="panel overflow-hidden">
               <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
                 <div>
-                  <h3 className="text-strong font-semibold text-[var(--text-primary)]">Campaign leaderboard</h3>
+                  <h2 className="text-strong font-semibold text-[var(--text-primary)]">Campaign leaderboard</h2>
                   <p className="text-caption text-[var(--text-secondary)] mt-0.5">Click any row to deep-dive into that campaign</p>
                 </div>
                 <span className="text-caption text-[var(--text-tertiary)] bg-[var(--bg-elevated)] px-2 py-0.5 rounded-full">
@@ -1140,9 +1212,9 @@ export function AnalyticsDashboardPage() {
           <div className="panel overflow-hidden">
             <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
               <div>
-                <h3 className="text-strong font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                <h2 className="text-strong font-semibold text-[var(--text-primary)] flex items-center gap-2">
                   Deliverability health
-                </h3>
+                </h2>
                 <p className="text-caption text-[var(--text-secondary)] mt-0.5">How sendable your contacts are, and who can no longer be emailed.</p>
               </div>
             </div>
@@ -1164,7 +1236,8 @@ export function AnalyticsDashboardPage() {
                 value={campaignSearch}
                 onChange={(e) => setCampaignSearch(e.target.value)}
                 placeholder="Search campaigns…"
-                className="flex-1 bg-transparent text-strong text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
+                aria-label="Search campaigns"
+                className="flex-1 rounded bg-transparent text-strong text-[var(--text-primary)] outline-none focus-visible:shadow-[var(--ring-focus)] placeholder:text-[var(--text-tertiary)]"
               />
               <span className="text-caption text-[var(--text-tertiary)] flex-shrink-0">
                 {filteredCampaigns.length} campaign{filteredCampaigns.length !== 1 ? 's' : ''}
@@ -1188,15 +1261,15 @@ export function AnalyticsDashboardPage() {
                       c.status === 'running' ? 'bg-emerald-500' :
                       c.status === 'paused' ? 'bg-amber-500' : 'bg-[var(--text-tertiary)]'
                     )} />
-                    <span className={cn('flex-1 text-body font-medium truncate', selectedId === c.id ? 'text-[var(--indigo)]' : 'text-[var(--text-primary)]')}>
+                    <span className={cn('flex-1 text-body font-medium truncate', selectedId === c.id ? 'text-[var(--indigo-text)]' : 'text-[var(--text-primary)]')}>
                       {c.name}
                     </span>
                     <div className="flex items-center gap-4 flex-shrink-0 text-caption text-[var(--text-tertiary)]">
                       <span>{fmtNum(c.sent)} sent</span>
-                      <span className={c.open_rate >= 30 ? 'text-emerald-500 font-semibold' : ''}>{fmtPct(c.open_rate)} open</span>
-                      <span className={c.reply_rate >= 5 ? 'text-emerald-500 font-semibold' : ''}>{fmtPct(c.reply_rate)} reply</span>
+                      <span className={c.open_rate >= 30 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : ''}>{fmtPct(c.open_rate)} open</span>
+                      <span className={c.reply_rate >= 5 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : ''}>{fmtPct(c.reply_rate)} reply</span>
                     </div>
-                    {selectedId === c.id && <span className="text-[var(--indigo)] text-caption font-semibold">Selected</span>}
+                    {selectedId === c.id && <span className="text-[var(--indigo-text)] text-caption font-semibold">Selected</span>}
                   </button>
                 ))
               )}
@@ -1216,7 +1289,7 @@ export function AnalyticsDashboardPage() {
                 <div className="flex items-center justify-between px-5 py-4 panel">
                   <div className="flex items-center gap-3">
                     <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(47,63,156,0.18)]">
-                      <Target className="h-5 w-5 text-[var(--indigo)]" strokeWidth={1.5} />
+                      <Target className="h-5 w-5 text-[var(--indigo-text)]" strokeWidth={1.5} />
                     </div>
                     <div>
                       <h2 className="text-heading font-bold text-[var(--text-primary)]">{selectedCampaign.name}</h2>
@@ -1254,10 +1327,11 @@ export function AnalyticsDashboardPage() {
                   <button
                     key={id}
                     onClick={() => setCampaignTab(id as CampaignTab)}
+                    aria-pressed={campaignTab === id}
                     className={cn(
                       'inline-flex items-center gap-1.5 px-3 py-2.5 text-body font-medium border-b-2 transition-all -mb-px',
                       campaignTab === id
-                        ? 'border-[var(--indigo)] text-[var(--indigo)]'
+                        ? 'border-[var(--indigo)] text-[var(--indigo-text)]'
                         : 'border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
                     )}
                   >
@@ -1293,7 +1367,16 @@ export function AnalyticsDashboardPage() {
 
                   <div className="p-5 panel">
                     <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-4">Daily Activity — Last {days} days</h3>
-                    <div className="h-56">
+                    <div
+                      className="h-56"
+                      role={formattedCampaignTrend.length > 0 ? 'img' : undefined}
+                      aria-label={formattedCampaignTrend.length > 0
+                        ? chartLabel(`Daily activity over the last ${days} days, totals`, (['sent', 'opened', 'clicked', 'replied'] as const).map((key) => ({
+                          name: key.charAt(0).toUpperCase() + key.slice(1),
+                          value: formattedCampaignTrend.reduce((sum, row) => sum + safeNum((row as any)[key]), 0),
+                        })))
+                        : undefined}
+                    >
                       {formattedCampaignTrend.length > 0 ? (
                         <ErrorBoundary fallback={<div className="flex items-center justify-center h-full text-strong text-[var(--text-tertiary)]">Chart unavailable</div>}>
                           <ResponsiveContainer width="100%" height="100%">
@@ -1311,7 +1394,7 @@ export function AnalyticsDashboardPage() {
                               <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }} dx={-4} />
                               <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: 'var(--border-default)', strokeDasharray: '4 4' }} />
                               {(['sent', 'opened', 'clicked', 'replied'] as const).map((key) => (
-                                <Area key={key} type="monotone" dataKey={key} stroke={CHART_COLORS[key]} strokeWidth={2} fill={`url(#grad-${key})`} dot={false} name={key.charAt(0).toUpperCase() + key.slice(1)} activeDot={{ r: 4, fill: CHART_COLORS[key], stroke: 'var(--bg-surface)', strokeWidth: 2 }} />
+                                <Area key={key} type="monotone" dataKey={key} stroke={CHART_COLORS[key]} strokeWidth={2} fill={`url(#grad-${key})`} dot={false} isAnimationActive={!reducedMotion} name={key.charAt(0).toUpperCase() + key.slice(1)} activeDot={{ r: 4, fill: CHART_COLORS[key], stroke: 'var(--bg-surface)', strokeWidth: 2 }} />
                               ))}
                             </AreaChart>
                           </ResponsiveContainer>
@@ -1411,16 +1494,16 @@ export function AnalyticsDashboardPage() {
                       {abTestData.steps.map((step: AbTestStep) => (
                         <div key={step.step_id} className="panel overflow-hidden">
                           <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center gap-3">
-                            <span className="flex items-center justify-center h-6 w-6 rounded-full bg-[var(--indigo-subtle)] text-caption font-bold text-[var(--indigo)]">
+                            <span className="flex items-center justify-center h-6 w-6 rounded-full bg-[var(--indigo-subtle)] text-caption font-bold text-[var(--indigo-text)]">
                               {step.step_number}
                             </span>
-                            <h4 className="text-strong font-semibold text-[var(--text-primary)]">Step {step.step_number} — A/B Test</h4>
+                            <h3 className="text-strong font-semibold text-[var(--text-primary)]">Step {step.step_number} — A/B Test</h3>
                             {step.winner ? (
-                              <span className="ml-auto text-caption font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-500">
+                              <span className="ml-auto text-caption font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                                 Variant {step.winner.toUpperCase()} wins
                               </span>
                             ) : !step.has_enough_data ? (
-                              <span className="ml-auto text-caption text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded-full">
+                              <span className="ml-auto text-caption text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full">
                                 Needs {step.min_sample}+ sends per variant before this can be called
                               </span>
                             ) : (

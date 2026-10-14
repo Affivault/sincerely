@@ -99,7 +99,7 @@ export function WriteWithRelay({
       <div className="space-y-4">
         <Field label="Who it is for">
           <div className="flex flex-col sm:flex-row gap-2">
-            <select
+            <select aria-label="List to write for"
               value={listId}
               onChange={(e) => setListId(e.target.value)}
               className="h-9 flex-1 min-w-0 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
@@ -109,7 +109,7 @@ export function WriteWithRelay({
                 <option key={l.id} value={l.id}>{l.name}{typeof l.contact_count === 'number' ? ` (${l.contact_count})` : ''}</option>
               ))}
             </select>
-            <input
+            <input aria-label="Describe the audience"
               value={audience}
               onChange={(e) => setAudience(e.target.value)}
               maxLength={300}
@@ -125,7 +125,7 @@ export function WriteWithRelay({
         </Field>
 
         <Field label="What you sell" hint="Who it is for, what it does for them, and any proof you are happy to have quoted. Saved for next time.">
-          <textarea
+          <textarea aria-label="What you sell"
             value={offer}
             onChange={(e) => setOffer(e.target.value)}
             rows={4}
@@ -137,7 +137,7 @@ export function WriteWithRelay({
         </Field>
 
         <Field label="A good outcome">
-          <input
+          <input aria-label="A good outcome"
             value={goal}
             onChange={(e) => setGoal(e.target.value)}
             maxLength={200}
@@ -171,7 +171,7 @@ export function WriteWithRelay({
           />
           <span>
             <span className="flex items-center gap-1.5 text-body font-semibold text-[var(--text-primary)]">
-              <Sparkles className="h-3.5 w-3.5 text-[var(--indigo)]" /> A first line for each lead
+              <Sparkles className="h-3.5 w-3.5 text-[var(--indigo-text)]" /> A first line for each lead
             </span>
             <span className="block text-caption text-[var(--text-tertiary)] mt-0.5">
               {ai

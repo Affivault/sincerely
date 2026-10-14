@@ -78,7 +78,7 @@ export function DealSource({ deal }: { deal: any }) {
           <button
             onClick={() => { setChoice(deal.source_campaign_id || ''); setEditing(true); }}
             className="icon-btn h-6 w-6"
-            title={attribution ? 'Correct this' : 'Credit a campaign'}
+            title={attribution ? 'Correct this' : 'Credit a campaign'} aria-label={attribution ? 'Correct this' : 'Credit a campaign'}
           >
             <Pencil className="h-3 w-3" />
           </button>
@@ -92,7 +92,7 @@ export function DealSource({ deal }: { deal: any }) {
               <Loader2 className="h-3 w-3 animate-spin" /> Loading campaigns…
             </p>
           ) : (
-            <select
+            <select aria-label="Source campaign"
               value={choice}
               onChange={(e) => setChoice(e.target.value)}
               className="w-full h-8 px-2 text-body rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--indigo)]"
@@ -153,7 +153,7 @@ export function DealSource({ deal }: { deal: any }) {
       ) : (
         <div className="space-y-1.5">
           <p className="text-body text-[var(--text-tertiary)]">Not from a campaign.</p>
-          <p className="text-micro leading-snug text-[var(--text-muted)]">
+          <p className="text-micro leading-snug text-[var(--text-tertiary)]">
             Deals are credited automatically when they come out of a reply. Set it by hand if this
             one did and the link was missed.
           </p>

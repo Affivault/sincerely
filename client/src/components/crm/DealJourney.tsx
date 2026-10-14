@@ -69,7 +69,7 @@ function Leg({ leg, first }: { leg: StageLeg; first: boolean }) {
             predates the history table, that first row is the backfilled one
             and its date is when the stage was last known to change, which is
             not the same thing as when the deal was created. */}
-        <p className="text-caption text-[var(--text-muted)]">
+        <p className="text-caption text-[var(--text-tertiary)]">
           {first ? 'Since' : 'Moved'} {when(leg.enteredAt)}
           {leg.reason ? ` · ${leg.reason}` : ''}
         </p>
@@ -101,7 +101,7 @@ export function DealJourney({ deal, events }: { deal: Deal; events?: DealStageEv
     return <div className="flex justify-center py-3"><Spinner size="sm" /></div>;
   }
   if (isError) {
-    return <p className="py-1 text-body text-[var(--text-muted)]">Could not load this deal&rsquo;s history.</p>;
+    return <p className="py-1 text-body text-[var(--text-tertiary)]">Could not load this deal&rsquo;s history.</p>;
   }
 
   return <Journey events={data || []} />;
@@ -111,7 +111,7 @@ function Journey({ events }: { events: DealStageEvent[] }) {
   const legs = stageTimeline(events);
   if (legs.length === 0) {
     return (
-      <p className="py-1 text-body text-[var(--text-muted)]">
+      <p className="py-1 text-body text-[var(--text-tertiary)]">
         No movement recorded yet. Every stage change from here on will show up.
       </p>
     );
@@ -133,11 +133,11 @@ function Journey({ events }: { events: DealStageEvent[] }) {
          * or an older deal whose earlier moves were never recorded. Saying
          * "open <n> days" is true either way.
          */
-        <p className="mt-1 text-caption text-[var(--text-muted)]">
+        <p className="mt-1 text-caption text-[var(--text-tertiary)]">
           {spell(total)} in this stage. Nothing earlier was recorded.
         </p>
       ) : (
-        <p className="mt-1 text-caption text-[var(--text-muted)]">
+        <p className="mt-1 text-caption text-[var(--text-tertiary)]">
           {legs.length - 1} move{legs.length - 1 === 1 ? '' : 's'} over {spell(total)}.
         </p>
       )}

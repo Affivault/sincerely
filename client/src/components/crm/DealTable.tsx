@@ -51,17 +51,17 @@ function leadEmail(d: Deal): string | null {
 
 /** Close date as a short label plus how it should read. */
 function closeLabel(iso: string | null, stage: DealStage): { text: string; tone: string } {
-  if (!iso) return { text: '—', tone: 'text-[var(--text-muted)]' };
+  if (!iso) return { text: '—', tone: 'text-[var(--text-tertiary)]' };
   // A calendar day, not UTC midnight - see parseDay.
   const d = parseDay(iso);
-  if (!d) return { text: '—', tone: 'text-[var(--text-muted)]' };
+  if (!d) return { text: '—', tone: 'text-[var(--text-tertiary)]' };
   const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diff = Math.round((startOf(d) - startOf(new Date())) / 86_400_000);
   const text = formatDayMonth(d);
   // A date in the past only matters while the deal is still open; on a closed
   // deal it is just a record of what was expected.
   const live = stage !== 'won' && stage !== 'lost';
-  if (live && diff < 0) return { text: `${text} · ${Math.abs(diff)}d late`, tone: 'text-rose-500 font-medium' };
+  if (live && diff < 0) return { text: `${text} · ${Math.abs(diff)}d late`, tone: 'text-rose-600 dark:text-rose-400 font-medium' };
   if (live && diff <= 7) return { text, tone: 'text-amber-600 dark:text-amber-400' };
   return { text, tone: 'text-[var(--text-secondary)]' };
 }
@@ -129,7 +129,7 @@ function Th({
           type="button"
           onClick={() => onSort(sortKey)}
           className={cn(
-            'inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]',
+            'inline-flex min-h-6 items-center gap-1 transition-colors hover:text-[var(--text-primary)]',
             on && 'text-[var(--text-primary)]',
           )}
         >
@@ -224,9 +224,14 @@ export function DealTable({
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2">
                       <DealHealthDot health={health?.[d.id]} />
-                      <span className="truncate text-body font-medium text-[var(--text-primary)]">
+                      {/* The row opens on a mouse click; this is the keyboard path to the same place. */}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onOpen(d); }}
+                        className="min-h-6 min-w-0 truncate text-left text-body font-medium text-[var(--text-primary)]"
+                      >
                         {d.title}
-                      </span>
+                      </button>
                       {rot.rotting && (
                         <span
                           title={`No movement for ${rot.days} days — ${dealStageLabel(d.stage)} deals are expected to move within ${rot.limit}`}
@@ -243,13 +248,13 @@ export function DealTable({
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onOpenCompany(d); }}
-                        className="inline-flex min-w-0 items-center gap-1.5 text-body text-[var(--text-secondary)] transition-colors hover:text-[var(--indigo)]"
+                        className="inline-flex min-h-6 min-w-0 items-center gap-1.5 text-body text-[var(--text-secondary)] transition-colors hover:text-[var(--indigo-text)]"
                       >
                         <Building2 className="h-3 w-3 flex-shrink-0" />
                         <span className="truncate">{d.company}</span>
                       </button>
                     ) : (
-                      <span className="text-body text-[var(--text-muted)]">—</span>
+                      <span className="text-body text-[var(--text-tertiary)]">—</span>
                     )}
                   </td>
 
@@ -258,13 +263,13 @@ export function DealTable({
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onOpenLead(d); }}
-                        className="inline-flex min-w-0 items-center gap-1.5 text-body text-[var(--text-secondary)] transition-colors hover:text-[var(--indigo)]"
+                        className="inline-flex min-h-6 min-w-0 items-center gap-1.5 text-body text-[var(--text-secondary)] transition-colors hover:text-[var(--indigo-text)]"
                       >
                         <Avatar name={lead} email={leadEmail(d)} size="xs" />
                         <span className="truncate">{lead}</span>
                       </button>
                     ) : (
-                      <span className="text-body text-[var(--text-muted)]">—</span>
+                      <span className="text-body text-[var(--text-tertiary)]">—</span>
                     )}
                   </td>
 
@@ -296,7 +301,7 @@ export function DealTable({
                     title={`${probabilityOf(d)}% of ${money(d.value, d.currency || currency)}`}
                   >
                     {money(weightedValue(d), d.currency || currency)}
-                    <span className="ml-1 text-micro text-[var(--text-muted)]">{probabilityOf(d)}%</span>
+                    <span className="ml-1 text-micro text-[var(--text-tertiary)]">{probabilityOf(d)}%</span>
                   </td>
 
                   <td className={cn('px-3 py-2.5 text-body tabular-nums', close.tone)}>{close.text}</td>
@@ -304,7 +309,7 @@ export function DealTable({
                   <td
                     className={cn(
                       'px-3 py-2.5 text-right text-body tabular-nums',
-                      rot.rotting ? 'font-medium text-rose-500' : 'text-[var(--text-tertiary)]',
+                      rot.rotting ? 'font-medium text-rose-600 dark:text-rose-400' : 'text-[var(--text-tertiary)]',
                     )}
                   >
                     {rot.days === null ? '—' : `${rot.days}d`}

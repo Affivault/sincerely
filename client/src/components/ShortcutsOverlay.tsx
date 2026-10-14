@@ -1,5 +1,5 @@
 import { SECTIONS } from '../lib/sections';
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { X, Keyboard } from 'lucide-react';
 import { CALENDAR_SHORTCUTS } from '@lemlist/shared';
 import { useFocusTrap } from '../hooks/useFocusTrap';
@@ -95,6 +95,7 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
 
 export function ShortcutsOverlay({ open, onClose }: ShortcutsOverlayProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   /*
    * A sheet to read, not to fill in - so the cursor goes to the panel
    * rather than being pushed at the close button, and Escape or Tab both
@@ -118,7 +119,7 @@ export function ShortcutsOverlay({ open, onClose }: ShortcutsOverlayProps) {
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Keyboard shortcuts"
+        aria-labelledby={titleId}
         tabIndex={-1}
         className="relative w-full max-w-[480px] glass rounded-2xl shadow-[var(--shadow-xl)] overflow-hidden"
         style={{ animation: 'cmdkIn 200ms var(--ease-out) both' }}
@@ -126,14 +127,16 @@ export function ShortcutsOverlay({ open, onClose }: ShortcutsOverlayProps) {
         {/* Header */}
         <div className="flex items-center gap-2.5 px-5 h-[52px] border-b border-[var(--border-subtle)]">
           <Keyboard className="h-4 w-4 text-[var(--text-tertiary)]" strokeWidth={2} />
-          <h2 className="flex-1 text-strong font-semibold text-[var(--text-primary)] tracking-[-0.01em]">
+          <h2 id={titleId} className="flex-1 text-strong font-semibold text-[var(--text-primary)] tracking-[-0.01em]">
             Keyboard shortcuts
           </h2>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Close keyboard shortcuts"
             className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
           >
-            <X className="h-4 w-4" />
+            <X aria-hidden className="h-4 w-4" />
           </button>
         </div>
 
@@ -150,7 +153,7 @@ export function ShortcutsOverlay({ open, onClose }: ShortcutsOverlayProps) {
                       {item.keys.map((k, i) => (
                         <span key={i} className="flex items-center gap-1">
                           {i > 0 && item.keys[0] === 'G' && (
-                            <span className="text-micro text-[var(--text-muted)] font-data">then</span>
+                            <span className="text-micro text-[var(--text-tertiary)] font-data">then</span>
                           )}
                           <kbd className="kbd !h-[20px] !min-w-[20px] !text-micro">{k}</kbd>
                         </span>

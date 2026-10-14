@@ -137,10 +137,10 @@ export function ToolkitPage() {
         <div className="mt-6 panel p-4">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-strong font-semibold text-[var(--text-primary)]">Data quality score (DCS) distribution</h3>
+              <h2 className="text-strong font-semibold text-[var(--text-primary)]">Data quality score (DCS) distribution</h2>
               <p className="text-caption text-[var(--text-tertiary)] mt-0.5">Quality breakdown across all contacts in your workspace</p>
             </div>
-            <button onClick={() => navigate('/verification')} className="flex items-center gap-1 text-caption font-medium text-[var(--indigo)] hover:underline">
+            <button onClick={() => navigate('/verification')} className="flex min-h-6 items-center gap-1 text-caption font-medium text-[var(--indigo-text)] hover:underline">
               Verify contacts <ArrowRight className="h-3 w-3" />
             </button>
           </div>
@@ -221,7 +221,12 @@ function ToolCard({ icon: Icon, iconColor, iconBg, title, description, badge, on
       </div>
       <div>
         <div className="flex items-center gap-1.5">
-          <h3 className="text-strong font-semibold text-[var(--text-primary)]">{title}</h3>
+          <h2 className="text-strong font-semibold text-[var(--text-primary)]">
+            {/* The card opens on a mouse click anywhere; the title is the keyboard path. */}
+            {!disabled && onClick ? (
+              <button type="button" onClick={(e) => { e.stopPropagation(); onClick(); }} className="rounded text-left">{title}</button>
+            ) : title}
+          </h2>
           {!disabled && onClick && <ArrowRight className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />}
         </div>
         <p className="text-caption text-[var(--text-secondary)] mt-1 leading-relaxed">{description}</p>

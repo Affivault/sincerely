@@ -91,10 +91,10 @@ export function TrackingDomainPanel() {
     <div className="panel p-4">
       <div className="flex items-start gap-3 mb-3">
         <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--indigo-subtle)]">
-          <Link2 className="h-4 w-4 text-[var(--indigo)]" />
+          <Link2 className="h-4 w-4 text-[var(--indigo-text)]" />
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="text-strong font-semibold text-[var(--text-primary)]">Tracking domain</h3>
+          <h2 className="text-strong font-semibold text-[var(--text-primary)]">Tracking domain</h2>
           <p className="text-caption text-[var(--text-secondary)] leading-snug mt-0.5">
             Spam filters look at the links inside your emails, not just who sent them. On the shared
             domain your deliverability moves with everyone else&rsquo;s; on your own it moves with yours.
@@ -112,6 +112,7 @@ export function TrackingDomainPanel() {
       ) : !record ? (
         <div className="flex flex-col sm:flex-row gap-2">
           <Input
+            aria-label="Tracking domain"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="track.yourcompany.com"
@@ -148,7 +149,7 @@ export function TrackingDomainPanel() {
                 () => remove.mutate(),
               )}
               className="icon-btn hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]"
-              title="Remove"
+              title="Remove" aria-label="Remove"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>

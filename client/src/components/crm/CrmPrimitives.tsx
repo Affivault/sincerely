@@ -110,7 +110,7 @@ export const DUE_TONE: Record<string, string> = {
   today: 'text-amber-600 dark:text-amber-400',
   soon: 'text-[var(--text-secondary)]',
   later: 'text-[var(--text-tertiary)]',
-  none: 'text-[var(--text-muted)]',
+  none: 'text-[var(--text-tertiary)]',
 };
 
 /* ── Contact picker ───────────────────────────────────────────────────── */
@@ -150,15 +150,15 @@ export function ContactPicker({
   if (contactId) {
     return (
       <div>
-        <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">{label}</label>
+        <p className="block text-body font-medium text-[var(--text-secondary)] mb-1">{label}</p>
         <div className="flex items-center gap-2.5 rounded-lg border border-[var(--indigo)]/30 bg-[var(--indigo-subtle)]/40 px-2.5 h-10">
           <Avatar name={contactName} email={contactEmail || ''} size="md" />
           <div className="flex-1 min-w-0 leading-tight">
             <p className="text-body font-medium text-[var(--text-primary)] truncate">{contactName || contactEmail}</p>
             {contactEmail && <p className="text-micro text-[var(--text-tertiary)] truncate">{contactEmail}</p>}
           </div>
-          <span className="hidden sm:inline-flex items-center gap-1 text-micro font-medium text-[var(--indigo)]"><Link2 className="h-3 w-3" /> Linked</span>
-          <button type="button" onClick={onUnlink} className="icon-btn h-6 w-6" title="Unlink"><X className="h-3.5 w-3.5" /></button>
+          <span className="hidden sm:inline-flex items-center gap-1 text-micro font-medium text-[var(--indigo-text)]"><Link2 className="h-3 w-3" /> Linked</span>
+          <button type="button" onClick={onUnlink} className="icon-btn h-6 w-6" title="Unlink" aria-label="Unlink contact"><X className="h-3.5 w-3.5" /></button>
         </div>
       </div>
     );
@@ -195,7 +195,7 @@ export function ContactPicker({
                     <p className="text-body font-medium text-[var(--text-primary)] truncate">{full || c.email}</p>
                     <p className="text-caption text-[var(--text-tertiary)] truncate">{c.email}{c.company ? ` · ${c.company}` : ''}</p>
                   </div>
-                  <Link2 className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+                  <Link2 className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
                 </button>
               );
             })}
@@ -214,7 +214,7 @@ function useDealOptions() {
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">{children}</label>;
+  return <span className="block text-body font-medium text-[var(--text-secondary)] mb-1">{children}</span>;
 }
 
 function selectCls() {
@@ -326,10 +326,11 @@ export function ActivityModal({
                   key={t.id}
                   type="button"
                   onClick={() => set('type', t.id)}
+                  aria-pressed={active}
                   className={cn(
                     'flex flex-col items-center gap-1 rounded-lg border py-2 text-caption font-medium transition-all',
                     active
-                      ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                      ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
                       : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]',
                   )}
                 >
@@ -346,11 +347,11 @@ export function ActivityModal({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <FieldLabel>Due</FieldLabel>
-            <input type="datetime-local" value={form.due_date} onChange={(e) => set('due_date', e.target.value)} className={selectCls()} />
+            <input type="datetime-local" aria-label="Due" value={form.due_date} onChange={(e) => set('due_date', e.target.value)} className={selectCls()} />
           </div>
           <div>
             <FieldLabel>Priority</FieldLabel>
-            <select value={form.priority} onChange={(e) => set('priority', e.target.value)} className={selectCls()}>
+            <select aria-label="Priority" value={form.priority} onChange={(e) => set('priority', e.target.value)} className={selectCls()}>
               <option value="low">Low</option>
               <option value="normal">Normal</option>
               <option value="high">High</option>
@@ -374,7 +375,7 @@ export function ActivityModal({
 
         <div>
           <FieldLabel>Deal</FieldLabel>
-          <select value={form.deal_id} onChange={(e) => set('deal_id', e.target.value)} className={selectCls()}>
+          <select aria-label="Deal" value={form.deal_id} onChange={(e) => set('deal_id', e.target.value)} className={selectCls()}>
             {dealOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
@@ -382,6 +383,7 @@ export function ActivityModal({
         <div>
           <FieldLabel>Notes</FieldLabel>
           <textarea
+            aria-label="Notes"
             value={form.notes}
             onChange={(e) => set('notes', e.target.value)}
             rows={3}
@@ -633,10 +635,11 @@ export function MeetingModal({
                 key={t}
                 type="button"
                 onClick={() => set('type', t)}
+                aria-pressed={form.type === t}
                 className={cn(
                   'inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border text-body font-medium capitalize transition-all',
                   form.type === t
-                    ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                    ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
                     : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
                 )}
               >
@@ -651,6 +654,7 @@ export function MeetingModal({
           <div>
             <FieldLabel>Kind</FieldLabel>
             <select
+              aria-label="Kind"
               value={form.event_type_id}
               onChange={(e) => { kindTouched.current = true; chooseKind(e.target.value); }}
               className={selectCls()}
@@ -678,6 +682,7 @@ export function MeetingModal({
           <div>
             <FieldLabel>Starts</FieldLabel>
             <input
+              aria-label="Starts"
               type={form.all_day ? 'date' : 'datetime-local'}
               value={form.all_day ? form.starts_at.slice(0, 10) : form.starts_at}
               /*
@@ -705,6 +710,7 @@ export function MeetingModal({
               </p>
             ) : (
               <input
+                aria-label="Ends (optional)"
                 type="datetime-local"
                 value={form.ends_at}
                 onChange={(e) => set('ends_at', e.target.value)}
@@ -737,6 +743,8 @@ export function MeetingModal({
               ? { ...f, all_day: true, starts_at: `${f.starts_at.slice(0, 10)}T00:00`, ends_at: '' }
               : { ...f, all_day: false };
           })}
+          role="switch"
+          aria-checked={form.all_day}
           className="inline-flex items-center gap-2 text-body font-medium text-[var(--text-secondary)]"
         >
           <span className={cn('relative inline-flex h-[18px] w-8 items-center rounded-full transition-colors', form.all_day ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]')}>
@@ -750,6 +758,7 @@ export function MeetingModal({
           <div className="relative">
             <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
             <input
+              aria-label="Location"
               value={form.location}
               onChange={(e) => set('location', e.target.value)}
               placeholder="Zoom link, address, or 'phone'"
@@ -774,7 +783,7 @@ export function MeetingModal({
 
         <div>
           <FieldLabel>Deal</FieldLabel>
-          <select value={form.deal_id} onChange={(e) => set('deal_id', e.target.value)} className={selectCls()}>
+          <select aria-label="Deal" value={form.deal_id} onChange={(e) => set('deal_id', e.target.value)} className={selectCls()}>
             {dealOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
@@ -782,11 +791,12 @@ export function MeetingModal({
         <div>
           <FieldLabel>Agenda</FieldLabel>
           <textarea
+            aria-label="Agenda"
             value={form.notes}
             onChange={(e) => set('notes', e.target.value)}
             rows={2}
             placeholder="What you want out of it"
-            className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] transition-all"
+            className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus-visible:shadow-[var(--ring-focus)] transition-all"
           />
         </div>
 
@@ -795,11 +805,12 @@ export function MeetingModal({
           <div>
             <FieldLabel>How did it go?</FieldLabel>
             <textarea
+              aria-label="How did it go?"
               value={form.outcome}
               onChange={(e) => set('outcome', e.target.value)}
               rows={2}
               placeholder="Outcome, next steps, who else was on the call"
-              className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] transition-all"
+              className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-app)] px-2.5 py-2 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)] focus-visible:shadow-[var(--ring-focus)] transition-all"
             />
           </div>
         )}

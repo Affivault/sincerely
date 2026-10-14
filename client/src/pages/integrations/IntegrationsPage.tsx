@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { integrationsApi } from '../../api/integrations.api';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
@@ -32,6 +32,8 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useOverlayStack } from '../../hooks/useOverlayStack';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { PageHeader } from '../../components/shared/PageHeader';
 import toast from 'react-hot-toast';
 
@@ -210,7 +212,7 @@ export function IntegrationsPage() {
                       <div className="flex items-center gap-2">
                         <h3 className="text-strong font-semibold text-[var(--text-primary)]">{meta.name}</h3>
                         {oneClick && !connected && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(47,63,156,0.1)] px-2 py-0.5 text-micro font-medium text-[var(--indigo)]">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(47,63,156,0.1)] px-2 py-0.5 text-micro font-medium text-[var(--indigo-text)]">
                             <Sparkles className="h-2.5 w-2.5" />
                             1-click
                           </span>
@@ -407,6 +409,10 @@ function ProviderModal({
     ? true
     : meta.fields.every((f) => f.optional || f.toggle || (config[f.key] || '').trim().length > 0);
 
+  const panelRef = useRef<HTMLDivElement>(null);
+  const topmost = useOverlayStack(true, onClose);
+  useFocusTrap(panelRef, true, { topmost });
+
   function toggleEvent(event: string) {
     setEvents((prev) => (prev.includes(event) ? prev.filter((e) => e !== event) : [...prev, event]));
   }
@@ -422,22 +428,27 @@ function ProviderModal({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 overflow-y-auto" onClick={onClose}>
       <div
-        className="w-full max-w-xl my-8 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] shadow-2xl"
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="integration-dialog-title"
+        tabIndex={-1}
+        className="w-full max-w-xl my-8 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] shadow-2xl focus:outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center gap-3 p-5 border-b border-[var(--border-subtle)]">
           <BrandTile providerId={meta.id} size="lg" />
           <div className="flex-1 min-w-0">
-            <h2 className="text-heading font-semibold text-[var(--text-primary)]">
+            <h2 id="integration-dialog-title" className="text-heading font-semibold text-[var(--text-primary)]">
               {existing ? `Manage ${meta.name}` : `Connect ${meta.name}`}
             </h2>
             <p className="text-body text-[var(--text-secondary)]">
               {existing && connectionMeta(existing) ? connectionMeta(existing) : KIND_LABELS[meta.kind]}
             </p>
           </div>
-          <button onClick={onClose} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1">
-            <X className="h-4 w-4" />
+          <button onClick={onClose} aria-label="Close" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1">
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -470,7 +481,7 @@ function ProviderModal({
                   href={meta.docsUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-caption font-medium text-[var(--indigo)] hover:underline"
+                  className="inline-flex items-center gap-1 text-caption font-medium text-[var(--indigo-text)] hover:underline"
                 >
                   {meta.name} docs <ExternalLink className="h-3 w-3" />
                 </a>
@@ -503,6 +514,7 @@ function ProviderModal({
                       type="button"
                       role="switch"
                       aria-checked={on}
+                      aria-label={field.label}
                       onClick={() => setConfig((prev) => ({ ...prev, [field.key]: on ? 'no' : 'yes' }))}
                       className={cn(
                         'relative h-5 w-9 rounded-full transition-colors',
@@ -524,9 +536,10 @@ function ProviderModal({
               const options = field.picker ? pickerOptions(field) : null;
               return (
                 <div key={field.key}>
-                  <label className="text-body text-[var(--text-tertiary)] mb-1 block">{field.label}</label>
+                  <label htmlFor={`integration-${field.key}`} className="text-body text-[var(--text-tertiary)] mb-1 block">{field.label}</label>
                   {options && options.length > 0 ? (
                     <select
+                      id={`integration-${field.key}`}
                       value={config[field.key] || existing?.config[field.key] || ''}
                       onChange={(e) => setConfig((prev) => ({ ...prev, [field.key]: e.target.value }))}
                       className="w-full rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2 text-strong text-[var(--text-primary)] focus:outline-none focus:border-[var(--text-primary)]"
@@ -539,6 +552,7 @@ function ProviderModal({
                   ) : (
                     <div className="flex gap-2">
                       <input
+                        id={`integration-${field.key}`}
                         type="text"
                         autoComplete="off"
                         spellCheck={false}
@@ -585,9 +599,9 @@ function ProviderModal({
           {/* Event picker with presets */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-body text-[var(--text-tertiary)]">
+              <span id="integration-events-label" className="text-body text-[var(--text-tertiary)]">
                 {meta.kind === 'crm' ? 'Sync when' : 'Send on these events'}
-              </label>
+              </span>
               {meta.kind !== 'crm' && (
                 <div className="flex gap-1.5">
                   {EVENT_PRESETS.map((preset) => (
@@ -602,15 +616,16 @@ function ProviderModal({
                 </div>
               )}
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2" role="group" aria-labelledby="integration-events-label">
               {meta.supportedEvents.map((event) => (
                 <button
                   key={event}
+                  aria-pressed={events.includes(event)}
                   onClick={() => toggleEvent(event)}
                   className={cn(
                     'rounded border px-2.5 py-1 text-body transition-all',
                     events.includes(event)
-                      ? 'bg-[rgba(47,63,156,0.1)] border-[var(--indigo)] text-[var(--indigo)]'
+                      ? 'bg-[rgba(47,63,156,0.1)] border-[var(--indigo)] text-[var(--indigo-text)]'
                       : 'bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   )}
                 >

@@ -56,7 +56,7 @@ function Panel({ title, hint, icon: Icon, children }: {
   return (
     <div className="panel p-4">
       <div className="mb-3 flex items-start gap-2">
-        <Icon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-[var(--text-muted)]" />
+        <Icon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)]" />
         <div className="min-w-0">
           <p className="text-body font-semibold text-[var(--text-primary)]">{title}</p>
           {hint && <p className="mt-0.5 text-caption leading-relaxed text-[var(--text-tertiary)]">{hint}</p>}
@@ -68,7 +68,7 @@ function Panel({ title, hint, icon: Icon, children }: {
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="py-2 text-body text-[var(--text-muted)]">{children}</p>;
+  return <p className="py-2 text-body text-[var(--text-tertiary)]">{children}</p>;
 }
 
 /** A labelled proportion bar. Always shows the counts behind the percentage. */
@@ -173,7 +173,7 @@ export function DealInsightsPage() {
           </div>
         ) : analysis.closedCount === 0 ? (
           <div className="panel py-16 text-center">
-            <Trophy className="mx-auto mb-3 h-8 w-8 text-[var(--text-muted)]" />
+            <Trophy className="mx-auto mb-3 h-8 w-8 text-[var(--text-tertiary)]" />
             <p className="text-heading font-semibold text-[var(--text-primary)]">Nothing has closed in this window</p>
             <p className="mx-auto mt-1 max-w-md text-body leading-relaxed text-[var(--text-tertiary)]">
               Every stage change is being recorded from now on. Once deals start closing, this page will show
@@ -189,16 +189,16 @@ export function DealInsightsPage() {
                 <p className="mt-1 text-display font-semibold leading-none tabular-nums text-[var(--text-primary)]">
                   {analysis.winRate}%
                 </p>
-                <p className="mt-1.5 text-caption text-[var(--text-muted)]">
+                <p className="mt-1.5 text-caption text-[var(--text-tertiary)]">
                   {analysis.wonCount} of {analysis.closedCount} closed
                 </p>
               </div>
               <div className="rounded-xl border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-3.5 py-3">
                 <p className="text-caption font-medium text-[var(--text-tertiary)]">Won</p>
-                <p className="mt-1 text-display font-semibold leading-none tabular-nums text-[var(--indigo)]">
+                <p className="mt-1 text-display font-semibold leading-none tabular-nums text-[var(--indigo-text)]">
                   {money(analysis.wonValue)}
                 </p>
-                <p className="mt-1.5 text-caption text-[var(--text-muted)]">
+                <p className="mt-1.5 text-caption text-[var(--text-tertiary)]">
                   {analysis.wonArr > 0 ? `${money(analysis.wonArr)} new ARR` : 'total contract value'}
                 </p>
               </div>
@@ -207,7 +207,7 @@ export function DealInsightsPage() {
                 <p className="mt-1 text-display font-semibold leading-none tabular-nums text-[var(--text-primary)]">
                   {money(analysis.lostValue)}
                 </p>
-                <p className="mt-1.5 text-caption text-[var(--text-muted)]">
+                <p className="mt-1.5 text-caption text-[var(--text-tertiary)]">
                   {plural(analysis.closedCount - analysis.wonCount, 'deal')}
                 </p>
               </div>
@@ -216,7 +216,7 @@ export function DealInsightsPage() {
                 <p className="mt-1 text-display font-semibold leading-none tabular-nums text-[var(--text-primary)]">
                   {analysis.medianCycle === null ? '—' : `${analysis.medianCycle}d`}
                 </p>
-                <p className="mt-1.5 text-caption text-[var(--text-muted)]">median, won deals</p>
+                <p className="mt-1.5 text-caption text-[var(--text-tertiary)]">median, won deals</p>
               </div>
             </div>
 
@@ -253,7 +253,7 @@ export function DealInsightsPage() {
                           </div>
                           <Bar won={row.won} lost={row.lost} />
                           {row.lostValue > 0 && (
-                            <p className="mt-1 text-micro text-[var(--text-muted)]">
+                            <p className="mt-1 text-micro text-[var(--text-tertiary)]">
                               {money(row.lostValue)} lost from here
                               {row.wonValue > 0 && ` · ${money(row.wonValue)} won`}
                             </p>
@@ -368,14 +368,14 @@ export function DealInsightsPage() {
                         <td className="px-2 py-2 text-body font-medium text-[var(--text-primary)]">{sourceLabel(row.source)}</td>
                         <td className="px-2 py-2 text-right text-body tabular-nums text-[var(--text-tertiary)]">{row.open}</td>
                         <td className="px-2 py-2 text-right text-body tabular-nums text-emerald-600 dark:text-emerald-400">{row.won}</td>
-                        <td className="px-2 py-2 text-right text-body tabular-nums text-rose-500">{row.lost}</td>
+                        <td className="px-2 py-2 text-right text-body tabular-nums text-rose-600 dark:text-rose-400">{row.lost}</td>
                         <td className="px-2 py-2 text-right text-body font-medium tabular-nums text-[var(--text-primary)]">
                           {row.winRate === null ? '—' : `${row.winRate}%`}
                         </td>
                         <td className="px-2 py-2 text-right text-body font-semibold tabular-nums text-[var(--text-primary)]">
                           {money(row.wonValue)}
                           {row.wonArr > 0 && (
-                            <span className="ml-1 text-micro font-normal text-[var(--indigo)]">
+                            <span className="ml-1 text-micro font-normal text-[var(--indigo-text)]">
                               {money(row.wonArr)} ARR
                             </span>
                           )}

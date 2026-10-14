@@ -218,7 +218,7 @@ function ActionButton({
       className={cn(
         'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-caption font-semibold transition-colors',
         primary
-          ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] hover:bg-[rgba(47,63,156,0.14)]'
+          ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] hover:bg-[rgba(47,63,156,0.14)]'
           : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]',
       )}
     >
@@ -277,7 +277,7 @@ function LinkSheet({ target, busy, onClose, onSubmit }: {
         {!live ? (
           <p className="text-body text-[var(--text-secondary)]" data-no-link>
             No booking link is live.{' '}
-            <Link to="/calendar/links" className="text-[var(--indigo)] hover:underline">
+            <Link to="/calendar/links" className="text-[var(--indigo-text)] hover:underline">
               Turn one on
             </Link>{' '}
             and this becomes one click.
@@ -442,7 +442,7 @@ function NoteSheet({
         </div>
       }
     >
-      <textarea
+      <textarea aria-label="What came out of this conversation"
         value={body}
         onChange={(e) => setBody(e.target.value)}
         rows={5}

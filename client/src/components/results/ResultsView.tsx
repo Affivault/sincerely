@@ -58,7 +58,7 @@ function Step({ label, value, sub, money, now, before, prevLabel, highlight }: {
       )}
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         <Delta now={now} before={before} label={prevLabel} />
-        {sub && <span className="text-micro text-[var(--text-muted)]">{sub}</span>}
+        {sub && <span className="text-micro text-[var(--text-tertiary)]">{sub}</span>}
       </div>
     </div>
   );
@@ -118,14 +118,14 @@ export function ResultsView({ report, linkCampaigns = true }: { report: ResultsR
                   <tr key={c.id} className="border-b border-[var(--border-subtle)] last:border-0">
                     <td className="max-w-[260px] py-2.5 pl-4 pr-3">
                       {linkCampaigns
-                        ? <Link to={`/campaigns/${c.id}`} className="block truncate text-body font-medium text-[var(--text-primary)] hover:text-[var(--indigo)] hover:underline">{c.name}</Link>
+                        ? <Link to={`/campaigns/${c.id}`} className="block truncate text-body font-medium text-[var(--text-primary)] hover:text-[var(--indigo-text)] hover:underline">{c.name}</Link>
                         : <span className="block truncate text-body font-medium text-[var(--text-primary)]">{c.name}</span>}
                     </td>
                     <td className="px-3 py-2.5 text-right text-body tabular-nums text-[var(--text-secondary)]">{n(c.sent)}</td>
                     <td className="px-3 py-2.5 text-right text-body tabular-nums text-[var(--text-secondary)]">{n(c.replies)}</td>
                     <td className="px-3 py-2.5 text-right text-body tabular-nums text-[var(--text-secondary)]">{n(c.meetings)}</td>
                     <td className="px-3 py-2.5 text-right text-body tabular-nums text-[var(--text-secondary)]">{mainAmount(c.pipeline) ? moneyText(c.pipeline) : '-'}</td>
-                    <td className={cn('py-2.5 pl-3 pr-4 text-right text-body font-semibold tabular-nums', mainAmount(c.won) ? 'text-emerald-700 dark:text-emerald-400' : 'text-[var(--text-muted)]')}>
+                    <td className={cn('py-2.5 pl-3 pr-4 text-right text-body font-semibold tabular-nums', mainAmount(c.won) ? 'text-emerald-700 dark:text-emerald-400' : 'text-[var(--text-tertiary)]')}>
                       {mainAmount(c.won) ? moneyText(c.won) : '-'}
                     </td>
                   </tr>

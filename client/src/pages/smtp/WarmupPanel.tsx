@@ -167,7 +167,7 @@ function SetupGuide({ summary, onAddMailbox, onEnable }: {
 function Metric({ icon: Icon, value, label }: { icon: typeof Send; value: number; label: string }) {
   return (
     <div className="flex items-center gap-1.5" title={label}>
-      <Icon className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+      <Icon className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
       <span className="text-body font-semibold text-[var(--text-primary)] tabular">{value}</span>
       <span className="text-caption text-[var(--text-tertiary)] hidden lg:inline">{label}</span>
     </div>
@@ -239,7 +239,7 @@ export function WarmupPanel({ onAddMailbox }: { onAddMailbox?: () => void }) {
             <div key={a.id} className={cn('p-3.5 flex flex-col sm:flex-row sm:items-center gap-3', i > 0 && 'border-t border-[var(--border-subtle)]')}>
               <div className="min-w-0 sm:w-56 flex items-center gap-2.5">
                 <span className={cn('flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0', a.warmup_mode ? 'bg-amber-500/10' : 'bg-[var(--bg-elevated)]')}>
-                  {a.complete ? <ShieldCheck className="h-4 w-4 text-emerald-500" /> : <Flame className={cn('h-4 w-4', a.warmup_mode ? 'text-amber-500' : 'text-[var(--text-muted)]')} />}
+                  {a.complete ? <ShieldCheck className="h-4 w-4 text-emerald-500" /> : <Flame className={cn('h-4 w-4', a.warmup_mode ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-tertiary)]')} />}
                 </span>
                 <div className="min-w-0">
                   <p className="text-strong font-medium text-[var(--text-primary)] truncate">{a.from_name || a.label}</p>
@@ -278,8 +278,8 @@ export function WarmupPanel({ onAddMailbox }: { onAddMailbox?: () => void }) {
               <div className="flex items-center gap-1.5 flex-shrink-0 sm:justify-end">
                 {a.warmup_mode ? (
                   <>
-                    <button onClick={() => setConfig(a)} className="icon-btn h-7 w-7" title="Configure warm-up"><Settings2 className="h-3.5 w-3.5" /></button>
-                    <button onClick={() => pause.mutate(a.id)} className="icon-btn h-7 w-7" title="Pause warm-up"><Pause className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => setConfig(a)} className="icon-btn h-7 w-7" title="Configure warm-up" aria-label="Configure warm-up"><Settings2 className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => pause.mutate(a.id)} className="icon-btn h-7 w-7" title="Pause warm-up" aria-label="Pause warm-up"><Pause className="h-3.5 w-3.5" /></button>
                   </>
                 ) : (
                   <button onClick={() => setConfig(a)} className="icon-btn h-7 px-2.5 text-caption whitespace-nowrap"><Play className="h-3 w-3" /> Enable</button>

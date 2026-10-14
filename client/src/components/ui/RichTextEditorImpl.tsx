@@ -59,6 +59,8 @@ function ToolbarBtn({
       onClick={onClick}
       disabled={disabled}
       title={title}
+      aria-label={title}
+      aria-pressed={active === undefined ? undefined : !!active}
       className={`p-1.5 rounded-md transition-colors ${
         active
           ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-sm'
@@ -111,7 +113,8 @@ function LinkPopover({
           if (e.key === 'Escape') onClose();
         }}
         placeholder="https://example.com"
-        className="text-body bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-primary)] outline-none w-52"
+        aria-label="Link address"
+        className="text-body bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-primary)] outline-none focus-visible:border-[var(--indigo)] focus-visible:shadow-[var(--ring-focus)] w-52"
       />
       <button
         onClick={setLink}
@@ -125,8 +128,9 @@ function LinkPopover({
             (editor.chain().focus().extendMarkRange('link') as any).unsetLink().run();
             onClose();
           }}
-          className="p-1.5 rounded hover:bg-[var(--bg-hover)]"
+          className="inline-flex min-h-6 min-w-6 items-center justify-center p-1.5 rounded hover:bg-[var(--bg-hover)]"
           title="Remove link"
+          aria-label="Remove link"
         >
           <X className="h-3 w-3 text-[var(--text-tertiary)]" />
         </button>
@@ -199,6 +203,7 @@ function TemplatePicker({
 export default function RichTextEditorImpl({
   initialContent = '',
   placeholder = 'Write your message...',
+  label = 'Email body',
   onChange,
   onTemplateSelect,
   templates,
@@ -217,7 +222,7 @@ export default function RichTextEditorImpl({
       Underline as any,
       Link.configure({
         openOnClick: false,
-        HTMLAttributes: { class: 'text-blue-600 dark:text-blue-400 underline cursor-pointer' },
+        HTMLAttributes: { class: 'text-blue-600 dark:text-blue-300 underline cursor-pointer' },
       }) as any,
       Placeholder.configure({ placeholder }),
     ],
@@ -229,6 +234,11 @@ export default function RichTextEditorImpl({
     editorProps: {
       attributes: {
         class: 'outline-none prose prose-sm max-w-none text-[var(--text-primary)] px-4 py-3',
+        role: 'textbox',
+        'aria-multiline': 'true',
+        // The placeholder vanishes as soon as there is text, and says what to
+        // do rather than what this is; the name has to be there either way.
+        'aria-label': label,
         style: `min-height: ${minHeight}`,
       },
     },
@@ -393,6 +403,7 @@ export default function RichTextEditorImpl({
               <button
                 type="button"
                 onClick={() => setShowTemplates(!showTemplates)}
+                aria-expanded={showTemplates}
                 className={`flex items-center gap-1 px-2 py-1 rounded-md text-caption font-medium transition-colors ${
                   showTemplates
                     ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm'

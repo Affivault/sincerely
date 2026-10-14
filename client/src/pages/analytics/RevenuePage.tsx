@@ -69,7 +69,7 @@ function Stat({ icon: Icon, label, value, sub, tone }: {
       )}>
         {value}
       </p>
-      {sub && <p className="mt-1.5 text-caption text-[var(--text-muted)]">{sub}</p>}
+      {sub && <p className="mt-1.5 text-caption text-[var(--text-tertiary)]">{sub}</p>}
     </div>
   );
 }
@@ -193,7 +193,7 @@ export function RevenuePage() {
                           <td className="py-2.5 pl-4 pr-3 max-w-[280px]">
                             <Link
                               to={`/analytics/revenue/${r.id}`}
-                              className="block truncate text-body font-semibold text-[var(--text-primary)] hover:text-[var(--indigo)] hover:underline decoration-[var(--indigo)]/40 underline-offset-2"
+                              className="block truncate text-body font-semibold text-[var(--text-primary)] hover:text-[var(--indigo-text)] hover:underline decoration-[var(--indigo)]/40 underline-offset-2"
                             >
                               {r.name}
                             </Link>
@@ -208,7 +208,7 @@ export function RevenuePage() {
                           </td>
                           <td className={cn(
                             'py-2.5 pl-3 pr-4 text-right text-strong font-semibold tabular-nums',
-                            earned ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--text-muted)]',
+                            earned ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--text-tertiary)]',
                           )}>
                             {earned ? money(r.won_value) : '—'}
                           </td>

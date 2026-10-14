@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useId } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Check, Trash2, Loader2 } from 'lucide-react';
 import {
@@ -140,6 +140,7 @@ function TypeEditor({ type, busy, onSave, onCancel, onArchive }: {
   onCancel: () => void;
   onArchive?: () => void;
 }) {
+  const a11yId = useId();
   const [name, setName] = useState(type?.name ?? '');
   const [colour, setColour] = useState(type?.colour ?? DEFAULT_EVENT_COLOUR);
   const [minutes, setMinutes] = useState(type?.duration_minutes ?? 30);
@@ -188,8 +189,8 @@ function TypeEditor({ type, busy, onSave, onCancel, onArchive }: {
       }
     >
       <div>
-        <label className="block text-caption font-medium text-[var(--text-secondary)]">Name</label>
-        <input
+        <label htmlFor={`${a11yId}-f1`} className="block text-caption font-medium text-[var(--text-secondary)]">Name</label>
+        <input id={`${a11yId}-f1`}
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -197,7 +198,7 @@ function TypeEditor({ type, busy, onSave, onCancel, onArchive }: {
           className="mt-1 h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 text-strong text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
         />
 
-        <label className="mt-3 block text-caption font-medium text-[var(--text-secondary)]">Colour</label>
+        <span className="mt-3 block text-caption font-medium text-[var(--text-secondary)]">Colour</span>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {EVENT_COLOURS.map((c) => (
             <button
@@ -217,8 +218,8 @@ function TypeEditor({ type, busy, onSave, onCancel, onArchive }: {
 
         <div className="mt-3 flex gap-3">
           <div className="flex-1">
-            <label className="block text-caption font-medium text-[var(--text-secondary)]">Usually runs</label>
-            <select
+            <label htmlFor={`${a11yId}-f2`} className="block text-caption font-medium text-[var(--text-secondary)]">Usually runs</label>
+            <select id={`${a11yId}-f2`}
               value={minutes}
               onChange={(e) => setMinutes(Number(e.target.value))}
               className="mt-1 h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
@@ -229,8 +230,8 @@ function TypeEditor({ type, busy, onSave, onCancel, onArchive }: {
             </select>
           </div>
           <div className="flex-1">
-            <label className="block text-caption font-medium text-[var(--text-secondary)]">Usually happens</label>
-            <select
+            <label htmlFor={`${a11yId}-f3`} className="block text-caption font-medium text-[var(--text-secondary)]">Usually happens</label>
+            <select id={`${a11yId}-f3`}
               value={location}
               onChange={(e) => setLocation(e.target.value as any)}
               className="mt-1 h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"

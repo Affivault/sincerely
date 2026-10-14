@@ -119,7 +119,7 @@ function LinkedinTaskActions({ task }: { task: CrmTask }) {
         <button
           onClick={copy}
           title={payload}
-          className="inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-micro font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors"
+          className="inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-micro font-medium text-[var(--text-secondary)] hover:text-[var(--indigo-text)] hover:border-[var(--indigo)]/40 transition-colors"
         >
           {copied ? <Check className="h-3 w-3 text-[var(--success)]" /> : <Copy className="h-3 w-3" />}
           {copied ? 'Copied' : 'Copy message'}
@@ -170,19 +170,26 @@ function TaskRow({ task, onEdit, onToggle, onSnooze }: {
       </span>
 
       <div className="flex-1 min-w-0">
+        {/* The row opens on a mouse click anywhere; the title is the keyboard path. */}
         <p className={cn('text-strong font-medium text-[var(--text-primary)] truncate', task.is_done && 'line-through')}>
-          {task.title}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onEdit(task); }}
+            className="max-w-full truncate rounded text-left"
+          >
+            {task.title}
+          </button>
         </p>
         <div className="flex items-center gap-2 mt-0.5 text-caption text-[var(--text-tertiary)]">
           <span className={cn('font-medium', DUE_TONE[due.tone])}>{due.text}</span>
           {contactName && (
             <>
-              <span className="text-[var(--text-muted)]">·</span>
+              <span className="text-[var(--text-tertiary)]">·</span>
               {task.contact_id ? (
                 <Link
                   to={`/contacts/${task.contact_id}`}
                   onClick={(e) => e.stopPropagation()}
-                  className="inline-flex items-center gap-1 hover:text-[var(--indigo)] hover:underline truncate"
+                  className="inline-flex min-h-6 items-center gap-1 hover:text-[var(--indigo-text)] hover:underline truncate"
                 >
                   <User className="h-3 w-3" />{contactName}
                 </Link>
@@ -193,11 +200,11 @@ function TaskRow({ task, onEdit, onToggle, onSnooze }: {
           )}
           {task.deal && (
             <>
-              <span className="text-[var(--text-muted)]">·</span>
+              <span className="text-[var(--text-tertiary)]">·</span>
               <Link
                 to="/deals"
                 onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 hover:text-[var(--indigo)] hover:underline truncate"
+                className="inline-flex min-h-6 items-center gap-1 hover:text-[var(--indigo-text)] hover:underline truncate"
               >
                 <Handshake className="h-3 w-3" />{task.deal.title}
               </Link>
@@ -214,7 +221,7 @@ function TaskRow({ task, onEdit, onToggle, onSnooze }: {
         <button
           onClick={(e) => { e.stopPropagation(); onSnooze(task); }}
           title="Push to tomorrow"
-          className="hidden sm:inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-micro font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
+          className="hidden sm:inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-micro font-medium text-[var(--text-secondary)] hover:text-[var(--indigo-text)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
         >
           <ArrowRight className="h-3 w-3" /> Tomorrow
         </button>
@@ -427,18 +434,18 @@ export function TasksPage() {
             {buckets.map((b) => (
               <section key={b.id}>
                 <div className="flex items-baseline gap-2 px-4 pt-4 pb-2">
-                  <h3 className={cn('text-body font-semibold', b.tone)}>{b.label}</h3>
+                  <h2 className={cn('text-body font-semibold', b.tone)}>{b.label}</h2>
                   <span className="text-caption tabular text-[var(--text-tertiary)]">{b.tasks.length}</span>
                   {b.id === 'overdue' && b.tasks.length > 1 ? (
                     <button
                       onClick={() => snoozeAll.mutate(b.tasks)}
                       disabled={snoozeAll.isPending}
-                      className="ml-auto text-caption font-medium text-[var(--indigo)] hover:underline disabled:opacity-50"
+                      className="ml-auto inline-flex min-h-6 items-center text-caption font-medium text-[var(--indigo-text)] hover:underline disabled:opacity-50"
                     >
                       Push all to tomorrow
                     </button>
                   ) : (
-                    b.hint && <span className="text-caption text-[var(--text-muted)] ml-auto">{b.hint}</span>
+                    b.hint && <span className="text-caption text-[var(--text-tertiary)] ml-auto">{b.hint}</span>
                   )}
                 </div>
                 <div className="pb-1.5">
@@ -451,15 +458,18 @@ export function TasksPage() {
 
             {done.length > 0 && (
               <section>
-                <button
-                  onClick={() => setShowDone((v) => !v)}
-                  className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-[var(--bg-muted)] transition-colors"
-                >
-                  <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                  <h3 className="text-body font-semibold text-[var(--text-secondary)]">Completed</h3>
-                  <span className="text-caption tabular text-[var(--text-tertiary)]">{done.length}</span>
-                  <span className="ml-auto text-caption text-[var(--text-tertiary)]">{showDone ? 'Hide' : 'Show'}</span>
-                </button>
+                <h2>
+                  <button
+                    onClick={() => setShowDone((v) => !v)}
+                    aria-expanded={showDone}
+                    className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-[var(--bg-muted)] transition-colors"
+                  >
+                    <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-body font-semibold text-[var(--text-secondary)]">Completed</span>
+                    <span className="text-caption tabular text-[var(--text-tertiary)]">{done.length}</span>
+                    <span className="ml-auto text-caption text-[var(--text-tertiary)]">{showDone ? 'Hide' : 'Show'}</span>
+                  </button>
+                </h2>
                 {showDone && (
                   <div className="pb-1.5">
                     {done.slice(0, 50).map(({ t }) => (

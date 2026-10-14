@@ -165,7 +165,7 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
           {settled.lead_id && (
             <Link
               to="/leads/inbox"
-              className="inline-flex items-center gap-1 text-caption font-semibold text-[var(--indigo)] hover:underline"
+              className="inline-flex items-center gap-1 text-caption font-semibold text-[var(--indigo-text)] hover:underline"
             >
               Open in Leads <ArrowRight className="h-3 w-3" />
             </Link>
@@ -213,7 +213,7 @@ export function ReplyTriage({ messageId, contactId, decision, leadId }: {
             {d.label}
             <kbd className={cn(
               'ml-0.5 rounded px-1 text-micro font-semibold leading-[15px]',
-              d.id === 'interested' ? 'bg-white/20 text-white' : 'bg-[var(--bg-surface)] text-[var(--text-muted)]',
+              d.id === 'interested' ? 'bg-white/20 text-white' : 'bg-[var(--bg-surface)] text-[var(--text-tertiary)]',
             )}>
               {d.key.toUpperCase()}
             </kbd>

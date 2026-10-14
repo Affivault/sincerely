@@ -70,12 +70,12 @@ const PRESETS: { label: string; windows: AvailabilityWindow[] }[] = [
 function Heading({ connected }: { connected?: boolean }) {
   return (
     <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
-      <h3 className="flex items-center gap-1.5 text-strong font-semibold text-[var(--text-primary)]" data-heading>
+      <h2 className="flex items-center gap-1.5 text-strong font-semibold text-[var(--text-primary)]" data-heading>
         {connected
           ? <Check className="h-3.5 w-3.5 text-[var(--success)]" />
-          : <RefreshCw className="h-3.5 w-3.5 text-[var(--indigo)]" />}
+          : <RefreshCw className="h-3.5 w-3.5 text-[var(--indigo-text)]" />}
         {connected ? 'Calendar connected' : 'Connect your calendar'}
-      </h3>
+      </h2>
       <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
         {connected
           ? 'Your real diary is checked before any time is offered.'
@@ -417,7 +417,7 @@ export function AvailabilityPage() {
         <section className="panel lg:col-span-2 overflow-hidden self-start">
           <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--border-subtle)]">
             <div>
-              <h3 className="text-strong font-semibold text-[var(--text-primary)]">Working hours</h3>
+              <h2 className="text-strong font-semibold text-[var(--text-primary)]">Working hours</h2>
               <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
                 Drawn on your own clock. They stay put when the clocks change.
               </p>
@@ -507,7 +507,7 @@ export function AvailabilityPage() {
                               />
                               <button
                                 onClick={() => removeWindow(index)}
-                                title="Remove this window"
+                                title="Remove this window" aria-label="Remove this window"
                                 className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-rose-600 hover:bg-[var(--bg-hover)] transition-colors"
                               >
                                 <X className="h-3.5 w-3.5" />
@@ -518,8 +518,8 @@ export function AvailabilityPage() {
 
                         <button
                           onClick={() => addWindow(weekday)}
-                          title={off ? 'Make this day bookable' : 'Add another window (a split day)'}
-                          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)] transition-colors"
+                          title={off ? 'Make this day bookable' : 'Add another window (a split day)'} aria-label={off ? 'Make this day bookable' : 'Add another window (a split day)'}
+                          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:text-[var(--indigo-text)] hover:border-[var(--indigo)] transition-colors"
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </button>
@@ -536,7 +536,7 @@ export function AvailabilityPage() {
         <div className="space-y-4">
           <section className="panel overflow-hidden">
             <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
-              <h3 className="text-strong font-semibold text-[var(--text-primary)]">Rules</h3>
+              <h2 className="text-strong font-semibold text-[var(--text-primary)]">Rules</h2>
               <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">Saved as you change them.</p>
             </div>
             <div className="p-4 space-y-3">
@@ -609,10 +609,10 @@ export function AvailabilityPage() {
           {/* ── What the rules actually produce ── */}
           <section className="panel overflow-hidden" data-preview>
             <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
-              <h3 className="flex items-center gap-1.5 text-strong font-semibold text-[var(--text-primary)]">
-                <CalendarCheck className="h-3.5 w-3.5 text-[var(--indigo)]" />
+              <h2 className="flex items-center gap-1.5 text-strong font-semibold text-[var(--text-primary)]">
+                <CalendarCheck className="h-3.5 w-3.5 text-[var(--indigo-text)]" />
                 What a 30-minute meeting would be offered
-              </h3>
+              </h2>
               <p className="mt-0.5 text-caption text-[var(--text-tertiary)]">
                 The next seven days, from the same place a booking page would ask.
               </p>
@@ -683,11 +683,11 @@ export function AvailabilityPage() {
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div>
-      <label className="block text-caption font-medium text-[var(--text-secondary)]">{label}</label>
-      {hint && <p className="mb-1 text-micro text-[var(--text-tertiary)]">{hint}</p>}
+    <label className="block">
+      <span className="block text-caption font-medium text-[var(--text-secondary)]">{label}</span>
+      {hint && <span className="mb-1 block text-micro text-[var(--text-tertiary)]">{hint}</span>}
       {children}
-    </div>
+    </label>
   );
 }
 

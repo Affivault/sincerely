@@ -65,7 +65,7 @@ export function MeetingBrief({ eventId }: { eventId: string }) {
               {[b.person.job_title, b.person.company].filter(Boolean).join(' at ') || b.person.email}
             </p>
             {b.person.linkedin_url && (
-              <a href={b.person.linkedin_url} target="_blank" rel="noreferrer" className="mt-0.5 inline-flex items-center gap-1 text-caption text-[var(--indigo)] hover:underline">
+              <a href={b.person.linkedin_url} target="_blank" rel="noreferrer" className="mt-0.5 inline-flex items-center gap-1 text-caption text-[var(--indigo-text)] hover:underline">
                 LinkedIn <ExternalLink className="h-3 w-3" />
               </a>
             )}
@@ -134,7 +134,7 @@ export function MeetingBrief({ eventId }: { eventId: string }) {
                 <li key={i} className="flex gap-1.5 text-caption">
                   {m.direction === 'inbound'
                     ? <ArrowDownLeft className="mt-0.5 h-3 w-3 flex-shrink-0 text-emerald-500" />
-                    : <ArrowUpRight className="mt-0.5 h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" />}
+                    : <ArrowUpRight className="mt-0.5 h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]" />}
                   <span className="min-w-0">
                     <span className="text-[var(--text-tertiary)]">{formatRelativeTime(m.at)} · </span>
                     <span className="text-[var(--text-secondary)] line-clamp-2">{m.snippet || m.subject}</span>
@@ -210,7 +210,7 @@ export function MeetingOutcome({ eventId, onDone }: { eventId: string; onDone?: 
       className="space-y-2.5"
       onClick={(e) => e.stopPropagation()}
     >
-      <textarea
+      <textarea aria-label="How the meeting went"
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={2}

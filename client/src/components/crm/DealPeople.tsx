@@ -41,7 +41,7 @@ function fullName(c: { first_name?: string | null; last_name?: string | null; em
 
 /** Roles that mean the deal can move, and roles that mean it might not. */
 const ROLE_TONE: Record<string, string> = {
-  'Decision maker': 'bg-[var(--indigo-subtle)] text-[var(--indigo)]',
+  'Decision maker': 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]',
   Champion: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
   Blocker: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
 };
@@ -105,16 +105,17 @@ function AddParticipant({
   return (
     <div className="rounded-lg border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)]/40 p-2.5">
       <div className="mb-2 flex items-center gap-2">
-        <Search className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-muted)]" />
+        <Search className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)]" />
         <input
           ref={inputRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }}
           placeholder="Search contacts by name or email…"
-          className="min-w-0 flex-1 bg-transparent text-body text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+          aria-label="Search contacts to add to this deal"
+          className="min-w-0 flex-1 rounded bg-transparent text-body text-[var(--text-primary)] outline-none focus-visible:shadow-[var(--ring-focus)] placeholder:text-[var(--text-tertiary)]"
         />
-        <button type="button" onClick={onCancel} className="icon-btn h-5 w-5" title="Cancel">
+        <button type="button" onClick={onCancel} className="icon-btn h-6 w-6" title="Cancel" aria-label="Cancel">
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
@@ -125,8 +126,9 @@ function AddParticipant({
             key={r}
             type="button"
             onClick={() => setRole(role === r ? '' : r)}
+            aria-pressed={role === r}
             className={cn(
-              'rounded-full px-2 py-0.5 text-micro font-medium transition-colors',
+              'min-h-6 rounded-full px-2 py-0.5 text-micro font-medium transition-colors',
               role === r
                 ? 'bg-[var(--indigo)] text-white'
                 : 'bg-[var(--bg-surface)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
@@ -139,11 +141,11 @@ function AddParticipant({
 
       <Refreshing active={stale}>
         {debounced.length < MIN_SEARCH_LENGTH ? (
-          <p className="px-1 py-1 text-caption text-[var(--text-muted)]">
+          <p className="px-1 py-1 text-caption text-[var(--text-tertiary)]">
             Type at least {MIN_SEARCH_LENGTH} characters. Pick a role first and it is applied to whoever you add.
           </p>
         ) : options.length === 0 ? (
-          <p className="px-1 py-1 text-caption text-[var(--text-muted)]">
+          <p className="px-1 py-1 text-caption text-[var(--text-tertiary)]">
             {isFetching ? 'Searching…' : 'Nobody new matches that. Everyone already on the deal is hidden.'}
           </p>
         ) : (
@@ -163,7 +165,7 @@ function AddParticipant({
                     {c.email}{c.job_title ? ` · ${c.job_title}` : ''}
                   </span>
                 </span>
-                <Plus className="h-3.5 w-3.5 flex-shrink-0 text-[var(--indigo)]" />
+                <Plus className="h-3.5 w-3.5 flex-shrink-0 text-[var(--indigo-text)]" />
               </button>
             ))}
           </div>
@@ -209,7 +211,7 @@ function PersonRow({
               <span
                 className={cn(
                   'truncate text-body font-medium text-[var(--text-primary)]',
-                  contactId && 'group-hover:text-[var(--indigo)] group-hover:underline',
+                  contactId && 'group-hover:text-[var(--indigo-text)] group-hover:underline',
                 )}
               >
                 {name}
@@ -236,7 +238,7 @@ function PersonRow({
 
         <div className="flex flex-shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
           {onEmail && email && (
-            <button type="button" onClick={onEmail} className="icon-btn h-6 w-6" title={`Email ${name}`}>
+            <button type="button" onClick={onEmail} className="icon-btn h-6 w-6" title={`Email ${name}`} aria-label={`Email ${name}`}>
               <Mail className="h-3.5 w-3.5" />
             </button>
           )}
@@ -246,12 +248,13 @@ function PersonRow({
               onClick={() => navigate(`/contacts/${contactId}`)}
               className="icon-btn h-6 w-6"
               title="Open the full profile"
+              aria-label={`Open ${name}'s full profile`}
             >
               <Star className="h-3.5 w-3.5" />
             </button>
           )}
           {onRemove && (
-            <button type="button" onClick={onRemove} className="icon-btn h-6 w-6 hover:text-rose-500" title="Remove from this deal">
+            <button type="button" onClick={onRemove} className="icon-btn h-6 w-6 hover:text-rose-600 dark:hover:text-rose-400" title="Remove from this deal" aria-label={`Remove ${name} from this deal`}>
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           )}
@@ -267,8 +270,9 @@ function PersonRow({
                   key={r}
                   type="button"
                   onClick={() => { onRole(role === r ? null : r); setEditingRole(false); }}
+                  aria-pressed={role === r}
                   className={cn(
-                    'rounded-full px-1.5 py-0.5 text-micro font-medium transition-colors',
+                    'min-h-6 rounded-full px-1.5 py-0.5 text-micro font-medium transition-colors',
                     role === r ? 'bg-[var(--indigo)] text-white' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
                   )}
                 >
@@ -284,7 +288,7 @@ function PersonRow({
             <button
               type="button"
               onClick={() => setEditingRole(true)}
-              className="text-micro text-[var(--text-muted)] transition-colors hover:text-[var(--indigo)]"
+              className="inline-flex min-h-6 items-center text-micro text-[var(--text-tertiary)] transition-colors hover:text-[var(--indigo-text)]"
             >
               Set a role…
             </button>
@@ -354,7 +358,7 @@ export function DealPeople({
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="inline-flex items-center gap-1 text-caption font-medium text-[var(--indigo)] hover:underline"
+            className="inline-flex items-center gap-1 text-caption font-medium text-[var(--indigo-text)] hover:underline"
           >
             <UserPlus className="h-3 w-3" /> Add
           </button>
@@ -373,7 +377,7 @@ export function DealPeople({
           onEmail={onEmail && primaryEmail ? () => onEmail(primaryEmail, primaryName) : undefined}
         />
       ) : (
-        <p className="px-1.5 py-1 text-caption text-[var(--text-muted)]">
+        <p className="px-1.5 py-1 text-caption text-[var(--text-tertiary)]">
           No primary contact. Edit the deal to link one.
         </p>
       )}
@@ -405,7 +409,7 @@ export function DealPeople({
       )}
 
       {!adding && participants.length === 0 && (
-        <p className="mt-1.5 px-1.5 text-caption text-[var(--text-muted)]">
+        <p className="mt-1.5 px-1.5 text-caption text-[var(--text-tertiary)]">
           Add the other people involved and their emails join this deal&rsquo;s conversation.
         </p>
       )}
