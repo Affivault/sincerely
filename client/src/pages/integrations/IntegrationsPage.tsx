@@ -210,7 +210,7 @@ export function IntegrationsPage() {
                       <div className="flex items-center gap-2">
                         <h3 className="text-strong font-semibold text-[var(--text-primary)]">{meta.name}</h3>
                         {oneClick && !connected && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(47, 63, 156,0.1)] px-2 py-0.5 text-micro font-medium text-[var(--indigo)]">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(47,63,156,0.1)] px-2 py-0.5 text-micro font-medium text-[var(--indigo)]">
                             <Sparkles className="h-2.5 w-2.5" />
                             1-click
                           </span>
@@ -444,7 +444,7 @@ function ProviderModal({
         <div className="p-5 space-y-5">
           {/* One-click connect (not yet connected via OAuth) */}
           {oauthEnabled && !isOAuthConnected && (
-            <div className="rounded-lg border border-[var(--indigo)] bg-[rgba(47, 63, 156,0.05)] p-3.5 space-y-2">
+            <div className="rounded-lg border border-[var(--indigo)] bg-[rgba(47,63,156,0.05)] p-3.5 space-y-2">
               <p className="text-body text-[var(--text-primary)] font-medium">
                 Skip the copy-paste — connect in one click
               </p>
@@ -610,7 +610,7 @@ function ProviderModal({
                   className={cn(
                     'rounded border px-2.5 py-1 text-body transition-all',
                     events.includes(event)
-                      ? 'bg-[rgba(47, 63, 156,0.1)] border-[var(--indigo)] text-[var(--indigo)]'
+                      ? 'bg-[rgba(47,63,156,0.1)] border-[var(--indigo)] text-[var(--indigo)]'
                       : 'bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   )}
                 >

@@ -196,7 +196,7 @@ export function SuppressionPage() {
             placeholder="Search emails…"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full h-8 pl-8 pr-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[rgba(47, 63, 156,0.4)] focus:bg-[var(--bg-surface)] focus:shadow-[var(--ring-focus)] outline-none transition"
+            className="w-full h-8 pl-8 pr-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[rgba(47,63,156,0.4)] focus:bg-[var(--bg-surface)] focus:shadow-[var(--ring-focus)] outline-none transition"
           />
           {searchInput && (
             <button onClick={() => setSearchInput('')} className="absolute right-2 top-1/2 -translate-y-1/2">
@@ -209,7 +209,7 @@ export function SuppressionPage() {
           <select
             value={reasonFilter}
             onChange={(e) => { setReasonFilter(e.target.value); setPage(1); }}
-            className="h-8 pl-8 pr-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-body text-[var(--text-primary)] focus:border-[rgba(47, 63, 156,0.4)] focus:shadow-[var(--ring-focus)] outline-none transition appearance-none cursor-pointer"
+            className="h-8 pl-8 pr-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-body text-[var(--text-primary)] focus:border-[rgba(47,63,156,0.4)] focus:shadow-[var(--ring-focus)] outline-none transition appearance-none cursor-pointer"
           >
             <option value="">All reasons</option>
             <option value="unsubscribed">Unsubscribed</option>

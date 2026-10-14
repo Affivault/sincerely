@@ -239,7 +239,7 @@ function HeatmapGrid({ grid, maxValue }: { grid: HeatmapDay[]; maxValue: number 
                     className="w-[22px] h-[22px] rounded flex-shrink-0 transition-colors"
                     style={{
                       backgroundColor: intensity > 0
-                        ? `rgba(47, 63, 156, ${Math.min(1, intensity * 1.2).toFixed(2)})`
+                        ? `rgba(47,63,156, ${Math.min(1, intensity * 1.2).toFixed(2)})`
                         : 'var(--bg-elevated)',
                     }}
                     title={val > 0 ? `${row.day} ${h}:00 — ${val} engagements` : undefined}
@@ -253,7 +253,7 @@ function HeatmapGrid({ grid, maxValue }: { grid: HeatmapDay[]; maxValue: number 
           <span className="text-micro text-[var(--text-tertiary)]">Low</span>
           <div className="flex gap-0.5">
             {[0.1, 0.25, 0.45, 0.65, 0.85, 1].map((o) => (
-              <div key={o} className="w-4 h-4 rounded-sm" style={{ backgroundColor: `rgba(47, 63, 156,${o})` }} />
+              <div key={o} className="w-4 h-4 rounded-sm" style={{ backgroundColor: `rgba(47,63,156,${o})` }} />
             ))}
           </div>
           <span className="text-micro text-[var(--text-tertiary)]">High</span>
@@ -1215,7 +1215,7 @@ export function AnalyticsDashboardPage() {
               {selectedCampaign && (
                 <div className="flex items-center justify-between px-5 py-4 panel">
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(47, 63, 156,0.18)]">
+                    <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(47,63,156,0.18)]">
                       <Target className="h-5 w-5 text-[var(--indigo)]" strokeWidth={1.5} />
                     </div>
                     <div>

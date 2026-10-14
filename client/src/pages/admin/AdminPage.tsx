@@ -18,7 +18,7 @@ import { ADMIN_EMAILS, PLANS, type AdminUserRow, type PlanId, formatDate } from 
 import { keepPrevious } from '../../lib/listQuery';
 
 const PLAN_BADGE: Record<string, string> = {
-  lifetime: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(47, 63, 156,0.3)]',
+  lifetime: 'bg-[var(--indigo-subtle)] text-[var(--indigo)] border border-[rgba(47,63,156,0.3)]',
   growth: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
   starter: 'bg-sky-500/10 text-sky-700 dark:text-sky-400',
   scale: 'bg-violet-500/10 text-violet-700 dark:text-violet-400',
@@ -102,7 +102,7 @@ export function AdminPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
         <div className="flex items-center gap-3">
-          <span className="relative flex h-10 w-10 items-center justify-center rounded-xl [background:var(--indigo-grad)] shadow-[0_4px_14px_-4px_rgba(47, 63, 156,0.5)]">
+          <span className="relative flex h-10 w-10 items-center justify-center rounded-xl [background:var(--indigo-grad)] shadow-[0_4px_14px_-4px_rgba(47,63,156,0.5)]">
             <ShieldCheck className="h-5 w-5 text-white" />
           </span>
           <div>
@@ -143,7 +143,7 @@ export function AdminPage() {
       </div>
 
       {/* Grant lifetime access */}
-      <div className="relative rounded-xl border border-[rgba(47, 63, 156,0.3)] bg-[var(--bg-surface)] overflow-hidden mb-5">
+      <div className="relative rounded-xl border border-[rgba(47,63,156,0.3)] bg-[var(--bg-surface)] overflow-hidden mb-5">
         <span className="absolute inset-x-0 top-0 h-[2.5px] bg-[var(--indigo)]" />
         <div className="p-4">
           <div className="flex items-center gap-2.5 mb-1">

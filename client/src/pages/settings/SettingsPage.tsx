@@ -478,7 +478,7 @@ export function SettingsPage() {
 
                 {/* Password Modal */}
                 {showPasswordModal && (
-                  <div className="p-5 rounded-xl bg-[var(--bg-surface)] space-y-4" style={{ border: '2px solid rgba(47, 63, 156,0.25)' }}>
+                  <div className="p-5 rounded-xl bg-[var(--bg-surface)] space-y-4" style={{ border: '2px solid rgba(47,63,156,0.25)' }}>
                     <h3 className="text-strong font-semibold text-[var(--text-primary)]">Change password</h3>
                     <div>
                       <label className="block text-body font-medium text-[var(--text-secondary)] mb-1.5">Current password</label>
@@ -966,7 +966,7 @@ export function SettingsPage() {
                 onClick={handleSave}
                 disabled={saveMutation.isPending || !hasChanges}
                 className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-[var(--indigo)] text-white text-strong font-medium hover:bg-[var(--indigo-hover)] transition-all ${
-                  hasChanges ? 'shadow-[0_2px_8px_rgba(47, 63, 156,0.35)] hover:opacity-90' : 'opacity-50 cursor-not-allowed'
+                  hasChanges ? 'shadow-[0_2px_8px_rgba(47,63,156,0.35)] hover:opacity-90' : 'opacity-50 cursor-not-allowed'
                 }`}
               >
                 {saveMutation.isPending ? (

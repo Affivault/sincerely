@@ -591,7 +591,7 @@ export function DomainsPage() {
       {/* Info banner */}
       <Card variant="premium" padding="md" className="mb-3">
         <div className="flex items-start gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(47, 63, 156,0.18)] flex-shrink-0">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(47,63,156,0.18)] flex-shrink-0">
             <Shield className="h-4 w-4 text-[var(--indigo)]" />
           </span>
           <div className="min-w-0">
@@ -632,7 +632,7 @@ export function DomainsPage() {
                     'flex items-center justify-center w-9 h-9 rounded-xl flex-shrink-0',
                     domain.is_verified
                       ? 'bg-emerald-500/10 border border-emerald-500/20'
-                      : 'bg-[var(--indigo-subtle)] border border-[rgba(47, 63, 156,0.18)]'
+                      : 'bg-[var(--indigo-subtle)] border border-[rgba(47,63,156,0.18)]'
                   )}>
                     {domain.is_verified ? (
                       <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />

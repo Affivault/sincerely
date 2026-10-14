@@ -175,7 +175,7 @@ export function UpgradeNag() {
             {/* Header */}
             <div className="px-6 pt-5 pb-4 border-b border-[var(--border-subtle)]">
               <div className="flex items-start gap-3.5">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(47, 63, 156,0.18)] flex-shrink-0 mt-0.5">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] border border-[rgba(47,63,156,0.18)] flex-shrink-0 mt-0.5">
                   <Sparkles className="h-[18px] w-[18px] text-[var(--indigo)]" />
                 </span>
                 <div className="flex-1 min-w-0">
@@ -248,12 +248,12 @@ export function UpgradeNag() {
                       className={cn(
                         'relative rounded-xl border p-4 flex flex-col bg-[var(--bg-surface)]',
                         popular
-                          ? 'border-[rgba(47, 63, 156,0.45)] ring-1 ring-[rgba(47, 63, 156,0.25)] shadow-[0_10px_30px_-12px_rgba(47, 63, 156,0.4)]'
+                          ? 'border-[rgba(47,63,156,0.45)] ring-1 ring-[rgba(47,63,156,0.25)] shadow-[0_10px_30px_-12px_rgba(47,63,156,0.4)]'
                           : 'border-[var(--border-subtle)] shadow-[var(--shadow-sm)]'
                       )}
                     >
                       {popular && (
-                        <span className="absolute -top-2.5 left-4 inline-flex items-center gap-1 px-2 h-[19px] rounded-full text-micro font-semibold text-white [background:var(--indigo-grad)] shadow-[0_2px_6px_rgba(47, 63, 156,0.4)]">
+                        <span className="absolute -top-2.5 left-4 inline-flex items-center gap-1 px-2 h-[19px] rounded-full text-micro font-semibold text-white [background:var(--indigo-grad)] shadow-[0_2px_6px_rgba(47,63,156,0.4)]">
                           <Zap className="h-2.5 w-2.5" /> MOST POPULAR
                         </span>
                       )}
@@ -261,7 +261,7 @@ export function UpgradeNag() {
                       <div className="flex items-center gap-2.5 mb-3">
                         <span className={cn(
                           'flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0',
-                          popular ? 'bg-[var(--indigo-subtle)] border border-[rgba(47, 63, 156,0.18)]' : 'bg-[var(--bg-elevated)] border border-[var(--border-subtle)]'
+                          popular ? 'bg-[var(--indigo-subtle)] border border-[rgba(47,63,156,0.18)]' : 'bg-[var(--bg-elevated)] border border-[var(--border-subtle)]'
                         )}>
                           <Icon className={cn('h-4 w-4', popular ? 'text-[var(--indigo)]' : 'text-[var(--text-secondary)]')} />
                         </span>
