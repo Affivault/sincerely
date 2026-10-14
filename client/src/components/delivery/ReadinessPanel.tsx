@@ -52,7 +52,7 @@ const STATUS_STYLE: Record<ReadinessStatus, { ring: string; bg: string; text: st
   unknown: {
     ring: 'border-[var(--border-subtle)]',
     bg: 'bg-[var(--bg-elevated)]',
-    text: 'text-[var(--text-muted)]',
+    text: 'text-[var(--text-tertiary)]',
     Icon: Minus,
   },
 };
@@ -136,7 +136,7 @@ export function CheckRow({ check, action, hideLink = false }: {
       {check.fix && !hideLink && (
         <Link
           to={check.fix.href}
-          className="mt-[1px] inline-flex flex-shrink-0 items-center gap-1 rounded-md px-2 py-1 text-caption font-semibold text-[var(--indigo)] hover:bg-[var(--indigo-subtle)] transition-colors"
+          className="mt-[1px] inline-flex flex-shrink-0 items-center gap-1 rounded-md px-2 py-1 text-caption font-semibold text-[var(--indigo-text)] hover:bg-[var(--indigo-subtle)] transition-colors"
         >
           {check.fix.label}
           <ArrowRight className="h-3 w-3" />
@@ -175,7 +175,7 @@ export function ReadinessPanel() {
         </span>
         <button
           onClick={() => qc.invalidateQueries({ queryKey: ['readiness'] })}
-          className="text-body font-semibold text-[var(--indigo)] hover:underline"
+          className="text-body font-semibold text-[var(--indigo-text)] hover:underline"
         >
           Retry
         </button>
@@ -281,7 +281,7 @@ export function ReadinessPanel() {
               )}
             </span>
             <ChevronDown className={cn(
-              'ml-auto h-4 w-4 flex-shrink-0 text-[var(--text-muted)] transition-transform',
+              'ml-auto h-4 w-4 flex-shrink-0 text-[var(--text-tertiary)] transition-transform',
               showAll && 'rotate-180',
             )} />
           </button>
@@ -293,7 +293,7 @@ export function ReadinessPanel() {
         </div>
       )}
 
-      <p className="text-caption text-[var(--text-muted)]">
+      <p className="text-caption text-[var(--text-tertiary)]">
         Checked {formatTime(new Date(report.generated_at))}.
         Every number here is the same one the send path uses.
       </p>
@@ -334,7 +334,7 @@ export function ReadinessSummary({ className }: { className?: string }) {
           </ul>
           <Link
             to="/email-accounts?tab=readiness"
-            className="mt-2 inline-flex items-center gap-1 text-caption font-semibold text-[var(--indigo)] hover:underline"
+            className="mt-2 inline-flex items-center gap-1 text-caption font-semibold text-[var(--indigo-text)] hover:underline"
           >
             See the full readiness check
             <ArrowRight className="h-3 w-3" />

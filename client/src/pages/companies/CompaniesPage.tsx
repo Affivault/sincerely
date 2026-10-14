@@ -55,7 +55,7 @@ interface ColumnDef {
 const money = (n: number) =>
   formatMoney(n);
 
-const blank = <span className="text-[var(--text-muted)]">—</span>;
+const blank = <span className="text-[var(--text-tertiary)]">—</span>;
 
 const ALL_COLUMNS: ColumnDef[] = [
   {
@@ -89,7 +89,7 @@ const ALL_COLUMNS: ColumnDef[] = [
           target="_blank"
           rel="noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 hover:text-[var(--indigo)] hover:underline truncate"
+          className="inline-flex min-h-6 items-center gap-1 hover:text-[var(--indigo-text)] hover:underline truncate"
         >
           {c.domain}
         </a>
@@ -109,7 +109,7 @@ const ALL_COLUMNS: ColumnDef[] = [
           target="_blank"
           rel="noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 hover:text-[var(--indigo)] hover:underline"
+          className="inline-flex items-center gap-1 hover:text-[var(--indigo-text)] hover:underline"
         >
           Profile <ExternalLink className="h-3 w-3" />
         </a>
@@ -303,7 +303,7 @@ export function CompaniesPage() {
 
       {needsMigration ? (
         <div className="panel px-5 py-8 text-center">
-          <Building2 className="h-6 w-6 mx-auto text-[var(--text-muted)] mb-2" />
+          <Building2 className="h-6 w-6 mx-auto text-[var(--text-tertiary)] mb-2" />
           <p className="text-heading font-semibold text-[var(--text-primary)]">Companies aren't set up yet</p>
           <p className="text-body text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
             Run migration <span className="font-mono text-caption">038_companies.sql</span> in Supabase, then
@@ -346,10 +346,10 @@ export function CompaniesPage() {
 
               <thead>
                 <tr>
-                  <th className="sticky left-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] pl-3 pr-2 py-[7px]" />
+                  <th className="sticky left-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] pl-3 pr-2 py-[7px]"><span className="sr-only">Row</span></th>
                   <th className="relative sticky left-[44px] z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-3 py-[7px] shadow-[inset_-1px_0_0_var(--border-subtle)]">
                     <span className="flex items-center gap-1.5 min-w-0">
-                      <Building2 className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />
+                      <Building2 className="h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]" strokeWidth={1.9} />
                       <SortableHeader label="Company" colKey="name" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                     </span>
                     <ResizeHandle
@@ -360,15 +360,15 @@ export function CompaniesPage() {
 
                   {columns.map((col) => (
                     <DraggableHeader key={col.id} id={col.id} layout={layout}>
-                      {col.icon && <col.icon className="h-3 w-3 flex-shrink-0 text-[var(--text-muted)]" strokeWidth={1.9} />}
+                      {col.icon && <col.icon className="h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]" strokeWidth={1.9} />}
                       {col.sortKey
                         ? <SortableHeader label={col.label} colKey={col.sortKey} sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                         : <span className="text-caption font-medium text-[var(--text-tertiary)] truncate">{col.label}</span>}
                     </DraggableHeader>
                   ))}
 
-                  <th className="bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]" />
-                  <th className="sticky right-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]" />
+                  <th aria-hidden="true" className="bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]" />
+                  <th className="sticky right-0 z-[3] bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] px-2 py-2 shadow-[inset_1px_0_0_var(--border-subtle)]"><span className="sr-only">Open</span></th>
                 </tr>
               </thead>
 
@@ -385,16 +385,21 @@ export function CompaniesPage() {
                     className="group cursor-pointer transition-colors duration-150 hover:bg-[var(--bg-hover)]"
                   >
                     <td className="sticky left-0 z-[1] bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] pl-3 pr-2 py-1.5 border-b border-[var(--border-subtle)]">
-                      <span className="text-micro tabular text-[var(--text-muted)] select-none">{rowIdx + 1}</span>
+                      <span className="text-micro tabular text-[var(--text-tertiary)] select-none">{rowIdx + 1}</span>
                     </td>
 
                     <td className="sticky left-[44px] z-[1] bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] px-3 py-1.5 border-b border-[var(--border-subtle)] shadow-[inset_-1px_0_0_var(--border-subtle)]">
-                      <span className="flex items-center gap-2.5 min-w-0">
+                      {/* The row opens on a mouse click anywhere; the name is the keyboard path. */}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); openPeek('company', c.id); }}
+                        className="flex w-full min-w-0 items-center gap-2.5 rounded text-left"
+                      >
                         <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-[var(--bg-elevated)] text-[var(--text-tertiary)]">
                           <Building2 className="h-3 w-3" />
                         </span>
                         <span className="text-body font-medium text-[var(--text-primary)] truncate">{c.name}</span>
-                      </span>
+                      </button>
                     </td>
 
                     {columns.map((col) => (

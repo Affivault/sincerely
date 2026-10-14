@@ -33,6 +33,7 @@ export function Header() {
         onClick={toggle}
         aria-label={drawerOpen ? 'Close menu' : 'Open menu'}
         aria-expanded={drawerOpen}
+        aria-controls="app-sidebar"
         className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
       >
         {drawerOpen ? <X className="h-[18px] w-[18px]" /> : <Menu className="h-[18px] w-[18px]" />}
@@ -47,11 +48,11 @@ export function Header() {
         >
           <Search className="h-[17px] w-[17px]" />
         </button>
-        <CreateMenu placement="below-right" trigger={(t, o) => <CreateButton toggle={t} open={o} compact />} />
+        <CreateMenu placement="below-right" trigger={(t, o, tp) => <CreateButton toggle={t} open={o} compact triggerProps={tp} />} />
         <AccountMenu
           placement="below-right"
-          trigger={(t) => (
-            <button onClick={t} aria-label="Account" className="ml-1 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--text-primary)] text-caption font-semibold text-[var(--bg-surface)]">
+          trigger={(t, _open, tp) => (
+            <button {...tp} type="button" onClick={t} aria-label="Account menu" className="ml-1 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--text-primary)] text-caption font-semibold text-[var(--bg-surface)]">
               {user?.email?.charAt(0)?.toUpperCase() || 'U'}
             </button>
           )}

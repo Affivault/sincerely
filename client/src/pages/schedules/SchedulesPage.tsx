@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { CalendarClock, Moon, Plus, Star, Trash2, Pencil, X, Check } from 'lucide-react';
@@ -110,7 +110,7 @@ export function SchedulesPage() {
           <div className="mx-auto w-10 h-10 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex items-center justify-center mb-2">
             <CalendarClock className="h-4 w-4 text-[var(--text-tertiary)]" />
           </div>
-          <h3 className="text-heading font-semibold text-[var(--text-primary)] mb-1">No schedules yet</h3>
+          <h2 className="text-heading font-semibold text-[var(--text-primary)] mb-1">No schedules yet</h2>
           <p className="text-body text-[var(--text-secondary)] mb-3 max-w-md mx-auto">Create a reusable send-time window to apply to campaigns in one click.</p>
           <Button size="sm" onClick={() => setCreating(true)}>
             <Plus className="h-3.5 w-3.5" /> Create your first schedule
@@ -168,9 +168,9 @@ function ScheduleCard({ schedule, now, onEdit, onDelete, onMakeDefault }: {
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <h3 className="text-heading font-semibold text-[var(--text-primary)] tracking-[-0.005em]">{schedule.name}</h3>
+            <h2 className="text-heading font-semibold text-[var(--text-primary)] tracking-[-0.005em]">{schedule.name}</h2>
             {schedule.is_default && (
-              <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-medium bg-[var(--indigo-subtle)] text-[var(--indigo)]">
+              <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded text-micro font-medium bg-[var(--indigo-subtle)] text-[var(--indigo-text)]">
                 <Star className="h-2.5 w-2.5 fill-current" /> Default
               </span>
             )}
@@ -194,7 +194,7 @@ function ScheduleCard({ schedule, now, onEdit, onDelete, onMakeDefault }: {
                 {schedule.send_window_start} – {schedule.send_window_end}
                 {schedule.send_window_end < schedule.send_window_start && (
                   <span title="Overnight — wraps past midnight">
-                    <Moon className="h-3 w-3 text-[var(--indigo)]" />
+                    <Moon className="h-3 w-3 text-[var(--indigo-text)]" />
                   </span>
                 )}
               </div>
@@ -213,7 +213,7 @@ function ScheduleCard({ schedule, now, onEdit, onDelete, onMakeDefault }: {
                   <span key={d.key} className={cn(
                     'w-6 h-6 inline-flex items-center justify-center rounded-md text-micro font-semibold',
                     schedule.send_days.includes(d.key)
-                      ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                      ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
                       : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
                   )}>
                     {d.label[0]}
@@ -225,14 +225,14 @@ function ScheduleCard({ schedule, now, onEdit, onDelete, onMakeDefault }: {
         </div>
         <div className="flex flex-col gap-0.5 flex-shrink-0">
           {!schedule.is_default && (
-            <button onClick={onMakeDefault} title="Make default" className="icon-btn hover:!text-[var(--indigo)] hover:!bg-[var(--indigo-subtle)]">
+            <button onClick={onMakeDefault} title="Make default" aria-label={`Make ${schedule.name} the default`} className="icon-btn hover:!text-[var(--indigo-text)] hover:!bg-[var(--indigo-subtle)]">
               <Star className="h-3 w-3" />
             </button>
           )}
-          <button onClick={onEdit} title="Edit" className="icon-btn">
+          <button onClick={onEdit} title="Edit" aria-label={`Edit ${schedule.name}`} className="icon-btn">
             <Pencil className="h-3 w-3" />
           </button>
-          <button onClick={onDelete} title="Delete" className="icon-btn hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]">
+          <button onClick={onDelete} title="Delete" aria-label={`Delete ${schedule.name}`} className="icon-btn hover:!text-[var(--error)] hover:!bg-[var(--error-bg)]">
             <Trash2 className="h-3 w-3" />
           </button>
         </div>
@@ -253,6 +253,7 @@ function ScheduleEditor({ initial, onCancel, onSave, loading }: {
   const [end, setEnd] = useState(initial?.send_window_end || '17:00');
   const [days, setDays] = useState<string[]>(initial?.send_days || ['mon', 'tue', 'wed', 'thu', 'fri']);
   const [isDefault, setIsDefault] = useState(initial?.is_default || false);
+  const uid = useId();
 
   const handleSave = () => {
     if (!name.trim()) { toast.error('Name is required'); return; }
@@ -275,16 +276,17 @@ function ScheduleEditor({ initial, onCancel, onSave, loading }: {
   return (
     <div className="bg-[var(--bg-surface)] border-2 border-[var(--indigo)]/30 rounded-xl p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-[var(--text-primary)]">{initial ? 'Edit schedule' : 'New schedule'}</h3>
-        <button onClick={onCancel} className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)]">
+        <h2 className="font-semibold text-[var(--text-primary)]">{initial ? 'Edit schedule' : 'New schedule'}</h2>
+        <button onClick={onCancel} aria-label="Close" title="Close" className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)]">
           <X className="h-4 w-4" />
         </button>
       </div>
 
       <div className="space-y-4">
         <div>
-          <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Name</label>
+          <label htmlFor={`${uid}-name`} className="block text-body font-medium text-[var(--text-secondary)] mb-1">Name</label>
           <input
+            id={`${uid}-name`}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Business Hours UK"
@@ -294,36 +296,37 @@ function ScheduleEditor({ initial, onCancel, onSave, loading }: {
 
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Timezone</label>
-            <select value={timezone} onChange={(e) => setTimezone(e.target.value)} className="input-field">
+            <label htmlFor={`${uid}-tz`} className="block text-body font-medium text-[var(--text-secondary)] mb-1">Timezone</label>
+            <select id={`${uid}-tz`} value={timezone} onChange={(e) => setTimezone(e.target.value)} className="input-field">
               {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Start time</label>
-            <input type="time" value={start} onChange={(e) => setStart(e.target.value)} className="input-field" />
+            <label htmlFor={`${uid}-start`} className="block text-body font-medium text-[var(--text-secondary)] mb-1">Start time</label>
+            <input id={`${uid}-start`} type="time" value={start} onChange={(e) => setStart(e.target.value)} className="input-field" />
           </div>
           <div>
-            <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">End time</label>
-            <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className="input-field" />
+            <label htmlFor={`${uid}-end`} className="block text-body font-medium text-[var(--text-secondary)] mb-1">End time</label>
+            <input id={`${uid}-end`} type="time" value={end} onChange={(e) => setEnd(e.target.value)} className="input-field" />
           </div>
         </div>
 
         {end !== '' && start !== '' && end < start && (
-          <div className="flex items-center gap-1.5 text-body text-[var(--indigo)] bg-[var(--indigo-subtle)] rounded-lg px-2.5 py-1.5">
+          <div className="flex items-center gap-1.5 text-body text-[var(--indigo-text)] bg-[var(--indigo-subtle)] rounded-lg px-2.5 py-1.5">
             <Moon className="h-3 w-3 flex-shrink-0" />
             Overnight window — wraps past midnight into the next day
           </div>
         )}
 
         <div>
-          <label className="block text-body font-medium text-[var(--text-secondary)] mb-2">Days of week</label>
-          <div className="flex gap-2 flex-wrap">
+          <span id={`${uid}-days`} className="block text-body font-medium text-[var(--text-secondary)] mb-2">Days of week</span>
+          <div role="group" aria-labelledby={`${uid}-days`} className="flex gap-2 flex-wrap">
             {DAYS.map((d) => (
               <button
                 key={d.key}
                 type="button"
                 onClick={() => toggleDay(d.key)}
+                aria-pressed={days.includes(d.key)}
                 className={`px-3 py-1.5 rounded-lg text-strong font-medium transition-colors ${
                   days.includes(d.key)
                     ? 'bg-[var(--indigo)] text-white'

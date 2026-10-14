@@ -92,7 +92,7 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub?:
         'mt-1.5 text-title font-semibold leading-none tabular-nums',
         tone === 'money' ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--text-primary)]',
       )}>{value}</p>
-      {sub && <p className="mt-1.5 text-caption text-[var(--text-muted)]">{sub}</p>}
+      {sub && <p className="mt-1.5 text-caption text-[var(--text-tertiary)]">{sub}</p>}
     </div>
   );
 }
@@ -209,7 +209,7 @@ export function CampaignRevenuePage() {
                   </td>
                   <td className={cn(
                     'py-2.5 pl-3 pr-4 text-right text-strong font-semibold tabular-nums',
-                    st.won_value > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--text-muted)]',
+                    st.won_value > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--text-tertiary)]',
                   )}>
                     {st.won_value > 0 ? money(st.won_value) : '—'}
                   </td>
@@ -219,7 +219,7 @@ export function CampaignRevenuePage() {
                 <tr className="border-b border-[var(--border-subtle)] last:border-0">
                   <td className="py-2.5 pl-4 pr-3" colSpan={4}>
                     <span className="text-body font-medium text-[var(--text-tertiary)]">Step not recorded</span>
-                    <p className="text-caption text-[var(--text-muted)]">
+                    <p className="text-caption text-[var(--text-tertiary)]">
                       {plural(unrecorded.deals, 'deal')} credited to this campaign but not to one of its steps.
                     </p>
                   </td>

@@ -246,7 +246,7 @@ function CopyButton({ text }: { text: string }) {
       .catch(() => toast.error('Failed to copy to clipboard'));
   };
   return (
-    <button onClick={handleCopy} className="p-1 rounded hover:bg-hover text-tertiary hover:text-secondary transition-colors">
+    <button onClick={handleCopy} aria-label="Copy to clipboard" title="Copy" className="inline-flex min-h-6 min-w-6 items-center justify-center p-1 rounded hover:bg-hover text-tertiary hover:text-secondary transition-colors">
       <Copy className="h-3.5 w-3.5" />
     </button>
   );
@@ -255,7 +255,7 @@ function CopyButton({ text }: { text: string }) {
 function DnsCheckResult({ result }: { result: any }) {
   const Item = ({ label, found, detail }: { label: string; found: boolean; detail?: string }) => (
     <div className="flex items-start gap-3 p-3 rounded-lg bg-elevated border border-subtle">
-      <div className={`mt-0.5 ${found ? 'text-green-500' : 'text-amber-500'}`}>
+      <div className={`mt-0.5 ${found ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
         {found ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
       </div>
       <div className="flex-1 min-w-0">
@@ -309,22 +309,22 @@ export function SmtpGuidePage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-lg border border-subtle bg-surface p-4">
           <Server className="h-5 w-5 text-primary mb-3" />
-          <h3 className="text-strong font-medium text-primary mb-1">SMTP host</h3>
+          <h2 className="text-strong font-medium text-primary mb-1">SMTP host</h2>
           <p className="text-body text-secondary">Server address for outgoing mail</p>
         </div>
         <div className="rounded-lg border border-subtle bg-surface p-4">
           <Globe className="h-5 w-5 text-primary mb-3" />
-          <h3 className="text-strong font-medium text-primary mb-1">Port and security</h3>
+          <h2 className="text-strong font-medium text-primary mb-1">Port and security</h2>
           <p className="text-body text-secondary">587 (TLS) or 465 (SSL)</p>
         </div>
         <div className="rounded-lg border border-subtle bg-surface p-4">
           <Key className="h-5 w-5 text-primary mb-3" />
-          <h3 className="text-strong font-medium text-primary mb-1">Credentials</h3>
+          <h2 className="text-strong font-medium text-primary mb-1">Credentials</h2>
           <p className="text-body text-secondary">Username + password/API key</p>
         </div>
         <div className="rounded-lg border border-subtle bg-surface p-4">
           <Shield className="h-5 w-5 text-primary mb-3" />
-          <h3 className="text-strong font-medium text-primary mb-1">DNS records</h3>
+          <h2 className="text-strong font-medium text-primary mb-1">DNS records</h2>
           <p className="text-body text-secondary">SPF, DKIM, DMARC for deliverability</p>
         </div>
       </div>
@@ -333,6 +333,7 @@ export function SmtpGuidePage() {
       <div className="rounded-lg border border-default bg-surface">
         <button
           onClick={() => setShowDns(!showDns)}
+          aria-expanded={showDns}
           className="w-full flex items-center justify-between p-4 text-left hover:bg-hover transition-colors rounded-lg"
         >
           <div className="flex items-center gap-3">
@@ -356,6 +357,7 @@ export function SmtpGuidePage() {
                 onChange={(e) => setDomainInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && domainInput && checkDomainMutation.mutate(domainInput)}
                 placeholder="yourdomain.com"
+                aria-label="Domain to check"
                 className="flex-1 rounded-md border border-default bg-surface px-3 py-2 text-strong text-primary placeholder:text-tertiary focus:outline-none focus:ring-1 focus:ring-[var(--text-primary)]"
               />
               <Button
@@ -370,7 +372,7 @@ export function SmtpGuidePage() {
             {checkDomainMutation.data && <DnsCheckResult result={checkDomainMutation.data} />}
 
             <div className="rounded-lg bg-elevated p-4 border border-subtle">
-              <h4 className="text-body font-medium text-secondary mb-2">Why DNS records matter</h4>
+              <h3 className="text-body font-medium text-secondary mb-2">Why DNS records matter</h3>
               <div className="space-y-2 text-strong text-secondary">
                 <p><strong className="text-primary">SPF</strong> — Tells receiving servers which mail servers can send email for your domain. Without it, emails may land in spam.</p>
                 <p><strong className="text-primary">DKIM</strong> — Adds a digital signature proving emails haven't been tampered with. Set up through your email provider.</p>

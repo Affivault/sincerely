@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { usePopover } from '../../hooks/usePopover';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
@@ -65,9 +66,10 @@ function WebhookUrlField({ campaignId }: { campaignId: string }) {
         <input
           type="text"
           readOnly
+          aria-label="Inbound webhook URL"
           value={isLoading ? 'Loading…' : data?.url || ''}
           onFocus={(e) => e.target.select()}
-          className="flex-1 h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-body font-mono text-[var(--text-secondary)] outline-none"
+          className="flex-1 h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-body font-mono text-[var(--text-secondary)] outline-none focus-visible:border-[var(--indigo)] focus-visible:shadow-[var(--ring-focus)]"
         />
         <button
           type="button"
@@ -75,6 +77,7 @@ function WebhookUrlField({ campaignId }: { campaignId: string }) {
           disabled={!data?.url}
           className="h-9 w-9 flex items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50"
           title="Copy URL"
+          aria-label="Copy URL"
         >
           {copied ? <Check className="h-3.5 w-3.5 text-[var(--success)]" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
@@ -144,6 +147,7 @@ interface AddStepMenuProps {
 
 function AddStepMenu({ onAdd, showAbove, last }: AddStepMenuProps & { last?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
+  const menu = usePopover(isOpen, () => setIsOpen(false));
 
   const groups: Array<Array<{ type: StepType; icon: typeof Mail; label: string; desc: string }>> = [
     [
@@ -169,15 +173,15 @@ function AddStepMenu({ onAdd, showAbove, last }: AddStepMenuProps & { last?: boo
             reads as writing and not as a diagram of plus signs. At the end
             it is always there: that is where the next step goes. */}
         <button
+          {...menu.triggerProps}
           type="button"
           onClick={() => setIsOpen(!isOpen)}
           title="Add a step here"
-          aria-expanded={isOpen}
           className={cn(
             'inline-flex items-center gap-1.5 rounded-md text-caption font-medium transition-[opacity,color,background-color]',
             last
               ? 'h-8 px-2.5 -ml-2.5 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
-              : cn('h-6 px-2 -ml-2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] focus-visible:opacity-100', isOpen ? 'opacity-100' : 'opacity-0 group-hover/add:opacity-100'),
+              : cn('h-6 px-2 -ml-2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] focus-visible:opacity-100', isOpen ? 'opacity-100' : 'opacity-0 group-hover/add:opacity-100 group-focus-within/add:opacity-100'),
           )}
         >
           <Plus className="h-3.5 w-3.5" strokeWidth={2} />
@@ -186,8 +190,8 @@ function AddStepMenu({ onAdd, showAbove, last }: AddStepMenuProps & { last?: boo
 
         {isOpen && (
           <>
-            <div className="fixed inset-0 z-20" onClick={() => setIsOpen(false)} />
-            <div className={cn(
+            <div className="fixed inset-0 z-20" aria-hidden onClick={() => setIsOpen(false)} />
+            <div {...menu.panelProps} className={cn(
               'absolute left-0 z-30 w-60 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-1 shadow-[var(--shadow-xl)] animate-fade-in',
               showAbove ? 'bottom-full mb-1.5' : 'top-full mt-1',
             )}>
@@ -451,18 +455,19 @@ function FlowNode({
                           'text-micro tabular',
                           (step.linkedin_note || '').length > LINKEDIN_NOTE_MAX
                             ? 'text-[var(--error)] font-semibold'
-                            : 'text-[var(--text-muted)]',
+                            : 'text-[var(--text-tertiary)]',
                         )}>
                           {(step.linkedin_note || '').length}/{LINKEDIN_NOTE_MAX}
                         </span>
                       </div>
                       <textarea
+                        aria-label="Invite note (optional)"
                         value={step.linkedin_note || ''}
                         onChange={(e) => onUpdate({ linkedin_note: e.target.value })}
                         rows={3}
                         maxLength={LINKEDIN_NOTE_MAX}
                         placeholder="Hi {{first_name}} — saw you're leading growth at {{company}}. Would love to connect."
-                        className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 py-2 text-body text-[var(--text-primary)] outline-none focus:border-sky-500"
+                        className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 py-2 text-body text-[var(--text-primary)] outline-none focus:border-sky-500 focus-visible:shadow-[var(--ring-focus)]"
                       />
                       <p className="mt-1 text-micro text-[var(--text-tertiary)]">
                         Invites without a note are accepted more often — leave it empty and it's sent bare.
@@ -474,11 +479,12 @@ function FlowNode({
                     <div>
                       <label className="block text-caption font-semibold text-[var(--text-secondary)] mb-1">Message</label>
                       <textarea
+                        aria-label="Message"
                         value={step.body_text || ''}
                         onChange={(e) => onUpdate({ body_text: e.target.value })}
                         rows={4}
                         placeholder="Thanks for connecting, {{first_name}}…"
-                        className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 py-2 text-body text-[var(--text-primary)] outline-none focus:border-sky-500"
+                        className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2.5 py-2 text-body text-[var(--text-primary)] outline-none focus:border-sky-500 focus-visible:shadow-[var(--ring-focus)]"
                       />
                       <p className="mt-1 text-micro text-[var(--text-tertiary)]">
                         Only reaches people you're already connected to — put an invite step before this one.
@@ -534,6 +540,7 @@ function FlowNode({
                   <div>
                     <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Condition field</label>
                     <select
+                      aria-label="Condition field"
                       value={step.condition_field || ''}
                       onChange={(e) => onUpdate({ condition_field: (e.target.value || undefined) as ConditionField | undefined })}
                       className="w-full h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-strong focus:border-[var(--text-primary)] focus:ring-2 focus:ring-[var(--text-primary)]/20"
@@ -548,6 +555,7 @@ function FlowNode({
                     <div>
                       <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Operator</label>
                       <select
+                        aria-label="Operator"
                         value={step.condition_operator || ''}
                         onChange={(e) => onUpdate({ condition_operator: (e.target.value || undefined) as ConditionOperator | undefined })}
                         className="w-full h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-strong focus:border-[var(--text-primary)] focus:ring-2 focus:ring-[var(--text-primary)]/20"
@@ -562,6 +570,7 @@ function FlowNode({
                       <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Value</label>
                       <input
                         type="text"
+                        aria-label="Value"
                         value={step.condition_value || ''}
                         onChange={(e) => onUpdate({ condition_value: e.target.value })}
                         placeholder="e.g., interested"
@@ -577,6 +586,7 @@ function FlowNode({
                     <div className="p-2.5 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)] space-y-1.5">
                       <p className="text-body font-semibold text-[var(--text-primary)]">✗ False Branch</p>
                       <select
+                        aria-label="False branch goes to"
                         value={step.false_branch_step ?? ''}
                         onChange={(e) => onUpdate({ false_branch_step: e.target.value === '' ? undefined : Number(e.target.value) })}
                         className="w-full h-7 rounded border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 text-body focus:border-[var(--indigo)] outline-none"
@@ -598,6 +608,7 @@ function FlowNode({
                     <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Webhook event</label>
                     <input
                       type="text"
+                      aria-label="Webhook event"
                       value={step.webhook_event || ''}
                       onChange={(e) => onUpdate({ webhook_event: e.target.value })}
                       placeholder="e.g., payment.completed"
@@ -608,6 +619,7 @@ function FlowNode({
                     <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Timeout (hours)</label>
                     <input
                       type="number"
+                      aria-label="Timeout (hours)"
                       min="1"
                       max="720"
                       value={step.webhook_timeout_hours || 72}
@@ -626,12 +638,14 @@ function FlowNode({
             </div>
 
             {/* Actions */}
-            <div className={cn('flex items-center gap-px transition-opacity focus-within:opacity-100', isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')} onClick={(e) => e.stopPropagation()}>
+            <div className={cn('flex items-center gap-px transition-opacity focus-within:opacity-100', isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100')} onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
                 onClick={onMoveUp}
                 disabled={index === 0}
-                className="p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label={`Move step ${index + 1} up`}
+                title="Move up"
+                className="inline-flex min-h-6 min-w-6 items-center justify-center p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronUp className="h-3.5 w-3.5" />
               </button>
@@ -639,7 +653,9 @@ function FlowNode({
                 type="button"
                 onClick={onMoveDown}
                 disabled={index === totalSteps - 1}
-                className="p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label={`Move step ${index + 1} down`}
+                title="Move down"
+                className="inline-flex min-h-6 min-w-6 items-center justify-center p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
@@ -647,8 +663,10 @@ function FlowNode({
                 <button
                   type="button"
                   onClick={onEdit}
+                  aria-expanded={isEditing}
+                  aria-label={`${isEditing ? 'Done editing' : 'Edit'} step ${index + 1}`}
                   className={cn(
-                    'px-2 py-1 rounded text-caption font-semibold transition-colors',
+                    'min-h-6 px-2 py-1 rounded text-caption font-semibold transition-colors',
                     isEditing
                       ? 'bg-[var(--bg-active)] text-[var(--text-primary)]'
                       : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
@@ -660,7 +678,9 @@ function FlowNode({
               <button
                 type="button"
                 onClick={onRemove}
-                className="p-1 rounded text-[var(--text-tertiary)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                aria-label={`Remove step ${index + 1}`}
+                title="Remove step"
+                className="inline-flex min-h-6 min-w-6 items-center justify-center p-1 rounded text-[var(--text-tertiary)] hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -680,6 +700,7 @@ function DelayUnit({ value, unit, onChange }: { value: number; unit: string; onC
         type="number"
         min={0}
         max={999}
+        aria-label={`Delay in ${unit === 'd' ? 'days' : unit === 'h' ? 'hours' : 'minutes'}`}
         value={value || 0}
         onChange={(e) => onChange(Math.max(0, Math.min(999, parseInt(e.target.value) || 0)))}
         onClick={(e) => e.stopPropagation()}
@@ -715,17 +736,17 @@ function DelayChip({ step, onUpdate, onRemove, onMoveUp, onMoveDown, isFirst, is
         <DelayUnit value={step.delay_hours || 0} unit="h" onChange={(v) => onUpdate({ delay_hours: v })} />
         <DelayUnit value={step.delay_minutes || 0} unit="m" onChange={(v) => onUpdate({ delay_minutes: v })} />
 
-        <div className="flex items-center gap-px ml-1 opacity-0 group-hover/chip:opacity-100 transition-opacity">
-          <button type="button" onClick={onMoveUp} disabled={isFirst} title="Move up"
-            className="p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+        <div className="flex items-center gap-px ml-1 opacity-0 group-hover/chip:opacity-100 focus-within:opacity-100 transition-opacity">
+          <button type="button" onClick={onMoveUp} disabled={isFirst} title="Move up" aria-label="Move wait up"
+            className="inline-flex min-h-6 min-w-6 items-center justify-center p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
             <ChevronUp className="h-3.5 w-3.5" />
           </button>
-          <button type="button" onClick={onMoveDown} disabled={isLast} title="Move down"
-            className="p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+          <button type="button" onClick={onMoveDown} disabled={isLast} title="Move down" aria-label="Move wait down"
+            className="inline-flex min-h-6 min-w-6 items-center justify-center p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
             <ChevronDown className="h-3.5 w-3.5" />
           </button>
-          <button type="button" onClick={onRemove} title="Remove delay"
-            className="p-1 rounded text-[var(--text-tertiary)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors">
+          <button type="button" onClick={onRemove} title="Remove delay" aria-label="Remove wait"
+            className="inline-flex min-h-6 min-w-6 items-center justify-center p-1 rounded text-[var(--text-tertiary)] hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-colors">
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>

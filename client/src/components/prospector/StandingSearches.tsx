@@ -141,9 +141,9 @@ export function StandingSearches() {
 
   return (
     <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-      <h3 className="mb-2 flex items-center gap-1.5 text-strong font-semibold text-[var(--text-primary)]">
-        <Radar className="h-4 w-4 text-[var(--indigo)]" /> Standing searches
-      </h3>
+      <h2 className="mb-2 flex items-center gap-1.5 text-strong font-semibold text-[var(--text-primary)]">
+        <Radar className="h-4 w-4 text-[var(--indigo-text)]" /> Standing searches
+      </h2>
       <ul className="divide-y divide-[var(--border-subtle)]">
         {rules.map((r) => (
           <li key={r.id} className="flex flex-wrap items-center gap-3 py-2.5">
@@ -163,7 +163,7 @@ export function StandingSearches() {
               </p>
             </div>
             <div className="flex items-center gap-1">
-              <select
+              <select aria-label="Campaign for new people"
                 value={r.campaign_id || ''}
                 onChange={(e) => retarget.mutate({ id: r.id, campaign_id: e.target.value || null })}
                 className="h-8 max-w-[160px] rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-caption text-[var(--text-secondary)]"
@@ -181,7 +181,7 @@ export function StandingSearches() {
               <button className="icon-btn h-8 w-8" title={r.is_active ? 'Pause' : 'Resume'} onClick={() => toggle.mutate(r)}>
                 {r.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               </button>
-              <button className="icon-btn h-8 w-8 hover:text-rose-500" title="Delete" onClick={() => remove.mutate(r.id)}>
+              <button className="icon-btn h-8 w-8 hover:text-rose-500" title="Delete" aria-label="Delete" onClick={() => remove.mutate(r.id)}>
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>

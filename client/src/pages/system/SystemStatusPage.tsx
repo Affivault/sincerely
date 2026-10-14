@@ -156,10 +156,10 @@ function IssueRow({ issue }: { issue: StatusIssue }) {
       <div className="min-w-0 flex-1">
         <p className="text-body font-medium text-[var(--text-primary)]">{issue.title}</p>
         <p className="mt-0.5 text-caption leading-relaxed text-[var(--text-tertiary)]">{issue.detail}</p>
-        {issue.since && <p className="mt-0.5 text-micro text-[var(--text-muted)]">Since {formatRelativeTime(issue.since)}</p>}
+        {issue.since && <p className="mt-0.5 text-micro text-[var(--text-tertiary)]">Since {formatRelativeTime(issue.since)}</p>}
       </div>
       {issue.href && (
-        <Link to={issue.href} className="inline-flex flex-shrink-0 items-center gap-1 rounded-md px-2 py-1 text-caption font-semibold text-[var(--indigo)] hover:bg-[var(--indigo-subtle)]">
+        <Link to={issue.href} className="inline-flex flex-shrink-0 items-center gap-1 rounded-md px-2 py-1 text-caption font-semibold text-[var(--indigo-text)] hover:bg-[var(--indigo-subtle)]">
           Open <ArrowRight className="h-3 w-3" />
         </Link>
       )}
@@ -181,7 +181,7 @@ function JobRow({ job }: { job: StatusJob }) {
       </div>
       <div className="text-right">
         <p className={cn('text-caption font-semibold', h.text)}>{h.label}</p>
-        <p className="text-micro text-[var(--text-muted)]">
+        <p className="text-micro text-[var(--text-tertiary)]">
           {job.last_ok_at ? `ran ${formatRelativeTime(job.last_ok_at)}` : 'not yet'} · {every(job.every_ms)}
         </p>
       </div>

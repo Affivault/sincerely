@@ -23,6 +23,7 @@ export function Notice({
   action,
   onDismiss,
   variant = 'card',
+  live = false,
   className,
   ...rest
 }: {
@@ -35,12 +36,19 @@ export function Notice({
   action?: ReactNode;
   onDismiss?: () => void;
   variant?: 'card' | 'band';
+  /**
+   * Set when the notice appears or changes while the person is on the page
+   * (a result, a status that flips) so a screen reader announces it. Static
+   * notices that are simply part of the page stay silent; a negative notice
+   * is always announced as an alert.
+   */
+  live?: boolean;
   className?: string;
   [key: `data-${string}`]: string | undefined;
 }) {
   return (
     <div
-      role={tone === 'negative' ? 'alert' : 'status'}
+      role={tone === 'negative' ? 'alert' : live ? 'status' : undefined}
       className={cn(
         'relative flex items-start gap-2.5 overflow-hidden bg-[var(--bg-surface)] pl-4 pr-3 py-2.5',
         variant === 'card'
@@ -51,14 +59,14 @@ export function Notice({
       {...rest}
     >
       <span aria-hidden className={cn('absolute left-0 inset-y-0 w-[3px]', TONE[tone].solid)} />
-      {Icon && <Icon className={cn('mt-[3px] h-3.5 w-3.5 flex-shrink-0', TONE[tone].icon)} strokeWidth={2} />}
+      {Icon && <Icon aria-hidden className={cn('mt-[3px] h-3.5 w-3.5 flex-shrink-0', TONE[tone].icon)} strokeWidth={2} />}
       <div className="min-w-0 flex-1 text-body leading-relaxed text-[var(--text-primary)]">
         {title && <p className="font-semibold leading-snug">{title}</p>}
         {children && <div className={cn(title && 'mt-0.5 text-caption text-[var(--text-secondary)]')}>{children}</div>}
       </div>
       {action && <div className="flex-shrink-0 self-center">{action}</div>}
       {onDismiss && (
-        <button onClick={onDismiss} title="Dismiss" className="flex-shrink-0 self-center rounded p-1 text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]">
+        <button type="button" onClick={onDismiss} title="Dismiss" aria-label="Dismiss" className="inline-flex h-6 w-6 items-center justify-center flex-shrink-0 self-center rounded text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]">
           <X className="h-3 w-3" />
         </button>
       )}
@@ -69,7 +77,7 @@ export function Notice({
 /** The action inside a notice: an ink text link. */
 export function NoticeAction({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <button {...props} className={cn('text-body font-semibold text-[var(--indigo)] hover:underline underline-offset-2 disabled:opacity-50', props.className)}>
+    <button {...props} className={cn('text-body font-semibold text-[var(--indigo-text)] hover:underline underline-offset-2 disabled:opacity-50', props.className)}>
       {children}
     </button>
   );

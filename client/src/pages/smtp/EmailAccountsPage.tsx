@@ -78,7 +78,7 @@ function ExplainerModal({ onClose }: { onClose: () => void }) {
           ].map((x) => (
             <div key={x.k} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-muted)]/40 p-3">
               <p className="text-body font-semibold text-[var(--text-primary)]">{x.k}</p>
-              <p className="text-caption font-medium text-[var(--indigo)] mb-1">{x.c}</p>
+              <p className="text-caption font-medium text-[var(--indigo-text)] mb-1">{x.c}</p>
               <p className="text-caption text-[var(--text-tertiary)]">{x.d}</p>
             </div>
           ))}
@@ -92,7 +92,7 @@ function ExplainerModal({ onClose }: { onClose: () => void }) {
           <p className="text-caption text-[var(--text-tertiary)] mt-2">The order that works: connect the mailbox, authenticate its domain, then warm it up before sending real volume.</p>
         </div>
         <p className="text-caption text-[var(--text-tertiary)]">
-          Need a full walkthrough? <Link to="/smtp-accounts/guide" className="text-[var(--indigo)] hover:underline" onClick={onClose}>Read the setup guide</Link>.
+          Need a full walkthrough? <Link to="/smtp-accounts/guide" className="text-[var(--indigo-text)] hover:underline" onClick={onClose}>Read the setup guide</Link>.
         </p>
       </div>
     </Modal>
@@ -129,7 +129,7 @@ function SetupGuide({
                 ) : (
                   <span className={cn(
                     'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-micro font-bold',
-                    active ? 'bg-[var(--indigo)] text-white' : 'border border-[var(--border-default)] text-[var(--text-muted)]',
+                    active ? 'bg-[var(--indigo)] text-white' : 'border border-[var(--border-default)] text-[var(--text-tertiary)]',
                   )}>{i + 1}</span>
                 )}
                 <span className={cn('text-body font-medium', step.done ? 'text-[var(--text-tertiary)]' : 'text-[var(--text-primary)]')}>{step.label}</span>
@@ -390,7 +390,7 @@ export function EmailAccountsPage() {
           </span>
           <button
             onClick={() => { if (accountsError) queryClient.invalidateQueries({ queryKey: ['smtp-accounts'] }); if (domainsError) queryClient.invalidateQueries({ queryKey: ['domains'] }); }}
-            className="text-body font-semibold text-[var(--indigo)] hover:underline flex-shrink-0"
+            className="text-body font-semibold text-[var(--indigo-text)] hover:underline flex-shrink-0"
           >
             Retry
           </button>
@@ -432,7 +432,7 @@ export function EmailAccountsPage() {
               <Icon className="h-3.5 w-3.5" />
               {t.label}
               {t.count != null && t.count > 0 && (
-                <span className={cn('flex h-[17px] min-w-[17px] items-center justify-center rounded-md px-1 text-micro font-semibold tabular', active ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]')}>{t.count}</span>
+                <span className={cn('flex h-[17px] min-w-[17px] items-center justify-center rounded-md px-1 text-micro font-semibold tabular', active ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]')}>{t.count}</span>
               )}
               {t.alert && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
               <span className={cn('absolute left-2 right-2 -bottom-px h-[2px] rounded-t-full transition-opacity', active ? 'bg-[var(--indigo)] opacity-100' : 'opacity-0')} />
@@ -446,7 +446,7 @@ export function EmailAccountsPage() {
         list.length === 0 ? (
           <div className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
             <div className="px-6 pb-6 pt-8 text-center">
-              <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--indigo-subtle)]"><Plug className="h-5 w-5 text-[var(--indigo)]" /></span>
+              <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--indigo-subtle)]"><Plug className="h-5 w-5 text-[var(--indigo-text)]" /></span>
               <h2 className="mt-3 text-title font-semibold tracking-[-0.01em] text-[var(--text-primary)]">Connect the mailbox you send from</h2>
               <p className="mx-auto mt-1 max-w-md text-body text-[var(--text-tertiary)]">
                 Pick your provider, add the password, and Sincerely tests sending and receiving before anything is saved. Two minutes, start to finish.
@@ -459,7 +459,7 @@ export function EmailAccountsPage() {
                     className="group flex flex-col items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-5 text-center transition-all hover:-translate-y-0.5 hover:border-[rgba(47,63,156,0.3)] hover:shadow-[var(--shadow-md)]"
                   >
                     <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
-                      {p.name ? <ProviderLogo name={p.name} className="h-6 w-6" /> : <Server className="h-5 w-5 text-[var(--indigo)]" />}
+                      {p.name ? <ProviderLogo name={p.name} className="h-6 w-6" /> : <Server className="h-5 w-5 text-[var(--indigo-text)]" />}
                     </span>
                     <span className="text-strong font-semibold text-[var(--text-primary)]">{p.title}</span>
                     <span className="text-caption leading-snug text-[var(--text-tertiary)]">{p.blurb}</span>
@@ -471,7 +471,7 @@ export function EmailAccountsPage() {
               <span className="inline-flex items-center gap-1.5"><Lock className="h-3 w-3" /> Passwords stored encrypted</span>
               <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3 w-3" /> Tested before it is saved</span>
               <span className="inline-flex items-center gap-1.5"><Mail className="h-3 w-3" /> {SMTP_PRESETS.length} providers recognised</span>
-              <button onClick={() => setBulkOpen(true)} className="inline-flex items-center gap-1.5 font-medium text-[var(--indigo)] hover:underline">
+              <button onClick={() => setBulkOpen(true)} className="inline-flex items-center gap-1.5 font-medium text-[var(--indigo-text)] hover:underline">
                 <FileUp className="h-3 w-3" /> Connecting many? Import a CSV
               </button>
             </div>
@@ -483,9 +483,9 @@ export function EmailAccountsPage() {
               * three rows is chrome; above twenty it is the fastest way in.
               */}
             {list.length > 8 && (
-              <div className="mb-3 flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 h-9">
+              <div className="mb-3 flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 h-9 focus-within:border-[var(--indigo)] focus-within:shadow-[var(--ring-focus)]">
                 <Search className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search mailboxes…" className="flex-1 bg-transparent text-strong text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none" />
+                <input aria-label="Search mailboxes" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search mailboxes…" className="flex-1 bg-transparent text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none" />
                 {search && <span className="text-caption text-[var(--text-tertiary)] tabular">{filtered.length} of {list.length}</span>}
               </div>
             )}
@@ -511,14 +511,14 @@ export function EmailAccountsPage() {
             <div className="mt-2.5 flex gap-2">
               <button
                 onClick={openAdd}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-default)] py-3 text-body font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--indigo)]/40 hover:bg-[var(--indigo-subtle)]/30 hover:text-[var(--indigo)]"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-default)] py-3 text-body font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--indigo)]/40 hover:bg-[var(--indigo-subtle)]/30 hover:text-[var(--indigo-text)]"
               >
                 <Plus className="h-4 w-4" /> Connect another mailbox
               </button>
               <button
                 onClick={() => setBulkOpen(true)}
                 title="Connect many mailboxes from a CSV"
-                className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-default)] px-4 py-3 text-body font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--indigo)]/40 hover:bg-[var(--indigo-subtle)]/30 hover:text-[var(--indigo)]"
+                className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-default)] px-4 py-3 text-body font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--indigo)]/40 hover:bg-[var(--indigo-subtle)]/30 hover:text-[var(--indigo-text)]"
               >
                 <FileUp className="h-4 w-4" /> Import CSV
               </button>
@@ -540,14 +540,14 @@ export function EmailAccountsPage() {
       {tab === 'domains' && (
         domains.length === 0 ? (
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center">
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] mb-3"><Globe className="h-5 w-5 text-[var(--indigo)]" /></span>
+            <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] mb-3"><Globe className="h-5 w-5 text-[var(--indigo-text)]" /></span>
             <p className="text-heading font-semibold text-[var(--text-primary)]">Authenticate your sending domain</p>
             <p className="text-body text-[var(--text-tertiary)] mt-1 max-w-md mx-auto">
               We generate the exact SPF, DKIM and DMARC records to paste into your DNS — the single biggest factor in reaching the inbox.
             </p>
             <Button className="mt-4" onClick={() => { if (firstUnauthed) setNewDomain(domainOf(firstUnauthed.email_address)); setAddDomainOpen(true); }}><Plus className="h-3.5 w-3.5" /> Add domain</Button>
             <p className="text-caption text-[var(--text-tertiary)] mt-3">
-              Not sure why this matters? <button onClick={() => setShowExplainer(true)} className="text-[var(--indigo)] hover:underline">2-minute explainer</button>
+              Not sure why this matters? <button onClick={() => setShowExplainer(true)} className="text-[var(--indigo-text)] hover:underline">2-minute explainer</button>
             </p>
           </div>
         ) : (
@@ -565,7 +565,7 @@ export function EmailAccountsPage() {
                       </span>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-heading font-semibold text-[var(--text-primary)] truncate">{domain.domain}</h3>
+                          <h2 className="text-heading font-semibold text-[var(--text-primary)] truncate">{domain.domain}</h2>
                           {domain.is_verified
                             ? <span className="inline-flex items-center px-1.5 h-[18px] text-micro font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded">Authenticated</span>
                             : <span className="inline-flex items-center px-1.5 h-[18px] text-micro font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded">Needs DNS setup</span>}
@@ -580,7 +580,7 @@ export function EmailAccountsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <button
+                      <button aria-label={`Remove ${domain.domain}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           confirm(

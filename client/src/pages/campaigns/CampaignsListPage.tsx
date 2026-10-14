@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { usePopover } from '../../hooks/usePopover';
 import { campaignsApi } from '../../api/campaigns.api';
 import { campaignFoldersApi, type CampaignFolder } from '../../api/campaign-folders.api';
 import { templateApi } from '../../api/template.api';
@@ -98,6 +99,7 @@ export function CampaignsListPage() {
   const [editingFolder, setEditingFolder] = useState<CampaignFolder | null>(null);
   const [folderAnalyticsId, setFolderAnalyticsId] = useState<string | null>(null);
   const [contextMenuFor, setContextMenuFor] = useState<{ id: string; name: string; x: number; y: number } | null>(null);
+  const rowMenu = usePopover(!!contextMenuFor, () => setContextMenuFor(null));
   const [showStartChooser, setShowStartChooser] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [draggingCampaignId, setDraggingCampaignId] = useState<string | null>(null);
@@ -341,12 +343,13 @@ export function CampaignsListPage() {
       <div className="grid grid-cols-1 md:grid-cols-[200px,1fr] gap-3">
         {/* Folder rail. Not on a phone, where it would sit above the list
             and push every campaign below the fold. */}
-        <aside className="hidden md:block self-start sticky top-[calc(var(--chrome-h,56px)+8px)] max-h-[calc(100vh-var(--chrome-h,56px)-16px)] overflow-y-auto">
+        <div className="hidden md:block self-start sticky top-[calc(var(--chrome-h,56px)+8px)] max-h-[calc(100vh-var(--chrome-h,56px)-16px)] overflow-y-auto">
           <div className="px-2 pt-1 pb-1.5 flex items-center justify-between">
             <span className="text-micro font-semibold text-[var(--text-tertiary)]">Folders</span>
             <button
               onClick={() => { setEditingFolder(null); setNewFolderParent(null); setFolderModalOpen(true); }}
               title="New folder"
+              aria-label="New folder"
               className="icon-btn h-6 w-6"
             >
               <FolderPlus className="h-3 w-3" />
@@ -411,10 +414,10 @@ export function CampaignsListPage() {
               </div>
             );
           })}
-        </aside>
+        </div>
 
         {/* Main column */}
-        <main className="min-w-0">
+        <div className="min-w-0">
           {/* Status tabs + search row */}
           <div className="flex flex-wrap-reverse items-center justify-between gap-2 border-b border-[var(--border-subtle)] mb-3 pb-px">
             <div className="min-w-0 max-w-full overflow-x-auto scrollbar-none">
@@ -427,12 +430,14 @@ export function CampaignsListPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search…"
-                className="h-7 pl-8 pr-7 text-body rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[rgba(47,63,156,0.4)] focus:bg-[var(--bg-surface)] transition-colors w-40"
+                aria-label="Search campaigns"
+                className="h-7 pl-8 pr-7 text-body rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[rgba(47,63,156,0.4)] focus-visible:shadow-[var(--ring-focus)] focus:bg-[var(--bg-surface)] transition-colors w-40"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                  aria-label="Clear search"
+                  className="absolute right-0.5 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -491,15 +496,15 @@ export function CampaignsListPage() {
                           key={col.key}
                           onClick={() => toggleSort(col.key)}
                           className={cn(
-                            'group/sort inline-flex items-center gap-1 text-caption font-medium transition-colors select-none',
+                            'group/sort inline-flex min-h-6 items-center gap-1 text-caption font-medium transition-colors select-none',
                             col.right && 'justify-end',
                             sortKey === col.key ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                           )}
                         >
                           {col.label}
                           {sortKey === col.key
-                            ? (sortDir === 'desc' ? <ChevronDown className="h-3 w-3 text-[var(--indigo)]" /> : <ChevronUp className="h-3 w-3 text-[var(--indigo)]" />)
-                            : <ChevronsUpDown className="h-3 w-3 opacity-0 group-hover/sort:opacity-60 transition-opacity" />}
+                            ? (sortDir === 'desc' ? <ChevronDown className="h-3 w-3 text-[var(--indigo-text)]" /> : <ChevronUp className="h-3 w-3 text-[var(--indigo-text)]" />)
+                            : <ChevronsUpDown className="h-3 w-3 opacity-0 group-hover/sort:opacity-60 group-focus-visible/sort:opacity-60 transition-opacity" />}
                         </button>
                       ))}
                       <span className="text-caption font-medium text-[var(--text-tertiary)]">Pipeline</span>
@@ -524,7 +529,19 @@ export function CampaignsListPage() {
                             // sequence, where the wording can still be fixed - it used to
                             // open the builder, which bounced straight back with an error.
                             onEdit={()   => navigate(campaign.status === 'draft' ? `/campaigns/${campaign.id}/edit` : `/campaigns/${campaign.id}?tab=sequence`)}
-                            onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setContextMenuFor({ id: campaign.id, name: campaign.name, x: e.clientX, y: e.clientY }); }}
+                            // A right-click anywhere on the row, or the row's "more" button - which is
+                            // the way in from a keyboard, and hangs the menu off itself when it reports
+                            // no pointer position.
+                            onContextMenu={(e: React.MouseEvent<HTMLElement>) => {
+                              e.preventDefault();
+                              const from = e.currentTarget;
+                              const byKeyboard = e.clientX === 0 && e.clientY === 0;
+                              const r = from.getBoundingClientRect();
+                              if (from instanceof HTMLButtonElement) rowMenu.returnFocusTo.current = from;
+                              setContextMenuFor({ id: campaign.id, name: campaign.name, x: byKeyboard ? r.left : e.clientX, y: byKeyboard ? r.bottom : e.clientY });
+                            }}
+                            menuOpen={contextMenuFor?.id === campaign.id}
+                            menuId={rowMenu.panelProps.id}
                             dragging={draggingCampaignId === campaign.id}
                             onDragStart={() => setDraggingCampaignId(campaign.id)}
                             onDragEnd={() => { setDraggingCampaignId(null); setDropFolderKey(null); }}
@@ -540,15 +557,18 @@ export function CampaignsListPage() {
               </div>
             )}
           </Refreshing>
-        </main>
+        </div>
       </div>
 
       {/* Context menu — portaled to body so it can never be offset by an
           ancestor transform, and clamped to stay fully on-screen */}
       {contextMenuFor && createPortal(
         <>
-          <div className="fixed inset-0 z-[60]" onClick={() => setContextMenuFor(null)} />
+          <div className="fixed inset-0 z-[60]" aria-hidden onClick={() => setContextMenuFor(null)} />
           <div
+            {...rowMenu.panelProps}
+            role="group"
+            aria-label={`Actions for ${contextMenuFor.name}`}
             className="fixed z-[61] bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-lg shadow-xl py-1 min-w-[200px] max-h-[80vh] overflow-y-auto animate-fade-in"
             style={{
               top: Math.max(8, Math.min(contextMenuFor.y, window.innerHeight - 320)),
@@ -587,7 +607,7 @@ export function CampaignsListPage() {
               setContextMenuFor(null);
               gone.remove(id, `Deleted "${name}"`, () => deleteMut.mutateAsync(id));
             }}
-            className="w-full text-left px-3 py-2 text-strong text-red-500 hover:bg-red-500/10 flex items-center gap-2"
+            className="w-full text-left px-3 py-2 text-strong text-red-600 dark:text-red-400 hover:bg-red-500/10 flex items-center gap-2"
           >
             <Trash2 className="h-3.5 w-3.5" /> Delete
           </button>
@@ -661,34 +681,40 @@ function FolderRow({ label, icon: Icon, count, active, onClick, onEdit, onAnalyt
             : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]/60 hover:text-[var(--text-primary)]'
         )}
       >
-        {collapsible ? (
-          <span
-            onClick={(e) => { e.stopPropagation(); onToggleCollapse?.(); }}
-            className="flex-shrink-0 -ml-1 p-0.5 rounded hover:bg-[var(--bg-hover)] cursor-pointer"
-          >
-            <ChevronRight className={cn('h-3 w-3 text-[var(--text-tertiary)] transition-transform', !collapsed && 'rotate-90')} />
-          </span>
-        ) : !indent ? <span className="w-3 flex-shrink-0" /> : null}
+        {!indent ? <span className="w-3 flex-shrink-0" /> : null}
         <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: color }} />
         <Icon className="h-3 w-3 flex-shrink-0 text-[var(--text-tertiary)]" strokeWidth={1.75} />
         <span className="flex-1 truncate">{label}</span>
         <span className="text-micro text-[var(--text-tertiary)] tabular">{count}</span>
       </button>
+      {/* A sibling of the row button, not a child: a button inside a button
+          is invalid and a screen reader cannot reach the inner one. */}
+      {collapsible && (
+        <button
+          type="button"
+          onClick={() => onToggleCollapse?.()}
+          aria-expanded={!collapsed}
+          aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${label}`}
+          className="absolute left-0.5 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded hover:bg-[var(--bg-hover)]"
+        >
+          <ChevronRight className={cn('h-3 w-3 text-[var(--text-tertiary)] transition-transform', !collapsed && 'rotate-90')} />
+        </button>
+      )}
       {(onEdit || onAnalytics || onAddSub) && (
-        <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-px bg-[var(--bg-surface)] rounded shadow-[0_0_0_1px_var(--border-subtle)] px-0.5">
+        <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex group-focus-within:flex items-center gap-px bg-[var(--bg-surface)] rounded shadow-[0_0_0_1px_var(--border-subtle)] px-0.5">
           {onAddSub && (
-            <button onClick={(e) => { e.stopPropagation(); onAddSub(); }} title="New sub-folder" className="p-0.5 rounded hover:bg-[var(--bg-hover)]">
-              <FolderPlus className="h-3 w-3 text-[var(--text-tertiary)] hover:text-[var(--indigo)]" />
+            <button onClick={(e) => { e.stopPropagation(); onAddSub(); }} title="New sub-folder" aria-label={`New sub-folder in ${label}`} className="inline-flex min-h-6 min-w-6 items-center justify-center rounded hover:bg-[var(--bg-hover)]">
+              <FolderPlus className="h-3 w-3 text-[var(--text-tertiary)] hover:text-[var(--indigo-text)]" />
             </button>
           )}
           {onAnalytics && (
-            <button onClick={(e) => { e.stopPropagation(); onAnalytics(); }} title="Folder analytics" className="p-0.5 rounded hover:bg-[var(--bg-hover)]">
-              <BarChart3 className="h-3 w-3 text-[var(--text-tertiary)] hover:text-[var(--indigo)]" />
+            <button onClick={(e) => { e.stopPropagation(); onAnalytics(); }} title="Folder analytics" aria-label={`Analytics for ${label}`} className="inline-flex min-h-6 min-w-6 items-center justify-center rounded hover:bg-[var(--bg-hover)]">
+              <BarChart3 className="h-3 w-3 text-[var(--text-tertiary)] hover:text-[var(--indigo-text)]" />
             </button>
           )}
           {onEdit && (
-            <button onClick={(e) => { e.stopPropagation(); onEdit(); }} title="Edit folder" className="p-0.5 rounded hover:bg-[var(--bg-hover)]">
-              <Pencil className="h-3 w-3 text-[var(--text-tertiary)] hover:text-[var(--indigo)]" />
+            <button onClick={(e) => { e.stopPropagation(); onEdit(); }} title="Edit folder" aria-label={`Edit ${label}`} className="inline-flex min-h-6 min-w-6 items-center justify-center rounded hover:bg-[var(--bg-hover)]">
+              <Pencil className="h-3 w-3 text-[var(--text-tertiary)] hover:text-[var(--indigo-text)]" />
             </button>
           )}
         </div>
@@ -726,7 +752,7 @@ const STATUS_DOT: Record<string, string> = {
   scheduled: 'bg-blue-500',
 };
 
-function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, onLaunch, onPause, onResume, onEdit, onContextMenu, dragging, onDragStart, onDragEnd, launchBusy, pauseBusy, resumeBusy }: any) {
+function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, onLaunch, onPause, onResume, onEdit, onContextMenu, menuOpen, menuId, dragging, onDragStart, onDragEnd, launchBusy, pauseBusy, resumeBusy }: any) {
   const total = campaign.sent_count || 0;
   const totalContacts = campaign.contacts_count || campaign.total_contacts || 0;
   const pipelinePct = totalContacts ? Math.min((total / totalContacts) * 100, 100) : 0;
@@ -746,7 +772,7 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
   const metric = (v: string, strong = false, warn = false) => (
     <span className={cn(
       'text-strong tabular text-right',
-      warn ? 'font-semibold text-rose-500' : strong ? 'font-semibold text-[var(--text-primary)]' : 'font-medium text-[var(--text-secondary)]'
+      warn ? 'font-semibold text-rose-600 dark:text-rose-400' : strong ? 'font-semibold text-[var(--text-primary)]' : 'font-medium text-[var(--text-secondary)]'
     )}>{v}</span>
   );
 
@@ -762,7 +788,7 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
         <span className={cn(
           'tabular',
           r.isRate ? 'text-strong' : 'text-body text-[var(--text-tertiary)]',
-          r.isRate && (warn ? 'font-semibold text-rose-500' : strong ? 'font-semibold text-[var(--text-primary)]' : 'font-medium text-[var(--text-secondary)]'),
+          r.isRate && (warn ? 'font-semibold text-rose-600 dark:text-rose-400' : strong ? 'font-semibold text-[var(--text-primary)]' : 'font-medium text-[var(--text-secondary)]'),
         )} data-rate-cell>{r.label}</span>
         {/* One bar, under the reply rate only - the figure the row is
             judged by. A bar under every rate turned five numbers into
@@ -799,7 +825,13 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
               bounce count beside it, a 250px column showed "Q3 Fintech o…" -
               and the count flagged a healthy 1.3% as an alarm while the
               Bounce column two inches away already said it properly. */}
-          <h3 className="text-strong font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">{campaign.name}</h3>
+          {/* The row opens on a mouse click anywhere; the name is the
+              keyboard path to the same place. */}
+          <h2 className="text-strong font-semibold text-[var(--text-primary)] truncate tracking-[-0.005em]">
+            <button type="button" onClick={(e) => { e.stopPropagation(); onOpen(); }} className="max-w-full truncate rounded text-left">
+              {campaign.name}
+            </button>
+          </h2>
           <div className="mt-1 flex min-w-0 items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
             <StatusBadge status={campaign.status} type="campaign" />
             <span className="min-w-0 truncate">
@@ -838,7 +870,7 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
           {total.toLocaleString()} / {totalContacts.toLocaleString()} sent
           {campaign.status === 'running' && (campaign.active_contacts ?? 0) > 0 && (
             <span
-              className="inline-flex items-center gap-0.5 text-micro font-semibold text-emerald-500 flex-shrink-0"
+              className="inline-flex items-center gap-0.5 text-micro font-semibold text-emerald-600 dark:text-emerald-400 flex-shrink-0"
               title={`${campaign.active_contacts} contact${campaign.active_contacts === 1 ? '' : 's'} still in sequence`}
             >
               <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse inline-block" />
@@ -852,7 +884,7 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
           rows are not twenty rows of icons. On a touch screen, always. */}
       <div
         className={cn(
-          'flex items-center justify-end gap-0.5 transition-opacity [@media(hover:hover)]:focus-within:opacity-100',
+          'flex items-center justify-end transition-opacity [@media(hover:hover)]:focus-within:opacity-100',
           !expanded && '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100',
         )}
         onClick={(e) => e.stopPropagation()}
@@ -860,21 +892,23 @@ function CampaignRow({ campaign, revenue, expanded, onToggleSnapshot, onOpen, on
         <button
           onClick={onToggleSnapshot}
           title={expanded ? 'Hide snapshot' : 'Show snapshot'}
-          className={cn('icon-btn transition-transform', expanded ? '!text-[var(--text-primary)] !bg-[var(--bg-active)] rotate-180' : '')}
+          aria-label={expanded ? 'Hide snapshot' : 'Show snapshot'}
+          aria-expanded={!!expanded}
+          className={cn('icon-btn h-6 w-6 shrink-0 transition-transform', expanded ? '!text-[var(--text-primary)] !bg-[var(--bg-active)] rotate-180' : '')}
         >
           <ChevronDown className="h-3.5 w-3.5" />
         </button>
         {campaign.status === 'draft' && (
-          <button onClick={onLaunch} disabled={launchBusy} title="Launch" className="icon-btn !text-[var(--indigo)] hover:!bg-[var(--indigo-subtle)] disabled:opacity-50 disabled:pointer-events-none"><Play className="h-3.5 w-3.5" /></button>
+          <button onClick={onLaunch} disabled={launchBusy} title="Launch" aria-label={`Launch ${campaign.name}`} className="icon-btn h-6 w-6 shrink-0 !text-[var(--indigo-text)] hover:!bg-[var(--indigo-subtle)] disabled:opacity-50 disabled:pointer-events-none"><Play className="h-3.5 w-3.5" /></button>
         )}
         {(campaign.status === 'running' || campaign.status === 'scheduled') && (
-          <button onClick={onPause} disabled={pauseBusy} title={campaign.status === 'scheduled' ? 'Hold — do not start yet' : 'Pause'} className="icon-btn disabled:opacity-50 disabled:pointer-events-none"><Pause className="h-3.5 w-3.5" /></button>
+          <button onClick={onPause} disabled={pauseBusy} title={campaign.status === 'scheduled' ? 'Hold — do not start yet' : 'Pause'} aria-label={campaign.status === 'scheduled' ? `Hold ${campaign.name}` : `Pause ${campaign.name}`} className="icon-btn h-6 w-6 shrink-0 disabled:opacity-50 disabled:pointer-events-none"><Pause className="h-3.5 w-3.5" /></button>
         )}
         {campaign.status === 'paused' && (
-          <button onClick={onResume} disabled={resumeBusy} title="Resume" className="icon-btn !text-[var(--indigo)] hover:!bg-[var(--indigo-subtle)] disabled:opacity-50 disabled:pointer-events-none"><Play className="h-3.5 w-3.5" /></button>
+          <button onClick={onResume} disabled={resumeBusy} title="Resume" aria-label={`Resume ${campaign.name}`} className="icon-btn h-6 w-6 shrink-0 !text-[var(--indigo-text)] hover:!bg-[var(--indigo-subtle)] disabled:opacity-50 disabled:pointer-events-none"><Play className="h-3.5 w-3.5" /></button>
         )}
-        <button onClick={onEdit} title="Edit" className="icon-btn"><Pencil className="h-3.5 w-3.5" /></button>
-        <button onClick={(e) => { e.stopPropagation(); onContextMenu(e); }} title="More" className="icon-btn"><MoreVertical className="h-3.5 w-3.5" /></button>
+        <button onClick={onEdit} title="Edit" aria-label={`Edit ${campaign.name}`} className="icon-btn h-6 w-6 shrink-0"><Pencil className="h-3.5 w-3.5" /></button>
+        <button onClick={(e) => { e.stopPropagation(); onContextMenu(e); }} title="More" aria-label={`More actions for ${campaign.name}`} aria-haspopup="true" aria-expanded={!!menuOpen} aria-controls={menuOpen ? menuId : undefined} className="icon-btn h-6 w-6 shrink-0"><MoreVertical className="h-3.5 w-3.5" /></button>
       </div>
     </div>
   );
@@ -949,7 +983,7 @@ function CampaignSnapshot({ campaign: c, onOpenReport }: { campaign: any; onOpen
           {/* Delivery health */}
           <div className="flex flex-wrap items-center gap-4 mt-4 pt-3 border-t border-[var(--border-subtle)]">
             <div className="flex items-center gap-1.5" title="Bounce rate">
-              <AlertTriangle className={cn('h-3.5 w-3.5', bouncePct > 3 ? 'text-rose-500' : 'text-[var(--text-tertiary)]')} strokeWidth={2} />
+              <AlertTriangle className={cn('h-3.5 w-3.5', bouncePct > 3 ? 'text-rose-600 dark:text-rose-400' : 'text-[var(--text-tertiary)]')} strokeWidth={2} />
               <span className="text-caption text-[var(--text-secondary)]">
                 <span className="font-semibold text-[var(--text-primary)] tabular">{bounced.toLocaleString()}</span> bounced
                 <span className="text-[var(--text-tertiary)] tabular ml-1">({bouncePct.toFixed(1)}%)</span>
@@ -1003,7 +1037,7 @@ function CampaignSnapshot({ campaign: c, onOpenReport }: { campaign: any; onOpen
                     title={d.charAt(0).toUpperCase() + d.slice(1)}
                     className={cn(
                       'flex h-5 w-5 items-center justify-center rounded text-micro font-bold capitalize',
-                      on ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)]'
+                      on ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]'
                     )}
                   >
                     {DAY_SHORT[d]}
@@ -1015,7 +1049,7 @@ function CampaignSnapshot({ campaign: c, onOpenReport }: { campaign: any; onOpen
 
           <button
             onClick={onOpenReport}
-            className="inline-flex items-center gap-1.5 text-body font-semibold text-[var(--indigo)] hover:gap-2 transition-all"
+            className="inline-flex items-center gap-1.5 text-body font-semibold text-[var(--indigo-text)] hover:gap-2 transition-all"
           >
             Open full report
             <ArrowUpRight className="h-3.5 w-3.5" />
@@ -1103,13 +1137,15 @@ function FolderModal({ initial, parentId, parentName, onClose }: { initial: Camp
       <form id="campaign-folder-form" onSubmit={(e) => { e.preventDefault(); saveMut.mutate(); }} className="space-y-4">
         <Input label="Name" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Acme Corp campaigns" />
         <div>
-          <label className="block text-body font-medium text-[var(--text-secondary)] mb-2">Colour</label>
-          <div className="flex gap-2 flex-wrap">
+          <p id="folder-colour-label" className="block text-body font-medium text-[var(--text-secondary)] mb-2">Colour</p>
+          <div role="group" aria-labelledby="folder-colour-label" className="flex gap-2 flex-wrap">
             {FOLDER_COLORS.map((c) => (
               <button
                 key={c}
                 type="button"
                 onClick={() => setColor(c)}
+                aria-label={`Colour ${c}`}
+                aria-pressed={color === c}
                 style={{ background: c }}
                 className={cn('w-7 h-7 rounded-full transition-all', color === c ? 'ring-2 ring-offset-2 ring-offset-[var(--bg-surface)] ring-[var(--text-primary)]' : 'opacity-70 hover:opacity-100')}
               />
@@ -1218,13 +1254,13 @@ function StartCampaignModal({ onClose }: { onClose: () => void }) {
         className="w-full flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3.5 text-left hover:border-[var(--indigo)]/40 hover:bg-[var(--bg-hover)] transition-colors"
       >
         <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] flex-shrink-0">
-          <Plus className="h-4 w-4 text-[var(--indigo)]" />
+          <Plus className="h-4 w-4 text-[var(--indigo-text)]" />
         </span>
         <span className="flex-1 min-w-0">
           <span className="block text-strong font-semibold text-[var(--text-primary)]">Start from scratch</span>
           <span className="block text-caption text-[var(--text-tertiary)]">A blank sequence — build your emails and timing step by step.</span>
         </span>
-        <ChevronRight className="h-4 w-4 text-[var(--text-muted)] flex-shrink-0" />
+        <ChevronRight className="h-4 w-4 text-[var(--text-tertiary)] flex-shrink-0" />
       </button>
 
       {/* Templates */}
@@ -1234,12 +1270,13 @@ function StartCampaignModal({ onClose }: { onClose: () => void }) {
           <span className="flex-1" />
           {hasTemplates && (
             <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-[var(--text-muted)] pointer-events-none" />
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-[var(--text-tertiary)] pointer-events-none" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search templates…"
-                className="h-7 w-44 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] pr-2 text-body text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--indigo)] focus:outline-none"
+                aria-label="Search templates"
+                className="h-7 w-44 rounded-md border border-[var(--border-default)] bg-[var(--bg-app)] pr-2 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus-visible:shadow-[var(--ring-focus)]"
                 style={{ paddingLeft: '1.6rem' }}
               />
             </div>
@@ -1250,9 +1287,9 @@ function StartCampaignModal({ onClose }: { onClose: () => void }) {
           <div className="flex justify-center py-8"><Spinner size="md" /></div>
         ) : !hasTemplates ? (
           <div className="rounded-xl border border-dashed border-[var(--border-default)] py-8 text-center">
-            <Layers className="h-6 w-6 text-[var(--text-muted)] mx-auto mb-2" />
+            <Layers className="h-6 w-6 text-[var(--text-tertiary)] mx-auto mb-2" />
             <p className="text-body text-[var(--text-secondary)]">No templates saved yet.</p>
-            <button onClick={() => { onClose(); navigate('/templates'); }} className="mt-1 text-body font-medium text-[var(--indigo)] hover:underline">
+            <button onClick={() => { onClose(); navigate('/templates'); }} className="mt-1 text-body font-medium text-[var(--indigo-text)] hover:underline">
               Browse the template library →
             </button>
           </div>
@@ -1273,7 +1310,7 @@ function StartCampaignModal({ onClose }: { onClose: () => void }) {
                     Sequence · {(t.steps || []).length} email{(t.steps || []).length === 1 ? '' : 's'}{t.category ? ` · ${t.category}` : ''}
                   </span>
                 </span>
-                <span className="text-caption font-medium text-[var(--indigo)] flex-shrink-0">Use →</span>
+                <span className="text-caption font-medium text-[var(--indigo-text)] flex-shrink-0">Use →</span>
               </button>
             ))}
             {visibleEmails.map((t: any) => (
@@ -1283,13 +1320,13 @@ function StartCampaignModal({ onClose }: { onClose: () => void }) {
                 className="w-full flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2.5 text-left hover:border-[var(--indigo)]/40 hover:bg-[var(--bg-hover)] transition-colors"
               >
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] flex-shrink-0">
-                  <Mail className="h-3.5 w-3.5 text-[var(--indigo)]" />
+                  <Mail className="h-3.5 w-3.5 text-[var(--indigo-text)]" />
                 </span>
                 <span className="flex-1 min-w-0">
                   <span className="block text-strong font-medium text-[var(--text-primary)] truncate">{t.name}</span>
                   <span className="block text-caption text-[var(--text-tertiary)] truncate">Single email · {t.subject || 'No subject'}</span>
                 </span>
-                <span className="text-caption font-medium text-[var(--indigo)] flex-shrink-0">Use →</span>
+                <span className="text-caption font-medium text-[var(--indigo-text)] flex-shrink-0">Use →</span>
               </button>
             ))}
             {visibleSequences.length + visibleEmails.length === 0 && (

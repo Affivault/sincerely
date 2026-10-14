@@ -40,7 +40,7 @@ export function BuyingCommitteeStrip({ contacts, messages }: {
                   <li key={m.id}>
                     <button
                       onClick={() => openPeek('contact', m.id)}
-                      className="flex w-full min-w-0 items-center gap-1 text-left text-caption text-[var(--text-secondary)] hover:text-[var(--indigo)]"
+                      className="flex w-full min-w-0 items-center gap-1 text-left text-caption text-[var(--text-secondary)] hover:text-[var(--indigo-text)]"
                       title={[m.job_title, m.last_inbound_at ? `last replied ${formatRelativeTime(m.last_inbound_at)}` : null].filter(Boolean).join(' · ')}
                     >
                       {m.seniority === 'decision_maker' && <Crown className="h-3 w-3 flex-shrink-0 text-amber-500" />}

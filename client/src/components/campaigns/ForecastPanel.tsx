@@ -131,9 +131,9 @@ export function ForecastPanel({ campaignId, title = 'What happens next' }: { cam
   if (isError) return null;
   return (
     <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-      <h3 className="mb-3 flex items-center gap-1.5 text-strong font-semibold text-[var(--text-primary)]">
-        <CalendarRange className="h-4 w-4 text-[var(--indigo)]" /> {title}
-      </h3>
+      <h2 className="mb-3 flex items-center gap-1.5 text-strong font-semibold text-[var(--text-primary)]">
+        <CalendarRange className="h-4 w-4 text-[var(--indigo-text)]" /> {title}
+      </h2>
       {isLoading || !data
         ? <div className="h-24 animate-pulse rounded-lg bg-[var(--bg-elevated)]" />
         : data.total_sends === 0 && data.finish_day === null && data.warnings.length === 0

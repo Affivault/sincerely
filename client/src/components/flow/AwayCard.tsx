@@ -72,16 +72,16 @@ export function AwayCard() {
 
   return (
     <div className="relative mb-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3">
-      <button onClick={close} className="absolute right-2 top-2 icon-btn h-7 w-7" title="Dismiss"><X className="h-3.5 w-3.5" /></button>
+      <button onClick={close} className="absolute right-2 top-2 icon-btn h-7 w-7" title="Dismiss" aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button>
       <p className="flex items-center gap-1.5 text-body font-semibold text-[var(--text-primary)]">
-        <Coffee className="h-4 w-4 text-[var(--indigo)]" /> Since you were last here {formatRelativeTime(data.since)}
+        <Coffee className="h-4 w-4 text-[var(--indigo-text)]" /> Since you were last here {formatRelativeTime(data.since)}
       </p>
       {items.length === 0 ? (
         <p className="mt-1 text-caption text-[var(--text-tertiary)]">Quiet - nothing new came in.</p>
       ) : (
         <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 pr-8">
           {items.map((i) => (
-            <Link key={i.label} to={i.to} className="text-body text-[var(--text-secondary)] hover:text-[var(--indigo)]">
+            <Link key={i.label} to={i.to} className="text-body text-[var(--text-secondary)] hover:text-[var(--indigo-text)]">
               <span className={i.strong ? 'font-semibold text-[var(--text-primary)]' : 'font-medium'}>{i.n.toLocaleString()}</span> {i.label}
             </Link>
           ))}

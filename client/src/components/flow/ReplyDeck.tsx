@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, Clock, ExternalLink, Send, Sparkles, X } from 'lucide-react';
 import { replyIntentLabel, type FlowItem } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
+import { useOverlayStack } from '../../hooks/useOverlayStack';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Replies, one at a time, on a phone.
@@ -30,12 +32,10 @@ export function ReplyDeck({ items, onSend, onSnooze, onOpen, onClose }: {
   const item = items[index];
   const text = item ? (drafts[item.key] ?? item.reply?.draft ?? '') : '';
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden';
-    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = ''; };
-  }, [onClose]);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const draftId = useId();
+  const topmost = useOverlayStack(true, onClose);
+  useFocusTrap(panelRef, true, { topmost });
 
   const next = () => { setDx(0); setIndex((i) => i + 1); };
   const send = () => { if (item && text.trim()) { onSend(item, text); next(); } };
@@ -60,7 +60,7 @@ export function ReplyDeck({ items, onSend, onSnooze, onOpen, onClose }: {
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex flex-col bg-[var(--bg-app)]" role="dialog" aria-label="Replies, one at a time" data-reply-deck>
+    <div ref={panelRef} tabIndex={-1} className="fixed inset-0 z-[80] flex flex-col bg-[var(--bg-app)] focus:outline-none" role="dialog" aria-modal="true" aria-label="Replies, one at a time" data-reply-deck>
       <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2.5">
         <button onClick={onClose} className="icon-btn" aria-label="Close"><ArrowLeft className="h-4 w-4" /></button>
         <span className="flex-1 text-strong font-semibold text-[var(--text-primary)]">Replies</span>
@@ -83,7 +83,7 @@ export function ReplyDeck({ items, onSend, onSnooze, onOpen, onClose }: {
             onPointerCancel={onPointerUp}
             data-reply-card
           >
-            {dx > 30 && <span className="absolute left-4 top-4 z-10 rounded-md border-2 border-emerald-500 px-2 py-0.5 text-caption font-bold text-emerald-600">SEND</span>}
+            {dx > 30 && <span className="absolute left-4 top-4 z-10 rounded-md border-2 border-emerald-500 px-2 py-0.5 text-caption font-bold text-emerald-600 dark:text-emerald-400">SEND</span>}
             {dx < -30 && <span className="absolute right-4 top-4 z-10 rounded-md border-2 border-amber-500 px-2 py-0.5 text-caption font-bold text-amber-600">TOMORROW</span>}
             <div className="border-b border-[var(--border-subtle)] px-4 py-3">
               <div className="flex items-center gap-2">
@@ -91,7 +91,7 @@ export function ReplyDeck({ items, onSend, onSnooze, onOpen, onClose }: {
                   {item.reply?.contact_name || item.reply?.from_email}
                 </span>
                 {item.reply?.intent && (
-                  <span className="rounded-full bg-[var(--indigo-subtle)] px-1.5 py-0.5 text-micro font-semibold text-[var(--indigo)]">{replyIntentLabel(item.reply.intent)}</span>
+                  <span className="rounded-full bg-[var(--indigo-subtle)] px-1.5 py-0.5 text-micro font-semibold text-[var(--indigo-text)]">{replyIntentLabel(item.reply.intent)}</span>
                 )}
               </div>
               {item.reply?.company && <p className="text-caption text-[var(--text-tertiary)]">{item.reply.company}</p>}
@@ -100,16 +100,17 @@ export function ReplyDeck({ items, onSend, onSnooze, onOpen, onClose }: {
               {item.reply?.snippet || item.reply?.subject}
             </div>
             <div className="flex flex-1 flex-col border-t border-[var(--border-subtle)] px-4 py-3">
-              <p className="mb-1.5 flex items-center gap-1.5 text-caption font-medium text-[var(--text-tertiary)]">
-                <Sparkles className="h-3 w-3" /> Your answer
-              </p>
+              <label htmlFor={draftId} className="mb-1.5 flex items-center gap-1.5 text-caption font-medium text-[var(--text-tertiary)]">
+                <Sparkles className="h-3 w-3" aria-hidden="true" /> Your answer
+              </label>
               <textarea
+                id={draftId}
                 value={text}
                 onChange={(e) => setDrafts((d) => ({ ...d, [item.key]: e.target.value }))}
                 placeholder="Write a reply, or open the conversation"
                 className="min-h-[120px] w-full flex-1 resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
               />
-              <button onClick={() => onOpen(item)} className="mt-2 inline-flex items-center gap-1 self-start text-caption font-medium text-[var(--indigo)]">
+              <button onClick={() => onOpen(item)} className="mt-2 inline-flex items-center gap-1 self-start text-caption font-medium text-[var(--indigo-text)]">
                 Open the conversation <ExternalLink className="h-3 w-3" />
               </button>
             </div>

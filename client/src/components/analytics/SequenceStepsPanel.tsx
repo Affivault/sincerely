@@ -88,7 +88,7 @@ function StepRow({ step, widest }: { step: SequenceStepPerformance; widest: numb
             {step.unsubscribed > 0 && (
               <span>Unsubscribed <span className="font-semibold tabular text-[var(--text-secondary)]">{step.unsubscribed.toLocaleString()}</span></span>
             )}
-            {step.delay_days > 0 && <span className="text-[var(--text-muted)]">+{step.delay_days}d after the previous step</span>}
+            {step.delay_days > 0 && <span className="text-[var(--text-tertiary)]">+{step.delay_days}d after the previous step</span>}
           </div>
         </div>
       </div>
@@ -135,7 +135,7 @@ export function SequenceStepsPanel({ campaignId }: { campaignId: string }) {
               : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50',
           )}
         >
-          <Icon className={cn('mt-px h-4 w-4 flex-shrink-0', trimming ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--indigo)]')} />
+          <Icon className={cn('mt-px h-4 w-4 flex-shrink-0', trimming ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--indigo-text)]')} />
           <div className="min-w-0">
             <p className="text-body font-medium leading-snug text-[var(--text-primary)]">{data.headline}</p>
             <p className="mt-1 text-caption tabular text-[var(--text-tertiary)]">

@@ -28,21 +28,21 @@ const STATE_TONE: Record<AutopilotState, { pill: string; bar: string }> = {
   active: { pill: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400', bar: 'bg-emerald-500' },
   slowed: { pill: 'bg-amber-500/10 text-amber-700 dark:text-amber-400', bar: 'bg-amber-500' },
   resting: { pill: 'bg-rose-500/10 text-rose-700 dark:text-rose-400', bar: 'bg-rose-500' },
-  recovering: { pill: 'bg-[var(--indigo-subtle)] text-[var(--indigo)]', bar: 'bg-[var(--indigo)]' },
+  recovering: { pill: 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]', bar: 'bg-[var(--indigo)]' },
 };
 
 const EVENT_ICON: Record<AutopilotEventKind, { icon: React.ElementType; tone: string }> = {
-  rest: { icon: Moon, tone: 'text-rose-500 bg-rose-500/10' },
+  rest: { icon: Moon, tone: 'text-rose-600 dark:text-rose-400 bg-rose-500/10' },
   slow: { icon: Gauge, tone: 'text-amber-600 bg-amber-500/10' },
-  recovering: { icon: TrendingUp, tone: 'text-[var(--indigo)] bg-[var(--indigo-subtle)]' },
-  recovery_step: { icon: TrendingUp, tone: 'text-[var(--indigo)] bg-[var(--indigo-subtle)]' },
+  recovering: { icon: TrendingUp, tone: 'text-[var(--indigo-text)] bg-[var(--indigo-subtle)]' },
+  recovery_step: { icon: TrendingUp, tone: 'text-[var(--indigo-text)] bg-[var(--indigo-subtle)]' },
   recovered: { icon: CircleCheck, tone: 'text-emerald-600 bg-emerald-500/10' },
   full_speed: { icon: CircleCheck, tone: 'text-emerald-600 bg-emerald-500/10' },
   hold: { icon: PauseCircle, tone: 'text-amber-600 bg-amber-500/10' },
   release: { icon: PlayCircle, tone: 'text-emerald-600 bg-emerald-500/10' },
   manual_resume: { icon: Hand, tone: 'text-[var(--text-secondary)] bg-[var(--bg-elevated)]' },
-  bounces_found: { icon: MailX, tone: 'text-rose-500 bg-rose-500/10' },
-  weekly: { icon: CalendarCheck2, tone: 'text-[var(--indigo)] bg-[var(--indigo-subtle)]' },
+  bounces_found: { icon: MailX, tone: 'text-rose-600 dark:text-rose-400 bg-rose-500/10' },
+  weekly: { icon: CalendarCheck2, tone: 'text-[var(--indigo-text)] bg-[var(--indigo-subtle)]' },
 };
 
 export function AutopilotPanel() {
@@ -82,7 +82,7 @@ export function AutopilotPanel() {
   if (!data || !data.ready) {
     return (
       <div className="flex items-start gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5" data-autopilot-pending>
-        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] text-[var(--indigo)]">
+        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] text-[var(--indigo-text)]">
           <Database className="h-4 w-4" />
         </span>
         <div>

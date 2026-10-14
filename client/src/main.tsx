@@ -47,7 +47,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 maxWidth: '400px',
               },
               success: { iconTheme: { primary: 'var(--success)', secondary: 'var(--bg-surface)' } },
-              error: { iconTheme: { primary: 'var(--error)', secondary: 'var(--bg-surface)' } },
+              // Errors say what went wrong and what to do; 3.2s is too short to
+              // read, let alone act on (WCAG 2.2.1 spirit). Hover still pauses.
+              error: { duration: 6000, iconTheme: { primary: 'var(--error)', secondary: 'var(--bg-surface)' } },
               loading: { iconTheme: { primary: 'var(--indigo)', secondary: 'var(--bg-surface)' } },
             }}
           />

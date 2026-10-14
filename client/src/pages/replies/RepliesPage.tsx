@@ -1,5 +1,6 @@
 import { usePeek } from '../../components/peek/usePeek';
 import { useMemo, useState } from 'react';
+import { usePopover } from '../../hooks/usePopover';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -69,6 +70,7 @@ function ReplyRow({ reply, onOpen, onClaim, onPark, busy }: {
   busy: boolean;
 }) {
   const [parkOpen, setParkOpen] = useState(false);
+  const parkMenu = usePopover(parkOpen, () => setParkOpen(false));
   const { openPeek } = usePeek();
   const u = URGENCY[reply.state.urgency];
   const intent = replyIntentLabel(reply.sara_intent);
@@ -128,7 +130,7 @@ function ReplyRow({ reply, onOpen, onClaim, onPark, busy }: {
             type="button"
             onClick={() => openPeek('contact', reply.contact_id!)}
             title="Peek at who this is - deal, sequences, history"
-            className="hidden sm:inline-flex h-7 items-center gap-1 rounded-lg px-2 text-caption font-medium text-[var(--text-tertiary)] opacity-0 transition-opacity hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] group-hover:opacity-100 focus:opacity-100"
+            className="hidden sm:inline-flex h-7 items-center gap-1 rounded-lg px-2 text-caption font-medium text-[var(--text-tertiary)] opacity-0 transition-opacity hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
           >
             <Eye className="h-3.5 w-3.5" /> Peek
           </button>
@@ -146,9 +148,10 @@ function ReplyRow({ reply, onOpen, onClaim, onPark, busy }: {
           className={cn(
             'inline-flex h-7 items-center gap-1 rounded-lg px-2 text-caption font-medium transition-colors disabled:opacity-60',
             reply.assigned_to
-              ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+              ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
               : 'border border-dashed border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
           )}
+          aria-pressed={!!reply.assigned_to}
           data-reply-claim
         >
           <Hand className="h-3 w-3" />
@@ -157,6 +160,7 @@ function ReplyRow({ reply, onOpen, onClaim, onPark, busy }: {
 
         <div className="relative">
           <button
+            {...parkMenu.triggerProps}
             type="button"
             onClick={() => setParkOpen((v) => !v)}
             disabled={busy}
@@ -171,8 +175,8 @@ function ReplyRow({ reply, onOpen, onClaim, onPark, busy }: {
 
           {parkOpen && (
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setParkOpen(false)} />
-              <div className="absolute right-0 top-8 z-50 w-40 overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] py-1 shadow-[var(--shadow-xl)]">
+              <div className="fixed inset-0 z-40" aria-hidden onClick={() => setParkOpen(false)} />
+              <div {...parkMenu.panelProps} className="absolute right-0 top-8 z-50 w-40 overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] py-1 shadow-[var(--shadow-xl)]">
                 {reply.state.urgency === 'parked' ? (
                   <button
                     type="button"
@@ -196,7 +200,7 @@ function ReplyRow({ reply, onOpen, onClaim, onPark, busy }: {
           )}
         </div>
 
-        <ChevronRight className="h-4 w-4 text-[var(--text-muted)] opacity-0 transition-opacity group-hover:opacity-100" />
+        <ChevronRight aria-hidden="true" className="h-4 w-4 text-[var(--text-tertiary)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100" />
       </div>
     </div>
   );
@@ -263,7 +267,7 @@ export function RepliesPage() {
               {counts.overdue > 0 && (
                 <>
                   <span className="sep-dot" />
-                  <span className="tabular font-semibold text-rose-500">{counts.overdue} late</span>
+                  <span className="tabular font-semibold text-rose-600 dark:text-rose-400">{counts.overdue} late</span>
                 </>
               )}
               {counts.unassigned > 0 && (
@@ -285,6 +289,7 @@ export function RepliesPage() {
             key={t.id}
             type="button"
             onClick={() => setFilter(t.id)}
+            aria-pressed={filter === t.id}
             className={cn(
               'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-body font-medium transition-colors',
               filter === t.id
@@ -296,7 +301,7 @@ export function RepliesPage() {
             {t.count != null && (
               <span className={cn(
                 'tabular text-caption',
-                t.id === 'overdue' && t.count > 0 ? 'font-semibold text-rose-500' : 'text-[var(--text-tertiary)]',
+                t.id === 'overdue' && t.count > 0 ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-[var(--text-tertiary)]',
               )}>
                 {t.count}
               </span>

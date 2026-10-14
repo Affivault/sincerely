@@ -248,6 +248,20 @@ function AppContent() {
       className="min-h-screen bg-[var(--bg-app)]"
       style={{ backgroundImage: 'var(--noise), var(--gradient-page)' }}
     >
+      {/* First stop in the Tab order, so a keyboard user can jump the sidebar
+          (about ten stops) on every page. Above the frame (z-35), the sidebar
+          (z-40) and the phone bar (z-50). Focus is moved by hand rather than
+          by the hash, which would add #main to every URL. */}
+      <a
+        href="#main"
+        onClick={(e) => {
+          e.preventDefault();
+          document.getElementById('main')?.focus();
+        }}
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[80] focus:rounded-md focus:bg-[var(--bg-surface)] focus:px-3 focus:py-2 focus:text-strong focus:font-semibold focus:text-[var(--text-primary)] focus:shadow-[var(--shadow-xl)]"
+      >
+        Skip to content
+      </a>
       {/* A top bar on a phone only; on a desktop the sidebar is the chrome. */}
       <Header />
       <Sidebar onShortcuts={() => setShortcutsOpen(true)} />
@@ -295,7 +309,10 @@ function AppContent() {
             tables breathe, while capping ultrawide so forms stay readable.
             The Unibox is a full-viewport app surface: no padding, no max-width,
             no promo banner — it owns every pixel below the header. */}
-        <main className={cn(
+        {/* id/tabIndex: the skip link's landing place. Focused by script only,
+            so it carries no ring of its own. */}
+        <main id="main" tabIndex={-1} className={cn(
+          'focus:outline-none focus-visible:shadow-none',
           fullBleed
             ? 'max-w-none p-0'
             : 'px-4 py-5 sm:px-6 lg:px-8 lg:py-7 max-w-[1760px] mx-auto'

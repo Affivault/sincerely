@@ -26,7 +26,7 @@ function StageCell({ icon: Icon, label, state }: { icon: any; label: string; sta
         className={cn(
           'relative flex h-7 w-7 items-center justify-center rounded-lg border transition-all',
           state === 'idle' && 'bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-tertiary)]',
-          state === 'pending' && 'bg-[var(--indigo)]/10 border-[var(--indigo)]/40 text-[var(--indigo)]',
+          state === 'pending' && 'bg-[var(--indigo)]/10 border-[var(--indigo)]/40 text-[var(--indigo-text)]',
           state === 'pass' && 'bg-emerald-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400',
           state === 'fail' && 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400',
           state === 'skipped' && 'bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-tertiary)]',
@@ -51,7 +51,7 @@ function StageCell({ icon: Icon, label, state }: { icon: any; label: string; sta
         className={cn(
           'text-caption font-medium',
           state === 'idle' && 'text-[var(--text-tertiary)]',
-          state === 'pending' && 'text-[var(--indigo)]',
+          state === 'pending' && 'text-[var(--indigo-text)]',
           state === 'pass' && 'text-emerald-600 dark:text-emerald-400',
           state === 'fail' && 'text-rose-600 dark:text-rose-400',
         )}
@@ -81,7 +81,7 @@ function HealthGauge({ score, size = 160 }: { score: number; size?: number }) {
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
+      <svg aria-hidden="true" width={size} height={size} className="-rotate-90">
         <circle
           cx={size / 2} cy={size / 2} r={r}
           stroke="var(--border-subtle)" strokeWidth="10" fill="none"
@@ -203,7 +203,7 @@ export function VerificationPage() {
         <div className="absolute inset-0 bg-[var(--indigo-subtle)] opacity-40 pointer-events-none" />
         <div className="relative p-5">
           <div className="flex items-center gap-2 mb-3">
-            <Sparkles className="h-3.5 w-3.5 text-[var(--indigo)]" />
+            <Sparkles className="h-3.5 w-3.5 text-[var(--indigo-text)]" />
             <span className="text-micro font-semibold text-[var(--text-tertiary)]">
               Live deliverability pipeline
             </span>
@@ -220,6 +220,7 @@ export function VerificationPage() {
                 <input
                   type="email"
                   placeholder="Type an email address to verify it instantly…"
+                  aria-label="Email address to verify"
                   value={emailInput}
                   onChange={(e) => setEmailInput(e.target.value)}
                   className="w-full h-11 pl-10 pr-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-heading text-[var(--text-primary)] focus:border-[var(--indigo)] focus:ring-2 focus:ring-[var(--indigo)]/15 outline-none transition-all"
@@ -372,18 +373,18 @@ export function VerificationPage() {
                 <div key={i} className="flex items-center gap-3 py-2">
                   <span className={cn(
                     'flex h-7 w-7 items-center justify-center rounded-lg flex-shrink-0',
-                    passed ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-500'
+                    passed ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
                   )}>
                     {passed ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldX className="h-3.5 w-3.5" />}
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-strong font-medium text-[var(--text-primary)] truncate">{r.email}</p>
                     <div className="flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
-                      <span className={cn('flex items-center gap-0.5', r.syntax_ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500')}>
+                      <span className={cn('flex items-center gap-0.5', r.syntax_ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}>
                         {r.syntax_ok ? <CheckCircle2 className="h-2.5 w-2.5" /> : <XCircle className="h-2.5 w-2.5" />} Syntax
                       </span>
                       <ArrowRight className="h-2.5 w-2.5" />
-                      <span className={cn('flex items-center gap-0.5', r.domain_ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500')}>
+                      <span className={cn('flex items-center gap-0.5', r.domain_ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}>
                         {r.domain_ok ? <CheckCircle2 className="h-2.5 w-2.5" /> : <XCircle className="h-2.5 w-2.5" />} DNS
                       </span>
                       <ArrowRight className="h-2.5 w-2.5" />
@@ -394,7 +395,7 @@ export function VerificationPage() {
                             ? 'text-[var(--text-tertiary)]'
                             : r.smtp_ok
                               ? 'text-emerald-600 dark:text-emerald-400'
-                              : 'text-rose-500'
+                              : 'text-rose-600 dark:text-rose-400'
                         )}
                         title={!r.smtp_checked ? r.fail_reason || 'The mailbox could not be checked' : undefined}
                       >

@@ -305,7 +305,7 @@ export function CampaignDetailPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button title="Clone campaign" onClick={() => cloneMutation.mutate()} disabled={cloneMutation.isPending} className="icon-btn disabled:opacity-50 disabled:pointer-events-none">
+          <button title="Clone campaign" aria-label="Clone campaign" onClick={() => cloneMutation.mutate()} disabled={cloneMutation.isPending} className="icon-btn disabled:opacity-50 disabled:pointer-events-none">
             <Copy className="h-3.5 w-3.5" />
           </button>
           {campaign.status === 'draft' && (
@@ -346,6 +346,7 @@ export function CampaignDetailPage() {
               onClick={() => deleteCampaign(campaign.name)}
               className="icon-btn hover:text-rose-500 hover:bg-rose-500/10"
               title="Delete"
+              aria-label="Delete campaign"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -440,7 +441,7 @@ export function CampaignDetailPage() {
 
           {/* How it sends, as a record rather than a nine-row table. */}
           <section>
-            <h3 className="mb-2 text-strong font-semibold text-[var(--text-primary)]">How it sends</h3>
+            <h2 className="mb-2 text-strong font-semibold text-[var(--text-primary)]">How it sends</h2>
             <dl className="fact-strip grid-cols-1 sm:grid-cols-3">
               {[
                 { label: 'Timezone', value: campaign.timezone },
@@ -495,7 +496,7 @@ export function CampaignDetailPage() {
               {personalization && personalization.tags.length > 0 && (
                 <div className="panel p-4">
                   <div className="flex items-baseline justify-between mb-3">
-                    <h3 className="text-strong font-semibold text-[var(--text-primary)]">Personalization</h3>
+                    <h2 className="text-strong font-semibold text-[var(--text-primary)]">Personalization</h2>
                     <span className="text-caption text-[var(--text-tertiary)]">
                       across {personalization.total_contacts.toLocaleString()} contact{personalization.total_contacts === 1 ? '' : 's'}
                     </span>
@@ -525,16 +526,18 @@ export function CampaignDetailPage() {
                   value={contactSearch}
                   onChange={(e) => setContactSearch(e.target.value)}
                   placeholder="Search by name or email…"
+                  aria-label="Search contacts in this campaign"
                   className="w-full h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] pl-8 pr-8 text-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
                 />
                 {contactSearch && (
-                  <button onClick={() => setContactSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
+                  <button onClick={() => setContactSearch('')} aria-label="Clear search" className="absolute right-1 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
                     <X className="h-3.5 w-3.5" />
                   </button>
                 )}
               </div>
               <select
                 value={contactStatusFilter}
+                aria-label="Filter contacts by status"
                 onChange={(e) => setContactStatusFilter(e.target.value)}
                 className="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 text-body text-[var(--text-primary)] focus:border-[var(--indigo)] focus:outline-none focus:ring-2 focus:ring-[var(--indigo-subtle)] transition-all"
               >
@@ -587,7 +590,7 @@ export function CampaignDetailPage() {
             <div className="flex flex-col items-center justify-center py-12 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
               <Search className="h-8 w-8 text-[var(--text-tertiary)] mb-3" />
               <p className="text-strong text-[var(--text-secondary)]">No contacts match your filter.</p>
-              <button onClick={() => { setContactSearch(''); setContactStatusFilter(''); }} className="mt-2 text-body text-[var(--indigo)] hover:underline">
+              <button onClick={() => { setContactSearch(''); setContactStatusFilter(''); }} className="mt-2 text-body text-[var(--indigo-text)] hover:underline">
                 Clear filters
               </button>
             </div>
@@ -618,7 +621,7 @@ export function CampaignDetailPage() {
                               <button
                                 type="button"
                                 onClick={() => cc.contact_id && openPeek('contact', cc.contact_id)}
-                                className="block max-w-full text-left text-strong font-medium text-[var(--text-primary)] truncate hover:text-[var(--indigo)] hover:underline"
+                                className="block max-w-full text-left text-strong font-medium text-[var(--text-primary)] truncate hover:text-[var(--indigo-text)] hover:underline"
                                 title="Peek - where they stand, without leaving the campaign"
                               >
                                 {fullName || cc.contact?.email || '—'}
@@ -650,7 +653,7 @@ export function CampaignDetailPage() {
                             </span>
                           ) : cc.waiting_for_webhook ? (
                             <span
-                              className="inline-flex items-center gap-1 text-body text-amber-500"
+                              className="inline-flex items-center gap-1 text-body text-amber-600 dark:text-amber-400"
                               title={`Waiting for "${cc.waiting_for_webhook}"${cc.webhook_wait_until ? ` — times out ${formatDateTime(cc.webhook_wait_until)}` : ''}`}
                             >
                               <Webhook className="w-3 h-3" />
@@ -665,14 +668,14 @@ export function CampaignDetailPage() {
                               <button
                                 onClick={() => resumePausedMutation.mutate([cc.id])}
                                 disabled={resumePausedMutation.isPending}
-                                className="flex-shrink-0 text-caption font-medium text-[var(--indigo)] hover:underline disabled:opacity-50"
+                                className="inline-flex min-h-6 flex-shrink-0 items-center text-caption font-medium text-[var(--indigo-text)] hover:underline disabled:opacity-50"
                               >
                                 Resume
                               </button>
                             </div>
                           </td>
                         ) : (
-                          <td className="px-4 py-2.5 text-caption text-rose-500">{cc.error_message || '—'}</td>
+                          <td className="px-4 py-2.5 text-caption text-rose-600 dark:text-rose-400">{cc.error_message || '—'}</td>
                         )}
                       </tr>
                     );
@@ -714,7 +717,7 @@ function ContactProgressCard({ campaign }: { campaign: any }) {
   return (
     <div className="panel p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-strong font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Contact progress</h3>
+        <h2 className="text-strong font-semibold text-[var(--text-primary)] tracking-[-0.01em]">Contact progress</h2>
         <span className="text-body text-[var(--text-secondary)]">{total} total</span>
       </div>
 
@@ -770,10 +773,10 @@ function formatDelay(days: number, hours: number, minutes: number): string {
 }
 
 const STEP_CFG: Record<string, { accent: string; iconColor: string; iconBg: string }> = {
-  email:       { accent: 'bg-[var(--indigo)]',   iconColor: 'text-[var(--indigo)]',   iconBg: 'bg-[rgba(47,63,156,0.1)]'  },
-  delay:       { accent: 'bg-amber-500',    iconColor: 'text-amber-500',   iconBg: 'bg-amber-500/10'            },
-  condition:   { accent: 'bg-blue-500',     iconColor: 'text-blue-500',    iconBg: 'bg-blue-500/10'             },
-  webhook_wait:{ accent: 'bg-emerald-500',  iconColor: 'text-emerald-500', iconBg: 'bg-emerald-500/10'          },
+  email:       { accent: 'bg-[var(--indigo)]',   iconColor: 'text-[var(--indigo-text)]',   iconBg: 'bg-[rgba(47,63,156,0.1)]'  },
+  delay:       { accent: 'bg-amber-500',    iconColor: 'text-amber-600 dark:text-amber-400',   iconBg: 'bg-amber-500/10'            },
+  condition:   { accent: 'bg-blue-500',     iconColor: 'text-blue-600 dark:text-blue-300',    iconBg: 'bg-blue-500/10'             },
+  webhook_wait:{ accent: 'bg-emerald-500',  iconColor: 'text-emerald-600 dark:text-emerald-400', iconBg: 'bg-emerald-500/10'          },
 };
 
 function SequenceStepCard({ step, index, ab, onEditWording }: {
@@ -808,7 +811,7 @@ function SequenceStepCard({ step, index, ab, onEditWording }: {
                     'inline-flex shrink-0 items-center px-1.5 h-[18px] rounded text-micro font-semibold',
                     ab?.tone === 'ready'
                       ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                      : 'bg-[rgba(47,63,156,0.08)] text-[var(--indigo)]',
+                      : 'bg-[rgba(47,63,156,0.08)] text-[var(--indigo-text)]',
                   )}
                   data-ab-chip
                 >

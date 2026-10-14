@@ -297,7 +297,7 @@ export function LeadsPage() {
               title={`${funnel.converted} qualified out of ${funnel.converted + funnel.archived} decided`}
             >
               <span className="text-caption text-[var(--text-tertiary)]">Conversion</span>
-              <span className="text-strong font-semibold tabular-nums text-[var(--indigo)]">{funnel.conversionRate}%</span>
+              <span className="text-strong font-semibold tabular-nums text-[var(--indigo-text)]">{funnel.conversionRate}%</span>
             </span>
           )}
           <span className="flex-1" />
@@ -396,7 +396,7 @@ export function LeadsPage() {
 
                   {lead.status === 'open' ? (
                     <div className="flex flex-shrink-0 items-center gap-1">
-                      <div className="hidden items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 sm:flex">
+                      <div className="hidden items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 sm:flex">
                         {DEAL_LABELS.map((l) => (
                           <button
                             key={l.id}
@@ -405,7 +405,7 @@ export function LeadsPage() {
                             title={`Mark ${l.label.toLowerCase()}`}
                             className={cn(
                               'rounded-md px-1.5 py-0.5 text-micro font-semibold transition-colors',
-                              lead.label === l.id ? LABEL_TONE[l.id] : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]',
+                              lead.label === l.id ? LABEL_TONE[l.id] : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
                             )}
                           >
                             {l.label}
@@ -415,7 +415,7 @@ export function LeadsPage() {
                       <button
                         type="button"
                         onClick={() => setArchiving(lead)}
-                        title="Drop this lead"
+                        title="Drop this lead" aria-label="Drop this lead"
                         className="icon-btn h-7 w-7 hover:text-amber-600"
                       >
                         <Archive className="h-3.5 w-3.5" />
@@ -429,7 +429,7 @@ export function LeadsPage() {
                       type="button"
                       onClick={() => lead.converted_deal_id && navigate(`/deals/${lead.converted_deal_id}`)}
                       disabled={!lead.converted_deal_id}
-                      className="inline-flex flex-shrink-0 items-center gap-1 text-body font-medium text-[var(--indigo)] hover:underline disabled:text-[var(--text-muted)] disabled:no-underline"
+                      className="inline-flex flex-shrink-0 items-center gap-1 text-body font-medium text-[var(--indigo-text)] hover:underline disabled:text-[var(--text-muted)] disabled:no-underline"
                     >
                       {lead.converted_deal_id ? <>Open the deal <ArrowRight className="h-3.5 w-3.5" /></> : 'Deal deleted'}
                     </button>
@@ -441,7 +441,7 @@ export function LeadsPage() {
                       <button
                         type="button"
                         onClick={() => reopen.mutate(lead.id)}
-                        title="Put it back in the inbox"
+                        title="Put it back in the inbox" aria-label="Put it back in the inbox"
                         className="icon-btn h-7 w-7"
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
@@ -451,7 +451,7 @@ export function LeadsPage() {
                         onClick={() => gone.remove(
                           lead.id, 'Lead deleted', () => remove.mutateAsync(lead.id),
                         )}
-                        title="Delete permanently"
+                        title="Delete permanently" aria-label="Delete permanently"
                         className="icon-btn h-7 w-7 hover:text-rose-500"
                       >
                         <Trash2 className="h-3.5 w-3.5" />

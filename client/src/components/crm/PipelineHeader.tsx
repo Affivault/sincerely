@@ -73,12 +73,12 @@ function Figure({
       <p
         className={cn(
           'mt-1.5 text-display font-medium leading-none tabular-nums tracking-[-0.02em]',
-          accent ? 'text-[var(--indigo)]' : 'text-[var(--text-primary)]',
+          accent ? 'text-[var(--indigo-text)]' : 'text-[var(--text-primary)]',
         )}
       >
         {value}
       </p>
-      <p className={cn('mt-1.5 text-caption', subTone || 'text-[var(--text-muted)]')}>{sub}</p>
+      <p className={cn('mt-1.5 text-caption', subTone || 'text-[var(--text-tertiary)]')}>{sub}</p>
     </div>
   );
 }
@@ -109,7 +109,7 @@ function Flag({
       <Icon className="h-3.5 w-3.5" />
       <span className="font-semibold tabular-nums">{count}</span>
       {label}
-      <span className="opacity-60">· {money(value)}</span>
+      <span className="text-[var(--text-tertiary)]">· {money(value)}</span>
     </button>
   );
 }
@@ -122,7 +122,7 @@ function Chip({ label, value, accent }: { label: string; value: string; accent?:
       <span
         className={cn(
           'text-strong font-semibold tabular-nums',
-          accent ? 'text-[var(--indigo)]' : 'text-[var(--text-primary)]',
+          accent ? 'text-[var(--indigo-text)]' : 'text-[var(--text-primary)]',
         )}
       >
         {value}
@@ -173,8 +173,9 @@ export function PipelineHeader({
       type="button"
       onClick={toggle}
       title={collapsed ? 'Show the full forecast' : 'Collapse the forecast and give the board the room'}
-      className="icon-btn h-6 w-6 flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+      className="icon-btn h-6 w-6 flex-shrink-0 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
       aria-expanded={!collapsed}
+      aria-label="Full forecast"
     >
       {collapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
     </button>
@@ -291,13 +292,13 @@ export function PipelineHeader({
               <CalendarClock className="h-3.5 w-3.5" />
               <span className="font-semibold tabular-nums">{s.closingSoonCount}</span>
               closing in 30 days
-              <span className="opacity-60">· {money(s.closingSoon, currency)}</span>
+              <span className="text-[var(--text-tertiary)]">· {money(s.closingSoon, currency)}</span>
             </span>
           )}
           <span className="flex-1" />
           <Link
             to="/tasks"
-            className="text-caption font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--indigo)]"
+            className="text-caption font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--indigo-text)]"
           >
             Open activities →
           </Link>
@@ -328,7 +329,7 @@ export function PipelineHeader({
                 </div>
                 <p className="mt-1 text-micro tabular-nums text-[var(--text-tertiary)]">
                   {money(row.value, currency)}
-                  <span className="text-[var(--text-muted)]"> · {money(row.weighted, currency)} wtd</span>
+                  <span className="text-[var(--text-tertiary)]"> · {money(row.weighted, currency)} wtd</span>
                 </p>
               </div>
             ))}

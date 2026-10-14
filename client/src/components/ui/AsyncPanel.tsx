@@ -89,7 +89,7 @@ export function InlineError({ error, onRetry, className, compact }: {
           'flex flex-shrink-0 items-center justify-center rounded-lg bg-amber-500/10',
           compact ? 'mt-px h-6 w-6' : 'h-10 w-10',
         )}>
-          <AlertTriangle className={cn('text-amber-500', compact ? 'h-3.5 w-3.5' : 'h-4 w-4')} />
+          <AlertTriangle className={cn('text-amber-600 dark:text-amber-400', compact ? 'h-3.5 w-3.5' : 'h-4 w-4')} />
         </span>
 
         <div className={cn('min-w-0', !compact && 'max-w-sm')}>

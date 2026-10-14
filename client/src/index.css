@@ -43,9 +43,15 @@
     --border-strong: #C3C1BA;
 
     --text-primary: #18191D;
-    --text-secondary: #5B5C64;
-    --text-tertiary: #898A92;
-    --text-muted: #B7B8BE;
+    /* Tertiary and muted were 3.0-3.4:1 and 1.8:1 on paper - under the 4.5:1
+       WCAG asks of text. Tertiary now passes on every surface (4.6-5.2:1);
+       secondary moves down a step so the two still read as two tiers.
+       Muted is for icons, dots and disabled things, held to 3:1. */
+    --text-secondary: #4A4B53;
+    --text-tertiary: #6B6C74;
+    --text-muted: #898A92;
+    /* What a form control's edge is drawn in: 3:1 against the page (1.4.11). */
+    --border-control: #898A92;
 
     --accent: #18191D;
     --accent-hover: #2A2B30;
@@ -58,6 +64,9 @@
      */
     --indigo: #2F3F9C;
     --indigo-hover: #25327F;
+    /* The ink when it is the colour of words. Same as --indigo on paper; in
+       dark the fill colour is only 3.7:1 as text, so words get a lighter one. */
+    --indigo-text: #2F3F9C;
     --indigo-subtle: rgba(47, 63, 156, 0.07);
     /* Flat. A sheen on a button is what a stock button looks like. */
     --indigo-grad: #2F3F9C;
@@ -168,8 +177,9 @@
 
     --text-primary: #EDEDEA;
     --text-secondary: #A4A5AC;
-    --text-tertiary: #75767E;
-    --text-muted: #494A51;
+    --text-tertiary: #8E8F97;
+    --text-muted: #75767E;
+    --border-control: #75767E;
 
     --accent: #EDEDEA;
     --accent-hover: #DADAD6;
@@ -178,6 +188,7 @@
 
     --indigo: #5A6BD4;
     --indigo-hover: #4B5BC2;
+    --indigo-text: #8A98EA;
     --indigo-subtle: rgba(110, 126, 220, 0.13);
     --indigo-grad: #5A6BD4;
     --indigo-grad-hover: #4B5BC2;
@@ -273,16 +284,51 @@
     background: var(--border-strong);
   }
 
+  /* No forced border-radius here: it used to square-off round and pill
+     elements (avatars, chips, toggles) while they were focused. The ring
+     follows whatever radius the element already has. */
   *:focus-visible {
     outline: none;
     box-shadow: 0 0 0 2px var(--bg-app), 0 0 0 3.5px var(--indigo);
-    border-radius: 5px;
   }
-  /* Inputs already have their own focus ring */
+  /* Fields: always show a visible indicator, even a bare `outline-none`
+     input that styles nothing itself. This sits in the base layer, so a
+     component's own focus classes (Input, Select, .input-field, which set
+     a border colour and --ring-focus) still win and nothing doubles up. */
   input:focus-visible,
   textarea:focus-visible,
   select:focus-visible {
-    box-shadow: none;
+    border-color: var(--indigo);
+  }
+}
+
+/* The ring above is a box-shadow in the base layer, and any `shadow-*` utility
+   (a selected tab's raised pill, a primary button's glow) outranks it because
+   utilities sit in a later layer - so the control that was selected, the one
+   a keyboard user is most likely standing on, showed no ring at all. This puts
+   the same ring back, unlayered, for buttons and links that do not declare a
+   focus ring of their own. Controls that do (Button, Toggle, Checkbox, fields)
+   are excluded so their own look is untouched. */
+:where(button, a[href], summary, [role='button'], [role='tab'], [role='switch'], [role='checkbox'], [role='radio'], [role='menuitem'], [role='option'], [tabindex]):focus-visible:not([tabindex='-1']):not([class*='focus-visible:ring']):not([class*='focus-visible:shadow']):not([class*='focus:ring']):not([class*='focus:shadow']) {
+  box-shadow: 0 0 0 2px var(--bg-app), 0 0 0 3.5px var(--indigo);
+}
+
+/* Tabs, nav links and list options live in scrolling bars and lists, which
+   clip an outer ring to a sliver at the edge. Draw theirs inside the
+   element. Same specificity as the rule above and later, so it wins. */
+:where([role='tab'], [role='option'], nav a[href]):focus-visible:not([tabindex='-1']):not([class*='focus-visible:ring']):not([class*='focus-visible:shadow']):not([class*='focus:ring']):not([class*='focus:shadow']) {
+  box-shadow: inset 0 0 0 2px var(--indigo);
+  border-radius: var(--radius-sm, 4px);
+}
+
+/* Windows High Contrast / forced-colors removes box-shadow, which is how the
+   ring above is drawn - so draw an outline, in a system colour. Unlayered on
+   purpose: it must beat `outline-none` utilities, whose transparent outline
+   is otherwise all a forced-colors user would see. */
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid CanvasText;
+    outline-offset: 2px;
   }
 }
 
@@ -497,14 +543,17 @@
     @apply w-full px-2.5 h-8 text-[13px] transition-[border-color,box-shadow] duration-150 ease-out;
     background: var(--bg-surface);
     color: var(--text-primary);
-    border: 1px solid var(--border-default);
+    /* 1.4.11: the edge of a field is what says "type here" - 3:1, not the
+       1.4:1 hairline cards and dividers use. */
+    border: 1px solid var(--border-control);
     border-radius: var(--radius-sm);
   }
   .input-field::placeholder {
     color: var(--text-tertiary);
   }
   .input-field:hover:not(:focus) {
-    border-color: var(--border-strong);
+    /* --border-strong is lighter than --border-control; darken instead */
+    border-color: var(--text-tertiary);
   }
   .input-field:focus {
     outline: none;
@@ -678,6 +727,10 @@
     @apply inline-flex items-center justify-center h-7 w-7 transition-colors duration-150;
     color: var(--text-tertiary);
     border-radius: var(--radius-sm);
+    /* WCAG 2.2 2.5.8: never a target smaller than 24x24, even when a caller
+       shrinks it with h-5 w-5. */
+    min-width: 1.5rem;
+    min-height: 1.5rem;
   }
   .icon-btn:hover {
     background: var(--bg-hover);
@@ -1064,7 +1117,7 @@
   color: var(--text-secondary);
 }
 .tiptap a {
-  color: var(--indigo);
+  color: var(--indigo-text);
   text-decoration: underline;
   cursor: pointer;
 }

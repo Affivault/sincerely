@@ -215,7 +215,7 @@ export function MailboxDrawer({
               {[account.from_name, provider].filter(Boolean).join(' · ') || 'Custom mail server'}
             </p>
           </div>
-          <button onClick={onClose} className="icon-btn h-8 w-8 flex-shrink-0" title="Close (esc)"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} className="icon-btn h-8 w-8 flex-shrink-0" title="Close (esc)" aria-label="Close (esc)"><X className="h-4 w-4" /></button>
         </header>
 
         <div className="flex-1 overflow-y-auto">
@@ -247,7 +247,7 @@ export function MailboxDrawer({
               </div>
               <div className="rounded-xl border border-[var(--border-subtle)] px-3 py-2.5">
                 <p className="text-caption font-medium text-[var(--text-tertiary)]">Health</p>
-                <p className={cn('mt-0.5 text-strong font-semibold tabular', score === null ? 'text-[var(--text-muted)]' : score >= 80 ? 'text-[var(--text-primary)]' : 'text-amber-600 dark:text-amber-400')}>{score === null ? '—' : `${score}%`}</p>
+                <p className={cn('mt-0.5 text-strong font-semibold tabular', score === null ? 'text-[var(--text-tertiary)]' : score >= 80 ? 'text-[var(--text-primary)]' : 'text-amber-600 dark:text-amber-400')}>{score === null ? '—' : `${score}%`}</p>
               </div>
               <div className="rounded-xl border border-[var(--border-subtle)] px-3 py-2.5">
                 <p className="text-caption font-medium text-[var(--text-tertiary)]">Sent all-time</p>
@@ -300,7 +300,7 @@ export function MailboxDrawer({
                 onSubmit={(e) => { e.preventDefault(); if (testTo.trim()) sendTest.mutate(); }}
                 className="flex gap-2"
               >
-                <input
+                <input aria-label="Send a test email to"
                   type="email"
                   value={testTo}
                   onChange={(e) => setTestTo(e.target.value)}
@@ -322,7 +322,7 @@ export function MailboxDrawer({
                 </p>
               )}
               <p className="mt-1.5 text-caption text-[var(--text-tertiary)]">
-                Want to know inbox or spam across providers? <Link to="/placement" onClick={onClose} className="font-medium text-[var(--indigo)] hover:underline">Run a placement test</Link>.
+                Want to know inbox or spam across providers? <Link to="/placement" onClick={onClose} className="font-medium text-[var(--indigo-text)] hover:underline">Run a placement test</Link>.
               </p>
             </Section>
 
@@ -356,12 +356,12 @@ export function MailboxDrawer({
                   disabled={warmupMutation.isPending}
                   onClick={() => warmupMutation.mutate({ id: account.id, enabled: !account.warmup_mode })}
                   className={cn('relative mt-0.5 inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50', account.warmup_mode ? 'bg-[var(--indigo)]' : 'bg-[var(--border-default)]')}
-                  title={account.warmup_mode ? 'Pause warm-up' : 'Start warm-up'}
+                  title={account.warmup_mode ? 'Pause warm-up' : 'Start warm-up'} aria-label="Warm-up"
                 >
                   <span className={cn('inline-block h-4 w-4 rounded-full bg-white shadow transition-transform', account.warmup_mode ? 'translate-x-[18px]' : 'translate-x-[2px]')} />
                 </button>
               </div>
-              <Link to="/email-accounts?tab=warmup" onClick={onClose} className="mt-2 inline-flex items-center gap-1 text-caption font-medium text-[var(--indigo)] hover:underline">
+              <Link to="/email-accounts?tab=warmup" onClick={onClose} className="mt-2 inline-flex items-center gap-1 text-caption font-medium text-[var(--indigo-text)] hover:underline">
                 Warm-up settings for all mailboxes <ArrowRight className="h-3 w-3" />
               </Link>
             </Section>
@@ -376,7 +376,7 @@ export function MailboxDrawer({
                     : <>{account.email_address.split('@')[1]} is not authenticated in Sincerely yet.</>}
               </p>
               {!domain?.is_verified && (
-                <button onClick={() => onAuthenticateDomain(account)} className="mt-1.5 inline-flex items-center gap-1 text-caption font-medium text-[var(--indigo)] hover:underline">
+                <button onClick={() => onAuthenticateDomain(account)} className="mt-1.5 inline-flex items-center gap-1 text-caption font-medium text-[var(--indigo-text)] hover:underline">
                   {domain ? 'Finish DNS setup' : 'Authenticate this domain'} <ArrowRight className="h-3 w-3" />
                 </button>
               )}
@@ -411,7 +411,7 @@ export function MailboxDrawer({
                       ? <span className="text-amber-600 dark:text-amber-400"> · not syncing</span>
                       : progress.history_complete
                         ? <span className="text-emerald-600 dark:text-emerald-400"> · history loaded</span>
-                        : <span className="text-[var(--indigo)]"> · still fetching</span>}
+                        : <span className="text-[var(--indigo-text)]"> · still fetching</span>}
                     {progress.last_synced_at && !progress.last_error && <> · synced {formatRelativeTime(progress.last_synced_at)}</>}
                   </>
                 ) : account.imap_host ? 'Starting its first sync.' : 'No incoming server, so nothing to sync.'}

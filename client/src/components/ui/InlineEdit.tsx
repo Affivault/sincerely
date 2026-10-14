@@ -100,19 +100,22 @@ export function InlineEdit({
             the default rather than beat it — drop the default when one is given. */}
         <span className={cn(
           !textClassName && 'text-body',
-          shown ? textClassName || 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)] italic',
+          shown ? textClassName || 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)] italic',
           multiline ? 'whitespace-pre-wrap' : 'min-w-0 truncate',
           textClassName,
         )}>
           {shown || placeholder}
         </span>
-        <Pencil className="inline-block flex-shrink-0 ml-1.5 h-2.5 w-2.5 align-middle text-[var(--text-muted)] opacity-0 group-hover/ie:opacity-100 transition-opacity" />
+        <Pencil aria-hidden className="inline-block flex-shrink-0 ml-1.5 h-2.5 w-2.5 align-middle text-[var(--text-tertiary)] opacity-0 group-hover/ie:opacity-100 group-focus-visible/ie:opacity-100 transition-opacity" />
       </button>
     );
   }
 
   const shared = {
     ref: inputRef as any,
+    // The resting button is named "Edit <label>"; the field it turns into
+    // must carry the name too, or it is an unlabelled textbox.
+    'aria-label': ariaLabel ?? 'Edit value',
     value: draft,
     disabled: saving,
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setDraft(e.target.value),
@@ -136,13 +139,13 @@ export function InlineEdit({
       {multiline
         ? <textarea {...shared} rows={3} />
         : <input {...shared} type={type} inputMode={type === 'number' ? 'decimal' : undefined} />}
-      <span className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 pointer-events-none">
+      <span aria-hidden className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 pointer-events-none">
         {saving
-          ? <Loader2 className="h-3 w-3 animate-spin text-[var(--indigo)]" />
+          ? <Loader2 className="h-3 w-3 animate-spin text-[var(--indigo-text)]" />
           : (
             <>
-              <Check className="h-3 w-3 text-[var(--text-muted)]" />
-              <X className="h-3 w-3 text-[var(--text-muted)]" />
+              <Check className="h-3 w-3 text-[var(--text-tertiary)]" />
+              <X className="h-3 w-3 text-[var(--text-tertiary)]" />
             </>
           )}
       </span>
@@ -152,7 +155,7 @@ export function InlineEdit({
 
 /** Same idea for a fixed set of options — click, pick, done. */
 export function InlineSelect<T extends string>({
-  value, options, onSave, className, disabled, renderValue,
+  value, options, onSave, className, disabled, renderValue, ariaLabel,
 }: {
   value: T;
   options: Array<{ value: T; label: string }>;
@@ -160,6 +163,8 @@ export function InlineSelect<T extends string>({
   className?: string;
   disabled?: boolean;
   renderValue?: (v: T) => React.ReactNode;
+  /** Names the control for assistive tech ("Headcount"); the value is announced after it. */
+  ariaLabel?: string;
 }) {
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(false);
@@ -177,18 +182,27 @@ export function InlineSelect<T extends string>({
   if (disabled) return <span className={className}>{renderValue ? renderValue(value) : current?.label}</span>;
 
   return (
-    <span className="relative inline-block">
+    <span
+      className="relative inline-block"
+      // Close when focus leaves the whole control, not when it moves from the
+      // trigger onto an option (a timer here closed the list before a keyboard
+      // user's Tab could reach it).
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false); }}
+      onKeyDown={(e) => { if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); } }}
+    >
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-label={ariaLabel ? `${ariaLabel}: ${current?.label || value || 'none'}` : undefined}
         className={cn(
           'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 -mx-1.5 transition-colors',
           'hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:bg-[var(--bg-hover)]',
           className,
         )}
       >
-        {saving ? <Loader2 className="h-3 w-3 animate-spin text-[var(--indigo)]" /> : null}
+        {saving ? <Loader2 className="h-3 w-3 animate-spin text-[var(--indigo-text)]" /> : null}
         {renderValue ? renderValue(value) : <span className="text-body text-[var(--text-secondary)]">{current?.label || value}</span>}
       </button>
       {open && (
@@ -198,10 +212,13 @@ export function InlineSelect<T extends string>({
               key={o.value}
               type="button"
               onMouseDown={(e) => { e.preventDefault(); pick(o.value); }}
+              // Enter/Space on a focused option is a click with no pointer (detail 0);
+              // a mouse click already picked on mousedown.
+              onClick={(e) => { if (e.detail === 0) pick(o.value); }}
               className={cn(
                 'w-full text-left px-2.5 py-1.5 text-body transition-colors',
                 o.value === value
-                  ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)] font-medium'
+                  ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)] font-medium'
                   : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
               )}
             >

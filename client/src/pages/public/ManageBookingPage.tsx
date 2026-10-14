@@ -267,7 +267,7 @@ export function ManageBookingPage() {
     <PublicShell>
       <div data-state="confirmed">
         <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--indigo-subtle,var(--bg-elevated))]">
-          <Check className="h-5 w-5 text-[var(--indigo)]" />
+          <Check className="h-5 w-5 text-[var(--indigo-text)]" />
         </span>
         <h1 className="mt-3 text-title font-semibold text-[var(--text-primary)]">{b.headline}</h1>
         <p className="mt-0.5 text-body text-[var(--text-tertiary)]">with {b.organiser}</p>

@@ -373,7 +373,7 @@ export function WeekPainter({ windows, onChange }: {
                     {/* The times, whenever the block is tall enough to hold
                         them. Below that the block itself is the statement. */}
                     {range.endMinute - range.startMinute >= 45 && (
-                      <p className="truncate pt-0.5 text-micro tabular font-medium leading-tight text-[var(--indigo)]">
+                      <p className="truncate pt-0.5 text-micro tabular font-medium leading-tight text-[var(--indigo-text)]">
                         {minuteLabel(range.startMinute)}–{minuteLabel(range.endMinute)}
                       </p>
                     )}
@@ -385,7 +385,7 @@ export function WeekPainter({ windows, onChange }: {
                         onPointerDown={(e) => e.stopPropagation()}
                         onClick={(e) => { e.stopPropagation(); removeAt(weekday, index); }}
                         title="Remove this window"
-                        className="absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded-bl text-micro font-bold text-[var(--indigo)] opacity-0 transition-opacity hover:bg-[var(--indigo)] hover:text-white group-hover:opacity-100"
+                        className="absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded-bl text-micro font-bold text-[var(--indigo-text)] opacity-0 transition-opacity hover:bg-[var(--indigo)] hover:text-white group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
                       >
                         ×
                       </button>

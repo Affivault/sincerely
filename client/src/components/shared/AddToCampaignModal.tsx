@@ -112,7 +112,7 @@ export function AddToCampaignModal({
         <div className="flex justify-center py-10"><Spinner size="md" /></div>
       ) : activeCampaigns.length === 0 ? (
         <div className="py-8 text-center">
-          <Megaphone className="h-7 w-7 text-[var(--text-muted)] mx-auto mb-2" />
+          <Megaphone className="h-7 w-7 text-[var(--text-tertiary)] mx-auto mb-2" />
           <p className="text-strong font-medium text-[var(--text-primary)]">No active campaigns yet</p>
           <p className="text-body text-[var(--text-tertiary)] mt-1 mb-4">Create one and these leads will be waiting.</p>
           <Button onClick={() => { onClose(); navigate('/campaigns/new'); }}>
@@ -144,7 +144,7 @@ export function AddToCampaignModal({
                     )}
                   >
                     <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0', active ? 'bg-[var(--indigo-subtle)]' : 'bg-[var(--bg-elevated)]')}>
-                      <Megaphone className={cn('h-3.5 w-3.5', active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} />
+                      <Megaphone className={cn('h-3.5 w-3.5', active ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)]')} />
                     </span>
                     <span className="flex-1 min-w-0">
                       <span className="block text-strong font-medium text-[var(--text-primary)] truncate">{c.name}</span>
@@ -153,7 +153,7 @@ export function AddToCampaignModal({
                         <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{c.total_contacts ?? 0} enrolled</span>
                       </span>
                     </span>
-                    {active && <Check className="h-4 w-4 text-[var(--indigo)] flex-shrink-0" />}
+                    {active && <Check className="h-4 w-4 text-[var(--indigo-text)] flex-shrink-0" />}
                   </button>
                 );
               })}

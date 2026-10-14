@@ -17,6 +17,8 @@ export interface Template {
 export interface RichTextEditorProps {
   initialContent?: string;
   placeholder?: string;
+  /** Accessible name of the editable region. Defaults to "Email body"; say what this one is when it is not an email body. */
+  label?: string;
   onChange?: (html: string, text: string) => void;
   onTemplateSelect?: (template: Template) => void;
   templates?: Template[];

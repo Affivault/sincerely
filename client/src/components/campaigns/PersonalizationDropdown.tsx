@@ -106,7 +106,7 @@ export function PersonalizationDropdown({ onInsert, variant = 'button' }: Person
           <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </button>
       ) : (
-        <button
+        <button aria-label="Insert personalization"
           type="button"
           onClick={() => setIsOpen(!isOpen)}
           className="p-2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] rounded-lg transition-colors"
@@ -123,6 +123,7 @@ export function PersonalizationDropdown({ onInsert, variant = 'button' }: Person
             <input
               type="text"
               placeholder="Search variables..."
+              aria-label="Search variables"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full h-9 px-3 text-strong rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] focus:border-[var(--border-default)] focus:bg-[var(--bg-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--text-primary)]/10 transition-all"
@@ -165,7 +166,7 @@ export function PersonalizationDropdown({ onInsert, variant = 'button' }: Person
               <div className="mt-1 border-t border-[var(--border-subtle)] pt-2">
                 {WRITING_TIPS.map((tip) => (
                   <div key={tip.title} className="flex items-start gap-3 px-4 py-2">
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] text-[var(--indigo)]">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--indigo-subtle)] text-[var(--indigo-text)]">
                       <tip.icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">

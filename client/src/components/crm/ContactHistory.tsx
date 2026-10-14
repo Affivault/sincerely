@@ -107,7 +107,7 @@ function QuickActivity({ contactId, contactName, onDone, onDetail }: {
 
   return (
     <div className="space-y-2">
-      <input
+      <input aria-label="What needs doing"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter' && title.trim()) create.mutate(); }}
@@ -115,7 +115,7 @@ function QuickActivity({ contactId, contactName, onDone, onDetail }: {
         className="w-full h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 text-strong text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--indigo)]"
       />
       <div className="flex items-center gap-2 flex-wrap">
-        <select
+        <select aria-label="Activity type"
           value={type}
           onChange={(e) => setType(e.target.value as CrmTask['type'])}
           className="h-7 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
@@ -126,7 +126,7 @@ function QuickActivity({ contactId, contactName, onDone, onDetail }: {
           <option value="todo">To-do</option>
           <option value="deadline">Deadline</option>
         </select>
-        <input
+        <input aria-label="Due date and time"
           type="datetime-local"
           value={due}
           onChange={(e) => setDue(e.target.value)}
@@ -183,7 +183,7 @@ function QuickMeeting({ contactId, contactName, contactEmail, onDone, onDetail }
 
   return (
     <div className="space-y-2">
-      <input
+      <input aria-label="Title"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') create.mutate(); }}
@@ -198,14 +198,14 @@ function QuickMeeting({ contactId, contactName, contactEmail, onDone, onDetail }
               onClick={() => setType(t)}
               className={cn(
                 'h-7 px-2.5 text-body font-medium transition-colors',
-                type === t ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)]',
+                type === t ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)]',
               )}
             >
               {t === 'call' ? 'Call' : 'Meeting'}
             </button>
           ))}
         </div>
-        <input
+        <input aria-label="Start date and time"
           type="datetime-local"
           value={starts}
           onChange={(e) => setStarts(e.target.value)}
@@ -348,7 +348,7 @@ export function ContactHistory({
         detail: preview(m.body_text || m.body_html),
         meta: outbound ? 'You sent' : `${contactName || contactEmail} replied`,
         icon: outbound ? ArrowUpRight : ArrowDownLeft,
-        tone: outbound ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+        tone: outbound ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
         email: m,
       });
     }
@@ -388,7 +388,7 @@ export function ContactHistory({
         icon: Handshake,
         tone: won ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
           : lost ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
-          : 'bg-[var(--indigo-subtle)] text-[var(--indigo)]',
+          : 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]',
         dealId: e.deal_id,
       });
     }
@@ -494,7 +494,7 @@ export function ContactHistory({
                 className={cn(
                   'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-body font-medium transition-colors',
                   compose === t.id
-                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                    ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
                     : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]',
                 )}
               >
@@ -507,7 +507,7 @@ export function ContactHistory({
         <div className="p-3">
           {compose === 'note' ? (
             <>
-              <textarea
+              <textarea aria-label="Note"
                 value={noteDraft}
                 onChange={(e) => setNoteDraft(e.target.value)}
                 onKeyDown={(e) => {
@@ -572,7 +572,7 @@ export function ContactHistory({
             <div key={n.id} className="flex items-start gap-2">
               <Pin className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
               <p className="flex-1 min-w-0 text-body text-[var(--text-primary)] whitespace-pre-wrap">{n.body}</p>
-              <button onClick={() => pinNote.mutate(n)} className="icon-btn h-6 w-6 flex-shrink-0" title="Unpin">
+              <button onClick={() => pinNote.mutate(n)} className="icon-btn h-6 w-6 flex-shrink-0" title="Unpin" aria-label="Unpin">
                 <Pin className="h-3 w-3" />
               </button>
             </div>
@@ -637,7 +637,7 @@ export function ContactHistory({
             <Handshake className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
             <h3 className="text-caption font-semibold text-[var(--text-secondary)]">Deals</h3>
             <span className="text-caption tabular text-[var(--text-tertiary)]">{deals.length}</span>
-            <Link to="/deals" className="ml-auto text-caption font-medium text-[var(--indigo)] hover:underline">Open pipeline</Link>
+            <Link to="/deals" className="ml-auto text-caption font-medium text-[var(--indigo-text)] hover:underline">Open pipeline</Link>
           </div>
           <div className="divide-y divide-[var(--border-subtle)]">
             {deals.map((d) => (
@@ -672,7 +672,7 @@ export function ContactHistory({
               className={cn(
                 'h-7 flex-shrink-0 whitespace-nowrap px-2.5 rounded-md text-body font-medium transition-colors',
                 filter === f.id
-                  ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                  ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
                   : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]',
               )}
             >
@@ -724,10 +724,10 @@ export function ContactHistory({
                           e.kind === 'note' ? 'truncate' : 'truncate',
                         )}>
                           {e.dealId ? (
-                            <Link to={`/deals/${e.dealId}`} className="hover:text-[var(--indigo)] hover:underline">{e.title}</Link>
+                            <Link to={`/deals/${e.dealId}`} className="hover:text-[var(--indigo-text)] hover:underline">{e.title}</Link>
                           ) : e.title}
                         </p>
-                        <span className="text-micro tabular text-[var(--text-muted)] flex-shrink-0 ml-auto">{timeOf(e.at)}</span>
+                        <span className="text-micro tabular text-[var(--text-tertiary)] flex-shrink-0 ml-auto">{timeOf(e.at)}</span>
                       </div>
                       {e.meta && <p className="text-caption text-[var(--text-tertiary)]">{e.meta}</p>}
                       {e.detail && !(e.email && openEmail === e.id) && (
@@ -742,7 +742,7 @@ export function ContactHistory({
                         <>
                           <button
                             onClick={() => setOpenEmail(openEmail === e.id ? null : e.id)}
-                            className="mt-1 inline-flex items-center gap-1 text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] transition-colors"
+                            className="mt-1 inline-flex items-center gap-1 text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo-text)] transition-colors"
                           >
                             <ChevronDown className={cn('h-3 w-3 transition-transform', openEmail === e.id && 'rotate-180')} />
                             {openEmail === e.id ? 'Hide message' : 'Read message'}
@@ -758,7 +758,7 @@ export function ContactHistory({
                         <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                           <button
                             onClick={() => pinNote.mutate(e.note!)}
-                            className="inline-flex items-center gap-1 text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)]"
+                            className="inline-flex items-center gap-1 text-caption font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo-text)]"
                           >
                             <Pin className="h-3 w-3" /> {e.note.pinned ? 'Unpin' : 'Pin'}
                           </button>

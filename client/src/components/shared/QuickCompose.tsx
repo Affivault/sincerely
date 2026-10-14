@@ -126,11 +126,11 @@ export function QuickCompose({
   return (
     <div className={cn('rounded-xl border border-[var(--indigo)]/40 bg-[var(--bg-surface)] overflow-hidden', className)}>
       <div className="flex items-center gap-2 px-3 h-9 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50">
-        <Mail className="h-3.5 w-3.5 text-[var(--indigo)] flex-shrink-0" />
+        <Mail className="h-3.5 w-3.5 text-[var(--indigo-text)] flex-shrink-0" />
         <span className="text-caption font-semibold text-[var(--text-primary)]">
           To {toName || to}
         </span>
-        <button onClick={cancel} className="ml-auto icon-btn h-6 w-6" title={alwaysOpen ? 'Clear' : 'Discard'}>
+        <button onClick={cancel} className="ml-auto icon-btn h-6 w-6" title={alwaysOpen ? 'Clear' : 'Discard'} aria-label={alwaysOpen ? 'Clear' : 'Discard'}>
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
@@ -149,7 +149,7 @@ export function QuickCompose({
                   <option key={a.id} value={a.id}>{a.email_address}</option>
                 ))}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-[var(--text-muted)]" />
+              <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-[var(--text-tertiary)]" />
             </span>
           </label>
         )}

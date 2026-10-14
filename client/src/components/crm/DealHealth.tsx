@@ -45,7 +45,7 @@ export function DealHealthDot({ health, withScore = false }: { health?: DealHeal
   const tip = `${s.label} (${health.score}/100)\n${health.reasons.map((r) => `${r.impact < 0 ? '−' : '+'} ${r.text}`).join('\n')}`;
   return (
     <span title={tip} className={cn('inline-flex items-center gap-1 flex-shrink-0', withScore && cn('rounded-full px-1.5 py-0.5 text-micro font-semibold tabular', s.bg, s.text))}>
-      <span className={cn('inline-block h-2 w-2 rounded-full', s.dot)} aria-label={s.label} />
+      <span className={cn('inline-block h-2 w-2 rounded-full', s.dot)} role="img" aria-label={s.label} />
       {withScore && health.score}
     </span>
   );

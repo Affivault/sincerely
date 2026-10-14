@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, type RefObject } from 'react';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { ColumnLayout } from './useColumnLayout';
@@ -28,16 +29,40 @@ export function ResizeHandle({ onPointerDown, onDoubleClick }: {
   );
 }
 
+/**
+ * Says which way a column is sorted, on the cell a screen reader reads it
+ * from.
+ *
+ * aria-sort belongs on the <th>, not on the button inside it, and the <th>
+ * is drawn by whichever table owns the row - three of them, one with its
+ * own drag logic. The sort button is the one piece that always knows the
+ * state, so it reports it to the header it sits in.
+ */
+export function useAriaSort(button: RefObject<HTMLElement>, active: boolean, dir: 'asc' | 'desc') {
+  useLayoutEffect(() => {
+    const th = button.current?.closest('th');
+    if (!th) return;
+    th.setAttribute('aria-sort', active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none');
+    return () => th.removeAttribute('aria-sort');
+  }, [button, active, dir]);
+}
+
 export function SortableHeader<K extends string>({ label, colKey, sortBy, sortDir, onSort }: {
   label: string; colKey: K; sortBy: K; sortDir: 'asc' | 'desc'; onSort: (k: K) => void;
 }) {
   const active = sortBy === colKey;
+  const ref = useRef<HTMLButtonElement>(null);
+  useAriaSort(ref, active, sortDir);
   return (
     <button
+      ref={ref}
+      type="button"
       onClick={(e) => { e.stopPropagation(); onSort(colKey); }}
+      // 24px to hit; the negative margin hands the extra height back to the
+      // header's own padding so the row is no taller than before.
       className={cn(
-        'flex items-center gap-1 group/sort min-w-0 transition-colors',
-        active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
+        'flex min-h-6 -my-1 items-center gap-1 group/sort min-w-0 transition-colors',
+        active ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
       )}
     >
       <span className="text-caption font-medium truncate">{label}</span>

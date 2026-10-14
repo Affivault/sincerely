@@ -75,7 +75,7 @@ export function WhereWeAre({ contactId, emails, activity, onBookMeeting, onNewDe
           {w.deal ? (
             <>
               <Value>
-                <Link to={`/deals/${w.deal.id}`} className="hover:text-[var(--indigo)] hover:underline">
+                <Link to={`/deals/${w.deal.id}`} className="hover:text-[var(--indigo-text)] hover:underline">
                   {dealStageLabel(w.deal.stage)}{w.deal.value ? ` · ${formatMoney(w.deal.value, w.deal.currency, { compact: true })}` : ''}
                 </Link>
               </Value>
@@ -88,7 +88,7 @@ export function WhereWeAre({ contactId, emails, activity, onBookMeeting, onNewDe
           ) : (
             <>
               <Value muted>No deal</Value>
-              <button onClick={onNewDeal} className="mt-1.5 text-caption font-semibold text-[var(--indigo)] hover:underline">Open one</button>
+              <button onClick={onNewDeal} className="mt-1.5 text-caption font-semibold text-[var(--indigo-text)] hover:underline">Open one</button>
             </>
           )}
         </Fact>
@@ -113,7 +113,7 @@ export function WhereWeAre({ contactId, emails, activity, onBookMeeting, onNewDe
           ) : (
             <>
               <Value muted>Nothing planned</Value>
-              <button onClick={onBookMeeting} className="mt-1.5 text-caption font-semibold text-[var(--indigo)] hover:underline">Book a meeting</button>
+              <button onClick={onBookMeeting} className="mt-1.5 text-caption font-semibold text-[var(--indigo-text)] hover:underline">Book a meeting</button>
             </>
           )}
         </Fact>

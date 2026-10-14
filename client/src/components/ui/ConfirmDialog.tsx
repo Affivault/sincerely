@@ -72,13 +72,15 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
           size="sm"
           footer={
             <div className="flex gap-2 justify-end">
-              <Button variant="secondary" onClick={() => settle(false)}>
+              {/* A destructive ask opens on the safe answer, so a stray Enter
+                  or Space cancels rather than deletes. */}
+              <Button variant="secondary" onClick={() => settle(false)} autoFocus={danger}>
                 {options.cancelLabel || 'Cancel'}
               </Button>
               <Button
                 variant={danger ? 'danger' : 'primary'}
                 onClick={() => settle(true)}
-                autoFocus
+                autoFocus={!danger}
               >
                 {danger && <Trash2 className="h-3.5 w-3.5" />}
                 {options.confirmLabel || (danger ? 'Delete' : 'Continue')}

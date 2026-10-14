@@ -1,5 +1,5 @@
 import { useDealHealth, DealHealthDot } from '../../components/crm/DealHealth';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useId } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { crmApi } from '../../api/crm.api';
@@ -141,18 +141,19 @@ const STAGE_DOT: Record<DealStage, string> = {
   lead: 'bg-slate-400', qualified: 'bg-[var(--indigo)]', proposal: 'bg-amber-500', won: 'bg-emerald-500', lost: 'bg-rose-500',
 };
 const PRIORITY_META: Record<TaskPriority, { label: string; cls: string }> = {
-  high: { label: 'High', cls: 'text-rose-500' },
+  high: { label: 'High', cls: 'text-rose-600 dark:text-rose-400' },
   normal: { label: 'Normal', cls: 'text-[var(--text-tertiary)]' },
   low: { label: 'Low', cls: 'text-slate-400' },
 };
 const EVENT_META: Record<EventType, { label: string; icon: typeof Phone; dot: string; chip: string }> = {
-  call: { label: 'Call', icon: Phone, dot: 'bg-[var(--indigo)]', chip: 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' },
+  call: { label: 'Call', icon: Phone, dot: 'bg-[var(--indigo)]', chip: 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' },
   meeting: { label: 'Meeting', icon: UsersIcon, dot: 'bg-emerald-500', chip: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
 };
 
 /* ─── Lead picker ─────────────────────────────────── */
 /* ─── Deal modal ──────────────────────────────────── */
 export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | null; onClose: () => void; onDeleted?: () => void }) {
+  const a11yId = useId();
   const qc = useQueryClient();
   const editing = !!deal?.id;
   const [form, setForm] = useState<CreateDealInput & { stage: DealStage }>({
@@ -251,7 +252,7 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
       footer={
         <>
           {editing ? (
-            <button type="button" onClick={deleteDeal} className="mr-auto flex items-center gap-1.5 text-body font-medium text-rose-500 hover:text-rose-600 transition-colors">
+            <button type="button" onClick={deleteDeal} className="mr-auto flex items-center gap-1.5 text-body font-medium text-rose-600 dark:text-rose-400 hover:text-rose-700 transition-colors">
               <Trash2 className="h-3.5 w-3.5" /> Delete
             </button>
           ) : null}
@@ -320,7 +321,7 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
             behind a toggle, after the value, so the one number most deals
             are sits where people look for it. Open when the deal has one. */}
         {!showShape && !shaped ? (
-          <button type="button" onClick={() => setShowShape(true)} className="text-body font-medium text-[var(--indigo)] hover:underline">
+          <button type="button" onClick={() => setShowShape(true)} className="text-body font-medium text-[var(--indigo-text)] hover:underline">
             + Recurring or one-off parts
           </button>
         ) : (
@@ -382,11 +383,11 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
                     {fmtMoney(totalContractValue(shape))}
                   </span>{' '}
                   over {split.months} months
-                  {split.termAssumed && <span className="text-[var(--text-muted)]"> (assumed)</span>}
+                  {split.termAssumed && <span className="text-[var(--text-tertiary)]"> (assumed)</span>}
                   {split.arr > 0 && (
                     <>
                       {' · '}
-                      <span className="font-semibold tabular-nums text-[var(--indigo)]">
+                      <span className="font-semibold tabular-nums text-[var(--indigo-text)]">
                         {fmtMoney(split.arr)}
                       </span>{' '}
                       new ARR
@@ -405,8 +406,8 @@ export function DealModal({ deal, onClose, onDeleted }: { deal: Partial<Deal> | 
           </>
         )}
         <div>
-          <label className="block text-body font-medium text-[var(--text-secondary)] mb-1">Notes</label>
-          <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Context, next steps…" className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-strong text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]" />
+          <label htmlFor={`${a11yId}-f1`} className="block text-body font-medium text-[var(--text-secondary)] mb-1">Notes</label>
+          <textarea id={`${a11yId}-f1`} value={form.notes || ''} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Context, next steps…" className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-strong text-[var(--text-primary)] outline-none focus:border-[var(--indigo)] focus-visible:shadow-[var(--ring-focus)]" />
         </div>
       </form>
     </Modal>
@@ -540,7 +541,8 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToSta
                     type="button"
                     onClick={() => onAddToStage(stage.id)}
                     title={`Add a deal straight into ${stage.label}`}
-                    className="icon-btn h-5 w-5 -mr-1 text-[var(--text-muted)] hover:text-[var(--indigo)]"
+                    aria-label={`Add a deal to ${stage.label}`}
+                    className="icon-btn h-6 w-6 -mr-1 text-[var(--text-tertiary)] hover:text-[var(--indigo-text)]"
                   >
                     <Plus className="h-3.5 w-3.5" />
                   </button>
@@ -552,7 +554,7 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToSta
                     everybody quotes — a column total nobody discounts is how
                     a pipeline ends up promising twice what it delivers. */}
                 {!closedStage && weighted !== total && (
-                  <span className="text-micro text-[var(--text-muted)] tabular" title="Weighted by each deal's odds">
+                  <span className="text-micro text-[var(--text-tertiary)] tabular" title="Weighted by each deal's odds">
                     {fmtMoney(weighted)} wtd
                   </span>
                 )}
@@ -574,16 +576,16 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToSta
                     )}
                     {/* A div, not a button: the company and lead inside are
                         themselves clickable, and a button inside a button is
-                        invalid markup that browsers resolve unpredictably. */}
+                        invalid markup that browsers resolve unpredictably.
+                        The deal title is the focusable "open" button, so the
+                        card itself stays out of the tab order and the
+                        interactive children are never nested in a button. */}
                     <div
-                      role="button"
-                      tabIndex={0}
                       draggable={!dragDisabled}
                       onDragStart={() => { if (!dragDisabled) setDragId(d.id); }}
                       onDragEnd={() => { setDragId(null); setOver(null); }}
                       onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); const after = e.clientY > r.top + r.height / 2; setOver({ stage: stage.id, index: after ? idx + 1 : idx }); }}
                       onClick={() => onEdit(d)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit(d); } }}
                       className={cn(
                         'group w-full text-left rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5 my-1 shadow-[var(--shadow-sm)] hover:border-[var(--border-default)] hover:shadow-[var(--shadow-md)] transition-all',
                         dragDisabled ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
@@ -591,8 +593,14 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToSta
                       )}
                     >
                       <div className="flex items-start gap-1.5">
-                        <GripVertical className="h-3.5 w-3.5 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
-                        <span className="text-body font-medium text-[var(--text-primary)] leading-snug line-clamp-2">{d.title}</span>
+                        <GripVertical aria-hidden="true" className="h-3.5 w-3.5 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); onEdit(d); }}
+                          className="min-w-0 rounded text-left text-body font-medium text-[var(--text-primary)] leading-snug line-clamp-2"
+                        >
+                          {d.title}
+                        </button>
                         {/* Movement is the only real signal of health, and a
                             static card is the one place it never shows. */}
                         {rot.rotting && (
@@ -612,7 +620,7 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToSta
                             type="button"
                             onClick={(e) => { e.stopPropagation(); onOpenCompany(d); }}
                             title={`Open ${d.company}`}
-                            className="inline-flex items-center gap-1 text-micro text-[var(--text-tertiary)] truncate max-w-[110px] rounded transition-colors hover:text-[var(--indigo)] hover:underline"
+                            className="inline-flex min-h-6 items-center gap-1 text-micro text-[var(--text-tertiary)] truncate max-w-[110px] rounded transition-colors hover:text-[var(--indigo-text)] hover:underline"
                           >
                             <Building2 className="h-3 w-3 flex-shrink-0" />{d.company}
                           </button>
@@ -626,7 +634,7 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToSta
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); openPeek('contact', leadId(d)!); }}
                                 title={`Open ${leadEmail(d) || lead}`}
-                                className="inline-flex items-center gap-1 min-w-0 flex-shrink rounded transition-colors hover:text-[var(--indigo)]"
+                                className="inline-flex min-h-6 items-center gap-1 min-w-0 flex-shrink rounded transition-colors hover:text-[var(--indigo-text)]"
                               >
                                 <Avatar name={lead} email={leadEmail(d)} size="xs" />
                                 <span className="truncate max-w-[92px] hover:underline">{lead}</span>
@@ -641,7 +649,7 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToSta
                           )}
                           <span className="flex-1" />
                           {closeInfo && (
-                            <span className={cn('inline-flex items-center gap-1 flex-shrink-0', closeInfo.tone === 'over' && d.stage !== 'won' && d.stage !== 'lost' && 'text-rose-500 font-medium')}>
+                            <span className={cn('inline-flex items-center gap-1 flex-shrink-0', closeInfo.tone === 'over' && d.stage !== 'won' && d.stage !== 'lost' && 'text-rose-600 dark:text-rose-400 font-medium')}>
                               <CalendarClock className="h-3 w-3" /> {closeInfo.label}
                             </span>
                           )}
@@ -658,12 +666,12 @@ function PipelineBoard({ deals, tasks, events, onEdit, onStageChange, onAddToSta
               )}
               {items.length === 0 && !dropHere && (
                 closedStage ? (
-                  <p className="py-4 text-center text-caption text-[var(--text-muted)]">Nothing here yet</p>
+                  <p className="py-4 text-center text-caption text-[var(--text-tertiary)]">Nothing here yet</p>
                 ) : (
                   <button
                     type="button"
                     onClick={() => onAddToStage(stage.id)}
-                    className="w-full rounded-lg border border-dashed border-[var(--border-default)] py-4 text-caption text-[var(--text-muted)] transition-colors hover:border-[var(--indigo)] hover:text-[var(--indigo)]"
+                    className="w-full rounded-lg border border-dashed border-[var(--border-default)] py-4 text-caption text-[var(--text-tertiary)] transition-colors hover:border-[var(--indigo)] hover:text-[var(--indigo-text)]"
                   >
                     Drop a deal here, or add one
                   </button>
@@ -907,7 +915,7 @@ export function DealsPage() {
           <button
             type="button"
             onClick={bulkDelete}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-caption font-medium text-rose-500 transition-colors hover:bg-rose-500/10"
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-caption font-medium text-rose-600 dark:text-rose-400 transition-colors hover:bg-rose-500/10"
           >
             <Trash2 className="h-3.5 w-3.5" /> Delete
           </button>
@@ -940,7 +948,7 @@ export function DealsPage() {
           </p>
           <button
             onClick={() => { setQuery(''); setFilters(EMPTY_FILTERS); }}
-            className="mt-2 text-body text-[var(--indigo)] hover:underline"
+            className="mt-2 text-body text-[var(--indigo-text)] hover:underline"
           >
             Reset filters
           </button>

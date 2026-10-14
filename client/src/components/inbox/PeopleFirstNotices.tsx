@@ -32,7 +32,7 @@ export function InboxNotices({
     <>
       {sorting && (
         <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--border-subtle)] bg-[var(--indigo-subtle)] text-body text-[var(--text-secondary)]">
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--indigo)]" />
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--indigo-text)]" />
           Sorting your mail into people and everything else. Counts will settle in a minute.
         </div>
       )}
@@ -167,7 +167,7 @@ export function RelayEngineNote() {
   if (!data) return null;
   return (
     <p className="flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]">
-      <Sparkles className="h-3 w-3 text-[var(--indigo)]" />
+      <Sparkles className="h-3 w-3 text-[var(--indigo-text)]" />
       {data.ai
         ? 'Relay reads replies and writes with Claude.'
         : 'Relay is using keyword rules. Add ANTHROPIC_API_KEY on the server for Claude to read replies and write drafts.'}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { usePopover } from '../../hooks/usePopover';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contactsApi, listsApi } from '../../api/contacts.api';
@@ -54,6 +55,7 @@ export function ContactDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showAddToListDropdown, setShowAddToListDropdown] = useState(false);
+  const addToList = usePopover(showAddToListDropdown, () => setShowAddToListDropdown(false));
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [moveFromListId, setMoveFromListId] = useState<string | null>(null);
   const [moveToListId, setMoveToListId] = useState<string | null>(null);
@@ -211,7 +213,7 @@ export function ContactDetailPage() {
     return (
       <div className="text-center text-[var(--text-secondary)]">
         <p>Couldn't load this contact.</p>
-        <button type="button" onClick={() => refetch()} className="mt-2 text-body font-medium text-[var(--indigo)] hover:underline">Try again</button>
+        <button type="button" onClick={() => refetch()} className="mt-2 text-body font-medium text-[var(--indigo-text)] hover:underline">Try again</button>
       </div>
     );
   }
@@ -340,6 +342,7 @@ export function ContactDetailPage() {
             disabled={suppressMutation.isPending}
             className="icon-btn hover:text-amber-500 hover:bg-amber-500/10 flex-shrink-0"
             title="Add to suppression list"
+            aria-label="Add to suppression list"
           >
             <Ban className="h-3.5 w-3.5" />
           </button>
@@ -347,6 +350,7 @@ export function ContactDetailPage() {
             onClick={() => deleteContact(contact.email)}
             className="icon-btn hover:text-rose-500 hover:bg-rose-500/10 flex-shrink-0"
             title="Delete contact"
+            aria-label="Delete contact"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -399,7 +403,7 @@ export function ContactDetailPage() {
                 ? 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
                 : 'bg-[var(--indigo-subtle)] text-[var(--text-primary)] border border-[var(--indigo)]/20',
             )}>
-              <Megaphone className={cn('h-3.5 w-3.5 flex-shrink-0 mt-px', coldEmailable ? 'text-[var(--text-tertiary)]' : 'text-[var(--indigo)]')} />
+              <Megaphone className={cn('h-3.5 w-3.5 flex-shrink-0 mt-px', coldEmailable ? 'text-[var(--text-tertiary)]' : 'text-[var(--indigo-text)]')} />
               <span>
                 {coldEmailable
                   ? 'Can be added to a campaign.'
@@ -436,10 +440,10 @@ export function ContactDetailPage() {
                     <p className="text-body text-[var(--text-secondary)]">Company</p>
                     <Link
                       to={`/companies/${contact.company_id}`}
-                      className="group inline-flex items-center gap-1 text-strong text-[var(--text-primary)] hover:text-[var(--indigo)] transition-colors min-w-0"
+                      className="group inline-flex items-center gap-1 text-strong text-[var(--text-primary)] hover:text-[var(--indigo-text)] transition-colors min-w-0"
                     >
                       <span className="truncate">{contact.company || 'View account'}</span>
-                      <ArrowUpRight className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <ArrowUpRight aria-hidden="true" className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity" />
                     </Link>
                   </div>
                 </div>
@@ -468,7 +472,9 @@ export function ContactDetailPage() {
               <h2 className="text-caption font-bold text-[var(--text-tertiary)]">Lists</h2>
               <div className="relative">
                 <button
+                  {...addToList.triggerProps}
                   onClick={() => setShowAddToListDropdown(!showAddToListDropdown)}
+                  aria-label="Add to a list"
                   className="inline-flex items-center gap-1 h-6 px-2 text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] rounded-md transition-colors"
                 >
                   <Plus className="h-3 w-3" />
@@ -476,8 +482,8 @@ export function ContactDetailPage() {
                 </button>
                 {showAddToListDropdown && (
                   <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowAddToListDropdown(false)} />
-                    <div className="absolute right-0 top-full mt-1 z-50 w-52 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl shadow-lg overflow-hidden">
+                    <div className="fixed inset-0 z-40" aria-hidden onClick={() => setShowAddToListDropdown(false)} />
+                    <div {...addToList.panelProps} className="absolute right-0 top-full mt-1 z-50 w-52 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl shadow-lg overflow-hidden">
                       {nonMemberLists.length === 0 ? (
                         <p className="px-3 py-3 text-body text-[var(--text-tertiary)] text-center">
                           Already on all lists
@@ -528,12 +534,13 @@ export function ContactDetailPage() {
                     <span className="flex-1 text-body font-medium text-[var(--text-primary)] truncate">
                       {list.name}
                     </span>
-                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                       {!list.is_default && (
                         <button
                           onClick={() => { setMoveFromListId(list.id); setMoveToListId(null); setShowMoveModal(true); }}
-                          className="icon-btn h-5 w-5"
+                          className="icon-btn h-6 w-6"
                           title="Move to another list"
+                          aria-label={`Move to another list from ${list.name}`}
                         >
                           <ArrowRightLeft className="h-3 w-3" />
                         </button>
@@ -541,8 +548,9 @@ export function ContactDetailPage() {
                       {!list.is_default && (
                         <button
                           onClick={() => removeFromListMutation.mutate(list.id)}
-                          className="icon-btn h-5 w-5 hover:text-rose-500 hover:bg-rose-500/10"
+                          className="icon-btn h-6 w-6 hover:text-rose-500 hover:bg-rose-500/10"
                           title="Remove from list"
+                          aria-label={`Remove from ${list.name}`}
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -589,7 +597,7 @@ export function ContactDetailPage() {
                 to="/leads/inbox"
                 className="mb-2 flex items-center gap-2 rounded-md border border-[var(--indigo)]/25 bg-[var(--indigo-subtle)] px-2.5 py-1.5 transition-colors hover:bg-[var(--indigo-subtle)]/70"
               >
-                <Sparkles className="h-3 w-3 flex-shrink-0 text-[var(--indigo)]" />
+                <Sparkles className="h-3 w-3 flex-shrink-0 text-[var(--indigo-text)]" />
                 <span className="min-w-0 flex-1 truncate text-caption font-medium text-[var(--text-primary)]">
                   Open lead: {openLead.title}
                 </span>
@@ -683,7 +691,7 @@ export function ContactDetailPage() {
                       : 'hover:bg-[var(--bg-hover)] border-transparent'
                   )}
                 >
-                  <FolderOpen className={cn('h-4 w-4', moveToListId === list.id ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')} />
+                  <FolderOpen className={cn('h-4 w-4', moveToListId === list.id ? 'text-[var(--indigo-text)]' : 'text-[var(--text-tertiary)]')} />
                   <span className="flex-1 text-left text-strong font-medium text-[var(--text-primary)] truncate">
                     {list.name}
                   </span>
@@ -693,7 +701,7 @@ export function ContactDetailPage() {
                     </span>
                   )}
                   {moveToListId === list.id && (
-                    <Check className="h-4 w-4 text-[var(--indigo)]" />
+                    <Check className="h-4 w-4 text-[var(--indigo-text)]" />
                   )}
                 </button>
               ))}
@@ -771,7 +779,8 @@ function InfoRow({
               target="_blank"
               rel="noopener noreferrer"
               title={`Open ${label}`}
-              className="shrink-0 opacity-0 group-hover/inforow:opacity-100 transition-opacity p-0.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+              aria-label={`Open ${label}`}
+              className="inline-flex min-h-6 min-w-6 items-center justify-center shrink-0 opacity-0 group-hover/inforow:opacity-100 group-focus-within/inforow:opacity-100 focus-visible:opacity-100 transition-opacity p-0.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
             >
               <ExternalLink className="h-3 w-3" />
             </a>
@@ -780,7 +789,8 @@ function InfoRow({
             <button
               onClick={handleCopy}
               title="Copy to clipboard"
-              className="shrink-0 opacity-0 group-hover/inforow:opacity-100 transition-opacity p-0.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+              aria-label={`Copy ${label}`}
+              className="inline-flex min-h-6 min-w-6 items-center justify-center shrink-0 opacity-0 group-hover/inforow:opacity-100 group-focus-within/inforow:opacity-100 focus-visible:opacity-100 transition-opacity p-0.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
             >
               {copied ? (
                 <Check className="h-3 w-3 text-[var(--success)]" />

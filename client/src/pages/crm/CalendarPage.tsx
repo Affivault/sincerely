@@ -131,13 +131,13 @@ function ItemChip({ item, onOpen, onDragStart, onDragEnd, compact }: {
           off && 'opacity-60',
         )}
       >
-        <Icon className="h-2.5 w-2.5 flex-shrink-0 text-[var(--indigo)]" />
+        <Icon className="h-2.5 w-2.5 flex-shrink-0 text-[var(--indigo-text)]" />
         <span className={cn(
-          'flex-1 min-w-0 truncate text-micro font-medium text-[var(--indigo)]',
+          'flex-1 min-w-0 truncate text-micro font-medium text-[var(--indigo-text)]',
           off && 'line-through',
         )}>{e.title}</span>
         {!compact && !e.all_day && (
-          <span className="text-micro tabular text-[var(--indigo)]/70 flex-shrink-0">{timeOf(item.at)}</span>
+          <span className="text-micro tabular text-[var(--indigo-text)]/70 flex-shrink-0">{timeOf(item.at)}</span>
         )}
       </button>
     );
@@ -499,8 +499,8 @@ export function CalendarPage() {
         {/* Period navigation + view switch */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1">
-            <button onClick={() => shift(-1)} className="icon-btn h-8 w-8" title="Previous"><ChevronLeft className="h-4 w-4" /></button>
-            <button onClick={() => shift(1)} className="icon-btn h-8 w-8" title="Next"><ChevronRight className="h-4 w-4" /></button>
+            <button onClick={() => shift(-1)} className="icon-btn h-8 w-8" title="Previous" aria-label="Previous"><ChevronLeft className="h-4 w-4" /></button>
+            <button onClick={() => shift(1)} className="icon-btn h-8 w-8" title="Next" aria-label="Next"><ChevronRight className="h-4 w-4" /></button>
           </div>
           <h2 className="text-heading font-semibold text-[var(--text-primary)] tracking-[-0.01em] min-w-[190px]">{periodLabel}</h2>
           <button
@@ -547,7 +547,7 @@ export function CalendarPage() {
             <div className="panel overflow-hidden">
               {agenda.length === 0 ? (
                 <div className="px-4 py-10 text-center">
-                  <CalendarDays className="h-6 w-6 mx-auto text-[var(--text-muted)] mb-2" />
+                  <CalendarDays className="h-6 w-6 mx-auto text-[var(--text-tertiary)] mb-2" />
                   <p className="text-strong font-medium text-[var(--text-primary)]">Nothing scheduled from here on</p>
                   <p className="text-body text-[var(--text-tertiary)] mt-1">Book a meeting or schedule an activity and it'll appear.</p>
                 </div>
@@ -568,7 +568,7 @@ export function CalendarPage() {
                           'flex items-baseline gap-2 px-4 py-2 border-b border-[var(--border-subtle)]',
                           isToday ? 'bg-[var(--indigo-subtle)]/40' : 'bg-[var(--bg-elevated)]/50',
                         )}>
-                          <span className={cn('text-body font-semibold', isToday ? 'text-[var(--indigo)]' : 'text-[var(--text-primary)]')}>
+                          <span className={cn('text-body font-semibold', isToday ? 'text-[var(--indigo-text)]' : 'text-[var(--text-primary)]')}>
                             {isToday ? 'Today' : formatLongWeekdayDate(item.at)}
                           </span>
                         </div>
@@ -583,7 +583,7 @@ export function CalendarPage() {
                         <span className={cn(
                           'flex h-7 w-7 items-center justify-center rounded-lg flex-shrink-0',
                           item.kind === 'event'
-                            ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                            ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
                             : TASK_TYPE_TONE[item.task.type] || TASK_TYPE_TONE.todo,
                         )}>
                           {item.kind === 'event'
@@ -616,7 +616,7 @@ export function CalendarPage() {
                           <Link
                             to={`/contacts/${contactId}`}
                             onClick={(e) => e.stopPropagation()}
-                            className="hidden sm:inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
+                            className="hidden sm:inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo-text)] hover:border-[var(--indigo)]/40 transition-colors flex-shrink-0"
                           >
                             Profile
                           </Link>
@@ -711,14 +711,14 @@ export function CalendarPage() {
                       <div className="flex items-center justify-between mb-1">
                         <span className={cn(
                           'inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-caption font-semibold tabular',
-                          isToday ? 'bg-[var(--indigo)] text-white' : inMonth ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]',
+                          isToday ? 'bg-[var(--indigo)] text-white' : inMonth ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]',
                         )}>
                           {day.getDate()}
                         </span>
                         <button
                           onClick={(e) => { e.stopPropagation(); bookAt(day); }}
                           className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity icon-btn h-5 w-5"
-                          title="Book a meeting on this day"
+                          title="Book a meeting on this day" aria-label="Book a meeting on this day"
                         >
                           <Plus className="h-3 w-3" />
                         </button>
@@ -738,7 +738,7 @@ export function CalendarPage() {
                         {items.length > 3 && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setAnchor(startOfDay(day)); setView('week'); }}
-                            className="w-full text-left px-1.5 text-micro font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo)] transition-colors"
+                            className="w-full text-left px-1.5 text-micro font-medium text-[var(--text-tertiary)] hover:text-[var(--indigo-text)] transition-colors"
                           >
                             +{items.length - 3} more
                           </button>

@@ -112,7 +112,7 @@ function MailboxRow({
             <Check className="h-3 w-3" strokeWidth={3} /> history loaded
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 text-[var(--indigo)]">
+          <span className="inline-flex items-center gap-1 text-[var(--indigo-text)]">
             <Loader2 className="h-3 w-3 animate-spin" /> still fetching older mail
           </span>
         )}
@@ -268,17 +268,17 @@ export function MailHistoryPanel({ onSynced }: { onSynced?: () => void }) {
     <div className="panel overflow-hidden">
       <div className="flex items-start gap-2.5 border-b border-[var(--border-subtle)] p-4">
         <span className="mt-px flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--indigo-subtle)]">
-          <History className="h-3.5 w-3.5 text-[var(--indigo)]" />
+          <History className="h-3.5 w-3.5 text-[var(--indigo-text)]" />
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="text-strong font-semibold text-[var(--text-primary)]">Mail history</h3>
+          <h2 className="text-strong font-semibold text-[var(--text-primary)]">Mail history</h2>
           <p className="mt-0.5 text-caption leading-snug text-[var(--text-secondary)]">
             How far back each mailbox is kept. Older mail is fetched in the background, a little at
             a time, so a wide window never holds up today&rsquo;s replies.
           </p>
         </div>
         {loading && (
-          <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-[var(--indigo-subtle)] px-2 py-0.5 text-micro font-semibold text-[var(--indigo)]">
+          <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-[var(--indigo-subtle)] px-2 py-0.5 text-micro font-semibold text-[var(--indigo-text)]">
             <Loader2 className="h-3 w-3 animate-spin" /> Loading
           </span>
         )}

@@ -119,7 +119,7 @@ export function DealFilters({
     <div className="mb-3 flex flex-wrap items-center gap-2">
       {/* The named slices. Counted, and hidden when empty — a chip reading
           "Stalled 0" is an invitation to press something that does nothing. */}
-      <div className="inline-flex items-center gap-1 rounded-lg bg-[var(--bg-elevated)] p-0.5">
+      <div className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-[var(--bg-elevated)] p-0.5 scrollbar-none sm:overflow-visible">
         {focuses.map((focus) => {
           const count = focusCount(deals, focus);
           if (count === 0 && focus !== 'open' && focus !== 'all' && filters.focus !== focus) return null;
@@ -130,11 +130,11 @@ export function DealFilters({
               type="button"
               onClick={() => onChange({ ...filters, focus })}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-body font-medium transition-colors',
+                'inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-body font-medium transition-colors',
                 on
                   ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
                   : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
-                !on && (focus === 'stalled' || focus === 'overdue') && count > 0 && 'text-rose-500',
+                !on && (focus === 'stalled' || focus === 'overdue') && count > 0 && 'text-rose-600 dark:text-rose-400',
               )}
             >
               {FOCUS_LABEL[focus]}
@@ -192,7 +192,7 @@ export function DealFilters({
             title={label}
             aria-pressed={view === id}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-body font-medium transition-colors',
+              'inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-body font-medium transition-colors',
               view === id
                 ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
                 : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',

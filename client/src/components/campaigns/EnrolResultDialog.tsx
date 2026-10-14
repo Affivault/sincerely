@@ -21,18 +21,18 @@ import { ChevronDown, UserCheck, UserMinus } from 'lucide-react';
 
 const REASON_TONE: Record<EnrolSkipReason, string> = {
   already_enrolled: 'text-[var(--text-tertiary)]',
-  in_other_campaign: 'text-[var(--indigo)]',
+  in_other_campaign: 'text-[var(--indigo-text)]',
   not_in_list: 'text-[var(--text-tertiary)]',
   suppressed: 'text-amber-600 dark:text-amber-400',
   unsubscribed: 'text-amber-600 dark:text-amber-400',
-  bounced: 'text-red-500',
-  no_email: 'text-red-500',
+  bounced: 'text-red-600 dark:text-red-400',
+  no_email: 'text-red-600 dark:text-red-400',
   not_yours: 'text-[var(--text-tertiary)]',
   /* Indigo, not amber: neither of these is a warning about bad data. They
      are the product declining to cold-pitch somebody you are negotiating
      with, or somebody who only exists in your CRM. */
-  crm_contact_only: 'text-[var(--indigo)]',
-  on_open_deal: 'text-[var(--indigo)]',
+  crm_contact_only: 'text-[var(--indigo-text)]',
+  on_open_deal: 'text-[var(--indigo-text)]',
 };
 
 export function EnrolResultDialog({
@@ -134,7 +134,7 @@ export function EnrolResultDialog({
                           <span className="text-[var(--text-tertiary)]">{person.email}</span>
                         )}
                         {person.detail && (
-                          <span className="text-[var(--indigo)]">{person.detail}</span>
+                          <span className="text-[var(--indigo-text)]">{person.detail}</span>
                         )}
                       </li>
                     ))}

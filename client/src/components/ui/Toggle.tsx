@@ -7,6 +7,8 @@ interface ToggleProps {
   disabled?: boolean;
   /** Accessible label when there's no visible text label nearby */
   'aria-label'?: string;
+  'aria-labelledby'?: string;
+  'aria-describedby'?: string;
   id?: string;
   className?: string;
 }
@@ -41,9 +43,12 @@ export function Toggle({
       {...aria}
       className={cn(
         'relative inline-flex flex-shrink-0 items-center rounded-full p-[2px] transition-colors duration-200 ease-out',
+        // Invisible hit area: the sm track is 18px tall; this makes the target >= 24px (WCAG 2.5.8).
+        "after:absolute after:-inset-1 after:content-['']",
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--indigo)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)]',
         'shadow-[inset_0_1px_2px_rgba(15,15,25,0.18)]',
-        checked ? 'bg-[var(--indigo)]' : 'bg-[var(--border-strong)]',
+        // Off track is a control boundary: 3:1 (1.4.11), not the 1.8:1 divider grey.
+        checked ? 'bg-[var(--indigo)]' : 'bg-[var(--border-control)]',
         disabled && 'opacity-45 cursor-not-allowed',
         dims.track,
         className

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { acceptsShortcut } from '../lib/keyboard';
+import { acceptsShortcut, isControlActivation } from '../lib/keyboard';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Moving through a table without the mouse.
@@ -116,6 +116,7 @@ export function useGridKeys({
 
       if (!acceptsShortcut(e.target)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isControlActivation(e)) return;
       if (s.count === 0) return;
 
       const move = (delta: number) => {

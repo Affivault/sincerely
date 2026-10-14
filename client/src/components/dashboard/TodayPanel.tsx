@@ -114,14 +114,14 @@ export function TodayPanel() {
       <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-[var(--border-subtle)]">
         <div className="min-w-0">
           <h3 className="flex items-center gap-1.5 text-strong font-semibold text-[var(--text-primary)]">
-            <CalendarDays className="h-3.5 w-3.5 text-[var(--indigo)]" />
+            <CalendarDays className="h-3.5 w-3.5 text-[var(--indigo-text)]" />
             Schedule
           </h3>
           <p className="mt-0.5 truncate text-caption text-[var(--text-tertiary)]">{todayLabel}</p>
         </div>
         <Link
           to="/calendar"
-          className="inline-flex flex-shrink-0 items-center gap-1 text-caption font-semibold text-[var(--indigo)] hover:underline"
+          className="inline-flex flex-shrink-0 items-center gap-1 text-caption font-semibold text-[var(--indigo-text)] hover:underline"
         >
           Calendar <ArrowRight className="h-3 w-3" />
         </Link>
@@ -161,7 +161,7 @@ export function TodayPanel() {
                     <span className="font-medium">How did it go?</span>{' '}
                     <span className="text-[var(--text-tertiary)]">{e.title}</span>
                   </span>
-                  <span className="text-micro font-semibold text-[var(--indigo)]">{openId === `o:${e.id}` ? 'Later' : 'Log it'}</span>
+                  <span className="text-micro font-semibold text-[var(--indigo-text)]">{openId === `o:${e.id}` ? 'Later' : 'Log it'}</span>
                 </button>
                 {openId === `o:${e.id}` && (
                   <div className="mt-2.5">
@@ -221,8 +221,8 @@ export function TodayPanel() {
                       className={cn(
                         'flex-shrink-0 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-micro font-semibold transition-colors',
                         isOpen || soon || live
-                          ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]'
-                          : 'text-[var(--text-tertiary)] hover:text-[var(--indigo)]',
+                          ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]'
+                          : 'text-[var(--text-tertiary)] hover:text-[var(--indigo-text)]',
                       )}
                       title="What to know before this meeting"
                     >

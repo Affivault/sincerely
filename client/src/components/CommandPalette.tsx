@@ -1,5 +1,5 @@
 import { takeTypedAhead } from '../context/CommandPaletteContext';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -98,6 +98,10 @@ interface CommandPaletteProps {
 
 export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  // Ids for the combobox/listbox pairing. The focus never leaves the input;
+  // the highlighted row is announced through aria-activedescendant.
+  const listId = useId();
+  const optionId = (index: number) => `${listId}-opt-${index}`;
   /*
    * The search input already carries autoFocus, and the trap leaves an
    * element inside alone if one is focused - so this only holds Tab in.
@@ -397,6 +401,15 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   const searching = isFetching && trimmed.length >= MIN_SEARCH_LENGTH;
   let flatIndex = -1;
+  const hasResults = flatItems.length > 0;
+  // Read out as the list changes, since nothing about the typing itself says what came back.
+  const status = searching
+    ? 'Searching'
+    : !hasResults
+      ? 'No results'
+      : query.trim()
+        ? `${flatItems.length} result${flatItems.length === 1 ? '' : 's'}`
+        : `${flatItems.length} suggestions`;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center px-4 pt-[14vh]">
@@ -414,11 +427,20 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         {/* Search row */}
         <div className="flex items-center gap-2.5 px-4 h-[52px] border-b border-[var(--border-subtle)]">
           {searching
-            ? <Loader2 className="h-4 w-4 text-[var(--indigo)] flex-shrink-0 animate-spin" />
+            ? <Loader2 className="h-4 w-4 text-[var(--indigo-text)] flex-shrink-0 animate-spin" />
             : <Search className="h-4 w-4 text-[var(--text-tertiary)] flex-shrink-0" strokeWidth={2} />}
           <input
             ref={inputRef}
             data-palette-input
+            type="text"
+            role="combobox"
+            aria-label="Search or run a command"
+            aria-autocomplete="list"
+            aria-expanded={hasResults}
+            aria-controls={hasResults ? listId : undefined}
+            aria-activedescendant={hasResults ? optionId(Math.min(active, flatItems.length - 1)) : undefined}
+            autoComplete="off"
+            spellCheck={false}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search people, deals, emails… or type “call ada tomorrow 3pm”"
@@ -426,6 +448,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
           />
           <kbd className="kbd flex-shrink-0">esc</kbd>
         </div>
+
+        <div role="status" aria-live="polite" className="sr-only">{status}</div>
 
         {/* Results */}
         <div ref={listRef} className="max-h-[min(60vh,460px)] overflow-y-auto py-2">
@@ -439,9 +463,10 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
               </p>
             </div>
           ) : (
-            groups.map(([group, groupItems]) => (
-              <div key={group} className="px-2 mb-1 last:mb-0">
-                <div className="px-2 pt-2 pb-1 text-caption font-medium text-[var(--text-tertiary)]">
+            <div id={listId} role="listbox" aria-label="Results">
+            {groups.map(([group, groupItems], groupIndex) => (
+              <div key={group} role="group" aria-labelledby={`${listId}-g-${groupIndex}`} className="px-2 mb-1 last:mb-0">
+                <div id={`${listId}-g-${groupIndex}`} className="px-2 pt-2 pb-1 text-caption font-medium text-[var(--text-tertiary)]">
                   {group}
                 </div>
                 {groupItems.map((item) => {
@@ -453,7 +478,13 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                   return (
                     <button
                       key={item.id}
+                      id={optionId(index)}
+                      role="option"
+                      aria-selected={isActive}
+                      tabIndex={-1}
                       data-index={index}
+                      // Keep the cursor in the search field; the row is chosen, not focused.
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => runItem(item)}
                       onMouseMove={() => setActive(index)}
                       className={cn(
@@ -484,13 +515,14 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                         </span>
                       )}
                       {isActive && (
-                        <CornerDownLeft className="h-3.5 w-3.5 text-[var(--indigo)] flex-shrink-0" strokeWidth={2} />
+                        <CornerDownLeft className="h-3.5 w-3.5 text-[var(--indigo-text)] flex-shrink-0" strokeWidth={2} />
                       )}
                     </button>
                   );
                 })}
               </div>
-            ))
+            ))}
+            </div>
           )}
         </div>
 

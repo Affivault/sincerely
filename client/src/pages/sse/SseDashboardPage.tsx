@@ -62,7 +62,7 @@ export function SseDashboardPage() {
           </>
         }
         actions={
-          <button onClick={() => refetch()} className="icon-btn" title="Refresh">
+          <button onClick={() => refetch()} className="icon-btn" title="Refresh" aria-label="Refresh">
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
         }
@@ -84,7 +84,7 @@ export function SseDashboardPage() {
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--bg-elevated)] mb-4">
             <AlertTriangle className="h-8 w-8 text-red-400" />
           </div>
-          <h3 className="text-title font-medium text-[var(--text-primary)] mb-1">Couldn't load senders</h3>
+          <h2 className="text-title font-medium text-[var(--text-primary)] mb-1">Couldn't load senders</h2>
           <p className="text-strong text-[var(--text-secondary)] mb-4">Something went wrong fetching the smart-sharding dashboard.</p>
           <button onClick={() => refetch()} className="btn-secondary">
             <RefreshCw className="h-3.5 w-3.5" /> Retry
@@ -95,7 +95,7 @@ export function SseDashboardPage() {
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--bg-elevated)] mb-4">
             <Mail className="h-8 w-8 text-[var(--text-tertiary)]" />
           </div>
-          <h3 className="text-title font-medium text-[var(--text-primary)] mb-1">No SMTP accounts</h3>
+          <h2 className="text-title font-medium text-[var(--text-primary)] mb-1">No SMTP accounts</h2>
           <p className="text-strong text-[var(--text-secondary)]">Add SMTP accounts to start using smart sender rotation.</p>
         </div>
       ) : (
@@ -118,7 +118,7 @@ export function SseDashboardPage() {
                   <Mail className={cn('h-5 w-5', account.is_available ? 'text-emerald-400' : 'text-red-400')} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-strong font-semibold text-[var(--text-primary)] truncate">{account.label || account.email_address}</h3>
+                  <h2 className="text-strong font-semibold text-[var(--text-primary)] truncate">{account.label || account.email_address}</h2>
                   {/* Only when it says something the heading did not. */}
                   {account.label && account.label.toLowerCase() !== account.email_address.toLowerCase() && (
                     <p className="text-body text-[var(--text-secondary)] truncate">{account.email_address}</p>
@@ -207,10 +207,10 @@ export function SseDashboardPage() {
 
       {/* How SSE Works */}
       <div className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-4">
-        <h3 className="text-strong font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
+        <h2 className="text-strong font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
           <Zap className="h-4 w-4 text-[var(--text-secondary)]" />
           How sender rotation works
-        </h3>
+        </h2>
         <div className="grid grid-cols-3 gap-4 text-strong text-[var(--text-secondary)]">
           <div>
             <p className="font-medium text-[var(--text-secondary)] mb-1">1. How each sender is scored</p>

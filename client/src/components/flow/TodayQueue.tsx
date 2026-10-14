@@ -39,7 +39,7 @@ import { usePeek } from '../peek/usePeek';
 import { DealHealthDot, ACTION_ICON } from '../crm/DealHealth';
 import { MeetingBrief, MeetingOutcome } from './MeetingBrief';
 import { AwayCard } from './AwayCard';
-import { acceptsShortcut } from '../../lib/keyboard';
+import { acceptsShortcut, isControlActivation } from '../../lib/keyboard';
 import { cn, formatRelativeTime, formatTimeUntil } from '../../lib/utils';
 import { Avatar } from '../shared/Avatar';
 
@@ -69,7 +69,7 @@ function writeSnoozed(map: Record<string, number>) {
 const KIND_META: Record<FlowKind, { label: string; icon: typeof Inbox; tint: string }> = {
   mailbox: { label: 'Mailboxes', icon: MailWarning, tint: 'text-rose-600 dark:text-rose-400' },
   meeting: { label: 'Meetings', icon: CalendarClock, tint: 'text-sky-600 dark:text-sky-400' },
-  reply:   { label: 'Replies',  icon: MessageSquareReply, tint: 'text-[var(--indigo)]' },
+  reply:   { label: 'Replies',  icon: MessageSquareReply, tint: 'text-[var(--indigo-text)]' },
   deal:    { label: 'Deals',    icon: Handshake, tint: 'text-amber-600 dark:text-amber-400' },
   task:    { label: 'Tasks',    icon: ListChecks, tint: 'text-emerald-600 dark:text-emerald-400' },
   moment:  { label: 'Moments',  icon: Zap, tint: 'text-violet-600 dark:text-violet-400' },
@@ -127,9 +127,14 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
   useEffect(() => { if (cursor >= items.length) setCursor(Math.max(0, items.length - 1)); }, [items.length, cursor]);
   const current = items[cursor];
 
-  // Keep the selected card in view as the cursor moves.
+  // Keep the selected card in view as the cursor moves - but not on first
+  // paint. scrollIntoView on mount moved the browser's Tab starting point
+  // into the queue, so the first Tab on the dashboard skipped "Skip to
+  // content" and the whole sidebar.
+  const cursorMoved = useRef(false);
   useEffect(() => {
     if (!current) return;
+    if (!cursorMoved.current) { cursorMoved.current = true; return; }
     listRef.current?.querySelector(`[data-key="${CSS.escape(current.key)}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [current]);
 
@@ -230,6 +235,7 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!acceptsShortcut(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isControlActivation(e)) return;
       if (!current && !['r'].includes(e.key)) return;
       switch (e.key) {
         case 'j': case 'ArrowDown': e.preventDefault(); setCursor((c) => Math.min(visible.length - 1, c + 1)); break;
@@ -307,7 +313,7 @@ export function TodayQueue({ mode }: { mode: 'home' | 'focus' }) {
   ) : isError ? (
     <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center">
       <p className="text-body text-[var(--text-secondary)]">Today's list could not be loaded.</p>
-      <button onClick={() => refetch()} className="mt-2 text-body font-medium text-[var(--indigo)] hover:underline">Try again</button>
+      <button onClick={() => refetch()} className="mt-2 text-body font-medium text-[var(--indigo-text)] hover:underline">Try again</button>
     </div>
   ) : items.length === 0 ? (
     <div className={cn('flex flex-col items-center rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-6 text-center', mode === 'home' ? 'py-10' : 'py-16')} data-today-clear>
@@ -463,7 +469,7 @@ function Kbd({ children, on }: { children: React.ReactNode; on: boolean }) {
 /* The second-choice actions stay out of the way until the card is chosen or
    pointed at - but only where a pointer can hover. On a touch screen there
    is no hover to reveal them, so they are always shown. */
-const QUIET_UNTIL_CHOSEN = '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100';
+const QUIET_UNTIL_CHOSEN = '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100';
 
 function FlowCard({
   item, selected, expanded, draft, editing, sending,
@@ -535,6 +541,9 @@ function FlowCard({
     <div
       data-key={item.key}
       onClick={onSelect}
+      // Tabbing into a card's buttons selects it too, so the keyboard path
+      // to "this is the row I am on" is the same as the mouse's click.
+      onFocus={onSelect}
       className={cn(
         'group relative transition-colors duration-100',
         selected ? 'bg-[var(--bg-muted)]' : 'hover:bg-[var(--bg-muted)]',
@@ -573,7 +582,7 @@ function FlowCard({
                 target="_blank"
                 rel="noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 text-micro font-semibold text-[var(--indigo)] hover:underline"
+                className="inline-flex min-h-6 items-center gap-1 text-micro font-semibold text-[var(--indigo-text)] hover:underline"
               >
                 <Video className="h-3 w-3" /> Join
               </a>
@@ -624,6 +633,7 @@ function FlowCard({
             <span className="font-normal">- edit, then send</span>
           </p>
           <textarea
+            aria-label="Reply draft"
             value={draft}
             onChange={(e) => onDraft(e.target.value)}
             onBlur={onEditDone}
@@ -637,7 +647,7 @@ function FlowCard({
           />
           <div className="mt-1.5 flex items-center justify-between text-caption text-[var(--text-tertiary)]">
             <span>Cmd/Ctrl + Enter sends · Esc stops editing</span>
-            <button onClick={onOpen} className="font-medium text-[var(--indigo)] hover:underline">Open the conversation</button>
+            <button onClick={onOpen} className="inline-flex min-h-6 items-center font-medium text-[var(--indigo-text)] hover:underline">Open the conversation</button>
           </div>
         </div>
       )}
@@ -665,7 +675,7 @@ function FlowCard({
       {selected && item.kind !== 'reply' && !expanded && (item.meeting || item.deal) && (
         <button
           onClick={(e) => { e.stopPropagation(); onToggle(); }}
-          className="w-full border-t border-[var(--border-subtle)] py-1.5 text-caption text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+          className="min-h-6 w-full border-t border-[var(--border-subtle)] py-1.5 text-caption text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
         >
           {item.meeting ? (item.meeting.needs_outcome ? 'Log how it went' : 'Show the brief') : 'Why is this here?'} <Kbd on={selected}>space</Kbd>
         </button>

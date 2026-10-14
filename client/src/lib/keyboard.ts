@@ -89,3 +89,18 @@ export function isKeySequencePending(): boolean {
 export function acceptsShortcut(target: EventTarget | null): boolean {
   return !isTypingTarget(target) && !isModalOpen() && !isKeySequencePending();
 }
+
+const ACTIVATABLE = 'button, a[href], summary, select, [role="button"], [role="menuitem"], [role="option"], [role="tab"], [role="checkbox"], [role="switch"], [role="link"]';
+
+/**
+ * Enter or Space pressed on a control that already does something with it.
+ * A page-level shortcut must leave those keys alone: the dashboard queue
+ * took Enter for "open the selected row" and called preventDefault, so
+ * Enter on any focused button on the page did nothing - the whole page was
+ * unusable from the keyboard.
+ */
+export function isControlActivation(e: KeyboardEvent): boolean {
+  if (e.key !== 'Enter' && e.key !== ' ') return false;
+  const el = e.target instanceof Element ? e.target : null;
+  return !!el?.closest(ACTIVATABLE);
+}

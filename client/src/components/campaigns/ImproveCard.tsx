@@ -94,7 +94,7 @@ export function ImproveCard({ campaignId }: { campaignId: string }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]" data-improve={data.enabled ? (data.current?.status || 'idle') : 'off'}>
       <div className="flex items-start gap-3 px-4 py-3.5">
-        <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] text-[var(--indigo)]">
+        <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--indigo-subtle)] text-[var(--indigo-text)]">
           <Sparkles className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
@@ -139,14 +139,14 @@ export function ImproveCard({ campaignId }: { campaignId: string }) {
             {data.history.filter((h) => h.summary || h.status === 'skipped').slice(0, 8).map((h) => (
               <li key={h.id} className="flex items-start gap-2.5 px-4 py-2.5">
                 {h.status === 'won' ? <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500" />
-                  : h.status === 'undone' ? <RotateCcw className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--text-muted)]" />
-                    : <Circle className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--text-muted)]" />}
+                  : h.status === 'undone' ? <RotateCcw className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--text-tertiary)]" />
+                    : <Circle className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--text-tertiary)]" />}
                 <div className="min-w-0 flex-1">
                   <p className="text-body text-[var(--text-primary)]">
                     {h.status === 'skipped' ? `You skipped a new ${IMPROVE_ELEMENT_LABELS[h.element]} for email ${h.email_number}.` : h.summary}
                     {h.status === 'undone' && ' You put the original back.'}
                   </p>
-                  <p className="text-micro text-[var(--text-muted)]">{formatRelativeTime(h.decided_at || h.created_at)}</p>
+                  <p className="text-micro text-[var(--text-tertiary)]">{formatRelativeTime(h.decided_at || h.created_at)}</p>
                 </div>
                 {h.status === 'won' && (
                   <Button size="sm" variant="ghost" disabled={busy} onClick={() => undo.mutate(h.id)}>
@@ -189,7 +189,7 @@ function Proposal({ e, busy, onApprove, onSkip }: {
               aria-label="New subject line"
               className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-app)] px-3 py-2 text-body text-[var(--text-primary)] outline-none focus:border-[var(--indigo)]"
             />
-            <p className="mt-1 text-right text-micro tabular-nums text-[var(--text-muted)]" data-improve-count>{subject.length}/80</p>
+            <p className="mt-1 text-right text-micro tabular-nums text-[var(--text-tertiary)]" data-improve-count>{subject.length}/80</p>
           </div>
         ) : (
           <div className="rounded-xl border border-[var(--border-subtle)]">
@@ -235,7 +235,7 @@ function Running({ e, busy, onStop }: { e: Experiment; busy: boolean; onStop: ()
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-[var(--text-secondary)]">
         <span>Yours: <strong className="tabular-nums text-[var(--text-primary)]">{rate(e.a)}</strong> replied ({e.a.sent.toLocaleString()} sent)</span>
         <span>Relay's: <strong className="tabular-nums text-[var(--text-primary)]">{rate(e.b)}</strong> replied ({e.b.sent.toLocaleString()} sent)</span>
-        {early && done > 0 && <span className="text-[var(--text-muted)]">Too early to read anything into these.</span>}
+        {early && done > 0 && <span className="text-[var(--text-tertiary)]">Too early to read anything into these.</span>}
         <Button size="sm" variant="ghost" className="ml-auto" disabled={busy} onClick={onStop}>Stop test</Button>
       </div>
     </div>

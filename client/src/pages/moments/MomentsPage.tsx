@@ -35,7 +35,7 @@ const KIND_ICON: Record<SignalKind, typeof Zap> = {
 
 const STRENGTH: Record<number, { label: string; cls: string }> = {
   3: { label: 'Strong', cls: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-400' },
-  2: { label: 'Good', cls: 'bg-[var(--indigo)]/10 text-[var(--indigo)]' },
+  2: { label: 'Good', cls: 'bg-[var(--indigo)]/10 text-[var(--indigo-text)]' },
   1: { label: 'Worth a look', cls: 'bg-[var(--bg-app)] text-[var(--text-tertiary)]' },
 };
 
@@ -147,7 +147,7 @@ function MomentCard({ moment: m, onWrite, onAdd, onDismiss }: {
   return (
     <article className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4" data-moment={m.kind}>
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--indigo)]/10 text-[var(--indigo)]">
+        <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--indigo)]/10 text-[var(--indigo-text)]">
           <Icon className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
@@ -156,7 +156,7 @@ function MomentCard({ moment: m, onWrite, onAdd, onDismiss }: {
             <span className={`rounded-full px-2 py-0.5 font-medium ${strength.cls}`}>{strength.label}</span>
             <span>{formatRelativeTime(m.occurred_at)}</span>
             {m.company && (
-              <Link to={`/companies/${m.company.id}`} className="inline-flex items-center gap-1 font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:underline">
+              <Link to={`/companies/${m.company.id}`} className="inline-flex items-center gap-1 font-medium text-[var(--text-secondary)] hover:text-[var(--indigo-text)] hover:underline">
                 <Building2 className="h-3 w-3" /> {m.company.name}
               </Link>
             )}
@@ -167,7 +167,7 @@ function MomentCard({ moment: m, onWrite, onAdd, onDismiss }: {
             <blockquote className="mt-2 border-l-2 border-[var(--border-default)] pl-3 text-body italic text-[var(--text-secondary)]">
               "{m.evidence_quote}"
               {m.evidence_url && (
-                <a href={m.evidence_url} target="_blank" rel="noopener noreferrer" className="ml-2 inline-flex items-center gap-1 not-italic text-caption font-medium text-[var(--indigo)] hover:underline">
+                <a href={m.evidence_url} target="_blank" rel="noopener noreferrer" className="ml-2 inline-flex items-center gap-1 not-italic text-caption font-medium text-[var(--indigo-text)] hover:underline">
                   Source <ExternalLink className="h-3 w-3" />
                 </a>
               )}
@@ -191,7 +191,7 @@ function MomentCard({ moment: m, onWrite, onAdd, onDismiss }: {
                         role="radio"
                         aria-checked={p.id === pick}
                         onClick={() => setPick(p.id)}
-                        className={`rounded-full border px-2.5 py-1 text-caption font-medium transition-colors ${p.id === pick ? 'border-[var(--indigo)] bg-[var(--indigo)]/10 text-[var(--indigo)]' : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                        className={`rounded-full border px-2.5 py-1 text-caption font-medium transition-colors ${p.id === pick ? 'border-[var(--indigo)] bg-[var(--indigo)]/10 text-[var(--indigo-text)]' : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
                       >
                         {who(p)}{p.title ? ` · ${p.title}` : ''}
                       </button>
@@ -202,7 +202,7 @@ function MomentCard({ moment: m, onWrite, onAdd, onDismiss }: {
             ) : m.company ? (
               <span className="inline-flex items-center gap-1.5 text-body text-[var(--text-secondary)]">
                 <Building2 className="h-3.5 w-3.5" /> No one at {m.company.name} to write to yet.
-                <Link to="/prospector" className="font-medium text-[var(--indigo)] hover:underline">Find people</Link>
+                <Link to="/prospector" className="font-medium text-[var(--indigo-text)] hover:underline">Find people</Link>
               </span>
             ) : null}
           </div>
@@ -274,7 +274,7 @@ function WatchSettings({ data }: { data: MomentsResponse }) {
   return (
     <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]" data-moments-watch>
       <div className="flex items-start gap-3 px-4 py-3.5">
-        <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--indigo)]/10 text-[var(--indigo)]"><Globe className="h-4 w-4" /></span>
+        <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--indigo)]/10 text-[var(--indigo-text)]"><Globe className="h-4 w-4" /></span>
         <div className="min-w-0 flex-1">
           <p className="text-strong font-semibold text-[var(--text-primary)]">Watch company websites</p>
           <p className="text-caption text-[var(--text-tertiary)]">
@@ -294,7 +294,7 @@ function WatchSettings({ data }: { data: MomentsResponse }) {
                 <button type="button" className="py-1 pl-2.5" onClick={() => setTopics(s.topics.map((x, j) => (j === i ? { ...x, on: !x.on } : x)))} aria-pressed={t.on}>
                   {t.on && <Check className="mr-1 inline h-3 w-3" />}{t.label}
                 </button>
-                <button type="button" className="py-1 pr-2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]" onClick={() => setTopics(s.topics.filter((_, j) => j !== i))} aria-label={`Remove ${t.label}`}>
+                <button type="button" className="relative py-1 pr-2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] after:absolute after:-inset-1 after:content-['']" onClick={() => setTopics(s.topics.filter((_, j) => j !== i))} aria-label={`Remove ${t.label}`}>
                   <X className="h-3 w-3" />
                 </button>
               </span>
@@ -303,7 +303,7 @@ function WatchSettings({ data }: { data: MomentsResponse }) {
           </div>
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             <form className="flex min-w-[14rem] flex-1 items-center gap-2" onSubmit={(e) => { e.preventDefault(); add(); }}>
-              <input
+              <input aria-label="Add your own topic"
                 value={adding}
                 onChange={(e) => setAdding(e.target.value)}
                 maxLength={80}

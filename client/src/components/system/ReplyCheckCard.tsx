@@ -51,7 +51,7 @@ export function ReplyCheckCard({ status, run }: {
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]" data-reply-check={tone}>
       <div className="flex flex-wrap items-start gap-3 border-b border-[var(--border-subtle)] px-4 py-3">
-        <MailCheck className="mt-0.5 h-5 w-5 flex-shrink-0 text-[var(--indigo)]" />
+        <MailCheck className="mt-0.5 h-5 w-5 flex-shrink-0 text-[var(--indigo-text)]" />
         <div className="min-w-[14rem] flex-1">
           <p className="text-strong font-semibold text-[var(--text-primary)]">Does a reply stop the sequence?</p>
           <p className="text-caption text-[var(--text-tertiary)]">
@@ -72,10 +72,11 @@ export function ReplyCheckCard({ status, run }: {
           return (
             <li key={s} className="flex items-center gap-2 sm:flex-col sm:items-start sm:gap-1" data-reply-stage={s} data-reply-stage-state={done ? 'done' : failed ? 'failed' : 'pending'}>
               <Icon className={cn('h-4 w-4 flex-shrink-0',
-                done ? 'text-emerald-500' : failed ? 'text-rose-500' : 'text-[var(--text-muted)]',
+                done ? 'text-emerald-600 dark:text-emerald-400' : failed ? 'text-rose-600 dark:text-rose-400' : 'text-[var(--text-tertiary)]',
                 running && !done && 'animate-spin')} />
               <span className={cn('text-caption', done || failed ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]')}>
                 {REPLY_CHECK_STAGE_LABELS[s]}
+                <span className="sr-only">{done ? ' - done' : failed ? ' - failed' : ' - not reached yet'}</span>
               </span>
             </li>
           );

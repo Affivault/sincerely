@@ -43,7 +43,7 @@ type StreamItem = {
 
 const KIND_META: Record<StreamItem['kind'], { icon: typeof Mail; tone: string; label: string }> = {
   'email-in':  { icon: ArrowDownLeft, tone: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400', label: 'Received' },
-  'email-out': { icon: ArrowUpRight,  tone: 'bg-[var(--indigo-subtle)] text-[var(--indigo)]',          label: 'Sent' },
+  'email-out': { icon: ArrowUpRight,  tone: 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]',          label: 'Sent' },
   note:        { icon: StickyNote,    tone: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',      label: 'Note' },
   meeting:     { icon: CalendarDays,  tone: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',   label: 'Meeting' },
   task:        { icon: ListTodo,      tone: 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]',    label: 'Activity' },
@@ -54,7 +54,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
     <div className="px-4 py-3.5">
       <p className="text-caption font-medium text-[var(--text-tertiary)]">{label}</p>
       <p className="mt-1.5 text-title font-medium text-[var(--text-primary)] tabular leading-none truncate">{value}</p>
-      {sub && <p className="mt-1.5 text-caption text-[var(--text-muted)]">{sub}</p>}
+      {sub && <p className="mt-1.5 text-caption text-[var(--text-tertiary)]">{sub}</p>}
     </div>
   );
 }
@@ -89,8 +89,8 @@ function InfoRow({ icon: Icon, label, value, onSave, href, type }: {
               href={href}
               target="_blank"
               rel="noreferrer"
-              title={`Open ${label}`}
-              className="shrink-0 opacity-0 group-hover/row:opacity-100 transition-opacity p-0.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+              title={`Open ${label}`} aria-label={`Open ${label}`}
+              className="relative shrink-0 opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 group-focus-within/row:opacity-100 transition-opacity p-0.5 rounded after:absolute after:-inset-1.5 after:content-[''] hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
             >
               <ExternalLink className="h-3 w-3" />
             </a>
@@ -234,14 +234,16 @@ export function CompanyDetailPage() {
           {/* The account's monogram, in the same tones as the people in it. */}
           <Avatar name={company.name} size="xl" className="!rounded-xl" />
           <div className="min-w-0">
-            <InlineEdit
-              value={company.name}
-              placeholder="Unnamed company"
-              ariaLabel="company name"
-              textClassName="page-title"
-              inputClassName="page-title"
-              onSave={(next) => save({ name: next })}
-            />
+            <h1 className="min-w-0">
+              <InlineEdit
+                value={company.name}
+                placeholder="Unnamed company"
+                ariaLabel="company name"
+                textClassName="page-title"
+                inputClassName="page-title"
+                onSave={(next) => save({ name: next })}
+              />
+            </h1>
             <p className="text-body text-[var(--text-secondary)] truncate">
               {[company.industry, company.location].filter(Boolean).join(' · ') || company.domain || 'No details yet'}
             </p>
@@ -256,7 +258,7 @@ export function CompanyDetailPage() {
           <button
             onClick={() => removeCompany(company.name)}
             className="icon-btn h-8 w-8 hover:text-[var(--error)]"
-            title="Delete company"
+            title="Delete company" aria-label="Delete company"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -286,6 +288,7 @@ export function CompanyDetailPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-body text-[var(--text-secondary)]">Headcount</p>
                   <InlineSelect
+                    ariaLabel="Headcount"
                     value={(company.size || '') as string}
                     options={COMPANY_SIZE_OPTIONS}
                     onSave={(next) => save({ size: next || null })}
@@ -332,7 +335,7 @@ export function CompanyDetailPage() {
                 {t.count > 0 && (
                   <span className={cn(
                     'flex h-[17px] min-w-[17px] items-center justify-center rounded-md px-1 text-micro font-semibold tabular',
-                    tab === t.id ? 'bg-[var(--indigo-subtle)] text-[var(--indigo)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]',
+                    tab === t.id ? 'bg-[var(--indigo-subtle)] text-[var(--indigo-text)]' : 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)]',
                   )}>{t.count}</span>
                 )}
                 <span className={cn('absolute left-2 right-2 bottom-0 h-[2px] rounded-t-full transition-opacity', tab === t.id ? 'bg-[var(--indigo)] opacity-100' : 'opacity-0')} />
@@ -371,7 +374,7 @@ export function CompanyDetailPage() {
                         {item.detail && (
                           <p className="text-caption text-[var(--text-tertiary)] truncate mt-0.5">{item.detail}</p>
                         )}
-                        <p className="text-caption text-[var(--text-muted)] mt-0.5">
+                        <p className="text-caption text-[var(--text-tertiary)] mt-0.5">
                           {meta.label}
                           {item.who && (
                             <>
@@ -379,7 +382,7 @@ export function CompanyDetailPage() {
                               {item.contactId ? (
                                 <button
                                   onClick={() => openPeek('contact', item.contactId!)}
-                                  className="text-[var(--text-tertiary)] hover:text-[var(--indigo)] hover:underline"
+                                  className="text-[var(--text-tertiary)] hover:text-[var(--indigo-text)] hover:underline"
                                 >
                                   {item.who}
                                 </button>
@@ -415,7 +418,7 @@ export function CompanyDetailPage() {
                       <div className="flex items-center gap-2.5">
                         <Avatar name={name} email={c.email} size="sm" />
                         <button onClick={() => openPeek('contact', c.id)} className="min-w-0 flex-1 text-left group/p">
-                          <span className="block text-body font-medium text-[var(--text-primary)] truncate group-hover/p:text-[var(--indigo)] transition-colors">
+                          <span className="block text-body font-medium text-[var(--text-primary)] truncate group-hover/p:text-[var(--indigo-text)] transition-colors">
                             {name}
                           </span>
                           <span className="block text-caption text-[var(--text-tertiary)] truncate">
@@ -424,14 +427,14 @@ export function CompanyDetailPage() {
                         </button>
                         <button
                           onClick={() => setWritingTo(writingTo === c.id ? null : c.id)}
-                          className="flex-shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo)] hover:border-[var(--indigo)]/40 transition-colors"
+                          className="flex-shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-md border border-[var(--border-subtle)] text-caption font-medium text-[var(--text-secondary)] hover:text-[var(--indigo-text)] hover:border-[var(--indigo)]/40 transition-colors"
                         >
                           <Mail className="h-3 w-3" /> Email
                         </button>
                         <Link
                           to={`/contacts/${c.id}`}
                           className="flex-shrink-0 icon-btn h-6 w-6"
-                          title="Open full profile"
+                          title="Open full profile" aria-label="Open full profile"
                         >
                           <ArrowUpRight className="h-3.5 w-3.5" />
                         </Link>
@@ -467,10 +470,10 @@ export function CompanyDetailPage() {
                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-[var(--bg-hover)] transition-colors group/d"
                   >
                     <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--indigo-subtle)] flex-shrink-0">
-                      <Handshake className="h-3 w-3 text-[var(--indigo)]" />
+                      <Handshake className="h-3 w-3 text-[var(--indigo-text)]" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-body font-medium text-[var(--text-primary)] truncate group-hover/d:text-[var(--indigo)] transition-colors">
+                      <span className="block text-body font-medium text-[var(--text-primary)] truncate group-hover/d:text-[var(--indigo-text)] transition-colors">
                         {d.title}
                       </span>
                       <span className="block text-caption text-[var(--text-tertiary)]">

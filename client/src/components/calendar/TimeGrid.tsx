@@ -424,7 +424,15 @@ export function TimeGrid({
       </div>
 
       {/* ── The grid itself ── */}
-      <div ref={scrollRef} className="relative overflow-y-auto" style={{ maxHeight: '62vh' }}>
+      <div
+        ref={scrollRef}
+        // Scrolls, so the keyboard has to be able to land on it.
+        tabIndex={0}
+        role="region"
+        aria-label={days.length === 1 ? 'Day schedule' : 'Week schedule'}
+        className="relative overflow-y-auto focus-visible:shadow-[var(--ring-focus)]"
+        style={{ maxHeight: '62vh' }}
+      >
         <div className="flex" style={{ height: DAY_HEIGHT }}>
           {/* Hour gutter */}
           <div style={{ width: GUTTER }} className="relative flex-shrink-0 select-none">
@@ -562,6 +570,11 @@ export function TimeGrid({
                     <div
                       key={event.id}
                       data-event={event.id}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onOpen(event); }
+                      }}
                       onPointerDown={beginMove(event, day)}
                       onPointerMove={dragEvent(event)}
                       onPointerUp={endEventDrag(event)}
@@ -601,7 +614,7 @@ export function TimeGrid({
                               everything decorative rather than sitting beside
                               it and being cut off. */}
                           {d ? (
-                            <span className="tabular font-medium text-[var(--indigo)]">
+                            <span className="tabular font-medium text-[var(--indigo-text)]">
                               {d.kind === 'move'
                                 ? rangeLabel(d.day, d.startMinute, Math.min(DAY_MINUTES, d.startMinute + mins))
                                 : rangeLabel(d.day, d.startMinute, d.endMinute)}
@@ -625,7 +638,7 @@ export function TimeGrid({
                           onPointerUp={endEventDrag(event)}
                           onPointerCancel={cancelDrag}
                           data-resize={event.id}
-                          className="absolute inset-x-0 bottom-0 h-1.5 cursor-ns-resize opacity-0 group-hover:opacity-100"
+                          className="absolute inset-x-0 bottom-0 h-1.5 cursor-ns-resize opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
                           style={{ background: colour }}
                         />
                       )}
@@ -650,7 +663,7 @@ export function TimeGrid({
                     <p className="truncate text-caption font-semibold leading-tight text-[var(--text-primary)]">
                       {ghost.title}
                     </p>
-                    <p className="truncate text-micro tabular font-medium text-[var(--indigo)]">
+                    <p className="truncate text-micro tabular font-medium text-[var(--indigo-text)]">
                       {rangeLabel(day, ghost.from, ghost.to)}
                     </p>
                   </div>

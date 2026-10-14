@@ -41,7 +41,7 @@ function IssueRow({ issue }: { issue: CampaignIssue }) {
       {issue.fix && (
         <Link
           to={issue.fix.href}
-          className="mt-px inline-flex flex-shrink-0 items-center gap-1 rounded-md px-2 py-1 text-caption font-semibold text-[var(--indigo)] transition-colors hover:bg-[var(--indigo-subtle)]"
+          className="mt-px inline-flex flex-shrink-0 items-center gap-1 rounded-md px-2 py-1 text-caption font-semibold text-[var(--indigo-text)] transition-colors hover:bg-[var(--indigo-subtle)]"
         >
           {issue.fix.label}
           <ArrowRight className="h-3 w-3" />

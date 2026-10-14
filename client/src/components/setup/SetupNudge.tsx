@@ -47,7 +47,9 @@ export function SetupNudge({ collapsed }: { collapsed: boolean }) {
       <Link
         to={nudge.step.href}
         title={`${nudge.position} — ${nudge.step.label}`}
-        className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--indigo)]/30 bg-[var(--indigo-subtle)] text-micro font-bold tabular-nums text-[var(--indigo)] transition-colors hover:bg-[var(--indigo-subtle)]/80"
+        // The visible text is only "2/5"; the name keeps it, then says what it is and what is next.
+        aria-label={`Setup ${nudge.done_count}/${nudge.total}: ${nudge.position} — ${nudge.step.label}`}
+        className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--indigo)]/30 bg-[var(--indigo-subtle)] text-micro font-bold tabular-nums text-[var(--indigo-text)] transition-colors hover:bg-[var(--indigo-subtle)]/80"
         data-setup-nudge
       >
         {nudge.done_count}/{nudge.total}
@@ -62,7 +64,7 @@ export function SetupNudge({ collapsed }: { collapsed: boolean }) {
       data-setup-nudge
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-caption font-medium text-[var(--indigo)]">{nudge.position}</span>
+        <span className="text-caption font-medium text-[var(--indigo-text)]">{nudge.position}</span>
         <span className="text-caption font-semibold tabular-nums text-[var(--text-tertiary)]">
           {nudge.done_count}/{nudge.total}
         </span>
@@ -80,7 +82,7 @@ export function SetupNudge({ collapsed }: { collapsed: boolean }) {
         />
       </div>
 
-      <span className="mt-2 inline-flex items-center gap-1 text-caption font-semibold text-[var(--indigo)]">
+      <span className="mt-2 inline-flex items-center gap-1 text-caption font-semibold text-[var(--indigo-text)]">
         {nudge.step.cta}
         <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
       </span>

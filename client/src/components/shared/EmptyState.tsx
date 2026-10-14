@@ -26,7 +26,7 @@ export function EmptyState({
       <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
         <Icon className="h-5 w-5 text-[var(--text-tertiary)]" strokeWidth={1.75} />
       </div>
-      <h3 className="mb-1.5 text-heading font-semibold text-[var(--text-primary)] tracking-[-0.01em]">{title}</h3>
+      <h2 className="mb-1.5 text-heading font-semibold text-[var(--text-primary)] tracking-[-0.01em]">{title}</h2>
       <p className="mb-5 max-w-sm text-body text-[var(--text-secondary)] leading-relaxed">{description}</p>
       {(actionLabel && onAction) || (secondaryActionLabel && onSecondaryAction) ? (
         <div className="flex items-center gap-2">
@@ -68,7 +68,7 @@ export function InlineEmpty({ icon: Icon, children, action, className }: {
       className={`flex flex-col items-center justify-center gap-2 px-4 py-8 text-center ${className || ''}`}
       data-inline-empty
     >
-      {Icon && <Icon className="h-5 w-5 text-[var(--text-muted)]" strokeWidth={1.5} />}
+      {Icon && <Icon className="h-5 w-5 text-[var(--text-tertiary)]" strokeWidth={1.5} />}
       <p className="max-w-xs text-body leading-relaxed text-[var(--text-tertiary)]">{children}</p>
       {action}
     </div>
