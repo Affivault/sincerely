@@ -83,18 +83,15 @@ function bucketTasks(tasks: CrmTask[]): Bucket[] {
   ].filter((b) => b.tasks.length > 0);
 }
 
-function StatCard({ icon: Icon, label, value, tone }: {
-  icon: typeof CheckSquare; label: string; value: string | number; tone?: string;
+/* One cell of the counters strip. The number takes its tone only when it
+   is asking for something - an overdue count of zero is not red. */
+function StatCard({ label, value, tone }: {
+  icon?: typeof CheckSquare; label: string; value: string | number; tone?: string;
 }) {
   return (
-    <div className="panel px-4 py-3 flex items-center gap-3">
-      <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0', tone || 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]')}>
-        <Icon className="h-4 w-4" />
-      </span>
-      <div className="min-w-0">
-        <p className="text-title font-semibold tabular text-[var(--text-primary)] leading-none tracking-[-0.02em]">{value}</p>
-        <p className="text-caption text-[var(--text-tertiary)] mt-1">{label}</p>
-      </div>
+    <div className="px-4 py-3.5">
+      <p className="text-caption font-medium text-[var(--text-tertiary)]">{label}</p>
+      <p className={cn('mt-1.5 text-title font-medium tabular leading-none tracking-[-0.02em]', tone || 'text-[var(--text-primary)]')}>{value}</p>
     </div>
   );
 }
@@ -156,8 +153,8 @@ function TaskRow({ task, onEdit, onToggle, onSnooze }: {
     <div
       onClick={() => onEdit(task)}
       className={cn(
-        'group flex items-center gap-3 px-3 py-2.5 rounded-lg border border-transparent cursor-pointer transition-all',
-        'hover:border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]',
+        'group flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors',
+        'hover:bg-[var(--bg-muted)]',
         task.is_done && 'opacity-55',
       )}
     >
@@ -378,11 +375,11 @@ export function TasksPage() {
 
       <div className="space-y-4">
         {/* At-a-glance */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <StatCard icon={Flame} label="Overdue" value={stats.overdue} tone={stats.overdue > 0 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' : undefined} />
-          <StatCard icon={CalendarDays} label="Due today" value={stats.today} tone={stats.today > 0 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : undefined} />
-          <StatCard icon={ListTodo} label="Open" value={stats.open} />
-          <StatCard icon={Check} label="Done today" value={stats.doneToday} tone={stats.doneToday > 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : undefined} />
+        <div className="fact-strip grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Overdue" value={stats.overdue} tone={stats.overdue > 0 ? 'text-rose-600 dark:text-rose-400' : undefined} />
+          <StatCard label="Due today" value={stats.today} tone={stats.today > 0 ? 'text-amber-700 dark:text-amber-400' : undefined} />
+          <StatCard label="Open" value={stats.open} />
+          <StatCard label="Done today" value={stats.doneToday} tone={stats.doneToday > 0 ? 'text-emerald-700 dark:text-emerald-400' : undefined} />
         </div>
 
         {/* Type filter */}
@@ -399,12 +396,12 @@ export function TasksPage() {
                 className={cn(
                   'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border text-body font-medium transition-all',
                   active
-                    ? 'border-[var(--indigo)] bg-[var(--indigo-subtle)] text-[var(--indigo)]'
+                    ? 'border-[var(--text-primary)] bg-[var(--text-primary)] text-[var(--bg-surface)]'
                     : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)]',
                 )}
               >
                 {t.label}
-                <span className={cn('tabular text-micro', active ? 'text-[var(--indigo)]' : 'text-[var(--text-tertiary)]')}>{count}</span>
+                <span className={cn('tabular text-micro', active ? 'opacity-75' : 'text-[var(--text-tertiary)]')}>{count}</span>
               </button>
             );
           })}
@@ -425,10 +422,11 @@ export function TasksPage() {
             />
           </div>
         ) : (
-          <>
+          // One list, with the day as a heading inside it - not a box per day.
+          <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] divide-y divide-[var(--border-subtle)]">
             {buckets.map((b) => (
-              <div key={b.id} className="panel overflow-hidden">
-                <div className="flex items-baseline gap-2 px-4 py-2.5 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50">
+              <section key={b.id}>
+                <div className="flex items-baseline gap-2 px-4 pt-4 pb-2">
                   <h3 className={cn('text-body font-semibold', b.tone)}>{b.label}</h3>
                   <span className="text-caption tabular text-[var(--text-tertiary)]">{b.tasks.length}</span>
                   {b.id === 'overdue' && b.tasks.length > 1 ? (
@@ -443,35 +441,35 @@ export function TasksPage() {
                     b.hint && <span className="text-caption text-[var(--text-muted)] ml-auto">{b.hint}</span>
                   )}
                 </div>
-                <div className="p-1.5">
+                <div className="pb-1.5">
                   {b.tasks.map((t) => (
                     <TaskRow key={t.id} task={t} onEdit={openEdit} onToggle={(x) => toggle.mutate(x)} onSnooze={(x) => snooze.mutate(x)} />
                   ))}
                 </div>
-              </div>
+              </section>
             ))}
 
             {done.length > 0 && (
-              <div className="panel overflow-hidden">
+              <section>
                 <button
                   onClick={() => setShowDone((v) => !v)}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/50 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                  className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-[var(--bg-muted)] transition-colors"
                 >
-                  <Check className="h-3.5 w-3.5 text-emerald-500" />
+                  <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                   <h3 className="text-body font-semibold text-[var(--text-secondary)]">Completed</h3>
                   <span className="text-caption tabular text-[var(--text-tertiary)]">{done.length}</span>
                   <span className="ml-auto text-caption text-[var(--text-tertiary)]">{showDone ? 'Hide' : 'Show'}</span>
                 </button>
                 {showDone && (
-                  <div className="p-1.5">
+                  <div className="pb-1.5">
                     {done.slice(0, 50).map(({ t }) => (
                       <TaskRow key={t.id} task={t} onEdit={openEdit} onToggle={(x) => toggle.mutate(x)} onSnooze={(x) => snooze.mutate(x)} />
                     ))}
                   </div>
                 )}
-              </div>
+              </section>
             )}
-          </>
+          </div>
         )}
       </div>
 

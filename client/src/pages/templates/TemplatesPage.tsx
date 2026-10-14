@@ -41,7 +41,7 @@ import type {
   CreateEmailTemplateInput,
   CreateSequenceTemplateInput,
 } from '@lemlist/shared';
-import { TEMPLATE_CATEGORIES, formatDayMonth, draftAgeLabel, plural } from '@lemlist/shared';
+import { TEMPLATE_CATEGORIES, formatDayMonth, draftAgeLabel, plural, SAMPLE_PREVIEW_CONTACT, SAMPLE_PREVIEW_SENDER } from '@lemlist/shared';
 import { cn } from '../../lib/utils';
 import { useDraftRecovery } from '../../hooks/useDraftRecovery';
 
@@ -52,22 +52,27 @@ function EmailPreview({ subject, bodyHtml, compact }: { subject: string; bodyHtm
   // shared with every other screen that lists mailboxes, so no extra request.
   const { data: mailboxes } = useQuery({ queryKey: ['smtp-accounts'], queryFn: smtpApi.list, staleTime: 60_000 });
   const fromAddress = mailboxes?.find((m) => m.is_active)?.email_address;
+  // The person and sender are the app's one sample cast, so a template looks
+  // the same here as in the campaign builder's preview. It had its own
+  // "Alex Johnson" and a To: address built a third way.
+  const c = SAMPLE_PREVIEW_CONTACT;
   const sampleData: Record<string, string> = {
-    first_name: 'Alex',
-    last_name: 'Johnson',
-    company: 'Acme Inc',
-    email: 'alex@acme.com',
+    first_name: c.first_name,
+    last_name: c.last_name,
+    company: c.company,
+    email: c.email,
+    job_title: c.job_title,
     industry: 'SaaS',
-    sender_name: 'Jordan',
+    sender_name: (SAMPLE_PREVIEW_SENDER.name || '').split(' ')[0],
     value_proposition: 'streamline your outreach',
     pain_point: 'low reply rates',
     result_achieved: '3x their response rates',
     key_benefit: 'close deals faster',
-    reference_company: 'TechCorp',
+    reference_company: 'a company like yours',
     timeframe: '30 days',
-    mutual_connection: 'Sarah from StartupX',
+    mutual_connection: 'a mutual connection',
     topic: 'sales automation',
-    sender_company: 'Sincerely',
+    sender_company: SAMPLE_PREVIEW_SENDER.company || '',
   };
 
   const interpolate = (text: string) =>
@@ -77,21 +82,14 @@ function EmailPreview({ subject, bodyHtml, compact }: { subject: string; bodyHtm
     <div className={`rounded-lg border border-[var(--border-subtle)] bg-white overflow-hidden ${compact ? '' : 'shadow-lg'}`}>
       {/* Email chrome */}
       <div className="bg-[#f8f9fa] border-b border-[#e5e7eb] px-4 py-2.5">
-        <div className="flex items-center gap-2 mb-1.5">
-          <div className="flex gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
-            <div className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
-            <div className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
-          </div>
-        </div>
         <div className={`${compact ? 'text-micro' : 'text-body'} text-[#6b7280] space-y-0.5`}>
           <div className="flex items-center gap-2">
             <span className="font-medium text-[#374151] w-10">From:</span>
-            <span>{fromAddress || `${sampleData.sender_name.toLowerCase()}@yourcompany.com`}</span>
+            <span>{fromAddress || SAMPLE_PREVIEW_SENDER.email}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="font-medium text-[#374151] w-10">To:</span>
-            <span>{sampleData.first_name.toLowerCase()}@{sampleData.company.toLowerCase().replace(/\s/g, '')}.com</span>
+            <span>{sampleData.email}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="font-medium text-[#374151] w-10 shrink-0">Subj:</span>
